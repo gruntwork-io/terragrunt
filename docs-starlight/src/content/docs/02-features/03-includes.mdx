@@ -93,7 +93,7 @@ For example, the `app/terragrunt.hcl` files may be identical across all three en
 adjustment to the `instance_type` parameter for each environment. These identical settings don't belong in the root
 `terragrunt.hcl` configuration because they are only relevant to the `app` configurations, and not `mysql` or `vpc`.
 
-To solve this, you can use [multiple include blocks](/docs/reference/config-blocks-and-attributes#include).
+To solve this, you can use [multiple include blocks](/docs/reference/hcl/blocks#include).
 
 ## Using multiple includes
 

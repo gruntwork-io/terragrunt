@@ -23,5 +23,8 @@ Here are some of the tasks that need to be completed:
  - [ ] **User feedback collection**
  - [ ] **Broken link checking**
    - [x] **Automate broken link checking**
+   - [ ] **Fix broken links**
+     - [ ] **Fix broken links in CLI reference**
+     - [x] **Fix broken links in all other docs**
    - [ ] **Require link checking**
  - [ ] **Jekyll site banner indicating new site**

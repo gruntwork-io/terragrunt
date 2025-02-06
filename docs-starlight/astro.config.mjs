@@ -40,7 +40,7 @@ export default defineConfig({
 						{ label: 'Strict Controls', slug: 'docs/reference/strict-controls' },
 						{ label: 'Experiments', slug: 'docs/reference/experiments' },
 						{ label: 'Supported Versions', slug: 'docs/reference/supported-versions' },
-						{ label: 'Lock File Handling', slug: 'docs/reference/lock-file-handling' },
+						{ label: 'Lock Files', slug: 'docs/reference/lock-files' },
 						{ label: 'Terragrunt Cache', slug: 'docs/reference/terragrunt-cache' },
 					],
 				},
@@ -56,7 +56,13 @@ export default defineConfig({
 			// NOTE: We don't currently check links by default because the CLI
 			// Redesign isn't done yet. Once those pages are built out, we'll require
 			// links to be checked for all builds.
-			plugins: process.env.CHECK_LINKS ? [starlightLinksValidator()] : [],
+			plugins: process.env.CHECK_LINKS ? [starlightLinksValidator({
+				exclude: [
+					// Used in the docs for OpenTelemetry
+					'http://localhost:16686/',
+					'http://localhost:9090/',
+				],
+			})] : [],
 		}),
 	],
 });

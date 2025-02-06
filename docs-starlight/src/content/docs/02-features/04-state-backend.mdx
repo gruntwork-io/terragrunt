@@ -114,7 +114,7 @@ The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
 - `path_relative_to_include()`: This function returns the relative path between the unit and the path specified in its `include` block. We typically use this in a root `root.hcl` file so that each unit stores its OpenTofu/Terraform state at a different `key`. For example, the `mysql` unit will have its `key` parameter resolve to `mysql/tofu.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/tofu.tfstate`.
 
-Read [Built-in Functions docs](/docs/reference/built-in-functions/#built-in-functions) for more info.
+Read [Functions docs](/docs/reference/hcl/functions) for more info.
 
 ## Create remote state resources automatically
 
@@ -128,7 +128,7 @@ bucket? How do you create the S3 bucket, before you run `tofu`/`terraform`, if y
 bucket?
 
 To handle this, Terragrunt supports a different block for managing the backend configuration: the [remote_state
-block](/docs/reference/config-blocks-and-attributes/#remote_state).
+block](/docs/reference/hcl/blocks/#remote_state).
 
 > **NOTE**
 >

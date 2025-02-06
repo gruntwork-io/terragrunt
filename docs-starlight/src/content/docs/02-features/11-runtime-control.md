@@ -157,7 +157,7 @@ exclude {
 
 In this example, the `exclude` block will prevent the `apply` command from running in a given unit on Fridays, Saturdays, and Sundays, as all good DevOps engineers know that deploying that close to a weekend is a recipe for disaster.
 
-While a toy example, this demonstrates how you can use the `exclude` block to use dynamic information at runtime to control the [run queue](/docs/getting-started/terminology/#runner-queue).
+While a toy example, this demonstrates how you can use the `exclude` block to use dynamic information at runtime to control the [run queue](/docs/getting-started/terminology/#run-queue).
 
 You can use this block to prevent certain units from running in certain environments, or to prevent certain commands from running in certain units.
 
