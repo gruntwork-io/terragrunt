@@ -436,7 +436,7 @@ configuration.
 
 The most comprehensive approach to managing this is to use the [--queue-include-units-reading](https://terragrunt.gruntwork.io/docs/reference/cli-options/#queue-include-units-reading)
 flag. This flag will automatically add all units that read the file to the queue of units to be run. This includes
-both units that include the file, and units that read the file using something like `read_terragrunt_config` (make
+both units that include the file, and units that read the file using something like `read_terragrunt_config` (make sure
 to read the documentation on this so that you know the limitations of this flag).
 
 In the previous example, your CI/CD pipeline can run:
