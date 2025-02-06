@@ -820,6 +820,30 @@ Before executing the specified command, the `terragrunt stack run *` command wil
 the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
 
+#### output
+
+The `terragrunt stack output` command allows users to retrieve and interact with outputs from multiple units within a Terragrunt stack.
+This feature simplifies handling infrastructure outputs by consolidating them into a single view.
+
+Executing terragrunt stack output in a stack directory produces an aggregated output from all units within the stack:
+
+```bash
+$ terragrunt stack output
+service.output1 = "output1"
+service.output2 = "output2"
+db.output1 = "output1"
+db.output2 = "output2"
+```
+
+Terragrunt provides multiple output formats for easier parsing and integration with other tools. The desired format can be specified using the `--format` CLI flag.
+
+| Format    | Description                                                                                           |
+|-----------|-------------------------------------------------------------------------------------------------------|
+| `default` | Return outputs in HCL format.                                                                         |
+| `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.     |
+| `raw`     | Outputs key-value pairs in a compact, JSON-like format. Useful for quick inspection of stack outputs. |
+
+
 ## CLI options
 
 Terragrunt forwards all options to OpenTofu/Terraform. The only exceptions are `--version` and arguments that start with the
