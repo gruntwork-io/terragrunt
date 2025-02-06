@@ -7,6 +7,9 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'Terragrunt',
+			logo: {
+				src: '/src/assets/logo.svg',
+			},
 			social: {
 				github: 'https://github.com/gruntwork-io/terragrunt',
 				discord: 'https://discord.gg/SPu4Degs5f',
@@ -14,41 +17,41 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: 'Getting Started',
-					autogenerate: { directory: 'getting-started' },
+					autogenerate: { directory: '01-getting-started' },
 				},
 				{
 					label: 'Features',
-					autogenerate: { directory: 'features' },
+					autogenerate: { directory: '02-features', collapsed: true },
 				},
 				{
 					label: 'Community',
-					autogenerate: { directory: 'community' },
+					autogenerate: { directory: '03-community', collapsed: true },
 				},
 				{
 					label: 'Reference',
 					items: [
-						{
-							label: 'Configuration', slug: 'docs/reference/configuration',
-						},
+						{ label: 'Configuration', autogenerate: { directory: '04-reference/01-configuration', collapsed: true } },
 						{
 							label: 'CLI', collapsed: true, items: [
-								{ label: 'Commands', autogenerate: { directory: 'reference/cli/commands', collapsed: true } },
+								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/commands', collapsed: true } },
 							],
 						},
+						{ label: 'Strict Controls', slug: 'docs/reference/strict-controls' },
+						{ label: 'Experiments', slug: 'docs/reference/experiments' },
+						{ label: 'Supported Versions', slug: 'docs/reference/supported-versions' },
+						{ label: 'Lock File Handling', slug: 'docs/reference/lock-file-handling' },
+						{ label: 'Terragrunt Cache', slug: 'docs/reference/terragrunt-cache' },
 					],
 				},
 				{
 					label: 'Troubleshooting',
-					autogenerate: { directory: 'troubleshooting' },
+					autogenerate: { directory: '05-troubleshooting', collapsed: true },
 				},
 				{
 					label: 'Migrate',
-					autogenerate: { directory: 'migrate' },
+					autogenerate: { directory: '06-migrate', collapsed: true },
 				},
 			],
 		}),
 	],
-	redirects: {
-		'/getting-started': '/quick-start',
-	},
 });

@@ -13,13 +13,13 @@ mise install
 Afterwards, you'll want to install the dependencies for the project:
 
 ```bash
-pnpm i
+bun i
 ```
 
 You can now start the development server:
 
 ```bash
-pnpm dev
+bun dev
 ```
 
 ## WIP
