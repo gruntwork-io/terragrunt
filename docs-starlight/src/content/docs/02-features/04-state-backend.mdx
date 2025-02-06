@@ -10,7 +10,7 @@ import { FileTree } from '@astrojs/starlight/components';
 
 ## Motivation
 
-OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via a variety of [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
+OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via various of [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
 
 ```hcl
 # main.tf
@@ -104,7 +104,7 @@ include "root" {
 }
 ```
 
-The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `root.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the included file `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
+The `include` block tells Terragrunt to use an identical Terragrunt configuration from the `root.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the included file `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
 
 The next time you run `terragrunt`, it will automatically configure all the settings for the backend, if they aren’t configured already, by calling [tofu/terraform init](https://opentofu.org/docs/cli/commands/init/).
 
@@ -118,7 +118,7 @@ Read [Built-in Functions docs]({{site.baseurl}}/docs/reference/built-in-function
 
 ## Create remote state resources automatically
 
-The `generate` block is useful for allowing you to setup the remote state backend configuration automatically, but
+The `generate` block is useful for allowing you to set up the remote state backend configuration automatically, but
 this introduces a bootstrapping problem: how do you create and manage the underlying storage resources for the remote
 state? For example, when using the [s3 backend](https://opentofu.org/docs/language/settings/backends/s3/), OpenTofu/Terraform
 expects the S3 bucket to already exist for it to upload the state objects.
@@ -132,7 +132,7 @@ block](/docs/reference/config-blocks-and-attributes/#remote_state).
 
 > **NOTE**
 >
-> `remote_state` is an alternative way of managing the OpenTofu/Terraform backend compared to `generate`. You can not use both
+> `remote_state` is an alternative way of managing the OpenTofu/Terraform backend compared to `generate`. You cannot use both
 > methods at the same time to manage the remote state configuration. When implementing `remote_state`, be sure to remove
 > the corresponding `generate` block for managing the backend.
 
@@ -151,7 +151,7 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
   In addition, you can let terragrunt tag the bucket with custom tags that you specify in `remote_state.config.s3_bucket_tags`.
 
-- **DynamoDB table**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for locking](https://opentofu.org/docs/language/settings/backends/s3/#dynamodb-state-locking)) in `remote_state.config`, if that table doesn’t already exist, Terragrunt will create it automatically, with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, including a primary key called `LockID`.
+- **DynamoDB table**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and/or you specify a `dynamodb_table` (a [DynamoDB table used for locking](https://opentofu.org/docs/language/settings/backends/s3/#dynamodb-state-locking)) in `remote_state.config`, Terragrunt will create them automatically if they don't already exist. They will be created with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, and the DynamoDB table will use the primary key `LockID`.
 
   You may configure custom endpoint for the AWS DynamoDB API using `remote_state.config.dynamodb_endpoint`.
 
@@ -281,4 +281,4 @@ Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `e
 
 Managing your remote state like this is really valuable when you organize your units into a [stack](/docs/features/stacks).
 
-Reading about those concepts will help you understand how to organize your infrastructure such that different units stored in isolated state are able to interact with each other.
+Reading about those concepts will help you understand how to organize your infrastructure such that different units stored in isolated state can interact with each other.
