@@ -45,7 +45,7 @@ In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu pl
 - If an error occurs during the `tofu apply` command, Terragrunt will output `Error Hook executed`.
 
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
-block](/docs/reference/config-blocks-and-attributes/#terraform).
+block](/docs/reference/hcl/blocks#terraform).
 
 ## Hook Context
 
