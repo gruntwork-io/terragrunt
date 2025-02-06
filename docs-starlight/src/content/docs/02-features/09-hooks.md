@@ -232,10 +232,9 @@ to OpenTofu/Terraform.
 ## Tflint hook
 
 _Before Hooks_ or _After Hooks_ natively support _tflint_, a linter for OpenTofu/Terraform code. It will validate the
-OpenTofu/Terraform code used by Terragrunt, and it's inputs.
+OpenTofu/Terraform code used by Terragrunt, and its inputs.
 
 Here's an example:
-
 ```hcl
 # terragrunt.hcl
 
