@@ -65,8 +65,8 @@ func NewDeprecatedFlagName(deprecatedFlag, newFlag cli.Flag, newValue string) *D
 			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
-		ErrorFmt:       "`--%s` flag is no longer supported. Use `--%s` instead.",
-		WarningFmt:     "`--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.",
+		ErrorFmt:       "The `--%s` flag is no longer supported. Use `--%s` instead.",
+		WarningFmt:     "The `--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.",
 		deprecatedFlag: deprecatedFlag,
 		newFlag:        newFlag,
 	}

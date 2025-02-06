@@ -46,8 +46,8 @@ func NewDeprecatedEnvVar(deprecatedFlag, newFlag cli.Flag, newValue string) *Dep
 			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
-		ErrorFmt:   "`%s` env var is no longer supported. Use `%s` instead.",
-		WarningFmt: "`%s` env var is deprecated and will be removed in a future version. Use `%s` instead.",
+		ErrorFmt:   "The `%s` env var is no longer supported. Use `%s` instead.",
+		WarningFmt: "The `%s` env var is deprecated and will be removed in a future version. Use `%s` instead.",
 
 		deprecatedFlag: deprecatedFlag,
 		newFlag:        newFlag,

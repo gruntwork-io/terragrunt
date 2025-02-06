@@ -16,7 +16,7 @@ func NewDeprecatedCommand(command, newCommand string) *Control {
 	return &Control{
 		Name:        command,
 		Description: "replaced with: " + newCommand,
-		Error:       errors.Errorf("`%s` commands is no longer supported. Use `%s` instead.", command, newCommand),
-		Warning:     fmt.Sprintf("`%s` commands is deprecated and will be removed in a future version. Use `%s` instead.", command, newCommand),
+		Error:       errors.Errorf("The `%s` commands is no longer supported. Use `%s` instead.", command, newCommand),
+		Warning:     fmt.Sprintf("The `%s` commands is deprecated and will be removed in a future version. Use `%s` instead.", command, newCommand),
 	}
 }

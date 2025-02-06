@@ -28,7 +28,7 @@ func TestStrictMode(t *testing.T) {
 			name:           "plan-all",
 			controls:       []string{},
 			strictMode:     false,
-			expectedStderr: "`plan-all` commands is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.",
+			expectedStderr: "The `plan-all` commands is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.",
 			expectedError:  nil,
 		},
 		{
