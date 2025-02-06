@@ -10,7 +10,7 @@ Terragrunt has the ability to cache OpenTofu/Terraform providers across all Open
 
 ## Why caching is useful
 
-Let's imagine that your project consists of 50 Terragrunt units, and each of them uses the same `aws` provider. Without caching, each of them will download the provider from the Internet and stored in its own `.terraform` directory. For clarity, the downloadable archive `terraform-provider-aws_5.36.0_darwin_arm64.zip` has a size of ~100MB, and when unzipped it takes up ~450MB of disk space. It’s easy to calculate that initializing such a project with 50 modules will cost you 5GB of traffic and 22.5GB of free space instead of 100MB and 450MB using the cache.
+Let's imagine that your project consists of 50 Terragrunt units, and each of them uses the same `aws` provider. Without caching, each of them will download the provider from the Internet, and store it in its own `.terraform` directory. For clarity, the downloadable archive `terraform-provider-aws_5.36.0_darwin_arm64.zip` has a size of ~100MB, and when unzipped it takes up ~450MB of disk space. It’s easy to calculate that initializing such a project with 50 modules will cost you 5GB of traffic and 22.5GB of free space instead of 100MB and 450MB using the cache.
 
 ## Why OpenTofu/Terraform's built-in provider caching doesn't work
 
@@ -83,11 +83,11 @@ terragrunt apply
     - [TF*TOKEN*\*](https://opentofu.org/docs/cli/config/config-file/#environment-variable-credentials) sets per-remote-registry tokens for authentication to Terragrunt Provider Cache server.
 
 - Any time Terragrunt is going to run `init`:
-  - Call `terraform init`. This gets OpenTofu/Terraform to request all the providers it needs from the Terragrunt Provider Cache server.
+  - Call `tofu/terraform init`. This gets OpenTofu/Terraform to request all the providers it needs from the Terragrunt Provider Cache server.
   - The Terragrunt Provider Cache server will download the provider from the remote registry, unpack and store it into the cache directory or [create a symlink](#reusing-providers-from-the-user-plugins-directory) if the required provider exists in the user plugins directory. Note that the Terragrunt Provider Cache server will ensure that each unique provider is only ever downloaded and stored on disk once, handling concurrency (from multiple OpenTofu/Terraform and Terragrunt instances) correctly. Along with the provider, the cache server downloads hashes and signatures of the providers to check that the files are not corrupted.
-  - The Terragrunt Provider Cache server returns the HTTP status _429 Locked_ to OpenTofu/Terraform. This is because we do _not_ want OpenTofu/Terraform to actually download any providers as a result of calling `terraform init`; we only use that command to request the Terragrunt Provider Cache Server to start caching providers.
+  - The Terragrunt Provider Cache server returns the HTTP status _429 Locked_ to OpenTofu/Terraform. This is because we do _not_ want OpenTofu/Terraform to actually download any providers as a result of calling `tofu/terraform init`; we only use that command to request the Terragrunt Provider Cache Server to start caching providers.
   - At this point, all providers are downloaded and cached, so finally, we run `terragrunt init` a second time, which will find all the providers it needs in the cache, and it'll create symlinks to them nearly instantly, with no additional downloading.
-  - Note that if a OpenTofu/Terraform module doesn't have a lock file, OpenTofu/Terraform does _not_ use the cache, so it would end up downloading all the providers from scratch. To work around this, we generate `.terraform.lock.hcl` based on the request made by `terrafrom init` to the Terragrunt Provider Cache server. Since `terraform init` only requests the providers that need to be added/updated, we can keep track of them using the Terragrunt Provider Cache server and update the OpenTofu/Terraform lock file with the appropriate hashes without having to parse `tf` configs.
+  - Note that if a OpenTofu/Terraform module doesn't have a lock file, OpenTofu/Terraform does _not_ use the cache, so it would end up downloading all the providers from scratch. To work around this, we generate `.terraform.lock.hcl` based on the request made by `tofu/terraform init` to the Terragrunt Provider Cache server. Since `terraform init` only requests the providers that need to be added/updated, we can keep track of them using the Terragrunt Provider Cache server and update the OpenTofu/Terraform lock file with the appropriate hashes without having to parse `tf` configs.
 
 ### Reusing providers from the user plugins directory
 
