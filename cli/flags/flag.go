@@ -2,6 +2,7 @@
 package flags
 
 import (
+	"context"
 	"flag"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -16,9 +17,9 @@ type Flag struct {
 }
 
 // NewFlag returns a new Flag instance.
-func NewFlag(main cli.Flag, opts ...Option) *Flag {
+func NewFlag(new cli.Flag, opts ...Option) *Flag {
 	flag := &Flag{
-		Flag: main,
+		Flag: new,
 	}
 
 	for _, opt := range opts {
@@ -28,37 +29,41 @@ func NewFlag(main cli.Flag, opts ...Option) *Flag {
 	return flag
 }
 
+func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn RegisterStrictControlsFunc) *Flag {
+	return NewFlag(nil, WithDeprecatedMovedFlag(deprecatedFlag, newCommandName, regControlsFn))
+}
+
 // TakesValue implements `cli.Flag` interface.
-func (main *Flag) TakesValue() bool {
-	if main.Flag.Value() == nil {
+func (new *Flag) TakesValue() bool {
+	if new.Flag.Value() == nil {
 		return false
 	}
 
-	val, ok := main.Flag.Value().Get().(bool)
+	val, ok := new.Flag.Value().Get().(bool)
 
 	return !ok || !val
 }
 
 // Value implements `cli.Flag` interface.
-func (main *Flag) Value() cli.FlagValue {
-	for _, deprecatedFlag := range main.deprecatedFlags {
+func (new *Flag) Value() cli.FlagValue {
+	for _, deprecatedFlag := range new.deprecatedFlags {
 		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue.IsSet() && deprecatedFlag.newValueFn != nil {
 			newValue := deprecatedFlag.newValueFn(deprecatedFlagValue)
-			main.Flag.Value().Set(newValue) //nolint:errcheck
+			new.Flag.Value().Set(newValue) //nolint:errcheck
 		}
 	}
 
-	return main.Flag.Value()
+	return new.Flag.Value()
 }
 
 // Apply implements `cli.Flag` interface.
-func (main *Flag) Apply(set *flag.FlagSet) error {
-	if err := main.Flag.Apply(set); err != nil {
+func (new *Flag) Apply(set *flag.FlagSet) error {
+	if err := new.Flag.Apply(set); err != nil {
 		return err
 	}
 
-	for _, deprecated := range main.deprecatedFlags {
-		if deprecated.Flag == main.Flag {
+	for _, deprecated := range new.deprecatedFlags {
+		if deprecated.Flag == new.Flag {
 			if err := cli.ApplyFlag(deprecated, set); err != nil {
 				return err
 			}
@@ -75,13 +80,13 @@ func (main *Flag) Apply(set *flag.FlagSet) error {
 }
 
 // RunAction implements `cli.Flag` interface.
-func (main *Flag) RunAction(ctx *cli.Context) error {
-	for _, deprecated := range main.deprecatedFlags {
-		if err := deprecated.controls.Evaluate(ctx); err != nil {
+func (new *Flag) RunAction(ctx *cli.Context) error {
+	for _, deprecated := range new.deprecatedFlags {
+		if err := deprecated.Evaluate(ctx); err != nil {
 			return err
 		}
 
-		if deprecated.Flag == nil || deprecated.Flag == main.Flag || !deprecated.Value().IsSet() {
+		if deprecated.Flag == nil || deprecated.Flag == new.Flag || !deprecated.Value().IsSet() {
 			continue
 		}
 
@@ -90,5 +95,13 @@ func (main *Flag) RunAction(ctx *cli.Context) error {
 		}
 	}
 
-	return main.Flag.RunAction(ctx)
+	if deprecated, ok := new.Flag.(interface {
+		Evaluate(ctx context.Context) error
+	}); ok {
+		if err := deprecated.Evaluate(ctx); err != nil {
+			return err
+		}
+	}
+
+	return new.Flag.RunAction(ctx)
 }

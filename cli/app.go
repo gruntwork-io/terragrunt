@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
@@ -74,7 +74,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
-	app.Flags = global.NewFlags(opts, nil)
+	app.Flags = GlobalFlags(opts)
 	app.Commands = TerragruntCommands(opts).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
@@ -142,6 +142,40 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	return nil
 }
 
+// GlobalFlags returns global flags. For backward compatibility, the slice contains flags that have been moved to other commands and are hidden from the CLI help,
+func GlobalFlags(opts *options.TerragruntOptions) cli.Flags {
+	globaFlags := global.NewFlags(opts, nil)
+
+	commands := cli.Commands{
+		runCmd.NewCommand(opts),             // run
+		runall.NewCommand(opts),             // runAction-all
+		terragruntinfo.NewCommand(opts),     // terragrunt-info
+		validateinputs.NewCommand(opts),     // validate-inputs
+		graphdependencies.NewCommand(opts),  // graph-dependencies
+		renderjson.NewCommand(opts),         // render-json
+		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
+		outputmodulegroups.NewCommand(opts), // output-module-groups
+		graph.NewCommand(opts),              // graph
+	}
+
+	var knownFlags []string
+
+	for _, cmd := range commands {
+		for _, flag := range cmd.Flags {
+			flagName := util.FirstElement(util.RemoveEmptyElements(flag.Names()))
+
+			if slices.Contains(knownFlags, flagName) {
+				continue
+			}
+
+			knownFlags = append(knownFlags, flagName)
+			globaFlags = append(globaFlags, flags.NewMovedFlag(flag, cmd.Name, flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name)))
+		}
+	}
+
+	return globaFlags
+}
+
 // removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.
 // We have to do this because `--terragrunt-no-color` is a deprecated alias for `--no-color`,
 // therefore we end up specifying the same flag twice, which causes the `setting the flag multiple times` error.
@@ -169,6 +203,7 @@ func removeNoColorFlagDuplicates(args []string) []string {
 // TerragruntCommands returns the set of Terragrunt commands.
 func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
+		runCmd.NewCommand(opts),             // run
 		runall.NewCommand(opts),             // runAction-all
 		terragruntinfo.NewCommand(opts),     // terragrunt-info
 		validateinputs.NewCommand(opts),     // validate-inputs
@@ -183,15 +218,12 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		graph.NewCommand(opts),              // graph
 		hclvalidate.NewCommand(opts),        // hclvalidate
 		execCmd.NewCommand(opts),            // exec
-		runCmd.NewCommand(opts),             // run
 		helpCmd.NewCommand(opts),            // help
 		versionCmd.NewCommand(opts),         // version
 		info.NewCommand(opts),               // info
 	}
 	cmds = append(cmds, commands.NewShortcutsCommands(opts)...)
 	cmds = append(cmds, commands.NewDeprecatedCommands(opts)...)
-
-	sort.Sort(cmds)
 
 	return cmds
 }

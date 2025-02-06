@@ -9,14 +9,6 @@ import (
 )
 
 const (
-	LegacyRunAll = "run-all-commands"
-
-	LegacyLogs = "legacy-logs"
-
-	CLIRedesign = "cli-redesign"
-
-	DeprecatedDefaultCommand = "deprecated-default-command"
-
 	// DeprecatedCommands is the control that prevents the use of deprecated commands.
 	DeprecatedCommands = "deprecated-commands"
 
@@ -25,6 +17,25 @@ const (
 
 	// DeprecatedEnvVars is the control that prevents the use of deprecated env vars.
 	DeprecatedEnvVars = "deprecated-env-vars"
+
+	// DeprecatedConfigs is the control that prevents the use of deprecated config fields/section/..., anything related to config syntax.
+	DeprecatedConfigs = "deprecated-configs"
+
+	// LegacyAll is a control group for the legacy *-all commands.
+	LegacyAll = "legacy-all"
+
+	// LegacyLogs is a control group for legacy log flags that were in use before the log was redesign.
+	LegacyLogs = "legacy-logs"
+
+	// TerragruntPrefixFlags is a control group for flags that used to have the `terragrunt-` prefix.
+	TerragruntPrefixFlags = "terragrunt-prefix-flags"
+
+	// TerragruntPrefixEnvVars is a control group for env vars that used to have the `TERRAGRUNT_` prefix.
+	TerragruntPrefixEnvVars = "terragrunt-prefix-env-vars"
+
+	// DefaultCommands is a control group for TF commands that were used as default commands,
+	// namely without using the parent `run` commands and were not shortcuts commands.
+	DefaultCommands = "default-commands"
 
 	// RootTerragruntHCL is the control that prevents usage of a `terragrunt.hcl` file as the root of Terragrunt configurations.
 	RootTerragruntHCL = "root-terragrunt-hcl"
@@ -35,44 +46,64 @@ const (
 
 //nolint:lll
 func New() strict.Controls {
-	lifetimeCategory := &strict.Category{
-		Name:            "Lifetime controls",
-		AllowedStatuses: strict.Statuses{strict.ActiveStatus},
+	lifecycleCategory := &strict.Category{
+		Name: "Lifecycle controls",
 	}
 	stageCategory := &strict.Category{
-		Name:            "Stage controls",
-		ShowStatus:      true,
-		AllowedStatuses: strict.Statuses{strict.ActiveStatus, strict.CompletedStatus},
+		Name: "Stage controls",
+	}
+
+	skipDependenciesInputsControl := &Control{
+		// TODO: `ErrorFmt` and `WarnFmt` of this control are not displayed anywhere and needs to be reworked.
+		Name:        SkipDependenciesInputs,
+		Description: "Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
+		Error:       errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
+		Warning:     fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
+		Category:    stageCategory,
 	}
 
 	controls := strict.Controls{
 		&Control{
 			Name:        DeprecatedCommands,
 			Description: "Prevents deprecated commands from being used.",
-			Category:    lifetimeCategory,
+			Category:    lifecycleCategory,
 		},
 		&Control{
 			Name:        DeprecatedFlags,
 			Description: "Prevents deprecated flags from being used.",
-			Category:    lifetimeCategory,
+			Category:    lifecycleCategory,
 		},
 		&Control{
 			Name:        DeprecatedEnvVars,
 			Description: "Prevents deprecated env vars from being used.",
-			Category:    lifetimeCategory,
+			Category:    lifecycleCategory,
 		},
 		&Control{
-			Name:        LegacyRunAll,
+			Name:        DeprecatedConfigs,
+			Description: "Prevents deprecated config syntax from being used.",
+			Category:    lifecycleCategory,
+			Subcontrols: strict.Controls{
+				skipDependenciesInputsControl,
+			},
+		},
+		skipDependenciesInputsControl,
+		&Control{
+			Name:        LegacyAll,
 			Description: "Prevents old *-all commands such as plan-all from being used.",
 			Category:    stageCategory,
 		},
 		&Control{
-			Name:        CLIRedesign,
-			Description: "Prevents old design CLI flags/commands from being used.",
+			Name:        TerragruntPrefixFlags,
+			Description: "Prevents deprecated flags with `terragrunt-` prefixes from being used.",
 			Category:    stageCategory,
 		},
 		&Control{
-			Name:        DeprecatedDefaultCommand,
+			Name:        TerragruntPrefixEnvVars,
+			Description: "Prevents deprecated env vars with `TERRAGRUNT_` prefixes from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        DefaultCommands,
 			Description: "Prevents default commands from being used.",
 			Category:    stageCategory,
 		},
@@ -89,14 +120,41 @@ func New() strict.Controls {
 			Category:    stageCategory,
 		},
 		&Control{
-			// TODO: `ErrorFmt` and `WarnFmt` of this control are not displayed anywhere and needs to be reworked.
-			Name:        SkipDependenciesInputs,
-			Description: "Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
-			Error:       errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
-			Warning:     fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
+			Name:        "spin-up",
+			Description: "Prevents the deprecated spin-up command from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        "tear-down",
+			Description: "Prevents the deprecated tear-down command from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        "plan-all",
+			Description: "Prevents the deprecated plan-all command from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        "apply-all",
+			Description: "Prevents the deprecated apply-all command from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        "destroy-all",
+			Description: "Prevents the deprecated destroy-all command from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        "output-all",
+			Description: "Prevents the deprecated output-all command from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        "validate-all",
+			Description: "Prevents the deprecated validate-all command from being used.",
 			Category:    stageCategory,
 		},
 	}
 
-	return append(controls, NewSuspendedControls()...).Sort()
+	return controls.Sort()
 }

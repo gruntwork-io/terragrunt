@@ -14,7 +14,6 @@ import (
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -29,7 +28,7 @@ const (
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
+	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
@@ -38,7 +37,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		},
-			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedGraphRootFlagName), cliRedesignControl)),
+			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedGraphRootFlagName), terragruntPrefixControl)),
 	}
 }
 

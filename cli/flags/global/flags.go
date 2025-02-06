@@ -70,8 +70,8 @@ const (
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	cliRedesignControl := flags.StrictControls(opts.StrictControls, controls.CLIRedesign)
-	legacyLogsControl := flags.StrictControls(opts.StrictControls, controls.LegacyLogs)
+	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
+	legacyLogsControl := flags.StrictControlsByGlobalFlags(opts.StrictControls, controls.LegacyLogs)
 
 	flags := cli.Flags{
 		NewLogLevelFlag(opts, prefix),
@@ -82,7 +82,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.WorkingDir,
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedWorkingDirFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedWorkingDirFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:    LogDisableFlagName,
@@ -94,7 +94,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogDisableFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogDisableFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ShowLogAbsPathsFlagName,
@@ -102,7 +102,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.LogShowAbsPaths,
 			Usage:       "Show absolute paths in logs.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedShowLogAbsPathsFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedShowLogAbsPathsFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:    NoColorFlagName,
@@ -113,7 +113,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoColorFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoColorFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:    LogFormatFlagName,
@@ -131,7 +131,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogFormatFlagName), cliRedesignControl),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogFormatFlagName), terragruntPrefixControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				Name:        terragruntPrefix.FlagName(DeprecatedDisableLogFormattingFlagName),
 				EnvVars:     terragruntPrefix.EnvVars(DeprecatedDisableLogFormattingFlagName),
@@ -156,7 +156,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:   "Set the custom log formatting.",
 			Setter:  opts.Logger.Formatter().SetCustomFormat,
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogCustomFormatFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogCustomFormatFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NonInteractiveFlagName,
@@ -164,7 +164,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.NonInteractive,
 			Usage:       `Assume "yes" for all prompts.`,
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNonInteractiveFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNonInteractiveFlagName), terragruntPrefixControl)),
 
 		// Experiment Mode flags.
 
@@ -178,7 +178,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedExperimentModeFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedExperimentModeFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:    ExperimentFlagName,
@@ -191,7 +191,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedExperimentFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedExperimentFlagName), terragruntPrefixControl)),
 
 		// Strict Mode flags.
 
@@ -210,7 +210,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictModeFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictModeFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:    StrictControlFlagName,
@@ -225,7 +225,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictControlFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictControlFlagName), terragruntPrefixControl)),
 	}
 
 	flags = flags.Sort()
@@ -237,7 +237,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
-	cliRedesignControl := flags.StrictControls(opts.StrictControls, controls.CLIRedesign)
+	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
 	return flags.NewFlag(&cli.GenericFlag[string]{
 		Name:        LogLevelFlagName,
@@ -260,7 +260,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) cli.F
 
 			return nil
 		},
-	}, flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogLevelFlagName), cliRedesignControl))
+	}, flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogLevelFlagName), terragruntPrefixControl))
 }
 
 func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {

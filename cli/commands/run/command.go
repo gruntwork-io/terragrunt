@@ -51,10 +51,11 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 		usage, visible := tf.CommandUsages[name]
 
 		subcommands[i] = &cli.Command{
-			Name:       name,
-			Usage:      usage,
-			Hidden:     !visible,
-			CustomHelp: ShowTFHelp(opts),
+			Name:                 name,
+			Usage:                usage,
+			Hidden:               !visible,
+			CustomHelp:           ShowTFHelp(opts),
+			ErrorOnUndefinedFlag: true,
 			Action: func(ctx *cli.Context) error {
 				return Action(opts)(ctx)
 			},

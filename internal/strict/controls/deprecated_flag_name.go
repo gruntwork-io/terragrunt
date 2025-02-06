@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	GlobalFlagsCategoryName     = "Global flags"
-	CommandFlagsCategoryNameFmt = "`%s` command flags"
+	MovedGlobalFlagsCategoryNameFmt = "Moved global flags to `%s` command"
+	GlobalFlagsCategoryName         = "Global flags"
+	CommandFlagsCategoryNameFmt     = "`%s` command flags"
 )
 
 var _ = strict.Control(new(DeprecatedFlagName))
@@ -24,17 +25,35 @@ type DeprecatedFlagName struct {
 	ErrorFmt   string
 	WarningFmt string
 
-	depreacedFlag cli.Flag
-	newFlag       cli.Flag
+	deprecatedFlag cli.Flag
+	newFlag        cli.Flag
+}
+
+func NewDeprecatedMovedFlagName(deprecatedFlag, newFlag cli.Flag, commandName string) *DeprecatedFlagName {
+	var (
+		deprecatedName = util.FirstElement(util.RemoveEmptyElements(deprecatedFlag.Names()))
+		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.Names()))
+	)
+
+	return &DeprecatedFlagName{
+		Control: &Control{
+			Name:        deprecatedName,
+			Description: "replaced with: " + newName,
+		},
+		ErrorFmt:       "`--%s` global flag is no longer supported. Use `--%s` instead.",
+		WarningFmt:     "`--%s` global flag is moved to `" + commandName + "` command and will be removed from the global flags in a future version. Use `--%s` instead.",
+		deprecatedFlag: deprecatedFlag,
+		newFlag:        newFlag,
+	}
 }
 
 // NewDeprecatedFlagName returns a new `DeprecatedFlagName` instance.
 // Since we don't know which names can be used at the time of definition,
 // we take the first name from the list `Names()` for the name and description to display it in `info strict`.
-func NewDeprecatedFlagName(depreacedFlag, newFlag cli.Flag, newValue string) *DeprecatedFlagName {
+func NewDeprecatedFlagName(deprecatedFlag, newFlag cli.Flag, newValue string) *DeprecatedFlagName {
 	var (
-		depreacedName = util.FirstElement(util.RemoveEmptyElements(depreacedFlag.Names()))
-		newName       = util.FirstElement(util.RemoveEmptyElements(newFlag.Names()))
+		deprecatedName = util.FirstElement(util.RemoveEmptyElements(deprecatedFlag.Names()))
+		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.Names()))
 	)
 
 	if newValue != "" {
@@ -43,24 +62,24 @@ func NewDeprecatedFlagName(depreacedFlag, newFlag cli.Flag, newValue string) *De
 
 	return &DeprecatedFlagName{
 		Control: &Control{
-			Name:        depreacedName,
+			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
-		ErrorFmt:      "`--%s` flag is no longer supported. Use `--%s` instead.",
-		WarningFmt:    "`--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.",
-		depreacedFlag: depreacedFlag,
-		newFlag:       newFlag,
+		ErrorFmt:       "`--%s` flag is no longer supported. Use `--%s` instead.",
+		WarningFmt:     "`--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.",
+		deprecatedFlag: deprecatedFlag,
+		newFlag:        newFlag,
 	}
 }
 
 // Evaluate implements `strict.Control` interface.
 func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 	var (
-		valueName = ctrl.depreacedFlag.Value().GetName()
+		valueName = ctrl.deprecatedFlag.Value().GetName()
 		flagName  string
 	)
 
-	if valueName == "" || !ctrl.depreacedFlag.Value().IsArgSet() || slices.Contains(ctrl.newFlag.Names(), valueName) {
+	if valueName == "" || !ctrl.deprecatedFlag.Value().IsArgSet() || slices.Contains(ctrl.newFlag.Names(), valueName) {
 		return nil
 	}
 
@@ -71,7 +90,7 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 			value := ctrl.newFlag.Value().String()
 
 			if value == "" {
-				value = ctrl.depreacedFlag.Value().String()
+				value = ctrl.deprecatedFlag.Value().String()
 			}
 
 			flagName += "=" + value

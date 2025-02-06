@@ -84,15 +84,24 @@ func (ctrls Controls) FilterByStatus(statuses ...Status) Controls {
 
 // RemoveDuplicates removes controls with duplicate names.
 func (ctrls Controls) RemoveDuplicates() Controls {
-	var filtered Controls
+	var unique Controls
 
 	for _, ctrl := range ctrls {
-		if !slices.Contains(filtered.Names(), ctrl.GetName()) {
-			filtered = append(filtered, ctrl)
+		skip := false
+
+		for _, uniqueCtrl := range unique {
+			if uniqueCtrl.GetName() == ctrl.GetName() && uniqueCtrl.GetCategory().Name == ctrl.GetCategory().Name {
+				skip = true
+				break
+			}
+		}
+
+		if !skip {
+			unique = append(unique, ctrl)
 		}
 	}
 
-	return filtered
+	return unique
 }
 
 // FilterByEnabled filters `ctrls` by `Enabled: true` field.
@@ -164,13 +173,11 @@ func (ctrls Controls) Enable() {
 
 // EnableControl validates that the specified control name is valid and enables `ctrl`.
 func (ctrls Controls) EnableControl(name string) error {
-	for _, ctrl := range ctrls {
-		if ctrl.GetName() == name {
-			ctrl.Enable()
-			ctrl.GetSubcontrols().Enable()
+	if ctrl := ctrls.Find(name); ctrl != nil {
+		ctrl.Enable()
+		ctrl.GetSubcontrols().Enable()
 
-			return nil
-		}
+		return nil
 	}
 
 	return NewInvalidControlNameError(ctrls.FilterByStatus(ActiveStatus).Names())

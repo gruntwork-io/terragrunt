@@ -20,7 +20,9 @@ func NewRender() *Render {
 
 // List implements view.Render interface.
 func (render *Render) List(controls strict.Controls) (string, error) {
-	return render.executeTemplate(listTemplate, controls, nil)
+	return render.executeTemplate(listTemplate, map[string]any{
+		"controls": controls,
+	}, nil)
 }
 
 // DetailControl implements view.Render interface.

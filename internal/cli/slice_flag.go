@@ -76,10 +76,12 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	valueType := FlagVariable[T](new(genericVar[T]))
 	value := newSliceValue(valueType, flag.EnvVarSep, flag.Destination, flag.Setter)
 
-	flag.FlagValue = &flagValue{
-		multipleSet:      true,
-		value:            value,
-		initialTextValue: value.String(),
+	if flag.FlagValue == nil {
+		flag.FlagValue = &flagValue{
+			multipleSet:      true,
+			value:            value,
+			initialTextValue: value.String(),
+		}
 	}
 
 	return ApplyFlag(flag, set)

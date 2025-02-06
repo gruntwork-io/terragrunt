@@ -1,9 +1,9 @@
 package plaintext
 
-const controlTemplate = `{{ .Name }}{{ "\t" }}{{ if or (not .Category) .Category.ShowStatus }}{{ .Status }}{{ "\t" }}{{ end }}{{ if .Description }}{{ .Description }}{{ else }}{{ .Warning }}{{ end }}`
+const controlTemplate = `{{ .Name }}{{ "\t" }}{{ .Status.StringWithANSIColor }}{{ "\t" }}{{ if .Description }}{{ .Description }}{{ else }}{{ .Warning }}{{ end }}`
 
-const rangeControlsTemplate = `{{ range $index, $control := .Sort }}{{ if or (not .Category) (not $control.Category.AllowedStatuses) ($control.Category.AllowedStatuses.Contains $control.Status) }}{{ if $index }}
-   {{ end }}{{ template "controlTemplate" $control }}{{ end }}{{ end }}`
+const rangeControlsTemplate = `{{ range $index, $control := .Sort }}{{ if $index }}
+   {{ end }}{{ template "controlTemplate" $control }}{{ end }}`
 
 const subcontrolTemplate = `{{ .Name }}{{ "\t" }}{{ if .Description }}{{ .Description }}{{ else }}{{ .Warning }}{{ end }}`
 
@@ -11,7 +11,7 @@ const rangeSubcontrolsTemplate = `{{ range $index, $control := .Sort }}{{ if $in
    {{ end }}{{ template "subcontrolTemplate" $control }}{{ end }}`
 
 const listTemplate = `
-   {{ $controls := . }}{{ $categories := $controls.GetCategories.Sort }}{{ range $index, $category := $categories }}{{ if $index }}
+   {{ $controls := .controls }}{{ $categories := $controls.GetCategories.FilterNotHidden.Sort }}{{ range $index, $category := $categories }}{{ if $index }}
    {{ end }}{{ $category.Name }}:
    {{ $categoryControls := $controls.FilterByCategories $category }}{{ template "rangeControlsTemplate" $categoryControls }}
    {{ end }}{{ $noCategoryControls := $controls.FilterByCategories }}{{ if $noCategoryControls }}
@@ -19,7 +19,7 @@ const listTemplate = `
    {{ end }}
 `
 const detailControlTemplate = `
-   {{ $controls := .control.GetSubcontrols.RemoveDuplicates }}{{ $categories := $controls.GetCategories.Sort }}{{ range $index, $category := $categories }}{{ if $index }}
+   {{ $controls := .control.GetSubcontrols.RemoveDuplicates }}{{ $categories := $controls.GetCategories.FilterNotHidden.Sort }}{{ range $index, $category := $categories }}{{ if $index }}
    {{ end }}{{ $category.Name }}:
    {{ $categoryControls := $controls.FilterByCategories $category }}{{ template "rangeSubcontrolsTemplate" $categoryControls }}
    {{ end }}{{ $noCategoryControls := $controls.FilterByCategories }}{{ if and $categories $noCategoryControls }}

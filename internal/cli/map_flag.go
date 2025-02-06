@@ -95,10 +95,12 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 
 	value := newMapValue(keyType, valType, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination, flag.Setter)
 
-	flag.FlagValue = &flagValue{
-		multipleSet:      true,
-		value:            value,
-		initialTextValue: value.String(),
+	if flag.FlagValue == nil {
+		flag.FlagValue = &flagValue{
+			multipleSet:      true,
+			value:            value,
+			initialTextValue: value.String(),
+		}
 	}
 
 	return ApplyFlag(flag, set)

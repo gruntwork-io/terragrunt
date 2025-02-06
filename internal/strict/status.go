@@ -37,3 +37,17 @@ func (status Status) String() string {
 
 	return "unknown"
 }
+
+// StringWithANSIColor returns a colored text representation of the status.
+func (status Status) StringWithANSIColor() string {
+	str := status.String()
+
+	switch status {
+	case ActiveStatus:
+		return "\033[0;32m" + str + "\033[0m"
+	case CompletedStatus, SuspendedStatus:
+		return "\033[0;33m" + str + "\033[0m"
+	}
+
+	return str
+}

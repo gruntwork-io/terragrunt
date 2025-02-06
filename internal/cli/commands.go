@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"sort"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -94,4 +96,10 @@ func (commands Commands) WrapAction(fn func(ctx *Context, action ActionFunc) err
 	}
 
 	return wrapped
+}
+
+func (commands Commands) Sort() Commands {
+	sort.Sort(commands)
+
+	return commands
 }

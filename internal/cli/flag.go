@@ -71,12 +71,21 @@ type Flag interface {
 	// `urfave/cli/v2` uses to generate help
 	cli.DocGenerationFlag
 
+	// Value returns the `FlagValue` interface for interacting with the flag value.
 	Value() FlagValue
 
+	// GetHidden returns true if the flag is hidden.
 	GetHidden() bool
-	RunAction(*Context) error
 
+	// RunAction runs the flag action.
+	RunAction(ctx *Context) error
+
+	// LookupEnv gets and splits the environment variable depending on the flag type: common, map, slice.
 	LookupEnv(envVar string) []string
+
+	// AllowedSubcommandScope returns true if the flag is allowed to be specified in subcommands,
+	// and not only after the command it belongs to.
+	AllowedSubcommandScope() bool
 }
 
 type LookupEnvFuncType func(key string) []string
@@ -223,6 +232,11 @@ func (flag *flag) GetCategory() string {
 	return ""
 }
 
+// AllowedSubcommandScope implements `cli.Flag` interface.
+func (flag *flag) AllowedSubcommandScope() bool {
+	return true
+}
+
 func (flag *flag) SplitValue(val string) []string {
 	return []string{val}
 }
@@ -230,7 +244,7 @@ func (flag *flag) SplitValue(val string) []string {
 func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
 	for _, name := range flag.GetEnvVars() {
 		for _, val := range flag.LookupEnv(name) {
-			if val == "" {
+			if val == "" || flag.Value().IsEnvSet() {
 				continue
 			}
 

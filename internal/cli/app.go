@@ -156,7 +156,7 @@ func (app *App) VisibleCommands() []*cli.Command {
 		return nil
 	}
 
-	return app.Commands.VisibleCommands()
+	return app.Commands.Sort().VisibleCommands()
 }
 
 func (app *App) newRootCommand() *Command {

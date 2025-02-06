@@ -1,4 +1,3 @@
-// Package defaultcmd represents the default CLI command.
 package commands
 
 import (
@@ -35,7 +34,7 @@ func NewShortcutsCommands(opts *options.TerragruntOptions) cli.Commands {
 	var (
 		runCmd       = run.NewCommand(opts)
 		cmds         = make(cli.Commands, len(runCmd.Subcommands))
-		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.DeprecatedDefaultCommand)
+		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.DefaultCommands)
 	)
 
 	for i, runSubCmd := range runCmd.Subcommands {

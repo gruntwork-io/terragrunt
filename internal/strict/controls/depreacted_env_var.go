@@ -24,17 +24,17 @@ type DeprecatedEnvVar struct {
 	ErrorFmt   string
 	WarningFmt string
 
-	depreacedFlag cli.Flag
-	newFlag       cli.Flag
+	deprecatedFlag cli.Flag
+	newFlag        cli.Flag
 }
 
 // NewDeprecatedEnvVar returns a new `DeprecatedEnvVar` instance.
 // Since we don't know which env vars can be used at the time of definition,
 // we take the first env var from the list `GetEnvVars()` for the name and description to display it in `info strict`.
-func NewDeprecatedEnvVar(depreacedFlag, newFlag cli.Flag, newValue string) *DeprecatedEnvVar {
+func NewDeprecatedEnvVar(deprecatedFlag, newFlag cli.Flag, newValue string) *DeprecatedEnvVar {
 	var (
-		depreacedName = util.FirstElement(util.RemoveEmptyElements(depreacedFlag.GetEnvVars()))
-		newName       = util.FirstElement(util.RemoveEmptyElements(newFlag.GetEnvVars()))
+		deprecatedName = util.FirstElement(util.RemoveEmptyElements(deprecatedFlag.GetEnvVars()))
+		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.GetEnvVars()))
 	)
 
 	if newValue != "" {
@@ -43,25 +43,25 @@ func NewDeprecatedEnvVar(depreacedFlag, newFlag cli.Flag, newValue string) *Depr
 
 	return &DeprecatedEnvVar{
 		Control: &Control{
-			Name:        depreacedName,
+			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
 		ErrorFmt:   "`%s` env var is no longer supported. Use `%s` instead.",
 		WarningFmt: "`%s` env var is deprecated and will be removed in a future version. Use `%s` instead.",
 
-		depreacedFlag: depreacedFlag,
-		newFlag:       newFlag,
+		deprecatedFlag: deprecatedFlag,
+		newFlag:        newFlag,
 	}
 }
 
 // Evaluate implements `strict.Control` interface.
 func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 	var (
-		valueName = ctrl.depreacedFlag.Value().GetName()
+		valueName = ctrl.deprecatedFlag.Value().GetName()
 		envName   string
 	)
 
-	if valueName == "" || !ctrl.depreacedFlag.Value().IsEnvSet() || slices.Contains(ctrl.newFlag.GetEnvVars(), valueName) {
+	if valueName == "" || !ctrl.deprecatedFlag.Value().IsEnvSet() || slices.Contains(ctrl.newFlag.GetEnvVars(), valueName) {
 		return nil
 	}
 
@@ -71,7 +71,7 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 		value := ctrl.newFlag.Value().String()
 
 		if value == "" {
-			value = ctrl.depreacedFlag.Value().String()
+			value = ctrl.deprecatedFlag.Value().String()
 		}
 
 		envName += "=" + value

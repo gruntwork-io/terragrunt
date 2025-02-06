@@ -2,12 +2,24 @@ package cli
 
 import (
 	libflag "flag"
+	"io"
 	"sort"
 
 	"github.com/gruntwork-io/go-commons/collections"
 )
 
 type Flags []Flag
+
+func (flags Flags) NewFlagSet(cmdName string) (*libflag.FlagSet, error) {
+	flagSet := libflag.NewFlagSet(cmdName, libflag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+
+	if err := flags.Apply(flagSet); err != nil {
+		return nil, err
+	}
+
+	return flagSet, nil
+}
 
 func (flags Flags) Apply(flagSet *libflag.FlagSet) error {
 	for _, flag := range flags {
@@ -98,4 +110,26 @@ func (flags Flags) Sort() Flags {
 	sort.Sort(flags)
 
 	return flags
+}
+
+func (flags Flags) WithSubcommandScope() Flags {
+	var filtered Flags
+
+	for _, flag := range flags {
+		if flag.AllowedSubcommandScope() {
+			filtered = append(filtered, flag)
+		}
+	}
+
+	return filtered
+}
+
+func (flags Flags) Names() []string {
+	var names []string
+
+	for _, flag := range flags {
+		names = append(names, flag.Names()...)
+	}
+
+	return names
 }

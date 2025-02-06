@@ -33,7 +33,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -48,7 +47,7 @@ const (
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
+	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.MapFlag[string, string]{
@@ -57,7 +56,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.AwsProviderPatchOverrides,
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
 		},
-			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedOverrideAttrFlagName), cliRedesignControl)),
+			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedOverrideAttrFlagName), terragruntPrefixControl)),
 	}
 }
 

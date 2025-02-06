@@ -1,6 +1,7 @@
 package flags
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -16,10 +17,22 @@ type DeprecatedFlags []*DeprecatedFlag
 // DeprecatedFlag represents a deprecated flag that is not shown in the CLI help, but its names, envVars, are registered.
 type DeprecatedFlag struct {
 	cli.Flag
-	names      []string
-	envVars    []string
-	controls   strict.Controls
-	newValueFn NewValueFunc
+	controls strict.Controls
+
+	allowedSubcommandScope bool
+	names                  []string
+	envVars                []string
+	newValueFn             NewValueFunc
+}
+
+// GetHidden implements `cli.Flag` interface.
+func (flag *DeprecatedFlag) GetHidden() bool {
+	return true
+}
+
+// AllowedSubcommandScope implements `cli.Flag` interface.
+func (flag *DeprecatedFlag) AllowedSubcommandScope() bool {
+	return flag.allowedSubcommandScope
 }
 
 // GetEnvVars implements `cli.Flag` interface.
@@ -38,6 +51,11 @@ func (flag *DeprecatedFlag) Names() []string {
 	}
 
 	return flag.names
+}
+
+// Evaluate returns an error if the one of the controls is enabled otherwise logs warning messages and returns nil.
+func (flag *DeprecatedFlag) Evaluate(ctx context.Context) error {
+	return flag.controls.Evaluate(ctx)
 }
 
 // SetStrictControls creates a strict control for the flag and registers it.
@@ -83,23 +101,51 @@ func NewValue(val string) NewValueFunc {
 // RegisterStrictControlsFunc represents a callback func that registers the given controls in the `opts.StrictControls` stict control tree .
 type RegisterStrictControlsFunc func(flagNameControl, envVarControl strict.Control)
 
-// StrictControlsByGroup returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
+// StrictControlsByCommand returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
 // Using the given `commandName` as categories.
-func StrictControlsByGroup(strcitControls strict.Controls, commandName string, controlNames ...string) RegisterStrictControlsFunc {
+func StrictControlsByCommand(strcitControls strict.Controls, commandName string, controlNames ...string) RegisterStrictControlsFunc {
 	return func(flagNameControl, envVarControl strict.Control) {
 		flagNamesCategory := fmt.Sprintf(controls.CommandFlagsCategoryNameFmt, commandName)
 		envVarsCategory := fmt.Sprintf(controls.CommandEnvVarsCategoryNameFmt, commandName)
 
-		strcitControls.FilterByNames(append(controlNames, controls.DeprecatedFlags)...).AddSubcontrolsToCategory(flagNamesCategory, flagNameControl)
-		strcitControls.FilterByNames(append(controlNames, controls.DeprecatedEnvVars)...).AddSubcontrolsToCategory(envVarsCategory, envVarControl)
+		registerStrictControls(strcitControls, flagNameControl, envVarControl, flagNamesCategory, envVarsCategory, controlNames...)
 	}
 }
 
-// StrictControls returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
+// StrictControlsByGlobalFlags returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
 // And assigns the "Global Flag" category to these controls.
-func StrictControls(strcitControls strict.Controls, controlNames ...string) RegisterStrictControlsFunc {
+func StrictControlsByGlobalFlags(strcitControls strict.Controls, controlNames ...string) RegisterStrictControlsFunc {
 	return func(flagNameControl, envVarControl strict.Control) {
-		strcitControls.FilterByNames(append(controlNames, controls.DeprecatedFlags)...).AddSubcontrolsToCategory(controls.GlobalFlagsCategoryName, flagNameControl)
-		strcitControls.FilterByNames(append(controlNames, controls.DeprecatedEnvVars)...).AddSubcontrolsToCategory(controls.GlobalEnvVarsCategoryName, envVarControl)
+		registerStrictControls(strcitControls, flagNameControl, envVarControl, controls.GlobalFlagsCategoryName, controls.GlobalEnvVarsCategoryName, controlNames...)
+	}
+}
+
+// StrictControlsByMovedGlobalFlags returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
+// And assigns the "Moved to other %s command global flags" category to these controls.
+func StrictControlsByMovedGlobalFlags(strcitControls strict.Controls, commandName string, controlNames ...string) RegisterStrictControlsFunc {
+	return func(flagNameControl, envVarControl strict.Control) {
+		flagNamesCategory := fmt.Sprintf(controls.MovedGlobalFlagsCategoryNameFmt, commandName)
+		registerStrictControls(strcitControls, flagNameControl, envVarControl, flagNamesCategory, "", controlNames...)
+	}
+}
+
+func registerStrictControls(strcitControls strict.Controls,
+	flagNameControl, envVarControl strict.Control,
+	flagNamesCategory, envVarsCategory string,
+	controlNames ...string) {
+	if flagNameControl != nil {
+		strcitControls.FilterByNames(append(
+			controlNames,
+			controls.TerragruntPrefixFlags,
+			controls.DeprecatedFlags,
+		)...).AddSubcontrolsToCategory(flagNamesCategory, flagNameControl)
+	}
+
+	if envVarControl != nil {
+		strcitControls.FilterByNames(append(
+			controlNames,
+			controls.TerragruntPrefixEnvVars,
+			controls.DeprecatedEnvVars,
+		)...).AddSubcontrolsToCategory(envVarsCategory, envVarControl)
 	}
 }

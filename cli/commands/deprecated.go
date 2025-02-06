@@ -44,7 +44,7 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 		newCommandFriendly := fmt.Sprintf("terragrunt %s %s", terragruntCommandName, terraformCommandName)
 
 		control := controls.NewDeprecatedCommand(deprecatedCommandName, newCommandFriendly)
-		opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.LegacyRunAll).AddSubcontrolsToCategory(controls.RunAllCommandsCategoryName, control)
+		opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.LegacyAll, deprecatedCommandName).AddSubcontrolsToCategory(controls.RunAllCommandsCategoryName, control)
 
 		return func(ctx *cli.Context) error {
 			command := ctx.App.Commands.Get(terragruntCommandName)

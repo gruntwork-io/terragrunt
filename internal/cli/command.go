@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	libflag "flag"
-	"io"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -102,7 +101,7 @@ func (cmd *Command) VisibleSubcommands() []*cli.Command {
 // Run parses the given args for the presence of flags as well as subcommands.
 // If this is the final command, starts its execution.
 func (cmd *Command) Run(ctx *Context, args Args) (err error) {
-	args, err = cmd.parseFlags(args.Slice())
+	args, err = cmd.parseFlags(ctx, args.Slice())
 	if err != nil {
 		return NewExitError(err, ExitCodeGeneralError)
 	}
@@ -153,13 +152,16 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	return nil
 }
 
-func (cmd *Command) parseFlags(args Args) ([]string, error) {
+func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	var undefArgs Args
 
-	flagSet := libflag.NewFlagSet(cmd.Name, libflag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
+	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name)
+	if err != nil {
+		return nil, err
+	}
 
-	if err := cmd.Flags.Apply(flagSet); err != nil {
+	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name)
+	if err != nil {
 		return nil, err
 	}
 
@@ -169,10 +171,13 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 
 	args, builtinCmd := args.Split(BuiltinCmdSep)
 
-	var err error
+	for i := 0; ; i++ {
+		if i == 0 {
+			args, err = cmd.flagSetParse(ctx, flagSet, args)
+		} else {
+			args, err = cmd.flagSetParse(ctx, flagSetWithSubcommandScope, args)
+		}
 
-	for {
-		args, err = cmd.flagSetParse(flagSet, args)
 		if err != nil {
 			if !errors.As(err, new(UndefinedFlagError)) ||
 				(cmd.Subcommands.Get(undefArgs.Get(0)) == nil) {
@@ -196,7 +201,7 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 	return undefArgs, nil
 }
 
-func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args Args) ([]string, error) {
+func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Args) ([]string, error) {
 	var (
 		undefArgs []string
 		err       error
@@ -237,7 +242,7 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args Args) ([]string,
 			}
 		}
 
-		if cmd.ErrorOnUndefinedFlag {
+		if cmd.ErrorOnUndefinedFlag && !ctx.shellComplete {
 			break
 		}
 

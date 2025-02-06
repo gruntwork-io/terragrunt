@@ -42,9 +42,11 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	valueType := newBoolVar(flag.Destination, flag.Negative)
 	value := newGenericValue(valueType, flag.Setter)
 
-	flag.FlagValue = &flagValue{
-		value:            value,
-		initialTextValue: value.String(),
+	if flag.FlagValue == nil {
+		flag.FlagValue = &flagValue{
+			value:            value,
+			initialTextValue: value.String(),
+		}
 	}
 
 	return ApplyFlag(flag, set)

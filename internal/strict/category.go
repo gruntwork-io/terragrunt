@@ -22,6 +22,19 @@ func (categories Categories) FilterByNames(names ...string) Categories {
 	return filtered
 }
 
+// FilterNotHidden filters `categories` by the `Hidden:false` field.
+func (categories Categories) FilterNotHidden() Categories {
+	var filtered Categories
+
+	for _, category := range categories {
+		if !category.Hidden {
+			filtered = append(filtered, category)
+		}
+	}
+
+	return filtered
+}
+
 // Find search category by given `name`, returns nil if not found.
 func (categories Categories) Find(name string) *Category {
 	for _, category := range categories {
@@ -61,14 +74,12 @@ func (categories Categories) Sort() Categories {
 	return categories
 }
 
-// Category strict control category. Used to group controls when they are displayed.
+// Category represents a strict control category. Used to group controls when they are displayed.
 type Category struct {
 	// Name is the name of the category.
 	Name string
-	// ShowStatus specifies whether to show or hide `Status`.
-	ShowStatus bool
-	// AllowedStatuses allows controls to be displayed only with the specified statuses.
-	AllowedStatuses Statuses
+	// Hidden specifies whether controls belonging to this category should be displayed.
+	Hidden bool
 }
 
 // String implements `fmt.Stringer` interface.

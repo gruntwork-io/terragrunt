@@ -12,25 +12,55 @@ import (
 
 const (
 	CommandName = "strict"
+
+	ListCommandName = "list"
+
+	ShowAllFlagName = "all"
 )
 
-var allowedStatuses = []strict.Status{
-	strict.ActiveStatus,
-	strict.CompletedStatus,
-}
+func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
-	return &cli.Command{
-		Name:                 CommandName,
-		Usage:                "Show strict control settings.",
-		UsageText:            "terragrunt info strict [options] <name>",
-		ErrorOnUndefinedFlag: true,
-		Action:               Action(opts),
+	return cli.Flags{
+		flags.NewFlag(&cli.BoolFlag{
+			Name:    ShowAllFlagName,
+			EnvVars: tgPrefix.EnvVars(ShowAllFlagName),
+			Usage:   "Show all controls, including completed ones.",
+		}),
 	}
 }
 
-func Action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
+	prefix = prefix.Append(CommandName)
+
+	return &cli.Command{
+		Name:  CommandName,
+		Usage: "Command associated with strict control settings.",
+		Subcommands: cli.Commands{
+			&cli.Command{
+				Name:                 ListCommandName,
+				Flags:                NewListFlags(opts, prefix),
+				Usage:                "List the strict control settings.",
+				UsageText:            "terragrunt info strict list [options] <name>",
+				ErrorOnUndefinedFlag: true,
+				Action:               ListAction(opts),
+			},
+		},
+		ErrorOnUndefinedFlag: true,
+		Action:               cli.ShowCommandHelp,
+	}
+}
+
+func ListAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
+		var allowedStatuses = []strict.Status{
+			strict.ActiveStatus,
+		}
+
+		if ctx.Flag(ShowAllFlagName).Value().Get().(bool) {
+			allowedStatuses = append(allowedStatuses, strict.CompletedStatus)
+		}
+
 		controls := opts.StrictControls.FilterByStatus(allowedStatuses...)
 		render := plaintext.NewRender()
 		writer := view.NewWriter(ctx.App.Writer, render)

@@ -5,7 +5,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -23,7 +22,7 @@ const (
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
+	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
@@ -32,7 +31,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.JSONOut,
 			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedJSONOutFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedJSONOutFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        WithMetadataFlagName,
@@ -47,7 +46,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.JSONDisableDependentModules,
 			Usage:       "Disable identification of dependent modules rendering json config.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedJSONDisableDependentModulesFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedJSONDisableDependentModulesFlagName), terragruntPrefixControl)),
 	}
 }
 
