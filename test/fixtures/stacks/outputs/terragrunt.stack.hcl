@@ -1,10 +1,10 @@
 
-unit "project1_app1" {
+unit "filtered_app1" {
 	source = "units/app1"
 	path   = "project1/app1"
 }
 
-unit "project1_app2" {
+unit "filtered_app2" {
 	source = "units/app2"
 	path   = "project1/app2"
 }
