@@ -109,13 +109,13 @@ terragrunt providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform
 --terragrunt-provider-cache
 ```
 
-## Configure the Terragrunt Cache Provider
+## Configure the Provider Cache Server
 
-Since Terragrunt Provider Cache is essentially a Private Registry server that accepts requests from OpenTofu/Terraform, downloads and saves providers to the cache directory, there are a few more flags that are unlikely to be needed, but are useful to know about:
+Since the Provider Cache Server is essentially a Private Registry server that accepts requests from OpenTofu/Terraform, downloads and saves providers to the cache directory, there are a few more flags that are unlikely to be needed, but are useful to know about:
 
-- Server Hostname [`terragrunt-provider-cache-hostname`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-hostname), by default, `localhost`.
-- Server Port [`terragrunt-provider-cache-port`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-port), assigned automatically.
-- Server Token [`terragrunt-provider-cache-token`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-token), generated automatically.
+- [`terragrunt-provider-cache-hostname`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-hostname) - Default: `localhost`.
+- [`terragrunt-provider-cache-port`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-port) - Default: Assigned random port automatically.
+- [`terragrunt-provider-cache-token`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-token) - Default: Generated randomly.
 
 To enhance security, the Terragrunt Provider Cache has authentication to prevent unauthorized connections from third-party applications. You can set your own token using any character set.
 

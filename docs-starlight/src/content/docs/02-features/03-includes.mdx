@@ -250,7 +250,7 @@ inputs = {
 ```
 
 While this works, we now have duplicated the source URL. To avoid repeating the source URL, we can use exposed includes
-to reference data defined in the parent configurations. To do this, we will refactor our parent configuration to expose
+to reference data defined in the parent configurations. To do this, modify the parent configuration to export
 the source URL as a local variable instead of defining it into the `terraform` block:
 
 ```hcl

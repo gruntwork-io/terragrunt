@@ -16,8 +16,8 @@ terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--no-inclu
 
 Description:
 
-- `MODULE_URL` - URL to an OpenTofu/Terraform module. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
-- `TEMPLATE_URL` - Optional URL to a custom boilerplate template to generate HCL files. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
+- `MODULE_URL` - This parameter specifies the URL to an OpenTofu/Terraform module. It can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
+- `TEMPLATE_URL` - This optional parameter specifies the URL to a custom boilerplate template to generate HCL files. It can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
   - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the boilerplate template in that folder.
   - Failing to find that, Terragrunt will use a default boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying a single OpenTofu/Terraform module.
 
@@ -95,7 +95,7 @@ Optional variables which can be passed to `scaffold` command:
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
-   Setting the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control enforces moving away from this practice will change the default to `root.hcl`, which is a better practice. For more information, read [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
+   When the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control is enabled, the default configuration file will cahnge to `root.hcl`, which is considered a better practice. For more details, see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
 
 ### Convenience flags
 
@@ -130,7 +130,7 @@ Scaffold new project using a template inside a git repo:
 
 ```bash
 terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template
-# will be used template from .boilerplate directory to generate terragrunt.hcl
+# The template from the .boilerplate directory will be used to generate terragrunt.hcl
 ```
 
 **NOTE**: Scaffolding infrastructure from an external repository might introduce security or stability risks. Always review code from trusted external sources before running it.
@@ -139,6 +139,5 @@ Scaffold new project using external template:
 
 ```bash
 terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template
-
 # The files external-template.txt and terragrunt.hcl will be created from that external template
 ```

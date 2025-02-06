@@ -10,7 +10,7 @@ import { FileTree } from '@astrojs/starlight/components';
 
 ## Motivation
 
-OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via various of [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
+OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via various [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
 
 ```hcl
 # main.tf
@@ -40,9 +40,9 @@ Unfortunately, the `backend` configuration does not currently support expression
 
 </FileTree>
 
-To use remote state with each of these modules, you would have to copy/paste the exact same `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the `key` parameter: e.g., the `key` for `mysql/main.tf` might be `mysql/terraform.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/terraform.tfstate`.
+To use remote state with each of these modules, you would have to copy/paste the identical `backend` configuration into each of the `main.tf` files. The only thing that would differ between the configurations would be the `key` parameter: e.g., the `key` for `mysql/main.tf` might be `mysql/terraform.tfstate` and the `key` for `frontend-app/main.tf` might be `frontend-app/terraform.tfstate`.
 
-In addition, the resources used for remote state are going to be provisioned _somewhere else_, and that _somewhere else_ needs to be managed. Most users end up using "click-ops" to provision the S3 bucket and DynamoDB table used for AWS remote state (clicking around in the AWS console until they have what they need). This is error-prone, difficult to reproduce, and makes it hard to do the _right thing_ consistently (e.g., enabling versioning, encryption, and access logging).
+In addition, the resources used for remote state will be provisioned _somewhere else_, and that _somewhere else_ needs to be managed. Most users end up using "click-ops" to provision the S3 bucket and DynamoDB table used for AWS remote state (clicking around in the AWS console until they have what they need). This is error-prone, difficult to reproduce, and makes it hard to do the _right thing_ consistently (e.g., enabling versioning, encryption, and access logging).
 
 Luckily, Terragrunt has built-in tooling to make it easy to manage remote state.
 

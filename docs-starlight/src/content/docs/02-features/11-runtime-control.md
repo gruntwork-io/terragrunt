@@ -43,7 +43,7 @@ export TERRAGRUNT_FEATURE="s3_version=v1.1.0"
 terragrunt apply
 ```
 
-This can be a useful way to opt-in to new features or to test changes in your infrastructure.
+This can be a useful way to opt in to new features or to test changes in your infrastructure.
 
 Setting a different version of an OpenTofu/Terraform module in a lower environment can be useful for testing changes before rolling them out to production. Users will always use the default version unless they explicitly set a different value.
 
@@ -78,7 +78,7 @@ errors {
 }
 ```
 
-This configuration allows for control over how Terragrunt hanldles errors at runtime.
+This configuration allows for control over how Terragrunt handles errors at runtime.
 
 In the example above, Terragrunt will retry up to three times with a five-second pause between each retry for any error that matches the regex `.*Error: transient network issue.*`.
 
@@ -203,7 +203,7 @@ exclude {
 }
 ```
 
-In this example, the `dev`, `stage` and `prod` directories have their own root configurations that are included by all units in their respective environments. The assumption of a configuration like this is that each environment is fully self-contained, and that the team has a desire to always update `dev` units, but wants to opt-in changes to `stage` and `prod` units.
+In this example, the `dev`, `stage` and `prod` directories have their own root configurations that are included by all units in their respective environments. The assumption of a configuration like this is that each environment is fully self-contained, and that the team has a desire to always update `dev` units, but wants to opt in changes to `stage` and `prod` units.
 
 In this setup, any `run-all` command like the following:
 

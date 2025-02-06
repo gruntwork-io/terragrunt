@@ -26,7 +26,7 @@ There are a few ways to assume IAM roles when using AWS CLI tools, such as OpenT
 
 2. Another option is to use the [AWS CLI](https://aws.amazon.com/cli/). As a standard operating procedure, users are required to assume a role _before_ invoking OpenTofu/Terraform by running something like `aws sts assume-role --role-arn <ROLE>`, use the output of that command to set the appropriate environment variables, and the tool is run with those temporary credentials stored as environment variables.
 
-   The downside to this approach is that it requires that users know this process and remember to do it correctly every time they want to use OpenTofu/Terraform. It's also a tedious process, and requires perrforming several steps to do it right.
+   The downside to this approach is that it requires that users know this process and remember to do it correctly every time they want to use OpenTofu/Terraform. It's also a tedious process, and requires performing several steps to do it right.
 
    Worse yet, it requires that users repeat this process often, as the credentials you get back from the `assume-role` command expire. This is especially problematic if the OpenTofu/Terraform run is expected to take longer than the role assumption duration, and can expire mid-run.
 

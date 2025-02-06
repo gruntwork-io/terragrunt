@@ -243,7 +243,7 @@ The key design of Terragrunt is to act as a preprocessor to convert **shared ser
 module**. In OpenTofu/Terraform, modules can be loosely categorized into two types:
 
 - **Root Module**: An OpenTofu/Terraform module that is designed for running `tofu init`/`terraform init` and the other workflow commands
-  (`apply`, `plan`, etc). This is the entrypoint module for deploying your infrastructure. Root modules are identified
+  (`apply`, `plan`, etc.). This is the entrypoint module for deploying your infrastructure. Root modules are identified
   by the presence of key blocks that setup configuration about how OpenTofu/Terraform behaves, like `backend` blocks (for
   configuring state) and `provider` blocks (for configuring how OpenTofu/Terraform interacts with the cloud APIs).
 - **Shared Module**: A OpenTofu/Terraform module that is designed to be included in other OpenTofu/Terraform modules through `module`
@@ -272,7 +272,7 @@ Unless otherwise specified, almost all the modules will require composition with
 When using modules in the registry, it helps to think about what blocks and resources are necessary to operate the
 module, and translating those into Terragrunt blocks that generate them.
 
-Note that in many cases, Terragrunt may not be able to deploy modules from the registry. While Terragrunt has features
+Note that often, Terragrunt may not be able to deploy modules from the registry. While Terragrunt has features
 to turn any **Shared Module** into a **Root Module**, there are two key technical limitations that prevent Terragrunt
 from converting ALL shared modules:
 
@@ -300,7 +300,7 @@ The `remote_state` block supports the following arguments:
   [available backends](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
 
 - `disable_init` (attribute): When `true`, skip automatic initialization of the backend by Terragrunt. Some backends
-  have support in Terragrunt to be automatically created if the storage does not exist. Currently `s3` and `gcs` are the
+  have support in Terragrunt to be automatically created if the storage does not exist. Currently, `s3` and `gcs` are the
   two backends with support for automatic creation. Defaults to `false`.
 
 - `disable_dependency_optimization` (attribute): When `true`, disable optimized dependency fetching for terragrunt
@@ -398,7 +398,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `endpoints`: (Optional) A configuration `map` for custom service API (starting with Terraform 1.6).
   - `s3` - (Optional) A custom endpoint for the S3 API. Overrides `endpoint` argument.
   - `dynamodb` - (Optional) A custom endpoint for the DynamoDB API. Overrides `dynamodb_endpoint` argument.
-- `encrypt` - (Optional) Whether to enable server side encryption of the state file. If disabled, a log warning will be issued in the console output to notify the user. If `skip_bucket_ssencryption` is enabled, the log will be written as a debug log.
+- `encrypt` - (Optional) Whether to enable server-side encryption of the state file. If disabled, a log warning will be issued in the console output to notify the user. If `skip_bucket_ssencryption` is enabled, the log will be written as a debug log.
 - `role_arn` - (Optional) The role to be assumed.
 - `shared_credentials_file` - (Optional) This is the path to the shared credentials file. If this is not set and a profile is specified, `~/.aws/credentials` will be used.
 - `external_id` - (Optional) The external ID to use when assuming the role.
@@ -411,7 +411,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `skip_bucket_public_access_blocking`: When `true`, the S3 bucket that is created will not have public access blocking enabled.
 - `disable_bucket_update`: When `true`, disable update S3 bucket if not equal configured in config block
-- `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server side encryption.
+- `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server-side encryption.
 - `s3_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket.
 - `dynamodb_table_tags`: A map of key value pairs to associate as tags on the created DynamoDB remote state lock table.
 - `accesslogging_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket to store de access logs.
@@ -424,7 +424,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `skip_accesslogging_bucket_enforced_tls`: When set to `true`, the S3 bucket where access logs are stored will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `skip_accesslogging_bucket_public_access_blocking`: When set to `true`, the S3 bucket where access logs are stored will not have public access blocking enabled.
 - `skip_accesslogging_bucket_ssencryption`: When set to `true`, the S3 bucket where access logs are stored will not be configured with server-side encryption.
-- `bucket_sse_algorithm`: (Optional) The algorithm to use for server side encryption of the state bucket. Defaults to `aws:kms`.
+- `bucket_sse_algorithm`: (Optional) The algorithm to use for server-side encryption of the state bucket. Defaults to `aws:kms`.
 - `bucket_sse_kms_key_id`: (Optional) The KMS Key to use when the encryption algorithm is `aws:kms`. Defaults to the AWS Managed `aws/s3` key.
 - `assume_role`: (Optional) A configuration `map` to use when assuming a role (starting with Terraform 1.6 for Terraform). Override top level arguments
   - `role_arn` - (Optional) The role to be assumed.
@@ -609,7 +609,7 @@ backward compatibility, but is deprecated usage and support may be removed in th
 `include` blocks support the following arguments:
 
 - `name` (label): You can define multiple `include` blocks in a single terragrunt config. Each include block
-  must be labeled with a unique name to differentiate it from the other includes. E.g., if you had a block `include
+  must be labeled with a unique name to differentiate it from the other includes. e.g., if you had a block `include
 "remote" {}`, you can reference the relevant exposed data with the expression `include.remote`.
 - `path` (attribute): Specifies the path to a Terragrunt configuration file (the `parent` config) that should be merged
   with this configuration (the `child` config).
@@ -736,7 +736,7 @@ terraform {
 ### Limitations on accessing exposed config
 
 In general, you can access all attributes on `include` when they are exposed (e.g., `include.locals`, `include.inputs`,
-etc).
+etc.).
 
 However, to support `run-all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
 block. To understand this, consider the following example:
