@@ -70,7 +70,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 	ctx := cli.NewAppContext(context.Background(), app, nil).NewCommandContext(cmd, nil)
 	cli.ShowCommandHelp(ctx)
 
-	exectedOutput := `Usage: terragrunt run [options] -- <tofu/terraform command>
+	expectedOutput := `Usage: terragrunt run [options] -- <tofu/terraform command>
 
    Run a command, passing arguments to an orchestrated tofu/terraform binary.
 
@@ -104,5 +104,5 @@ Global Options:
 
 `
 
-	assert.Equal(t, exectedOutput, out.String())
+	assert.Equal(t, expectedOutput, out.String())
 }
