@@ -31,7 +31,7 @@ export default defineConfig({
 				{
 					label: 'Reference',
 					items: [
-						{ label: 'Configuration', autogenerate: { directory: '04-reference/01-configuration', collapsed: true } },
+						{ label: 'HCL', autogenerate: { directory: '04-reference/01-hcl', collapsed: true } },
 						{
 							label: 'CLI', collapsed: true, items: [
 								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/commands', collapsed: true } },

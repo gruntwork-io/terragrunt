@@ -1,7 +1,7 @@
 ---
-title: Configuration Blocks
+title: Blocks
 description: Learn about Terragrunt HCL configuration blocks
-slug: docs/reference/hcl/configuration-blocks
+slug: docs/reference/hcl/blocks
 sidebar:
   order: 2
 ---

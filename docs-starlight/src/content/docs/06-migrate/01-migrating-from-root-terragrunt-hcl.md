@@ -67,7 +67,7 @@ terragrunt catalog --root-file-name root.hcl
 
 ## Strict Control
 
-To enforce this recommended pattern, you can also enable the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control to throw an error when Terragrunt detects that a root `terragrunt.hcl` file is being used.
+To enforce this recommended pattern, you can also enable the [root-terragrunt-hcl](/docs/reference/strict-control#root-terragrunt-hcl) strict control to throw an error when Terragrunt detects that a root `terragrunt.hcl` file is being used.
 
 e.g.
 
