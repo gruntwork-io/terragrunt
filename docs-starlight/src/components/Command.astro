@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+const { name } = Astro.props;
+
+const command = await getEntry('commands', name);
+
+const data = command?.data;
+
+const usage = data?.usage;
+const description = data?.description;
+---
+
+<p>{usage}</p>
+<p>{description}</p>
