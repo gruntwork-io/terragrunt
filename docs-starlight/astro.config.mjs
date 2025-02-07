@@ -9,7 +9,8 @@ export default defineConfig({
 		starlight({
 			title: 'Terragrunt',
 			logo: {
-				src: '/src/assets/logo.svg',
+				dark: '/src/assets/logo-light.svg',
+				light: '/src/assets/logo-dark.svg',
 			},
 			social: {
 				github: 'https://github.com/gruntwork-io/terragrunt',
