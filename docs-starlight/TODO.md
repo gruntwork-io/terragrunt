@@ -6,9 +6,9 @@ Here are some of the tasks that need to be completed:
 
 ## Infrastructure
 - [x] **Docker compose local dev setup**
-- [ ] **Vercel deployment**
+- [x] **Vercel deployment**
   - [x] **Vercel preview deployments**
-  - [ ] **Custom domain setup**
+  - [x] **Custom domain setup** - [terragrunt-v1.gruntwork.io](https://terragrunt-v1.gruntwork.io)
 
 ## Content
 - [ ] **Content parity with current docs site**
@@ -17,6 +17,7 @@ Here are some of the tasks that need to be completed:
 - [ ] **Redesign reference to use cards**
 - [ ] **Setup redirects for all old URLs**
 - [ ] **Automate keeping versions updated**
+  - [x] **Automate Terragrunt version lookup in docs**
   - [ ] **Automate IaC Engine version lookup in docs**
 
 ## User Experience
@@ -26,5 +27,5 @@ Here are some of the tasks that need to be completed:
   - [ ] **Fix broken links**
     - [ ] **Fix broken links in CLI reference**
     - [x] **Fix broken links in all other docs**
-  - [ ] **Require link checking**
+  - [x] **Require link checking**
 - [ ] **Jekyll site banner indicating new site**
