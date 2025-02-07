@@ -7,7 +7,7 @@ sidebar:
 ---
 
 import InstallTabs from '@components/InstallTabs.astro'
-import { Code } from '@astrojs/starlight/components'
+import { Code, Card } from '@astrojs/starlight/components'
 import GruntyHeader from '@components/GruntyHeader.astro'
 
 export const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest');
@@ -162,4 +162,8 @@ Instructions on how to use it can be found at [https://github.com/gruntwork-io/t
 
 <GruntyHeader title="Gruntwork Pipelines" />
 
+<Card title="Gruntwork Pipelines">
+
 Gruntwork offers a commercial CI/CD solution for Terragrunt called [Pipelines](https://www.gruntwork.io/platform/pipelines). Pipelines is a fully managed CI/CD service that is designed to work seamlessly with Terragrunt. It provides an out of the box solution for running Terragrunt in CI/CD without the need to setup and maintain your own CI/CD infrastructure.
+
+</Card>
