@@ -56,13 +56,17 @@ export default defineConfig({
 			// NOTE: We don't currently check links by default because the CLI
 			// Redesign isn't done yet. Once those pages are built out, we'll require
 			// links to be checked for all builds.
-			plugins: process.env.CHECK_LINKS ? [starlightLinksValidator({
+			plugins: [starlightLinksValidator({
 				exclude: [
 					// Used in the docs for OpenTelemetry
 					'http://localhost:16686/',
 					'http://localhost:9090/',
+
+					// TODO: Remove these once the CLI redesign is done
+					'/docs/reference/cli**/*',
+					'/docs/reference/cli*',
 				],
-			})] : [],
+			})],
 		}),
 	],
 });

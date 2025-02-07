@@ -6,7 +6,6 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
-    "linkcheck": "CHECK_LINKS=true astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
