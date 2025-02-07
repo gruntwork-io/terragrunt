@@ -186,7 +186,7 @@ Note that each `dependency` block results in a relevant status in the Terragrunt
 
 If any of the units failed to deploy, then Terragrunt will not attempt to deploy the units that depend on them.
 
-**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on [Configuration parsing order]({{site.baseurl}}/docs/getting-started/configuration/#configuration-parsing-order) for more information.
+**Note**: Not all blocks can access outputs passed by `dependency` blocks. See the section on [Configuration parsing order](/docs/reference/hcl/overview#configuration-parsing-order) for more information.
 
 ### Unapplied dependency and mock outputs
 
@@ -553,6 +553,6 @@ Terragrunt will only include the units in the `us-east-1` stack and its children
 
 Generally speaking, this is the primary tool Terragrunt users use to control the blast radius of their changes. For the most part, it is the current working directory that determines the blast radius of a `run-all` command.
 
-In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#runner-queue), you can also use flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) and [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
+In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#run-queue), you can also use flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) and [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
 
 There are more flags that control the behavior of the `run-all` command, which you can find in the [CLI Options](/docs/reference/cli-options) section.

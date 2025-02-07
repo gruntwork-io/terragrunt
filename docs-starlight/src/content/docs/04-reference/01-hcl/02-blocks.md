@@ -1,14 +1,14 @@
 ---
-title: Configuration Blocks
+title: Blocks
 description: Learn about Terragrunt HCL configuration blocks
-slug: docs/reference/configuration/configuration-blocks
+slug: docs/reference/hcl/blocks
 sidebar:
   order: 2
 ---
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
-Think of configuration blocks as a way to control different systems used by Terragrunt, whereas [attributes](/docs/reference/configuration/attributes) are used to define values for those systems.
+Think of configuration blocks as a way to control different systems used by Terragrunt, whereas [attributes](/docs/reference/hcl/attributes) are used to define values for those systems.
 
 ## terraform
 
@@ -43,9 +43,6 @@ The `terraform` block supports the following arguments:
     registry module
     [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
     use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
-  - Refer to [A note about using modules from the
-    registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
-    information about using modules from the Terraform Registry with Terragrunt.
 
 - `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied into the
   OpenTofu/Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
@@ -69,11 +66,11 @@ The `terraform` block supports the following arguments:
 
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
   file into your source repository from your working directory as described in
-  [Lock File Handling]({{site.baseurl}}/docs/features/lock-file-handling/). This attribute allows you to disable the copy
+  [Lock File Handling](/docs/reference/lock-files). This attribute allows you to disable the copy
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
-  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/extra-arguments) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY](/docs/features/extra-arguments) use case overview. Supports
   the following arguments:
 
   - `arguments` (required) : A list of CLI arguments to pass to `tofu`/`terraform`.
