@@ -872,8 +872,6 @@ $ terragrunt stack output project1_app1.custom_value1
 project1_app1.custom_value1 = "value1"
 ```
 
-**Output Formats**
-
 Terragrunt provides multiple output formats for easier parsing and integration with other tools. The desired format can be specified using the `--format` CLI flag.
 
 | Format    | Description                                                                                                                                               | CLI Flag Usage     |
