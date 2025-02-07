@@ -16,9 +16,9 @@ Here are some of the tasks that need to be completed:
   - [ ] **Parity for CLI reference**
 - [ ] **Redesign reference to use cards**
 - [ ] **Setup redirects for all old URLs**
-- [ ] **Automate keeping versions updated**
+- [x] **Automate keeping versions updated**
   - [x] **Automate Terragrunt version lookup in docs**
-  - [ ] **Automate IaC Engine version lookup in docs**
+  - [x] **Automate IaC Engine version lookup in docs**
 
 ## User Experience
 - [x] **User feedback collection**

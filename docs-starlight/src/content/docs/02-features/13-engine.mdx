@@ -6,20 +6,26 @@ sidebar:
   order: 13
 ---
 
+import { Code } from '@astrojs/starlight/components'
+export const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt-engine-opentofu/releases/latest');
+export const data = await response.json();
+export const version = data.tag_name || 'v0.0.15';
+
 IaC engines allow you to customize and configure how IaC updates are orchestrated by Terragrunt. This feature is still experimental and not recommended for general production usage.
 
 To try it out, all you need to do is include the following in your `terragrunt.hcl`:
 
-```hcl
-# terragrunt.hcl
-
+<Code
+  lang="hcl"
+  title="terragrunt.hcl"
+  code={`
 engine {
-  source  = "github.com/gruntwork-io/terragrunt-engine-opentofu"
-  version = "v0.0.7"
+    source  = "github.com/gruntwork-io/terragrunt-engine-opentofu"
+    version = "${version}"
 }
-```
-
-{/* TODO: Write a script to fetch the latest version of the engine. See ../../../../TODO.md */}
+`}
+>
+</Code>
 
 This example leverages the official OpenTofu engine, [publicly available on GitHub](https://github.com/gruntwork-io/terragrunt-engine-opentofu).
 
@@ -51,26 +57,31 @@ e.g.
 
 Use an HTTP(S) URL to specify the path to the engine:
 
-```hcl
-# terragrunt.hcl
-
+<Code
+  lang="hcl"
+  title="terragrunt.hcl"
+  code={`
 engine {
-  source  = "https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.7/terragrunt-iac-engine-opentofu_rpc_v0.0.7_linux_amd64.zip"
+    source = "https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/${version}/terragrunt-iac-engine-opentofu_rpc_${version}_linux_amd64.zip"
 }
-
-```
+`}
+>
+</Code>
 
 ## Local Sources
 
 Specify a local absolute path as the source:
 
-```hcl
-# terragrunt.hcl
-
+<Code
+  lang="hcl"
+  title="terragrunt.hcl"
+  code={`
 engine {
-   source  = "/home/users/iac-engines/terragrunt-iac-engine-opentofu_v0.0.7"
+    source = "/home/users/iac-engines/terragrunt-iac-engine-opentofu_${version}"
 }
-```
+`}
+>
+</Code>
 
 ## Parameters
 
@@ -113,7 +124,7 @@ The metadata block is a map of key-value pairs. Engines can read the information
 # terragrunt.hcl
 
 engine {
-   source  = "/home/users/iac-engines/my-custom-engine"
+   source = "github.com/gruntwork-io/terragrunt-engine-opentofu"
    # Optionally set metadata for the engine.
    meta = { 
      key_1 = ["value1", "value2"]
