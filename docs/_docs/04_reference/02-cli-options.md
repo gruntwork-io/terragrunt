@@ -820,12 +820,12 @@ Before executing the specified command, the `terragrunt stack run *` command wil
 the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
 
-### Output
+#### output
 
 The `terragrunt stack output` command allows users to retrieve and interact with outputs from multiple units within a Terragrunt stack.  
 This feature simplifies handling infrastructure outputs by consolidating them into a single view.
 
-#### Basic Usage
+Basic Usage:
 
 Executing `terragrunt stack output` in a stack directory produces an aggregated output from all units within the stack:
 
@@ -872,7 +872,7 @@ $ terragrunt stack output project1_app1.custom_value1
 project1_app1.custom_value1 = "value1"
 ```
 
-### Output Formats
+**Output Formats**
 
 Terragrunt provides multiple output formats for easier parsing and integration with other tools. The desired format can be specified using the `--format` CLI flag.
 
@@ -881,8 +881,6 @@ Terragrunt provides multiple output formats for easier parsing and integration w
 | `default` | Returns outputs in HCL format.                                                                                                                            | `--format=default` |
 | `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.                                                         | `--format=json`    |
 | `raw`     | Outputs key-value pairs in a compact, JSON-like format. When accessing lists or complex structures, data must be retrieved using an index-based approach. | `--format=raw`     |
-
-#### JSON Format Example
 
 To retrieve outputs in structured JSON format:
 
@@ -942,8 +940,6 @@ $ terragrunt stack output --format json project1_app2.complex_list
   ]
 }
 ```
-
-#### Raw Format Example
 
 The `raw` format returns outputs as plain values without additional structure. When accessing lists or structured outputs, indexes are required to extract values.
 
