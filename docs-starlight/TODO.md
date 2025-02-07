@@ -20,7 +20,7 @@ Here are some of the tasks that need to be completed:
   - [ ] **Automate IaC Engine version lookup in docs**
 
 ## User Experience
-- [ ] **User feedback collection**
+- [x] **User feedback collection**
 - [ ] **Broken link checking**
   - [x] **Automate broken link checking**
   - [ ] **Fix broken links**
