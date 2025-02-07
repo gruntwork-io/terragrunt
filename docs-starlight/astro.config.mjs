@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightLinksValidator from 'starlight-links-validator';
 
 // https://astro.build/config
 export default defineConfig({
@@ -30,7 +31,7 @@ export default defineConfig({
 				{
 					label: 'Reference',
 					items: [
-						{ label: 'Configuration', autogenerate: { directory: '04-reference/01-configuration', collapsed: true } },
+						{ label: 'HCL', autogenerate: { directory: '04-reference/01-hcl', collapsed: true } },
 						{
 							label: 'CLI', collapsed: true, items: [
 								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/commands', collapsed: true } },
@@ -39,7 +40,7 @@ export default defineConfig({
 						{ label: 'Strict Controls', slug: 'docs/reference/strict-controls' },
 						{ label: 'Experiments', slug: 'docs/reference/experiments' },
 						{ label: 'Supported Versions', slug: 'docs/reference/supported-versions' },
-						{ label: 'Lock File Handling', slug: 'docs/reference/lock-file-handling' },
+						{ label: 'Lock Files', slug: 'docs/reference/lock-files' },
 						{ label: 'Terragrunt Cache', slug: 'docs/reference/terragrunt-cache' },
 					],
 				},
@@ -52,6 +53,20 @@ export default defineConfig({
 					autogenerate: { directory: '06-migrate', collapsed: true },
 				},
 			],
+			// NOTE: We don't currently check links by default because the CLI
+			// Redesign isn't done yet. Once those pages are built out, we'll require
+			// links to be checked for all builds.
+			plugins: [starlightLinksValidator({
+				exclude: [
+					// Used in the docs for OpenTelemetry
+					'http://localhost:16686/',
+					'http://localhost:9090/',
+
+					// TODO: Remove these once the CLI redesign is done
+					'/docs/reference/cli**/*',
+					'/docs/reference/cli*',
+				],
+			})],
 		}),
 	],
 });

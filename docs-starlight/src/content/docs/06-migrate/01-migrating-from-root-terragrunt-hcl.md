@@ -1,7 +1,7 @@
 ---
-title: Migrating from root `terragrunt.hcl`
+title: Migrating from root terragrunt.hcl
 description: Migrate from using a root `terragrunt.hcl` file.
-slug: docs/migrating-from-root-terragrunt-hcl
+slug: docs/migrate/migrating-from-root-terragrunt-hcl
 sidebar:
   order: 1
 ---
@@ -67,7 +67,7 @@ terragrunt catalog --root-file-name root.hcl
 
 ## Strict Control
 
-To enforce this recommended pattern, you can also enable the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control to throw an error when Terragrunt detects that a root `terragrunt.hcl` file is being used.
+To enforce this recommended pattern, you can also enable the [root-terragrunt-hcl](/docs/reference/strict-controls#root-terragrunt-hcl) strict control to throw an error when Terragrunt detects that a root `terragrunt.hcl` file is being used.
 
 e.g.
 

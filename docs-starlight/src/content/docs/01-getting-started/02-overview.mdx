@@ -175,7 +175,7 @@ You want to be mindful not to do too much with this configuration block, as it c
 
 The `terraform` block is used to indicate where to source the OpenTofu/Terraform module from (it's called `terraform` for historical reasons, but it controls behavior pertinent to both OpenTofu and Terraform).
 
-In this example, all it is doing is controlling where Terragrunt should fetch the OpenTofu/Terraform module from. The configuration block [can do a lot more](/docs/reference/config-blocks-and-attributes/#terraform), but the `source` attribute is the most common attribute you'll set on the `terraform` block.
+In this example, all it is doing is controlling where Terragrunt should fetch the OpenTofu/Terraform module from. The configuration block [can do a lot more](/docs/reference/hcl/blocks#terraform), but the `source` attribute is the most common attribute you'll set on the `terraform` block.
 
 You'll notice that in the examples above, we were using `find` to locate the `.tf` files being generated and placed within the OpenTofu/Terraform module being downloaded here within the `.terragrunt-cache` directory. This is because Terragrunt aims to operate as an orchestrator, at a level of abstraction higher than OpenTofu/Terraform.
 
@@ -220,7 +220,7 @@ Under the hood, what happens here is that Terragrunt sets relevant `TF_VAR_` pre
 
 #### Further Reading
 
-You can learn more about all the configuration blocks and attributes available in Terragrunt in the [reference documentation](/docs/reference/config-blocks-and-attributes/).
+You can learn more about all the configuration [blocks](/docs/reference/hcl/blocks) and [attributes](/docs/reference/hcl/attributes) available in Terragrunt in the docs.
 
 ## Core Patterns
 
@@ -498,7 +498,7 @@ Following this pattern, you can create as many units of infrastructure in your p
 
 Note that while this is the idiomatic approach for defining the `key` attribute for your `backend` configuration, it is not a requirement. You can set the `key` attribute to any value you like, and you can use any Terragrunt HCL function to generate that value dynamically such that you avoid collisions in your remote state.
 
-Another completely valid approach, for example, is to utilize [get_repo_root](/docs/reference/built-in-functions/#get_repo_root), which returns a path relative to the root of the git repository. This, of course, has the drawback that it will not work if you are not using git.
+Another completely valid approach, for example, is to utilize [get_repo_root](/docs/reference/hcl/functions#get_repo_root), which returns a path relative to the root of the git repository. This, of course, has the drawback that it will not work if you are not using git.
 
 Just make sure to test your configuration carefully, and document your approach so that others can understand what you're doing.
 
@@ -1013,9 +1013,9 @@ You have to exercise your best judgment when deciding how much complexity to int
 
 Now that you’ve learned the basics of Terragrunt, here is some further reading to learn more:
 
-1. [Features](/docs/#features): Learn about the core features Terragrunt supports.
+1. [Features](/docs/features/units): Learn about the core features Terragrunt supports.
 
-2. [Documentation](/docs/): Check out the detailed Terragrunt documentation.
+2. [Documentation](/docs/reference/hcl/overview): Check out the detailed Terragrunt reference documentation.
 
 3. [_Fundamentals of DevOps and Software Delivery_](https://www.gruntwork.io/fundamentals-of-devops): Learn the fundamentals of DevOps and Software Delivery from one of the founders of Gruntwork!
 

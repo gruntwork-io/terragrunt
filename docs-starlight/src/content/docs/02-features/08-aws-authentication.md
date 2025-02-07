@@ -291,4 +291,4 @@ Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table 
 }
 ```
 
-You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/docs/reference/config-blocks-and-attributes/#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.
+You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/docs/reference/hcl/blocks#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.
