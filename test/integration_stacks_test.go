@@ -243,7 +243,7 @@ func TestStackOutputsJsonIndex(t *testing.T) {
 	assert.Contains(t, result, "project2_app1")
 }
 
-func TestStackOutputsRaw(t *testing.T) {
+func TestStackOutputsRawError(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
@@ -252,11 +252,8 @@ func TestStackOutputsRaw(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-	require.NoError(t, err)
-
-	assert.Contains(t, stdout, "project2_app1 = {")
-	assert.Contains(t, stdout, "project2_app2 = {")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
 }
 
 func TestStackOutputsRawIndex(t *testing.T) {
@@ -268,10 +265,11 @@ func TestStackOutputsRawIndex(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1 --format raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1.custom_value1 --format raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stdout, "filtered_app1 = {")
+	assert.Contains(t, stdout, "value1")
+	assert.NotContains(t, stdout, "filtered_app1 = {")
 	assert.NotContains(t, stdout, "project2_app2 = {")
 }
 
@@ -284,11 +282,12 @@ func TestStackOutputsRawFlag(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -raw filtered_app2.data --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stdout, "project2_app1 = {")
-	assert.Contains(t, stdout, "project2_app2 = {")
+	assert.Contains(t, stdout, "app2")
+	assert.NotContains(t, stdout, "project2_app1 = {")
+	assert.NotContains(t, stdout, "project2_app2 = {")
 }
 
 func TestStackOutputsJsonFlag(t *testing.T) {

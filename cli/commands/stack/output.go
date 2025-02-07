@@ -44,11 +44,22 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 
 	return unitOutputs, nil
 }
-func printRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+
+	if len(outputIndex) == 0 {
+		// output index is required in raw mode
+		return errors.New("output index is required in raw mode")
+	}
+
 	filteredOutputs := FilterOutputs(outputs, outputIndex)
 
 	if filteredOutputs == nil {
 		return nil
+	}
+
+	if len(filteredOutputs) > 1 {
+		// return error since in raw mode we want to print only one output
+		return errors.New("multiple outputs found, please specify only one index")
 	}
 
 	for key, value := range filteredOutputs {
@@ -58,7 +69,7 @@ func printRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs 
 			continue
 		}
 
-		line := fmt.Sprintf("%s = %s\n", key, valueStr)
+		line := fmt.Sprintf("%s\n", valueStr)
 		if _, err := writer.Write([]byte(line)); err != nil {
 			return errors.New(err)
 		}
