@@ -3653,9 +3653,7 @@ func TestTerragruntInfoError(t *testing.T) {
 func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	t.Parallel()
 
-	t.Cleanup(func() {
-		config.ClearOutputCache()
-	})
+	config.ClearOutputCache()
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
@@ -3713,9 +3711,7 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 	t.Parallel()
 
-	t.Cleanup(func() {
-		config.ClearOutputCache()
-	})
+	config.ClearOutputCache()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -3770,9 +3766,7 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	t.Parallel()
 
 	// clear dependencies output cache
-	t.Cleanup(func() {
-		config.ClearOutputCache()
-	})
+	config.ClearOutputCache()
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
@@ -3809,9 +3803,7 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	t.Parallel()
 
-	t.Cleanup(func() {
-		config.ClearOutputCache()
-	})
+	config.ClearOutputCache()
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
