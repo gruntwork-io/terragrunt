@@ -837,11 +837,11 @@ db.output2 = "output2"
 
 Terragrunt provides multiple output formats for easier parsing and integration with other tools. The desired format can be specified using the `--format` CLI flag.
 
-| Format    | Description                                                                                           |
-|-----------|-------------------------------------------------------------------------------------------------------|
-| `default` | Return outputs in HCL format.                                                                         |
-| `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.     |
-| `raw`     | Outputs key-value pairs in a compact, JSON-like format. Useful for quick inspection of stack outputs. |
+| Format    | Description                                                                                           | Shortcut Flag |
+|-----------|-------------------------------------------------------------------------------------------------------|---------------|
+| `default` | Return outputs in HCL format.                                                                         | N/A           |
+| `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.     | `-json`       |
+| `raw`     | Outputs key-value pairs in a compact, JSON-like format. Useful for quick inspection of stack outputs. | `-raw`        |
 
 ## CLI options
 

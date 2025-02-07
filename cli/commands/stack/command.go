@@ -12,7 +12,7 @@ const (
 	OutputFormatFlagName = "format"
 	OutputFormatEnvName  = "TERRAGRUNT_STACK_OUTPUT_FORMAT"
 	JsonFormatFlagName   = "json"
-	RawFormatFlagName    = "json"
+	RawFormatFlagName    = "raw"
 
 	generate = "generate"
 	run      = "run"
