@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/config"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"os"
@@ -725,6 +727,8 @@ func RemoveFolder(t *testing.T, path string) {
 
 func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command string, writer io.Writer, errwriter io.Writer) error {
 	t.Helper()
+
+	config.ClearOutputCache()
 
 	args := splitCommand(command)
 
