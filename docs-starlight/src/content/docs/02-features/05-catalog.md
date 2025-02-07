@@ -1,7 +1,9 @@
 ---
 title: Catalog
-description: A reference page in my new Starlight docs site.
+description: Learn how to search and use your module catalog with Terragrunt.
 slug: docs/features/catalog
+sidebar:
+  order: 5
 ---
 
 Launch the user interface for searching and managing your module catalog.
@@ -22,6 +24,7 @@ If `<repo-url>` is provided, the repository will be cloned into a temporary dire
 An example of how to define the list of repositories for the `catalog` command in the `terragrunt.hcl` configuration file:
 
 ``` hcl
+# terragrunt.hcl
 catalog {
   urls = [
     "relative/path/to/repo", # will be converted to the absolute path, relative to the path of the configuration file.

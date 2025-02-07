@@ -1,7 +1,9 @@
 ---
-title: Configuration
+title: Overview
 description: Learn how to configure Terragrunt
-slug: docs/reference/configuration
+slug: docs/reference/configuration/overview
+sidebar:
+  order: 1
 ---
 
 import { FileTree } from '@astrojs/starlight/components';
@@ -11,6 +13,8 @@ Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the sa
 Here’s an example:
 
 ```hcl
+# terragrunt.hcl
+
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -124,4 +128,4 @@ You can exclude directories from the formatting process by using the `--terragru
 
 If you want to format a single file, you can use the `--terragrunt-hclfmt-file` flag. For example, `terragrunt hclfmt --terragrunt-hclfmt-file qa/services/services.hcl`.
 
-If you want to format HCL from stdin and print the result to stdout, you can use the `--terragrunt-hclfmt-stdin` flag. For example, `echo 'module "foo" {}' | terragrunt hclfmt --terragrunt-hclfmt-stdin`.
+I

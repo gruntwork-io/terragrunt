@@ -16,6 +16,8 @@ This document aims to provide a quick reference for the most important and commo
 
 ## Terms
 
+---
+
 ### Terragrunt
 
 Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in [OpenTofu](https://opentofu.org/)/[Terraform](https://www.terraform.io/) to scale.
