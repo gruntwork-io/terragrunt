@@ -50,13 +50,28 @@ func downloadTerraformSource(ctx context.Context, source string, opts *options.T
 
 	opts.Logger.Debugf("Copying files from %s into %s", opts.WorkingDir, terraformSource.WorkingDir)
 
-	var includeInCopy []string
+	var includeInCopy, excludeFromCopy []string
+
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
 		includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 	}
+
+	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExcludeFromCopy != nil {
+		excludeFromCopy = *terragruntConfig.Terraform.ExcludeFromCopy
+	}
+
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy = append(includeInCopy, tfLintConfig)
-	if err := util.CopyFolderContents(opts.Logger, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
+
+	err = util.CopyFolderContents(
+		opts.Logger,
+		opts.WorkingDir,
+		terraformSource.WorkingDir,
+		ModuleManifestName,
+		includeInCopy,
+		excludeFromCopy,
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -196,14 +211,14 @@ func readVersionFile(terraformSource *terraform.Source) (string, error) {
 	return util.ReadFileAsString(terraformSource.VersionFile)
 }
 
-// updateGetters returns the customized go-getter interfaces that Terragrunt relies on. Specifically:
+// UpdateGetters returns the customized go-getter interfaces that Terragrunt relies on. Specifically:
 //   - Local file path getter is updated to copy the files instead of creating symlinks, which is what go-getter defaults
 //     to.
 //   - Include the customized getter for fetching sources from the Terraform Registry.
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
+func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
 		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
 		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
@@ -213,12 +228,21 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 
 		for getterName, getterValue := range getter.Getters {
 			if getterName == "file" {
-				var includeInCopy []string
+				var includeInCopy, excludeFromCopy []string
+
 				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
 					includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 				}
 
-				client.Getters[getterName] = &FileCopyGetter{IncludeInCopy: includeInCopy, Logger: terragruntOptions.Logger}
+				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExcludeFromCopy != nil {
+					excludeFromCopy = *terragruntConfig.Terraform.ExcludeFromCopy
+				}
+
+				client.Getters[getterName] = &FileCopyGetter{
+					IncludeInCopy:   includeInCopy,
+					Logger:          terragruntOptions.Logger,
+					ExcludeFromCopy: excludeFromCopy,
+				}
 			} else {
 				client.Getters[getterName] = getterValue
 			}
@@ -246,7 +270,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 		canonicalSourceURL,
 		terraformSource.DownloadDir)
 
-	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
+	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), UpdateGetters(terragruntOptions, terragruntConfig)); err != nil {
 		return errors.New(err)
 	}
 

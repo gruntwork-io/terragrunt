@@ -2,14 +2,15 @@ OpenTofuInstallPath = "C:\Program Files\tofu\tofu.exe"
 $OpenTofuTmpPath = "C:\OpenTofutmp"
 $OpenTofuTmpBinaryPath = "C:\OpenTofutmp\tofu.exe"
 $OpenTofuPath = "C:\Program Files\tofu"
+$OpenTofuVersion = $Env:OPENTOFU_VERSION
 # Remove any old OpenTofu installation, if present
 if (Test-Path -Path $OpenTofuInstallPath)
 {
 	Remove-Item $OpenTofuInstallPath -Recurse
 }
 # Download OpenTofu and unpack it
-$OpenTofuURI = "https://github.com/opentofu/opentofu/releases/download/v1.8.3/tofu_1.8.3_windows_amd64.zip"
-$output = "tofu_1.8.3_windows_amd64.zip"
+$OpenTofuURI = "https://github.com/opentofu/opentofu/releases/download/v$OpenTofuVersion/tofu_${OpenTofuVersion}_windows_amd64.zip"
+$output = "tofu_${OpenTofuVersion}_windows_amd64.zip"
 $ProgressPreference = "SilentlyContinue"
 Invoke-WebRequest -Uri $OpenTofuURI -OutFile $output
 New-Item -ItemType "directory" -Path $OpenTofuTmpPath

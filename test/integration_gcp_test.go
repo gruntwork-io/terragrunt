@@ -113,7 +113,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for i := 0; i < 20; i++ {
-		err := util.CopyFolderContents(createLogger(), testFixtureGcsParallelStateInit, tmpEnvPath, ".terragrunt-test", nil)
+		err := util.CopyFolderContents(createLogger(), testFixtureGcsParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
@@ -166,15 +166,19 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 
 	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
 
-	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
+	ctx := context.TODO()
+
+	gcsClient, err := remote.CreateGCSClient(ctx, remoteStateConfig)
 	require.NoError(t, err, "Error creating GCS client")
 
+	bucketHandle := gcsClient.Bucket(bucketName)
+
 	// verify the bucket exists
-	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
+	assert.True(t, remote.DoesGCSBucketExist(ctx, bucketHandle), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
 
 	// verify the bucket location
 	bucket := gcsClient.Bucket(bucketName)
-	attrs, err := bucket.Attrs(context.Background())
+	attrs, err := bucket.Attrs(ctx)
 	require.NoError(t, err)
 
 	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
@@ -188,14 +192,15 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
 	t.Helper()
 
+	ctx := context.Background()
+
 	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
 
-	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
+	gcsClient, err := remote.CreateGCSClient(ctx, remoteStateConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}
 
-	ctx := context.Background()
 	bucket := gcsClient.Bucket(bucketName)
 
 	handle := bucket.Object(objectName)
@@ -230,15 +235,16 @@ func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName 
 func createGCSBucket(t *testing.T, projectID string, location string, bucketName string) {
 	t.Helper()
 
+	ctx := context.Background()
+
 	var gcsConfig remote.RemoteStateConfigGCS
-	gcsClient, err := remote.CreateGCSClient(gcsConfig)
+	gcsClient, err := remote.CreateGCSClient(ctx, gcsConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}
 
 	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
 
-	ctx := context.Background()
 	bucket := gcsClient.Bucket(bucketName)
 
 	bucketAttrs := &storage.BucketAttrs{
@@ -255,15 +261,15 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 func deleteGCSBucket(t *testing.T, bucketName string) {
 	t.Helper()
 
+	ctx := context.Background()
+
 	var gcsConfig remote.RemoteStateConfigGCS
-	gcsClient, err := remote.CreateGCSClient(gcsConfig)
+	gcsClient, err := remote.CreateGCSClient(ctx, gcsConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}
 
 	t.Logf("Deleting test GCS bucket %s", bucketName)
-
-	ctx := context.Background()
 
 	// List all objects including their versions in the bucket
 	bucket := gcsClient.Bucket(bucketName)

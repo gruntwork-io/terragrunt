@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -60,6 +61,19 @@ const (
 	DisabledRemoveTerragruntStr = "remove_terragrunt"
 
 	assumeRoleConfigKey = "assume_role"
+
+	encryptionBlockName = "encryption"
+
+	EncryptionKeyProviderKey = "key_provider"
+	encryptionResourceName   = "default"
+
+	encryptionMethodKey     = "method"
+	encryptionDefaultMethod = "aes_gcm"
+
+	encryptionKeysAttributeName = "keys"
+
+	encryptionStateBlockName = "state"
+	encryptionPlanBlockName  = "plan"
 )
 
 // GenerateConfig is configuration for generating code
@@ -230,10 +244,16 @@ func fileWasGeneratedByTerragrunt(path string) (bool, error) {
 	return strings.HasSuffix(strings.TrimSpace(firstLine), TerragruntGeneratedSignature), nil
 }
 
+const (
+	terraformBlock = "terraform"
+	backendBlock   = "backend"
+)
+
 // RemoteStateConfigToTerraformCode converts the arbitrary map that represents a remote state config into HCL code to configure that remote state.
-func RemoteStateConfigToTerraformCode(backend string, config map[string]interface{}) ([]byte, error) {
+func RemoteStateConfigToTerraformCode(backend string, config map[string]any, encryption map[string]interface{}) ([]byte, error) {
 	f := hclwrite.NewEmptyFile()
-	backendBlock := f.Body().AppendNewBlock("terraform", nil).Body().AppendNewBlock("backend", []string{backend})
+	terraformBlock := f.Body().AppendNewBlock(terraformBlock, nil).Body()
+	backendBlock := terraformBlock.AppendNewBlock(backendBlock, []string{backend})
 	backendBlockBody := backendBlock.Body()
 
 	var backendKeys = make([]string, 0, len(config))
@@ -282,6 +302,82 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 		}
 
 		backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+	}
+
+	// encryption can be empty
+	if len(encryption) == 0 {
+		return f.Bytes(), nil
+	}
+
+	// extract key_provider first to create key_provider block
+	keyProvider, found := encryption[EncryptionKeyProviderKey].(string)
+	if !found {
+		return nil, errors.New(EncryptionKeyProviderKey + " is mandatory but not found in the encryption map")
+	}
+
+	keyProviderTraversal := hcl.Traversal{
+		hcl.TraverseRoot{Name: EncryptionKeyProviderKey},
+		hcl.TraverseAttr{Name: keyProvider},
+		hcl.TraverseAttr{Name: encryptionResourceName},
+	}
+
+	methodTraversal := hcl.Traversal{
+		hcl.TraverseRoot{Name: encryptionMethodKey},
+		hcl.TraverseAttr{Name: encryptionDefaultMethod},
+		hcl.TraverseAttr{Name: encryptionResourceName},
+	}
+
+	// encryption block
+	encryptionBlock := terraformBlock.AppendNewBlock(encryptionBlockName, nil)
+	encryptionBlockBody := encryptionBlock.Body()
+
+	// Append key_provider block
+	keyProviderBlockBody := encryptionBlockBody.AppendNewBlock(EncryptionKeyProviderKey, []string{keyProvider, encryptionResourceName}).Body()
+
+	// Append method block
+	methodBlock := encryptionBlockBody.AppendNewBlock(encryptionMethodKey, []string{encryptionDefaultMethod, encryptionResourceName}).Body()
+	methodBlock.SetAttributeTraversal(encryptionKeysAttributeName, keyProviderTraversal)
+
+	// Append state block
+	stateBlock := encryptionBlockBody.AppendNewBlock(encryptionStateBlockName, nil).Body()
+	stateBlock.SetAttributeTraversal(encryptionMethodKey, methodTraversal)
+
+	// Append plan block
+	planBlock := encryptionBlockBody.AppendNewBlock(encryptionPlanBlockName, nil).Body()
+	planBlock.SetAttributeTraversal(encryptionMethodKey, methodTraversal)
+
+	var encryptionKeys = make([]string, 0, len(encryption))
+
+	for key := range encryption {
+		encryptionKeys = append(encryptionKeys, key)
+	}
+
+	sort.Strings(encryptionKeys)
+
+	// Fill key_provider block with ordered attributes
+	for _, key := range encryptionKeys {
+		if key == EncryptionKeyProviderKey {
+			continue
+		}
+
+		value, ok := encryption[key]
+		if !ok {
+			continue
+		}
+
+		// Skip basic types with zero values
+		if value == "" || value == 0 {
+			continue
+		}
+
+		ctyVal, err := convertValue(value)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		if keyProviderBlockBody != nil {
+			keyProviderBlockBody.SetAttributeValue(key, ctyVal.Value)
+		}
 	}
 
 	return f.Bytes(), nil

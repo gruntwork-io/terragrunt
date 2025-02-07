@@ -1,0 +1,78 @@
+---
+import { TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+
+const { os, arch, label, version } = Astro.props;
+---
+
+{os === 'windows' ? (
+<TabItem label={label}>
+<Code
+  lang="powershell"
+  code={`$os = "${os}"
+$arch = "${arch}"
+$version = "${version}"
+$binaryName = "terragrunt_\${os}_\${arch}.exe"
+try {
+    $ProgressPreference = 'SilentlyContinue'
+    # Download binary and checksum
+    $baseUrl = "https://github.com/gruntwork-io/terragrunt/releases/download/$version"
+    Write-Host "Downloading Terragrunt $version..."
+    Invoke-WebRequest -Uri "$baseUrl/$binaryName" -OutFile $binaryName -UseBasicParsing
+    Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile "SHA256SUMS" -UseBasicParsing
+    $actualChecksum = (Get-FileHash -Algorithm SHA256 $binaryName).Hash.ToLower()
+    $expectedChecksum = (Get-Content "SHA256SUMS" | Select-String -Pattern $binaryName).Line.Split()[0].ToLower()
+    if ($actualChecksum -ne $expectedChecksum) {
+        Write-Error "Checksum verification failed"
+        exit 1
+    }
+    Write-Host "Terragrunt $version has been downloaded and verified successfully"
+}
+catch {
+    Write-Error "Failed to download: $_"
+    exit 1
+}
+finally {
+    $ProgressPreference = 'Continue'
+}
+`}
+  frame='terminal'
+	>
+</Code>
+</TabItem>
+) : (
+<TabItem label={label}>
+<Code
+  lang="bash"
+  code={`
+set -euo pipefail
+
+OS="${os}"
+ARCH="${arch}"
+VERSION="${version}"
+BINARY_NAME="terragrunt_\${OS}_\${ARCH}"
+
+# Download the binary
+curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -o "$BINARY_NAME"
+
+# Generate the checksum
+CHECKSUM="$(${os == 'linux' ? 'sha256sum' : 'shasum -a 256'} "$BINARY_NAME" | awk '{print $1}')"
+
+# Download the checksum file
+curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -o SHA256SUMS
+
+# Grab the expected checksum
+EXPECTED_CHECKSUM="$(grep "$BINARY_NAME" <SHA256SUMS | awk '{print $1}')"
+
+# Compare the checksums
+if [ "$CHECKSUM" == "$EXPECTED_CHECKSUM" ]; then
+ echo "Checksums match!"
+else
+ echo "Checksums do not match!"
+fi`}
+  frame='terminal'
+	>
+</Code>
+</TabItem>
+)}
+

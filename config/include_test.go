@@ -152,6 +152,11 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
 		},
+		{
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -323,6 +328,12 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
+		},
+		{
+			"terraform copy_terraform_lock_file",
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
 		},
 	}
 

@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter"
 )
 
 func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
@@ -301,6 +302,9 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 	assert.True(t, ok)
 }
 
+// The test cases are run sequentially because they depend on each other.
+//
+//nolint:tparallel
 func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	t.Parallel()
 
@@ -358,11 +362,13 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 			},
 		},
 	}
+
+	// The test cases are run sequentially because they depend on each other.
+	//
+	//nolint:paralleltest
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
 			copyFolder(t, testCase.sourceURL, downloadDir)
 			assert.Condition(t, testCase.comp)
 		})
@@ -494,6 +500,60 @@ func copyFolder(t *testing.T, src string, dest string) {
 	logger := log.New()
 	logger.SetOptions(log.WithOutput(io.Discard))
 
-	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil)
+	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil, nil)
 	require.NoError(t, err)
+}
+
+// TestUpdateGettersExcludeFromCopy verifies the correct behavior of updateGetters with ExcludeFromCopy configuration
+func TestUpdateGettersExcludeFromCopy(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                 string
+		terragruntConfig     *config.TerragruntConfig
+		expectedExcludeFiles []string
+	}{
+		{
+			name: "Nil ExcludeFromCopy",
+			terragruntConfig: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExcludeFromCopy: nil,
+				},
+			},
+			expectedExcludeFiles: nil,
+		},
+		{
+			name: "Non-Nil ExcludeFromCopy",
+			terragruntConfig: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExcludeFromCopy: &[]string{"*.tfstate", "excluded_dir/"},
+				},
+			},
+			expectedExcludeFiles: []string{"*.tfstate", "excluded_dir/"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
+			require.NoError(t, err)
+
+			client := &getter.Client{}
+
+			// Call updateGetters
+			updateGettersFunc := terraform.UpdateGetters(terragruntOptions, tc.terragruntConfig)
+			err = updateGettersFunc(client)
+			require.NoError(t, err)
+
+			// Find the file getter
+			fileGetter, ok := client.Getters["file"].(*terraform.FileCopyGetter)
+			require.True(t, ok, "File getter should be of type FileCopyGetter")
+
+			// Verify ExcludeFromCopy
+			assert.Equal(t, tc.expectedExcludeFiles, fileGetter.ExcludeFromCopy,
+				"ExcludeFromCopy should match expected value")
+		})
+	}
 }

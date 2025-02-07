@@ -315,6 +315,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"key":    "path/to/my/key",
 				"region": "us-east-1",
 			},
+			"encryption": nil,
 		},
 	}
 
@@ -435,6 +436,7 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 			"error_hook":               map[string]interface{}{},
 			"extra_arguments":          map[string]interface{}{},
 			"include_in_copy":          nil,
+			"exclude_from_copy":        nil,
 			"source":                   "../terraform",
 			"copy_terraform_lock_file": nil,
 		},
@@ -459,6 +461,7 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 				"key":    "path/to/my/key",
 				"region": "us-east-1",
 			},
+			"encryption":                      nil,
 			"disable_dependency_optimization": false,
 			"disable_init":                    false,
 			"generate":                        nil,
