@@ -11,6 +11,8 @@ const (
 	CommandName          = "stack"
 	OutputFormatFlagName = "format"
 	OutputFormatEnvName  = "TERRAGRUNT_STACK_OUTPUT_FORMAT"
+	JsonFormatFlagName   = "json"
+	RawFormatFlagName    = "json"
 
 	generate = "generate"
 	run      = "run"
@@ -23,13 +25,28 @@ const (
 // NewFlags builds the flags for stack.
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		// Stack flags
 		&cli.GenericFlag[string]{
 			Name:   OutputFormatFlagName,
 			EnvVar: OutputFormatEnvName,
 
 			Destination: &opts.StackOutputFormat,
 			Usage:       "Stack output format. Valid values are: json, raw",
+		},
+		&cli.BoolFlag{
+			Name:  RawFormatFlagName,
+			Usage: "Stack output in raw format",
+			Action: func(ctx *cli.Context, value bool) error {
+				opts.StackOutputFormat = rawOutputFormat
+				return nil
+			},
+		},
+		&cli.BoolFlag{
+			Name:  JsonFormatFlagName,
+			Usage: "Stack output in json format",
+			Action: func(ctx *cli.Context, value bool) error {
+				opts.StackOutputFormat = jsonOutputFormat
+				return nil
+			},
 		},
 	}
 }
