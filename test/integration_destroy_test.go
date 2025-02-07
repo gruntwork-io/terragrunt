@@ -322,6 +322,10 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	t.Parallel()
 
+	t.Cleanup(func() {
+		config.ClearOutputCache()
+	})
+
 	tmpDir := t.TempDir()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
