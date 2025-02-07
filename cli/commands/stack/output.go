@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -45,7 +44,6 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 	return unitOutputs, nil
 }
 func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-
 	if len(outputIndex) == 0 {
 		// output index is required in raw mode
 		return errors.New("output index is required in raw mode")
@@ -69,7 +67,7 @@ func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs 
 			continue
 		}
 
-		line := fmt.Sprintf("%s\n", valueStr)
+		line := valueStr + "\n"
 		if _, err := writer.Write([]byte(line)); err != nil {
 			return errors.New(err)
 		}
