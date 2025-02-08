@@ -407,6 +407,9 @@ type TerragruntOptions struct {
 	// recap all that was emitted in stderr throughout
 	// the run of an orchestrated process.
 	LogDisableErrorSummary bool
+
+	// StackOutputFormat format how the stack output is rendered.
+	StackOutputFormat string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -695,6 +698,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		ScaffoldRootFileName:   opts.ScaffoldRootFileName,
 		Headless:               opts.Headless,
 		LogDisableErrorSummary: opts.LogDisableErrorSummary,
+		StackOutputFormat:      opts.StackOutputFormat,
 	}, nil
 }
 

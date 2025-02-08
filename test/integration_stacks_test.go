@@ -1,9 +1,12 @@
 package test_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
 	"github.com/stretchr/testify/assert"
 
@@ -19,6 +22,7 @@ const (
 	testFixtureStacksLocalsError = "fixtures/stacks/locals-error"
 	testFixtureStacksRemote      = "fixtures/stacks/remote"
 	testFixtureStacksInputs      = "fixtures/stacks/inputs"
+	testFixtureStacksOutputs     = "fixtures/stacks/outputs"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -153,6 +157,156 @@ func TestStacksDestroy(t *testing.T) {
 
 	assert.Contains(t, stdout, "Plan: 0 to add, 0 to change, 1 to destroy")
 	assert.Contains(t, stdout, "local_file.file: Destroying...")
+}
+
+func TestStackOutputs(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "custom_value2 = \"value2\"")
+	assert.Contains(t, stdout, "custom_value1 = \"value1\"")
+	assert.Contains(t, stdout, "name      = \"name1\"")
+
+	parser := hclparse.NewParser()
+	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
+	assert.Nil(t, diags)
+	attr, _ := hcl.Body.JustAttributes()
+	assert.Len(t, attr, 4)
+}
+
+func TestStackOutputsIndex(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output project2_app2 --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+	assert.NotContains(t, stdout, "filtered_app1 = {")
+	assert.Contains(t, stdout, "project2_app2 = {")
+
+	parser := hclparse.NewParser()
+	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
+	assert.Nil(t, diags)
+	attr, _ := hcl.Body.JustAttributes()
+	assert.Len(t, attr, 1)
+}
+
+func TestStackOutputsJson(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	assert.Len(t, result, 4)
+}
+
+func TestStackOutputsJsonIndex(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output project2_app1 --format json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	assert.Len(t, result, 1)
+	assert.Contains(t, result, "project2_app1")
+}
+
+func TestStackOutputsRawError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+}
+
+func TestStackOutputsRawIndex(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1.custom_value1 --format raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "value1")
+	assert.NotContains(t, stdout, "filtered_app1 = {")
+	assert.NotContains(t, stdout, "project2_app2 = {")
+}
+
+func TestStackOutputsRawFlag(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -raw filtered_app2.data --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "app2")
+	assert.NotContains(t, stdout, "project2_app1 = {")
+	assert.NotContains(t, stdout, "project2_app2 = {")
+}
+
+func TestStackOutputsJsonFlag(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	assert.Len(t, result, 4)
 }
 
 // check if the stack directory is created and contains files.
