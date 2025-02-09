@@ -80,6 +80,11 @@ linters:
     - wrapcheck
     - varnamelen
 
+    # TODO: We intentionally mix and match pointer and non-pointer
+    # receivers in the codebase. We might want to revisit this,
+    # but not while upgrading the linter.
+    - recvcheck
+
   fast: false
   mnd:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN

@@ -116,6 +116,8 @@ any go command that compiles the code (`build`, `run`, `test`, etc.).
 
 Terragrunt uses [golangci-lint](https://golangci-lint.run/) to lint the golang code in the codebase. This is a helpful form of static analysis that can catch common bugs and issues related to performance, style and maintainability.
 
+To ensure that you're using the same version of `golangci-lint` as the maintainers, you can use the `make install-lint` Makefile recipe to install the version of `golangci-lint` that we use locally, and in CI.
+
 We use the linter as a guide to learn about how we can improve the Terragrunt codebase. We do not enforce 100% compliance with the linter. If you believe that an error thrown by the linter is irrelevant, use the documentation on [false-positives](https://golangci-lint.run/usage/false-positives/) to suppress that error, along with an explanation of why you believe the error is a false positive.
 
 If you feel like the linter is missing a check that would be useful for improving the code quality of Terragrunt, please open an issue to discuss it, then open a pull request to add the check.

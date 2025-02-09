@@ -3171,7 +3171,7 @@ func TestOutputModuleGroups(t *testing.T) {
 			helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s %s", environmentPath, tt.subCommand), &stdout, &stderr)
 			output := strings.ReplaceAll(stdout.String(), " ", "")
 			expectedOutput := strings.ReplaceAll(strings.ReplaceAll(tt.expectedOutput, "\t", ""), " ", "")
-			assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(expectedOutput)))
+			assert.Contains(t, strings.TrimSpace(output), strings.TrimSpace(expectedOutput))
 		})
 	}
 }

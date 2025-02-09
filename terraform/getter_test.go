@@ -3,7 +3,6 @@ package terraform_test
 import (
 	"context"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -111,12 +110,10 @@ func TestTFRGetterRootDir(t *testing.T) {
 	testModuleURL, err := url.Parse("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0")
 	require.NoError(t, err)
 
-	dstPath, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(dstPath)
+	tmpDir := t.TempDir()
 
 	// The dest path must not exist for go getter to work
-	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
+	moduleDestPath := filepath.Join(tmpDir, "terraform-aws-vpc")
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(terraform.RegistryGetter)
@@ -132,12 +129,10 @@ func TestTFRGetterSubModule(t *testing.T) {
 	testModuleURL, err := url.Parse("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws//modules/vpc-endpoints?version=3.3.0")
 	require.NoError(t, err)
 
-	dstPath, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(dstPath)
+	tmpDir := t.TempDir()
 
 	// The dest path must not exist for go getter to work
-	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
+	moduleDestPath := filepath.Join(tmpDir, "terraform-aws-vpc")
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(terraform.RegistryGetter)
