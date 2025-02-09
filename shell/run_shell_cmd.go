@@ -69,7 +69,7 @@ func RunTerraformCommandWithOutput(ctx context.Context, opts *options.Terragrunt
 		return nil, err
 	}
 
-	output, err := RunShellCommandWithOutput(ctx, opts, "", false, needsPTY, opts.TerraformPath, args...)
+	output, err := RunShellCommandWithOutput(ctx, opts, "", false, false, needsPTY, opts.TerraformPath, args...)
 
 	if err != nil && util.ListContainsElement(args, terraform.FlagNameDetailedExitCode) {
 		code, _ := util.GetExitCode(err)
@@ -87,7 +87,7 @@ func RunTerraformCommandWithOutput(ctx context.Context, opts *options.Terragrunt
 
 // RunShellCommand runs the given shell command.
 func RunShellCommand(ctx context.Context, opts *options.TerragruntOptions, command string, args ...string) error {
-	_, err := RunShellCommandWithOutput(ctx, opts, "", false, false, command, args...)
+	_, err := RunShellCommandWithOutput(ctx, opts, "", false, false, false, command, args...)
 
 	return err
 }
@@ -102,6 +102,7 @@ func RunShellCommandWithOutput(
 	opts *options.TerragruntOptions,
 	workingDir string,
 	suppressStdout bool,
+	suppressStderr bool,
 	needsPTY bool,
 	command string,
 	args ...string,
@@ -182,6 +183,12 @@ func RunShellCommandWithOutput(
 			cmdStdout = io.MultiWriter(&output.Stdout)
 		}
 
+		if suppressStderr {
+			opts.Logger.Debugf("Command error output will be suppressed.")
+
+			cmdStderr = io.MultiWriter(&output.Stderr)
+		}
+
 		if command == opts.TerraformPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 			if opts.Engine != nil && opts.EngineEnabled {
@@ -193,6 +200,7 @@ func RunShellCommandWithOutput(
 					CmdStderr:         cmdStderr,
 					WorkingDir:        commandDir,
 					SuppressStdout:    suppressStdout,
+					SuppressStderr:    suppressStderr,
 					AllocatePseudoTty: needsPTY,
 					Command:           command,
 					Args:              args,

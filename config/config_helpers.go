@@ -340,6 +340,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 	}
 
 	suppressOutput := false
+	suppressErrorOutput := false
 	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
 	cachePath := currentPath
 
@@ -348,6 +349,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		switch args[0] {
 		case "--terragrunt-quiet":
 			suppressOutput = true
+			suppressErrorOutput = true
 
 			args = append(args[:0], args[1:]...)
 		case "--terragrunt-global-cache":
@@ -374,7 +376,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		return cachedValue, nil
 	}
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
+	cmdOutput, err := shell.RunShellCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, suppressErrorOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.New(err)
 	}
