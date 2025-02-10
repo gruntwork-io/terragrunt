@@ -2,6 +2,7 @@
 package run
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -82,15 +83,31 @@ func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
 		}
 
-		if !opts.DisableCommandValidation && !collections.ListContainsElement(tf.CommandNames, opts.TerraformCommand) {
-			if strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath) {
-				return cli.NewExitError(errors.New(WrongTerraformCommand(opts.TerraformCommand)), cli.ExitCodeGeneralError)
-			} else {
-				// We default to tofu if the terraform path does not end in Terraform
-				return cli.NewExitError(errors.New(WrongTofuCommand(opts.TerraformCommand)), cli.ExitCodeGeneralError)
-			}
+		if err := validateCommand(opts); err != nil {
+			return err
 		}
 
 		return Run(ctx.Context, opts.OptionsFromContext(ctx))
 	}
+}
+
+func validateCommand(opts *options.TerragruntOptions) error {
+	if opts.DisableCommandValidation || collections.ListContainsElement(tf.CommandNames, opts.TerraformCommand) {
+		return nil
+	}
+
+	var errMsg string
+
+	if strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath) {
+		errMsg = fmt.Sprintf("%s\nValid commands: %s",
+			WrongTerraformCommand(opts.TerraformCommand),
+			strings.Join(tf.CommandNames, ", "))
+	} else {
+		// We default to tofu if the terraform path does not end in Terraform
+		errMsg = fmt.Sprintf("%s\nValid commands: %s",
+			WrongTofuCommand(opts.TerraformCommand),
+			strings.Join(tf.CommandNames, ", "))
+	}
+
+	return cli.NewExitError(errors.New(errMsg), cli.ExitCodeGeneralError)
 }

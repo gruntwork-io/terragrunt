@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -89,11 +90,19 @@ func (ctrl *Control) GetSubcontrols() strict.Controls {
 
 // AddSubcontrols implements `strict.Control` interface.
 func (ctrl *Control) AddSubcontrols(newCtrls ...strict.Control) {
+	if ctrl.Subcontrols == nil {
+		ctrl.Subcontrols = make([]strict.Control, 0, len(newCtrls))
+	}
+
 	ctrl.Subcontrols = append(ctrl.Subcontrols, newCtrls...)
 }
 
 // Evaluate implements `strict.Control` interface.
 func (ctrl *Control) Evaluate(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Errorf("context error during evaluation: %w", err)
+	}
+
 	if ctrl == nil {
 		return nil
 	}

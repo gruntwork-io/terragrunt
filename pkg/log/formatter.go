@@ -1,6 +1,7 @@
 package log
 
 import (
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -48,6 +49,10 @@ type fromLogrusFormatter struct {
 }
 
 func (f *fromLogrusFormatter) Format(parent *logrus.Entry) ([]byte, error) {
+	if parent == nil {
+		return nil, errors.Errorf("nil entry provided")
+	}
+
 	entry := &Entry{
 		Entry:  parent,
 		Level:  FromLogrusLevel(parent.Level),

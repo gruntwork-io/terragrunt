@@ -7,6 +7,12 @@ type CompleteFunc func(ctx *Context) error
 type ActionFunc func(ctx *Context) error
 
 // HelpFunc is the action to execute when help needs to be displayed.
+// Example:
+//
+//	func showHelp(ctx *Context) error {
+//	  fmt.Println("Usage: ...")
+//	  return nil
+//	}
 type HelpFunc func(ctx *Context) error
 
 // SplitterFunc is used to parse flags containing multiple values.

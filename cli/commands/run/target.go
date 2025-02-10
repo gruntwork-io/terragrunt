@@ -27,12 +27,12 @@ type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *confi
 // Target struct helps to run `terraform.runTerraform` func up to the certain logic point, and the runs target's callback func and returns the flow.
 // For example, `terragrunt-info` CLI command requires source to be downloaded before running its specific action. To do this it:
 /*
-   package terragruntinfo
+   package info
    ... code omitted
 
    // creates a new target with `TargetPointDownloadSource` point name, once a source is downloaded `target` will call the `runTerragruntInfo` callback func.
-   target := terraform.NewTarget(terraform.TargetPointDownloadSource, runTerragruntInfo)
-   terraform.RunWithTarget(opts, target)
+   target := run.NewTarget(terraform.TargetPointDownloadSource, runTerragruntInfo)
+   run.RunWithTarget(opts, target)
 
    ... code omitted
 

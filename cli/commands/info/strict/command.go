@@ -1,4 +1,8 @@
 // Package strict represents CLI command that displays Terragrunt's strict control settings.
+// Example usage:
+//
+//	terragrunt info strict list        # List active strict controls
+//	terragrunt info strict list --all  # List all strict controls
 package strict
 
 import (
@@ -57,7 +61,7 @@ func ListAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			strict.ActiveStatus,
 		}
 
-		if ctx.Flag(ShowAllFlagName).Value().Get().(bool) {
+		if val, ok := ctx.Flag(ShowAllFlagName).Value().Get().(bool); ok && val {
 			allowedStatuses = append(allowedStatuses, strict.CompletedStatus)
 		}
 

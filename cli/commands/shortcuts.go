@@ -31,6 +31,8 @@ var (
 )
 
 func NewShortcutsCommands(opts *options.TerragruntOptions) cli.Commands {
+	// Note: Some functionality is gated behind the CLIRedesign experiment.
+	// This experiment controls the deprecation warnings for non-shortcut commands.
 	var (
 		runCmd       = run.NewCommand(opts)
 		cmds         = make(cli.Commands, len(runCmd.Subcommands))

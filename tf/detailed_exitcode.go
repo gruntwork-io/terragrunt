@@ -22,7 +22,13 @@ func (coder *DetailedExitCode) Get() int {
 	return coder.Code
 }
 
-// Set sets the newCode if the previous value is not 1 and the new value is greater than the previous one.
+// Set updates the exit code following OpenTofu's exit code convention:
+// - 0 = Success
+// - 1 = Error
+// - 2 = Success with changes pending
+// The method only updates if:
+// - The current code is not 1 (error state)
+// - The new code is greater than current OR equals 1
 func (coder *DetailedExitCode) Set(newCode int) {
 	coder.mu.Lock()
 	defer coder.mu.Unlock()

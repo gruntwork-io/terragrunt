@@ -14,7 +14,8 @@ type Writer struct {
 	render Render
 }
 
-// NewWriter returns a new `Writer` instance.
+// NewWriter returns a new Writer instance that uses the provided io.Writer for output
+// and the Render interface for formatting controls.
 func NewWriter(writer io.Writer, render Render) *Writer {
 	return &Writer{
 		Writer: writer,
@@ -44,7 +45,7 @@ func (writer *Writer) DetailControl(control strict.Control) error {
 
 func (writer *Writer) output(output string) error {
 	if _, err := fmt.Fprint(writer, output); err != nil {
-		return errors.New(err)
+		return errors.Errorf("failed to write output: %w", err)
 	}
 
 	return nil

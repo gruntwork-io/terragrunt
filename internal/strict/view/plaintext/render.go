@@ -10,6 +10,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/view"
 )
 
+const (
+	tabMinWidth = 1
+	tabWidth    = 8
+	tabPadding  = 2
+)
+
 var _ = view.Render(new(Render))
 
 type Render struct{}
@@ -20,9 +26,14 @@ func NewRender() *Render {
 
 // List implements view.Render interface.
 func (render *Render) List(controls strict.Controls) (string, error) {
-	return render.executeTemplate(listTemplate, map[string]any{
+	result, err := render.executeTemplate(listTemplate, map[string]any{
 		"controls": controls,
 	}, nil)
+
+	if err != nil {
+		return "", errors.Errorf("failed to render controls list: %w", err)
+	}
+	return result, nil
 }
 
 // DetailControl implements view.Render interface.
@@ -30,9 +41,8 @@ func (render *Render) DetailControl(control strict.Control) (string, error) {
 	return render.executeTemplate(detailControlTemplate, map[string]any{"control": control}, nil)
 }
 
-func (render *Render) executeTemplate(templ string, data any, customFuncs map[string]any) (string, error) {
+func (render *Render) buildTemplate(templ string, customFuncs map[string]any) (*template.Template, error) {
 	funcMap := template.FuncMap{}
-
 	for key, value := range customFuncs {
 		funcMap[key] = value
 	}
@@ -47,23 +57,32 @@ func (render *Render) executeTemplate(templ string, data any, customFuncs map[st
 
 	for name, value := range templates {
 		if _, err := t.New(name).Parse(value); err != nil {
-			return "", errors.New(err)
+			return nil, errors.Errorf("failed to parse template %s: %w", name, err)
 		}
 	}
+	return t, nil
+}
 
+func (render *Render) formatOutput(t *template.Template, data any) (string, error) {
 	out := new(bytes.Buffer)
-
-	var minwidth, tabwidth, padding = 1, 8, 2
-
-	tabOut := tabwriter.NewWriter(out, minwidth, tabwidth, padding, ' ', 0)
+	tabOut := tabwriter.NewWriter(out, tabMinWidth, tabWidth, tabPadding, ' ', 0)
 
 	if err := t.Execute(tabOut, data); err != nil {
-		return "", errors.New(err)
+		return "", errors.Errorf("failed to execute template: %w", err)
 	}
 
 	if err := tabOut.Flush(); err != nil {
-		return "", errors.New(err)
+		return "", errors.Errorf("failed to flush output: %w", err)
 	}
 
 	return out.String(), nil
+}
+
+func (render *Render) executeTemplate(templ string, data any, customFuncs map[string]any) (string, error) {
+	t, err := render.buildTemplate(templ, customFuncs)
+	if err != nil {
+		return "", err
+	}
+
+	return render.formatOutput(t, data)
 }

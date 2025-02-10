@@ -53,13 +53,10 @@ func (categories Categories) Len() int {
 
 // Less implements `sort.Interface` interface.
 func (categories Categories) Less(i, j int) bool {
-	if len((categories)[j].Name) == 0 {
-		return false
-	} else if len((categories)[i].Name) == 0 {
-		return true
+	if categories[i].Name == "" || categories[j].Name == "" {
+		return categories[j].Name == ""
 	}
-
-	return (categories)[i].Name < (categories)[j].Name
+	return categories[i].Name < categories[j].Name
 }
 
 // Swap implements `sort.Interface` interface.

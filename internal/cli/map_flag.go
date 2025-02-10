@@ -46,8 +46,6 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	Setter MapFlagSetterFunc[K, V]
 	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
 	EnvVars []string
-	// DisableEnvVar disables the creation of the environment variable by default.
-	DisableEnvVar bool
 	// Destination is a pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *map[K]V
@@ -63,10 +61,6 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
-	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
-	}
-
 	if flag.FlagValue != nil {
 		return ApplyFlag(flag, set)
 	}

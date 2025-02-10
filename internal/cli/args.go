@@ -83,14 +83,14 @@ func (args Args) Tail() Args {
 
 // Remove returns `args` with the `name` element removed.
 func (args Args) Remove(name string) Args {
-	for i := range args {
-		if args[i] == name {
-			args := Args(args.Slice())
-			return append(args[:i], args[i+1:]...)
+	result := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg != name {
+			result = append(result, arg)
 		}
 	}
 
-	return args
+	return result
 }
 
 // Len returns the length of the wrapped slice

@@ -53,6 +53,15 @@ func TestMain(m *testing.M) {
 			fmt.Printf("Failed to create temp dir due to error: %v", err)
 			os.Exit(1)
 		}
+	} else {
+		// Verify write permissions
+		testFile := filepath.Join(tempDir, ".write_test")
+		if err := os.WriteFile(testFile, []byte(""), 0666); err != nil {
+			fmt.Printf("Temp dir %s is not writable: %v", tempDir, err)
+			os.Exit(1)
+		}
+
+		os.Remove(testFile)
 	}
 
 	// Set temporary values.

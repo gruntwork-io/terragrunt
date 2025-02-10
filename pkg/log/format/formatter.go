@@ -118,7 +118,7 @@ func (formatter *Formatter) DisabledColors() bool {
 	return formatter.disabledColors
 }
 
-// SetDisabledOutput  enables/disables log output.
+// SetDisabledOutput enables/disables log output.
 func (formatter *Formatter) SetDisabledOutput(val bool) {
 	formatter.disabledOutput = val
 }

@@ -47,6 +47,10 @@ func (prefix Prefix) Append(val string) Prefix {
 // EnvVar returns a string that is the concatenation of the slice values with the given `name`,
 // using underscores as separators, replacing dashes with underscores, converting to uppercase.
 func (prefix Prefix) EnvVar(name string) string {
+	if name == "" {
+		return ""
+	}
+
 	name = strings.Join(append(prefix, name), "_")
 
 	return strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
@@ -66,6 +70,10 @@ func (prefix Prefix) EnvVars(names ...string) []string {
 // FlagName returns a string that is the concatenation of the slice values with the given `name`,
 // using dashes as separators, replacing dashes with underscores, converting to lowercase.
 func (prefix Prefix) FlagName(name string) string {
+	if name == "" {
+		return ""
+	}
+
 	name = strings.Join(append(prefix, name), "-")
 
 	return strings.ToLower(strings.ReplaceAll(name, "_", "-"))

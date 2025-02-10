@@ -4,6 +4,9 @@ package cli
 const (
 	ExitCodeSuccess ExitCode = iota
 	ExitCodeGeneralError
+	ExitCodeUsageError  // Invalid command usage (2)
+	ExitCodeDataError   // Input data error (65)
+	ExitCodeConfigError // Configuration error (78)
 )
 
 // ExitCode is a number between 0 and 255, which is returned by any Unix command when it returns control to its parent process.

@@ -144,7 +144,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 
 // GlobalFlags returns global flags. For backward compatibility, the slice contains flags that have been moved to other commands and are hidden from the CLI help,
 func GlobalFlags(opts *options.TerragruntOptions) cli.Flags {
-	globaFlags := global.NewFlags(opts, nil)
+	globalFlags := global.NewFlags(opts, nil)
 
 	commands := cli.Commands{
 		runCmd.NewCommand(opts),             // run
@@ -169,11 +169,11 @@ func GlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			}
 
 			knownFlags = append(knownFlags, flagName)
-			globaFlags = append(globaFlags, flags.NewMovedFlag(flag, cmd.Name, flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name)))
+			globalFlags = append(globalFlags, flags.NewMovedFlag(flag, cmd.Name, flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name)))
 		}
 	}
 
-	return globaFlags
+	return globalFlags
 }
 
 // removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.
@@ -182,7 +182,7 @@ func GlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 func removeNoColorFlagDuplicates(args []string) []string {
 	var (
 		foundNoColor bool
-		filteredArgs = make([]string, len(args))
+		filteredArgs = make([]string, 0, len(args))
 	)
 
 	for _, arg := range args {

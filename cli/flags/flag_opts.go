@@ -79,7 +79,8 @@ func WithDeprecatedFlag(deprecatedFlag cli.Flag, newValueFn NewValueFunc, regCon
 //	  EnvVars: []string{"NO_COLOR","DISABLE_COLOR"},
 //	}, WithDeprecatedPrefix(Prefix{"terragrunt"}, nil))
 //
-// The deprecated flag will have "terragrunt-no-color","terragrunt-disabe-color" names and "TERRAGRUNT_NO_COLOR","TERRAGRUNT_DISABLE_COLOR" env vars.
+// The deprecated flag will have "terragrunt-no-color","terragrunt-disable-color" names and "TERRAGRUNT_NO_COLOR","TERRAGRUNT_DISABLE_COLOR" env vars.
+// TODO: This function is currently unused but retained for future flag deprecation needs
 func WithDeprecatedPrefix(prefix Prefix, regControlsFn RegisterStrictControlsFunc) Option {
 	return func(new *Flag) {
 		deprecatedFlag := &DeprecatedFlag{

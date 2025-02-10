@@ -293,7 +293,7 @@ func HelpAction(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	if opts.Logger.Level() >= log.DebugLevel {
 		// https: //github.com/urfave/cli/blob/f035ffaa3749afda2cd26fb824aa940747297ef1/help.go#L401
 		if err := os.Setenv("CLI_TEMPLATE_ERROR_DEBUG", "1"); err != nil {
-			return errors.New(err)
+			return errors.Errorf("failed to set CLI_TEMPLATE_ERROR_DEBUG environment variable: %w", err)
 		}
 	}
 

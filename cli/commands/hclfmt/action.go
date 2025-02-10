@@ -141,7 +141,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
 		opts.Logger.Errorf("Error retrieving file info of %s", tgHclFile)
-		return errors.New(err)
+		return errors.Errorf("failed to get file info for %s: %v", tgHclFile, err)
 	}
 
 	contentsStr, err := util.ReadFileAsString(tgHclFile)

@@ -53,6 +53,8 @@ func (ctx *Context) Args() Args {
 	return ctx.args
 }
 
+// Flag retrieves a command flag by name. Returns nil if the command is not set
+// or if the flag doesn't exist.
 func (ctx *Context) Flag(name string) Flag {
 	if ctx.Command != nil {
 		return ctx.Command.Flags.Get(name)

@@ -39,7 +39,7 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 // Run execute stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if !opts.Experiments.Evaluate(experiment.Stacks) {
-		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
 
 	if err := RunGenerate(ctx, opts); err != nil {

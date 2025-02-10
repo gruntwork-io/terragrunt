@@ -29,11 +29,9 @@ func main() {
 
 	defer errors.Recover(checkForErrorsAndExit(opts.Logger, exitCode.Get()))
 
-	ctx := context.Background()
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
-	ctx = log.ContextWithLogger(ctx, opts.Logger)
-
 	app := cli.NewApp(opts)
+
+	ctx := setupContext(opts, &exitCode)
 	err := app.RunContext(ctx, os.Args)
 
 	checkForErrorsAndExit(opts.Logger, exitCode.Get())(err)
@@ -66,4 +64,10 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 			os.Exit(exitCoder)
 		}
 	}
+}
+
+func setupContext(opts *options.TerragruntOptions, exitCode *tf.DetailedExitCode) context.Context {
+	ctx := context.Background()
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
+	return log.ContextWithLogger(ctx, opts.Logger)
 }

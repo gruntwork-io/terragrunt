@@ -56,7 +56,7 @@ type FlagValue interface {
 	// IsSet returns true if the flag was set either by env var or CLI arg.
 	IsSet() bool
 
-	// IsSet returns true if the flag was by CLI arg.
+	// IsArgSet returns true if the flag was set by CLI arg.
 	IsArgSet() bool
 
 	// IsEnvSet returns true if the flag was set by env var.

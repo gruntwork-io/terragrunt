@@ -790,7 +790,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
-			return errors.New(err)
+			return errors.Errorf("failed to get file info: %w", err)
 		}
 
 		var (

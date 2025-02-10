@@ -51,7 +51,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 func (g *FileCopyGetter) GetFile(dst string, u *url.URL) error {
 	underlying := &getter.FileGetter{Copy: true}
 	if err := underlying.GetFile(dst, u); err != nil {
-		return errors.New(err)
+		return errors.Errorf("failed to copy file to %s: %w", dst, err)
 	}
 
 	return nil

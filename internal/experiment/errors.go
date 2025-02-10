@@ -19,6 +19,11 @@ func (err InvalidExperimentNameError) Error() string {
 	return "allowed experiment(s): " + strings.Join(err.allowedNames, ", ")
 }
 
+func (err InvalidExperimentNameError) Is(target error) bool {
+	_, ok := target.(*InvalidExperimentNameError)
+	return ok
+}
+
 // CompletedExperimentsError is an error that is returned when completed experiments are requested.
 type CompletedExperimentsError struct {
 	experimentsNames []string
