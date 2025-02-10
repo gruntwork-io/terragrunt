@@ -144,6 +144,8 @@ codespell: &codespell
   command: |
     pip install codespell==2.4.0
     codespell .
+    go install github.com/client9/misspell/cmd/misspell@v0.3.4
+    misspell -error .
 
 win_install_golang: &win_install_golang
   name: Install golang
