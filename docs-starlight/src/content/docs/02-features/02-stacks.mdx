@@ -356,7 +356,7 @@ Any error encountered in an individual unit during a `run-all` command will prev
 
 To check all of your dependencies and validate the code in them, you can use the `run-all validate` command.
 
-**Note:** During `destroy` runs, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of detected dependencies. This is because Terragrunt knows that once resources in a dependency is destroyed, any commands run on dependent units may fail. For example, if `destroy` was called on the `redis` unit, you'll be asked for confirmation, as the `backend-app` depends on `redis`. You can avoid the prompt by using `--non-interactive`.
+**Note:** During `destroy` runs, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of detected dependencies. This is because Terragrunt knows that once resources in a dependency are destroyed, any commands run on dependent units may fail. For example, if `destroy` was called on the `redis` unit, you'll be asked for confirmation, as the `backend-app` depends on `redis`. You can avoid the prompt by using `--non-interactive`.
 
 ## Visualizing the DAG
 
