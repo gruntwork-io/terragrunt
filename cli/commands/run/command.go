@@ -2,7 +2,6 @@
 package run
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -96,18 +95,9 @@ func validateCommand(opts *options.TerragruntOptions) error {
 		return nil
 	}
 
-	var errMsg string
-
 	if strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath) {
-		errMsg = fmt.Sprintf("%s\nValid commands: %s",
-			WrongTerraformCommand(opts.TerraformCommand),
-			strings.Join(tf.CommandNames, ", "))
-	} else {
-		// We default to tofu if the terraform path does not end in Terraform
-		errMsg = fmt.Sprintf("%s\nValid commands: %s",
-			WrongTofuCommand(opts.TerraformCommand),
-			strings.Join(tf.CommandNames, ", "))
+		return WrongTerraformCommand(opts.TerraformCommand)
 	}
 
-	return cli.NewExitError(errors.New(errMsg), cli.ExitCodeGeneralError)
+	return WrongTofuCommand(opts.TerraformCommand)
 }

@@ -40,8 +40,8 @@ func NewDeprecatedMovedFlagName(deprecatedFlag, newFlag cli.Flag, commandName st
 			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
-		ErrorFmt:       "`--%s` global flag is no longer supported. Use `--%s` instead.",
-		WarningFmt:     "`--%s` global flag is moved to `" + commandName + "` command and will be removed from the global flags in a future version. Use `--%s` instead.",
+		ErrorFmt:       "The `--%s` global flag is no longer supported. Use `--%s` instead.",
+		WarningFmt:     "The `--%s` global flag is moved to `" + commandName + "` command and will be removed from the global flags in a future version. Use `--%s` instead.",
 		deprecatedFlag: deprecatedFlag,
 		newFlag:        newFlag,
 	}
