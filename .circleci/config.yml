@@ -80,6 +80,7 @@ setup_test_environment: &setup_test_environment
     mkdir -p logs
     # configure git compression to avoid periodic failures
     git config --global core.compression 0
+    git config --global http.postBuffer 524288000
   no_output_timeout: 30m
 
 run_integration_test: &run_integration_test
