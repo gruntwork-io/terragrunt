@@ -26,6 +26,7 @@ const (
 	gitlabHost            = "gitlab.com"
 	azuredevHost          = "dev.azure.com"
 	bitbucketHost         = "bitbucket.org"
+	gitlabSelfHostedRegex = `^(gitlab\.(.+))$`
 )
 
 var (
@@ -125,6 +126,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 }
 
 var githubEnterprisePatternReg = regexp.MustCompile(githubEnterpriseRegex)
+var gitlabSelfHostedPatternReg = regexp.MustCompile(gitlabSelfHostedRegex)
 
 // ModuleURL returns the URL of the module in this repository. `moduleDir` is the path from the repository root.
 func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
@@ -152,6 +154,10 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 	// // Hosts that require special handling
 	if githubEnterprisePatternReg.MatchString(string(remote.Host)) {
 		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+	}
+
+	if gitlabSelfHostedPatternReg.MatchString(string(remote.Host)) {
+		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
 	}
 
 	return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
