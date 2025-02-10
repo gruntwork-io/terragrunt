@@ -33,6 +33,7 @@ func (render *Render) List(controls strict.Controls) (string, error) {
 	if err != nil {
 		return "", errors.Errorf("failed to render controls list: %w", err)
 	}
+
 	return result, nil
 }
 
@@ -60,6 +61,7 @@ func (render *Render) buildTemplate(templ string, customFuncs map[string]any) (*
 			return nil, errors.Errorf("failed to parse template %s: %w", name, err)
 		}
 	}
+
 	return t, nil
 }
 

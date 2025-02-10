@@ -84,6 +84,7 @@ func (args Args) Tail() Args {
 // Remove returns `args` with the `name` element removed.
 func (args Args) Remove(name string) Args {
 	result := make([]string, 0, len(args))
+
 	for _, arg := range args {
 		if arg != name {
 			result = append(result, arg)

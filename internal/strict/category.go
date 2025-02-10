@@ -53,9 +53,15 @@ func (categories Categories) Len() int {
 
 // Less implements `sort.Interface` interface.
 func (categories Categories) Less(i, j int) bool {
-	if categories[i].Name == "" || categories[j].Name == "" {
-		return categories[j].Name == ""
+	// Handle empty names: empty names should come last
+	if categories[i].Name == "" {
+		return false
 	}
+
+	if categories[j].Name == "" {
+		return true
+	}
+	// Normal lexicographical comparison
 	return categories[i].Name < categories[j].Name
 }
 
