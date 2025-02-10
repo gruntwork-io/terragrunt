@@ -1539,14 +1539,14 @@ passed in, the set will be the union of modules that includes at least one of th
 **NOTE**: When using relative paths, the paths are relative to the working directory. This is either the current working
 directory, or any path passed in to [working-dir](#working-dir).
 
-**TIP**: This flag is functionally covered by the `--terragrunt-queue-include-units-reading` flag, but is more explicitly
+**TIP**: This flag is functionally covered by the `--queue-include-units-reading` flag, but is more explicitly
 only for the `include` configuration block.
 
-### terragrunt-queue-include-units-reading
+### queue-include-units-reading
 
-**CLI Arg**: `--terragrunt-queue-include-units-reading`<br/>
+**CLI Arg**: `--queue-include-units-reading`<br/>
 **Environment Variable**: `TERRAGRUNT_QUEUE_INCLUDE_UNITS_READING`<br/>
-**CLI Arg Alias**: `` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**CLI Arg Alias**: `--terragrunt-queue-include-units-reading` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable Alias**: `` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
