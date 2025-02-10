@@ -82,7 +82,7 @@ The `terraform` block supports the following arguments:
     `tofu`/`terraform` like `required_var_files`, only any files that do not exist are ignored.
 
 - `before_hook` (block): Nested blocks used to specify command hooks that should be run before `tofu`/`terraform` is called.
-  Hooks run from the directory with the OpenTofu/Terraform module, except for hooks related to `terragrunt-read-config` and
+  Hooks run from the directory with the OpenTofu/Terraform module, except for hooks related to `read-config` and
   `init-from-module`. These hooks run in the terragrunt configuration directory (the directory where `terragrunt.hcl`
   lives).
   Supports the following arguments:
@@ -92,7 +92,7 @@ The `terraform` block supports the following arguments:
     `["echo", "Foo"]`, the command `echo Foo` will be run.
   - `working_dir` (optional) : The path to set as the working directory of the hook. Terragrunt will switch directory
     to this path before running the hook command. Defaults to the terragrunt configuration directory for
-    `terragrunt-read-config` and `init-from-module` hooks, and the OpenTofu/Terraform module directory for other command hooks.
+    `read-config` and `init-from-module` hooks, and the OpenTofu/Terraform module directory for other command hooks.
   - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
     case of "after" hooks, if the OpenTofu/Terraform command hit an error. Default is false.
   - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on OpenTofu/Terraform's output and any other output would break their parsing.
@@ -106,10 +106,10 @@ The `terraform` block supports the following arguments:
 In addition to supporting before and after hooks for all OpenTofu/Terraform commands, the following specialized hooks are also
 supported:
 
-- `terragrunt-read-config` (after hook only): `terragrunt-read-config` is a special hook command that you can use with
+- `read-config` (after hook only): `read-config` is a special hook command that you can use with
   the `after_hook` subblock to run an action immediately after terragrunt finishes loading the config. This hook will
   run on every invocation of terragrunt. Note that you can only use this hook with `after_hooks`. Any `before_hooks`
-  with the command `terragrunt-read-config` will be ignored. The working directory for hooks associated with this
+  with the command `read-config` will be ignored. The working directory for hooks associated with this
   command will be the terragrunt config directory.
 
 - `init-from-module` and `init`: Terragrunt has two stages of initialization: one is to download [remote
@@ -207,10 +207,10 @@ terraform {
   }
 
   # A special after_hook. Use this hook if you wish to run commands immediately after terragrunt finishes loading its
-  # configurations. If "terragrunt-read-config" is defined as a before_hook, it will be ignored as this config would
+  # configurations. If "read-config" is defined as a before_hook, it will be ignored as this config would
   # not be loaded before the action is done.
-  after_hook "terragrunt-read-config" {
-    commands = ["terragrunt-read-config"]
+  after_hook "read-config" {
+    commands = ["read-config"]
     execute  = ["bash", "script/get_aws_credentials.sh"]
   }
 }
@@ -1116,7 +1116,7 @@ When reading Terragrunt HCL configurations, you might read in a computed configu
 # computed.hcl
 
 locals {
-  computed_value = run_cmd("--terragrunt-quiet", "python3", "-c", "print('Hello,')")
+  computed_value = run_cmd("--quiet", "python3", "-c", "print('Hello,')")
 }
 ```
 
@@ -1413,7 +1413,7 @@ with external feature flag services like [LaunchDarkly](https://launchdarkly.com
 # terragrunt.hcl
 
 feature "feature_name" {
-  default = run_cmd("--terragrunt-quiet", "<command-to-fetch-feature-flag-value>")
+  default = run_cmd("--quiet", "<command-to-fetch-feature-flag-value>")
 }
 ```
 
