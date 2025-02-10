@@ -8,12 +8,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/hashicorp/go-getter"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+)
+
+const (
+	defaultGitCloneTimeout = time.Duration(60) * time.Minute
 )
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
@@ -63,11 +68,23 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 
 		for getterName, getterValue := range getter.Getters {
 			// setting custom getter for file to not use symlinks
-			if getterName == "file" {
+			switch getterName {
+			case "file":
 				client.Getters[getterName] = &stacksFileProvider{}
-			} else {
+			case "git":
+				// fetch git getter
+				gitGetter, ok := getterValue.(*getter.GitGetter)
+				if !ok {
+					client.Getters[getterName] = getterValue
+					break
+				}
+				gitGetter.Timeout = defaultGitCloneTimeout
+				client.Getters[getterName] = gitGetter
+			default:
 				client.Getters[getterName] = getterValue
+
 			}
+
 		}
 
 		// fetching unit source
