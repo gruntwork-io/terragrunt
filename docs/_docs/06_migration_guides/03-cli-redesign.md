@@ -8,6 +8,7 @@ tags: ["migration", "community"]
 order: 503
 nav_title: Documentation
 nav_title_link: /docs/
+slug: cli-redesign
 ---
 
 ## Background
