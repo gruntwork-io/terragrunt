@@ -5,7 +5,7 @@ Get-Command go
 go version
 
 # configure git compression
-git config --global core.compression 9
+git config --global core.compression 0
 
 try {
     # Enable Developer Mode

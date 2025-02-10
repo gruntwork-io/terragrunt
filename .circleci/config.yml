@@ -79,7 +79,7 @@ setup_test_environment: &setup_test_environment
     gpg --import --no-tty --batch --yes ./test/fixtures/sops/test_pgp_key.asc
     mkdir -p logs
     # configure git compression to avoid periodic failures
-    git config --global core.compression 9
+    git config --global core.compression 0
   no_output_timeout: 30m
 
 run_integration_test: &run_integration_test
