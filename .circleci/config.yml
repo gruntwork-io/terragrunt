@@ -81,6 +81,10 @@ setup_test_environment: &setup_test_environment
     # configure git compression to avoid periodic failures
     git config --global core.compression 0
     git config --global http.postBuffer 524288000
+    git config --global pack.windowMemory 100m
+    git config --global pack.packSizeLimit 100m
+    export GIT_TRACE=1
+    export GIT_CURL_VERBOSE=1
   no_output_timeout: 30m
 
 run_integration_test: &run_integration_test
