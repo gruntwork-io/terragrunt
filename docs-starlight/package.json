@@ -14,5 +14,8 @@
     "astro": "^5.2.1",
     "sharp": "^0.32.5",
     "starlight-links-validator": "^0.14.2"
+  },
+  "patchedDependencies": {
+    "@astrojs/starlight@0.31.1": "patches/@astrojs%2Fstarlight@0.31.1.patch"
   }
 }
