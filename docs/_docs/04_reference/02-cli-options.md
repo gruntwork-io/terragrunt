@@ -366,6 +366,134 @@ Before executing the specified command, the `terragrunt stack run *` command wil
 the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
 
+#### output
+
+The `terragrunt stack output` command allows users to retrieve and interact with outputs from multiple units within a Terragrunt stack.
+This feature simplifies handling infrastructure outputs by consolidating them into a single view.
+
+Basic Usage:
+
+Executing `terragrunt stack output` in a stack directory produces an aggregated output from all units within the stack:
+
+```bash
+$ terragrunt stack output
+service.output1 = "output1"
+service.output2 = "output2"
+db.output1 = "output1"
+db.output2 = "output2"
+```
+
+To retrieve outputs for a specific unit, specify the unit name:
+
+```bash
+$ terragrunt stack output project1_app1
+project1_app1 = {
+  complex = {
+    delta     = 0.02
+    id        = 2
+    name      = "name1"
+    timestamp = "2025-02-07T21:05:51Z"
+  }
+  complex_list = [{
+    delta     = 0.02
+    id        = 10
+    name      = "name1"
+    timestamp = "2025-02-07T21:05:51Z"
+    }, {
+    delta     = 0.03
+    id        = 20
+    name      = "name10"
+    timestamp = "2025-02-07T21:05:51Z"
+  }]
+  custom_value1 = "value1"
+  data          = "app1"
+  list          = ["1", "2", "3"]
+}
+```
+
+You can also retrieve a specific output from a unit:
+
+```bash
+$ terragrunt stack output project1_app1.custom_value1
+project1_app1.custom_value1 = "value1"
+```
+
+Terragrunt provides multiple output formats for easier parsing and integration with other tools. The desired format can be specified using the `--format` CLI flag.
+
+| Format    | Description                                                                                                                                               | CLI Flag Usage     |
+|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| `default` | Returns outputs in HCL format.                                                                                                                            | `--format=default` |
+| `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.                                                         | `--format=json`    |
+| `raw`     | Outputs key-value pairs in a compact, JSON-like format. When accessing lists or complex structures, data must be retrieved using an index-based approach. | `--format=raw`     |
+
+To retrieve outputs in structured JSON format:
+
+```bash
+$ terragrunt stack output --format json project1_app2
+{
+  "project1_app2": {
+    "complex": {
+      "delta": 0.02,
+      "id": 2,
+      "name": "name2",
+      "timestamp": "2025-02-07T21:05:51Z"
+    },
+    "complex_list": [
+      {
+        "delta": 0.02,
+        "id": 2,
+        "name": "name2",
+        "timestamp": "2025-02-07T21:05:51Z"
+      },
+      {
+        "delta": 0.03,
+        "id": 2,
+        "name": "name3",
+        "timestamp": "2025-02-07T21:05:51Z"
+      }
+    ],
+    "custom_value2": "value2",
+    "data": "app2",
+    "list": [
+      "a",
+      "b",
+      "c"
+    ]
+  }
+}
+```
+
+Accessing a specific list inside JSON format:
+
+```bash
+$ terragrunt stack output --format json project1_app2.complex_list
+{
+  "project1_app2.complex_list": [
+    {
+      "delta": 0.02,
+      "id": 2,
+      "name": "name2",
+      "timestamp": "2025-02-07T21:05:51Z"
+    },
+    {
+      "delta": 0.03,
+      "id": 2,
+      "name": "name3",
+      "timestamp": "2025-02-07T21:05:51Z"
+    }
+  ]
+}
+```
+
+The `raw` format returns outputs as plain values without additional structure. When accessing lists or structured outputs, indexes are required to extract values.
+
+Retrieving a simple value:
+
+```bash
+$ terragrunt stack output --format raw project1_app2.data
+app2
+```
+
 ### info
 
 Emits limited terragrunt information to stdout in JSON format.
@@ -662,632 +790,67 @@ When running in strict mode, `validate-inputs` will return an error if there are
 
 This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
 
-
 ## Flags
 
-### graph-dependencies
-Prints the terragrunt dependency graph, in DOT format, to `stdout`. You can generate charts from DOT format using tools
-such as [GraphViz](http://www.graphviz.org/).
-
-Example:
-
-```bash
-terragrunt graph-dependencies
-```
-
-This will recursively search the current working directory for any folders that contain Terragrunt modules and build
-the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
-[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
-
-```text
-digraph {
-  "mgmt/bastion-host" ;
-  "mgmt/bastion-host" -> "mgmt/vpc";
-  "mgmt/bastion-host" -> "mgmt/kms-master-key";
-  "mgmt/kms-master-key" ;
-  "mgmt/vpc" ;
-  "stage/backend-app" ;
-  "stage/backend-app" -> "stage/vpc";
-  "stage/backend-app" -> "mgmt/bastion-host";
-  "stage/backend-app" -> "stage/mysql";
-  "stage/backend-app" -> "stage/search-app";
-  "stage/frontend-app" ;
-  "stage/frontend-app" -> "stage/vpc";
-  "stage/frontend-app" -> "mgmt/bastion-host";
-  "stage/frontend-app" -> "stage/backend-app";
-  "stage/mysql" ;
-  "stage/mysql" -> "stage/vpc";
-  "stage/redis" ;
-  "stage/redis" -> "stage/vpc";
-  "stage/search-app" ;
-  "stage/search-app" -> "stage/vpc";
-  "stage/search-app" -> "stage/redis";
-  "stage/vpc" ;
-  "stage/vpc" -> "mgmt/vpc";
-}
-```
-
-### hclfmt
-
-Recursively find hcl files and rewrite them into a canonical format.
-
-Example:
-
-```bash
-terragrunt hclfmt
-```
-
-This will recursively search the current working directory for any folders that contain Terragrunt configuration files
-and run the equivalent of `tofu fmt`/`terraform fmt` on them.
-
-### hclvalidate
-
-Find all hcl files from the configuration stack and validate them.
-
-Example:
-
-```bash
-terragrunt hclvalidate
-```
-
-This will search all hcl files from the configuration stack in the current working directory and run the equivalent
-of `tofu validate`/`terraform validate` on them.
-
-For convenience in programmatically parsing these findings, you can also pass the `--terragrunt-hclvalidate-json` flag to output the results in JSON format.
-
-Example:
-
-```bash
-terragrunt hclvalidate --terragrunt-hclvalidate-json
-```
-
-In addition, you can pass the `--terragrunt-hclvalidate-show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [terragrunt-excludes-file](#terragrunt-excludes-file) flag.
-
-Example:
-
-```bash
-terragrunt hclvalidate --terragrunt-hclvalidate-show-config-path
-```
-
-### aws-provider-patch
-
-Overwrite settings on nested AWS providers to work around several OpenTofu/Terraform bugs. Due to
-[issue #13018](https://github.com/hashicorp/terraform/issues/13018) and
-[issue #26211](https://github.com/hashicorp/terraform/issues/26211), the `import` command may fail if your OpenTofu/Terraform
-code uses a module that has a `provider` block nested within it that sets any of its attributes to computed values.
-This command is a hacky attempt at working around this problem by allowing you to temporarily hard-code those
-attributes so `import` can work.
-
-You specify which attributes to hard-code using the [`--terragrunt-override-attr`](#terragrunt-override-attr) option,
-passing it `ATTR=VALUE`, where `ATTR` is the attribute name and `VALUE` is the new value. `VALUE` is assumed to be a
-json encoded string, which means that you must have quotes (e.g., `--terragrunt-override-attr 'region="eu-west-1"'`).
-Additionally, note that `ATTR` can specify attributes within a nested block by specifying `<BLOCK>.<ATTR>`, where
-`<BLOCK>` is the block name.
-
-For example, let's say you had a `provider` block in a module that looked like this:
-
-```hcl
-provider "aws" {
-  region              = var.aws_region
-  allowed_account_ids = var.allowed_account_ids
-  assume_role {
-    role_arn = var.role_arn
-  }
-}
-```
-
-Both the `region` and `role_arn` parameters are set to dynamic values, which will trigger those OpenTofu/Terraform bugs. To work
-around it, run the following command:
-
-```bash
-# NOTE: The single quotes around the args is to allow you to pass through the " character in the args via bash quoting
-# rules.
-terragrunt aws-provider-patch \
-  --terragrunt-override-attr 'region="eu-west-1"' \
-  --terragrunt-override-attr 'assume_role.role_arn=""' \
-  --terragrunt-override-attr 'allowed_account_ids=["00000000"]'
-```
-
-When you run the command above, Terragrunt will:
-
-1. Run `tofu init`/`terraform init` to download the code for all your modules into `.terraform/modules`.
-1. Scan all the OpenTofu/Terraform code in `.terraform/modules`, find AWS `provider` blocks, and for each one, hard-code:
-   1. The `region` param to `"eu-west-1"`.
-   1. The `role_arn` within the `assume_role` block to `""`.
-   1. The `allowed_account_ids` param to `["0000000"]`.
-
-The result will look like this:
-
-```hcl
-provider "aws" {
-  region              = "eu-west-1"
-  allowed_account_ids = ["0000000"]
-  assume_role {
-    role_arn = ""
-  }
-}
-```
-
-This should allow you to run `import` on the module and work around those OpenTofu/Terraform bugs. When you're done running
-`import`, remember to delete your overridden code! E.g., Delete the `.terraform` or `.terragrunt-cache` folders.
-
-### render-json
-
-Render out the final interpreted `terragrunt.hcl` file (that is, with all the includes merged, dependencies
-resolved/interpolated, function calls executed, etc) as json.
-
-Example:
-
-The following `terragrunt.hcl`:
-
-```hcl
-locals {
-  aws_region = "us-east-1"
-}
-
-inputs = {
-  aws_region = local.aws_region
-}
-```
-
-Renders to the following `terragrunt_rendered.json`:
-
-```json
-{
-  "locals": { "aws_region": "us-east-1" },
-  "inputs": { "aws_region": "us-east-1" }
-  // NOTE: other attributes are omitted for brevity
-}
-```
-
-You can use the CLI option `--terragrunt-json-out` to configure where terragrunt renders out the json representation.
-
-To generate json with metadata can be specified argument `--with-metadata` which will add metadata to the json output.
-
-Example:
-
-```json
-{
-  "inputs": {
-    "aws_region": {
-      "metadata": {
-        "found_in_file": "/example/terragrunt.hcl"
-      },
-      "value": "us-east-1"
-    }
-  },
-  "locals": {
-    "aws_region": {
-      "metadata": {
-        "found_in_file": "/example/terragrunt.hcl"
-      },
-      "value": "us-east-1"
-    }
-  }
-  // NOTE: other attributes are omitted for brevity
-}
-```
-
-### output-module-groups
-
-Output groups of modules ordered for apply (or destroy) as a list of list in JSON.
-
-Example:
-
-```bash
-terragrunt output-module-groups <sub-command>
-```
-
-Optional sub-commands:
-
-- apply (default)
-- destroy
-
-This will recursively search the current working directory for any folders that contain Terragrunt modules and build
-the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
-[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks and output the graph as a JSON list of list (unless the sub-command is destroy, in which case the command will output the reverse dependency order).
-
-This can be be useful in several scenarios, such as in CICD, when determining apply order or searching for all files to apply with CLI options
-such as [`--terragrunt-modules-that-include`](#terragrunt-modules-that-include)
-
-This may produce output such as:
-
-```json
-{
-  "Group 1": ["stage/frontend-app"],
-  "Group 2": ["stage/backend-app"],
-  "Group 3": ["mgmt/bastion-host", "stage/search-app"],
-  "Group 4": ["mgmt/kms-master-key", "stage/mysql", "stage/redis"],
-  "Group 5": ["stage/vpc"],
-  "Group 6": ["mgmt/vpc"]
-}
-```
-
-### scaffold
-
-Generate Terragrunt files from existing OpenTofu/Terraform modules.
-
-More details in [scaffold section](https://terragrunt.gruntwork.io/docs/features/scaffold/).
-
-### catalog
-
-Launch the user interface for searching and managing your module catalog.
-
-More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
-
-### graph
-
-Run the provided OpenTofu/Terraform command against the graph of dependencies for the module in the current working directory. The graph consists of all modules that depend on the module in the current working directory via a `depends_on` or `dependencies` block, plus all the modules that depend on those modules, and all the modules that depend on those modules, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--terragrunt-graph-root` argument.
-
-The Command will be executed following the order of dependencies: so it'll run on the module in the current working directory first, then on modules that depend on it directly, then on the modules that depend on those modules, and so on. Note that if the command is `destroy`, it will execute in the opposite order of the dependencies.
-
-Example:
-Having below dependencies:
-[![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
-
-Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
-
-```text
-Group 1
-- Module project/eks
-
-Group 2
-- Module project/services/eks-service-1
-- Module project/services/eks-service-2
-
-Group 3
-- Module project/services/eks-service-2-v2
-- Module project/services/eks-service-3
-- Module project/services/eks-service-5
-
-Group 4
-- Module project/services/eks-service-3-v2
-- Module project/services/eks-service-4
-
-Group 5
-- Module project/services/eks-service-3-v3
-```
-
-Notes:
-
-- `lambda` modules aren't included in the graph, because they are not dependent on `eks` module.
-- execution is from bottom up based on dependencies
-
-Running `terragrunt graph destroy` in `eks` module will lead to the following execution order:
-
-```text
-Group 1
-- Module project/services/eks-service-2-v2
-- Module project/services/eks-service-3-v3
-- Module project/services/eks-service-4
-- Module project/services/eks-service-5
-
-Group 2
-- Module project/services/eks-service-3-v2
-
-Group 3
-- Module project/services/eks-service-3
-
-Group 4
-- Module project/services/eks-service-1
-- Module project/services/eks-service-2
-
-Group 5
-- Module project/eks
-```
-
-Notes:
-
-- execution is in reverse order, first are destroyed "top" modules and in the end `eks`
-- `lambda` modules aren't affected at all
-
-Running `terragrunt graph apply` in `services/eks-service-3`:
-
-```text
-Group 1
-- Module project/services/eks-service-3
-
-Group 2
-- Module project/services/eks-service-3-v2
-- Module project/services/eks-service-4
-
-Group 3
-- Module project/services/eks-service-3-v3
-
-```
-
-Notes:
-
-- in execution are included only services dependent from `eks-service-3`
-
-Running `terragrunt graph destroy` in `services/eks-service-3`:
-
-```text
-Group 1
-- Module project/services/eks-service-3-v3
-- Module project/services/eks-service-4
-
-Group 2
-- Module project/services/eks-service-3-v2
-
-Group 3
-- Module project/services/eks-service-3
-```
-
-Notes:
-
-- destroy will be executed only on subset of services dependent from `eks-service-3`
-
-### stack
-
-The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
-These commands simplify the process of handling multiple infrastructure units by grouping them into a "stack", reducing code duplication and streamlining operations across environments.
-
-#### generate
-
-The `terragrunt stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
-
-Given the following `terragrunt.stack.hcl` configuration:
-
-```hcl
-locals {
-  version = "v0.68.4"
-}
-
-unit "app1" {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=${local.version}"
-  path   = "app1"
-}
-
-unit "app2" {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=${local.version}"
-  path   = "app2"
-}
-
-```
-
-Executing generate:
-
-```bash
-terragrunt stack generate
-```
-
-Will create the following directory structure:
-
-```tree
-.terragrunt-stack/
-├── app1/
-│   └── terragrunt.hcl
-└── app2/
-    └── terragrunt.hcl
-```
-
-#### run
-
-The `terragrunt stack run *` command enables users to execute IaC commands across all units defined in the `terragrunt.stack.hcl` file.
-This feature facilitates efficient orchestration of operations on multiple units, simplifying workflows for managing complex infrastructure stacks.
-
-**Examples:**
-
-Run a plan on each unit:
-
-```bash
- terragrunt stack run plan
-```
-
-Apply changes for each unit:
-
-```bash
-terragrunt stack run apply
-```
-
-Destroy all units:
-
-```bash
-terragrunt stack run destroy
-```
-
-**Note:**
-
-Before executing the specified command, the `terragrunt stack run *` command will automatically generate the stack by creating
-the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
-This ensures that all units are up-to-date before running the requested operation.
-
-#### output
-
-The `terragrunt stack output` command allows users to retrieve and interact with outputs from multiple units within a Terragrunt stack.
-This feature simplifies handling infrastructure outputs by consolidating them into a single view.
-
-Basic Usage:
-
-Executing `terragrunt stack output` in a stack directory produces an aggregated output from all units within the stack:
-
-```bash
-$ terragrunt stack output
-service.output1 = "output1"
-service.output2 = "output2"
-db.output1 = "output1"
-db.output2 = "output2"
-```
-
-To retrieve outputs for a specific unit, specify the unit name:
-
-```bash
-$ terragrunt stack output project1_app1
-project1_app1 = {
-  complex = {
-    delta     = 0.02
-    id        = 2
-    name      = "name1"
-    timestamp = "2025-02-07T21:05:51Z"
-  }
-  complex_list = [{
-    delta     = 0.02
-    id        = 10
-    name      = "name1"
-    timestamp = "2025-02-07T21:05:51Z"
-    }, {
-    delta     = 0.03
-    id        = 20
-    name      = "name10"
-    timestamp = "2025-02-07T21:05:51Z"
-  }]
-  custom_value1 = "value1"
-  data          = "app1"
-  list          = ["1", "2", "3"]
-}
-```
-
-You can also retrieve a specific output from a unit:
-
-```bash
-$ terragrunt stack output project1_app1.custom_value1
-project1_app1.custom_value1 = "value1"
-```
-
-Terragrunt provides multiple output formats for easier parsing and integration with other tools. The desired format can be specified using the `--format` CLI flag.
-
-| Format    | Description                                                                                                                                               | CLI Flag Usage     |
-|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
-| `default` | Returns outputs in HCL format.                                                                                                                            | `--format=default` |
-| `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.                                                         | `--format=json`    |
-| `raw`     | Outputs key-value pairs in a compact, JSON-like format. When accessing lists or complex structures, data must be retrieved using an index-based approach. | `--format=raw`     |
-
-To retrieve outputs in structured JSON format:
-
-```bash
-$ terragrunt stack output --format json project1_app2
-{
-  "project1_app2": {
-    "complex": {
-      "delta": 0.02,
-      "id": 2,
-      "name": "name2",
-      "timestamp": "2025-02-07T21:05:51Z"
-    },
-    "complex_list": [
-      {
-        "delta": 0.02,
-        "id": 2,
-        "name": "name2",
-        "timestamp": "2025-02-07T21:05:51Z"
-      },
-      {
-        "delta": 0.03,
-        "id": 2,
-        "name": "name3",
-        "timestamp": "2025-02-07T21:05:51Z"
-      }
-    ],
-    "custom_value2": "value2",
-    "data": "app2",
-    "list": [
-      "a",
-      "b",
-      "c"
-    ]
-  }
-}
-```
-
-Accessing a specific list inside JSON format:
-
-```bash
-$ terragrunt stack output --format json project1_app2.complex_list
-{
-  "project1_app2.complex_list": [
-    {
-      "delta": 0.02,
-      "id": 2,
-      "name": "name2",
-      "timestamp": "2025-02-07T21:05:51Z"
-    },
-    {
-      "delta": 0.03,
-      "id": 2,
-      "name": "name3",
-      "timestamp": "2025-02-07T21:05:51Z"
-    }
-  ]
-}
-```
-
-The `raw` format returns outputs as plain values without additional structure. When accessing lists or structured outputs, indexes are required to extract values.
-
-Retrieving a simple value:
-
-```bash
-$ terragrunt stack output --format raw project1_app2.data
-app2
-```
-
-## CLI options
-
-Terragrunt forwards all options to OpenTofu/Terraform. The only exceptions are `--version` and arguments that start with the
-prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available options are:
-
-- [terragrunt-config](#terragrunt-config)
-- [terragrunt-tfpath](#terragrunt-tfpath)
-- [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-- [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
-- [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-- [terragrunt-non-interactive](#terragrunt-non-interactive)
-- [terragrunt-working-dir](#terragrunt-working-dir)
-- [terragrunt-download-dir](#terragrunt-download-dir)
-- [terragrunt-source](#terragrunt-source)
-- [terragrunt-source-map](#terragrunt-source-map)
-- [terragrunt-source-update](#terragrunt-source-update)
-- [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-- [terragrunt-iam-role](#terragrunt-iam-role)
-- [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
-- [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
-- [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
-- [terragrunt-excludes-file](#terragrunt-excludes-file)
-- [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-- [terragrunt-include-dir](#terragrunt-include-dir)
-- [terragrunt-strict-include](#terragrunt-strict-include)
-- [terragrunt-strict-validate](#terragrunt-strict-validate)
-- [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-- [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-- [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-- [terragrunt-parallelism](#terragrunt-parallelism)
-- [terragrunt-debug](#terragrunt-debug)
-- [terragrunt-log-level](#terragrunt-log-level)
-- [terragrunt-log-format](#terragrunt-log-format)
-- [terragrunt-log-custom-format](#terragrunt-log-custom-format)
-- [terragrunt-log-disable](#terragrunt-log-disable)
-- [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
-- [terragrunt-no-color](#terragrunt-no-color)
-- [terragrunt-check](#terragrunt-check)
-- [terragrunt-diff](#terragrunt-diff)
-- [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
-- [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
-- [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
-- [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
-- [terragrunt-override-attr](#terragrunt-override-attr)
-- [terragrunt-json-out](#terragrunt-json-out)
-- [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
-- [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-- [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
-- [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-- [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
-- [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
-- [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
-- [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
-- [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-- [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-- [terragrunt-provider-cache](#terragrunt-provider-cache)
-- [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
-- [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
-- [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
-- [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
-- [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
-- [terragrunt-out-dir](#terragrunt-out-dir)
-- [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-- [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-- [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
-- [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
-======= end
+- [all](#all)
+- [auth-provider-cmd](#auth-provider-cmd)
+- [config](#config)
+- [tf-path](#tf-path)
+- [no-auto-init](#no-auto-init)
+- [no-auto-approve](#no-auto-approve)
+- [no-auto-retry](#no-auto-retry)
+- [non-interactive](#non-interactive)
+- [working-dir](#working-dir)
+- [download-dir](#download-dir)
+- [source](#source)
+- [source-map](#source-map)
+- [source-update](#source-update)
+- [iam-assume-role](#iam-assume-role)
+- [iam-assume-role-duration](#iam-assume-role-duration)
+- [iam-assume-role-session-name](#iam-assume-role-session-name)
+- [iam-assume-role-web-identity-token](#iam-assume-role-web-identity-token)
+- [queue-ignore-errors](#queue-ignore-errors)
+- [queue-excludes-file](#queue-excludes-file)
+- [queue-exclude-dir](#queue-exclude-dir)
+- [queue-include-dir](#queue-include-dir)
+- [queue-strict-include](#queue-strict-include)
+- [strict-validate](#strict-validate)
+- [queue-ignore-dag-order](#queue-ignore-dag-order)
+- [queue-exclude-external](#queue-exclude-external)
+- [queue-include-external](#queue-include-external)
+- [parallelism](#parallelism)
+- [inputs-debug](#inputs-debug)
+- [log-level](#log-level)
+- [log-format](#log-format)
+- [log-custom-format](#log-custom-format)
+- [log-disable](#log-disable)
+- [log-show-abs-paths](#log-show-abs-paths)
+- [no-color](#no-color)
+- [check](#check)
+- [diff](#diff)
+- [hclfmt-file](#hclfmt-file)
+- [hclfmt-exclude-dir](#hclfmt-exclude-dir)
+- [hclfmt-stdin](#hclfmt-stdin)
+- [hclvalidate-json](#hclvalidate-json)
+- [hclvalidate-show-config-path](#hclvalidate-show-config-path)
+- [out](#out)
+- [disable-dependent-modules](#disable-dependent-modules)
+- [units-that-include](#units-that-include)
+- [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
+- [use-partial-parse-config-cache](#use-partial-parse-config-cache)
+- [backend-require-bootstrap](#backend-require-bootstrap)
+- [disable-bucket-update](#disable-bucket-update)
+- [disable-command-validation](#disable-command-validation)
+- [provider-cache](#provider-cache)
+- [provider-cache-dir](#provider-cache-dir)
+- [provider-cache-hostname](#provider-cache-hostname)
+- [provider-cache-port](#provider-cache-port)
+- [provider-cache-token](#provider-cache-token)
+- [provider-cache-registry-names](#provider-cache-registry-names)
+- [out-dir](#out-dir)
+- [json-out-dir](#json-out-dir)
+- [tf-forward-stdout](#tf-forward-stdout)
+- [no-destroy-dependencies-check](#no-destroy-dependencies-check)
 - [feature](#feature)
 - [experiment](#experiment)
 - [experiment-mode](#experiment-mode)
