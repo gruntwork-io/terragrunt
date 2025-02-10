@@ -95,7 +95,7 @@ Optional variables which can be passed to `scaffold` command:
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
-   When the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control is enabled, the default configuration file will change to `root.hcl`, which is considered a better practice. For more details, see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
+   When the [root-terragrunt-hcl](/docs/reference/strict-controls#root-terragrunt-hcl) strict control is enabled, the default configuration file will change to `root.hcl`, which is considered a better practice. For more details, see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
 
 ### Convenience flags
 
@@ -104,7 +104,7 @@ Optional variables which can be passed to `scaffold` command:
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
-   See the note above on the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control for more information.
+   See the note above on the [root-terragrunt-hcl](/docs/reference/strict-controls#root-terragrunt-hcl) strict control for more information.
 
 ## Examples
 

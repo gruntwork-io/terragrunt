@@ -40,10 +40,10 @@ To avoid these frustrating trade-offs, you can configure Terragrunt to assume an
 
 ## Configuring Terragrunt to assume an IAM role
 
-To tell Terragrunt to assume an IAM role, just set the [`--terragrunt-iam-role`](/docs/reference/cli-options/#terragrunt-iam-role) command line argument:
+To tell Terragrunt to assume an IAM role, just set the [`--iam-role`](/docs/reference/cli-options/#iam-role) command line argument:
 
 ```bash
-terragrunt apply --terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+terragrunt apply --iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
 
 Alternatively, you can set the `TERRAGRUNT_IAM_ROLE` environment variable:
@@ -67,16 +67,16 @@ Terragrunt will call the `sts assume-role` API on your behalf and expose the cre
 
 ## Leveraging OIDC role assumption
 
-In addition, you can combine the `--terragrunt-iam-role` flag with the [`--terragrunt-iam-web-identity-token`](/docs/reference/cli-options/#terragrunt-iam-web-identity-token) to use the `AssumeRoleWithWebIdentity` API instead of the `AssumeRole` API.
+In addition, you can combine the `--iam-role` flag with the [`--iam-web-identity-token`](/docs/reference/cli-options/#iam-web-identity-token) to use the `AssumeRoleWithWebIdentity` API instead of the `AssumeRole` API.
 
 This is especially convenient in the context of CI/CD pipelines, as it's generally a best practice to assume roles there via OIDC.
 
-Configuring OIDC role assumption largely works like the `--terragrunt-iam-role` flag, with the addition of the `--terragrunt-iam-web-identity-token` flag. One special aspect of the `--terragrunt-iam-web-identity-token` flag is that it can use both a token, and the path to a file containing the token.
+Configuring OIDC role assumption largely works like the `--iam-role` flag, with the addition of the `--iam-web-identity-token` flag. One special aspect of the `--iam-web-identity-token` flag is that it can use both a token, and the path to a file containing the token.
 
 As a command line argument:
 
 ```bash
-terragrunt apply --terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME" --terragrunt-iam-web-identity-token "$TOKEN"
+terragrunt apply --iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME" --iam-web-identity-token "$TOKEN"
 ```
 
 As environment variables:
@@ -106,10 +106,10 @@ This technique is especially useful in the following circumstances:
 - On a shared development repository, where you might want to use different roles for different developers, or even different roles for the same developer, depending on the task at hand.
 - In a setup where units in different accounts depend on each other, and you want to assume a different role for each account.
 
-The [`--terragrunt-auth-provider-cmd`](/docs/reference/cli-options/#terragrunt-auth-provider-cmd) flag allows you to specify a command that can be executed by Terragrunt to fetch credentials at runtime.
+The [`--auth-provider-cmd`](/docs/reference/cli-options/#auth-provider-cmd) flag allows you to specify a command that can be executed by Terragrunt to fetch credentials at runtime.
 
 ```bash
-terragrunt apply --terragrunt-auth-provider-cmd /path/to/auth-script.sh
+terragrunt apply --auth-provider-cmd /path/to/auth-script.sh
 ```
 
 As with all other flags, you can also set this as an environment variable:
@@ -291,4 +291,4 @@ Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table 
 }
 ```
 
-You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/docs/reference/config-blocks-and-attributes/#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.
+You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/docs/reference/hcl/blocks#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.

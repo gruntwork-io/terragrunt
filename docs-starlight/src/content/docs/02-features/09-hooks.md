@@ -45,7 +45,7 @@ In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu pl
 - If an error occurs during the `tofu apply` command, Terragrunt will output `Error Hook executed`.
 
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
-block](/docs/reference/config-blocks-and-attributes/#terraform).
+block](/docs/reference/hcl/blocks#terraform).
 
 ## Hook Context
 
@@ -101,7 +101,7 @@ aws s3 ls "s3://$BUCKET_NAME"
 ```
 
 Note that the `TG_CTX_TF_PATH` environment variable is used here to ensure compatibility, regardless of the
-value of [terragrunt-tfpath](/docs/reference/cli-options/#terragrunt-tfpath). This can be a useful practice
+value of [tf-path](/docs/reference/cli-options/#tf-path). This can be a useful practice
 if you are migrating between OpenTofu or Terraform.
 
 You will also have access to all the `inputs` set in the `terragrunt.hcl` file as environment variables prefixed
@@ -272,7 +272,7 @@ Any desired extra configuration should be added in the `.tflint.hcl` file.
 It will work with a `.tflint.hcl` file in the current folder or any parent folder.
 To utilize an alternative configuration file, use the `--config` flag with the path to the configuration file.
 
-If there is a need to run `tflint` from the operating system directly, use the extra parameter `--terragrunt-external-tflint`.
+If there is a need to run `tflint` from the operating system directly, use the extra parameter `--external-tflint`.
 This will result in usage of the `tflint` binary found in the `PATH` environment variable.
 
 For example:
@@ -283,7 +283,7 @@ For example:
 terraform {
     before_hook "tflint" {
     commands = ["apply", "plan"]
-    execute = ["tflint" , "--terragrunt-external-tflint", "--minimum-failure-severity=error", "--config", "custom.tflint.hcl"]
+    execute = ["tflint" , "--external-tflint", "--minimum-failure-severity=error", "--config", "custom.tflint.hcl"]
   }
 }
 ```

@@ -46,7 +46,7 @@ This tutorial will not assume the following:
 2. You have any experience with Terragrunt.
 3. You have any existing Terragrunt, OpenTofu or Terraform projects.
 
-\* Note that if you have _both_ OpenTofu and Terraform installed, you'll want to read the [terragrunt-tfpath](/docs/reference/cli-options/#terragrunt-tfpath) docs to understand how Terragrunt determines which binary to use.
+\* Note that if you have _both_ OpenTofu and Terraform installed, you'll want to read the [tf-path](/docs/reference/cli-options/#tf-path) docs to understand how Terragrunt determines which binary to use.
 
 If you would like a less gentle introduction geared towards users with an active AWS account, familiarity with OpenTofu/Terraform, and potentially a team actively using Terragrunt, consider starting with the [Overview](/docs/getting-started/overview/).
 
@@ -130,12 +130,12 @@ You can also see what to expect in your filesystem at each step [here](https://g
    
    You might notice that this is a little more verbose than the output you're used to seeing from running `tofu` or `terraform` directly. This is because Terragrunt does a bit of work behind the scenes to make sure that you can scale your OpenTofu/Terraform usage without running into common problems. As you get more comfortable with using Terragrunt on larger projects, you may find the extra information helpful.
    
-   If you would prefer that Terragrunt output look more like the output from `tofu` or `terraform`, you can use the `--terragrunt-log-format bare` flag (or set the environment variable `TERRAGRUNT_LOG_FORMAT=bare`) to reduce the verbosity of the output.
+   If you prefer that Terragrunt terminal output look more like that from `tofu` or `terraform`, you can use the `--log-format bare` flag (or set the environment variable `TERRAGRUNT_LOG_FORMAT=bare`) to reduce the verbosity of the output.
    
    e.g.
    
    ```bash
-   $ terragrunt --terragrunt-log-format bare apply
+   $ terragrunt --log-format bare apply
    local_file.file: Refreshing state... [id=0a0a9f2a6772942557ab5355d76af442f8f65e01]
    
    No changes. Your infrastructure matches the configuration.
@@ -224,7 +224,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
 4. **Use Terragrunt to manage your units**
 
-   Luckily, Terragrunt has a built-in feature to control the inputs passed to your OpenTofu/Terraform configurations. This feature is called (aptly enough) [inputs](/docs/reference/config-blocks-and-attributes/#inputs).
+   Luckily, Terragrunt has a built-in feature to control the inputs passed to your OpenTofu/Terraform configurations. This feature is called (aptly enough) [inputs](/docs/reference/hcl/attributes/#inputs).
    
    Let's add inputs to both `terragrunt.hcl` files in the `foo` and `bar` directories:
    
@@ -315,10 +315,10 @@ You can also see what to expect in your filesystem at each step [here](https://g
    
    This is where that additional verbosity in Terragrunt logging is really handy. You can see that Terragrunt concurrently ran `apply -auto-approve` in both the `foo` and `bar` units. The extra logging for Terragrunt also included information on the names of the units that were processed, and disambiguated the output from each unit.
    
-   Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--terragrunt-non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
+   Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
    
    ```bash
-   terragrunt run-all --terragrunt-non-interactive apply
+   terragrunt run-all --non-interactive apply
    ```
 
 6. **Use Terragrunt to manage your DAG**
@@ -451,7 +451,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    If you're concerned about the `mock_outputs` attribute resulting in invalid configurations, note that during an apply, the outputs of `foo` will be known, and Terragrunt won't use `mock_outputs` to resolve the outputs of `foo`.
    
    ```bash
-   $ terragrunt run-all --terragrunt-non-interactive apply
+   $ terragrunt run-all --non-interactive apply
    
    ...
    
@@ -504,7 +504,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    
    The next step of the Getting Started guide is to follow the [Overview](/docs/getting-started/overview/) guide. This guide will introduce you to more advanced Terragrunt features, and show you how to use Terragrunt to manage your infrastructure across multiple environments in a real-world AWS account.
    
-   If you're ready to get your hands dirty with more advanced Terragrunt features yourself, you can skip ahead to the [Features](/docs#features) section of the documentation.
+   If you're ready to get your hands dirty with more advanced Terragrunt features yourself, you can skip ahead to the [Features](/docs/features/units) section of the documentation.
    
    If you ever need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section. You are especially encouraged to join the [Terragrunt Discord](https://discord.gg/YENaT9h8jh) server, and become part of the Terragrunt community.
 
