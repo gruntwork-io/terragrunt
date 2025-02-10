@@ -45,9 +45,8 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // RunOutput stack output.
 func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
-	stacksEnabled := opts.Experiments[experiment.Stacks]
-	if !stacksEnabled.Enabled {
-		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	if !opts.Experiments.Evaluate(experiment.Stacks) {
+		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
 
 	// collect outputs
