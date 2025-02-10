@@ -85,6 +85,8 @@ setup_test_environment: &setup_test_environment
     git config --global pack.packSizeLimit 100m
     export GIT_TRACE=1
     export GIT_CURL_VERBOSE=1
+    df -h
+    free -g
   no_output_timeout: 30m
 
 run_integration_test: &run_integration_test
