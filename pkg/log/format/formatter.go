@@ -16,7 +16,8 @@ var _ log.Formatter = new(Formatter)
 type Formatter struct {
 	baseDir        string
 	placeholders   placeholders.Placeholders
-	disableColors  bool
+	disabledColors bool
+	disabledOutput bool
 	relativePather *options.RelativePather
 	mu             sync.Mutex
 }
@@ -30,7 +31,7 @@ func NewFormatter(phs placeholders.Placeholders) *Formatter {
 
 // Format implements logrus.Format.
 func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
-	if formatter.placeholders == nil {
+	if formatter.placeholders == nil || formatter.disabledOutput {
 		return nil, nil
 	}
 
@@ -42,7 +43,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 	str, err := formatter.placeholders.Format(&options.Data{
 		Entry:          entry,
 		BaseDir:        formatter.baseDir,
-		DisableColors:  formatter.disableColors,
+		DisabledColors: formatter.disabledColors,
 		RelativePather: formatter.relativePather,
 	})
 	if err != nil {
@@ -65,11 +66,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// DisableColors disables log color.
-func (formatter *Formatter) DisableColors() {
-	formatter.disableColors = true
-}
-
+// SetBaseDir creates a set of relative paths that are used to convert full paths to relative ones.
 func (formatter *Formatter) SetBaseDir(baseDir string) error {
 	pather, err := options.NewRelativePather(baseDir)
 	if err != nil {
@@ -87,7 +84,46 @@ func (formatter *Formatter) DisableRelativePaths() {
 	formatter.relativePather = nil
 }
 
-// SetFormat sets log format.
-func (formatter *Formatter) SetFormat(phs placeholders.Placeholders) {
+// SetFormat parses and sets log format.
+func (formatter *Formatter) SetFormat(str string) error {
+	phs, err := ParseFormat(str)
+	if err != nil {
+		return err
+	}
+
 	formatter.placeholders = phs
+
+	return nil
+}
+
+// SetCustomFormat parses and sets custom log format.
+func (formatter *Formatter) SetCustomFormat(str string) error {
+	phs, err := placeholders.Parse(str)
+	if err != nil {
+		return err
+	}
+
+	formatter.placeholders = phs
+
+	return nil
+}
+
+// SetDisabledColors enables/disables log colors.
+func (formatter *Formatter) SetDisabledColors(val bool) {
+	formatter.disabledColors = val
+}
+
+// DisabledColors returns true if log colors are disabled.
+func (formatter *Formatter) DisabledColors() bool {
+	return formatter.disabledColors
+}
+
+// SetDisabledOutput enables/disables log output.
+func (formatter *Formatter) SetDisabledOutput(val bool) {
+	formatter.disabledOutput = val
+}
+
+// DisabledOutput returns true if log output is disabled.
+func (formatter *Formatter) DisabledOutput() bool {
+	return formatter.disabledOutput
 }

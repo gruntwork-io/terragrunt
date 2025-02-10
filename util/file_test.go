@@ -207,8 +207,8 @@ func TestFileManifest(t *testing.T) {
 	var testfiles = make([]string, 0, len(files))
 
 	// create temp dir
-	dir, err := os.MkdirTemp("", ".terragrunt-test-dir")
-	require.NoError(t, err)
+	dir := t.TempDir()
+
 	for _, file := range files {
 		// create temp files in the dir
 		f, err := os.CreateTemp(dir, file)

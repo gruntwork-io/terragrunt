@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -110,7 +109,7 @@ func (state *RemoteState) Initialize(ctx context.Context, terragruntOptions *opt
 // 4. The remote state initializer for this backend type, if there is one, says initialization is necessary
 func (state *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if terragruntOptions.DisableBucketUpdate {
-		terragruntOptions.Logger.Debugf("Skipping remote state initialization due to %s flag", commands.TerragruntDisableBucketUpdateFlagName)
+		terragruntOptions.Logger.Debug("Skipping remote state initialization")
 		return false, nil
 	}
 

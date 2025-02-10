@@ -14,10 +14,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
@@ -39,7 +39,9 @@ import (
 const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
-	FoundInFile                     = "found_in_file"
+	RecommendedParentConfigName     = "root.hcl"
+
+	FoundInFile = "found_in_file"
 
 	iamRoleCacheName = "iamRoleCache"
 
@@ -87,7 +89,7 @@ var (
 		writer := writer.New(writer.WithLogger(opts.Logger), writer.WithDefaultLevel(log.ErrorLevel))
 
 		return []hclparse.Option{
-			hclparse.WithDiagnosticsWriter(writer, opts.DisableLogColors),
+			hclparse.WithDiagnosticsWriter(writer, opts.Logger.Formatter().DisabledColors()),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 			hclparse.WithLogger(opts.Logger),
 		}
@@ -674,10 +676,8 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	experiment := opts.Experiments[experiment.Symlinks]
-
 	walkFunc := filepath.Walk
-	if experiment.Evaluate(opts.ExperimentMode) {
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
 		walkFunc = util.WalkWithSymlinks
 	}
 
@@ -755,7 +755,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
-	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
 
 	// TODO: Remove lint ignore
@@ -790,7 +790,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
-			return err
+			return errors.Errorf("failed to get file info: %w", err)
 		}
 
 		var (

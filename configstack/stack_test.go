@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
 
@@ -64,7 +64,7 @@ func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestStack()
-	runGraph, err := stack.GetModuleRunGraph(terraform.CommandNameApply)
+	runGraph, err := stack.GetModuleRunGraph(tf.CommandNameApply)
 	require.NoError(t, err)
 
 	require.Equal(
@@ -89,7 +89,7 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestStack()
-	runGraph, err := stack.GetModuleRunGraph(terraform.CommandNameDestroy)
+	runGraph, err := stack.GetModuleRunGraph(tf.CommandNameDestroy)
 	require.NoError(t, err)
 
 	require.Equal(
@@ -146,7 +146,7 @@ func createTestStack() *configstack.Stack {
 		Dependencies: configstack.TerraformModules{mysql, redis},
 	}
 
-	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "/stage/mystack"})
+	stack := configstack.NewStack(mockOptions)
 	stack.Modules = configstack.TerraformModules{
 		accountBaseline,
 		vpc,
@@ -162,10 +162,7 @@ func createTestStack() *configstack.Stack {
 func createTempFolder(t *testing.T) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
-	}
+	tmpFolder := t.TempDir()
 
 	return filepath.ToSlash(tmpFolder)
 }
@@ -1131,7 +1128,7 @@ func TestBasicDependency(t *testing.T) {
 	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}}
 	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
 
-	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "test-stack"})
+	stack := configstack.NewStack(mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
 
 	expected := map[string][]string{
@@ -1145,6 +1142,7 @@ func TestBasicDependency(t *testing.T) {
 		t.Errorf("Expected %v, got %v", expected, result)
 	}
 }
+
 func TestNestedDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -1154,7 +1152,7 @@ func TestNestedDependencies(t *testing.T) {
 	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
 
 	// Create a mock stack
-	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "nested-stack"})
+	stack := configstack.NewStack(mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
 
 	// Expected result
@@ -1184,7 +1182,7 @@ func TestCircularDependencies(t *testing.T) {
 	moduleB.Dependencies = configstack.TerraformModules{moduleC}
 	moduleC.Dependencies = configstack.TerraformModules{moduleA} // Circular dependency
 
-	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "circular-stack"})
+	stack := configstack.NewStack(mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
 
 	expected := map[string][]string{

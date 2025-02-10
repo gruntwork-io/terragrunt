@@ -519,7 +519,7 @@ jobs:
       - run:
           name: Run mocks tests
           command: |
-            run-go-tests --packages "-tags=mocks -run ^TestMock ./terraform/getproviders/." | tee logs/test-results.log
+            run-go-tests --packages "-tags=mocks -run ^TestMock ./tf/getproviders/." | tee logs/test-results.log
           no_output_timeout: 30m
           environment:
             TERRAGRUNT_TFPATH: tofu
@@ -934,4 +934,3 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-

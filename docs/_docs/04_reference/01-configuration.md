@@ -29,9 +29,9 @@ Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/
 
 Terragrunt figures out the path to its config file according to the following rules:
 
-1. The value of the `--terragrunt-config` command-line option, if specified.
+1. The value of the `--config` command-line option, if specified.
 
-2. The value of the `TERRAGRUNT_CONFIG` environment variable, if defined.
+2. The value of the `TG_CONFIG` environment variable, if defined.
 
 3. A `terragrunt.hcl` file in the current working directory, if it exists.
 
@@ -119,12 +119,12 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
 - `root/qa/services/service01/terragrunt.hcl`
 
-You can set `--terragrunt-diff` option. `terragrunt hclfmt --terragrunt-diff` will output the diff in a unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
+You can set `--diff` option. `terragrunt hclfmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. The `diff` utility must be present in your `PATH`.
 
-Additionally, there’s a flag `--terragrunt-check`. `terragrunt hclfmt --terragrunt-check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
+Additionally, there’s a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return the exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
 
-You can exclude directories from the formatting process by using the `--terragrunt-hclfmt-exclude-dir` flag. For example, `terragrunt hclfmt --terragrunt-hclfmt-exclude-dir=qa/services`.
+You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hclfmt --exclude-dir=qa/services`.
 
-If you want to format a single file, you can use the `--terragrunt-hclfmt-file` flag. For example, `terragrunt hclfmt --terragrunt-hclfmt-file qa/services/services.hcl`.
+If you want to format a single file, you can use the `--file` flag. For example, `terragrunt hclfmt --file qa/services/services.hcl`.
 
-If you want to format HCL from stdin and print the result to stdout, you can use the `--terragrunt-hclfmt-stdin` flag. For example, `echo 'module "foo" {}' | terragrunt hclfmt --terragrunt-hclfmt-stdin`.
+If you want to format HCL from stdin and print the result to stdout, you can use the `--stdin` flag. For example, `echo 'module "foo" {}' | terragrunt hclfmt --stdin`.

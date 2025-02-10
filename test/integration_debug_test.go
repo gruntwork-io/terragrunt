@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +56,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	mockOptions.WorkingDir = rootPath
 	require.NoError(
 		t,
-		shell.RunTerraformCommand(context.Background(), mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
+		tf.RunCommand(context.Background(), mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout = bytes.Buffer{}
@@ -180,10 +180,8 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 func TestRenderJSONConfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
-	require.NoError(t, err)
+	tmpDir := t.TempDir()
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	defer os.RemoveAll(tmpDir)
 
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
@@ -292,10 +290,8 @@ func TestRenderJSONConfig(t *testing.T) {
 func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
-	require.NoError(t, err)
+	tmpDir := t.TempDir()
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	defer os.RemoveAll(tmpDir)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureRenderJSONRegression)
 	workDir := filepath.Join(tmpEnvPath, fixtureRenderJSONRegression)

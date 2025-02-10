@@ -504,9 +504,9 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	engineLogLevel := terragruntOptions.EngineLogLevel
 	if len(engineLogLevel) == 0 {
-		engineLogLevel = terragruntOptions.LogLevel.String()
+		engineLogLevel = terragruntOptions.Logger.Level().String()
 		// turn off log formatting if disabled for Terragrunt
-		if terragruntOptions.DisableLog {
+		if terragruntOptions.Logger.Formatter().DisabledOutput() {
 			engineLogLevel = hclog.Off.String()
 		}
 	}

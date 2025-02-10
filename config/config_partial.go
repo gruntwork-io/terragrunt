@@ -5,10 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -263,7 +264,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
 	var (
@@ -455,14 +456,14 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
-			control, ok := strict.GetStrictControl(strict.SkipDependenciesInputs)
-			if ok {
-				_, _, skipInputs := control.Evaluate(ctx.TerragruntOptions)
-				if skipInputs != nil {
-					ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+			allControls := ctx.TerragruntOptions.StrictControls
+			skipDependenciesInputs := allControls.FilterByNames(controls.SkipDependenciesInputs)
+			logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 
-					break
-				}
+			if err := skipDependenciesInputs.Evaluate(logger); err != nil {
+				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+
+				break
 			}
 
 			decoded := terragruntInputs{}

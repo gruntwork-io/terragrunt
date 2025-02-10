@@ -967,7 +967,7 @@ func evalRealPathAndInfo(currentPath string) (string, os.FileInfo, error) {
 	// Get info about the symlink target
 	realInfo, err := os.Stat(realPath)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to describe file %s: %w", realPath, err)
+		return "", nil, errors.Errorf("failed to describe file %s: %w", realPath, err)
 	}
 
 	return realPath, realInfo, nil

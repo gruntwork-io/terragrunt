@@ -60,7 +60,7 @@ func Run(ctx context.Context, opts *Options) (er error) {
 }
 
 func writeDiagnostics(opts *Options, diags diagnostic.Diagnostics) error {
-	render := view.NewHumanRender(opts.DisableLogColors)
+	render := view.NewHumanRender(opts.Logger.Formatter().DisabledColors())
 	if opts.JSONOutput {
 		render = view.NewJSONRender()
 	}

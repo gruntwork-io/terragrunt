@@ -8,8 +8,8 @@ import (
 
 	"os/exec"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 // IsCommandExecutable - returns true if a command can be executed without errors.

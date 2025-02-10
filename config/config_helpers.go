@@ -23,13 +23,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -374,7 +376,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		return cachedValue, nil
 	}
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
+	cmdOutput, err := shell.RunCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -447,15 +449,12 @@ func FindInParentFolders(
 	previousDir = filepath.ToSlash(previousDir)
 
 	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
-		if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-			warn, triggered, err := control.Evaluate(ctx.TerragruntOptions)
-			if err != nil {
-				return "", err
-			}
+		allControls := ctx.TerragruntOptions.StrictControls
+		rootTGHCLControl := allControls.FilterByNames(controls.RootTerragruntHCL)
+		logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 
-			if !triggered {
-				ctx.TerragruntOptions.Logger.Warnf(warn)
-			}
+		if err := rootTGHCLControl.Evaluate(logger); err != nil {
+			return "", cli.NewExitError(err, cli.ExitCodeGeneralError)
 		}
 	}
 
@@ -592,10 +591,9 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 		return ctx.TerragruntOptions.WorkingDir, nil
 	}
 
-	experiment := ctx.TerragruntOptions.Experiments[experiment.Symlinks]
-	walkWithSymlinks := experiment.Evaluate(ctx.TerragruntOptions.ExperimentMode)
+	walkWithSymlinks := ctx.TerragruntOptions.Experiments.Evaluate(experiment.Symlinks)
 
-	source, err := terraform.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger, walkWithSymlinks)
+	source, err := tf.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger, walkWithSymlinks)
 	if err != nil {
 		return "", err
 	}
@@ -683,7 +681,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	)
 
 	// We update the ctx of terragruntOptions to the config being read in.
-	opts, err := ctx.TerragruntOptions.Clone(targetConfig)
+	opts, err := ctx.TerragruntOptions.CloneWithConfigPath(targetConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}

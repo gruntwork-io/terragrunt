@@ -48,9 +48,11 @@ e.g. A unit might represent a single VPC, a single database, or a single server.
 
 While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/docs/reference/config-blocks-and-attributes#dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
 
-A common pattern used in the repository structure for Terragrunt projects is to have a single `terragrunt.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the root `terragrunt.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the root `terragrunt.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
+A common pattern used in the repository structure for Terragrunt projects is to have a single `root.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the `root.hcl` file, and for unit-specific configuration to be defined in child directories.
 
-Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via the [--terragrunt-config](/docs/reference/cli-options/#terragrunt-config)), and users don't technically need to use a root `terragrunt.hcl` file or to name it that. This is the most common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
+Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via [--config](/docs/reference/cli-options/#config)), and users don't technically need to use a root `root.hcl` file or to name it that. This is a common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
+
+Previously, a best practice recommended by Terragrunt maintainers was to name the root configuration included by units `terragrunt.hcl`. Which might be why you might see a different naming convention in your project. That has since been deprecated. You can learn more about that [here](//docs/migrate/migrating-from-root-terragrunt-hcl).
 
 ### Stack
 
@@ -158,7 +160,7 @@ The Run Queue is the queue of all units that Terragrunt will do work on over one
 
 Certain commands like [run-all](/docs/reference/cli-options/#run-all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
 
-Certain flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) that can be used to adjust the Run Queue to exclude units.
+Certain flags like [--queue-include-dir](/docs/reference/cli-options/#queue-include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--queue-exclude-dir](/docs/reference/cli-options/#queue-exclude-dir) that can be used to adjust the Run Queue to exclude units.
 
 Terragrunt will always attempt to run until the Run Queue is empty.
 
@@ -166,7 +168,7 @@ Terragrunt will always attempt to run until the Run Queue is empty.
 
 The Runner Pool is the pool of available resources that Terragrunt can use to execute runs.
 
-Units are dequeued from the Runner Pool into the Runner Pool depending on factors like [terragrunt-parallelism](/docs/reference/cli-options/#terragrunt-parallelism) and the DAG.
+Units are dequeued from the Run Queue into the Runner Pool depending on factors like [parallelism](/docs/reference/cli-options/#parallelism) and the DAG.
 
 Units are only considered "running" when they are in the Runner Pool.
 
@@ -209,7 +211,7 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--terragrunt-fetch-dependency-output-from-state](/docs/reference/cli-options/#terragrunt-fetch-dependency-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/docs/reference/cli-options/#dependency-fetch-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
 
 ### Feature
 

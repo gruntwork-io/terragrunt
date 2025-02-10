@@ -30,6 +30,6 @@ In some cases, it might be desirable to disable Auto-Init.
 
 For example, you might want to specify a different `-plugin-dir` option to `terraform init` (and don't want to have it set in `extra_arguments`).
 
-To disable Auto-Init, use the `--terragrunt-no-auto-init` command line option or set the `TERRAGRUNT_NO_AUTO_INIT` environment variable to `true`.
+To disable Auto-Init, use the `--no-auto-init` command line option or set the `TG_NO_AUTO_INIT` environment variable to `true`.
 
 Disabling Auto-Init means that you *must* explicitly call `terragrunt init` prior to any other Terragrunt commands for a particular configuration. If Auto-Init is disabled, and Terragrunt detects that `init` needs to be called, Terragrunt will throw an error.

@@ -160,7 +160,7 @@ func (color *ColorOption) Format(data *Data, val any) (any, error) {
 		return str, nil
 	}
 
-	if value == DisableColor || data.DisableColors {
+	if value == DisableColor || data.DisabledColors {
 		return log.RemoveAllASCISeq(str), nil
 	}
 

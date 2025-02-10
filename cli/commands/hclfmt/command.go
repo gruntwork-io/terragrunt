@@ -2,59 +2,83 @@
 package hclfmt
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
 	CommandName = "hclfmt"
 
-	FlagNameTerragruntHCLFmt           = "terragrunt-hclfmt-file"
-	FlagNameTerragruntHCLFmtExcludeDir = "terragrunt-hclfmt-exclude-dir"
-	FlagNameTerragruntCheck            = "terragrunt-check"
-	FlagNameTerragruntDiff             = "terragrunt-diff"
-	FlagNameTerragruntHCLFmtStdin      = "terragrunt-hclfmt-stdin"
+	FileFlagName       = "file"
+	ExcludeDirFlagName = "exclude-dir"
+	CheckFlagName      = "check"
+	DiffFlagName       = "diff"
+	StdinFlagName      = "stdin"
+
+	DeprecatedHclfmtFileFlagName        = "hclfmt-file"
+	DeprecatedHclfmtcExcludeDirFlagName = "hclfmt-exclude-dir"
+	DeprecatedHclfmtStdinFlagName       = "hclfmt-stdin"
+	DeprecatedCheckFlagName             = "check"
+	DeprecatedDiffFlagName              = "diff"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
+
 	return cli.Flags{
-		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntHCLFmt,
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        FileFlagName,
+			EnvVars:     tgPrefix.EnvVars(FileFlagName),
 			Destination: &opts.HclFile,
 			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
 		},
-		&cli.SliceFlag[string]{
-			Name:        FlagNameTerragruntHCLFmtExcludeDir,
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclfmtFileFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        ExcludeDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(ExcludeDirFlagName),
 			Destination: &opts.HclExclude,
-			EnvVar:      "TERRAGRUNT_HCLFMT_EXCLUDE_DIR",
 			Usage:       "Skip HCL formatting in given directories.",
 		},
-		&cli.BoolFlag{
-			Name:        FlagNameTerragruntCheck,
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclfmtcExcludeDirFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        CheckFlagName,
+			EnvVars:     tgPrefix.EnvVars(CheckFlagName),
 			Destination: &opts.Check,
-			EnvVar:      "TERRAGRUNT_CHECK",
 			Usage:       "Enable check mode in the hclfmt command.",
 		},
-		&cli.BoolFlag{
-			Name:        FlagNameTerragruntDiff,
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedCheckFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        DiffFlagName,
+			EnvVars:     tgPrefix.EnvVars(DiffFlagName),
 			Destination: &opts.Diff,
-			EnvVar:      "TERRAGRUNT_DIFF",
 			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
 		},
-		&cli.BoolFlag{
-			Name:        FlagNameTerragruntHCLFmtStdin,
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedDiffFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        StdinFlagName,
+			EnvVars:     tgPrefix.EnvVars(StdinFlagName),
 			Destination: &opts.HclFromStdin,
-			EnvVar:      "TERRAGRUNT_HCLFMT_STDIN",
 			Usage:       "Format HCL from stdin and print result to stdout.",
 		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclfmtStdinFlagName), terragruntPrefixControl)),
 	}
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	prefix := flags.Prefix{CommandName}
+
 	return &cli.Command{
-		Name:   CommandName,
-		Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
-		Flags:  NewFlags(opts).Sort(),
-		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
+		Name:                 CommandName,
+		Usage:                "Recursively find hcl files and rewrite them into a canonical format.",
+		Flags:                NewFlags(opts, prefix).Sort(),
+		ErrorOnUndefinedFlag: true,
+		Action:               func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }

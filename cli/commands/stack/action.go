@@ -3,9 +3,9 @@ package stack
 import (
 	"context"
 	"path/filepath"
-	"strings"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 
@@ -21,9 +21,8 @@ const (
 
 // RunGenerate runs the stack command.
 func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
-	stacksEnabled := opts.Experiments[experiment.Stacks]
-	if !stacksEnabled.Enabled {
-		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	if !opts.Experiments.Evaluate(experiment.Stacks) {
+		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
 
 	return generateStack(ctx, opts)
@@ -31,9 +30,8 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // Run execute stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	stacksEnabled := opts.Experiments[experiment.Stacks]
-	if !stacksEnabled.Enabled {
-		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	if !opts.Experiments.Evaluate(experiment.Stacks) {
+		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
 
 	if err := RunGenerate(ctx, opts); err != nil {
@@ -41,18 +39,14 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	}
 
 	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
-	opts.TerraformCliArgs = opts.TerraformCliArgs[1:]
-	opts.TerraformCommand = opts.TerraformCliArgs[0]
-	opts.OriginalTerraformCommand = strings.Join(opts.TerraformCliArgs, " ")
 
 	return runall.Run(ctx, opts)
 }
 
 // RunOutput stack output.
 func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
-	stacksEnabled := opts.Experiments[experiment.Stacks]
-	if !stacksEnabled.Enabled {
-		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	if !opts.Experiments.Evaluate(experiment.Stacks) {
+		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
 
 	// collect outputs

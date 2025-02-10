@@ -2,40 +2,80 @@
 package scaffold
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"context"
+
+	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
 	CommandName = "scaffold"
-	Var         = "var"
-	VarFile     = "var-file"
+
+	RootFileNameFlagName  = "root-file-name"
+	NoIncludeRootFlagName = "no-include-root"
+	VarFlagName           = "var"
+	VarFileFlagName       = "var-file"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
 	return cli.Flags{
-		&cli.SliceFlag[string]{
-			Name:        Var,
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        RootFileNameFlagName,
+			EnvVars:     tgPrefix.EnvVars(RootFileNameFlagName),
+			Destination: &opts.ScaffoldRootFileName,
+			Usage:       "Name of the root Terragrunt configuration file, if used.",
+			Action: func(ctx *cli.Context, value string) error {
+				if value == "" {
+					return errors.New("root-file-name flag cannot be empty")
+				}
+
+				if value != opts.TerragruntConfigPath {
+					opts.ScaffoldRootFileName = value
+				}
+
+				if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).Evaluate(ctx); err != nil {
+					return cli.NewExitError(err, cli.ExitCodeGeneralError)
+				}
+
+				return nil
+			},
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoIncludeRootFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoIncludeRootFlagName),
+			Destination: &opts.ScaffoldNoIncludeRoot,
+			Usage:       "Do not include root unit in scaffolding done by catalog.",
+		}),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        VarFlagName,
+			EnvVars:     tgPrefix.EnvVars(VarFlagName),
 			Destination: &opts.ScaffoldVars,
 			Usage:       "Variables for usage in scaffolding.",
-		},
-		&cli.SliceFlag[string]{
-			Name:        VarFile,
+		}),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        VarFileFlagName,
+			EnvVars:     tgPrefix.EnvVars(VarFileFlagName),
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in unit scaffolding.",
-		},
-		commands.NewNoIncludeRootFlag(opts),
-		commands.NewRootFileNameFlag(opts),
+		}),
 	}
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:                   CommandName,
-		Usage:                  "Scaffold a new Terragrunt module.",
-		DisallowUndefinedFlags: true,
-		Flags:                  NewFlags(opts).Sort(),
+		Name:                 CommandName,
+		Usage:                "Scaffold a new Terragrunt module.",
+		ErrorOnUndefinedFlag: true,
+		Flags:                NewFlags(opts, nil).Sort(),
 		Action: func(ctx *cli.Context) error {
 			var moduleURL, templateURL string
 
@@ -48,10 +88,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if opts.ScaffoldRootFileName == "" {
-				opts.ScaffoldRootFileName = commands.GetDefaultRootFileName(opts)
+				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, opts)
 			}
 
 			return Run(ctx, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
+}
+
+func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions) string {
+	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).Evaluate(ctx); err != nil {
+		return config.RecommendedParentConfigName
+	}
+
+	return config.DefaultTerragruntConfigPath
 }

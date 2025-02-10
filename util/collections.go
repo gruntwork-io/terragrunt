@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -18,28 +19,12 @@ func MatchesAny(regExps []string, s string) bool {
 
 // ListEquals returns true if the two lists are equal
 func ListEquals[S ~[]E, E comparable](a, b S) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
+	return slices.Equal(a, b)
 }
 
 // ListContainsElement returns true if the given list contains the given element
-func ListContainsElement[S ~[]E, E comparable](list S, element any) bool {
-	for _, item := range list {
-		if item == element {
-			return true
-		}
-	}
-
-	return false
+func ListContainsElement[S ~[]E, E comparable](list S, element E) bool {
+	return slices.Contains(list, element)
 }
 
 // ListContainsSublist returns true if an instance of the sublist can be found in the given list
@@ -138,29 +123,33 @@ func CommaSeparatedStrings(list []string) string {
 	return strings.Join(values, ", ")
 }
 
-// CloneStringList makes a copy of the given list of strings.
-func CloneStringList(listToClone []string) []string {
-	var out []string
-	out = append(out, listToClone...)
+// RemoveEmptyElements returns a copy of the given list without empty elements.
+func RemoveEmptyElements[S ~[]E, E comparable](list S) S {
+	var (
+		out   S
+		empty E
+	)
 
-	return out
-}
-
-// CloneStringMap makes a copy of the given map of strings.
-func CloneStringMap(mapToClone map[string]string) map[string]string {
-	out := map[string]string{}
-	for key, value := range mapToClone {
-		out[key] = value
+	for _, item := range list {
+		if item != empty {
+			out = append(out, item)
+		}
 	}
 
 	return out
 }
 
-// FirstArg is a convenience method that returns the first item (0th index) in the given
-// list or an empty string if this is an empty list.
-func FirstArg[S ~[]E, E comparable](args S) E {
-	if len(args) > 0 {
-		return args[0]
+// GetElement returns the element with the specified `index` from the given `list`.
+// if `index` is -1, the last element is returned.
+func GetElement[S ~[]E, E comparable](list S, index int) E {
+	lenList := len(list)
+
+	if lenList > 0 && lenList > index {
+		if index == -1 {
+			return (list)[lenList-1]
+		}
+
+		return (list)[index]
 	}
 
 	var empty E
@@ -168,27 +157,19 @@ func FirstArg[S ~[]E, E comparable](args S) E {
 	return empty
 }
 
-// SecondArg is a convenience method that returns the second item (1st index) in the given
-// list or an empty string if this is a list that has less than 2 items in it.
-func SecondArg[S ~[]E, E comparable](args S) E {
-	if len(args) > 1 {
-		return args[1]
-	}
-
-	var empty E
-
-	return empty
+// FirstElement returns the first element from the given `list`.
+func FirstElement[S ~[]E, E comparable](list S) E {
+	return GetElement(list, 0)
 }
 
-// LastArg is a convenience method that returns the last item in the given list or an empty string if this is an empty list.
-func LastArg[S ~[]E, E comparable](args S) E {
-	if len(args) > 0 {
-		return args[len(args)-1]
-	}
+// SecondElement returns the second element from the given `list`.
+func SecondElement[S ~[]E, E comparable](list S) E {
+	return GetElement(list, 1)
+}
 
-	var empty E
-
-	return empty
+// LastElement returns the last element from the given `list`.
+func LastElement[S ~[]E, E comparable](list S) E {
+	return GetElement(list, -1)
 }
 
 // StringListInsert will insert the given string in to the provided string list at the specified index and return the

@@ -15,7 +15,7 @@ import (
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/hashicorp/go-getter"
 	"gopkg.in/ini.v1"
 )
@@ -205,7 +205,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 		}
 	}
 
-	sourceURL, err := terraform.ToSourceURL(repo.cloneURL, "")
+	sourceURL, err := tf.ToSourceURL(repo.cloneURL, "")
 	if err != nil {
 		return err
 	}
