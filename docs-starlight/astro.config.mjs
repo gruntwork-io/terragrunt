@@ -35,7 +35,8 @@ export default defineConfig({
 						{ label: 'HCL', autogenerate: { directory: '04-reference/01-hcl', collapsed: true } },
 						{
 							label: 'CLI', collapsed: true, items: [
-								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/commands', collapsed: true } },
+								{ label: 'Overview', slug: 'docs/reference/cli' },
+								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/01-commands', collapsed: true } },
 							],
 						},
 						{ label: 'Strict Controls', slug: 'docs/reference/strict-controls' },
