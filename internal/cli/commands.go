@@ -3,7 +3,7 @@ package cli
 import (
 	"sort"
 
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 type Commands []*Command
@@ -39,6 +39,7 @@ func (commands Commands) FilterByNames(names []string) Commands {
 	return filtered
 }
 
+// FilterByCategory returns a list of commands filtered by the given `categories`.
 func (commands Commands) FilterByCategory(categories ...*Category) Commands {
 	var filtered Commands
 
@@ -117,6 +118,7 @@ func (commands Commands) SetCategory(category *Category) Commands {
 	return commands
 }
 
+// GetCategories returns unique categories commands.
 func (commands Commands) GetCategories() Categories {
 	var categories Categories
 

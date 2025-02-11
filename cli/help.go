@@ -1,5 +1,6 @@
 package cli
 
+// AppHelpTemplate is the main CLI help template.
 const AppHelpTemplate = `Usage: {{ if .App.UsageText }}{{ wrap .App.UsageText 3 }}{{ else }}{{ .App.HelpName }} [global options] <command> [options]{{ end }}{{ $description := .App.Usage }}{{ if .App.Description }}{{ $description = .App.Description }}{{ end }}{{ if $description }}
 
    {{ wrap $description 3 }}{{ end }}{{ $commands := .App.VisibleCommands }}{{ if $commands }}{{ $cv := offsetCommands $commands 5 }}
@@ -17,6 +18,7 @@ Version: {{ .App.Version }}{{ end }}{{ if len .App.Authors }}
 Author: {{ range .App.Authors }}{{ . }}{{ end }} {{ end }}
 `
 
+// CommandHelpTemplate is the command CLI help template.
 const CommandHelpTemplate = `Usage: {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}{{range $parent := parentCommands . }}{{$parent.HelpName}} {{end}}{{.Command.HelpName}}{{if .Command.VisibleSubcommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{$description := .Command.Usage}}{{if .Command.Description}}{{$description = .Command.Description}}{{end}}{{if $description}}
 
    {{wrap $description 3}}{{end}}{{if .Command.Examples}}

@@ -297,15 +297,15 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 
 	testCases := []struct {
 		command  cli.Command
-		expected []*urfaveCli.Command
+		expected cli.Commands
 	}{
 		{
 			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz", HelpName: "helpBaz"}}},
-			[]*urfaveCli.Command{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
+			cli.Commands{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
 		},
 		{
 			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar", Hidden: true}, &cli.Command{Name: "baz"}}},
-			[]*urfaveCli.Command{{Name: "baz", HelpName: "baz"}},
+			cli.Commands{{Name: "baz", HelpName: "baz"}},
 		},
 	}
 

@@ -15,6 +15,7 @@ func (category *Category) String() string {
 	return category.Name
 }
 
+// Categories is a slice of `Category`.
 type Categories []*Category
 
 // Len implements `sort.Interface` interface.

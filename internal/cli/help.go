@@ -104,14 +104,14 @@ func parentCommands(ctx *Context) Commands {
 
 // offsetCommands tries to find the max width of the names column.
 func offsetCommands(cmds Commands, fixed int) int {
-	var max = 0
+	var width = 0
 
 	for _, cmd := range cmds {
 		s := strings.Join(cmd.Names(), ", ")
-		if len(s) > max {
-			max = len(s)
+		if len(s) > width {
+			width = len(s)
 		}
 	}
 
-	return max + fixed
+	return width + fixed
 }
