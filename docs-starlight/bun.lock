@@ -11,6 +11,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@astrojs/starlight@0.31.1": "patches/@astrojs%2Fstarlight@0.31.1.patch",
+  },
   "packages": {
     "@astrojs/compiler": ["@astrojs/compiler@2.10.3", "", {}, "sha512-bL/O7YBxsFt55YHU021oL+xz+B/9HvGNId3F9xURN16aeqDK9juHGktdkCSXz+U4nqFACq6ZFvWomOzhV+zfPw=="],
 
