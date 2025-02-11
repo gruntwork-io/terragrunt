@@ -1,26 +1,24 @@
 package cli
 
-const AppHelpTemplate = `NAME:
-   {{$v := offset .App.HelpName 6}}{{wrap .App.HelpName 3}}{{if .App.Usage}} - {{wrap .App.Usage $v}}{{end}}
+// AppHelpTemplate is the main CLI help template.
+const AppHelpTemplate = `Usage: {{ if .App.UsageText }}{{ wrap .App.UsageText 3 }}{{ else }}{{ .App.HelpName }} [global options] <command> [options]{{ end }}{{ $description := .App.Usage }}{{ if .App.Description }}{{ $description = .App.Description }}{{ end }}{{ if $description }}
 
-USAGE:
-   {{if .App.UsageText}}{{wrap .App.UsageText 3}}{{else}}{{.App.HelpName}} <command> [options]{{end}} {{if .App.Description}}
+   {{ wrap $description 3 }}{{ end }}{{ $commands := .App.VisibleCommands }}{{ if $commands }}{{ $cv := offsetCommands $commands 5 }}
+{{ $categories := $commands.GetCategories.Sort }}{{ range $index, $category := $categories }}{{ $categoryCommands := $commands.FilterByCategory $category }}{{ if $index }}
+{{ end }}
+{{ $category.Name }}:{{ range $categoryCommands }}
+   {{ $s := .HelpName }}{{ $s }}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{ wrap .Usage $cv }}{{ end }}{{ end }}{{ end }}{{ if .App.VisibleFlags }}
 
-DESCRIPTION:
-   {{wrap .App.Description 3}}{{end}}{{if .App.VisibleCommands}}
+Global Options:
+   {{ range $index, $option := .App.VisibleFlags }}{{ if $index }}
+   {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}{{ if not .App.HideVersion }}
 
-COMMANDS:{{ $cv := offsetCommands .App.VisibleCommands 5}}{{range .App.VisibleCommands}}
-   {{$s := .HelpName}}{{$s}}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{wrap .Usage $cv}}{{end}}{{end}}
+Version: {{ .App.Version }}{{ end }}{{ if len .App.Authors }}
 
-GLOBAL OPTIONS:{{if .App.VisibleFlags}}
-   {{range $index, $option := .App.VisibleFlags}}{{if $index}}
-   {{end}}{{wrap $option.String 6}}{{end}}{{end}}{{if not .App.HideVersion}}
-
-VERSION: {{.App.Version}}{{if len .App.Authors}}{{end}}
-
-AUTHOR: {{range .App.Authors}}{{.}}{{end}} {{end}}
+Author: {{ range .App.Authors }}{{ . }}{{ end }} {{ end }}
 `
 
+// CommandHelpTemplate is the command CLI help template.
 const CommandHelpTemplate = `Usage: {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}{{range $parent := parentCommands . }}{{$parent.HelpName}} {{end}}{{.Command.HelpName}}{{if .Command.VisibleSubcommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{$description := .Command.Usage}}{{if .Command.Description}}{{$description = .Command.Description}}{{end}}{{if $description}}
 
    {{wrap $description 3}}{{end}}{{if .Command.Examples}}

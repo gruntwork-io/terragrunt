@@ -4,8 +4,6 @@ import (
 	"errors"
 	libflag "flag"
 	"strings"
-
-	"github.com/urfave/cli/v2"
 )
 
 const errFlagUndefined = "flag provided but not defined:"
@@ -23,6 +21,8 @@ type Command struct {
 	Description string
 	// Examples is list of examples of using the command in the help.
 	Examples []string
+	// Category is the category the command belongs to.
+	Category *Category
 	// Flags is list of flags to parse.
 	Flags Flags
 	// ErrorOnUndefinedFlag causes the application to exit and return an error on any undefined flag.
@@ -90,7 +90,7 @@ func (cmd *Command) VisibleFlags() Flags {
 
 // VisibleSubcommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
-func (cmd *Command) VisibleSubcommands() []*cli.Command {
+func (cmd *Command) VisibleSubcommands() Commands {
 	if cmd.Subcommands == nil {
 		return nil
 	}
