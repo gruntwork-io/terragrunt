@@ -83,6 +83,7 @@ setup_test_environment: &setup_test_environment
     git config --global pack.windowMemory "100m"
     git config --global pack.packSizeLimit "100m"
     git config --global pack.threads "1"
+    git config --global gc.auto 0
   no_output_timeout: 30m
 
 run_integration_test: &run_integration_test
