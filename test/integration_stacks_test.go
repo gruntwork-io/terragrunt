@@ -155,6 +155,8 @@ func TestStacksApplyRemote(t *testing.T) {
 
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
 }
 
 func TestStacksDestroy(t *testing.T) {

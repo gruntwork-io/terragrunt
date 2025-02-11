@@ -96,6 +96,7 @@ func isLocal(opts *options.TerragruntOptions, src string) bool {
 	for _, g := range getter.Getters {
 		recognized, err := getter.Detect(req, g)
 		if err != nil {
+			opts.Logger.Debugf("Error detecting getter for %s: %v", src, err)
 			continue
 		}
 
