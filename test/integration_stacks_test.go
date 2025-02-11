@@ -143,6 +143,20 @@ func TestStacksApply(t *testing.T) {
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
 }
 
+func TestStacksApplyRemote(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
+	assert.Contains(t, stdout, "local_file.file: Creation complete")
+}
+
 func TestStacksDestroy(t *testing.T) {
 	t.Parallel()
 

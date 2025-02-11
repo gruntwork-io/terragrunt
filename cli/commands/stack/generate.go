@@ -55,7 +55,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		src := unit.Source
 		opts.Logger.Debugf("Processing unit: %s (%s) to %s", unit.Name, src, dest)
 
-		if isLocal(src) {
+		if isLocal(opts, src) {
 			src = filepath.Join(opts.WorkingDir, unit.Source)
 			src, err = filepath.Abs(src)
 
@@ -83,7 +83,13 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 	return nil
 }
 
-func isLocal(src string) bool {
+func isLocal(opts *options.TerragruntOptions, src string) bool {
+	// check initially if the source is a local file
+	src = filepath.Join(opts.WorkingDir, src)
+	if util.FileExists(src) {
+		return true
+	}
+	// check path through getters
 	req := &getter.Request{
 		Src: src,
 	}
@@ -98,5 +104,5 @@ func isLocal(src string) bool {
 		}
 	}
 
-	return !strings.HasPrefix(req.Src, "file://")
+	return strings.HasPrefix(req.Src, "file://")
 }
