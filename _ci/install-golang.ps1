@@ -6,6 +6,8 @@ go version
 
 # configure git compression
 git config --global core.compression 0
+git config --global pack.threads "1"
+git config --global gc.auto 0
 
 try {
     # Enable Developer Mode
