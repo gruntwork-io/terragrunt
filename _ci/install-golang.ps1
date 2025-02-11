@@ -4,6 +4,10 @@ choco install golang --version 1.23.1 -y
 Get-Command go
 go version
 
+# configure git compression
+git config --global core.compression 0
+git config --global gc.auto 0
+
 try {
     # Enable Developer Mode
     reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
