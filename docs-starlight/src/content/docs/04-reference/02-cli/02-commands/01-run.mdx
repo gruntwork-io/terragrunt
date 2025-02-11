@@ -1,0 +1,33 @@
+---
+title: run
+description: Run OpenTofu/Terraform commands.
+slug: docs/reference/cli/commands/run
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Command from '@components/Command.astro';
+
+<Command name={frontmatter.title} />
+
+## Usage
+
+```bash
+terragrunt run plan
+```
+
+Note that the `run` command is a more explicit way to run OpenTofu/Terraform commands, and it provides some flexible options that are not available with [OpenTofu shortcuts](/docs/reference/cli/commands/opentofu-shortcuts).
+
+The `run` command also supports the following flags that can be used to drive runs in multiple units:
+
+- [`--all`](#all): Run the provided OpenTofu/Terraform command against all units in the current stack.
+- [`--graph`](#graph): Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory.
+
+## Separating Arguments
+
+You may, at times, need to explicitly separate the arguments used for Terragrunt from those used for OpenTofu/Terraform. In those circumstances, you can use the argument `--` to separate the Terragrunt flags from the OpenTofu/Terraform flags.
+
+```bash
+terragrunt run -- plan -no-color
+```

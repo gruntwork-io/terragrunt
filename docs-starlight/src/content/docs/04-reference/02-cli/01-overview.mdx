@@ -31,6 +31,7 @@ export const configurationCommands = [
     await getEntry('docs', 'docs/reference/cli/commands/render'),
     await getEntry('docs', 'docs/reference/cli/commands/info'),
 ];
+export const globalFlags = await getEntry('docs', 'docs/reference/cli/global-flags');
 
 The Terragrunt CLI is designed to make it as easy as possible to manage infrastructure at any scale.
 
@@ -93,3 +94,9 @@ These are the commands that are used to interact directly with Terragrunt config
         <LinkCard title={doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
     ))
 }
+
+## Global Flags
+
+There are some flags that are available to all Terragrunt commands:
+
+<LinkCard title={globalFlags.data.title} href={`/${globalFlags.id}`} description={globalFlags.data.description} />

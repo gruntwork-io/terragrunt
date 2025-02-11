@@ -20,7 +20,23 @@ const commands = defineCollection({
 	schema: z.object({
 		name: z.string(),
 		usage: z.string(),
-		description: z.string(),
+		examples: z.array(z.object({
+			code: z.string(),
+			description: z.string().optional(),
+		}).optional()),
+		subcommands: z.array(z.object({
+			name: z.string(),
+			description: z.string(),
+		}).optional()),
+		flags: z.array(z.object({
+			name: z.string(),
+			description: z.string(),
+			env: z.array(z.string()),
+		}).optional()),
+		experiment: z.object({
+			control: z.string(),
+			name: z.string(),
+		}).optional(),
 	}),
 });
 
