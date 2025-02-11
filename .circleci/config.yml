@@ -80,12 +80,10 @@ setup_test_environment: &setup_test_environment
     mkdir -p logs
     # configure git compression to avoid periodic failures
     git config --global core.compression 0
-    git config --global pack.windowMemory 2048m
-    git config --global pack.packSizeLimit 2048m
-    git config --global http.postBuffer 1048576000
     git config --global http.timeout 3600
+    git config --global http.lowSpeedLimit 1000
+    git config --global http.lowSpeedTime 600
     git config --global http.sslVerify false
-
   no_output_timeout: 30m
 
 run_integration_test: &run_integration_test
