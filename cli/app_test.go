@@ -543,7 +543,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 	}{
 		{
 			"",
-			[]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"},
+			[]string{"graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"},
 		},
 		{
 			"--versio",
@@ -566,7 +566,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
 		app := cli.NewApp(opts)
 
-		app.Commands = app.Commands.Filter([]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"})
+		app.Commands = app.Commands.FilterByNames([]string{"graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"})
 
 		err := app.Run([]string{"terragrunt"})
 		require.NoError(t, err)

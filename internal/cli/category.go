@@ -31,7 +31,7 @@ func (categories Categories) Less(i, j int) bool {
 	return categories[i].Order < categories[j].Order
 }
 
-// Swan implements `sort.Interface` interface.
+// Swap implements `sort.Interface` interface.
 func (categories Categories) Swap(i, j int) {
 	categories[i], categories[j] = categories[j], categories[i]
 }

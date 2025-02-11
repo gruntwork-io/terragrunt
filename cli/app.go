@@ -219,7 +219,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	}.SetCategory(
 		&cli.Category{
 			Name:  MainCommandsCategoryName,
-			Order: 10,
+			Order: 10, //nolint: mnd
 		},
 	)
 
@@ -229,7 +229,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	}.SetCategory(
 		&cli.Category{
 			Name:  CatalogCommandsCategoryName,
-			Order: 20,
+			Order: 20, //nolint: mnd
 		},
 	)
 
@@ -248,14 +248,14 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
-			Order: 30,
+			Order: 30, //nolint: mnd
 		},
 	)
 
 	shortcutsCommands := commands.NewShortcutsCommands(opts).SetCategory(
 		&cli.Category{
 			Name:  ShortcutsCommandsCategoryName,
-			Order: 40,
+			Order: 40, //nolint: mnd
 		},
 	)
 
