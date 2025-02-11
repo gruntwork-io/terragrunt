@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/exp/slices"
@@ -32,7 +34,10 @@ func ShowAppHelp(ctx *Context) error {
 		ctx.App.HelpName = ctx.App.Name
 	}
 
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
+	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, map[string]any{
+		"parentCommands": parentCommands,
+		"offsetCommands": offsetCommands,
+	})
 
 	return NewExitError(nil, ExitCodeSuccess)
 }
@@ -58,6 +63,7 @@ func ShowCommandHelp(ctx *Context) error {
 
 	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, map[string]any{
 		"parentCommands": parentCommands,
+		"offsetCommands": offsetCommands,
 	})
 
 	return NewExitError(nil, ExitCodeSuccess)
@@ -94,4 +100,29 @@ func parentCommands(ctx *Context) Commands {
 	slices.Reverse(cmds)
 
 	return cmds
+}
+
+// this function tries to find the max width of the names column
+// so say we have the following rows for help
+//
+//	foo1, foo2, foo3  some string here
+//	bar1, b2 some other string here
+//
+// We want to offset the 2nd row usage by some amount so that everything
+// is aligned
+//
+//	foo1, foo2, foo3  some string here
+//	bar1, b2          some other string here
+//
+// to find that offset we find the length of all the rows and use the max
+// to calculate the offset
+func offsetCommands(cmds Commands, fixed int) int {
+	var max int = 0
+	for _, cmd := range cmds {
+		s := strings.Join(cmd.Names(), ", ")
+		if len(s) > max {
+			max = len(s)
+		}
+	}
+	return max + fixed
 }

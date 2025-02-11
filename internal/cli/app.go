@@ -151,7 +151,7 @@ func (app *App) VisibleFlags() Flags {
 }
 
 // VisibleCommands returns a slice of the Commands used for help.
-func (app *App) VisibleCommands() []*cli.Command {
+func (app *App) VisibleCommands() Commands {
 	if app.Commands == nil {
 		return nil
 	}

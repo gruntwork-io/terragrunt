@@ -3,7 +3,7 @@ package cli
 import (
 	"sort"
 
-	"github.com/urfave/cli/v2"
+	"golang.org/x/exp/slices"
 )
 
 type Commands []*Command
@@ -24,8 +24,8 @@ func (commands *Commands) Add(cmd *Command) {
 	*commands = append(*commands, cmd)
 }
 
-// Filter returns a list of commands filtered by the given names.
-func (commands Commands) Filter(names []string) Commands {
+// FilterByNames returns a list of commands filtered by the given names.
+func (commands Commands) FilterByNames(names []string) Commands {
 	var filtered Commands
 
 	for _, cmd := range commands {
@@ -33,6 +33,18 @@ func (commands Commands) Filter(names []string) Commands {
 			if cmd.HasName(name) {
 				filtered = append(filtered, cmd)
 			}
+		}
+	}
+
+	return filtered
+}
+
+func (commands Commands) FilterByCategory(categories ...*Category) Commands {
+	var filtered Commands
+
+	for _, cmd := range commands {
+		if category := cmd.Category; category != nil && slices.Contains(categories, category) {
+			filtered = append(filtered, cmd)
 		}
 	}
 
@@ -50,8 +62,8 @@ func (commands Commands) SkipRunning() Commands {
 
 // VisibleCommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
-func (commands Commands) VisibleCommands() []*cli.Command {
-	var visible = make([]*cli.Command, 0, len(commands))
+func (commands Commands) VisibleCommands() Commands {
+	var visible = make(Commands, 0, len(commands))
 
 	for _, cmd := range commands {
 		if cmd.Hidden {
@@ -62,15 +74,7 @@ func (commands Commands) VisibleCommands() []*cli.Command {
 			cmd.HelpName = cmd.Name
 		}
 
-		visible = append(visible, &cli.Command{
-			Name:        cmd.Name,
-			Aliases:     cmd.Aliases,
-			HelpName:    cmd.HelpName,
-			Usage:       cmd.Usage,
-			UsageText:   cmd.UsageText,
-			Description: cmd.Description,
-			Hidden:      cmd.Hidden,
-		})
+		visible = append(visible, cmd)
 	}
 
 	return visible
@@ -102,4 +106,30 @@ func (commands Commands) Sort() Commands {
 	sort.Sort(commands)
 
 	return commands
+}
+
+// SetCategory sets the given `category` for the `commands`.
+func (commands Commands) SetCategory(category *Category) Commands {
+	for _, cmd := range commands {
+		cmd.Category = category
+	}
+
+	return commands
+}
+
+func (commands Commands) GetCategories() Categories {
+	var categories Categories
+
+	for _, cmd := range commands {
+		if category := cmd.Category; category != nil && !slices.Contains(categories, category) {
+			categories = append(categories, category)
+		}
+	}
+
+	return categories
+}
+
+// Merge merges the given `cmds` with `commands` and returns the result.
+func (commands Commands) Merge(cmds ...*Command) Commands {
+	return append(commands, cmds...)
 }
