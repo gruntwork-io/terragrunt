@@ -54,6 +54,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
+// Command category names.
+const (
+	MainCommandsCategoryName          = "Main commands"
+	CatalogCommandsCategoryName       = "Catalog commands"
+	ConfigurationCommandsCategoryName = "Configuration commands"
+	ShortcutsCommandsCategoryName     = "OpenTofu shortcuts"
+)
+
 func init() {
 	cli.AppVersionTemplate = AppVersionTemplate
 	cli.AppHelpTemplate = AppHelpTemplate
@@ -69,7 +77,7 @@ type App struct {
 func NewApp(opts *options.TerragruntOptions) *App {
 	app := cli.NewApp()
 	app.Name = "terragrunt"
-	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. For documentation, see https://terragrunt.gruntwork.io/."
+	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
@@ -142,7 +150,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	return nil
 }
 
-// GlobalFlags returns global flags. For backward compatibility, the slice contains flags that have been moved to other commands and are hidden from the CLI help,
+// GlobalFlags returns global flags. For backward compatibility, the slice contains flags that have been moved to other commands and are hidden from the CLI help.
 func GlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	globalFlags := global.NewFlags(opts, nil)
 
@@ -158,17 +166,17 @@ func GlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		graph.NewCommand(opts),              // graph
 	}
 
-	var knownFlags []string
+	var seen []string
 
 	for _, cmd := range commands {
 		for _, flag := range cmd.Flags {
 			flagName := util.FirstElement(util.RemoveEmptyElements(flag.Names()))
 
-			if slices.Contains(knownFlags, flagName) {
+			if slices.Contains(seen, flagName) {
 				continue
 			}
 
-			knownFlags = append(knownFlags, flagName)
+			seen = append(seen, flagName)
 			globalFlags = append(globalFlags, flags.NewMovedFlag(flag, cmd.Name, flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name)))
 		}
 	}
@@ -202,30 +210,62 @@ func removeNoColorFlagDuplicates(args []string) []string {
 
 // TerragruntCommands returns the set of Terragrunt commands.
 func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
-	cmds := cli.Commands{
-		runCmd.NewCommand(opts),             // run
-		runall.NewCommand(opts),             // runAction-all
-		terragruntinfo.NewCommand(opts),     // terragrunt-info
-		validateinputs.NewCommand(opts),     // validate-inputs
-		graphdependencies.NewCommand(opts),  // graph-dependencies
-		hclfmt.NewCommand(opts),             // hclfmt
-		renderjson.NewCommand(opts),         // render-json
-		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
-		outputmodulegroups.NewCommand(opts), // output-module-groups
-		catalog.NewCommand(opts),            // catalog
-		scaffold.NewCommand(opts),           // scaffold
-		stack.NewCommand(opts),              // stack
-		graph.NewCommand(opts),              // graph
-		hclvalidate.NewCommand(opts),        // hclvalidate
-		execCmd.NewCommand(opts),            // exec
-		helpCmd.NewCommand(opts),            // help
-		versionCmd.NewCommand(opts),         // version
-		info.NewCommand(opts),               // info
-	}
-	cmds = append(cmds, commands.NewShortcutsCommands(opts)...)
-	cmds = append(cmds, commands.NewDeprecatedCommands(opts)...)
+	mainCommands := cli.Commands{
+		runall.NewCommand(opts),  // run-all
+		runCmd.NewCommand(opts),  // run
+		stack.NewCommand(opts),   // stack
+		graph.NewCommand(opts),   // graph
+		execCmd.NewCommand(opts), // exec
+	}.SetCategory(
+		&cli.Category{
+			Name:  MainCommandsCategoryName,
+			Order: 10, //nolint: mnd
+		},
+	)
 
-	return cmds
+	catalogCommands := cli.Commands{
+		catalog.NewCommand(opts),  // catalog
+		scaffold.NewCommand(opts), // scaffold
+	}.SetCategory(
+		&cli.Category{
+			Name:  CatalogCommandsCategoryName,
+			Order: 20, //nolint: mnd
+		},
+	)
+
+	configurationCommands := cli.Commands{
+		graphdependencies.NewCommand(opts),  // graph-dependencies
+		outputmodulegroups.NewCommand(opts), // output-module-groups
+		validateinputs.NewCommand(opts),     // validate-inputs
+		hclvalidate.NewCommand(opts),        // hclvalidate
+		hclfmt.NewCommand(opts),             // hclfmt
+		info.NewCommand(opts),               // info
+		terragruntinfo.NewCommand(opts),     // terragrunt-info
+		renderjson.NewCommand(opts),         // render-json
+		helpCmd.NewCommand(opts),            // help (hidden)
+		versionCmd.NewCommand(opts),         // version (hidden)
+		awsproviderpatch.NewCommand(opts),   // aws-provider-patch (hidden)
+	}.SetCategory(
+		&cli.Category{
+			Name:  ConfigurationCommandsCategoryName,
+			Order: 30, //nolint: mnd
+		},
+	)
+
+	shortcutsCommands := commands.NewShortcutsCommands(opts).SetCategory(
+		&cli.Category{
+			Name:  ShortcutsCommandsCategoryName,
+			Order: 40, //nolint: mnd
+		},
+	)
+
+	allCommands := mainCommands.
+		Merge(catalogCommands...).
+		Merge(configurationCommands...).
+		Merge(shortcutsCommands...).
+		Merge(commands.NewDeprecatedCommands(opts)...)
+
+	return allCommands
 }
 
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.

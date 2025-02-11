@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/exp/slices"
@@ -32,7 +34,10 @@ func ShowAppHelp(ctx *Context) error {
 		ctx.App.HelpName = ctx.App.Name
 	}
 
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
+	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, map[string]any{
+		"parentCommands": parentCommands,
+		"offsetCommands": offsetCommands,
+	})
 
 	return NewExitError(nil, ExitCodeSuccess)
 }
@@ -58,6 +63,7 @@ func ShowCommandHelp(ctx *Context) error {
 
 	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, map[string]any{
 		"parentCommands": parentCommands,
+		"offsetCommands": offsetCommands,
 	})
 
 	return NewExitError(nil, ExitCodeSuccess)
@@ -94,4 +100,18 @@ func parentCommands(ctx *Context) Commands {
 	slices.Reverse(cmds)
 
 	return cmds
+}
+
+// offsetCommands tries to find the max width of the names column.
+func offsetCommands(cmds Commands, fixed int) int {
+	var width = 0
+
+	for _, cmd := range cmds {
+		s := strings.Join(cmd.Names(), ", ")
+		if len(s) > width {
+			width = len(s)
+		}
+	}
+
+	return width + fixed
 }
