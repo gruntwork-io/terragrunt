@@ -36,7 +36,8 @@ export default defineConfig({
 						{
 							label: 'CLI', collapsed: true, items: [
 								{ label: 'Overview', slug: 'docs/reference/cli' },
-								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/01-commands', collapsed: true } },
+								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/02-commands', collapsed: true } },
+								{ label: 'Rules', slug: 'docs/reference/cli/rules' },
 							],
 						},
 						{ label: 'Strict Controls', slug: 'docs/reference/strict-controls' },
