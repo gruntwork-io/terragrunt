@@ -80,7 +80,6 @@ setup_test_environment: &setup_test_environment
     mkdir -p logs
     # configure git to avoid periodic failures
     git config --global core.compression 0
-    git config --global pack.threads "1"
     git config --global gc.auto 0
   no_output_timeout: 30m
 
