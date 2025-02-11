@@ -81,7 +81,6 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 
 // RunClean cleans the stack directory
 func RunClean(_ context.Context, opts *options.TerragruntOptions) error {
-
 	if err := checkStackExperiment(opts); err != nil {
 		return err
 	}
@@ -89,9 +88,11 @@ func RunClean(_ context.Context, opts *options.TerragruntOptions) error {
 	baseDir := filepath.Join(opts.WorkingDir, stackDir)
 	opts.Logger.Debugf("Cleaning stack directory: %s", baseDir)
 	err := os.RemoveAll(baseDir)
+
 	if err != nil {
 		return errors.Errorf("failed to clean stack directory: %s %w", baseDir, err)
 	}
+
 	return nil
 }
 
@@ -99,5 +100,6 @@ func checkStackExperiment(opts *options.TerragruntOptions) error {
 	if !opts.Experiments.Evaluate(experiment.Stacks) {
 		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
+
 	return nil
 }
