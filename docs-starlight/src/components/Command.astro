@@ -1,5 +1,5 @@
 ---
-import { Aside, Code } from '@astrojs/starlight/components';
+import { Aside, Code, Card } from '@astrojs/starlight/components';
 import { getEntry } from 'astro:content';
 const { name } = Astro.props;
 
@@ -10,32 +10,21 @@ const data = command?.data;
 const usage = data?.usage;
 ---
 
-<!-- const commands = defineCollection({ -->
-<!-- 	loader: glob({ pattern: "**/*.yml", base: "src/data/commands" }), -->
-<!-- 	schema: z.object({ -->
-<!-- 		name: z.string(), -->
-<!-- 		usage: z.string(), -->
-<!-- 		examples: z.array(z.string()).optional(), -->
-<!-- 		subcommands: z.array(z.object({ -->
-<!-- 			name: z.string(), -->
-<!-- 			description: z.string(), -->
-<!-- 		}).optional()), -->
-<!-- 		flags: z.array(z.object({ -->
-<!-- 			name: z.string(), -->
-<!-- 			description: z.string(), -->
-<!-- 			env: z.array(z.string()), -->
-<!-- 		}).optional()), -->
-<!-- 		experiment: z.object({ -->
-<!-- 			control: z.string(), -->
-<!-- 			name: z.string(), -->
-<!-- 		}).optional(), -->
-<!-- 	}), -->
-<!-- }); -->
+<style>
+  .anchor-link:link { text-decoration: none; }
+  .anchor-link:visited { text-decoration: none; }
+  .anchor-link:hover { text-decoration: none; }
+  .anchor-link:active { text-decoration: none; }
+  /* Also align it to the right of the container */
+  .anchor-link {
+    float: right;
+  }
+</style>
 
 {
   data?.experiment ? (
     <Aside type="tip" title={data?.experiment?.name}>
-      The <code dir="auto">{name}</code> command is experimental, usage requires the <a href="/docs/reference/experiments/#${data?.experiment?.control}"><code dir="auto">--experiment {data?.experiment?.control}</code></a> flag.
+      The <code dir="auto">{name}</code> command is experimental, usage requires the <a href={"/docs/reference/experiments#"+data?.experiment?.control}><code dir="auto">--experiment {data?.experiment?.control}</code></a> flag.
     </Aside>
   ) : null
 }
@@ -45,6 +34,8 @@ const usage = data?.usage;
     <p>{line}</p>
   ))
 }
+
+<slot />
 
 {
   data?.examples ? (
@@ -60,26 +51,42 @@ const usage = data?.usage;
   ) : null
 }
 
+{
+  data?.flags ? (
+  <h2 id="flags">Flags</h2>
+  <div>
+  {data?.flags.map((flag) => (
+    flag &&
+    <section id={flag?.name} >
+      <Card title={"--" + flag?.name} icon="custom:terragrunt">
+        <p id={flag?.name}>{flag?.description}</p>
+        <p>Environment Variables:</p>
+        <ul>
+          {flag?.env.map((env) => (
+            <li><code dir="auto">{env}</code></li>
+          ))}
+        </ul>
+        <a class="anchor-link" href={"#" + flag?.name}><span>⚓️</span></a>
+      </Card>
+    </section>
+    ))}
+</div>
+  ) : null
+}
 
-<!-- Run the provided OpenTofu/Terraform command against the unit in the current working directory. -->
-
-<!-- ## Usage -->
-
-<!-- ```bash -->
-<!-- terragrunt run plan -->
-<!-- ``` -->
-
-<!-- Note that the `run` command is a more explicit way to run OpenTofu/Terraform commands, and it provides some flexible options that are not available with [OpenTofu shortcuts](/docs/reference/cli/commands/opentofu-shortcuts). -->
-
-<!-- The `run` command also supports the following flags that can be used to drive runs in multiple units: -->
-
-<!-- - [`--all`](#all): Run the provided OpenTofu/Terraform command against all units in the current stack. -->
-<!-- - [`--graph`](#graph): Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory. -->
-
-<!-- ## Separating Arguments -->
-
-<!-- You may, at times, need to explicitly separate the arguments used for Terragrunt from those used for OpenTofu/Terraform. In those circumstances, you can use the argument `--` to separate the Terragrunt flags from the OpenTofu/Terraform flags. -->
-
-<!-- ```bash -->
-<!-- terragrunt run -- plan -no-color -->
-<!-- ``` -->
+{
+  data?.subcommands ? (
+  <h2 id="subcommands">Subcommands</h2>
+  <div>
+    {data?.subcommands.map((subcommand) => (
+      subcommand && (
+        <section id={subcommand?.name}>
+          <Card title={subcommand?.name} icon="custom:opentofu">
+            <p>{subcommand?.description}</p>
+          </Card>
+        </section>
+      )
+    ))}
+  </div>
+  ) : null
+}

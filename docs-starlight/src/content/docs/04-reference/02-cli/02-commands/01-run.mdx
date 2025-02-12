@@ -9,7 +9,7 @@ sidebar:
 import { Aside } from '@astrojs/starlight/components';
 import Command from '@components/Command.astro';
 
-<Command name={frontmatter.title} />
+<Command name={frontmatter.title}>
 
 ## Usage
 
@@ -31,3 +31,5 @@ You may, at times, need to explicitly separate the arguments used for Terragrunt
 ```bash
 terragrunt run -- plan -no-color
 ```
+
+</Command>
