@@ -62,9 +62,11 @@ type FlagValue interface {
 	// IsEnvSet returns true if the flag was set by env var.
 	IsEnvSet() bool
 
-	// optional interface to indicate boolean flags that can be
-	// supplied without "=value" text
+	// IsBoolFlag returns true if the flag is of type bool.
 	IsBoolFlag() bool
+
+	// IsNegativeBoolFlag returns true if the boolean has an inverted value.
+	IsNegativeBoolFlag() bool
 
 	// MultipleSet returns true if the flag allows multiple assignments, such as slice/map.
 	MultipleSet() bool
@@ -145,15 +147,22 @@ type flagValue struct {
 	hasBeenSet       bool
 	envHasBeenSet    bool
 	initialTextValue string
+	negative         bool
 }
 
 func (flag *flagValue) MultipleSet() bool {
 	return flag.multipleSet
 }
 
+// IsBoolFlag implements `cli.FlagValue` interface.
 func (flag *flagValue) IsBoolFlag() bool {
 	_, ok := flag.value.Get().(bool)
 	return ok
+}
+
+// IsNegativeBoolFlag implements `cli.FlagValue` interface.
+func (flag *flagValue) IsNegativeBoolFlag() bool {
+	return flag.negative
 }
 
 func (flag *flagValue) Get() any {
@@ -220,7 +229,7 @@ func (flag *flag) Value() FlagValue {
 	return flag.FlagValue
 }
 
-// TakesValue returns true of the flag takes a value, otherwise false.
+// TakesValue returns true if the flag needs to be given a value.
 // Implements `cli.DocGenerationFlag.TakesValue` required to generate help.
 func (flag *flag) TakesValue() bool {
 	return true

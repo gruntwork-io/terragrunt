@@ -34,12 +34,17 @@ func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn 
 }
 
 // TakesValue implements `cli.Flag` interface.
+// It returns `true` for all flags except boolean ones that are `false` or `true` inverted.
 func (new *Flag) TakesValue() bool {
 	if new.Flag.Value() == nil {
 		return false
 	}
 
 	val, ok := new.Flag.Value().Get().(bool)
+
+	if new.Flag.Value().IsNegativeBoolFlag() {
+		val = !val
+	}
 
 	return !ok || !val
 }

@@ -6,6 +6,15 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
+	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
+	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
+	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
+	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
+	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
+	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
+	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -14,6 +23,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/util"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -65,6 +76,40 @@ const (
 	DeprecatedJSONLogFlagName              = "json-log"
 	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
 )
+
+// NewFlagsWithDeprecatedMovedFlags returns global flags along with flags that have been moved to other commands and hidden from CLI help.
+func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags {
+	globalFlags := NewFlags(opts, nil)
+
+	commands := cli.Commands{
+		runCmd.NewCommand(opts),             // run
+		runall.NewCommand(opts),             // runAction-all
+		terragruntinfo.NewCommand(opts),     // terragrunt-info
+		validateinputs.NewCommand(opts),     // validate-inputs
+		graphdependencies.NewCommand(opts),  // graph-dependencies
+		renderjson.NewCommand(opts),         // render-json
+		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
+		outputmodulegroups.NewCommand(opts), // output-module-groups
+		graph.NewCommand(opts),              // graph
+	}
+
+	var seen []string
+
+	for _, cmd := range commands {
+		for _, flag := range cmd.Flags {
+			flagName := util.FirstElement(util.RemoveEmptyElements(flag.Names()))
+
+			if slices.Contains(seen, flagName) {
+				continue
+			}
+
+			seen = append(seen, flagName)
+			globalFlags = append(globalFlags, flags.NewMovedFlag(flag, cmd.Name, flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name)))
+		}
+	}
+
+	return globalFlags
+}
 
 // NewFlags creates and returns global flags common for all commands.
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {

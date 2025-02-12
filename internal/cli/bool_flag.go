@@ -49,6 +49,7 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	flag.FlagValue = &flagValue{
 		value:            value,
 		initialTextValue: value.String(),
+		negative:         flag.Negative,
 	}
 
 	return ApplyFlag(flag, set)
