@@ -43,7 +43,7 @@ install_tofu: &install_tofu
     rm -rf tofu.zip
     popd
     tofu --version
-    export TERRAGRUNT_TFPATH=tofu
+    export TG_TF_PATH=tofu
     sudo rm -f $(which terraform)
 
 install_tflint: &install_tflint
@@ -95,7 +95,7 @@ run_integration_tofu_only_test: &run_integration_tofu_only_test
     run-go-tests --packages "-tags tofu -run ^TestTofu ./..." | tee logs/test-results.log
   no_output_timeout: 30m
   environment:
-    TERRAGRUNT_TFPATH: tofu
+    TG_TF_PATH: tofu
 
 run_integration_gcp_test: &run_integration_gcp_test
   name: Run integration tests GCP
@@ -202,7 +202,7 @@ jobs:
           shell: powershell.exe
           no_output_timeout: 45m
           environment:
-            TERRAGRUNT_TFPATH: tofu
+            TG_TF_PATH: tofu
           command: |
             go test -tags windows -v -run ^TestWindows ./... -timeout 45m
 
@@ -282,7 +282,7 @@ jobs:
       - run:
           <<: *run_integration_test
           environment:
-            TERRAGRUNT_PROVIDER_CACHE: "1"
+            TG_PROVIDER_CACHE: "1"
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -326,7 +326,7 @@ jobs:
       - run:
           <<: *run_integration_test
           environment:
-            TERRAGRUNT_TFPATH: tofu
+            TG_TF_PATH: tofu
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -370,8 +370,8 @@ jobs:
       - run:
           <<: *run_integration_test
           environment:
-            TERRAGRUNT_TFPATH: tofu
-            TERRAGRUNT_PROVIDER_CACHE: "1"
+            TG_TF_PATH: tofu
+            TG_PROVIDER_CACHE: "1"
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -525,7 +525,7 @@ jobs:
             run-go-tests --packages "-tags=mocks -run ^TestMock ./tf/getproviders/." | tee logs/test-results.log
           no_output_timeout: 30m
           environment:
-            TERRAGRUNT_TFPATH: tofu
+            TG_TF_PATH: tofu
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
