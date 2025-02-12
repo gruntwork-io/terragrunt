@@ -1,5 +1,5 @@
 ---
-import { Aside, Code, Card } from '@astrojs/starlight/components';
+import { Aside, Badge, Code, Card } from '@astrojs/starlight/components';
 import { getEntry } from 'astro:content';
 const { name } = Astro.props;
 
@@ -60,8 +60,11 @@ const usage = data?.usage;
   {data?.flags.map((flag) => (
     flag &&
     <section id={flag?.name} >
-      <Card title={"--" + flag?.name} icon="custom:terragrunt">
-        <p id={flag?.name}>{flag?.description}</p>
+    <Card title={"--" + flag?.name} icon="custom:terragrunt">
+      <p id={flag?.name}>{flag?.description}</p>
+        <div>
+        <span>Type: </span><Badge text={flag?.type} variant="note" style={{ fontWeight: 'bold' }}/>
+        </div>
         <p>Environment Variables:</p>
         <ul>
           {flag?.env.map((env) => (

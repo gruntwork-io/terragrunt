@@ -28,6 +28,7 @@ const commands = defineCollection({
 			name: z.string(),
 			description: z.string(),
 			env: z.array(z.string()),
+			type: z.string(),
 		}).optional()),
 		experiment: z.object({
 			control: z.string(),
