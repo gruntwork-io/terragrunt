@@ -123,7 +123,7 @@ func (ctrl *Control) Evaluate(ctx context.Context, suppressWarn ...bool) error {
 	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.Warning != "" {
 
 		// Remove this suppression when the bug is fixed.
-		if len(suppressWarn) > 0 && !suppressWarn[0] {
+		if len(suppressWarn) == 0 || !suppressWarn[0] {
 			ctrl.OnceWarn.Do(func() {
 				logger.Warn(ctrl.Warning)
 			})

@@ -43,7 +43,7 @@ func TestStrictMode(t *testing.T) {
 			controls:       []string{},
 			strictMode:     true,
 			expectedStderr: "",
-			expectedError:  errors.New("is no longer supported"),
+			expectedError:  errors.New("`plan-all` command is no longer supported. Use `terragrunt run-all plan` instead."),
 		},
 	}
 
@@ -52,7 +52,7 @@ func TestStrictMode(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
 
-			args := "--terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir " + rootPath
+			args := "--non-interactive --log-level trace --working-dir " + rootPath
 			if tt.strictMode {
 				args = "--strict-mode " + args
 			}
