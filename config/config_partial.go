@@ -460,7 +460,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			skipDependenciesInputs := allControls.FilterByNames(controls.SkipDependenciesInputs)
 			logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 
-			if err := skipDependenciesInputs.Evaluate(logger); err != nil {
+			if err := skipDependenciesInputs.Evaluate(logger, true); err != nil {
 				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
 
 				break

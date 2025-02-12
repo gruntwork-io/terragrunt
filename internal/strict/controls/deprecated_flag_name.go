@@ -73,7 +73,7 @@ func NewDeprecatedFlagName(deprecatedFlag, newFlag cli.Flag, newValue string) *D
 }
 
 // Evaluate implements `strict.Control` interface.
-func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
+func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context, suppressWarn ...bool) error {
 	var (
 		valueName = ctrl.deprecatedFlag.Value().GetName()
 		flagName  string

@@ -3027,14 +3027,20 @@ func TestDependenciesOptimisation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependenciesOptimisation)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --non-interactive --log-level trace --working-dir "+rootPath)
 	require.NoError(t, err)
+
+	assert.NotContains( // Check that we're getting a warning for usage of deprecated functionality.
+		t,
+		stderr,
+		"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+	)
 
 	config.ClearOutputCache()
 
 	moduleC := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
 	t.Setenv("TERRAGRUNT_STRICT_CONTROL", "skip-dependencies-inputs")
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+moduleC)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+moduleC)
 	require.NoError(t, err)
 
 	// checking that dependencies optimisation is working and outputs from module-a are not retrieved

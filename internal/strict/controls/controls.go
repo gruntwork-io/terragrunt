@@ -57,8 +57,8 @@ func New() strict.Controls {
 		// TODO: `ErrorFmt` and `WarnFmt` of this control are not displayed anywhere and needs to be reworked.
 		Name:        SkipDependenciesInputs,
 		Description: "Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
-		Error:       errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
-		Warning:     fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
+		Error:       errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
+		Warning:     fmt.Sprintf("Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead."),
 		Category:    stageCategory,
 	}
 

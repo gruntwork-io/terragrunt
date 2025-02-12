@@ -48,7 +48,7 @@ type Control interface {
 	AddSubcontrols(newCtrls ...Control)
 
 	// Evaluate evaluates the struct control.
-	Evaluate(ctx context.Context) error
+	Evaluate(ctx context.Context, suppressWarn ...bool) error
 }
 
 // Controls are multiple of Controls.
@@ -198,8 +198,13 @@ func (ctrls Controls) LogEnabled(logger log.Logger) {
 	}
 }
 
-// Evaluate returns an error if the one of the controls is enabled otherwise logs warning messages and returns nil.
-func (ctrls Controls) Evaluate(ctx context.Context) error {
+// Evaluate returns an error if the one of the controls is enabled otherwise logs warning messages and returns nil.a
+//
+// It has a hacky variadic parameter to suppress the warning message to quickly
+// address a bug in the current implementation.
+// Certain evaluations should not trigger the warning, like when the control being
+// evaluated is the skip-dependencies-inputs control.
+func (ctrls Controls) Evaluate(ctx context.Context, suppressWarn ...bool) error {
 	for _, ctrl := range ctrls {
 		if err := ctrl.Evaluate(ctx); err != nil {
 			return err
