@@ -29,6 +29,8 @@ const usage = data?.usage;
   ) : null
 }
 
+<h2 id="usage">Usage</h2>
+
 {
   usage?.split('\n').map((line) => (
     <p>{line}</p>
@@ -71,23 +73,5 @@ const usage = data?.usage;
     </section>
     ))}
 </div>
-  ) : null
-}
-
-{
-  data?.subcommands ? (
-  <h2 id="subcommands">Subcommands</h2>
-  <div>
-    {data?.subcommands.map((subcommand) => (
-      subcommand && (
-        <section id={subcommand?.name}>
-          <Card title={subcommand?.name} icon="custom:opentofu">
-          <p>{subcommand?.description}</p>
-          <a class="anchor-link" href={"#" + subcommand?.name}><span>⚓️</span></a>
-          </Card>
-        </section>
-      )
-    ))}
-  </div>
   ) : null
 }

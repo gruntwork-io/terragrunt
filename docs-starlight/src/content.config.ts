@@ -24,10 +24,6 @@ const commands = defineCollection({
 			code: z.string(),
 			description: z.string().optional(),
 		}).optional()),
-		subcommands: z.array(z.object({
-			name: z.string(),
-			description: z.string(),
-		}).optional()),
 		flags: z.array(z.object({
 			name: z.string(),
 			description: z.string(),

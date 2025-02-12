@@ -11,7 +11,7 @@ import Command from '@components/Command.astro';
 
 <Command name={frontmatter.title}>
 
-## Usage
+## Running OpenTofu/Terraform Commands
 
 ```bash
 terragrunt run plan
@@ -21,8 +21,8 @@ Note that the `run` command is a more explicit way to run OpenTofu/Terraform com
 
 The `run` command also supports the following flags that can be used to drive runs in multiple units:
 
-- [`--all`](#all): Run the provided OpenTofu/Terraform command against all units in the current stack.
-- [`--graph`](#graph): Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory.
+- `--all`: Run the provided OpenTofu/Terraform command against all units in the current stack.
+- `--graph`: Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory.
 
 ## Separating Arguments
 

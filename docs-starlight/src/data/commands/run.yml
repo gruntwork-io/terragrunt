@@ -16,55 +16,6 @@ examples:
       terragrunt run -- output -json
       # Shortcut:
       # terragrunt output -json
-subcommands:
-  - name: apply
-    description: Create or update infrastructure.
-  - name: console
-    description: Try OpenTofu/Terraform expressions at an interactive command prompt.
-  - name: destroy
-    description: Destroy previously-created infrastructure.
-  - name: fmt
-    description: Reformat your configuration in the standard style.
-  - name: get
-    description: Install or upgrade remote OpenTofu/Terraform modules.
-  - name: graph
-    description: Generate a Graphviz graph of the steps in an operation.
-  - name: import
-    description: Associate existing infrastructure with a OpenTofu/Terraform resource.
-  - name: init
-    description: Prepare your working directory for other commands.
-  - name: login
-    description: Obtain and save credentials for a remote host.
-  - name: logout
-    description: Remove locally-stored credentials for a remote host.
-  - name: metadata
-    description: Metadata related commands.
-  - name: output
-    description: Show output values from your root module.
-  - name: plan
-    description: Show changes required by the current configuration.
-  - name: providers
-    description: Show the providers required for this configuration.
-  - name: refresh
-    description: Update the state to match remote systems.
-  - name: show
-    description: Show the current state or a saved plan.
-  - name: taint
-    description: Mark a resource instance as not fully functional.
-  - name: test
-    description: Execute integration tests for OpenTofu/Terraform modules.
-  - name: version
-    description: Show the current OpenTofu/Terraform version.
-  - name: validate
-    description: Check whether the configuration is valid.
-  - name: untaint
-    description: Remove the 'tainted' state from a resource instance.
-  - name: workspace
-    description: Workspace management.
-  - name: force-unlock
-    description: Release a stuck lock on the current workspace.
-  - name: state
-    description: Advanced state management.
 flags:
   - name: all
     description: Run the specified OpenTofu/Terraform command on the stack of units in the current directory.
