@@ -2,6 +2,7 @@ package stack
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
@@ -21,8 +22,8 @@ const (
 
 // RunGenerate runs the stack command.
 func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
-	if !opts.Experiments.Evaluate(experiment.Stacks) {
-		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
+	if err := checkStackExperiment(opts); err != nil {
+		return err
 	}
 
 	return generateStack(ctx, opts)
@@ -30,8 +31,8 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // Run execute stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	if !opts.Experiments.Evaluate(experiment.Stacks) {
-		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
+	if err := checkStackExperiment(opts); err != nil {
+		return err
 	}
 
 	if err := RunGenerate(ctx, opts); err != nil {
@@ -45,8 +46,8 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // RunOutput stack output.
 func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
-	if !opts.Experiments.Evaluate(experiment.Stacks) {
-		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
+	if err := checkStackExperiment(opts); err != nil {
+		return err
 	}
 
 	// collect outputs
@@ -73,6 +74,31 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		if err := PrintJSONOutput(writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
+	}
+
+	return nil
+}
+
+// RunClean cleans the stack directory
+func RunClean(_ context.Context, opts *options.TerragruntOptions) error {
+	if err := checkStackExperiment(opts); err != nil {
+		return err
+	}
+
+	baseDir := filepath.Join(opts.WorkingDir, stackDir)
+	opts.Logger.Debugf("Cleaning stack directory: %s", baseDir)
+	err := os.RemoveAll(baseDir)
+
+	if err != nil {
+		return errors.Errorf("failed to clean stack directory: %s %w", baseDir, err)
+	}
+
+	return nil
+}
+
+func checkStackExperiment(opts *options.TerragruntOptions) error {
+	if !opts.Experiments.Evaluate(experiment.Stacks) {
+		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
 
 	return nil

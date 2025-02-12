@@ -159,6 +159,23 @@ func TestStacksApplyRemote(t *testing.T) {
 	validateStackDir(t, path)
 }
 
+func TestStacksApplyClean(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	// check that path exists
+	assert.DirExists(t, path)
+
+	helpers.RunTerragrunt(t, "terragrunt stack clean --experiment stacks --terragrunt-working-dir "+rootPath)
+	// check that path don't exist
+	assert.NoDirExists(t, path)
+}
+
 func TestStacksDestroy(t *testing.T) {
 	t.Parallel()
 
