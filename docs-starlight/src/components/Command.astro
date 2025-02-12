@@ -1,6 +1,6 @@
 ---
 import { Aside, Badge, Code, Card } from '@astrojs/starlight/components';
-import { getEntry } from 'astro:content';
+import { getEntry, render } from 'astro:content';
 const { name } = Astro.props;
 
 const command = await getEntry('commands', name);
@@ -8,6 +8,7 @@ const command = await getEntry('commands', name);
 const data = command?.data;
 
 const usage = data?.usage;
+const { Content } = await render(command);
 ---
 
 <style>
@@ -50,7 +51,7 @@ const usage = data?.usage;
   ) : null
 }
 
-<slot />
+<Content />
 
 {
   data?.flags ? (

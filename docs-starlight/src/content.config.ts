@@ -16,9 +16,11 @@ const docs = defineCollection({
 	)
 });
 const commands = defineCollection({
-	loader: glob({ pattern: "**/*.yml", base: "src/data/commands" }),
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/commands" }),
 	schema: z.object({
 		name: z.string(),
+		description: z.string(),
+		path: z.string(),
 		usage: z.string(),
 		examples: z.array(z.object({
 			code: z.string(),

@@ -1,0 +1,45 @@
+---
+import Command from '@components/Command.astro';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+	const commands = await getCollection('commands');
+
+	return commands.map((command) => {
+		const data = command.data;
+
+		const body = command.body;
+
+		// body is some markdown content.
+		// Extract the h2 headings from the markdown content.
+		// This will be used to generate the table of contents.
+		const h2HeadingsLines = body?.match(/## (.*)/g);
+		console.log(h2HeadingsLines);
+		const h2Headings = h2HeadingsLines?.map((line) => line.replace(/## /g, ''));
+		console.log(h2Headings);
+
+		return {
+			params: { 
+				slug: data.path,
+			},
+			props: {
+				name: data.name,
+				description: data.description,
+				experiment: data.experiment,
+				examples: data.examples,
+			},
+		}
+	});
+}
+
+const { name, description } = Astro.props;
+---
+
+<StarlightPage frontmatter={{ 
+	title: name,
+	description: description,
+}}>
+	<Command name={name} />
+</StarlightPage>
+
