@@ -24,9 +24,10 @@ type StackConfigFile struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
-	Name   string `hcl:",label"`
-	Source string `hcl:"source,attr"`
-	Path   string `hcl:"path,attr"`
+	Name   string               `hcl:",label"`
+	Source string               `hcl:"source,attr"`
+	Path   string               `hcl:"path,attr"`
+	Values *terragruntUnitValue `hcl:"values,block"`
 }
 
 // ReadOutputs reads the outputs from the unit.

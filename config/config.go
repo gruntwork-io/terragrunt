@@ -244,6 +244,11 @@ type terragruntLocal struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
+// Struct used to process unit values.
+type terragruntUnitValue struct {
+	Remain hcl.Body `hcl:",remain"`
+}
+
 type terragruntIncludeIgnore struct {
 	Name   string   `hcl:"name,label"`
 	Remain hcl.Body `hcl:",remain"`
