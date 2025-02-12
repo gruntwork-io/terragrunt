@@ -82,7 +82,8 @@ const usage = data?.usage;
       subcommand && (
         <section id={subcommand?.name}>
           <Card title={subcommand?.name} icon="custom:opentofu">
-            <p>{subcommand?.description}</p>
+          <p>{subcommand?.description}</p>
+          <a class="anchor-link" href={"#" + subcommand?.name}><span>⚓️</span></a>
           </Card>
         </section>
       )
