@@ -14,9 +14,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
@@ -38,7 +39,9 @@ import (
 const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
-	FoundInFile                     = "found_in_file"
+	RecommendedParentConfigName     = "root.hcl"
+
+	FoundInFile = "found_in_file"
 
 	iamRoleCacheName = "iamRoleCache"
 
@@ -86,7 +89,7 @@ var (
 		writer := writer.New(writer.WithLogger(opts.Logger), writer.WithDefaultLevel(log.ErrorLevel))
 
 		return []hclparse.Option{
-			hclparse.WithDiagnosticsWriter(writer, opts.DisableLogColors),
+			hclparse.WithDiagnosticsWriter(writer, opts.Logger.Formatter().DisabledColors()),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 			hclparse.WithLogger(opts.Logger),
 		}
@@ -253,6 +256,7 @@ type remoteStateConfigFile struct {
 	DisableDependencyOptimization *bool                      `hcl:"disable_dependency_optimization,attr"`
 	Generate                      *remoteStateConfigGenerate `hcl:"generate,attr"`
 	Config                        cty.Value                  `hcl:"config,attr"`
+	Encryption                    *cty.Value                 `hcl:"encryption,attr"`
 }
 
 func (remoteState *remoteStateConfigFile) String() string {
@@ -278,6 +282,17 @@ func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error
 	}
 
 	config.Config = remoteStateConfig
+
+	if remoteState.Encryption != nil && !remoteState.Encryption.IsNull() {
+		remoteStateEncryption, err := ParseCtyValueToMap(*remoteState.Encryption)
+		if err != nil {
+			return nil, err
+		}
+
+		config.Encryption = remoteStateEncryption
+	} else {
+		config.Encryption = nil
+	}
 
 	if remoteState.DisableInit != nil {
 		config.DisableInit = *remoteState.DisableInit
@@ -439,6 +454,7 @@ type ErrorHook struct {
 func (conf *Hook) String() string {
 	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
 }
+
 func (conf *ErrorHook) String() string {
 	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
 }
@@ -455,7 +471,8 @@ type TerraformConfig struct {
 
 	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
 	// be defined and we want to make this optional.
-	IncludeInCopy *[]string `hcl:"include_in_copy,attr"`
+	IncludeInCopy   *[]string `hcl:"include_in_copy,attr"`
+	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
 
 	CopyTerraformLockFile *bool `hcl:"copy_terraform_lock_file,attr"`
 }
@@ -656,10 +673,15 @@ func GetDefaultConfigPath(workingDir string) string {
 
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
 // config file if it has a name as returned by the DefaultConfigPath method
-func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
+func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	err := util.WalkWithSymlinks(rootPath, func(path string, info os.FileInfo, err error) error {
+	walkFunc := filepath.Walk
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		walkFunc = util.WalkWithSymlinks
+	}
+
+	err := walkFunc(rootPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -668,13 +690,13 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return nil
 		}
 
-		if ok, err := isTerragruntModuleDir(path, terragruntOptions); err != nil {
+		if ok, err := isTerragruntModuleDir(path, opts); err != nil {
 			return err
 		} else if !ok {
 			return filepath.SkipDir
 		}
 
-		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(terragruntOptions.TerragruntConfigPath)) {
+		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(opts.TerragruntConfigPath)) {
 			if !filepath.IsAbs(configFile) {
 				configFile = util.JoinPath(path, configFile)
 			}
@@ -733,7 +755,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
-	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
 
 	// TODO: Remove lint ignore
@@ -768,7 +790,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
-			return err
+			return errors.Errorf("failed to get file info: %w", err)
 		}
 
 		var (
@@ -1400,7 +1422,7 @@ func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (m
 		return nil, false
 	}
 
-	var result = make(map[string]string)
+	result := make(map[string]string)
 	for key, value := range value {
 		result[key] = fmt.Sprintf("%v", value)
 	}
@@ -1414,7 +1436,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		return nil, nil
 	}
 	// in case of Meta is null, set empty meta
-	var meta = map[string]interface{}{}
+	meta := map[string]interface{}{}
 
 	if cfg.Engine.Meta != nil {
 		parsedMeta, err := ParseCtyValueToMap(*cfg.Engine.Meta)

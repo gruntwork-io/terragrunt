@@ -1,0 +1,73 @@
+// @ts-check
+import { defineConfig } from 'astro/config';
+import starlight from '@astrojs/starlight';
+import starlightLinksValidator from 'starlight-links-validator';
+
+// https://astro.build/config
+export default defineConfig({
+	integrations: [
+		starlight({
+			title: 'Terragrunt',
+			logo: {
+				dark: '/src/assets/logo-light.svg',
+				light: '/src/assets/logo-dark.svg',
+			},
+			social: {
+				github: 'https://github.com/gruntwork-io/terragrunt',
+				discord: 'https://discord.gg/SPu4Degs5f',
+			},
+			sidebar: [
+				{
+					label: 'Getting Started',
+					autogenerate: { directory: '01-getting-started' },
+				},
+				{
+					label: 'Features',
+					autogenerate: { directory: '02-features', collapsed: true },
+				},
+				{
+					label: 'Community',
+					autogenerate: { directory: '03-community', collapsed: true },
+				},
+				{
+					label: 'Reference',
+					items: [
+						{ label: 'HCL', autogenerate: { directory: '04-reference/01-hcl', collapsed: true } },
+						{
+							label: 'CLI', collapsed: true, items: [
+								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/commands', collapsed: true } },
+							],
+						},
+						{ label: 'Strict Controls', slug: 'docs/reference/strict-controls' },
+						{ label: 'Experiments', slug: 'docs/reference/experiments' },
+						{ label: 'Supported Versions', slug: 'docs/reference/supported-versions' },
+						{ label: 'Lock Files', slug: 'docs/reference/lock-files' },
+						{ label: 'Terragrunt Cache', slug: 'docs/reference/terragrunt-cache' },
+					],
+				},
+				{
+					label: 'Troubleshooting',
+					autogenerate: { directory: '05-troubleshooting', collapsed: true },
+				},
+				{
+					label: 'Migrate',
+					autogenerate: { directory: '06-migrate', collapsed: true },
+				},
+			],
+			// NOTE: We don't currently check links by default because the CLI
+			// Redesign isn't done yet. Once those pages are built out, we'll require
+			// links to be checked for all builds.
+			plugins: [starlightLinksValidator({
+				exclude: [
+					// Used in the docs for OpenTelemetry
+					'http://localhost:16686/',
+					'http://localhost:9090/',
+
+					// TODO: Remove these once the CLI redesign is done
+					'/docs/reference/cli**/*',
+					'/docs/reference/cli*',
+				],
+			})],
+		}),
+	],
+});

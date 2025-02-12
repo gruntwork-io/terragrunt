@@ -11,7 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -102,11 +102,11 @@ func (module *TerraformModule) planFile(opts *options.TerragruntOptions) string 
 	// set plan file location if output folder is set
 	planFile = module.outputFile(opts)
 
-	planCommand := module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan || module.TerragruntOptions.TerraformCommand == terraform.CommandNameShow
+	planCommand := module.TerragruntOptions.TerraformCommand == tf.CommandNamePlan || module.TerragruntOptions.TerraformCommand == tf.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified planFile, save plan in working dir
 	if planCommand && planFile == "" && module.TerragruntOptions.JSONOutputFolder != "" {
-		planFile = terraform.TerraformPlanFile
+		planFile = tf.TerraformPlanFile
 	}
 
 	return planFile
@@ -114,12 +114,12 @@ func (module *TerraformModule) planFile(opts *options.TerragruntOptions) string 
 
 // outputFile - return plan file location, if output folder is set
 func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
-	return module.getPlanFilePath(opts, opts.OutputFolder, terraform.TerraformPlanFile)
+	return module.getPlanFilePath(opts, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
 // outputJSONFile - return plan JSON file location, if JSON output folder is set
 func (module *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string {
-	return module.getPlanFilePath(opts, opts.JSONOutputFolder, terraform.TerraformPlanJSONFile)
+	return module.getPlanFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 
 func (module *TerraformModule) getPlanFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
@@ -252,7 +252,6 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, opts *options.Terragrunt
 		}
 
 		cfgOptions.Env = opts.Env
-		cfgOptions.LogLevel = opts.LogLevel
 		cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 		cfgOptions.TerraformCommand = opts.TerraformCommand
 		cfgOptions.NonInteractive = true

@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/strict"
-
-	clone "github.com/huandu/go-clone"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/huandu/go-clone"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -187,36 +187,15 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 }
 
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
-	evaluatedFlags := map[string]cty.Value{}
 	// extract all flags in map by name
 	flagByName := map[string]*FeatureFlag{}
 	for _, flag := range tgFlags {
 		flagByName[flag.Name] = flag
 	}
 
-	for name, value := range ctx.TerragruntOptions.FeatureFlags {
-		// convert flag value to respective type
-		var evaluatedFlag cty.Value
-
-		existingFlag, exists := flagByName[name]
-
-		if exists {
-			flag, err := flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			evaluatedFlag = flag
-		} else {
-			flag, err := flagToCtyValue(name, value)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			evaluatedFlag = flag
-		}
-
-		evaluatedFlags[name] = evaluatedFlag
+	evaluatedFlags, err := cliFlagsToCty(ctx, flagByName)
+	if err != nil {
+		return cty.NilVal, err
 	}
 
 	for _, flag := range tgFlags {
@@ -240,12 +219,52 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	return flagsAsCtyVal, nil
 }
 
+// cliFlagsToCty converts CLI feature flags to Cty values. It returns a map of flag names
+// to their corresponding Cty values and any error encountered during conversion.
+func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map[string]cty.Value, error) {
+	if ctx.TerragruntOptions.FeatureFlags == nil {
+		return make(map[string]cty.Value), nil
+	}
+
+	evaluatedFlags := make(map[string]cty.Value)
+
+	var conversionErr error
+
+	ctx.TerragruntOptions.FeatureFlags.Range(func(name, value string) bool {
+		var flag cty.Value
+
+		var err error
+
+		if existingFlag, ok := flagByName[name]; ok {
+			flag, err = flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
+		} else {
+			flag, err = flagToCtyValue(name, value)
+		}
+
+		if err != nil {
+			conversionErr = err
+
+			return false
+		}
+
+		evaluatedFlags[name] = flag
+
+		return true
+	})
+
+	if conversionErr != nil {
+		return nil, conversionErr
+	}
+
+	return evaluatedFlags, nil
+}
+
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
 	var (
@@ -271,7 +290,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, ctx.PartialParseDecodeList)
 
-	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, RunCmdCacheContextKey)
+	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.TerragruntConfigPath, ctx.PartialParseDecodeList)
@@ -437,14 +456,14 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
-			control, ok := strict.GetStrictControl(strict.SkipDependenciesInputs)
-			if ok {
-				_, skipInputs := control.Evaluate(ctx.TerragruntOptions)
-				if skipInputs != nil {
-					ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+			allControls := ctx.TerragruntOptions.StrictControls
+			skipDependenciesInputs := allControls.FilterByNames(controls.SkipDependenciesInputs)
+			logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 
-					break
-				}
+			if err := skipDependenciesInputs.Evaluate(logger); err != nil {
+				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+
+				break
 			}
 
 			decoded := terragruntInputs{}

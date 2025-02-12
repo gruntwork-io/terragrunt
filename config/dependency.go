@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -23,16 +24,15 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -513,6 +513,8 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 	// returning mocks is not allowed. So return a useful error message indicating that we expected outputs, but they
 	// did not exist.
 	err := TerragruntOutputTargetNoOutputs{
+		targetName:    dependencyConfig.Name,
+		targetPath:    dependencyConfig.ConfigPath.AsString(),
 		targetConfig:  targetConfig,
 		currentConfig: ctx.TerragruntOptions.TerragruntConfigPath,
 	}
@@ -637,7 +639,7 @@ func getOutputJSONWithCaching(ctx *ParsingContext, targetConfig string) ([]byte,
 //
 // That way, everything in that dependency happens within its own ctx.
 func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath string) (*options.TerragruntOptions, error) {
-	targetOptions, err := ctx.TerragruntOptions.Clone(targetConfigPath)
+	targetOptions, err := ctx.TerragruntOptions.CloneWithConfigPath(targetConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -789,7 +791,7 @@ func canGetRemoteState(remoteState *remote.RemoteState) bool {
 // terragruntAlreadyInit returns true if it detects that the module specified by the given terragrunt configuration is
 // already initialized with the terraform source. This will also return the working directory where you can run
 // terraform.
-func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configPath string, ctx *ParsingContext) (bool, string, error) {
+func terragruntAlreadyInit(opts *options.TerragruntOptions, configPath string, ctx *ParsingContext) (bool, string, error) {
 	// We need to first determine the working directory where the terraform source should be located. This is dependent
 	// on the source field of the terraform block in the config.
 	terraformBlockTGConfig, err := PartialParseConfigFile(ctx.WithDecodeList(TerraformSource), configPath, nil)
@@ -799,7 +801,7 @@ func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configP
 
 	var workingDir string
 
-	sourceURL, err := GetTerraformSourceURL(terragruntOptions, terraformBlockTGConfig)
+	sourceURL, err := GetTerraformSourceURL(opts, terraformBlockTGConfig)
 	if err != nil {
 		return false, "", err
 	}
@@ -813,7 +815,9 @@ func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configP
 			workingDir = filepath.Dir(configPath)
 		}
 	} else {
-		terraformSource, err := terraform.NewSource(sourceURL, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
+		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+
+		terraformSource, err := tf.NewSource(sourceURL, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
 		if err != nil {
 			return false, "", err
 		}
@@ -839,7 +843,7 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorking
 
 	ctx.TerragruntOptions.Logger.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetTGOptions.TerragruntConfigPath)
 
-	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(ctx, targetTGOptions, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -946,7 +950,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	}
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
-	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(ctx, targetTGOptions, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1132,7 +1136,7 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string,
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
 
-	if err = shell.RunTerraformCommand(ctx, initTGOptions, terraform.CommandNameInit, "-get=false"); err != nil {
+	if err = tf.RunCommand(ctx, initTGOptions, tf.CommandNameInit, "-get=false"); err != nil {
 		ctx.TerragruntOptions.Logger.Debugf("Ignoring expected error from dependency init call")
 		ctx.TerragruntOptions.Logger.Debugf("Init call stderr:")
 		ctx.TerragruntOptions.Logger.Debugf(stderr.String())

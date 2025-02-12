@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
@@ -25,8 +26,10 @@ type ParsedVariable struct {
 
 // ParseVariables - parse variables from tf files.
 func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*ParsedVariable, error) {
+	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+
 	// list all tf files
-	tfFiles, err := util.ListTfFiles(directoryPath)
+	tfFiles, err := util.ListTfFiles(directoryPath, walkWithSymlinks)
 	if err != nil {
 		return nil, errors.New(err)
 	}

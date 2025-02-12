@@ -52,7 +52,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 	// cause this! For example, suppose the user has a dependency path that depends on an included input:
 	//
 	// include "root" {
-	//   path = find_in_parent_folders()
+	//   path = find_in_parent_folders("root.hcl")
 	//   expose = true
 	// }
 	// dependency "dep" {
@@ -500,6 +500,18 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 					cfg.Terraform.IncludeInCopy = &combinedList
 				} else {
 					cfg.Terraform.IncludeInCopy = &srcList
+				}
+			}
+
+			if sourceConfig.Terraform.ExcludeFromCopy != nil {
+				srcList := *sourceConfig.Terraform.ExcludeFromCopy
+
+				if cfg.Terraform.ExcludeFromCopy != nil {
+					targetList := *cfg.Terraform.ExcludeFromCopy
+					combinedList := append(srcList, targetList...)
+					cfg.Terraform.ExcludeFromCopy = &combinedList
+				} else {
+					cfg.Terraform.ExcludeFromCopy = &srcList
 				}
 			}
 

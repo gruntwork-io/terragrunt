@@ -21,19 +21,55 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
     b = 2
     c = 3
   }
+  encryption {
+    key_provider "test" "default" {
+      a = 1
+      b = 2
+      c = 3
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.test.default
+    }
+    state {
+      method = method.aes_gcm.default
+    }
+    plan {
+      method = method.aes_gcm.default
+    }
+  }
 }
 `)
-	expectedEmpty := []byte(`terraform {
+	expectedEmptyConfig := []byte(`terraform {
+  backend "empty" {
+  }
+  encryption {
+    key_provider "test" "default" {
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.test.default
+    }
+    state {
+      method = method.aes_gcm.default
+    }
+    plan {
+      method = method.aes_gcm.default
+    }
+  }
+}
+`)
+	expectedEmptyEncryption := []byte(`terraform {
   backend "empty" {
   }
 }
 `)
 
 	tc := []struct {
-		name     string
-		backend  string
-		config   map[string]interface{}
-		expected []byte
+		name       string
+		backend    string
+		config     map[string]interface{}
+		encryption map[string]interface{}
+		expected   []byte
+		expectErr  bool
 	}{
 		{
 			"remote-state-config-unsorted-keys",
@@ -43,13 +79,42 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 				"a": 1,
 				"c": 3,
 			},
+			map[string]interface{}{
+				"key_provider": "test",
+				"b":            2,
+				"a":            1,
+				"c":            3,
+			},
 			expectedOrdered,
+			false,
 		},
 		{
 			"remote-state-config-empty",
 			"empty",
 			map[string]interface{}{},
-			expectedEmpty,
+			map[string]interface{}{
+				"key_provider": "test",
+			},
+			expectedEmptyConfig,
+			false,
+		},
+		{
+			"remote-state-encryption-empty",
+			"empty",
+			map[string]interface{}{},
+			map[string]interface{}{},
+			expectedEmptyEncryption,
+			false,
+		},
+		{
+			"remote-state-encryption-missing-key-provider",
+			"empty",
+			map[string]interface{}{},
+			map[string]interface{}{
+				"a": 1,
+			},
+			[]byte(""),
+			true,
 		},
 	}
 
@@ -59,16 +124,20 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			output, err := codegen.RemoteStateConfigToTerraformCode(tt.backend, tt.config)
+			output, err := codegen.RemoteStateConfigToTerraformCode(tt.backend, tt.config, tt.encryption)
 			// validates the first output.
-			assert.True(t, bytes.Contains(output, []byte(tt.backend)))
-			assert.Equal(t, tt.expected, output)
-			require.NoError(t, err)
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.True(t, bytes.Contains(output, []byte(tt.backend)))
+				assert.Equal(t, tt.expected, output)
+			}
 
 			// runs the function a few of times again. All the outputs must be
 			// equal to the first output.
 			for i := 0; i < 20; i++ {
-				actual, _ := codegen.RemoteStateConfigToTerraformCode(tt.backend, tt.config)
+				actual, _ := codegen.RemoteStateConfigToTerraformCode(tt.backend, tt.config, tt.encryption)
 				assert.Equal(t, output, actual)
 			}
 		})

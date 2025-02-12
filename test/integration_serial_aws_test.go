@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -105,7 +104,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
 	for i := 0; i < numberOfModules; i++ {
-		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil)
+		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil, nil)
 		if err != nil {
 			return "", 0, err
 		}
@@ -117,7 +116,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		}
 	}
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := tmpEnvPath

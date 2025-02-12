@@ -40,12 +40,12 @@ const (
 	engineCookieKey   = "engine"
 	engineCookieValue = "terragrunt"
 
-	defaultCacheDir        = ".cache"
-	defaultEngineCachePath = "terragrunt/plugins/iac-engine"
-	prefixTrim             = "terragrunt-"
-	fileNameFormat         = "terragrunt-iac-%s_%s_%s_%s_%s"
-	checksumFileNameFormat = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
-
+	defaultCacheDir                             = ".cache"
+	defaultEngineCachePath                      = "terragrunt/plugins/iac-engine"
+	prefixTrim                                  = "terragrunt-"
+	fileNameFormat                              = "terragrunt-iac-%s_%s_%s_%s_%s"
+	checksumFileNameFormat                      = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
+	engineLogLevelEnv                           = "TG_ENGINE_LOG_LEVEL"
 	defaultEngineRepoRoot                       = "github.com/"
 	terraformCommandContextKey engineClientsKey = iota
 	locksContextKey            engineLocksKey   = iota
@@ -504,9 +504,9 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	engineLogLevel := terragruntOptions.EngineLogLevel
 	if len(engineLogLevel) == 0 {
-		engineLogLevel = terragruntOptions.LogLevel.String()
+		engineLogLevel = terragruntOptions.Logger.Level().String()
 		// turn off log formatting if disabled for Terragrunt
-		if terragruntOptions.DisableLog {
+		if terragruntOptions.Logger.Formatter().DisabledOutput() {
 			engineLogLevel = hclog.Off.String()
 		}
 	}
@@ -517,6 +517,8 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	})
 
 	cmd := exec.Command(localEnginePath)
+	// pass log level to engine
+	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{
 		Logger: logger,
 		HandshakeConfig: plugin.HandshakeConfig{
@@ -551,7 +553,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 // invoke engine for working directory
 func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
-	terragruntOptions := runOptions.TerragruntOptions
+	opts := runOptions.TerragruntOptions
 
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
@@ -607,15 +609,16 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		return nil, errors.New(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
+	opts.Logger.Debugf("Engine execution done in %v", opts.WorkingDir)
 
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
-			Err:        errors.Errorf("command failed with exit code %d", resultCode),
-			Output:     output,
-			WorkingDir: terragruntOptions.WorkingDir,
-			Command:    runOptions.Command,
-			Args:       runOptions.Args,
+			Err:            errors.Errorf("command failed with exit code %d", resultCode),
+			Output:         output,
+			WorkingDir:     opts.WorkingDir,
+			Command:        runOptions.Command,
+			Args:           runOptions.Args,
+			DisableSummary: opts.LogDisableErrorSummary,
 		}
 
 		return nil, errors.New(err)

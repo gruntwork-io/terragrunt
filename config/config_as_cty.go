@@ -555,6 +555,7 @@ type CtyTerraformConfig struct {
 	ExtraArgs             map[string]TerraformExtraArguments `cty:"extra_arguments"`
 	Source                *string                            `cty:"source"`
 	IncludeInCopy         *[]string                          `cty:"include_in_copy"`
+	ExcludeFromCopy       *[]string                          `cty:"exclude_from_copy"`
 	CopyTerraformLockFile *bool                              `cty:"copy_terraform_lock_file"`
 	BeforeHooks           map[string]Hook                    `cty:"before_hook"`
 	AfterHooks            map[string]Hook                    `cty:"after_hook"`
@@ -570,6 +571,7 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 	configCty := CtyTerraformConfig{
 		Source:                config.Source,
 		IncludeInCopy:         config.IncludeInCopy,
+		ExcludeFromCopy:       config.ExcludeFromCopy,
 		CopyTerraformLockFile: config.CopyTerraformLockFile,
 		ExtraArgs:             map[string]TerraformExtraArguments{},
 		BeforeHooks:           map[string]Hook{},
@@ -597,8 +599,8 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 }
 
 // RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
-// serialize the struct because `config` is an arbitrary
-// interface whose type we do not know, so we have to do a hack to go through json.
+// serialize the struct because `config` and `encryption` are arbitrary
+// interfaces whose type we do not know, so we have to do a hack to go through json.
 func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	if remoteState == nil {
 		return cty.NilVal, nil
@@ -622,6 +624,13 @@ func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	}
 
 	output["config"] = ctyJSONVal
+
+	ctyJSONVal, err = convertToCtyWithJSON(remoteState.Encryption)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	output["encryption"] = ctyJSONVal
 
 	return convertValuesMapToCtyVal(output)
 }

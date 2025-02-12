@@ -7,15 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -42,7 +39,7 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
+	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
 }
 
 func TestTerragruntApplyDestroyOrder(t *testing.T) {
@@ -56,7 +53,7 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
+	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
 }
 
 func TestPreventDestroyOverride(t *testing.T) {
@@ -78,7 +75,7 @@ func TestPreventDestroyNotSet(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
+		assert.IsType(t, run.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -269,12 +266,8 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	// This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
 	// We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
-	if envProviderCache := os.Getenv(commands.TerragruntProviderCacheEnvName); envProviderCache != "" {
-		providerCache, err := strconv.ParseBool(envProviderCache)
-		require.NoError(t, err)
-		if providerCache {
-			return
-		}
+	if helpers.IsTerragruntProviderCacheEnabled(t) {
+		t.Skip()
 	}
 
 	t.Parallel()

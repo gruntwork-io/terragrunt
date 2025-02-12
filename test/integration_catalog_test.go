@@ -22,10 +22,10 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	_, err := module.NewRepo(ctx, log.New(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir)
+	_, err := module.NewRepo(ctx, log.New(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false)
 	require.NoError(t, err)
 
-	_, err = module.NewRepo(ctx, log.New(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir)
+	_, err = module.NewRepo(ctx, log.New(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false)
 	require.NoError(t, err)
 }
 
@@ -36,7 +36,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	repo, err := module.NewRepo(ctx, log.New(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir)
+	repo, err := module.NewRepo(ctx, log.New(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false)
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -51,7 +51,7 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	repo, err := module.NewRepo(ctx, log.New(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir)
+	repo, err := module.NewRepo(ctx, log.New(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false)
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -89,7 +89,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	repo, err := module.NewRepo(ctx, log.New(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir)
+	repo, err := module.NewRepo(ctx, log.New(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir, false)
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)

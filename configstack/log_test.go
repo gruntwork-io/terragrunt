@@ -22,8 +22,8 @@ func TestLogReductionHook(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 
-	formatter := format.NewFormatter(format.NewKeyValueFormat())
-	formatter.DisableColors()
+	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
+	formatter.SetDisabledColors(true)
 
 	var testLogger = log.New(
 		log.WithOutput(&stdout),

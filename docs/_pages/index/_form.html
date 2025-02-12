@@ -1,0 +1,88 @@
+<div class="section section-newsletter">
+  <div class="container">
+    <div class="newsletter-content">
+      <div class="subtitle">
+        Subscribe to the newsletter to hear about the latest updates, features,
+        and innovations in Terragrunt.
+      </div>
+
+      <div class="form-container">
+        <form id="custom-subscribe-form" class="custom-form" data-form-id="437b604f-ae08-40cf-b68f-707ae19ab6e9"
+          data-portal-id="8376079" data-form-id="437b604f-ae08-40cf-b68f-707ae19ab6e9" data-portal-id="8376079">
+          <div class="form-group">
+            <input type="email" name="email" placeholder="Enter your email" required class="custom-input" />
+            <button type="submit" class="btn btn-primary">
+              <span class="button-text">Subscribe</span>
+              <span class="button-loader"></span>
+            </button>
+          </div>
+        </form>
+
+        <div class="success-message">
+          <div class="checkmark">✓</div>
+          <p>Thank you for subscribing!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://js.hsforms.net/forms/v2.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const customForm = document.getElementById("custom-subscribe-form");
+    const formContainer = document.querySelector(".form-container");
+    const submitButton = document.querySelector('button[type="submit"]');
+
+    customForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      submitButton.classList.add("loading");
+
+      const email = customForm.querySelector('input[name="email"]').value;
+
+      // Submit to HubSpot using their API
+      const portalId = customForm.getAttribute("data-portal-id");
+      const formId = customForm.getAttribute("data-form-id");
+
+      const data = {
+        submittedAt: Date.now(),
+        fields: [
+          {
+            name: "email",
+            value: email,
+          },
+        ],
+        context: {
+          pageUri: window.location.href,
+          pageName: document.title,
+        },
+      };
+
+      fetch(
+        `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        },
+      )
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("Network response was not ok");
+          }
+          return response.json();
+        })
+        .then((result) => {
+          console.log("Success:", result);
+          formContainer.classList.add("success");
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          submitButton.classList.remove("loading");
+        });
+    });
+  });
+</script>

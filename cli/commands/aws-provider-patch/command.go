@@ -30,24 +30,33 @@
 package awsproviderpatch
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
 	CommandName = "aws-provider-patch"
 
-	FlagNameTerragruntOverrideAttr = "terragrunt-override-attr"
+	OverrideAttrFlagName = "override-attr"
+
+	DeprecatedOverrideAttrFlagName = "override-attr"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
+
 	return cli.Flags{
-		&cli.MapFlag[string, string]{
-			Name:        FlagNameTerragruntOverrideAttr,
+		flags.NewFlag(&cli.MapFlag[string, string]{
+			Name:        OverrideAttrFlagName,
+			EnvVars:     tgPrefix.EnvVars(OverrideAttrFlagName),
 			Destination: &opts.AwsProviderPatchOverrides,
-			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
 		},
+			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedOverrideAttrFlagName), terragruntPrefixControl)),
 	}
 }
 
@@ -55,7 +64,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
-		Flags:  NewFlags(opts).Sort(),
+		Hidden: true,
+		Flags:  append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 }

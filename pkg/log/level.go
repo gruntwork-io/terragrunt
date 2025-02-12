@@ -146,6 +146,15 @@ func (level Level) MarshalText() ([]byte, error) {
 	return nil, errors.Errorf("invalid: %q", level)
 }
 
+// ToLogrusLevel converts our `Level` to `logrus.Level`.
+func (level Level) ToLogrusLevel() logrus.Level {
+	if logrusLevel, ok := logrusLevels[level]; ok {
+		return logrusLevel
+	}
+
+	return logrus.Level(0)
+}
+
 // Levels is a slice of `Level` type.
 type Levels []Level
 
@@ -185,15 +194,6 @@ func (levels Levels) Names() []string {
 // String implements the `fmt.Stringer` interface.
 func (levels Levels) String() string {
 	return strings.Join(levels.Names(), ", ")
-}
-
-// ToLogrusLevel converts our `Level` to `logrus.Level`.
-func (level Level) ToLogrusLevel() logrus.Level {
-	if logrusLevel, ok := logrusLevels[level]; ok {
-		return logrusLevel
-	}
-
-	return logrus.Level(0)
 }
 
 // FromLogrusLevel converts `logrus.Level` to our `Level`.

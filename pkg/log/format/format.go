@@ -18,7 +18,7 @@ const (
 	KeyValueFormatName = "key-value"
 )
 
-func NewBareFormat() Placeholders {
+func NewBareFormatPlaceholders() Placeholders {
 	return Placeholders{
 		Level(
 			Width(4), //nolint:mnd
@@ -38,7 +38,7 @@ func NewBareFormat() Placeholders {
 	}
 }
 
-func NewPrettyFormat() Placeholders {
+func NewPrettyFormatPlaceholders() Placeholders {
 	return Placeholders{
 		Time(
 			TimeFormat(fmt.Sprintf("%s:%s:%s%s", Hour24Zero, MinZero, SecZero, MilliSec)),
@@ -68,7 +68,7 @@ func NewPrettyFormat() Placeholders {
 	}
 }
 
-func NewJSONFormat() Placeholders {
+func NewJSONFormatPlaceholders() Placeholders {
 	return Placeholders{
 		PlainText(`{`),
 		Time(
@@ -109,7 +109,7 @@ func NewJSONFormat() Placeholders {
 	}
 }
 
-func NewKeyValueFormat() Placeholders {
+func NewKeyValueFormatPlaceholders() Placeholders {
 	return Placeholders{
 		Time(
 			Prefix("time="),
@@ -136,10 +136,10 @@ func NewKeyValueFormat() Placeholders {
 
 func ParseFormat(str string) (Placeholders, error) {
 	var presets = map[string]func() Placeholders{
-		BareFormatName:     NewBareFormat,
-		PrettyFormatName:   NewPrettyFormat,
-		JSONFormatName:     NewJSONFormat,
-		KeyValueFormatName: NewKeyValueFormat,
+		BareFormatName:     NewBareFormatPlaceholders,
+		PrettyFormatName:   NewPrettyFormatPlaceholders,
+		JSONFormatName:     NewJSONFormatPlaceholders,
+		KeyValueFormatName: NewKeyValueFormatPlaceholders,
 	}
 
 	for name, formatFn := range presets {

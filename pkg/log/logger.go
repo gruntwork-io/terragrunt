@@ -17,6 +17,18 @@ type Logger interface {
 	// SetOptions sets the given options to the instance.
 	SetOptions(opts ...Option)
 
+	// Level returns log level.
+	Level() Level
+
+	// SetLevel parses and sets log level.
+	SetLevel(str string) error
+
+	// SetFormatter sets the logger formatter.
+	SetFormatter(formatter Formatter)
+
+	// SetFormatter returns the logger formatter.
+	Formatter() Formatter
+
 	// WithOptions clones and sets the given options for the new instance.
 	// In other words, it is a combination of two methods, `log.Clone().SetOptions(...)`, but
 	// unlike `SetOptions(...)`, it returns the instance, which is convenient for further actions.
@@ -110,6 +122,7 @@ type Logger interface {
 
 type logger struct {
 	*logrus.Entry
+	formatter Formatter
 }
 
 // New returns a new Logger instance.
@@ -138,6 +151,17 @@ func (logger *logger) SetOptions(opts ...Option) {
 	}
 }
 
+// SetFormatter sets the logger formatter.
+func (logger *logger) SetFormatter(formatter Formatter) {
+	logger.formatter = formatter
+	logger.Logger.SetFormatter(&fromLogrusFormatter{Formatter: formatter})
+}
+
+// SetFormatter returns the logger formatter.
+func (logger *logger) Formatter() Formatter {
+	return logger.formatter
+}
+
 // WithOptions implements the Logger interface method.
 func (logger *logger) WithOptions(opts ...Option) Logger {
 	if len(opts) == 0 {
@@ -148,6 +172,23 @@ func (logger *logger) WithOptions(opts ...Option) Logger {
 	logger.SetOptions(opts...)
 
 	return logger
+}
+
+// Level returns log level.
+func (logger *logger) Level() Level {
+	return FromLogrusLevel(logger.Logger.Level)
+}
+
+// SetLevel parses and sets log level.
+func (logger *logger) SetLevel(str string) error {
+	level, err := ParseLevel(str)
+	if err != nil {
+		return err
+	}
+
+	logger.Logger.SetLevel(level.ToLogrusLevel())
+
+	return nil
 }
 
 // WriterLevel implements the Logger interface method.
@@ -289,20 +330,24 @@ func (logger *logger) Errorln(args ...interface{}) {
 	logger.Logln(ErrorLevel, args...)
 }
 
-func (logger logger) setEntry(entry *logrus.Entry) *logger {
-	logger.Entry = entry
-	return &logger
+func (logger *logger) setEntry(entry *logrus.Entry) *logger {
+	newLogger := *logger
+	newLogger.Entry = entry
+
+	return &newLogger
 }
 
-func (logger logger) clone() *logger {
-	parentLogger := logger.Logger
+func (logger *logger) clone() *logger {
+	newLogger := *logger
 
-	logger.Logger = logrus.New()
-	logger.Logger.SetOutput(parentLogger.Out)
-	logger.Logger.SetLevel(parentLogger.Level)
-	logger.Logger.SetFormatter(parentLogger.Formatter)
-	logger.Logger.ReplaceHooks(parentLogger.Hooks)
-	logger.Entry = logger.Entry.Dup()
+	parentLogger := newLogger.Logger
 
-	return &logger
+	newLogger.Logger = logrus.New()
+	newLogger.Logger.SetOutput(parentLogger.Out)
+	newLogger.Logger.SetLevel(parentLogger.Level)
+	newLogger.Logger.SetFormatter(parentLogger.Formatter)
+	newLogger.Logger.ReplaceHooks(parentLogger.Hooks)
+	newLogger.Entry = newLogger.Entry.Dup()
+
+	return &newLogger
 }

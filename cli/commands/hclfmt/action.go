@@ -108,7 +108,7 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 		return fmt.Errorf("error reading from stdin: %w", err)
 	}
 
-	if err = checkErrors(opts.Logger, opts.DisableLogColors, contents, "stdin"); err != nil {
+	if err = checkErrors(opts.Logger, opts.Logger.Formatter().DisabledColors(), contents, "stdin"); err != nil {
 		opts.Logger.Errorf("Error parsing hcl from stdin")
 
 		return fmt.Errorf("error parsing hcl from stdin: %w", err)
@@ -141,7 +141,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
 		opts.Logger.Errorf("Error retrieving file info of %s", tgHclFile)
-		return err
+		return errors.Errorf("failed to get file info for %s: %v", tgHclFile, err)
 	}
 
 	contentsStr, err := util.ReadFileAsString(tgHclFile)
@@ -152,7 +152,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 
 	contents := []byte(contentsStr)
 
-	err = checkErrors(opts.Logger, opts.DisableLogColors, contents, tgHclFile)
+	err = checkErrors(opts.Logger, opts.Logger.Formatter().DisabledColors(), contents, tgHclFile)
 	if err != nil {
 		opts.Logger.Errorf("Error parsing %s", tgHclFile)
 		return err

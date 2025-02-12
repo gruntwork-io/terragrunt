@@ -22,9 +22,58 @@ const (
 	testFixtureDownloadPath                         = "fixtures/download"
 	testFixtureLocalRelativeArgsWindowsDownloadPath = "fixtures/download/local-windows"
 	testFixtureManifestRemoval                      = "fixtures/manifest-removal"
-	testFixtureFindParent                           = "fixtures/find-parent"
 	testFixtureTflintNoIssuesFound                  = "fixtures/tflint/no-issues-found"
+
+	tempDir = `C:\tmp`
 )
+
+func TestMain(m *testing.M) {
+	// By default, t.TempDir() creates a temporary directory inside the user directory
+	// `C:/Users/circleci/AppData/Local/Temp/`, which ends up exceeding the maximum allowed length
+	// and causes the error: "fatal: '$GIT_DIR' too big". Example:
+	// "C:/Users/circleci/AppData/Local/Temp/TestWindowsLocalWithRelativeExtraArgsWindows1263358614/001/fixtures/download/local-windows/.terragrunt-cache/rviFlp3V5mrXldwi6Hbi8p2rDL0/U0tL3quoR7Yt-oR6jROJomrYpTs".
+	// Solution, shorten the TMP path.
+
+	envVars := map[string]string{"TMP": "", "TEMP": ""}
+
+	// Save current values to restore them at the end.
+	for name := range envVars {
+		envVars[name] = os.Getenv(name)
+	}
+
+	defer func() {
+		// Restore previous values.
+		for name, val := range envVars {
+			os.Setenv(name, val)
+		}
+	}()
+
+	if _, err := os.Stat(tempDir); os.IsNotExist(err) {
+		if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
+			fmt.Printf("Failed to create temp dir due to error: %v", err)
+			os.Exit(1)
+		}
+	} else {
+		// Verify write permissions
+		testFile := filepath.Join(tempDir, ".write_test")
+		if err := os.WriteFile(testFile, []byte(""), 0666); err != nil {
+			fmt.Printf("Temp dir %s is not writable: %v", tempDir, err)
+			os.Exit(1)
+		}
+
+		os.Remove(testFile)
+	}
+
+	// Set temporary values.
+	for name := range envVars {
+		if err := os.Setenv(name, tempDir); err != nil {
+			fmt.Printf("Failed to set env var %s=%s due to error: %v", name, tempDir, err)
+			os.Exit(1)
+		}
+	}
+
+	os.Exit(m.Run())
+}
 
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	t.Parallel()
@@ -143,7 +192,7 @@ func TestWindowsFindParent(t *testing.T) {
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
 
-	// second run shouldn't fail with find_in_parent_folders() issue
+	// second run shouldn't fail with find_in_parent_folders("root.hcl") issue
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
 }
 
@@ -180,7 +229,7 @@ func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
 	}
 
-	copyErr := util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test", nil)
+	copyErr := util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(targetPath, environmentPath), ".terragrunt-test", nil, nil)
 	require.NoError(t, copyErr)
 }
 
@@ -192,7 +241,7 @@ func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}))
+	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}, []string{}))
 
 	return tmpDir
 }

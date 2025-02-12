@@ -50,7 +50,7 @@ digraph {
 	"h" -> "c";
 }
 `)
-	assert.True(t, strings.Contains(stdout.String(), expected))
+	assert.Contains(t, stdout.String(), expected)
 }
 
 func TestGraphTrimPrefix(t *testing.T) {
@@ -89,7 +89,7 @@ digraph {
 	"alpha/beta/h" -> "c";
 }
 `)
-	assert.True(t, strings.Contains(stdout.String(), expected))
+	assert.Contains(t, stdout.String(), expected)
 }
 
 func TestGraphFlagExcluded(t *testing.T) {
@@ -128,7 +128,7 @@ digraph {
 	"h" -> "c";
 }
 `)
-	assert.True(t, strings.Contains(stdout.String(), expected))
+	assert.Contains(t, stdout.String(), expected)
 }
 
 func TestCheckForCycles(t *testing.T) {

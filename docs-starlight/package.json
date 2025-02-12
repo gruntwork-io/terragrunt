@@ -1,0 +1,21 @@
+{
+  "name": "docs-starlight",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.31.1",
+    "astro": "^5.2.1",
+    "sharp": "^0.32.5",
+    "starlight-links-validator": "^0.14.2"
+  },
+  "patchedDependencies": {
+    "@astrojs/starlight@0.31.1": "patches/@astrojs%2Fstarlight@0.31.1.patch"
+  }
+}

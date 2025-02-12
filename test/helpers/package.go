@@ -37,7 +37,7 @@ import (
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -81,14 +81,14 @@ type TerraformOutput struct {
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	tmpDir := t.TempDir()
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy))
+	require.NoError(
+		t,
+		util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy, nil),
+	)
 
 	return tmpDir
 }
@@ -96,10 +96,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 func CreateTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
+	tmpFolder := t.TempDir()
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
 	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
@@ -111,10 +108,7 @@ func CreateTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
+	tmpFolder := t.TempDir()
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
 
@@ -331,8 +325,8 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 }
 
 func createLogger() log.Logger {
-	formatter := format.NewFormatter(format.NewKeyValueFormat())
-	formatter.DisableColors()
+	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
+	formatter.SetDisabledColors(true)
 
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
@@ -657,10 +651,10 @@ func WrappedBinary() string {
 // ExpectedWrongCommandErr - return expected error message for wrong command
 func ExpectedWrongCommandErr(command string) error {
 	if WrappedBinary() == TofuBinary {
-		return terraform.WrongTofuCommand(command)
+		return run.WrongTofuCommand(command)
 	}
 
-	return terraform.WrongTerraformCommand(command)
+	return run.WrongTerraformCommand(command)
 }
 
 func IsTerraform() bool {
@@ -725,14 +719,28 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 
 	args := splitCommand(command)
 
-	if !strings.Contains(command, "-terragrunt-log-format") && !strings.Contains(command, "-terragrunt-log-custom-format") {
-		args = append(args, "--terragrunt-log-format=key-value")
+	if !strings.Contains(command, "-log-format") && !strings.Contains(command, "-log-custom-format") {
+		var builtinCmd []string
+
+		for i := range args {
+			if args[i] == "--" {
+				builtinCmd = make([]string, len(args[i:]))
+				copy(builtinCmd, args[i:])
+				args = args[:i]
+
+				break
+			}
+		}
+
+		args = append(append(args, "--log-format=key-value"), builtinCmd...)
 	}
 
 	t.Log(args)
 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
 	app := cli.NewApp(opts) //nolint:contextcheck
+
+	ctx = log.ContextWithLogger(ctx, opts.Logger)
 
 	return app.RunContext(ctx, args)
 }
@@ -835,10 +843,7 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
 	t.Helper()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-parent-child-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	tmpDir := t.TempDir()
 
 	childDestPath := util.JoinPath(tmpDir, childRelPath)
 
@@ -888,4 +893,21 @@ func splitCommand(command string) []string {
 	}
 
 	return append(args, command[next:])
+}
+
+func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
+	t.Helper()
+
+	for _, envName := range []string{"TERRAGRUNT_PROVIDER_CACHE", "TG_PROVIDER_CACHE"} {
+		if val := os.Getenv(envName); val != "" {
+			providerCache, err := strconv.ParseBool(val)
+			require.NoError(t, err)
+
+			if providerCache {
+				return true
+			}
+		}
+	}
+
+	return false
 }

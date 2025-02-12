@@ -23,11 +23,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -372,7 +376,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		return cachedValue, nil
 	}
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
+	cmdOutput, err := shell.RunCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -444,6 +448,20 @@ func FindInParentFolders(
 
 	previousDir = filepath.ToSlash(previousDir)
 
+	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
+		allControls := ctx.TerragruntOptions.StrictControls
+		rootTGHCLControl := allControls.FilterByNames(controls.RootTerragruntHCL)
+		logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
+
+		if err := rootTGHCLControl.Evaluate(logger); err != nil {
+			return "", cli.NewExitError(err, cli.ExitCodeGeneralError)
+		}
+	}
+
+	// The strict control above will make this function return an error when no parameter is passed.
+	// When this becomes a breaking change, we can remove the strict control and
+	// do some validation here to ensure that users aren't using "terragrunt.hcl" as the root of their Terragrunt
+	// configurations.
 	fileToFindStr := DefaultTerragruntConfigPath
 	if fileToFindParam != "" {
 		fileToFindStr = fileToFindParam
@@ -573,7 +591,9 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 		return ctx.TerragruntOptions.WorkingDir, nil
 	}
 
-	source, err := terraform.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger)
+	walkWithSymlinks := ctx.TerragruntOptions.Experiments.Evaluate(experiment.Symlinks)
+
+	source, err := tf.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger, walkWithSymlinks)
 	if err != nil {
 		return "", err
 	}
@@ -661,7 +681,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	)
 
 	// We update the ctx of terragruntOptions to the config being read in.
-	opts, err := ctx.TerragruntOptions.Clone(targetConfig)
+	opts, err := ctx.TerragruntOptions.CloneWithConfigPath(targetConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}

@@ -5,42 +5,50 @@ import (
 	"context"
 	"sort"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
 	CommandName = "graph"
+
+	GraphRootFlagName = "graph-root"
+
+	DeprecatedGraphRootFlagName = "graph-root"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
-	globalFlags := commands.NewGlobalFlags(opts)
-	globalFlags.Add(
-		&cli.GenericFlag[string]{
-			Name:        "terragrunt-graph-root",
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
+
+	return cli.Flags{
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        GraphRootFlagName,
+			EnvVars:     tgPrefix.EnvVars(GraphRootFlagName),
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
-		})
-
-	return globalFlags
+		},
+			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedGraphRootFlagName), terragruntPrefixControl)),
+	}
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:                   CommandName,
-		Usage:                  "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
-		DisallowUndefinedFlags: true,
-		Flags:                  NewFlags(opts).Sort(),
-		Subcommands:            subCommands(opts).SkipRunning(),
-		Action:                 action(opts),
+		Name:                 CommandName,
+		Usage:                "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
+		ErrorOnUndefinedFlag: true,
+		Flags:                append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
+		Subcommands:          subCommands(opts).SkipRunning(),
+		Action:               action(opts),
 	}
 }
 
@@ -53,7 +61,7 @@ func action(opts *options.TerragruntOptions) cli.ActionFunc {
 				return cmd.Action(cliCtx)
 			}
 
-			return terraform.Run(ctx, opts)
+			return run.Run(ctx, opts)
 		}
 
 		return Run(cliCtx.Context, opts.OptionsFromContext(cliCtx))
@@ -70,7 +78,7 @@ func subCommands(opts *options.TerragruntOptions) cli.Commands {
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}
 	sort.Sort(cmds)
-	cmds.Add(terraform.NewCommand(opts))
+	cmds.Add(run.NewCommand(opts))
 
 	return cmds
 }

@@ -61,7 +61,7 @@ func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
 
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", helpers.TerraformRemoteStateS3Region)
 
 	var (
@@ -91,7 +91,7 @@ func TestAwsInitHookWithSourceWithBackend(t *testing.T) {
 
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", helpers.TerraformRemoteStateS3Region)
 
 	var (
@@ -122,7 +122,7 @@ func TestAwsBeforeAfterAndErrorMergeHook(t *testing.T) {
 	t.Logf("bucketName: %s", s3BucketName)
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, testFixtureHooksBeforeAfterAndErrorMergePath, qaMyAppRelPath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, testFixtureHooksBeforeAfterAndErrorMergePath, qaMyAppRelPath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -288,7 +288,7 @@ func TestAwsRunAllCommand(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputAll)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
@@ -304,7 +304,7 @@ func TestAwsOutputAllCommand(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputAll)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
@@ -360,7 +360,7 @@ func TestAwsValidateAllCommand(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputAll)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
@@ -376,7 +376,7 @@ func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputAll)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
@@ -413,7 +413,7 @@ func TestAwsStackCommands(t *testing.T) { //nolint paralleltest
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStack)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureStack, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureStack, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	mgmtEnvironmentPath := util.JoinPath(tmpEnvPath, testFixtureStack, "mgmt")
@@ -441,7 +441,7 @@ func TestAwsRemoteWithBackend(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteWithBackend)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRemoteWithBackend)
 
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
@@ -462,7 +462,7 @@ func TestAwsLocalWithBackend(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalWithBackend)
 
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
@@ -588,7 +588,7 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "nested-optimization-disable")
-	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := filepath.Join(rootPath, "root.hcl")
 	livePath := filepath.Join(rootPath, "live")
 	deepDepPath := filepath.Join(rootPath, "deepdep")
 
@@ -944,7 +944,7 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteState)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputFromRemoteState, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputFromRemoteState, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputFromRemoteState)
@@ -985,7 +985,7 @@ func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteState)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputFromRemoteState, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputFromRemoteState, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteState, "env1")
@@ -1012,7 +1012,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for i := 0; i < 20; i++ {
-		err := util.CopyFolderContents(createLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil)
+		err := util.CopyFolderContents(createLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
@@ -1020,8 +1020,8 @@ func TestAwsParallelStateInit(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	originalTerragruntConfigPath := util.JoinPath(testFixtureParallelStateInit, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
+	originalTerragruntConfigPath := util.JoinPath(testFixtureParallelStateInit, "root.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "root.hcl")
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
@@ -1069,7 +1069,7 @@ func TestAwsInitConfirmation(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputAll)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	stdout := bytes.Buffer{}
@@ -1087,7 +1087,7 @@ func TestAwsRunAllCommandPrompt(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputAll)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, "root.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
@@ -1190,7 +1190,7 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, moduleName)
-	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
+	rootTerragruntConfigPath := filepath.Join(rootPath, "root.hcl")
 	livePath := filepath.Join(rootPath, "live")
 	deepDepPath := filepath.Join(rootPath, "deepdep")
 	depPath := filepath.Join(rootPath, "dep")
