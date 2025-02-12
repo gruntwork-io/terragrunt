@@ -23,13 +23,13 @@ const commands = defineCollection({
 		examples: z.array(z.object({
 			code: z.string(),
 			description: z.string().optional(),
-		}).optional()),
+		})).optional(),
 		flags: z.array(z.object({
 			name: z.string(),
 			description: z.string(),
 			env: z.array(z.string()),
 			type: z.string(),
-		}).optional()),
+		})).optional(),
 		experiment: z.object({
 			control: z.string(),
 			name: z.string(),

@@ -1,0 +1,6 @@
+name: stack run
+usage: |
+  Run a command on the stack generated from the current directory.
+experiment:
+  control: stacks
+  name: Stacks
