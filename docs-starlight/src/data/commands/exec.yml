@@ -1,0 +1,67 @@
+name: exec
+usage: |
+  Execute any arbitrary command using Terragrunt as an orchestrator.
+
+  This is the most flexible form of running a command with Terragrunt. When using this command, Terragrunt will not make assumptions that it is running a tofu/terraform command. This allows you to run any command you want, with Terragrunt handling the orchestration.
+examples:
+  - description: |
+      Run a simple echo command.
+    code: |
+      terragrunt exec -- echo "Hello, Terragrunt!"
+  - description: |
+      List S3 buckets using the AWS CLI.
+    code: |
+      terragrunt exec -- aws s3 ls
+  - description: |
+      Inspect the main.tf file of the module for the unit.
+    code: |
+      terragrunt exec --in-download-dir -- cat main.tf
+flags:
+  - name: auth-provider-cmd
+    description: Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.
+    type: string
+    env:
+      - TG_AUTH_PROVIDER_CMD
+  - name: config
+    description: The path to the Terragrunt config file. Default is terragrunt.hcl.
+    type: string
+    env:
+      - TG_CONFIG
+  - name: download-dir
+    description: The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.
+    type: string
+    env:
+      - TG_DOWNLOAD
+  - name: iam-assume-role
+    description: Assume the specified IAM role before executing OpenTofu/Terraform.
+    type: string
+    env:
+      - TG_IAM_ASSUME
+  - name: iam-assume-role-duration
+    description: Session duration for IAM Assume Role session.
+    type: string
+    env:
+      - TG_IAM_ASSUME_DURATION
+  - name: iam-assume-role-session-name
+    description: Name for the IAM Assumed Role session.
+    type: string
+    env:
+      - TG_IAM_ASSUME_SESSION
+  - name: iam-assume-role-web-identity-token
+    description: For AssumeRoleWithWebIdentity, the WebIdentity token.
+    type: string
+    env:
+      - TG_IAM_ASSUME_WEB
+  - name: in-download-dir
+    description: Run the provided command in the download directory.
+    type: bool
+    env:
+      - TG_IN_DOWNLOAD
+  - name: inputs-debug
+    description: Write debug.tfvars to the working folder to help root-cause issues.
+    type: bool
+    env:
+      - TG_INPUTS_DEBUG
+experiment:
+  control: cli-redesign
+  name: CLI Redesign

@@ -15,7 +15,6 @@ const usage = data?.usage;
   .anchor-link:visited { text-decoration: none; }
   .anchor-link:hover { text-decoration: none; }
   .anchor-link:active { text-decoration: none; }
-  /* Also align it to the right of the container */
   .anchor-link {
     float: right;
   }
@@ -37,8 +36,6 @@ const usage = data?.usage;
   ))
 }
 
-<slot />
-
 {
   data?.examples ? (
   <h2>Examples</h2>
@@ -52,6 +49,8 @@ const usage = data?.usage;
   </div>
   ) : null
 }
+
+<slot />
 
 {
   data?.flags ? (
