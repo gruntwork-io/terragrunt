@@ -878,8 +878,8 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 			return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
 		}
 
-		logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
-		if err := skipDependenciesInputs.Evaluate(logger); err != nil {
+		evalCtx := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
+		if err := skipDependenciesInputs.Evaluate(evalCtx); err != nil {
 			return nil, err
 		}
 	}
@@ -974,12 +974,12 @@ func detectInputsCtyUsage(file *hclparse.File) bool {
 			}
 
 			root, ok := traversal[0].(hcl.TraverseRoot)
-			if !ok || root.Name != "dependency" {
+			if !ok || root.Name != MetadataDependency {
 				continue
 			}
 
 			attrTraversal, ok := traversal[2].(hcl.TraverseAttr)
-			if !ok || attrTraversal.Name != "inputs" {
+			if !ok || attrTraversal.Name != MetadataInputs {
 				continue
 			}
 
