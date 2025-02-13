@@ -76,6 +76,8 @@ const (
 	MetadataErrors                      = "errors"
 	MetadataRetry                       = "retry"
 	MetadataIgnore                      = "ignore"
+	MetadataUnit                        = "unit"
+	MetadataValues                      = "values"
 )
 
 var (
@@ -241,11 +243,6 @@ type terragruntConfigFile struct {
 // We use a struct designed to not parse the block, as locals and includes are parsed and decoded using a special
 // routine that allows references to the other locals in the same block.
 type terragruntLocal struct {
-	Remain hcl.Body `hcl:",remain"`
-}
-
-// Struct used to process unit values.
-type terragruntUnitValue struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 

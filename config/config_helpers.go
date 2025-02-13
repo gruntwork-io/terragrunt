@@ -138,6 +138,11 @@ type TrackInclude struct {
 	Original *IncludeConfig
 }
 
+// Struct used to pass unit values
+type terragruntUnitValue struct {
+	Values *cty.Value `cty:"values"`
+}
+
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this ctx that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
 func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.EvalContext, error) {
@@ -223,6 +228,16 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		}
 
 		evalCtx.Variables[MetadataInclude] = exposedInclude
+	}
+
+	// Pass unit values if exists
+	path := filepath.Dir(configPath)
+	if ctx.TerragruntOptions.UnitValues != nil && ctx.TerragruntOptions.UnitValues[path] != nil {
+		// pass value as stack.values
+		values := ctx.TerragruntOptions.UnitValues[path]
+		evalCtx.Variables[MetadataUnit] = cty.ObjectVal(map[string]cty.Value{
+			MetadataValues: *values,
+		})
 	}
 
 	return evalCtx, nil
