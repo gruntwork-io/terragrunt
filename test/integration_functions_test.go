@@ -289,7 +289,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	basePath := util.JoinPath(rootPath, "base")
 	clusterPath := util.JoinPath(rootPath, "cluster")
 
-	helpers.CreateGitRepo(t, rootPath)
+	helpers.CreateGitRepo(t, tmpEnvPath)
 	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
