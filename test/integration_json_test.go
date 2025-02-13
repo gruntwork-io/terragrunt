@@ -114,7 +114,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 		"metadata": expectedMetadata,
 		"value":    wrappedBinary(),
 	}
-	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary), fmt.Sprintf("expected: %v, got: %v", expectedTerraformBinary, terraformBinary))
+	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary), "expected: %v, got: %v", expectedTerraformBinary, terraformBinary)
 
 	var terraformVersionConstraint = renderedJSON[config.MetadataTerraformVersionConstraint]
 	expectedTerraformVersionConstraint := map[string]interface{}{

@@ -967,7 +967,9 @@ func detectInputsCtyUsage(file *hclparse.File) bool {
 
 	for _, attr := range body.Attributes {
 		for _, traversal := range attr.Expr.Variables() {
-			if len(traversal) < 3 {
+			const dependencyInputsIdentifierMinParts = 3
+
+			if len(traversal) < dependencyInputsIdentifierMinParts {
 				continue
 			}
 
