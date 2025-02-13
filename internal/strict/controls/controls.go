@@ -2,8 +2,6 @@
 package controls
 
 import (
-	"fmt"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 )
@@ -53,14 +51,13 @@ func New() strict.Controls {
 		Name: "Stage controls",
 	}
 
-	skipDependenciesInputsControl := &Control{
-		// TODO: `ErrorFmt` and `WarnFmt` of this control are not displayed anywhere and needs to be reworked.
-		Name:        SkipDependenciesInputs,
-		Description: "Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
-		Error:       errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
-		Warning:     fmt.Sprintf("Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead."),
-		Category:    stageCategory,
-	}
+	skipDependenciesInputsControl := NewSuppressableControl(
+		SkipDependenciesInputs,
+		"Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
+		"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+		errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
+		stageCategory,
+	)
 
 	controls := strict.Controls{
 		&Control{
