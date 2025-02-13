@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -396,6 +398,9 @@ type TerragruntOptions struct {
 
 	// StackOutputFormat format how the stack output is rendered.
 	StackOutputFormat string
+
+	// Mapping of units values mapped to their path
+	UnitValues map[string]*cty.Value
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -511,6 +516,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
+		UnitValues:                 map[string]*cty.Value{},
 	}
 }
 

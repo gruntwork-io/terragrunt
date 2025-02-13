@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/zclconf/go-cty/cty"
+
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 
@@ -38,6 +41,19 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err := RunGenerate(ctx, opts); err != nil {
 		return err
 	}
+
+	// prepare options for run
+	// read stack file and prepare values
+	stackFile, err := config.ReadStackConfigFile(ctx, opts)
+	if err != nil {
+		return errors.New(err)
+	}
+	unitValues := map[string]*cty.Value{}
+	for _, unit := range stackFile.Units {
+		path := filepath.Join(opts.WorkingDir, stackDir, unit.Path)
+		unitValues[path] = unit.Values
+	}
+	opts.UnitValues = unitValues
 
 	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
 
