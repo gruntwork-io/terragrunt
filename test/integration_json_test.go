@@ -29,10 +29,10 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes")
 
-	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes", "terragrunt.hcl")
+	terragruntHCL := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes", "terragrunt.hcl")
 
 	var expectedMetadata = map[string]interface{}{
-		"found_in_file": terragruntHcl,
+		"found_in_file": terragruntHCL,
 	}
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
