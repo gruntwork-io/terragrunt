@@ -277,7 +277,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	})
 	require.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
 
-	helpers.CreateGitRepo(t, testPath)
+	helpers.CreateGitRepo(t, tmpEnvPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
