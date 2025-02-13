@@ -317,7 +317,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathFromRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
-	helpers.CreateGitRepo(t, rootPath)
+	helpers.CreateGitRepo(t, tmpEnvPath)
 	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -346,7 +346,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathToRepoRoot)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	helpers.CreateGitRepo(t, rootPath)
+	helpers.CreateGitRepo(t, tmpEnvPath)
 	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
