@@ -29,10 +29,14 @@ import (
 
 // Command category names.
 const (
-	MainCommandsCategoryName          = "Main commands"
-	CatalogCommandsCategoryName       = "Catalog commands"
+	// MainCommandsCategoryName represents primary Terragrunt operations like run, run-all.
+	MainCommandsCategoryName = "Main commands"
+	// CatalogCommandsCategoryName represents commands for managing Terragrunt catalogs.
+	CatalogCommandsCategoryName = "Catalog commands"
+	// ConfigurationCommandsCategoryName represents commands for managing Terragrunt configurations.
 	ConfigurationCommandsCategoryName = "Configuration commands"
-	ShortcutsCommandsCategoryName     = "OpenTofu shortcuts"
+	// ShortcutsCommandsCategoryName represents OpenTofu-specific shortcut commands.
+	ShortcutsCommandsCategoryName = "OpenTofu shortcuts"
 )
 
 // New returns the set of Terragrunt commands, grouped into categories.
