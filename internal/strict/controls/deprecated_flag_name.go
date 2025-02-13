@@ -105,7 +105,7 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 		return errors.Errorf(ctrl.ErrorFmt, valueName, flagName)
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" {
+	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.Suppress {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warnf(ctrl.WarningFmt, valueName, flagName)
 		})
