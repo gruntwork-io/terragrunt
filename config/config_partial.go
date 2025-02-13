@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -609,6 +610,36 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 	}
 
 	return processExcludes(ctx, output, file)
+}
+
+// detectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.
+func detectInputsCtyUsage(file *hclparse.File) bool {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return false
+	}
+
+	for _, attr := range body.Attributes {
+		for _, traversal := range attr.Expr.Variables() {
+			if len(traversal) < 3 {
+				continue
+			}
+
+			root, ok := traversal[0].(hcl.TraverseRoot)
+			if !ok || root.Name != "dependency" {
+				continue
+			}
+
+			attrTraversal, ok := traversal[2].(hcl.TraverseAttr)
+			if !ok || attrTraversal.Name != "inputs" {
+				continue
+			}
+
+			return true
+		}
+	}
+
+	return false
 }
 
 // processExcludes evaluate exclude blocks and merge them into the config.
