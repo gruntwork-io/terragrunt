@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -278,10 +277,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	})
 	require.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
 
-	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
+	helpers.CreateGitRepo(t, testPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -290,7 +286,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	oldStdout := os.Stderr
 	os.Stderr = w
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt destroy --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	os.Stderr = oldStdout
 	require.NoError(t, w.Close())
 
