@@ -88,6 +88,7 @@ func isLocal(opts *options.TerragruntOptions, src string) bool {
 	if util.FileExists(src) {
 		return true
 	}
+
 	src = filepath.Join(opts.WorkingDir, src)
 	if util.FileExists(src) {
 		return true
