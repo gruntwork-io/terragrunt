@@ -35,7 +35,8 @@ const (
 	ShortcutsCommandsCategoryName     = "OpenTofu shortcuts"
 )
 
-// New returns the set of Terragrunt commands.
+// New returns the set of Terragrunt commands, grouped into categories.
+// Categories are ordered in increments of 10 for easy insertion of new categories.
 func New(opts *options.TerragruntOptions) cli.Commands {
 	mainCommands := cli.Commands{
 		runall.NewCommand(opts),  // run-all

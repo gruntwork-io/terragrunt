@@ -65,7 +65,8 @@ type FlagValue interface {
 	// IsBoolFlag returns true if the flag is of type bool.
 	IsBoolFlag() bool
 
-	// IsNegativeBoolFlag returns true if the boolean has an inverted value.
+	// IsNegativeBoolFlag returns true if the boolean flag's value should be inverted.
+	// Example: For a flag with Negative=true, when set to true it returns false, and vice versa.
 	IsNegativeBoolFlag() bool
 
 	// MultipleSet returns true if the flag allows multiple assignments, such as slice/map.

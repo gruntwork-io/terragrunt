@@ -31,7 +31,8 @@ type BoolFlag struct {
 	// Destination ia a pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *bool
-	// If set to true, then the assigned flag value will be inverted
+	// If set to true, then the assigned flag value will be inverted.
+	// Example: With `Negative: true`, --flag=true becomes false, and --flag=false becomes true.
 	Negative bool
 	// Hidden hides the flag from the help, if set to true.
 	Hidden bool

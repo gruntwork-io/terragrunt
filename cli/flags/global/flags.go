@@ -77,11 +77,8 @@ const (
 	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
 )
 
-// NewFlagsWithDeprecatedMovedFlags returns global flags along with flags that have been moved to other commands and hidden from CLI help.
-func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags {
-	globalFlags := NewFlags(opts, nil)
-
-	commands := cli.Commands{
+func initializeCommandsWithOldGlobalFlags(opts *options.TerragruntOptions) cli.Commands {
+	return cli.Commands{
 		runCmd.NewCommand(opts),             // run
 		runall.NewCommand(opts),             // runAction-all
 		terragruntinfo.NewCommand(opts),     // terragrunt-info
@@ -92,6 +89,12 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 		outputmodulegroups.NewCommand(opts), // output-module-groups
 		graph.NewCommand(opts),              // graph
 	}
+}
+
+// NewFlagsWithDeprecatedMovedFlags returns global flags along with flags that have been moved to other commands and hidden from CLI help.
+func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags {
+	globalFlags := NewFlags(opts, nil)
+	commands := initializeCommandsWithOldGlobalFlags(opts)
 
 	var seen []string
 
