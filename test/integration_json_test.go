@@ -29,15 +29,15 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes")
 
-	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes", "terragrunt.hcl")
+	terragruntHCL := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes", "terragrunt.hcl")
 
 	var expectedMetadata = map[string]interface{}{
-		"found_in_file": terragruntHcl,
+		"found_in_file": terragruntHCL,
 	}
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --non-interactive --log-level trace --working-dir %s  --json-out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 		"metadata": expectedMetadata,
 		"value":    wrappedBinary(),
 	}
-	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary))
+	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary), "expected: %v, got: %v", expectedTerraformBinary, terraformBinary)
 
 	var terraformVersionConstraint = renderedJSON[config.MetadataTerraformVersionConstraint]
 	expectedTerraformVersionConstraint := map[string]interface{}{

@@ -85,7 +85,7 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 		return errors.Errorf(ctrl.ErrorFmt, valueName, envName)
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" {
+	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.Suppress {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warnf(ctrl.WarningFmt, valueName, envName)
 		})

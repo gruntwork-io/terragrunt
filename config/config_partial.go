@@ -457,11 +457,17 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 		case TerragruntInputs:
 			allControls := ctx.TerragruntOptions.StrictControls
-			skipDependenciesInputs := allControls.FilterByNames(controls.SkipDependenciesInputs)
-			logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 
+			skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
+			if skipDependenciesInputs == nil {
+				return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
+			}
+
+			skipDependenciesInputs.SuppressWarning()
+
+			logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 			if err := skipDependenciesInputs.Evaluate(logger); err != nil {
-				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs parse from %v in dependency for better performance", file.ConfigPath)
 
 				break
 			}

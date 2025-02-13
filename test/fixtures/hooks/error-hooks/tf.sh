@@ -1,3 +1,3 @@
 #!/bin/sh
 
-(set -x && exec "${TERRAGRUNT_TFPATH:-terraform}" "$@" 2>&1)
+(set -x && exec "${TG_TF_PATH:-tofu}" "$@" 2>&1)

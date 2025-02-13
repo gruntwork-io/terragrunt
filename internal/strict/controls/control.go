@@ -41,6 +41,9 @@ type Control struct {
 
 	// OnceWarn is used to prevent the warning message from being displayed multiple times.
 	OnceWarn sync.Once
+
+	// Suppress suppresses the warning message from being displayed.
+	Suppress bool
 }
 
 // String implements `fmt.Stringer` interface.
@@ -97,6 +100,11 @@ func (ctrl *Control) AddSubcontrols(newCtrls ...strict.Control) {
 	ctrl.Subcontrols = append(ctrl.Subcontrols, newCtrls...)
 }
 
+// SuppressWarning suppresses the warning message from being displayed.
+func (ctrl *Control) SuppressWarning() {
+	ctrl.Suppress = true
+}
+
 // Evaluate implements `strict.Control` interface.
 func (ctrl *Control) Evaluate(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
@@ -115,7 +123,7 @@ func (ctrl *Control) Evaluate(ctx context.Context) error {
 		return ctrl.Error
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.Warning != "" {
+	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.Warning != "" && !ctrl.Suppress {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warn(ctrl.Warning)
 		})

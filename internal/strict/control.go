@@ -47,6 +47,9 @@ type Control interface {
 	// AddSubcontrols adds the given `newCtrls` as subcontrols.
 	AddSubcontrols(newCtrls ...Control)
 
+	// SuppressWarning suppresses the warning message from being displayed.
+	SuppressWarning()
+
 	// Evaluate evaluates the struct control.
 	Evaluate(ctx context.Context) error
 }
