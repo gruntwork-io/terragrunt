@@ -1,9 +1,8 @@
 package strict
 
 import (
-	"sort"
-
 	"slices"
+	"sort"
 )
 
 // Categories is multiple of DeprecatedFlag Category.

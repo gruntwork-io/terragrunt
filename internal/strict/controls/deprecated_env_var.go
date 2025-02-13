@@ -2,7 +2,6 @@ package controls
 
 import (
 	"context"
-
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"

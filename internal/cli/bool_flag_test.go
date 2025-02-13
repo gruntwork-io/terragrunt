@@ -4,6 +4,7 @@ import (
 	libflag "flag"
 	"fmt"
 	"io"
+	"maps"
 	"strconv"
 	"testing"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 )
 
 func TestBoolFlagApply(t *testing.T) {
