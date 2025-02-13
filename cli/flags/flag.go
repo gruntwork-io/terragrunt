@@ -33,8 +33,8 @@ func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn 
 	return NewFlag(nil, WithDeprecatedMovedFlag(deprecatedFlag, newCommandName, regControlsFn))
 }
 
-// TakesValue implements `cli.Flag` interface.
-// It returns `true` for all flags except boolean ones that are `false` or `true` inverted.
+// TakesValue implements `github.com/urfave/cli.DocGenerationFlag` required to generate help.
+// TakesValue returns `true` for all flags except boolean ones that are `false` or `true` inverted.
 func (newFlag *Flag) TakesValue() bool {
 	if newFlag.Flag.Value() == nil {
 		return false

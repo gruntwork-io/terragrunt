@@ -32,7 +32,7 @@ type BoolFlag struct {
 	// It also uses as the default value displayed in the help.
 	Destination *bool
 	// If set to true, then the assigned flag value will be inverted.
-	// Example: With `Negative: true`, --flag=true becomes false, and --flag=false becomes true.
+	// Example: With `Negative: true`, `--boolean-flag` sets the value to `false`, and `--boolean-flag=false` sets the value to `true`.
 	Negative bool
 	// Hidden hides the flag from the help, if set to true.
 	Hidden bool

@@ -47,9 +47,9 @@ func NewDeprecatedEnvVar(deprecatedFlag, newFlag cli.Flag, newValue string) *Dep
 			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
-		ErrorFmt:   "The `%s` env var is no longer supported. Use `%s` instead.",
-		WarningFmt: "The `%s` env var is deprecated and will be removed in a future version. Use `%s` instead.",
-
+		ErrorFmt: "The `%s` environment variable is no longer supported. Use `%s` instead.",
+		// The `TERRAGRUNT_LOG_LEVEL` environment variable is deprecated and will be removed in a future version of Terragrunt. Use `TG_LOG_LEVEL=trace` instead.
+		WarningFmt:     "The `%s` environment variable is deprecated and will be removed in a future version of Terragrunt. Use `%s` instead.",
 		deprecatedFlag: deprecatedFlag,
 		newFlag:        newFlag,
 	}
