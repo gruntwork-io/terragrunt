@@ -463,8 +463,8 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
 			}
 
-			suppressable, err := skipDependenciesInputs.(*controls.SuppressableControl)
-			if err {
+			suppressable, ok := skipDependenciesInputs.(*controls.SuppressableControl)
+			if !ok {
 				msg := fmt.Sprintf("failed to cast control '%s' to suppressable control", controls.SkipDependenciesInputs)
 
 				return nil, errors.New(msg)
@@ -472,7 +472,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 			if err := suppressable.Suppress().Evaluate(logger); err != nil {
-				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs parse from %v in dependency for better performance", file.ConfigPath)
 
 				break
 			}
