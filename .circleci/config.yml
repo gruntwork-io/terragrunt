@@ -30,6 +30,7 @@ install_terraform_latest: &install_terraform_latest
     rm -rf terraform.zip
     popd
     terraform --version
+    export TG_TF_PATH=terraform
 
 install_tofu: &install_tofu
   name: Install OpenTofu
@@ -179,6 +180,8 @@ jobs:
           name: Run go terraform tests
           shell: powershell.exe
           no_output_timeout: 45m
+          environment:
+            TG_TF_PATH: terraform
           command: |
             go test -tags windows -v -run ^TestWindows ./... -timeout 45m
 
@@ -262,6 +265,8 @@ jobs:
           <<: *setup_test_environment
       - run:
           <<: *run_integration_test
+          environment:
+            TG_TF_PATH: terraform
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -282,6 +287,7 @@ jobs:
       - run:
           <<: *run_integration_test
           environment:
+            TG_TF_PATH: terraform
             TG_PROVIDER_CACHE: "1"
       - run:
           <<: *run_terratest_log_parser
@@ -304,6 +310,8 @@ jobs:
           <<: *setup_test_environment
       - run:
           <<: *run_integration_test
+          environment:
+            TG_TF_PATH: terraform
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
