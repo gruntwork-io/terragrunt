@@ -360,7 +360,7 @@ func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, ke
 
 // wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
 func wrappedBinary() string {
-	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
+	value, found := os.LookupEnv("TG_TF_PATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
 		if util.IsCommandExecutable(helpers.TofuBinary, "-version") {
