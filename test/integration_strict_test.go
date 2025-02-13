@@ -36,14 +36,14 @@ func TestStrictMode(t *testing.T) {
 			controls:       []string{"deprecated-commands"},
 			strictMode:     false,
 			expectedStderr: "",
-			expectedError:  errors.New("`plan-all` command is no longer supported. Use `terragrunt run-all plan` instead."),
+			expectedError:  errors.New("The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead."),
 		},
 		{
 			name:           "plan-all with strict mode",
 			controls:       []string{},
 			strictMode:     true,
 			expectedStderr: "",
-			expectedError:  errors.New("`plan-all` command is no longer supported. Use `terragrunt run-all plan` instead."),
+			expectedError:  errors.New("The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead."),
 		},
 	}
 
