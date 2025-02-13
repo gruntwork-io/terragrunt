@@ -42,9 +42,9 @@ func Action(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		return cli.ShowAppHelp(ctx)
 	}
 
-	const maxIterations = 1000
+	const maxCommandDepth = 1000 // Maximum depth of nested subcommands
 
-	for range maxIterations {
+	for i := 0; i < maxCommandDepth && args.Len() > 0; i++ {
 		cmdName := args.CommandName()
 
 		cmd := cmds.Get(cmdName)

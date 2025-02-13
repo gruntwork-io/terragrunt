@@ -317,7 +317,7 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 			Aliases: []string{"v"},   //  -v
 			Usage:   "Show terragrunt version.",
 			Action: func(ctx *cli.Context, _ bool) (err error) {
-				return version.Action(ctx, opts)
+				return version.Action(ctx)
 			},
 		},
 	}

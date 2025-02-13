@@ -16,11 +16,11 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:  "Show terragrunt version.",
 		Hidden: true,
 		Action: func(ctx *cli.Context) error {
-			return cli.NewExitError(Action(ctx, opts), 0)
+			return cli.NewExitError(Action(ctx), 0)
 		},
 	}
 }
 
-func Action(ctx *cli.Context, _ *options.TerragruntOptions) error {
+func Action(ctx *cli.Context) error {
 	return cli.ShowVersion(ctx)
 }
