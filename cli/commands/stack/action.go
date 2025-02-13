@@ -42,7 +42,6 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	// prepare options for run
 	// read stack file and prepare values
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 	if err != nil {

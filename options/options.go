@@ -593,11 +593,16 @@ func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	newOpts := cloner.Clone(opts)
 	newOpts.Logger = opts.Logger.Clone()
 
-	if opts.UnitValues != nil {
-		// Deep copy the map
+	// copy unit cty values
+	if len(opts.UnitValues) > 0 {
 		newOpts.UnitValues = make(map[string]*cty.Value, len(opts.UnitValues))
 		for k, v := range opts.UnitValues {
-			newOpts.UnitValues[k] = v
+			if v != nil {
+				valCopy := *v
+				newOpts.UnitValues[k] = &valCopy
+			} else {
+				newOpts.UnitValues[k] = nil
+			}
 		}
 	}
 
