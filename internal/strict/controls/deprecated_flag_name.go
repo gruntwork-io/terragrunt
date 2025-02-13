@@ -3,12 +3,13 @@ package controls
 import (
 	"context"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -79,7 +80,7 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 		flagName  string
 	)
 
-	if valueName == "" || !ctrl.deprecatedFlag.Value().IsArgSet() || slices.Contains(ctrl.newFlag.Names(), valueName) {
+	if valueName == "" || !ctrl.deprecatedFlag.Value().IsArgSet() || !slices.Contains(ctrl.deprecatedFlag.Names(), valueName) {
 		return nil
 	}
 

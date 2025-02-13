@@ -3,28 +3,21 @@ package global
 
 import (
 	"fmt"
-	"os"
+
+	"slices"
 
 	"github.com/gruntwork-io/go-commons/collections"
-	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
-	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
-	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
-	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
-	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
-	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
-	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
+	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"github.com/gruntwork-io/terragrunt/cli/commands/help"
+	"github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -77,24 +70,22 @@ const (
 	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
 )
 
-func initializeCommandsWithOldGlobalFlags(opts *options.TerragruntOptions) cli.Commands {
-	return cli.Commands{
-		runCmd.NewCommand(opts),             // run
-		runall.NewCommand(opts),             // runAction-all
-		terragruntinfo.NewCommand(opts),     // terragrunt-info
-		validateinputs.NewCommand(opts),     // validate-inputs
-		graphdependencies.NewCommand(opts),  // graph-dependencies
-		renderjson.NewCommand(opts),         // render-json
-		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
-		outputmodulegroups.NewCommand(opts), // output-module-groups
-		graph.NewCommand(opts),              // graph
-	}
-}
-
 // NewFlagsWithDeprecatedMovedFlags returns global flags along with flags that have been moved to other commands and hidden from CLI help.
 func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags {
 	globalFlags := NewFlags(opts, nil)
-	commands := initializeCommandsWithOldGlobalFlags(opts)
+
+	// Since the flags we take from the command may already have deprecated flags,
+	// and each time we call `commands.New` we define them again (deprecated flags),
+	// we need to clear `Strict Controls` to avoid them being displayed and causing duplicate warnings, for example, log output:
+	//
+	// WARN The `--terragrunt-no-auto-init` global flag is moved to `run` command and will be removed from the global flags in a future version. Use `--run --no-auto-init=false` instead.
+	// WARN The `--terragrunt-no-auto-init` flag is deprecated and will be removed in a future version. Use `--no-auto-init=false` instead.
+	// WARN The `--terragrunt-forward-tf-stdout` global flag is moved to `run` command and will be removed from the global flags in a future version. Use `--run --tf-forward-stdout` instead.
+	// WARN The `--terragrunt-forward-tf-stdout` flag is deprecated and will be removed in a future version. Use `--tf-forward-stdout` instead.
+	cmdOpts := opts.Clone()
+	cmdOpts.StrictControls = nil
+
+	commands := commands.New(cmdOpts)
 
 	var seen []string
 
@@ -282,7 +273,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	return flags
 }
 
-func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flag {
+func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
 	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
@@ -318,7 +309,7 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 			Aliases: []string{"h"}, //  -h
 			Usage:   "Show help.",
 			Action: func(ctx *cli.Context, _ bool) error {
-				return HelpAction(ctx, opts)
+				return help.Action(ctx, opts)
 			},
 		},
 		&cli.BoolFlag{
@@ -326,51 +317,8 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 			Aliases: []string{"v"},   //  -v
 			Usage:   "Show terragrunt version.",
 			Action: func(ctx *cli.Context, _ bool) (err error) {
-				return VersionAction(ctx, opts)
+				return version.Action(ctx, opts)
 			},
 		},
 	}
-}
-
-func HelpAction(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	var (
-		args = ctx.Args()
-		cmds = ctx.App.Commands
-	)
-
-	if opts.Logger.Level() >= log.DebugLevel {
-		// https: //github.com/urfave/cli/blob/f035ffaa3749afda2cd26fb824aa940747297ef1/help.go#L401
-		if err := os.Setenv("CLI_TEMPLATE_ERROR_DEBUG", "1"); err != nil {
-			return errors.Errorf("failed to set CLI_TEMPLATE_ERROR_DEBUG environment variable: %w", err)
-		}
-	}
-
-	if args.CommandName() == "" {
-		return cli.ShowAppHelp(ctx)
-	}
-
-	const maxIterations = 1000
-
-	for range maxIterations {
-		cmdName := args.CommandName()
-
-		cmd := cmds.Get(cmdName)
-		if cmd == nil {
-			break
-		}
-
-		args = args.Remove(cmdName)
-		cmds = cmd.Subcommands
-		ctx = ctx.NewCommandContext(cmd, args)
-	}
-
-	if ctx.Command != nil {
-		return cli.NewExitError(cli.ShowCommandHelp(ctx), cli.ExitCodeGeneralError)
-	}
-
-	return cli.NewExitError(errors.New(cli.InvalidCommandNameError(args.First())), cli.ExitCodeGeneralError)
-}
-
-func VersionAction(ctx *cli.Context, _ *options.TerragruntOptions) error {
-	return cli.ShowVersion(ctx)
 }

@@ -43,8 +43,8 @@ const (
 // Categories are ordered in increments of 10 for easy insertion of new categories.
 func New(opts *options.TerragruntOptions) cli.Commands {
 	mainCommands := cli.Commands{
-		runall.NewCommand(opts),  // run-all
 		runCmd.NewCommand(opts),  // run
+		runall.NewCommand(opts),  // run-all
 		stack.NewCommand(opts),   // stack
 		graph.NewCommand(opts),   // graph
 		execCmd.NewCommand(opts), // exec
