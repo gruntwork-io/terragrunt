@@ -1,6 +1,6 @@
 package strict
 
-import "golang.org/x/exp/slices"
+import "slices"
 
 const (
 	// ActiveStatus is the Status of a control that is ongoing.

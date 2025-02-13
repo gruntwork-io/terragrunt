@@ -371,7 +371,6 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				Name:    terragruntPrefix.FlagName(DeprecatedIncludeModulePrefixFlagName),
 				EnvVars: terragruntPrefix.EnvVars(DeprecatedIncludeModulePrefixFlagName),
 				Usage:   "When this flag is set output from Terraform sub-commands is prefixed with module path.",
-				Hidden:  true,
 				Action: func(_ *cli.Context, _ bool) error {
 					opts.Logger.Warnf("The %q flag is deprecated. Use the functionality-inverted %q flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", DeprecatedIncludeModulePrefixFlagName, TFForwardStdoutFlagName)
 
