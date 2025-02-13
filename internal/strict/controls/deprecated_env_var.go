@@ -55,7 +55,7 @@ func NewDeprecatedEnvVar(deprecatedFlag, newFlag cli.Flag, newValue string) *Dep
 }
 
 // Evaluate implements `strict.Control` interface.
-func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context, suppressWarn ...bool) error {
+func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 	var (
 		valueName = ctrl.deprecatedFlag.Value().GetName()
 		envName   string

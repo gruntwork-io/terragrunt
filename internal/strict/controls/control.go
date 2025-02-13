@@ -98,12 +98,7 @@ func (ctrl *Control) AddSubcontrols(newCtrls ...strict.Control) {
 }
 
 // Evaluate implements `strict.Control` interface.
-//
-// It has a hacky variadic parameter to suppress the warning message to quickly
-// address a bug in the current implementation.
-// Certain evaluations should not trigger the warning, like when the control being
-// evaluated is the skip-dependencies-inputs control.
-func (ctrl *Control) Evaluate(ctx context.Context, suppressWarn ...bool) error {
+func (ctrl *Control) Evaluate(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Errorf("context error during evaluation: %w", err)
 	}
@@ -121,13 +116,9 @@ func (ctrl *Control) Evaluate(ctx context.Context, suppressWarn ...bool) error {
 	}
 
 	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.Warning != "" {
-
-		// Remove this suppression when the bug is fixed.
-		if len(suppressWarn) == 0 || !suppressWarn[0] {
-			ctrl.OnceWarn.Do(func() {
-				logger.Warn(ctrl.Warning)
-			})
-		}
+		ctrl.OnceWarn.Do(func() {
+			logger.Warn(ctrl.Warning)
+		})
 	}
 
 	if ctrl.Subcontrols == nil {
