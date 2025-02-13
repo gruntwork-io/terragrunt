@@ -28,6 +28,7 @@ The commands relevant to managing a Terragrunt stack are:
 - [Stack commands](#stack-commands)
   - [stack generate](#stack-generate)
   - [stack run](#stack-run)
+  - [stack output](#stack-output)
 
 The commands relevant to managing an IaC catalog are:
 
