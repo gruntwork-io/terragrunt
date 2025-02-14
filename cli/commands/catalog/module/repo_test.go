@@ -120,6 +120,13 @@ func TestModuleURL(t *testing.T) {
 			nil,
 		},
 		{
+			"gitlab self-hosted",
+			newRepo(t, "https://gitlab.acme.com/acme/terraform-aws-modules"),
+			".",
+			"https://gitlab.acme.com/acme/terraform-aws-modules/-/tree/main/.",
+			nil,
+		},
+		{
 			"bitbucket",
 			newRepo(t, "https://bitbucket.org/acme/terraform-aws-modules"),
 			".",
