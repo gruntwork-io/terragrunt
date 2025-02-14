@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"regexp"
 	"sort"
 	"strconv"
@@ -910,4 +911,11 @@ func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
 	}
 
 	return false
+}
+
+func CreateGitRepo(t *testing.T, dir string) {
+	t.Helper()
+
+	commandOutput, err := exec.Command("git", "init", dir).CombinedOutput()
+	require.NoErrorf(t, err, "Error initializing git repo: %v\n%s", err, string(commandOutput))
 }

@@ -43,6 +43,7 @@ func TestStacksGenerateLocals(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksLocals)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocals)
+	helpers.CreateGitRepo(t, tmpEnvPath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocals)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
