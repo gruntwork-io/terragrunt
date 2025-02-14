@@ -29,6 +29,10 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
+	if err := populateStackValues(ctx, opts); err != nil {
+		return errors.New(err)
+	}
+
 	return generateStack(ctx, opts)
 }
 
@@ -38,24 +42,14 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
+	if err := populateStackValues(ctx, opts); err != nil {
+		return errors.New(err)
+	}
+
 	if err := RunGenerate(ctx, opts); err != nil {
 		return err
 	}
 
-	// read stack file and prepare values
-	stackFile, err := config.ReadStackConfigFile(ctx, opts)
-	if err != nil {
-		return errors.New(err)
-	}
-
-	unitValues := map[string]*cty.Value{}
-
-	for _, unit := range stackFile.Units {
-		path := filepath.Join(opts.WorkingDir, stackDir, unit.Path)
-		unitValues[path] = unit.Values
-	}
-
-	opts.StackValues = options.NewStackValues(&cty.NilVal, unitValues)
 	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
 
 	return runall.Run(ctx, opts)
@@ -65,6 +59,10 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
 	if err := checkStackExperiment(opts); err != nil {
 		return err
+	}
+
+	if err := populateStackValues(ctx, opts); err != nil {
+		return errors.New(err)
 	}
 
 	// collect outputs
@@ -117,6 +115,26 @@ func checkStackExperiment(opts *options.TerragruntOptions) error {
 	if !opts.Experiments.Evaluate(experiment.Stacks) {
 		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
+
+	return nil
+}
+
+func populateStackValues(ctx context.Context, opts *options.TerragruntOptions) error {
+	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
+
+	stackFile, err := config.ReadStackConfigFile(ctx, opts)
+	if err != nil {
+		return errors.Errorf("Failed to read stack file from %s %v", opts.WorkingDir, err)
+	}
+
+	unitValues := map[string]*cty.Value{}
+
+	for _, unit := range stackFile.Units {
+		path := filepath.Join(opts.WorkingDir, stackDir, unit.Path)
+		unitValues[path] = unit.Values
+	}
+
+	opts.StackValues = options.NewStackValues(&cty.NilVal, unitValues)
 
 	return nil
 }
