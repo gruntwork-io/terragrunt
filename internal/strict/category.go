@@ -3,7 +3,7 @@ package strict
 import (
 	"sort"
 
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 // Categories is multiple of DeprecatedFlag Category.

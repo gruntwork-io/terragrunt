@@ -3,17 +3,27 @@ package flags
 import (
 	"fmt"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
-	"golang.org/x/exp/slices"
 )
 
 // Option is used to set options to the `Flag`.
 type Option func(*Flag)
 
+// WithDeprecatedMovedFlag returns an `Option` that will register the given `deprecatedFlag`
+// as a deprecated flag that is moved to the given `commandName`. For example:
+//
+//	NewFlag(nil, WithDeprecatedMovedFlag(&cli.BoolFlag{
+//	  Name:    "no-auto-init",
+//	}, "run", nil))
+//
+// Log output:
+// WARN The `--no-auto-init` global flag is moved to `run` command and will be removed from the global flags in a future version. Use `run --no-auto-init` instead.
 func WithDeprecatedMovedFlag(deprecatedFlag cli.Flag, commandName string, regControlsFn RegisterStrictControlsFunc) Option {
-	return func(new *Flag) {
+	return func(newFlag *Flag) {
 		deprecatedNames := deprecatedFlag.Names()
 
 		if flag, ok := deprecatedFlag.(*Flag); ok {
@@ -28,22 +38,26 @@ func WithDeprecatedMovedFlag(deprecatedFlag cli.Flag, commandName string, regCon
 		}
 		slices.Reverse(deprecatedFlag.names)
 
-		newFlag := &DeprecatedFlag{
+		flag := &DeprecatedFlag{
 			Flag:  deprecatedFlag,
 			names: slices.Clone(deprecatedNames),
 		}
 
-		for i, name := range newFlag.names {
-			newFlag.names[i] = fmt.Sprintf("%s --%s", commandName, name)
+		for i, name := range flag.names {
+			flag.names[i] = fmt.Sprintf("%s --%s", commandName, name)
 		}
 
-		new.Flag = newFlag
+		newFlag.Flag = flag
 
-		flagNameControl := controls.NewDeprecatedMovedFlagName(deprecatedFlag, new, commandName)
+		flagNameControl := controls.NewDeprecatedMovedFlagName(deprecatedFlag, newFlag, commandName)
 
-		newFlag.controls = strict.Controls{flagNameControl}
+		if regControlsFn == nil {
+			return
+		}
 
-		regControlsFn(flagNameControl, nil)
+		if ok := regControlsFn(flagNameControl, nil); ok {
+			flag.controls = strict.Controls{flagNameControl}
+		}
 	}
 }
 
@@ -56,15 +70,15 @@ func WithDeprecatedMovedFlag(deprecatedFlag cli.Flag, commandName string, regCon
 //	  Name:    "terragrunt-json-log",
 //	}, flags.NewValue("json"), nil))
 func WithDeprecatedFlag(deprecatedFlag cli.Flag, newValueFn NewValueFunc, regControlsFn RegisterStrictControlsFunc) Option {
-	return func(new *Flag) {
+	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   deprecatedFlag,
 			newValueFn:             newValueFn,
 			allowedSubcommandScope: true,
 		}
-		deprecatedFlag.SetStrictControls(new, regControlsFn)
+		deprecatedFlag.SetStrictControls(newFlag, regControlsFn)
 
-		new.deprecatedFlags = append(new.deprecatedFlags, deprecatedFlag)
+		newFlag.deprecatedFlags = append(newFlag.deprecatedFlags, deprecatedFlag)
 	}
 }
 
@@ -80,18 +94,18 @@ func WithDeprecatedFlag(deprecatedFlag cli.Flag, newValueFn NewValueFunc, regCon
 //	}, WithDeprecatedPrefix(Prefix{"terragrunt"}, nil))
 //
 // The deprecated flag will have "terragrunt-no-color","terragrunt-disable-color" names and "TERRAGRUNT_NO_COLOR","TERRAGRUNT_DISABLE_COLOR" env vars.
-// TODO: This function is currently unused but retained for future flag deprecation needs
+// NOTE: This function is currently unused but retained for future flag deprecation needs.
 func WithDeprecatedPrefix(prefix Prefix, regControlsFn RegisterStrictControlsFunc) Option {
-	return func(new *Flag) {
+	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
-			Flag:                   new.Flag,
-			names:                  prefix.FlagNames(new.Flag.Names()...),
-			envVars:                prefix.EnvVars(new.Flag.Names()...),
+			Flag:                   newFlag.Flag,
+			names:                  prefix.FlagNames(newFlag.Flag.Names()...),
+			envVars:                prefix.EnvVars(newFlag.Flag.Names()...),
 			allowedSubcommandScope: true,
 		}
-		deprecatedFlag.SetStrictControls(new, regControlsFn)
+		deprecatedFlag.SetStrictControls(newFlag, regControlsFn)
 
-		new.deprecatedFlags = append(new.deprecatedFlags, deprecatedFlag)
+		newFlag.deprecatedFlags = append(newFlag.deprecatedFlags, deprecatedFlag)
 	}
 }
 
@@ -103,38 +117,38 @@ func WithDeprecatedPrefix(prefix Prefix, regControlsFn RegisterStrictControlsFun
 //
 // The deprecated flag will have "no-color","working-dir" names and "NO_COLOR","WORKING_DIR" env vars.
 func WithDeprecatedNames(flagNames []string, regControlsFn RegisterStrictControlsFunc) Option {
-	return func(new *Flag) {
+	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
-			Flag:                   new.Flag,
+			Flag:                   newFlag.Flag,
 			names:                  Prefix{}.FlagNames(flagNames...),
 			envVars:                Prefix{}.EnvVars(flagNames...),
 			allowedSubcommandScope: true,
 		}
-		deprecatedFlag.SetStrictControls(new, regControlsFn)
+		deprecatedFlag.SetStrictControls(newFlag, regControlsFn)
 
-		new.deprecatedFlags = append(new.deprecatedFlags, deprecatedFlag)
+		newFlag.deprecatedFlags = append(newFlag.deprecatedFlags, deprecatedFlag)
 	}
 }
 
 // WithDeprecatedName does the same as `WithDeprecatedNames`, but with a single name.
 func WithDeprecatedName(flagName string, regControlsFn RegisterStrictControlsFunc) Option {
-	return func(new *Flag) {
-		WithDeprecatedNames([]string{flagName}, regControlsFn)(new)
+	return func(newFlag *Flag) {
+		WithDeprecatedNames([]string{flagName}, regControlsFn)(newFlag)
 	}
 }
 
 // WithDeprecatedNamesEnvVars returns an `Option` that will create a deprecated flag,
 // with the given `flagNames`, `envVars` assigned to the flag names and environment variables as is.
 func WithDeprecatedNamesEnvVars(flagNames, envVars []string, regControlsFn RegisterStrictControlsFunc) Option {
-	return func(new *Flag) {
+	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
-			Flag:                   new.Flag,
+			Flag:                   newFlag.Flag,
 			names:                  flagNames,
 			envVars:                envVars,
 			allowedSubcommandScope: true,
 		}
-		deprecatedFlag.SetStrictControls(new, regControlsFn)
+		deprecatedFlag.SetStrictControls(newFlag, regControlsFn)
 
-		new.deprecatedFlags = append(new.deprecatedFlags, deprecatedFlag)
+		newFlag.deprecatedFlags = append(newFlag.deprecatedFlags, deprecatedFlag)
 	}
 }

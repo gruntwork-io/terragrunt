@@ -14,9 +14,10 @@ const (
 	JSONFormatFlagName   = "json"
 	RawFormatFlagName    = "raw"
 
-	generate = "generate"
-	run      = "run"
-	output   = "output"
+	generateCommandName = "generate"
+	runCommandName      = "run"
+	outputCommandName   = "output"
+	cleanCommandName    = "clean"
 
 	rawOutputFormat  = "raw"
 	jsonOutputFormat = "json"
@@ -61,7 +62,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                NewFlags(opts, nil).Sort(),
 		Subcommands: cli.Commands{
 			&cli.Command{
-				Name:  generate,
+				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx *cli.Context) error {
 					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
@@ -69,14 +70,14 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				},
 			},
 			&cli.Command{
-				Name:  run,
+				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
 				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, opts.OptionsFromContext(ctx))
 				},
 			},
 			&cli.Command{
-				Name:  output,
+				Name:  outputCommandName,
 				Usage: "Run fetch stack output",
 				Action: func(ctx *cli.Context) error {
 					index := ""
@@ -84,6 +85,13 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 						index = val
 					}
 					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx), index)
+				},
+			},
+			&cli.Command{
+				Name:  cleanCommandName,
+				Usage: "Clean the stack generated from the current directory",
+				Action: func(ctx *cli.Context) error {
+					return RunClean(ctx.Context, opts.OptionsFromContext(ctx))
 				},
 			},
 		},

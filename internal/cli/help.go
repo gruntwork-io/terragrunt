@@ -3,9 +3,10 @@ package cli
 import (
 	"strings"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/exp/slices"
 )
 
 var (

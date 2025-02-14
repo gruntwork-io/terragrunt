@@ -2,9 +2,16 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLinksValidator from 'starlight-links-validator';
+import vercel from '@astrojs/vercel';
 
 // https://astro.build/config
 export default defineConfig({
+	output: 'server',
+	adapter: vercel({
+		isr: {
+			expiration: 60 * 60 * 24, // 24 hours
+		},
+	}),
 	integrations: [
 		starlight({
 			title: 'Terragrunt',

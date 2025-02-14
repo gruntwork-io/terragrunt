@@ -12,6 +12,8 @@ import (
 	"strings"
 	"unicode"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -19,7 +21,6 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
-	"golang.org/x/exp/slices"
 )
 
 // UpdateLockfile updates the dependency lock file. If `.terraform.lock.hcl` does not exist, it will be created, otherwise it will be updated.
