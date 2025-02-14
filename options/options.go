@@ -1011,6 +1011,10 @@ func (s *StackValues) UnitValues(path string) *cty.Value {
 		return &cty.NilVal
 	}
 
+	if path == "" {
+		return &cty.NilVal
+	}
+
 	if value, found := s.unitValues[path]; found {
 		return value
 	}
