@@ -8,28 +8,20 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/info"
-	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
-	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
-	versionCmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/cli/flags/global"
-
-	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -38,28 +30,11 @@ import (
 	hashicorpversion "github.com/hashicorp/go-version"
 
 	"github.com/gruntwork-io/go-commons/env"
-	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
-	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
-	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
-	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
-	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
-	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-)
-
-// Command category names.
-const (
-	MainCommandsCategoryName          = "Main commands"
-	CatalogCommandsCategoryName       = "Catalog commands"
-	ConfigurationCommandsCategoryName = "Configuration commands"
-	ShortcutsCommandsCategoryName     = "OpenTofu shortcuts"
 )
 
 func init() {
@@ -82,8 +57,8 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
-	app.Flags = GlobalFlags(opts)
-	app.Commands = TerragruntCommands(opts).WrapAction(WrapWithTelemetry(opts))
+	app.Flags = global.NewFlagsWithDeprecatedMovedFlags(opts)
+	app.Commands = commands.New(opts).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
@@ -150,40 +125,6 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	return nil
 }
 
-// GlobalFlags returns global flags. For backward compatibility, the slice contains flags that have been moved to other commands and are hidden from the CLI help.
-func GlobalFlags(opts *options.TerragruntOptions) cli.Flags {
-	globalFlags := global.NewFlags(opts, nil)
-
-	commands := cli.Commands{
-		runCmd.NewCommand(opts),             // run
-		runall.NewCommand(opts),             // runAction-all
-		terragruntinfo.NewCommand(opts),     // terragrunt-info
-		validateinputs.NewCommand(opts),     // validate-inputs
-		graphdependencies.NewCommand(opts),  // graph-dependencies
-		renderjson.NewCommand(opts),         // render-json
-		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
-		outputmodulegroups.NewCommand(opts), // output-module-groups
-		graph.NewCommand(opts),              // graph
-	}
-
-	var seen []string
-
-	for _, cmd := range commands {
-		for _, flag := range cmd.Flags {
-			flagName := util.FirstElement(util.RemoveEmptyElements(flag.Names()))
-
-			if slices.Contains(seen, flagName) {
-				continue
-			}
-
-			seen = append(seen, flagName)
-			globalFlags = append(globalFlags, flags.NewMovedFlag(flag, cmd.Name, flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name)))
-		}
-	}
-
-	return globalFlags
-}
-
 // removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.
 // We have to do this because `--terragrunt-no-color` is a deprecated alias for `--no-color`,
 // therefore we end up specifying the same flag twice, which causes the `setting the flag multiple times` error.
@@ -206,66 +147,6 @@ func removeNoColorFlagDuplicates(args []string) []string {
 	}
 
 	return filteredArgs
-}
-
-// TerragruntCommands returns the set of Terragrunt commands.
-func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
-	mainCommands := cli.Commands{
-		runall.NewCommand(opts),  // run-all
-		runCmd.NewCommand(opts),  // run
-		stack.NewCommand(opts),   // stack
-		graph.NewCommand(opts),   // graph
-		execCmd.NewCommand(opts), // exec
-	}.SetCategory(
-		&cli.Category{
-			Name:  MainCommandsCategoryName,
-			Order: 10, //nolint: mnd
-		},
-	)
-
-	catalogCommands := cli.Commands{
-		catalog.NewCommand(opts),  // catalog
-		scaffold.NewCommand(opts), // scaffold
-	}.SetCategory(
-		&cli.Category{
-			Name:  CatalogCommandsCategoryName,
-			Order: 20, //nolint: mnd
-		},
-	)
-
-	configurationCommands := cli.Commands{
-		graphdependencies.NewCommand(opts),  // graph-dependencies
-		outputmodulegroups.NewCommand(opts), // output-module-groups
-		validateinputs.NewCommand(opts),     // validate-inputs
-		hclvalidate.NewCommand(opts),        // hclvalidate
-		hclfmt.NewCommand(opts),             // hclfmt
-		info.NewCommand(opts),               // info
-		terragruntinfo.NewCommand(opts),     // terragrunt-info
-		renderjson.NewCommand(opts),         // render-json
-		helpCmd.NewCommand(opts),            // help (hidden)
-		versionCmd.NewCommand(opts),         // version (hidden)
-		awsproviderpatch.NewCommand(opts),   // aws-provider-patch (hidden)
-	}.SetCategory(
-		&cli.Category{
-			Name:  ConfigurationCommandsCategoryName,
-			Order: 30, //nolint: mnd
-		},
-	)
-
-	shortcutsCommands := commands.NewShortcutsCommands(opts).SetCategory(
-		&cli.Category{
-			Name:  ShortcutsCommandsCategoryName,
-			Order: 40, //nolint: mnd
-		},
-	)
-
-	allCommands := mainCommands.
-		Merge(catalogCommands...).
-		Merge(configurationCommands...).
-		Merge(shortcutsCommands...).
-		Merge(commands.NewDeprecatedCommands(opts)...)
-
-	return allCommands
 }
 
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.

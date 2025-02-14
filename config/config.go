@@ -18,12 +18,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
@@ -870,6 +872,20 @@ func ParseConfigString(ctx *ParsingContext, configPath string, configString stri
 //  5. Merge the included config with the parsed config. Note that all the config data is mergeable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
 func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+	if detectInputsCtyUsage(file) {
+		allControls := ctx.TerragruntOptions.StrictControls
+
+		skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
+		if skipDependenciesInputs == nil {
+			return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
+		}
+
+		evalCtx := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
+		if err := skipDependenciesInputs.Evaluate(evalCtx); err != nil {
+			return nil, err
+		}
+	}
+
 	ctx = ctx.WithTrackInclude(nil)
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
@@ -940,6 +956,40 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	return config, nil
+}
+
+// detectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.
+//
+// This is deprecated functionality, so we look for this to determine if we should throw an error or warning.
+func detectInputsCtyUsage(file *hclparse.File) bool {
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return false
+	}
+
+	for _, attr := range body.Attributes {
+		for _, traversal := range attr.Expr.Variables() {
+			const dependencyInputsIdentifierMinParts = 3
+
+			if len(traversal) < dependencyInputsIdentifierMinParts {
+				continue
+			}
+
+			root, ok := traversal[0].(hcl.TraverseRoot)
+			if !ok || root.Name != MetadataDependency {
+				continue
+			}
+
+			attrTraversal, ok := traversal[2].(hcl.TraverseAttr)
+			if !ok || attrTraversal.Name != MetadataInputs {
+				continue
+			}
+
+			return true
+		}
+	}
+
+	return false
 }
 
 // iamRoleCache - store for cached values of IAM roles

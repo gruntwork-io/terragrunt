@@ -232,7 +232,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		for _, app := range appDirs {
 			appDir = filepath.Join(testCase.rootPath, app)
 
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-download-dir=%s", appDir, testCase.downloadDir))
+			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, testCase.downloadDir))
 			config.ClearOutputCache()
 		}
 
@@ -242,7 +242,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 			assert.Equal(t, len(appDirs), len(entries))
 		}
 
-		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s  --terragrunt-download-dir=%s", appDir, testCase.downloadDir), &stdout, &stderr)
+		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, testCase.downloadDir), &stdout, &stderr)
 
 		expectedOutpus := map[string]string{
 			"bar": "parent-bar",
@@ -254,6 +254,13 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		for key, value := range expectedOutpus {
 			assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
 		}
+
+		// Check that we're getting a warning for usage of deprecated functionality.
+		assert.Contains(
+			t,
+			stderr.String(),
+			"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+		)
 	}
 }
 

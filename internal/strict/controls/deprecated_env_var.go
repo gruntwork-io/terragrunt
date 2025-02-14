@@ -3,12 +3,13 @@ package controls
 import (
 	"context"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -46,9 +47,9 @@ func NewDeprecatedEnvVar(deprecatedFlag, newFlag cli.Flag, newValue string) *Dep
 			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
-		ErrorFmt:   "The `%s` env var is no longer supported. Use `%s` instead.",
-		WarningFmt: "The `%s` env var is deprecated and will be removed in a future version. Use `%s` instead.",
-
+		ErrorFmt: "The `%s` environment variable is no longer supported. Use `%s` instead.",
+		// The `TERRAGRUNT_LOG_LEVEL` environment variable is deprecated and will be removed in a future version of Terragrunt. Use `TG_LOG_LEVEL=trace` instead.
+		WarningFmt:     "The `%s` environment variable is deprecated and will be removed in a future version of Terragrunt. Use `%s` instead.",
 		deprecatedFlag: deprecatedFlag,
 		newFlag:        newFlag,
 	}
@@ -61,7 +62,7 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 		envName   string
 	)
 
-	if valueName == "" || !ctrl.deprecatedFlag.Value().IsEnvSet() || slices.Contains(ctrl.newFlag.GetEnvVars(), valueName) {
+	if valueName == "" || !ctrl.deprecatedFlag.Value().IsEnvSet() || !slices.Contains(ctrl.deprecatedFlag.GetEnvVars(), valueName) {
 		return nil
 	}
 
@@ -85,7 +86,7 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 		return errors.Errorf(ctrl.ErrorFmt, valueName, envName)
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" {
+	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.Suppress {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warnf(ctrl.WarningFmt, valueName, envName)
 		})

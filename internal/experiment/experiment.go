@@ -8,8 +8,9 @@
 package experiment
 
 import (
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"golang.org/x/exp/slices"
 )
 
 const (

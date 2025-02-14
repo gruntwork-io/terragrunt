@@ -85,6 +85,10 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 
 func isLocal(opts *options.TerragruntOptions, src string) bool {
 	// check initially if the source is a local file
+	if util.FileExists(src) {
+		return true
+	}
+
 	src = filepath.Join(opts.WorkingDir, src)
 	if util.FileExists(src) {
 		return true

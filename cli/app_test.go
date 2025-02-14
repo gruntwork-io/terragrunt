@@ -503,7 +503,7 @@ func setCommandAction(action clipkg.ActionFunc, cmds ...*clipkg.Command) {
 func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	emptyAction := func(ctx *clipkg.Context) error { return nil }
 
-	terragruntCommands := cli.TerragruntCommands(opts)
+	terragruntCommands := commands.New(opts)
 	setCommandAction(emptyAction, terragruntCommands...)
 
 	app := clipkg.NewApp()
