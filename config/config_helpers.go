@@ -231,6 +231,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	evalCtx.Variables[MetadataUnit] = cty.ObjectVal(map[string]cty.Value{
 		MetadataValues: *unitValues,
 	})
+
 	return evalCtx, nil
 }
 

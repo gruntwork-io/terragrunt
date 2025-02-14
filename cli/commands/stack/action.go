@@ -47,13 +47,15 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.New(err)
 	}
+
 	unitValues := map[string]*cty.Value{}
+
 	for _, unit := range stackFile.Units {
 		path := filepath.Join(opts.WorkingDir, stackDir, unit.Path)
 		unitValues[path] = unit.Values
 	}
-	opts.StackValues = options.NewStackValues(&cty.NilVal, unitValues)
 
+	opts.StackValues = options.NewStackValues(&cty.NilVal, unitValues)
 	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
 
 	return runall.Run(ctx, opts)

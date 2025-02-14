@@ -593,6 +593,7 @@ func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	newOpts := cloner.Clone(opts)
 	newOpts.Logger = opts.Logger.Clone()
 	newOpts.StackValues = opts.StackValues.Clone()
+
 	return newOpts
 }
 
@@ -989,6 +990,7 @@ func (s *StackValues) Clone() *StackValues {
 	if s == nil {
 		return nil
 	}
+
 	newValues := NewStackValues(s.stackValues, make(map[string]*cty.Value, len(s.unitValues)))
 
 	for k, v := range s.unitValues {
@@ -1008,9 +1010,11 @@ func (s *StackValues) UnitValues(path string) *cty.Value {
 	if s == nil {
 		return &cty.NilVal
 	}
+
 	if value, found := s.unitValues[path]; found {
 		return value
 	}
+
 	return &cty.NilVal
 }
 
