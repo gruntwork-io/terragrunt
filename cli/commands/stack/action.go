@@ -52,7 +52,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		path := filepath.Join(opts.WorkingDir, stackDir, unit.Path)
 		unitValues[path] = unit.Values
 	}
-	opts.UnitValues = unitValues
+	opts.StackValues = options.NewStackValues(&cty.NilVal, unitValues)
 
 	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
 

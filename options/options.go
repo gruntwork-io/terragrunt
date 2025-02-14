@@ -399,8 +399,8 @@ type TerragruntOptions struct {
 	// StackOutputFormat format how the stack output is rendered.
 	StackOutputFormat string
 
-	// Mapping of units values mapped to their path
-	UnitValues map[string]*cty.Value
+	// StackValues is a struct that holds the values of the stack and units.
+	StackValues *StackValues
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -516,7 +516,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
-		UnitValues:                 map[string]*cty.Value{},
+		StackValues:                &StackValues{},
 	}
 }
 
@@ -592,20 +592,7 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	newOpts := cloner.Clone(opts)
 	newOpts.Logger = opts.Logger.Clone()
-
-	// copy unit cty values
-	if len(opts.UnitValues) > 0 {
-		newOpts.UnitValues = make(map[string]*cty.Value, len(opts.UnitValues))
-		for k, v := range opts.UnitValues {
-			if v != nil {
-				valCopy := *v
-				newOpts.UnitValues[k] = &valCopy
-			} else {
-				newOpts.UnitValues[k] = nil
-			}
-		}
-	}
-
+	newOpts.StackValues = opts.StackValues.Clone()
 	return newOpts
 }
 
@@ -979,6 +966,52 @@ func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 	}
 
 	return false
+}
+
+// StackValues represents the values of the stack.
+type StackValues struct {
+	// Values of the stack.
+	stackValues *cty.Value
+	// Mapping of units values mapped to their path
+	unitValues map[string]*cty.Value
+}
+
+// NewStackValues creates a new StackValues object.
+func NewStackValues(stackValues *cty.Value, unitValues map[string]*cty.Value) *StackValues {
+	return &StackValues{
+		stackValues: stackValues,
+		unitValues:  unitValues,
+	}
+}
+
+// Clone function for StackValues
+func (s *StackValues) Clone() *StackValues {
+	if s == nil {
+		return nil
+	}
+	newValues := NewStackValues(s.stackValues, make(map[string]*cty.Value, len(s.unitValues)))
+
+	for k, v := range s.unitValues {
+		if v != nil {
+			valCopy := *v
+			newValues.unitValues[k] = &valCopy
+		} else {
+			newValues.unitValues[k] = nil
+		}
+	}
+
+	return newValues
+}
+
+// UnitValues returns the values of the unit at the given path.
+func (s *StackValues) UnitValues(path string) *cty.Value {
+	if s == nil {
+		return &cty.NilVal
+	}
+	if value, found := s.unitValues[path]; found {
+		return value
+	}
+	return &cty.NilVal
 }
 
 // ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
