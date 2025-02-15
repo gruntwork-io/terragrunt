@@ -78,6 +78,8 @@ const (
 	MetadataErrors                      = "errors"
 	MetadataRetry                       = "retry"
 	MetadataIgnore                      = "ignore"
+	MetadataUnit                        = "unit"
+	MetadataValues                      = "values"
 )
 
 var (

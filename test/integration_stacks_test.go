@@ -23,6 +23,7 @@ const (
 	testFixtureStacksRemote      = "fixtures/stacks/remote"
 	testFixtureStacksInputs      = "fixtures/stacks/inputs"
 	testFixtureStacksOutputs     = "fixtures/stacks/outputs"
+	testFixtureStacksUnitValues  = "fixtures/stacks/unit-values"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -341,6 +342,45 @@ func TestStackOutputsJsonFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Len(t, result, 4)
+}
+
+func TestStacksUnitValues(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitValues)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitValues)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "deployment = \"app1\"")
+	assert.Contains(t, stdout, "deployment = \"app2\"")
+	assert.Contains(t, stdout, "project = \"test-project\"")
+	assert.Contains(t, stdout, "data = \"payload: app1-test-project\"")
+	assert.Contains(t, stdout, "data = \"payload: app2-test-project\"")
+}
+
+func TestStacksUnitValuesOutput(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitValues)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitValues)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	assert.Len(t, result, 2)
+	// check if app1 and app2 are present in the result
+	assert.Contains(t, result, "app1")
+	assert.Contains(t, result, "app2")
 }
 
 // check if the stack directory is created and contains files.

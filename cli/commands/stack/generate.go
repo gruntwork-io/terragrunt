@@ -17,11 +17,10 @@ import (
 )
 
 const (
-	StackManifestName = ".terragrunt-stack-manifest"
+	ManifestName = ".terragrunt-stack-manifest"
 )
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
-	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 
@@ -64,7 +63,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 				src = unit.Source
 			}
 
-			if err := util.CopyFolderContentsWithFilter(opts.Logger, src, dest, StackManifestName, func(absolutePath string) bool {
+			if err := util.CopyFolderContentsWithFilter(opts.Logger, src, dest, ManifestName, func(absolutePath string) bool {
 				return true
 			}); err != nil {
 				return errors.New(err)

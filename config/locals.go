@@ -182,6 +182,9 @@ func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty
 		case rootName == MetadataFeatureFlag:
 			// If the variable is `feature`
 
+		case rootName == MetadataUnit:
+			// If the variable is `unit`
+
 		case rootName != "local":
 			// We can't evaluate any variable other than `local`
 			detail = fmt.Sprintf("You can only reference to other local variables here, but it looks like you're referencing something else (%q is not defined)", rootName)
