@@ -95,9 +95,5 @@ func validateCommand(opts *options.TerragruntOptions) error {
 }
 
 func isTerraformPath(opts *options.TerragruntOptions) bool {
-	if strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath) {
-		return true
-	}
-
-	return false
+	return strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath)
 }
