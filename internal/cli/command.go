@@ -213,7 +213,7 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 
 	const maxFlagsParse = 1000 // Maximum flags parse
 
-	for i := 0; i < maxFlagsParse && args.Len() > 0; i++ {
+	for range maxFlagsParse {
 		// check if the error is due to an undefArgs flag
 		var undefArg string
 

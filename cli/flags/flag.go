@@ -126,7 +126,7 @@ func (newFlag *Flag) Parse(args cli.Args) error {
 
 	const maxFlagsParse = 1000 // Maximum flags parse
 
-	for i := 0; i < maxFlagsParse && args.Len() > 0; i++ {
+	for range maxFlagsParse {
 		err := flagSet.Parse(args)
 		if err == nil {
 			break
