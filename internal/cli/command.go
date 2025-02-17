@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const errFlagUndefined = "flag provided but not defined:"
+const ErrFlagUndefined = "flag provided but not defined:"
 
 type Command struct {
 	// Name is the command name.
@@ -211,7 +211,9 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 		return undefArgs, nil
 	}
 
-	for {
+	const maxFlagsParse = 1000 // Maximum flags parse
+
+	for i := 0; i < maxFlagsParse && args.Len() > 0; i++ {
 		// check if the error is due to an undefArgs flag
 		var undefArg string
 
@@ -220,9 +222,9 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 			break
 		}
 
-		if errStr := err.Error(); strings.HasPrefix(errStr, errFlagUndefined) {
+		if errStr := err.Error(); strings.HasPrefix(errStr, ErrFlagUndefined) {
 			err = UndefinedFlagError(errStr)
-			undefArg = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
+			undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrFlagUndefined), " -")
 		} else {
 			break
 		}

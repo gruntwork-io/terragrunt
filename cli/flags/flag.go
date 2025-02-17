@@ -4,6 +4,8 @@ package flags
 import (
 	"context"
 	"flag"
+	"io"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 )
@@ -111,9 +113,31 @@ func (newFlag *Flag) RunAction(ctx *cli.Context) error {
 	return newFlag.Flag.RunAction(ctx)
 }
 
-// ParseEnvVars parses env vars values specified in the flag.
+// Parse parses the given `args` for the flag value and env vars values specified in the flag.
 // The value will be assigned to the `Destination` field.
 // The value can also be retrieved using `flag.Value().Get()`.
-func (newFlag *Flag) ParseEnvVars() error {
-	return newFlag.Apply(new(flag.FlagSet))
+func (newFlag *Flag) Parse(args cli.Args) error {
+	flagSet := flag.NewFlagSet("", flag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+
+	if err := newFlag.Apply(flagSet); err != nil {
+		return err
+	}
+
+	const maxFlagsParse = 1000 // Maximum flags parse
+
+	for i := 0; i < maxFlagsParse && args.Len() > 0; i++ {
+		err := flagSet.Parse(args)
+		if err == nil {
+			break
+		}
+
+		if errStr := err.Error(); !strings.HasPrefix(errStr, cli.ErrFlagUndefined) {
+			break
+		}
+
+		args = flagSet.Args()
+	}
+
+	return nil
 }

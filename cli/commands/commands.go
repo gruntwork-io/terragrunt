@@ -29,7 +29,7 @@ import (
 
 // Command category names.
 const (
-	// MainCommandsCategoryName represents primary Terragrunt operations like run, run-all.
+	// MainCommandsCategoryName represents primary Terragrunt operations like run, exec.
 	MainCommandsCategoryName = "Main commands"
 	// CatalogCommandsCategoryName represents commands for managing Terragrunt catalogs.
 	CatalogCommandsCategoryName = "Catalog commands"

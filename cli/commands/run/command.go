@@ -55,6 +55,7 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 		subcommands[i] = &cli.Command{
 			Name:                 name,
 			Usage:                usage,
+			UsageText:            "terragrunt run " + name + " [options]",
 			Hidden:               !visible,
 			CustomHelp:           ShowTFHelp(opts),
 			ErrorOnUndefinedFlag: true,
@@ -65,15 +66,6 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 	}
 
 	return subcommands
-}
-
-// ShowTFHelp prints TF help for the given `ctx.Command` command.
-func ShowTFHelp(opts *options.TerragruntOptions) cli.HelpFunc {
-	return func(ctx *cli.Context) error {
-		terraformHelpCmd := append([]string{tf.FlagNameHelpLong, ctx.Command.Name}, ctx.Args()...)
-
-		return tf.RunCommand(ctx, opts, terraformHelpCmd...)
-	}
 }
 
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
@@ -95,9 +87,17 @@ func validateCommand(opts *options.TerragruntOptions) error {
 		return nil
 	}
 
-	if strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath) {
+	if isTerraformPath(opts) {
 		return WrongTerraformCommand(opts.TerraformCommand)
 	}
 
 	return WrongTofuCommand(opts.TerraformCommand)
+}
+
+func isTerraformPath(opts *options.TerragruntOptions) bool {
+	if strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath) {
+		return true
+	}
+
+	return false
 }

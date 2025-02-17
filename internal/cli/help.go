@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/exp/maps"
 )
 
 var (
@@ -45,8 +46,16 @@ func ShowAppHelp(ctx *Context) error {
 
 // ShowCommandHelp prints command help for the given `ctx`.
 func ShowCommandHelp(ctx *Context) error {
+	if ctx.Command.HelpName == "" {
+		ctx.Command.HelpName = ctx.Command.Name
+	}
+
 	if ctx.Command.CustomHelp != nil {
-		return ctx.Command.CustomHelp(ctx)
+		if err := ctx.Command.CustomHelp(ctx); err != nil {
+			return err
+		}
+
+		return NewExitError(nil, ExitCodeSuccess)
 	}
 
 	tpl := ctx.Command.CustomHelpTemplate
@@ -58,16 +67,22 @@ func ShowCommandHelp(ctx *Context) error {
 		return errors.Errorf("command help template not defined")
 	}
 
-	if ctx.Command.HelpName == "" {
-		ctx.Command.HelpName = ctx.Command.Name
-	}
-
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, map[string]any{
-		"parentCommands": parentCommands,
-		"offsetCommands": offsetCommands,
-	})
+	HelpPrinterCustom(ctx, tpl, nil)
 
 	return NewExitError(nil, ExitCodeSuccess)
+}
+
+func HelpPrinterCustom(ctx *Context, tpl string, customFuncs map[string]any) {
+	var funcs = map[string]any{
+		"parentCommands": parentCommands,
+		"offsetCommands": offsetCommands,
+	}
+
+	if customFuncs != nil {
+		maps.Copy(funcs, customFuncs)
+	}
+
+	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, funcs)
 }
 
 func ShowVersion(ctx *Context) error {
