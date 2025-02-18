@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -79,7 +80,53 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions) (
 		return nil, errors.New(err)
 	}
 
+	if err := ValidateStackConfig(config); err != nil {
+		return nil, errors.New(err)
+	}
+
 	return config, nil
+}
+
+// ValidateStackConfig validates a StackConfigFile instance according to the rules:
+// - Unit name, source, and path shouldn't be empty
+// - Unit names should be unique
+// - Units shouldn't have duplicate paths
+func ValidateStackConfig(config *StackConfigFile) error {
+	if len(config.Units) == 0 {
+		return errors.New("stack config must contain at least one unit")
+	}
+
+	names := make(map[string]bool)
+	paths := make(map[string]bool)
+
+	for i, unit := range config.Units {
+		if strings.TrimSpace(unit.Name) == "" {
+			return errors.Errorf("unit at index %d has empty name", i)
+		}
+
+		if strings.TrimSpace(unit.Source) == "" {
+			return errors.Errorf("unit '%s' has empty source", unit.Name)
+		}
+
+		if strings.TrimSpace(unit.Path) == "" {
+			return errors.Errorf("unit '%s' has empty path", unit.Name)
+		}
+
+		if names[unit.Name] {
+			return errors.Errorf("duplicate unit name found: '%s'", unit.Name)
+		}
+
+		names[unit.Name] = true
+
+		// Check for duplicate paths
+		if paths[unit.Path] {
+			return errors.Errorf("duplicate unit path found: '%s'", unit.Path)
+		}
+
+		paths[unit.Path] = true
+	}
+
+	return nil
 }
 
 func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
