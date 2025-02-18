@@ -8,7 +8,7 @@ import { getSidebar } from '@lib/commands/sidebar';
 export async function getStaticPaths() {
 	const commands = await getCollection('commands');
 
-	const sidebar = getSidebar(commands);
+	const sidebar = await getSidebar(commands);
 
 	return commands.map((command) => {
 		const headings = getHeadings(command);
