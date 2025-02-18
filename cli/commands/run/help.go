@@ -21,7 +21,7 @@ const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Comman
 
    It wraps the ` + "`{{ tfCommand }}`" + ` command of the binary defined by ` + "`tf-path`" + `.
 
-{{ if isTerraformPath }}Terraform{{ else }}OpenTofu{{ end }} ` + "`{{ tfCommand }}`" + ` help:{{ $tfHelp := tfHelp }}{{ if $tfHelp }}
+{{ if isTerraformPath }}Terraform{{ else }}OpenTofu{{ end }} ` + "`{{ tfCommand }}`" + ` help:{{ $tfHelp := runTFHelp }}{{ if $tfHelp }}
 
 {{ $tfHelp }}{{ end }}
 `
@@ -37,8 +37,8 @@ func ShowTFHelp(opts *options.TerragruntOptions) cli.HelpFunc {
 			"isTerraformPath": func() bool {
 				return isTerraformPath(opts)
 			},
-			"tfHelp": func() string {
-				return tfHelp(ctx, opts)
+			"runTFHelp": func() string {
+				return runTFHelp(ctx, opts)
 			},
 			"tfCommand": func() string {
 				return ctx.Command.Name
@@ -49,7 +49,7 @@ func ShowTFHelp(opts *options.TerragruntOptions) cli.HelpFunc {
 	}
 }
 
-func tfHelp(ctx *cli.Context, opts *options.TerragruntOptions) string {
+func runTFHelp(ctx *cli.Context, opts *options.TerragruntOptions) string {
 	opts = opts.Clone()
 	opts.Writer = io.Discard
 
