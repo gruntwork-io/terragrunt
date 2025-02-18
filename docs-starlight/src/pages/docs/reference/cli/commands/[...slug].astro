@@ -2,22 +2,36 @@
 import Command from '@components/Command.astro';
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import { getCollection } from 'astro:content';
+import { getHeadings } from '../../../../../lib/headings';
+import type { SidebarItem } from 'node_modules/@astrojs/starlight/schemas/sidebar';
 
 export async function getStaticPaths() {
 	const commands = await getCollection('commands');
 
-	return commands.map((command) => {
+	const sidebar: SidebarItem[] = commands.map((command) => {
 		const data = command.data;
 
-		const body = command.body;
+		if (data.experiment) {
+			return {
+				label: data.name,
+				link: `/docs/reference/cli/commands/${data.path}`,
+				badge: {
+					variant: 'tip',
+					text: 'exp',
+				},
+			} as SidebarItem;
+		}
 
-		// body is some markdown content.
-		// Extract the h2 headings from the markdown content.
-		// This will be used to generate the table of contents.
-		const h2HeadingsLines = body?.match(/## (.*)/g);
-		console.log(h2HeadingsLines);
-		const h2Headings = h2HeadingsLines?.map((line) => line.replace(/## /g, ''));
-		console.log(h2Headings);
+		return {
+			label: data.name,
+			link: `/docs/reference/cli/commands/${data.path}`,
+		} as SidebarItem;
+	});
+
+	return commands.map((command) => {
+		const headings = getHeadings(command);
+
+		const data = command.data;
 
 		return {
 			params: { 
@@ -28,18 +42,24 @@ export async function getStaticPaths() {
 				description: data.description,
 				experiment: data.experiment,
 				examples: data.examples,
+				headings: headings,
+				sidebar: sidebar,
 			},
 		}
 	});
 }
 
-const { name, description } = Astro.props;
+const { name, description, headings, sidebar } = Astro.props;
 ---
 
-<StarlightPage frontmatter={{ 
-	title: name,
-	description: description,
-}}>
+<StarlightPage 
+	frontmatter={{ 
+		title: name,
+		description: description,
+	}} 
+	headings={headings}
+	sidebar={sidebar}
+>
 	<Command name={name} />
 </StarlightPage>
 
