@@ -21,3 +21,6 @@ type SplitterFunc func(s, sep string) []string
 // ExitErrHandlerFunc is executed if provided in order to handle exitError values
 // returned by Actions and Before/After functions.
 type ExitErrHandlerFunc func(ctx *Context, err error) error
+
+// FlagErrHandlerFunc is executed if an error occurs while parsing flags.
+type FlagErrHandlerFunc func(ctx *Context, err error) error

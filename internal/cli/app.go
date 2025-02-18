@@ -49,6 +49,9 @@ type App struct {
 	// is used as the default behavior.
 	ExitErrHandler ExitErrHandlerFunc
 
+	// FlagErrHandler processes any error encountered while parsing flags.
+	FlagErrHandler FlagErrHandlerFunc
+
 	// Autocomplete enables or disables subcommand auto-completion support.
 	// This is enabled by default when NewApp is called. Otherwise, this
 	// must enabled explicitly.
@@ -70,6 +73,8 @@ type App struct {
 	// library. This library supports bash, zsh and fish. To add support
 	// for other shells, please see that library.
 	AutocompleteInstaller AutocompleteInstaller
+
+	// HandleFlagError
 }
 
 // NewApp returns app new App instance.
