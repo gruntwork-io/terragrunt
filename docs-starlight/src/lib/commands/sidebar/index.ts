@@ -7,7 +7,7 @@ import { sidebar as sidebarTemplate } from '../../../../astro.config.mjs';
 
 export async function getSidebar(commands: CollectionEntry<'commands'>[]): Promise<SidebarItem[]> {
   // Deep clone the sidebar template to avoid mutations
-  const sidebar = JSON.parse(JSON.stringify(sidebarTemplate));
+  const sidebar: SidebarItem[] = JSON.parse(JSON.stringify(sidebarTemplate));
 
   // Build the commands sidebar items
   const commandItems = commands.map((command) => {
@@ -54,7 +54,7 @@ export async function getSidebar(commands: CollectionEntry<'commands'>[]): Promi
           label: 'Commands',
           collapsed: true,
           items: commandItems
-        });
+        } as SidebarItem);
       }
     }
   }
