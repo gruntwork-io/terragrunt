@@ -55,7 +55,6 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 		subcommands[i] = &cli.Command{
 			Name:                 name,
 			Usage:                usage,
-			UsageText:            "terragrunt run " + name + " [options]",
 			Hidden:               !visible,
 			CustomHelp:           ShowTFHelp(opts),
 			ErrorOnUndefinedFlag: true,

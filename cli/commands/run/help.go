@@ -13,7 +13,7 @@ import (
 )
 
 // TFCommandHelpTemplate is the TF command CLI help template.
-const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Command.UsageText 3 }}{{ else }}{{ range $parent := parentCommands . }}{{ $parent.HelpName }} {{ end }}{{ .Command.HelpName }}{{ if .Command.VisibleSubcommands }} <command>{{ end }}{{ if .Command.VisibleFlags }} [options]{{ end }}{{ end }}{{ $description := .Command.Usage }}{{ if .Command.Description }}{{ $description = .Command.Description }}{{ end }}{{ if $description }}
+const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Command.UsageText 3 }}{{ else }}{{ range $parent := parentCommands . }}{{ $parent.HelpName }} {{ end }}[global options] {{ .Command.HelpName }} [options]{{ if eq .Command.Name "` + tf.CommandNameApply + `" }} [PLAN]{{ end }}{{ end }}{{ $description := .Command.Usage }}{{ if .Command.Description }}{{ $description = .Command.Description }}{{ end }}{{ if $description }}
 
    {{ wrap $description 3 }}{{ end }}{{ if ne .Parent.Command.Name "` + CommandName + `" }}
 
