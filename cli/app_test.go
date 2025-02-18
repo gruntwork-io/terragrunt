@@ -459,9 +459,9 @@ func TestTerraformHelp(t *testing.T) {
 		args     []string
 		expected string
 	}{
-		{[]string{"terragrunt", tf.CommandNamePlan, "--help"}, "(?s)Usage: terragrunt plan.*-detailed-exitcode"},
-		{[]string{"terragrunt", tf.CommandNameApply, "-help"}, "(?s)Usage: terragrunt apply.*-destroy"},
-		{[]string{"terragrunt", tf.CommandNameApply, "-h"}, "(?s)Usage: terragrunt apply.*-destroy"},
+		{[]string{"terragrunt", tf.CommandNamePlan, "--help"}, "(?s)Usage: terragrunt \\[global options\\] plan.*-detailed-exitcode"},
+		{[]string{"terragrunt", tf.CommandNameApply, "-help"}, "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy"},
+		{[]string{"terragrunt", tf.CommandNameApply, "-h"}, "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy"},
 	}
 
 	for _, testCase := range testCases {
