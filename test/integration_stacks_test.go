@@ -19,11 +19,12 @@ import (
 const (
 	testFixtureStacksBasic       = "fixtures/stacks/basic"
 	testFixtureStacksLocals      = "fixtures/stacks/locals"
-	testFixtureStacksLocalsError = "fixtures/stacks/locals-error"
+	testFixtureStacksLocalsError = "fixtures/stacks/errors/locals-error"
 	testFixtureStacksRemote      = "fixtures/stacks/remote"
 	testFixtureStacksInputs      = "fixtures/stacks/inputs"
 	testFixtureStacksOutputs     = "fixtures/stacks/outputs"
 	testFixtureStacksUnitValues  = "fixtures/stacks/unit-values"
+	testFixtureStacksEmptyPath   = "fixtures/stacks/errors/empty-path"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -381,6 +382,23 @@ func TestStacksUnitValuesOutput(t *testing.T) {
 	// check if app1 and app2 are present in the result
 	assert.Contains(t, result, "app1")
 	assert.Contains(t, result, "app2")
+}
+
+func TestStacksEmptyPathError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksEmptyPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksEmptyPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksEmptyPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+
+	message := err.Error()
+	// check for app1 and app2 empty path error
+	assert.Contains(t, message, "unit 'app1_empty_path' has empty path")
+	assert.Contains(t, message, "unit 'app2_empty_path' has empty path")
+	assert.NotContains(t, message, "unit 'app3_not_empty_path' has empty path")
 }
 
 // check if the stack directory is created and contains files.
