@@ -11,12 +11,12 @@ export async function getSidebar(commands: CollectionEntry<'commands'>[]): Promi
 
   commands.sort((a, b) => a.data.sidebar.order - b.data.sidebar.order);
 
-  // Build the commands sidebar items
-  const commandItems = commands.map((command) => {
+  // First, create all command items
+  const flatCommandItems = commands.map((command) => {
     const data = command.data;
     const sidebarItem = {
       label: data.name,
-      slug: `docs/reference/cli/commands/${data.path}`,
+      link: `/docs/reference/cli/commands/${data.path}`,
     } as SidebarItem;
 
     if (data.experiment) {
@@ -26,8 +26,41 @@ export async function getSidebar(commands: CollectionEntry<'commands'>[]): Promi
       };
     }
 
+    // Add the path to help with nesting
+    (sidebarItem as any).originalPath = data.path;
+
     return sidebarItem;
   });
+
+// Then, organize them into a nested structure
+const commandItems: SidebarItem[] = [];
+const groupedCommands: Record<string, SidebarItem[]> = {};
+
+flatCommandItems.forEach((item) => {
+  const path = (item as any).originalPath;
+  const parts = path.split('/');
+
+  // If this is a root-level command (no slashes)
+  if (parts.length === 1) {
+	delete (item as any).originalPath;
+	commandItems.push(item);
+  }
+  // If this is a nested command
+  else {
+	const groupName = parts[0];
+	if (!groupedCommands[groupName]) {
+	  groupedCommands[groupName] = [];
+	  // Add the group to the main commands array
+	  commandItems.push({
+		label: groupName,
+		collapsed: true,
+		items: groupedCommands[groupName]
+	  });
+	}
+	delete (item as any).originalPath;
+	groupedCommands[groupName].push(item);
+  }
+});
 
   // Find the Reference section
   const referenceSection = sidebar.find(item =>
