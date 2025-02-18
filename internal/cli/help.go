@@ -1,9 +1,8 @@
 package cli
 
 import (
-	"strings"
-
 	"slices"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"

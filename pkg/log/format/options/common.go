@@ -2,12 +2,12 @@ package options
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"golang.org/x/exp/maps"
 )
 
 type CommonOption[T comparable] struct {
@@ -111,8 +111,7 @@ func (val *MapValue[T]) Parse(str string) error {
 		}
 	}
 
-	list := maps.Values(val.list)
-	sort.Strings(list)
+	list := slices.Sorted(maps.Values(val.list))
 
 	return errors.Errorf("available values: %s", strings.Join(list, ","))
 }

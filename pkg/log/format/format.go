@@ -3,12 +3,13 @@ package format
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:stylecheck,revive
 	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:stylecheck,revive
-	"golang.org/x/exp/maps"
 )
 
 const (
@@ -148,5 +149,5 @@ func ParseFormat(str string) (Placeholders, error) {
 		}
 	}
 
-	return nil, errors.Errorf("available values: %s", strings.Join(maps.Keys(presets), ","))
+	return nil, errors.Errorf("available values: %s", strings.Join(slices.Collect(maps.Keys(presets)), ","))
 }

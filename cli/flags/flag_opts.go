@@ -2,7 +2,6 @@ package flags
 
 import (
 	"fmt"
-
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"

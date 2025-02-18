@@ -1,11 +1,10 @@
 package options
 
 import (
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/maps"
 )
 
 // TimeFormatOptionName is the option name.
@@ -83,11 +82,9 @@ func NewTimeFormatValue(list map[string]string) *TimeFormatValue {
 func (val TimeFormatValue) SortedKeys() []string {
 	keys := maps.Keys(val.list)
 
-	sort.Slice(keys, func(i, j int) bool {
-		return val.list[keys[i]] < val.list[keys[j]]
+	return slices.SortedFunc(keys, func(a, b string) int {
+		return strings.Compare(val.list[a], val.list[b])
 	})
-
-	return keys
 }
 
 func (val TimeFormatValue) Set(v string) *TimeFormatValue {

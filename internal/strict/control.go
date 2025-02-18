@@ -2,10 +2,9 @@ package strict
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
-
-	"slices"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )

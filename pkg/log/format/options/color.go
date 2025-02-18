@@ -1,6 +1,8 @@
 package options
 
 import (
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -9,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mgutz/ansi"
 	"github.com/puzpuzpuz/xsync/v3"
-	"golang.org/x/exp/maps"
 )
 
 // ColorOptionName is the option name.
@@ -107,7 +108,7 @@ func (val *ColorList) Parse(str string) error {
 	}
 
 	if err := val.MapValue.Parse(str); err != nil {
-		return errors.Errorf("available values: 0..255,%s", strings.Join(maps.Values(val.list), ","))
+		return errors.Errorf("available values: 0..255,%s", strings.Join(slices.Collect(maps.Values(val.list)), ","))
 	}
 
 	return nil
