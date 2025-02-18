@@ -104,6 +104,7 @@ func ValidateStackConfig(config *StackConfigFile) error {
 	for i, unit := range config.Units {
 		name := strings.TrimSpace(unit.Name)
 		path := strings.TrimSpace(unit.Path)
+
 		if name == "" {
 			validationErrors = validationErrors.Append(errors.Errorf("unit at index %d has empty name", i))
 		}
