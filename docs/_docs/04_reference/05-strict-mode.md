@@ -214,7 +214,7 @@ These categories change over time, so you might want to use the specific strict 
 
 ### deprecated-commands
 
-Throw an error when using the deprecated commandes.
+Throw an error when using the deprecated commands.
 
 **Controls**:
 
