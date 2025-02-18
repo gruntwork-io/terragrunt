@@ -165,13 +165,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedConfigFlagName), terragruntPrefixControl)),
 
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        TFPathFlagName,
-			EnvVars:     tgPrefix.EnvVars(TFPathFlagName),
-			Destination: &opts.TerraformPath,
-			Usage:       "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
-		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedTfpathFlagName), terragruntPrefixControl)),
+		NewTFPathFlag(opts, prefix),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoAutoInitFlagName,
@@ -546,4 +540,19 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	}
 
 	return flags.Sort()
+}
+
+// NewTFPathFlag creates a flag for specifying the OpenTofu/Terraform binary path.
+func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
+
+	return flags.NewFlag(&cli.GenericFlag[string]{
+		Name:        TFPathFlagName,
+		EnvVars:     tgPrefix.EnvVars(TFPathFlagName),
+		Destination: &opts.TerraformPath,
+		Usage:       "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
+	},
+		flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedTfpathFlagName), terragruntPrefixControl))
 }

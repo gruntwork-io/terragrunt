@@ -38,7 +38,7 @@ func Action(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 
-	if args.CommandName() == "" {
+	if cmdName := args.CommandName(); cmdName == "" || cmds.Get(cmdName) == nil {
 		return cli.ShowAppHelp(ctx)
 	}
 
@@ -58,7 +58,7 @@ func Action(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 
 	if ctx.Command != nil {
-		return cli.NewExitError(cli.ShowCommandHelp(ctx), cli.ExitCodeGeneralError)
+		return cli.ShowCommandHelp(ctx)
 	}
 
 	return cli.NewExitError(errors.New(cli.InvalidCommandNameError(args.First())), cli.ExitCodeGeneralError)
