@@ -40,7 +40,7 @@ func (errs *MultiError) ErrorOrNil() error {
 }
 
 // Append is a helper function that will append more errors
-// onto an Multierror in order to create a larger errs-error.
+// onto a Multierror in order to create a larger errs-error.
 func (errs *MultiError) Append(appendErrs ...error) *MultiError {
 	if errs == nil {
 		errs = &MultiError{inner: new(multierror.Error)}

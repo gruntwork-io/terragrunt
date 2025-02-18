@@ -161,7 +161,7 @@ func TestValidateStackConfig(t *testing.T) {
 			t.Parallel()
 			err := config.ValidateStackConfig(tt.config)
 			if tt.wantErr != "" {
-				assert.EqualError(t, err, tt.wantErr)
+				assert.Contains(t, err.Error(), tt.wantErr)
 			} else {
 				assert.NoError(t, err)
 			}

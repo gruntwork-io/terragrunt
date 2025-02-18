@@ -96,37 +96,45 @@ func ValidateStackConfig(config *StackConfigFile) error {
 		return errors.New("stack config must contain at least one unit")
 	}
 
+	validationErrors := &errors.MultiError{}
+
 	names := make(map[string]bool)
 	paths := make(map[string]bool)
 
 	for i, unit := range config.Units {
-		if strings.TrimSpace(unit.Name) == "" {
-			return errors.Errorf("unit at index %d has empty name", i)
+		name := strings.TrimSpace(unit.Name)
+		path := strings.TrimSpace(unit.Path)
+		if name == "" {
+			validationErrors = validationErrors.Append(errors.Errorf("unit at index %d has empty name", i))
 		}
 
 		if strings.TrimSpace(unit.Source) == "" {
-			return errors.Errorf("unit '%s' has empty source", unit.Name)
+			validationErrors = validationErrors.Append(errors.Errorf("unit '%s' has empty source", unit.Name))
 		}
 
-		if strings.TrimSpace(unit.Path) == "" {
-			return errors.Errorf("unit '%s' has empty path", unit.Name)
+		if path == "" {
+			validationErrors = validationErrors.Append(errors.Errorf("unit '%s' has empty path", unit.Name))
 		}
 
-		if names[unit.Name] {
-			return errors.Errorf("duplicate unit name found: '%s'", unit.Name)
+		if names[name] {
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate unit name found: '%s'", unit.Name))
 		}
 
-		names[unit.Name] = true
-
-		// Check for duplicate paths
-		if paths[unit.Path] {
-			return errors.Errorf("duplicate unit path found: '%s'", unit.Path)
+		if name != "" {
+			// save non-empty names for re-use
+			names[name] = true
 		}
 
-		paths[unit.Path] = true
+		if paths[path] {
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate unit path found: '%s'", unit.Path))
+		}
+
+		if path != "" {
+			paths[path] = true
+		}
 	}
 
-	return nil
+	return validationErrors.ErrorOrNil()
 }
 
 func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
