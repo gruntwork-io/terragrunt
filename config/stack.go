@@ -122,7 +122,7 @@ func ValidateStackConfig(config *StackConfigFile) error {
 		}
 
 		if name != "" {
-			// save non-empty names for re-use
+			// save non-empty names for reuse
 			names[name] = true
 		}
 
