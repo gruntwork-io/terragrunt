@@ -1,18 +1,15 @@
 ---
-title: exec
-description: Execute an arbitrary command, wrapped by Terragrunt.
-slug: docs/reference/cli/commands/exec
+name: exec
+path: exec
 sidebar:
   order: 2
-  badge:
-    text: exp
-    variant: tip
+description: Execute an arbitrary command, wrapped by Terragrunt.
+usage: |
+  Execute an arbitrary command, wrapped by Terragrunt.
+experiment:
+  control: cli-redesign
+  name: CLI Redesign
 ---
-
-import { Aside } from '@astrojs/starlight/components';
-import Command from '@components/Command.astro';
-
-<Command name="exec">
 
 ## Difference between `run` and `exec`
 
@@ -39,4 +36,3 @@ $ terragrunt exec -- env | grep 'TF_VAR_message'
 TF_VAR_message=Hello, Terragrunt!
 ```
 
-</Command>

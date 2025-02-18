@@ -1,0 +1,48 @@
+---
+import Command from '@components/Command.astro';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
+import { getHeadings } from '@lib/commands/headings';
+import { getSidebar } from '@lib/commands/sidebar';
+
+export async function getStaticPaths() {
+	const commands = await getCollection('commands');
+
+	const sidebar = await getSidebar(commands);
+
+	return commands.map((command) => {
+		const headings = getHeadings(command);
+
+		const data = command.data;
+
+		return {
+			params: { 
+				slug: data.path,
+			},
+			props: {
+				name: data.name,
+				path: data.path,
+				description: data.description,
+				experiment: data.experiment,
+				examples: data.examples,
+				headings: headings,
+				sidebar: sidebar,
+			},
+		}
+	});
+}
+
+const { name, path, description, headings, sidebar } = Astro.props;
+---
+
+<StarlightPage 
+	frontmatter={{ 
+		title: name,
+		description: description,
+	}} 
+	headings={headings}
+	sidebar={sidebar}
+>
+	<Command path={path} />
+</StarlightPage>
+

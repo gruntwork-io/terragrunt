@@ -1,6 +1,0 @@
-name: stack generate
-usage: |
-  Generate a stack from a terragrunt.stack.hcl file.
-experiment:
-  control: stacks
-  name: Stacks

@@ -1,9 +1,12 @@
 ---
-title: find
-description: Find relevant Terragrunt configurations.
-slug: docs/reference/cli/commands/find
+title: exec
+description: Execute an arbitrary command, wrapped by Terragrunt.
+slug: docs/reference/cli/commands/exec
 sidebar:
-  order: 10
+  order: 2
+  badge:
+    text: exp
+    variant: tip
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->
