@@ -1,6 +1,6 @@
 ---
 title: run
-description: Execute an arbitrary command, wrapped by Terragrunt.
+description: Run OpenTofu/Terraform commands.
 slug: docs/reference/cli/commands/run
 sidebar:
   order: 1

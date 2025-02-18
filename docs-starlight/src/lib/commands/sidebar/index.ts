@@ -9,12 +9,14 @@ export async function getSidebar(commands: CollectionEntry<'commands'>[]): Promi
   // Deep clone the sidebar template to avoid mutations
   const sidebar: SidebarItem[] = JSON.parse(JSON.stringify(sidebarTemplate));
 
+  commands.sort((a, b) => a.data.sidebar.order - b.data.sidebar.order);
+
   // Build the commands sidebar items
   const commandItems = commands.map((command) => {
     const data = command.data;
     const sidebarItem = {
       label: data.name,
-      link: `/docs/reference/cli/commands/${data.path}`,
+      slug: `docs/reference/cli/commands/${data.path}`,
     } as SidebarItem;
 
     if (data.experiment) {

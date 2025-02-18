@@ -21,6 +21,10 @@ const commands = defineCollection({
 		name: z.string(),
 		description: z.string(),
 		path: z.string(),
+		sidebar: z.object({
+			parent: z.string().optional(),
+			order: z.number(),
+		}),
 		usage: z.string(),
 		examples: z.array(z.object({
 			code: z.string(),
