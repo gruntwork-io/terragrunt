@@ -396,9 +396,9 @@ func TestStacksEmptyPathError(t *testing.T) {
 
 	message := err.Error()
 	// check for app1 and app2 empty path error
-	assert.Contains(t, message, "unit 'app1' has empty path")
-	assert.Contains(t, message, "unit 'app2' has empty path")
-	assert.NotContains(t, message, "unit 'app3' has empty path")
+	assert.Contains(t, message, "unit 'app1_empty_path' has empty path")
+	assert.Contains(t, message, "unit 'app2_empty_path' has empty path")
+	assert.NotContains(t, message, "unit 'app3_not_empty_path' has empty path")
 }
 
 // check if the stack directory is created and contains files.
