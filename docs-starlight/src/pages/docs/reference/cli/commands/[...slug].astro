@@ -21,6 +21,7 @@ export async function getStaticPaths() {
 			},
 			props: {
 				name: data.name,
+				path: data.path,
 				description: data.description,
 				experiment: data.experiment,
 				examples: data.examples,
@@ -31,7 +32,7 @@ export async function getStaticPaths() {
 	});
 }
 
-const { name, description, headings, sidebar } = Astro.props;
+const { name, path, description, headings, sidebar } = Astro.props;
 ---
 
 <StarlightPage 
@@ -42,6 +43,6 @@ const { name, description, headings, sidebar } = Astro.props;
 	headings={headings}
 	sidebar={sidebar}
 >
-	<Command name={name} />
+	<Command path={path} />
 </StarlightPage>
 
