@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-const ErrFlagUndefined = "flag provided but not defined:"
-
 type Command struct {
 	// Name is the command name.
 	Name string
@@ -102,11 +100,15 @@ func (cmd *Command) VisibleSubcommands() Commands {
 // If this is the final command, starts its execution.
 func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	args, err = cmd.parseFlags(ctx, args.Slice())
+	ctx = ctx.NewCommandContext(cmd, args)
+
 	if err != nil {
+		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
+			err = flagErrHandler(ctx, err)
+		}
+
 		return NewExitError(err, ExitCodeGeneralError)
 	}
-
-	ctx = ctx.NewCommandContext(cmd, args)
 
 	subCmdName := ctx.Args().CommandName()
 	subCmdArgs := ctx.Args().Remove(subCmdName)
@@ -223,8 +225,8 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 		}
 
 		if errStr := err.Error(); strings.HasPrefix(errStr, ErrFlagUndefined) {
-			err = UndefinedFlagError(errStr)
 			undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrFlagUndefined), " -")
+			err = UndefinedFlagError(undefArg)
 		} else {
 			break
 		}

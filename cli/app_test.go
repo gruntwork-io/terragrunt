@@ -61,13 +61,13 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			[]string{"--foo", "--bar"},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
-			clipkg.UndefinedFlagError("flag provided but not defined: -foo"),
+			clipkg.UndefinedFlagError("foo"),
 		},
 
 		{
 			[]string{"--foo", "apply", "--bar"},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"apply", "-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
-			clipkg.UndefinedFlagError("flag provided but not defined: -foo"),
+			clipkg.UndefinedFlagError("foo"),
 		},
 
 		{

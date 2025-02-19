@@ -20,6 +20,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 
 	"github.com/gruntwork-io/go-commons/version"
@@ -49,6 +50,8 @@ type App struct {
 
 // NewApp creates the Terragrunt CLI App.
 func NewApp(opts *options.TerragruntOptions) *App {
+	terragruntCommands := commands.New(opts)
+
 	app := cli.NewApp()
 	app.Name = "terragrunt"
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://terragrunt.gruntwork.io/."
@@ -57,10 +60,11 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
 	app.Flags = global.NewFlagsWithDeprecatedMovedFlags(opts)
-	app.Commands = commands.New(opts).WrapAction(WrapWithTelemetry(opts))
+	app.Commands = terragruntCommands.WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
+	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
 
 	return &App{app, opts}
 }

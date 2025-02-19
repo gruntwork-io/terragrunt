@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -107,6 +108,7 @@ const (
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
 	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 	testFixtureLogStreaming                   = "fixtures/streaming"
+	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 
 	terraformFolder = ".terraform"
 
@@ -115,6 +117,38 @@ const (
 	terraformStateBackup = "terraform.tfstate.backup"
 	terragruntCache      = ".terragrunt-cache"
 )
+
+func TestCLIFlagHints(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		args          string
+		expectedError error
+	}{
+		{
+			"-raw init",
+			flags.NewGlobalFlagHintError("raw", "stack output", "raw"),
+		},
+		{
+			"run --no-include-root",
+			flags.NewCommandFlagHintError("run", "no-include-root", "catalog", "no-include-root"),
+		},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureCLIFlagHints)
+			rootPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
+			rootPath, err := filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
+
+			_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --working-dir "+rootPath)
+			assert.EqualError(t, err, testCase.expectedError.Error())
+		})
+	}
+}
 
 func TestExecCommand(t *testing.T) {
 	t.Parallel()

@@ -49,6 +49,9 @@ type App struct {
 	// is used as the default behavior.
 	ExitErrHandler ExitErrHandlerFunc
 
+	// FlagErrHandler processes any error encountered while parsing flags.
+	FlagErrHandler FlagErrHandlerFunc
+
 	// Autocomplete enables or disables subcommand auto-completion support.
 	// This is enabled by default when NewApp is called. Otherwise, this
 	// must enabled explicitly.
