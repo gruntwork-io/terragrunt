@@ -46,10 +46,10 @@ To tell Terragrunt to assume an IAM role, just set the [`--iam-role`](/docs/refe
 terragrunt apply --iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
 
-Alternatively, you can set the `TERRAGRUNT_IAM_ROLE` environment variable:
+Alternatively, you can set the `TG_IAM_ROLE` environment variable:
 
 ```bash
-export TERRAGRUNT_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+export TG_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 terragrunt apply
 ```
 
@@ -82,8 +82,8 @@ terragrunt apply --iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME" --iam-web-i
 As environment variables:
 
 ```bash
-export TERRAGRUNT_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
-export TERRAGRUNT_IAM_WEB_IDENTITY_TOKEN="$TOKEN"
+export TG_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+export TG_IAM_WEB_IDENTITY_TOKEN="$TOKEN"
 terragrunt apply
 ```
 
@@ -115,7 +115,7 @@ terragrunt apply --auth-provider-cmd /path/to/auth-script.sh
 As with all other flags, you can also set this as an environment variable:
 
 ```bash
-export TERRAGRUNT_AUTH_PROVIDER_CMD="/path/to/auth-script.sh"
+export TG_AUTH_PROVIDER_CMD="/path/to/auth-script.sh"
 terragrunt apply
 ```
 

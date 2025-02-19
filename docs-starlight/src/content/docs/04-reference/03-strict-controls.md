@@ -42,7 +42,7 @@ $ terragrunt --strict-mode plan-all
 You can also use the environment variable, which can be more useful in CI/CD pipelines:
 
 ```bash
-$ TERRAGRUNT_STRICT_MODE='true' terragrunt plan-all
+$ TG_STRICT_MODE='true' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
@@ -63,7 +63,7 @@ $ terragrunt plan-all --strict-control plan-all
 Again, you can also use the environment variable, which might be more useful in CI/CD pipelines:
 
 ```bash
-$ TERRAGRUNT_STRICT_CONTROL='plan-all' terragrunt plan-all
+$ TG_STRICT_CONTROL='plan-all' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
@@ -84,7 +84,7 @@ $ terragrunt apply-all --strict-control plan-all --strict-control apply-all
 You can also enable multiple strict controls at once when using the environment variable by using a comma-delimited list.
 
 ```bash
-$ TERRAGRUNT_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
+$ TG_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
 15:26:46.521 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 15:26:46.521 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 15:26:46.564 ERROR  The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead.

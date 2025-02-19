@@ -1,0 +1,102 @@
+---
+title: Overview
+description: Learn how the Terragrunt CLI works
+slug: docs/reference/cli
+sidebar:
+  order: 1
+---
+
+import { Aside, Badge, LinkCard } from '@astrojs/starlight/components';
+import { getCollection, getEntry } from 'astro:content';
+export const openTofuShortcutsEntry = await getEntry('docs', 'docs/reference/cli/commands/opentofu-shortcuts');
+export const mainCommands = [
+    await getEntry('docs', 'docs/reference/cli/commands/run'),
+    await getEntry('docs', 'docs/reference/cli/commands/exec'),
+    await getEntry('docs', 'docs/reference/cli/commands/backend'),
+];
+export const stackCommands = [
+    await getEntry('docs', 'docs/reference/cli/commands/stack/generate'),
+    await getEntry('docs', 'docs/reference/cli/commands/stack/run'),
+    await getEntry('docs', 'docs/reference/cli/commands/stack/output'),
+];
+export const catalogCommands = [
+    await getEntry('docs', 'docs/reference/cli/commands/catalog'),
+    await getEntry('docs', 'docs/reference/cli/commands/scaffold'),
+];
+export const configurationCommands = [
+    await getEntry('docs', 'docs/reference/cli/commands/list'),
+    await getEntry('docs', 'docs/reference/cli/commands/find'),
+    await getEntry('docs', 'docs/reference/cli/commands/hcl'),
+    await getEntry('docs', 'docs/reference/cli/commands/dag'),
+    await getEntry('docs', 'docs/reference/cli/commands/render'),
+    await getEntry('docs', 'docs/reference/cli/commands/info'),
+];
+export const globalFlags = await getEntry('docs', 'docs/reference/cli/global-flags');
+
+The Terragrunt CLI is designed to make it as easy as possible to manage infrastructure at any scale.
+
+To support that design, there are certain patterns that are used throughout the CLI. This document will help you understand those patterns so you can use the CLI more effectively.
+
+## Usage
+
+Most of the time, if you are trying to use Terragrunt to run a command that you would normally run with OpenTofu/Terraform, you can just replace `tofu`/ `terraform` with `terragrunt`.
+
+Terragrunt will pass the command to `tofu`/ `terraform` with the same arguments.
+
+```bash
+terragrunt plan
+```
+
+Terragrunt doesn't always _just_ pass the command. It frequently does some additional processing to make it easier to manage infrastructure at scale. For example, in the previous `plan` command, you wouldn't have to explicitly run `init` like you would with `tofu`/ `terraform`. Terragrunt takes advantage of a feature called [Auto-init](/docs/features/auto-init) to automatically run `init` when necessary.
+
+Using Terragrunt in this way is taking advantage of the **OpenTofu Shortcuts** that Terragrunt provides.
+
+<LinkCard title={openTofuShortcutsEntry.data.title} href={`/${openTofuShortcutsEntry.id}`} description={openTofuShortcutsEntry.data.description} />
+
+Terragrunt also has some other commands that are unique to Terragrunt.
+
+## Main Commands
+
+These are the main commands you will use with Terragrunt:
+
+{
+    mainCommands.map((doc) => (
+        <LinkCard title={doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Stack Commands
+
+These are the commands that are used when working with a `terragrunt.stack.hcl` file:
+
+{
+    stackCommands.map((doc) => (
+        <LinkCard title={"stack " + doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Catalog Commands
+
+These are the commands that are used when working with a Terragrunt catalog:
+
+{
+    catalogCommands.map((doc) => (
+        <LinkCard title={doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Configuration Commands
+
+These are the commands that are used to interact directly with Terragrunt configuration:
+
+{
+    configurationCommands.map((doc) => (
+        <LinkCard title={doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Global Flags
+
+There are some flags that are available to all Terragrunt commands:
+
+<LinkCard title={globalFlags.data.title} href={`/${globalFlags.id}`} description={globalFlags.data.description} />

@@ -186,7 +186,7 @@ Note that each `dependency` block results in a relevant status in the Terragrunt
 
 If any of the units failed to deploy, then Terragrunt will not attempt to deploy the units that depend on them.
 
-**Note**: Not all blocks can access outputs passed by `dependency` blocks. See the section on [Configuration parsing order](/docs/reference/hcl/overview#configuration-parsing-order) for more information.
+**Note**: Not all blocks can access outputs passed by `dependency` blocks. See the section on [Configuration parsing order](/docs/reference/hcl#configuration-parsing-order) for more information.
 
 ### Unapplied dependency and mock outputs
 
@@ -434,7 +434,7 @@ A powerful feature of OpenTofu/Terraform is the ability to [save the result of a
 Terragrunt provides special tooling in `run-all` execution in order to ensure that the saved plan for a `run-all` against a stack has
 a corresponding entry for each unit in the stack in a directory structure that mirrors the stack structure.
 
-To save plan against a stack, use the `--out-dir` flag (or `TERRAGRUNT_OUT_DIR` environment variable) as demonstrated below:
+To save plan against a stack, use the `--out-dir` flag (or `TG_OUT_DIR` environment variable) as demonstrated below:
 
 ```bash
 $ terragrunt run-all plan --out-dir /tmp/tfplan
@@ -465,7 +465,7 @@ terragrunt run-all plan -destroy --out-dir /tmp/tfplan
 terragrunt run-all apply --out-dir /tmp/tfplan
 ```
 
-To save plan in json format use `--json-out-dir` flag (or `TERRAGRUNT_JSON_OUT_DIR` environment variable):
+To save plan in json format use `--json-out-dir` flag (or `TG_JSON_OUT_DIR` environment variable):
 
 ```bash
 terragrunt run-all plan --json-out-dir /tmp/json

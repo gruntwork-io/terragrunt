@@ -24,10 +24,10 @@ Terragrunt Provider Cache is currently considered an experimental feature, so it
 terragrunt run-all apply --provider-cache
 ```
 
-or the environment variable `TERRAGRUNT_PROVIDER_CACHE`:
+or the environment variable `TG_PROVIDER_CACHE`:
 
 ```shell
-TERRAGRUNT_PROVIDER_CACHE=1 terragrunt run-all apply
+TG_PROVIDER_CACHE=1 terragrunt run-all apply
 ```
 
 By default, cached providers are stored in `terragrunt/providers` folder, which is located in the user cache directory:
@@ -44,11 +44,11 @@ terragrunt plan \
 --provider-cache-dir /new/path/to/cache/dir
 ```
 
-or the environment variable `TERRAGRUNT_PROVIDER_CACHE_DIR`:
+or the environment variable `TG_PROVIDER_CACHE_DIR`:
 
 ```shell
-TERRAGRUNT_PROVIDER_CACHE=1 \
-TERRAGRUNT_PROVIDER_CACHE_DIR=/new/path/to/cache/dir \
+TG_PROVIDER_CACHE=1 \
+TG_PROVIDER_CACHE_DIR=/new/path/to/cache/dir \
 terragrunt plan
 ```
 
@@ -61,11 +61,11 @@ terragrunt apply \
 --provider-cache-registry-names example2.com
 ```
 
-or the environment variable `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES`:
+or the environment variable `TG_PROVIDER_CACHE_REGISTRY_NAMES`:
 
 ```shell
-TERRAGRUNT_PROVIDER_CACHE=1 \
-TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES=example1.com,example2.com \
+TG_PROVIDER_CACHE=1 \
+TG_PROVIDER_CACHE_REGISTRY_NAMES=example1.com,example2.com \
 terragrunt apply
 ```
 
@@ -130,9 +130,9 @@ terragrunt apply \
 or using environment variables:
 
 ```shell
-TERRAGRUNT_PROVIDER_CACHE=1 \
-TERRAGRUNT_PROVIDER_CACHE_HOST=192.168.0.100 \
-TERRAGRUNT_PROVIDER_CACHE_PORT=5758 \
-TERRAGRUNT_PROVIDER_CACHE_TOKEN=my-secret \
+TG_PROVIDER_CACHE=1 \
+TG_PROVIDER_CACHE_HOST=192.168.0.100 \
+TG_PROVIDER_CACHE_PORT=5758 \
+TG_PROVIDER_CACHE_TOKEN=my-secret \
 terragrunt apply
 ```
