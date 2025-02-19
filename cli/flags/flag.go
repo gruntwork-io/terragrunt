@@ -51,6 +51,7 @@ func (newFlag *Flag) TakesValue() bool {
 	return !ok || !val
 }
 
+// DeprecatedNames returns all deprecated names for this flag.
 func (newFlag *Flag) DeprecatedNames() []string {
 	var names []string
 

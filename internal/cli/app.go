@@ -73,8 +73,6 @@ type App struct {
 	// library. This library supports bash, zsh and fish. To add support
 	// for other shells, please see that library.
 	AutocompleteInstaller AutocompleteInstaller
-
-	// HandleFlagError
 }
 
 // NewApp returns app new App instance.
