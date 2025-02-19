@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/config"
 	"io"
 	"math"
 	"os"
@@ -886,6 +887,27 @@ func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{
 	}
 
 	opts.Logger.Warnf("Written error signals to %s", signalsFile)
+
+	return nil
+}
+
+func (opts *TerragruntOptions) populateStackValues(ctx context.Context) error {
+
+	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
+
+	stackFile, err := config.ReadStackConfigFile(ctx, opts)
+	if err != nil {
+		return errors.Errorf("Failed to read stack file from %s %v", opts.WorkingDir, err)
+	}
+
+	unitValues := map[string]*cty.Value{}
+
+	for _, unit := range stackFile.Units {
+		path := filepath.Join(opts.WorkingDir, stackDir, unit.Path)
+		unitValues[path] = unit.Values
+	}
+
+	opts.StackValues = NewStackValues(&cty.NilVal, unitValues)
 
 	return nil
 }

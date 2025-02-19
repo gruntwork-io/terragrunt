@@ -42,10 +42,6 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	if err := populateStackValues(ctx, opts); err != nil {
-		return errors.New(err)
-	}
-
 	if err := RunGenerate(ctx, opts); err != nil {
 		return err
 	}
