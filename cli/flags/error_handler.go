@@ -9,10 +9,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const flagHintFmt = "flag `--%s` is not a valid flag for `%s`. Did you mean to use `%s --%s`?"
-
 // ErrorHandler returns `FlagErrHandlerFunc` which takes a flag parsing error
-// and tries to suggest the correct command to use that flag. Otherwise returns the error as is.
+// and tries to suggest the correct command to use with this flag. Otherwise returns the error as is.
 func ErrorHandler(commands cli.Commands) cli.FlagErrHandlerFunc {
 	return func(ctx *cli.Context, err error) error {
 		var undefinedFlagErr cli.UndefinedFlagError
@@ -23,9 +21,16 @@ func ErrorHandler(commands cli.Commands) cli.FlagErrHandlerFunc {
 		undefFlag := string(undefinedFlagErr)
 
 		if cmds, flag := findFlagInCommands(commands, undefFlag); cmds != nil {
-			flagName := util.FirstElement(util.RemoveEmptyElements(flag.Names()))
+			var (
+				flagHint = util.FirstElement(util.RemoveEmptyElements(flag.Names()))
+				cmdHint  = strings.Join(cmds.Names(), " ")
+			)
 
-			return errors.Errorf(flagHintFmt, undefFlag, ctx.Command.Name, strings.Join(cmds.Names(), " "), flagName)
+			if ctx.Parent().Command == nil {
+				return NewGlobalFlagHintError(undefFlag, cmdHint, flagHint)
+			}
+
+			return NewCommandFlagHintError(ctx.Command.Name, undefFlag, cmdHint, flagHint)
 		}
 
 		return err
