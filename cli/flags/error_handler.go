@@ -57,5 +57,6 @@ func findFlagInCommands(commands cli.Commands, undefFlag string) (cli.Commands, 
 			}
 		}
 	}
+
 	return nil, nil
 }
