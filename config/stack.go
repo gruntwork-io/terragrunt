@@ -20,6 +20,7 @@ const (
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
 type StackConfigFile struct {
 	Locals *terragruntLocal `hcl:"locals,block"`
+	Stacks []*Stack         `hcl:"stack,block"`
 	Units  []*Unit          `hcl:"unit,block"`
 }
 
@@ -29,6 +30,13 @@ type Unit struct {
 	Source string     `hcl:"source,attr"`
 	Path   string     `hcl:"path,attr"`
 	Values *cty.Value `hcl:"values,attr"`
+}
+
+// Stack represents the stack block in the configuration.
+type Stack struct {
+	Name   string `hcl:",label"`
+	Source string `hcl:"source,attr"`
+	Path   string `hcl:"path,attr"`
 }
 
 // ReadOutputs reads the outputs from the unit.
