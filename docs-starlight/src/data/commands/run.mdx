@@ -4,6 +4,9 @@ path: run
 sidebar:
   order: 1
 description: 'Run OpenTofu/Terraform commands.'
+experiment:
+  control: cli-redesign
+  name: CLI Redesign
 usage: |
   Run a command, passing arguments to an orchestrated tofu/terraform binary.
 
@@ -252,9 +255,6 @@ flags:
     type: bool
     env:
       - TG_USE_PARTIAL_PARSE_CONFIG_CACHE
-experiment:
-  control: cli-redesign
-  name: CLI Redesign
 ---
 
 ## Running multiple units

@@ -4,6 +4,10 @@ description: Interact with the Directed Acyclic Graph (DAG).
 slug: docs/reference/cli/commands/dag
 sidebar:
   order: 12
+  badge:
+    text: exp
+    variant: tip
+
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->

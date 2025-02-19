@@ -15,6 +15,7 @@ const docs = defineCollection({
 
 	)
 });
+
 const commands = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/commands" }),
 	schema: z.object({

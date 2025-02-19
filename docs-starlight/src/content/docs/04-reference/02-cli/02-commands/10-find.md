@@ -4,6 +4,10 @@ description: Find relevant Terragrunt configurations.
 slug: docs/reference/cli/commands/find
 sidebar:
   order: 10
+  badge:
+    text: exp
+    variant: tip
+
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->

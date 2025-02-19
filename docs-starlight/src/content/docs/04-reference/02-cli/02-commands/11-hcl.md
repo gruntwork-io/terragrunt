@@ -4,6 +4,10 @@ description: Interact directly with Terragrunt HCL files.
 slug: docs/reference/cli/commands/hcl
 sidebar:
   order: 11
+  badge:
+    text: exp
+    variant: tip
+
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->
