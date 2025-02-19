@@ -24,33 +24,8 @@ const (
 )
 
 // NewFlags builds the flags for stack.
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-
-	return cli.Flags{
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        OutputFormatFlagName,
-			EnvVars:     tgPrefix.EnvVars(OutputFormatFlagName),
-			Destination: &opts.StackOutputFormat,
-			Usage:       "Stack output format. Valid values are: json, raw",
-		}),
-		flags.NewFlag(&cli.BoolFlag{
-			Name:  RawFormatFlagName,
-			Usage: "Stack output in raw format",
-			Action: func(ctx *cli.Context, value bool) error {
-				opts.StackOutputFormat = rawOutputFormat
-				return nil
-			},
-		}),
-		flags.NewFlag(&cli.BoolFlag{
-			Name:  JSONFormatFlagName,
-			Usage: "Stack output in json format",
-			Action: func(ctx *cli.Context, value bool) error {
-				opts.StackOutputFormat = jsonOutputFormat
-				return nil
-			},
-		}),
-	}
+func NewFlags(_ *options.TerragruntOptions) cli.Flags {
+	return cli.Flags{}
 }
 
 // NewCommand builds the command for stack.
@@ -59,7 +34,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:                 CommandName,
 		Usage:                "Terragrunt stack commands.",
 		ErrorOnUndefinedFlag: true,
-		Flags:                NewFlags(opts, nil).Sort(),
+		Flags:                NewFlags(opts).Sort(),
 		Subcommands: cli.Commands{
 			&cli.Command{
 				Name:  generateCommandName,
@@ -86,6 +61,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 					}
 					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx), index)
 				},
+				Flags: outputFlags(opts, nil),
 			},
 			&cli.Command{
 				Name:  cleanCommandName,
@@ -96,5 +72,34 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			},
 		},
 		Action: cli.ShowCommandHelp,
+	}
+}
+
+func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	return cli.Flags{
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        OutputFormatFlagName,
+			EnvVars:     tgPrefix.EnvVars(OutputFormatFlagName),
+			Destination: &opts.StackOutputFormat,
+			Usage:       "Stack output format. Valid values are: json, raw",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:  RawFormatFlagName,
+			Usage: "Stack output in raw format",
+			Action: func(ctx *cli.Context, value bool) error {
+				opts.StackOutputFormat = rawOutputFormat
+				return nil
+			},
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:  JSONFormatFlagName,
+			Usage: "Stack output in json format",
+			Action: func(ctx *cli.Context, value bool) error {
+				opts.StackOutputFormat = jsonOutputFormat
+				return nil
+			},
+		}),
 	}
 }

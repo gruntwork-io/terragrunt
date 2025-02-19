@@ -107,8 +107,10 @@ func (err InvalidValueError) Unwrap() error {
 	return err.underlyingError
 }
 
+const ErrFlagUndefined = "flag provided but not defined:"
+
 type UndefinedFlagError string
 
-func (err UndefinedFlagError) Error() string {
-	return string(err)
+func (flag UndefinedFlagError) Error() string {
+	return ErrFlagUndefined + " -" + string(flag)
 }

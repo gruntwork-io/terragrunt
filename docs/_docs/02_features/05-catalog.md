@@ -16,7 +16,7 @@ Launch the user interface for searching and managing your module catalog.
 Example:
 
 ```bash
-terragrunt catalog <repo-url> [--no-include-root] [--root-file-name]
+terragrunt catalog <repo-url> [--no-include-root] [--root-file-name] [--output-folder]
 ```
 
 [![screenshot](/assets/img/screenshots/catalog-screenshot.png){: width="50%" }](https://terragrunt.gruntwork.io/assets/img/screenshots/catalog-screenshot.png)
@@ -52,3 +52,4 @@ The following `catalog` flags control behavior of the underlying `scaffold` comm
 
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
 - `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
+- `--output-folder` - Location for generated `terragrunt.hcl`. If flag is not provided current working directory is selected.

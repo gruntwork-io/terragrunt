@@ -51,6 +51,21 @@ func (newFlag *Flag) TakesValue() bool {
 	return !ok || !val
 }
 
+// DeprecatedNames returns all deprecated names for this flag.
+func (newFlag *Flag) DeprecatedNames() []string {
+	var names []string
+
+	if flag, ok := newFlag.Flag.(interface{ DeprecatedNames() []string }); ok {
+		names = flag.DeprecatedNames()
+	}
+
+	for _, deprecated := range newFlag.deprecatedFlags {
+		names = append(names, deprecated.Names()...)
+	}
+
+	return names
+}
+
 // Value implements `cli.Flag` interface.
 func (newFlag *Flag) Value() cli.FlagValue {
 	for _, deprecatedFlag := range newFlag.deprecatedFlags {
