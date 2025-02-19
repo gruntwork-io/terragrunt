@@ -20,7 +20,7 @@ const commands = defineCollection({
 	schema: z.object({
 		name: z.string(),
 		description: z.string(),
-		path: z.string(),
+		path: z.string().regex(/^[a-z0-9-/]+$/),
 		sidebar: z.object({
 			parent: z.string().optional(),
 			order: z.number(),

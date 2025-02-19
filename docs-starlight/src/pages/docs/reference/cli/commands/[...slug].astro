@@ -5,6 +5,8 @@ import { getCollection } from 'astro:content';
 import { getHeadings } from '@lib/commands/headings';
 import { getSidebar } from '@lib/commands/sidebar';
 
+export const prerender = true;
+
 export async function getStaticPaths() {
 	const commands = await getCollection('commands');
 

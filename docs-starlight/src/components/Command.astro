@@ -1,25 +1,16 @@
 ---
 import { Aside, Badge, Code, Card } from '@astrojs/starlight/components';
 import { getEntry, render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
 const { path } = Astro.props;
 
-const command = await getEntry('commands', path);
+const command = await getEntry('commands', path) as CollectionEntry<'commands'>;
 
 const data = command?.data;
 
 const usage = data?.usage;
 const { Content } = await render(command);
 ---
-
-<style>
-  .anchor-link:link { text-decoration: none; }
-  .anchor-link:visited { text-decoration: none; }
-  .anchor-link:hover { text-decoration: none; }
-  .anchor-link:active { text-decoration: none; }
-  .anchor-link {
-    float: right;
-  }
-</style>
 
 {
   data?.experiment ? (
@@ -39,7 +30,7 @@ const { Content } = await render(command);
 
 {
   data?.examples ? (
-  <h2>Examples</h2>
+  <h2 id="examples">Examples</h2>
   <div>
     {data?.examples.map((example) => (
       example && (
