@@ -1,0 +1,28 @@
+---
+import { Image } from 'astro:assets';
+import gruntworkG from '@assets/gruntwork-g-social.png';
+
+const title = Astro.props.title;
+---
+
+<style>
+  div {
+    display: flex;
+    align-items: center;
+  }
+  .grunty-header-image {
+    margin-top: 3em;
+    margin-right: 0.5em;
+  }
+</style>
+
+<div>
+  <Image
+    class="grunty-header-image"
+    src={gruntworkG}
+    alt="Grunty"
+    width="50"
+    height="50"
+  />
+  <h2>{title}</h2>
+</div>
