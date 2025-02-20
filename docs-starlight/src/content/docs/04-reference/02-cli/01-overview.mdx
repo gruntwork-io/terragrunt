@@ -12,7 +12,11 @@ export const openTofuShortcutsEntry = await getEntry('docs', 'docs/reference/cli
 export const mainCommands = [
     await getEntry('docs', 'docs/reference/cli/commands/run'),
     await getEntry('docs', 'docs/reference/cli/commands/exec'),
-    await getEntry('docs', 'docs/reference/cli/commands/backend'),
+];
+export const backendCommands = [
+    await getEntry('docs', 'docs/reference/cli/commands/backend/bootstrap'),
+    await getEntry('docs', 'docs/reference/cli/commands/backend/migrate'),
+    await getEntry('docs', 'docs/reference/cli/commands/backend/delete'),
 ];
 export const stackCommands = [
     await getEntry('docs', 'docs/reference/cli/commands/stack/generate'),
@@ -62,6 +66,16 @@ These are the main commands you will use with Terragrunt:
 {
     mainCommands.map((doc) => (
         <LinkCard title={doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Backend Commands
+
+These are the commands that are used when working with OpenTofu/Terraform state backends:
+
+{
+    backendCommands.map((doc) => (
+        <LinkCard title={"backend " + doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
     ))
 }
 
