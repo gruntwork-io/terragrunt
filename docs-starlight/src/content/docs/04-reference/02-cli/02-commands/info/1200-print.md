@@ -1,9 +1,9 @@
 ---
-title: hcl
-description: Interact directly with Terragrunt HCL files.
-slug: docs/reference/cli/commands/hcl
+title: print
+description: Print out a short description of Terragrunt context.
+slug: docs/reference/cli/commands/info/print
 sidebar:
-  order: 900
+  order: 1200
   badge:
     text: exp
     variant: tip

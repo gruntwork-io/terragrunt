@@ -1,9 +1,9 @@
 ---
-title: info
-description: Information on Terragrunt context.
-slug: docs/reference/cli/commands/info
+title: graph
+description: Graph the Directed Acyclic Graph (DAG) in DOT language.
+slug: docs/reference/cli/commands/dag/graph
 sidebar:
-  order: 1200
+  order: 1000
   badge:
     text: exp
     variant: tip

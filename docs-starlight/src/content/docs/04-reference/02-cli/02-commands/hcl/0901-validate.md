@@ -1,9 +1,9 @@
 ---
-title: dag
-description: Interact with the Directed Acyclic Graph (DAG).
-slug: docs/reference/cli/commands/dag
+title: validate
+description: Recursively find HashiCorp Configuration Language (HCL) files and validate them.
+slug: docs/reference/cli/commands/hcl/validate
 sidebar:
-  order: 1000
+  order: 900
   badge:
     text: exp
     variant: tip

@@ -8,33 +8,48 @@ sidebar:
 
 import { Aside, Badge, LinkCard } from '@astrojs/starlight/components';
 import { getCollection, getEntry } from 'astro:content';
-export const openTofuShortcutsEntry = await getEntry('docs', 'docs/reference/cli/commands/opentofu-shortcuts');
-export const mainCommands = [
-    await getEntry('docs', 'docs/reference/cli/commands/run'),
-    await getEntry('docs', 'docs/reference/cli/commands/exec'),
-];
-export const backendCommands = [
-    await getEntry('docs', 'docs/reference/cli/commands/backend/bootstrap'),
-    await getEntry('docs', 'docs/reference/cli/commands/backend/migrate'),
-    await getEntry('docs', 'docs/reference/cli/commands/backend/delete'),
-];
-export const stackCommands = [
-    await getEntry('docs', 'docs/reference/cli/commands/stack/generate'),
-    await getEntry('docs', 'docs/reference/cli/commands/stack/run'),
-    await getEntry('docs', 'docs/reference/cli/commands/stack/output'),
-];
-export const catalogCommands = [
-    await getEntry('docs', 'docs/reference/cli/commands/catalog'),
-    await getEntry('docs', 'docs/reference/cli/commands/scaffold'),
-];
+export const commands = await getCollection('commands');
+
+export const openTofuShortcutsEntry = commands.filter((command) => command.data.path === 'opentofu-shortcuts')[0];
+
+export const mainCommands = commands.filter((command) => {
+    return command.data.path === 'run' || command.data.path === 'exec';
+});
+
+export const backendCommands = commands.filter((command) => {
+    return command.data.path.startsWith('backend');
+});
+
+export const stackCommands = commands.filter((command) => {
+    return command.data.path.startsWith('stack');
+});
+
+export const catalogCommands = commands.filter((command) => {
+    return command.data.path.startsWith('catalog');
+});
+
+export const discoveryCommands = commands.filter((command) => {
+    return command.data.path === 'list' || command.data.path === 'find'
+});
+
+export const hclCommands = commands.filter((command) => {
+    return command.data.path.startsWith('hcl');
+});
+
+export const dagCommands = commands.filter((command) => {
+    return command.data.path.startsWith('dag');
+});
+
+export const renderCommands = commands.filter((command) => {
+    return command.data.path === 'render';
+});
+
 export const configurationCommands = [
-    await getEntry('docs', 'docs/reference/cli/commands/list'),
-    await getEntry('docs', 'docs/reference/cli/commands/find'),
-    await getEntry('docs', 'docs/reference/cli/commands/hcl'),
-    await getEntry('docs', 'docs/reference/cli/commands/dag'),
-    await getEntry('docs', 'docs/reference/cli/commands/render'),
-    await getEntry('docs', 'docs/reference/cli/commands/info'),
+    ...hclCommands,
+    ...dagCommands,
+    ...renderCommands,
 ];
+
 export const globalFlags = await getEntry('docs', 'docs/reference/cli/global-flags');
 
 The Terragrunt CLI is designed to make it as easy as possible to manage infrastructure at any scale.
@@ -55,7 +70,7 @@ Terragrunt doesn't always _just_ pass the command. It frequently does some addit
 
 Using Terragrunt in this way is taking advantage of the **OpenTofu Shortcuts** that Terragrunt provides.
 
-<LinkCard title={openTofuShortcutsEntry.data.title} href={`/${openTofuShortcutsEntry.id}`} description={openTofuShortcutsEntry.data.description} />
+<LinkCard title={openTofuShortcutsEntry.data.name} href={`/docs/reference/cli/commands/${openTofuShortcutsEntry.id}`} description={openTofuShortcutsEntry.data.description} />
 
 Terragrunt also has some other commands that are unique to Terragrunt.
 
@@ -65,7 +80,7 @@ These are the main commands you will use with Terragrunt:
 
 {
     mainCommands.map((doc) => (
-        <LinkCard title={doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -75,7 +90,7 @@ These are the commands that are used when working with OpenTofu/Terraform state 
 
 {
     backendCommands.map((doc) => (
-        <LinkCard title={"backend " + doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={"backend " + doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -85,7 +100,7 @@ These are the commands that are used when working with a `terragrunt.stack.hcl` 
 
 {
     stackCommands.map((doc) => (
-        <LinkCard title={"stack " + doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={"stack " + doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -95,7 +110,17 @@ These are the commands that are used when working with a Terragrunt catalog:
 
 {
     catalogCommands.map((doc) => (
-        <LinkCard title={doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Discovery Commands
+
+These are the commands that are used to discover units in your Terragrunt project:
+
+{
+    discoveryCommands.map((doc) => (
+        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -105,7 +130,7 @@ These are the commands that are used to interact directly with Terragrunt config
 
 {
     configurationCommands.map((doc) => (
-        <LinkCard title={doc.data.title} href={`/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
