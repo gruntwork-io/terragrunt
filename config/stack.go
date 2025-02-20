@@ -3,8 +3,13 @@ package config
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -14,7 +19,9 @@ import (
 )
 
 const (
-	stackDir = ".terragrunt-stack"
+	stackDir       = ".terragrunt-stack"
+	unitValuesFile = "terragrunt.values.hcl"
+	defaultPerms   = 0755
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -85,6 +92,50 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions) (
 	}
 
 	return config, nil
+}
+
+// WriteUnitValues generate unit values to the terragrunt.stack.hcl file.
+func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory string) error {
+	filePath := filepath.Join(unitDirectory, unitValuesFile)
+	if unit.Values == nil {
+		opts.Logger.Debugf("No values to write for unit %s in %s", unit.Name, filePath)
+		return nil
+	}
+	opts.Logger.Debugf("Writing values for unit %s in %s", unit.Name, filePath)
+	file := hclwrite.NewEmptyFile()
+	body := file.Body()
+	for key, val := range unit.Values.AsValueMap() {
+		body.SetAttributeValue(key, val)
+	}
+	if err := os.WriteFile(filePath, file.Bytes(), defaultPerms); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ReadUnitValues reads the unit values from the terragrunt.values.hcl file.
+func ReadUnitValues(ctx context.Context, opts *options.TerragruntOptions, unitDirectory string) (map[string]cty.Value, error) {
+	filePath := filepath.Join(unitDirectory, unitValuesFile)
+	if !util.FileNotExists(filePath) {
+		return nil, nil
+	}
+	opts.Logger.Debugf("Reading Terragrunt stack values file at %s", filePath)
+
+	parser := NewParsingContext(ctx, opts)
+
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(opts.TerragruntStackConfigPath)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+	// empty eval context to parse values only
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{},
+	}
+	values := map[string]cty.Value{}
+	if err := file.Decode(&values, evalCtx); err != nil {
+		return nil, errors.New(err)
+	}
+	return values, nil
 }
 
 // ValidateStackConfig validates a StackConfigFile instance according to the rules:

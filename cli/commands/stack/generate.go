@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2/hclwrite"
-
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -82,27 +80,11 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		}
 
 		// generate unit values file
-		if unit.Values != nil {
-			if err := writeUnitValues(unit, dest); err != nil {
-				return errors.New(err)
-			}
+		if err := config.WriteUnitValues(opts, unit, dest); err != nil {
+			return errors.New(err)
 		}
-
 	}
 
-	return nil
-}
-
-func writeUnitValues(unit *config.Unit, dest string) error {
-	values := unit.Values
-	file := hclwrite.NewEmptyFile()
-	body := file.Body()
-	for key, val := range values.AsValueMap() {
-		body.SetAttributeValue(key, val)
-	}
-	if err := os.WriteFile(filepath.Join(dest, stackValuesFile), file.Bytes(), defaultPerms); err != nil {
-		return err
-	}
 	return nil
 }
 

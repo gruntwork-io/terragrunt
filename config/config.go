@@ -42,6 +42,7 @@ const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
 	RecommendedParentConfigName     = "root.hcl"
+	StackValuesFile                 = "terragrunt.values.hcl"
 
 	FoundInFile = "found_in_file"
 

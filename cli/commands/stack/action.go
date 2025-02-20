@@ -17,7 +17,6 @@ import (
 const (
 	stackDir         = ".terragrunt-stack"
 	defaultStackFile = "terragrunt.stack.hcl"
-	stackValuesFile  = "terragrunt.values.hcl"
 	defaultPerms     = 0755
 )
 
