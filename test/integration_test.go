@@ -3754,6 +3754,8 @@ func TestTerragruntInfoError(t *testing.T) {
 func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	t.Parallel()
 
+	config.ClearOutputCache()
+
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
@@ -3781,6 +3783,10 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 	t.Parallel()
 
+	t.Cleanup(func() {
+		config.ClearOutputCache()
+	})
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
@@ -3805,6 +3811,8 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 
 func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 	t.Parallel()
+
+	config.ClearOutputCache()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -3858,6 +3866,9 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	t.Parallel()
 
+	// clear dependencies output cache
+	config.ClearOutputCache()
+
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
@@ -3892,6 +3903,8 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 
 func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	t.Parallel()
+
+	config.ClearOutputCache()
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
