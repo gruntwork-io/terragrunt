@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2/hclwrite"
+
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -22,6 +24,7 @@ const (
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
+	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 
 	if err != nil {
@@ -37,7 +40,7 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
 	baseDir := filepath.Join(opts.WorkingDir, stackDir)
-	if err := os.MkdirAll(baseDir, dirPerm); err != nil {
+	if err := os.MkdirAll(baseDir, defaultPerms); err != nil {
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
 
@@ -69,7 +72,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 				return errors.New(err)
 			}
 		} else {
-			if err := os.MkdirAll(dest, dirPerm); err != nil {
+			if err := os.MkdirAll(dest, defaultPerms); err != nil {
 				return errors.New(err)
 			}
 
@@ -77,8 +80,29 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 				return errors.New(err)
 			}
 		}
+
+		// generate unit values file
+		if unit.Values != nil {
+			if err := writeUnitValues(unit, dest); err != nil {
+				return errors.New(err)
+			}
+		}
+
 	}
 
+	return nil
+}
+
+func writeUnitValues(unit *config.Unit, dest string) error {
+	values := unit.Values
+	file := hclwrite.NewEmptyFile()
+	body := file.Body()
+	for key, val := range values.AsValueMap() {
+		body.SetAttributeValue(key, val)
+	}
+	if err := os.WriteFile(filepath.Join(dest, stackValuesFile), file.Bytes(), defaultPerms); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -5,9 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/zclconf/go-cty/cty"
-
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 
@@ -20,17 +17,14 @@ import (
 const (
 	stackDir         = ".terragrunt-stack"
 	defaultStackFile = "terragrunt.stack.hcl"
-	dirPerm          = 0755
+	stackValuesFile  = "terragrunt.values.hcl"
+	defaultPerms     = 0755
 )
 
 // RunGenerate runs the stack command.
 func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err := checkStackExperiment(opts); err != nil {
 		return err
-	}
-
-	if err := populateStackValues(ctx, opts); err != nil {
-		return errors.New(err)
 	}
 
 	return generateStack(ctx, opts)
@@ -40,10 +34,6 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err := checkStackExperiment(opts); err != nil {
 		return err
-	}
-
-	if err := populateStackValues(ctx, opts); err != nil {
-		return errors.New(err)
 	}
 
 	if err := RunGenerate(ctx, opts); err != nil {
@@ -59,10 +49,6 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
 	if err := checkStackExperiment(opts); err != nil {
 		return err
-	}
-
-	if err := populateStackValues(ctx, opts); err != nil {
-		return errors.New(err)
 	}
 
 	// collect outputs
@@ -115,26 +101,6 @@ func checkStackExperiment(opts *options.TerragruntOptions) error {
 	if !opts.Experiments.Evaluate(experiment.Stacks) {
 		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
-
-	return nil
-}
-
-func populateStackValues(ctx context.Context, opts *options.TerragruntOptions) error {
-	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
-
-	stackFile, err := config.ReadStackConfigFile(ctx, opts)
-	if err != nil {
-		return errors.Errorf("Failed to read stack file from %s %v", opts.WorkingDir, err)
-	}
-
-	unitValues := map[string]*cty.Value{}
-
-	for _, unit := range stackFile.Units {
-		path := filepath.Join(opts.WorkingDir, stackDir, unit.Path)
-		unitValues[path] = unit.Values
-	}
-
-	opts.StackValues = options.NewStackValues(&cty.NilVal, unitValues)
 
 	return nil
 }
