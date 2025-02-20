@@ -1,0 +1,25 @@
+---
+name: delete
+path: backend/delete
+sidebar:
+  order: 302
+description: Delete backend state used by a unit.
+usage: |
+  Delete backend state used by a unit.
+experiment:
+  control: cli-redesign
+  name: cli redesign
+examples:
+  - description: |
+      Delete backend state for the current unit.
+    code: |
+      terragrunt backend delete
+  - description: |
+      Delete backend state for the current unit without confirmation.
+    code: |
+      terragrunt backend delete --non-interactive
+  - description: |
+      Delete backend state for the current unit, even if it doesn't have versioning enabled.
+    code: |
+      terragrunt backend delete --force
+---

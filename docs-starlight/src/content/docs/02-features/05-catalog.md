@@ -8,8 +8,6 @@ sidebar:
 
 Launch the user interface for searching and managing your module catalog.
 
-Example:
-
 ```bash
 terragrunt catalog <repo-url> [--no-include-root] [--root-file-name]
 ```

@@ -1,13 +1,12 @@
 ---
-title: hcl
-description: Interact directly with Terragrunt HCL files.
-slug: docs/reference/cli/commands/hcl
+title: delete
+description: Delete OpenTofu/Terraform state.
+slug: docs/reference/cli/commands/backend/delete
 sidebar:
-  order: 11
+  order: 302
   badge:
     text: exp
     variant: tip
-
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->

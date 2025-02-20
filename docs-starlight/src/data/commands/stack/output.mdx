@@ -2,11 +2,158 @@
 name: output
 path: stack/output
 sidebar:
-  order: 6
+  order: 402
 description: Get outputs from a stack of units.
 usage: |
-  Retrieve outputs from units in a stack.
+  The `terragrunt stack output` command allows users to retrieve and interact with outputs from multiple units within a Terragrunt stack.
+
+  This feature simplifies handling infrastructure outputs by consolidating them into a single view.
 experiment:
   control: stacks
   name: Stacks
+flags:
+  - name: format
+    description: Format stack output. (json, raw).
+    type: string
+    env:
+      - TG_FORMAT
+  - name: json
+    description: Format stack output as JSON. Alias for --format json.
+    type: bool
+    env:
+      - TG_JSON
+  - name: raw
+    description: Format stack output as raw string. Alias for --format raw.
+    type: bool
+    env:
+      - TG_RAW
 ---
+
+Executing `terragrunt stack output` in a stack directory produces an aggregated output from all units within the stack:
+
+```bash
+$ terragrunt stack output
+service.output1 = "output1"
+service.output2 = "output2"
+db.output1 = "output1"
+db.output2 = "output2"
+```
+
+## Indexing outputs
+
+To retrieve outputs for a specific unit, specify the unit name:
+
+```bash
+$ terragrunt stack output project1_app1
+project1_app1 = {
+  complex = {
+    delta     = 0.02
+    id        = 2
+    name      = "name1"
+    timestamp = "2025-02-07T21:05:51Z"
+  }
+  complex_list = [{
+    delta     = 0.02
+    id        = 10
+    name      = "name1"
+    timestamp = "2025-02-07T21:05:51Z"
+    }, {
+    delta     = 0.03
+    id        = 20
+    name      = "name10"
+    timestamp = "2025-02-07T21:05:51Z"
+  }]
+  custom_value1 = "value1"
+  data          = "app1"
+  list          = ["1", "2", "3"]
+}
+```
+
+You can also retrieve a specific output from a unit:
+
+```bash
+$ terragrunt stack output project1_app1.custom_value1
+project1_app1.custom_value1 = "value1"
+```
+
+## Output formats
+
+Terragrunt provides multiple output formats for easier parsing and integration with other tools. The desired format can be specified using the `--format` CLI flag.
+
+| Format    | Description                                                                     |
+|-----------|---------------------------------------------------------------------------------|
+| `default` | Format output as HCL.                                                           |
+| `json`    | Format output as JSON. This can be useful for integrations with other tools.    |
+| `raw`     | Format output as a simple raw string. Useful for integration into bash scripts. |
+
+To retrieve outputs in structured JSON format:
+
+```bash
+$ terragrunt stack output --format json project1_app2
+{
+  "project1_app2": {
+    "complex": {
+      "delta": 0.02,
+      "id": 2,
+      "name": "name2",
+      "timestamp": "2025-02-07T21:05:51Z"
+    },
+    "complex_list": [
+      {
+        "delta": 0.02,
+        "id": 2,
+        "name": "name2",
+        "timestamp": "2025-02-07T21:05:51Z"
+      },
+      {
+        "delta": 0.03,
+        "id": 2,
+        "name": "name3",
+        "timestamp": "2025-02-07T21:05:51Z"
+      }
+    ],
+    "custom_value2": "value2",
+    "data": "app2",
+    "list": [
+      "a",
+      "b",
+      "c"
+    ]
+  }
+}
+```
+
+### json format
+
+Accessing a specific list inside JSON format:
+
+```bash
+$ terragrunt stack output --format json project1_app2.complex_list
+{
+  "project1_app2.complex_list": [
+    {
+      "delta": 0.02,
+      "id": 2,
+      "name": "name2",
+      "timestamp": "2025-02-07T21:05:51Z"
+    },
+    {
+      "delta": 0.03,
+      "id": 2,
+      "name": "name3",
+      "timestamp": "2025-02-07T21:05:51Z"
+    }
+  ]
+}
+```
+
+### raw format
+
+The `raw` format returns outputs as plain values without additional structure. When accessing lists or structured outputs, indexes are required to extract values.
+
+Retrieving a simple value:
+
+```bash
+$ terragrunt stack output --format raw project1_app2.data
+app2
+```

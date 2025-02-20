@@ -1,9 +1,9 @@
 ---
-title: exec
-description: Execute an arbitrary command, wrapped by Terragrunt.
-slug: docs/reference/cli/commands/exec
+title: bootstrap
+description: Interact with OpenTofu/Terraform backend infrastructure.
+slug: docs/reference/cli/commands/backend/bootstrap
 sidebar:
-  order: 2
+  order: 300
   badge:
     text: exp
     variant: tip

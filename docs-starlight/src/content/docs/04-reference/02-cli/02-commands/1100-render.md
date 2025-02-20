@@ -1,9 +1,9 @@
 ---
-title: output
-description: Retrieve outputs from units defined in a terragrunt.stack.hcl file as an aggregated output.
-slug: docs/reference/cli/commands/stack/output
+title: render
+description: Render a simplified, but equivalent Terragrunt config.
+slug: docs/reference/cli/commands/render
 sidebar:
-  order: 6
+  order: 1100
   badge:
     text: exp
     variant: tip
@@ -11,4 +11,3 @@ sidebar:
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->
 <!-- This file is a placeholder to ensure that other pages see commands in their sidebars, and so that the data is accessible in the docs collection. -->
-
