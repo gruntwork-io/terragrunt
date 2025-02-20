@@ -98,8 +98,8 @@ func ValidateStackConfig(config *StackConfigFile) error {
 
 	validationErrors := &errors.MultiError{}
 
-	names := make(map[string]bool)
-	paths := make(map[string]bool)
+	names := make(map[string]bool, len(config.Units))
+	paths := make(map[string]bool, len(config.Units))
 
 	for i, unit := range config.Units {
 		name := strings.TrimSpace(unit.Name)
