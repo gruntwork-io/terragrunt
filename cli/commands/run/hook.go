@@ -106,6 +106,11 @@ func processHooks(
 	terragruntOptions.Logger.Debugf("Detected %d Hooks", len(hooks))
 
 	for _, curHook := range hooks {
+		if curHook.If != nil && !*curHook.If {
+			terragruntOptions.Logger.Debugf("Skipping hook: %s", curHook.Name)
+			continue
+		}
+
 		allPreviousErrors := previousExecErrors.Append(errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
 			err := telemetry.Telemetry(ctx, terragruntOptions, "hook_"+curHook.Name, map[string]interface{}{
