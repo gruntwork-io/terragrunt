@@ -9,4 +9,19 @@ usage: |
 experiment:
   control: cli-redesign
   name: cli redesign
+examples:
+  - description: Discover all HCL files in the current directory, and validate them.
+    code: |
+      terragrunt hcl validate
+flags:
+  - name: json
+    description: Output the result in JSON format.
+    type: bool
+    env:
+      - TG_HCLVALIDATE_JSON
+  - name: show-config-path
+    description: Show a list of files with invalid configuration.
+    type: bool
+    env:
+      - TG_HCLVALIDATE_SHOW_CONFIG_PATH
 ---

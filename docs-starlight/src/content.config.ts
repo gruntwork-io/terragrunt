@@ -29,7 +29,7 @@ const commands = defineCollection({
 		examples: z.array(z.object({
 			code: z.string(),
 			description: z.string().optional(),
-		})).optional(),
+		})),
 		flags: z.array(z.object({
 			name: z.string(),
 			description: z.string(),

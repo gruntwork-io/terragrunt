@@ -9,6 +9,61 @@ usage: |
 experiment:
   control: cli-redesign
   name: CLI Redesign
+examples:
+  - description: |
+      Execute 'echo "Hello, Terragrunt!"' via Terragrunt.
+    code: |
+      terragrunt exec -- echo "Hello, Terragrunt!"
+  - description: |
+      Inspect `main.tf` file of module for Unit
+    code: |
+      terragrunt exec --in-download-dir -- cat main.tf
+flags:
+  - name: auth-provider-cmd
+    description: Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.
+    type: string
+    env:
+      - TG_AUTH_PROVIDER_CMD
+  - name: config
+    description: The path to the Terragrunt config file. Default is terragrunt.hcl.
+    type: string
+    env:
+      - TG_CONFIG
+  - name: download-dir
+    description: The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.
+    type: string
+    env:
+      - TG_DOWNLOAD_DIR
+  - name: iam-assume-role
+    description: Assume the specified IAM role before executing OpenTofu/Terraform.
+    type: string
+    env:
+      - TG_IAM_ASSUME_ROLE
+  - name: iam-assume-role-duration
+    description: Session duration for IAM Assume Role session.
+    type: string
+    env:
+      - TG_IAM_ASSUME_ROLE_DURATION
+  - name: iam-assume-role-session-name
+    description: Name for the IAM Assumed Role session.
+    type: string
+    env:
+      - TG_IAM_ASSUME_ROLE_SESSION_NAME
+  - name: iam-assume-role-web-identity-token
+    description: For AssumeRoleWithWebIdentity, the WebIdentity token.
+    type: string
+    env:
+      - TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN
+  - name: in-download-dir
+    description: Run the provided command in the download directory.
+    type: bool
+    env:
+      - TG_IN_DOWNLOAD_DIR
+  - name: inputs-debug
+    description: Write debug.tfvars to working folder to help root-cause issues.
+    type: bool
+    env:
+      - TG_INPUTS_DEBUG
 ---
 
 ## Difference between `run` and `exec`

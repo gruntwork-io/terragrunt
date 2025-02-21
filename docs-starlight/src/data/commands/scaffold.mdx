@@ -27,6 +27,10 @@ flags:
     type: string
     env:
       - TG_VAR_FILE
+examples:
+  - description: Scaffold a standard MySQL database module as a new unit.
+    code: |
+      terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql
 ---
 
 ```bash

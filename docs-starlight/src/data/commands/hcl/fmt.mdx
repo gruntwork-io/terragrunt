@@ -9,4 +9,34 @@ usage: |
 experiment:
   control: cli-redesign
   name: cli redesign
+examples:
+  - description: Recursively format all HCL files in the current directory.
+    code: |
+      terragrunt hcl fmt
+flags:
+  - name: check
+    description: Enable check mode in the hclfmt command.
+    type: bool
+    env:
+      - TG_HCLFMT_CHECK
+  - name: diff
+    description: Print diff between original and modified file versions when running with 'hclfmt'.
+    type: bool
+    env:
+      - TG_HCLFMT_DIFF
+  - name: exclude-dir
+    description: Skip HCL formatting in given directories.
+    type: string
+    env:
+      - TG_HCLFMT_EXCLUDE_DIR
+  - name: file
+    description: The path to a single hcl file that the hclfmt command should run on.
+    type: string
+    env:
+      - TG_HCLFMT_FILE
+  - name: stdin
+    description: Format HCL from stdin and print result to stdout.
+    type: bool
+    env:
+      - TG_HCLFMT_STDIN
 ---

@@ -11,6 +11,16 @@ usage: |
 experiment:
   control: stacks
   name: Stacks
+examples:
+  - description: Get outputs from a stack of units.
+    code: |
+      terragrunt stack output
+  - description: Get outputs from a stack of units in JSON format.
+    code: |
+      terragrunt stack output --format json
+  - description: Get an output from a stack of units in raw format.
+    code: |
+      terragrunt stack output --format raw app.id
 flags:
   - name: format
     description: Format stack output. (json, raw).
