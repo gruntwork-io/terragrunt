@@ -2,6 +2,7 @@
 import { Aside, Badge, Code, Card } from '@astrojs/starlight/components';
 import { getEntry, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
+
 const { path } = Astro.props;
 
 const command = await getEntry('commands', path) as CollectionEntry<'commands'>;
