@@ -24,7 +24,7 @@ The `STDOUT` and `STDERR` log levels are non-standard, and exist due to Terragru
 
 For the most part, whenever you use Terragrunt to run something using another tool (like OpenTofu or Terraform), Terragrunt will capture the stdout and stderr terminal output from that tool, enrich it with additional information, then _log_ it as `STDOUT` or `STDERR` respectively.
 
-The exception to this is when Terragrunt is running a process in "Headless Mode", where it will instead emit stdout and stderr terminal output to `INFO` and `ERROR` log levels respectively. This happens when
+The exception to this is when Terragrunt is running a process in "Headless Mode", where it will instead emit stdout and stderr terminal output to `INFO` and `ERROR` log levels respectively.
 
 All other log levels are standard, and are used by Terragrunt to log its own messages.
 
