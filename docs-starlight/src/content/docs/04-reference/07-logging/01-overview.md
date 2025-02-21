@@ -109,7 +109,7 @@ Group 1
 
 Here you see two different units being run by Terragrunt concurrently, and stdout/stderr for each being emitted in real time. This is really helpful when managing IaC at scale, as it lets you know exactly what each unit in your stack is doing, and how long it is taking.
 
-It's easier to see the impact of this enrichment if we turn it off, so let's use the [bare](/docs/reference/log-formatting/#bare) preset described in [Log Formatting](/docs/reference/log-formatting).
+It's easier to see the impact of this enrichment if we turn it off, so let's use the [bare](/docs/reference/logging/formatting#bare) preset described in [Log Formatting](/docs/reference/logging/formatting).
 
 ```bash
 $ terragrunt run-all --log-format bare plan
