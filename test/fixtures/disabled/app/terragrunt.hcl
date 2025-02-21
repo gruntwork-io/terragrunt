@@ -22,3 +22,8 @@ dependency "m3" {
     "output3" = "mocked_output3"
   }
 }
+
+dependency "m4" {
+  config_path = "../m4"
+  enabled     = false
+}
