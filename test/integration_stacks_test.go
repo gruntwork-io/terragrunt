@@ -374,6 +374,15 @@ func TestStacksUnitValuesRunInApp1(t *testing.T) {
 	// run apply in generated app1 directory
 	app1Path := util.JoinPath(rootPath, ".terragrunt-stack", "app1")
 	helpers.RunTerragrunt(t, "terragrunt apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+app1Path)
+
+	// Verify the expected outcomes
+	valuesPath := filepath.Join(app1Path, "terragrunt.values.hcl")
+	assert.FileExists(t, valuesPath)
+
+	// Verify the values file content
+	content, err := os.ReadFile(valuesPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "deployment = \"app1\"")
 }
 
 func TestStacksUnitValuesOutput(t *testing.T) {
