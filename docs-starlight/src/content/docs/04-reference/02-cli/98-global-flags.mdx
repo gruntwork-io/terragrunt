@@ -1,0 +1,184 @@
+---
+title: Global Flags
+description: Global flags for the Terragrunt CLI.
+slug: docs/reference/cli/global-flags
+sidebar:
+  order: 98
+---
+
+import Flag from '@components/Flag.astro'
+
+The Terragrunt CLI supports the following global flags:
+
+{/*
+   --experiment value         Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode . [$TG_EXPERIMENT]
+   --experiment-mode          Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode . (default: false) [$TG_EXPERIMENT_MODE]
+   --log-custom-format value  Set the custom log formatting. [$TG_LOG_CUSTOM_FORMAT]
+   --log-disable              Disable logging. (default: false) [$TG_LOG_DISABLE]
+   --log-format value         Set the log format. [$TG_LOG_FORMAT]
+   --log-level value          Sets the logging level for Terragrunt. Supported levels: stderr, stdout, error, warn, info, debug, trace. (default: info) [$TG_LOG_LEVEL]
+   --log-show-abs-paths       Show absolute paths in logs. (default: false) [$TG_LOG_SHOW_ABS_PATHS]
+   --no-color                 Disable color output. (default: false) [$TG_NO_COLOR]
+   --non-interactive          Assume "yes" for all prompts. (default: false) [$TG_NON_INTERACTIVE]
+   --strict-control value     Enables specific strict controls. For a list of available controls, run 'terragrunt info strict'. [$TG_STRICT_CONTROL]
+   --strict-mode              Enables strict mode for Terragrunt. For more information, run 'terragrunt info strict'. (default: false) [$TG_STRICT_MODE]
+   --working-dir value        The path to the directory of Terragrunt configurations. Default is current directory. [$TG_WORKING_DIR]
+   --help, -h                 Show help. (default: false)
+   --version, -v              Show terragrunt version. (default: false)
+*/}
+
+## Experiment
+
+<Flag
+  name="experiment"
+  description="Enables a specific experiment."
+  type="string" 
+  env={["TG_EXPERIMENT"]}
+  moreInfo={{
+    link: "/docs/reference/experiments",
+    description: "For a list of available experiments, see the experiments documentation."
+  }}
+/>
+
+## Experiment Mode
+
+<Flag
+  name="experiment-mode"
+  description="Enables experiment mode for Terragrunt."
+  type="boolean" 
+  env={["TG_EXPERIMENT_MODE"]}
+  moreInfo={{
+    link: "/docs/reference/experiments",
+    description: "For more information, see the experiments documentation."
+  }}
+/>
+
+## Log Custom Format
+
+<Flag
+  name="log-custom-format"
+  description="Set the custom log formatting."
+  type="string"
+  env={["TG_LOG_CUSTOM_FORMAT"]}
+  moreInfo={{
+    link: "/docs/reference/logging/formatting#presets",
+    description: "For more information, see the log formatting documentation."
+  }}
+/>
+
+## Log Disable
+
+<Flag
+  name="log-disable"
+  description="Disable logging."
+  type="boolean"
+  env={["TG_LOG_DISABLE"]}
+/>
+
+## Log Format
+
+<Flag
+  name="log-format"
+  description="Set the log format."
+  type="string"
+  env={["TG_LOG_FORMAT"]}
+  moreInfo={{
+    link: "/docs/reference/logging/formatting",
+    description: "See the presets listed in log formatting documentation."
+  }}
+/>
+
+## Log Level
+
+<Flag
+  name="log-level"
+  description="Sets the logging level for Terragrunt."
+  type="string"
+  env={["TG_LOG_LEVEL"]}
+  moreInfo={{
+    link: "/docs/reference/logging#log-levels",
+    description: "For more information, see the log levels documentation."
+  }}
+/>
+
+## Show Absolute Paths
+
+<Flag
+  name="log-show-abs-paths"
+  description="Show absolute paths in logs."
+  type="boolean"
+  env={["TG_LOG_SHOW_ABS_PATHS"]}
+  moreInfo={{
+    link: "/docs/reference/logging/formatting",
+    description: "For more information, see the log formatting documentation."
+  }}
+/>
+
+## No Color
+
+<Flag
+  name="no-color"
+  description="Disable color output for both Terragrunt and OpenTofu/Terraform."
+  type="boolean"
+  env={["TG_NO_COLOR"]}
+/>
+
+## Non-Interactive
+
+<Flag
+  name="non-interactive"
+  description="Assume 'yes' for all prompts."
+  type="boolean"
+  env={["TG_NON_INTERACTIVE"]}
+/>
+
+## Strict Control
+
+<Flag
+  name="strict-control"
+  description="Enables a specific strict control."
+  type="string"
+  env={["TG_STRICT_CONTROL"]}
+  moreInfo={{
+    link: "/docs/reference/strict-controls",
+    description: "For a list of available strict controls, see the strict controls documentation."
+  }}
+/>
+
+## Strict Mode
+
+<Flag
+  name="strict-mode"
+  description="Enables strict mode for Terragrunt."
+  type="boolean"
+  env={["TG_STRICT_MODE"]}
+  moreInfo={{
+    link: "/docs/reference/strict-controls",
+    description: "For more information, see the strict controls documentation."
+  }}
+/>
+
+## Working Directory
+
+<Flag
+  name="working-dir"
+  description="The path to the directory of Terragrunt configurations."
+  type="string"
+  env={["TG_WORKING_DIR"]}
+/>
+
+## Help
+
+<Flag
+  name="help"
+  description="Show help."
+  type="boolean"
+/>
+
+## Version
+
+<Flag
+  name="version"
+  description="Show Terragrunt version."
+  type="boolean"
+/>

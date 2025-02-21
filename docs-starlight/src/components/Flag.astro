@@ -1,0 +1,37 @@
+---
+import { Badge, Card } from '@astrojs/starlight/components';
+
+interface Props {
+  name: string;
+  description: string;
+  type: string;
+  env?: string[];
+  moreInfo?: {
+    link: string;
+    description: string;
+  };
+}
+
+const { name, description, type, env, moreInfo } = Astro.props;
+
+---
+
+<section id={name} >
+<Card title={"--" + name} icon="custom:terragrunt">
+  <p id={name}>{description}</p>
+    <div>
+    <span>Type: </span><Badge text={type} variant="note" style={{ fontWeight: 'bold' }}/>
+    </div>
+    <p>Environment Variables:</p>
+    <ul>
+      {env?.map((env: string) => (
+        <li><code dir="auto">{env}</code></li>
+      ))}
+    </ul>
+    {moreInfo ? (
+      <p>
+        <a href={moreInfo.link}>{moreInfo.description}</a>
+      </p>
+    ) : null}
+  </Card>
+</section>

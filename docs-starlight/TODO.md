@@ -9,6 +9,8 @@ Here are some of the tasks that need to be completed:
 - [x] **Vercel deployment**
   - [x] **Vercel preview deployments**
   - [x] **Custom domain setup** - [terragrunt-v1.gruntwork.io](https://terragrunt-v1.gruntwork.io)
+- [ ] **Remove the no-index robots.txt**
+- [ ] **Add a sitemap.xml**
 
 ## Content
 - [ ] **Content parity with current docs site**

@@ -33,6 +33,7 @@ export const sidebar = [
 			{ label: 'Experiments', slug: 'docs/reference/experiments' },
 			{ label: 'Supported Versions', slug: 'docs/reference/supported-versions' },
 			{ label: 'Lock Files', slug: 'docs/reference/lock-files' },
+			{ label: 'Logging', autogenerate: { directory: '04-reference/07-logging', collapsed: true } },
 			{ label: 'Terragrunt Cache', slug: 'docs/reference/terragrunt-cache' },
 		],
 	},

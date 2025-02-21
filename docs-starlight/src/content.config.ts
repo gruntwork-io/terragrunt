@@ -12,7 +12,6 @@ const docs = defineCollection({
 				}),
 			}),
 		},
-
 	)
 });
 
@@ -36,6 +35,10 @@ const commands = defineCollection({
 			description: z.string(),
 			env: z.array(z.string()),
 			type: z.string(),
+			moreInfo: z.object({
+				link: z.string(),
+				description: z.string(),
+			}).optional(),
 		})).optional(),
 		experiment: z.object({
 			control: z.string(),
