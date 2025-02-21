@@ -1299,6 +1299,8 @@ The `generate` block supports the following arguments:
   `false`. Optional.
 - `contents` (attribute): The contents of the generated file.
 - `disable` (attribute): Disables this generate block.
+- `hcl_fmt` (attribute): Unless disabled (set to `false`), files with `.hcl`, `.tf`, and `.tofu` extensions will be formatted before being written to disk.
+  If explicitly set to `true`, formatting will be applied to the generated files.
 
 Example:
 
