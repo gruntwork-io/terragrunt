@@ -3780,6 +3780,11 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf(" env1 %s=%s\n", pair[0], pair[1])
+	}
 }
 
 func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
@@ -3809,6 +3814,11 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test", testPath))
 	require.NoError(t, err)
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf(" env1 %s=%s\n", pair[0], pair[1])
+	}
 }
 
 func TestStorePlanFilesJsonRelativePath(t *testing.T) {
