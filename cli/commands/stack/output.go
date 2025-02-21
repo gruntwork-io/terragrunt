@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -20,7 +19,6 @@ import (
 )
 
 func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[string]map[string]cty.Value, error) {
-	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	opts.Logger.Debugf("Generating output from %s", opts.TerragruntStackConfigPath)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 

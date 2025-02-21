@@ -1,0 +1,38 @@
+---
+name: find
+path: find
+sidebar:
+  order: 800
+description: Find relevant Terragrunt configurations.
+usage: |
+  Find Terragrunt configurations in your codebase that match specific criteria.
+experiment:
+  control: cli-redesign
+  name: CLI Redesign
+examples:
+  - description: |
+      Find all units in the current directory.
+    code: |
+      terragrunt find
+  - description: |
+      Find all units and emit them as a JSON string.
+    code: |
+      terragrunt find --format 'json'
+  - description: |
+      Find all units and sort them in the order they would be run in the Directed Acyclic Graph (DAG).
+    code: |
+      terragrunt find --sort 'dag'
+flags:
+  - name: format
+    description: |
+      Format the results as specified. Supported values: (json). default: json.
+    type: string
+    env:
+      - TG_FORMAT
+  - name: sort
+    description: |
+      Sort results in the specified order. Supported values: (dag). default: dag.
+    type: string
+    env:
+      - TG_SORT
+---

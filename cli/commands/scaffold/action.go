@@ -116,6 +116,11 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 		}
 	}()
 
+	outputDir := opts.ScaffoldOutputFolder
+	if outputDir == "" {
+		outputDir = opts.WorkingDir
+	}
+
 	// scaffold only in empty directories
 	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
 		if err != nil {
@@ -149,7 +154,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 		return errors.New(err)
 	}
 
-	opts.Logger.Infof("Scaffolding a new Terragrunt module %s to %s", moduleURL, opts.WorkingDir)
+	opts.Logger.Infof("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
 
 	if _, err := getter.GetAny(ctx, tempDir, moduleURL); err != nil {
 		return errors.New(err)
@@ -188,9 +193,9 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 		opts.Logger.Warnf("The %s variable is already set in the var flag(s). The --%s flag will be ignored.", rootFileName, NoIncludeRootFlagName)
 	}
 
-	opts.Logger.Infof("Running boilerplate generation to %s", opts.WorkingDir)
+	opts.Logger.Infof("Running boilerplate generation to %s", outputDir)
 	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
-		OutputFolder:    opts.WorkingDir,
+		OutputFolder:    outputDir,
 		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
 		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
 		Vars:            vars,
@@ -205,7 +210,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 		return errors.New(err)
 	}
 
-	opts.Logger.Infof("Running fmt on generated code %s", opts.WorkingDir)
+	opts.Logger.Infof("Running fmt on generated code %s", outputDir)
 
 	if err := hclfmt.Run(opts); err != nil {
 		return errors.New(err)

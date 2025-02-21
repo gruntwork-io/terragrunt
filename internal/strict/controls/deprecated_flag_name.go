@@ -2,13 +2,13 @@ package controls
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -40,8 +40,10 @@ func NewDeprecatedMovedFlagName(deprecatedFlag, newFlag cli.Flag, commandName st
 			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
-		ErrorFmt:       "The `--%s` global flag is no longer supported. Use `--%s` instead.",
-		WarningFmt:     "The `--%s` global flag is moved to `" + commandName + "` command and will be removed from the global flags in a future version. Use `--%s` instead.",
+		ErrorFmt: "The global `--%s` flag has moved to the `" + commandName + "` command and is no longer supported as a global flag. Use `%s` instead.",
+		// The second argument to fmt comes with the command name. Output example:
+		// The global `--terragrunt-no-auto-init` flag has moved to the `run` command and will not be accessible as a global flag in a future version of Terragrunt. Use `run --no-auto-init` instead.
+		WarningFmt:     "The global `--%s` flag has moved to the `" + commandName + "` command and will not be accessible as a global flag in a future version of Terragrunt. Use `%s` instead.",
 		deprecatedFlag: deprecatedFlag,
 		newFlag:        newFlag,
 	}
@@ -65,8 +67,10 @@ func NewDeprecatedFlagName(deprecatedFlag, newFlag cli.Flag, newValue string) *D
 			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
-		ErrorFmt:       "The `--%s` flag is no longer supported. Use `--%s` instead.",
-		WarningFmt:     "The `--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.",
+		ErrorFmt: "The `--%s` flag is no longer supported. Use `--%s` instead.",
+		// Output example:
+		// The `--terragrunt-working-dir` flag is deprecated and will be removed in a future version of Terragrunt. Use `--working-dir=./test/fixtures/extra-args/` instead.
+		WarningFmt:     "The `--%s` flag is deprecated and will be removed in a future version of Terragrunt. Use `--%s` instead.",
 		deprecatedFlag: deprecatedFlag,
 		newFlag:        newFlag,
 	}
@@ -79,7 +83,7 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 		flagName  string
 	)
 
-	if valueName == "" || !ctrl.deprecatedFlag.Value().IsArgSet() || slices.Contains(ctrl.newFlag.Names(), valueName) {
+	if valueName == "" || !ctrl.deprecatedFlag.Value().IsArgSet() || !slices.Contains(ctrl.deprecatedFlag.Names(), valueName) {
 		return nil
 	}
 
@@ -105,7 +109,7 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 		return errors.Errorf(ctrl.ErrorFmt, valueName, flagName)
 	}
 
-	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" {
+	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.Suppress {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warnf(ctrl.WarningFmt, valueName, flagName)
 		})

@@ -3,10 +3,10 @@ package creds
 
 import (
 	"context"
+	"maps"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/options"
-	"golang.org/x/exp/maps"
 )
 
 type Getter struct {

@@ -2,11 +2,11 @@ package strict
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"golang.org/x/exp/slices"
 )
 
 const CompletedControlsFmt = "The following strict control(s) are already completed: %s. Please remove any completed strict controls, as setting them no longer does anything. For a list of all ongoing strict controls, and the outcomes of previous strict controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode or get the actual list by running the `terragrunt info strict` command."
@@ -46,6 +46,9 @@ type Control interface {
 
 	// AddSubcontrols adds the given `newCtrls` as subcontrols.
 	AddSubcontrols(newCtrls ...Control)
+
+	// SuppressWarning suppresses the warning message from being displayed.
+	SuppressWarning()
 
 	// Evaluate evaluates the struct control.
 	Evaluate(ctx context.Context) error

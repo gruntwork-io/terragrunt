@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -107,6 +108,7 @@ const (
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
 	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 	testFixtureLogStreaming                   = "fixtures/streaming"
+	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 
 	terraformFolder = ".terraform"
 
@@ -115,6 +117,38 @@ const (
 	terraformStateBackup = "terraform.tfstate.backup"
 	terragruntCache      = ".terragrunt-cache"
 )
+
+func TestCLIFlagHints(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		args          string
+		expectedError error
+	}{
+		{
+			"-raw init",
+			flags.NewGlobalFlagHintError("raw", "stack output", "raw"),
+		},
+		{
+			"run --no-include-root",
+			flags.NewCommandFlagHintError("run", "no-include-root", "catalog", "no-include-root"),
+		},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureCLIFlagHints)
+			rootPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
+			rootPath, err := filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
+
+			_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --working-dir "+rootPath)
+			assert.EqualError(t, err, testCase.expectedError.Error())
+		})
+	}
+}
 
 func TestExecCommand(t *testing.T) {
 	t.Parallel()
@@ -2481,6 +2515,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"execute":         []interface{}{"touch", "before.out"},
 					"working_dir":     nil,
 					"run_on_error":    true,
+					"if":              nil,
 					"suppress_stdout": nil,
 				},
 			},
@@ -2491,6 +2526,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"execute":         []interface{}{"touch", "after.out"},
 					"working_dir":     nil,
 					"run_on_error":    true,
+					"if":              nil,
 					"suppress_stdout": nil,
 				},
 			},
@@ -3027,14 +3063,20 @@ func TestDependenciesOptimisation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependenciesOptimisation)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --non-interactive --log-level trace --working-dir "+rootPath)
 	require.NoError(t, err)
+
+	assert.NotContains( // Check that we're getting a warning for usage of deprecated functionality.
+		t,
+		stderr,
+		"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+	)
 
 	config.ClearOutputCache()
 
 	moduleC := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
 	t.Setenv("TERRAGRUNT_STRICT_CONTROL", "skip-dependencies-inputs")
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+moduleC)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+moduleC)
 	require.NoError(t, err)
 
 	// checking that dependencies optimisation is working and outputs from module-a are not retrieved

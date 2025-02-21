@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli"
@@ -62,13 +61,13 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			[]string{"--foo", "--bar"},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
-			clipkg.UndefinedFlagError("flag provided but not defined: -foo"),
+			clipkg.UndefinedFlagError("foo"),
 		},
 
 		{
 			[]string{"--foo", "apply", "--bar"},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"apply", "-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
-			clipkg.UndefinedFlagError("flag provided but not defined: -foo"),
+			clipkg.UndefinedFlagError("foo"),
 		},
 
 		{
@@ -456,15 +455,13 @@ func TestTerragruntHelp(t *testing.T) {
 func TestTerraformHelp(t *testing.T) {
 	t.Parallel()
 
-	wrappedBinary := options.DefaultWrappedPath
-
 	testCases := []struct {
 		args     []string
 		expected string
 	}{
-		{[]string{"terragrunt", tf.CommandNamePlan, "--help"}, "Usage: " + wrappedBinary + " .* plan"},
-		{[]string{"terragrunt", tf.CommandNameApply, "-help"}, "Usage: " + wrappedBinary + " .* apply"},
-		{[]string{"terragrunt", tf.CommandNameApply, "-h"}, "Usage: " + wrappedBinary + " .* apply"},
+		{[]string{"terragrunt", tf.CommandNamePlan, "--help"}, "(?s)Usage: terragrunt \\[global options\\] plan.*-detailed-exitcode"},
+		{[]string{"terragrunt", tf.CommandNameApply, "-help"}, "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy"},
+		{[]string{"terragrunt", tf.CommandNameApply, "-h"}, "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy"},
 	}
 
 	for _, testCase := range testCases {
@@ -474,10 +471,7 @@ func TestTerraformHelp(t *testing.T) {
 		err := app.Run(testCase.args)
 		require.NoError(t, err)
 
-		expectedRegex, err := regexp.Compile(testCase.expected)
-		require.NoError(t, err)
-
-		assert.Regexp(t, expectedRegex, output.String())
+		assert.Regexp(t, testCase.expected, output.String())
 	}
 }
 
@@ -503,7 +497,7 @@ func setCommandAction(action clipkg.ActionFunc, cmds ...*clipkg.Command) {
 func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	emptyAction := func(ctx *clipkg.Context) error { return nil }
 
-	terragruntCommands := cli.TerragruntCommands(opts)
+	terragruntCommands := commands.New(opts)
 	setCommandAction(emptyAction, terragruntCommands...)
 
 	app := clipkg.NewApp()

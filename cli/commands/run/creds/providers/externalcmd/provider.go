@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
@@ -12,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"golang.org/x/exp/maps"
 )
 
 // Provider runs external command that returns a json string with credentials.

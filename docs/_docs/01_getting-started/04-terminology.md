@@ -52,7 +52,7 @@ A common pattern used in the repository structure for Terragrunt projects is to 
 
 Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via [--config](/docs/reference/cli-options/#config)), and users don't technically need to use a root `root.hcl` file or to name it that. This is a common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
 
-Previously, a best practice recommended by Terragrunt maintainers was to name the root configuration included by units `terragrunt.hcl`. Which might be why you might see a different naming convention in your project. That has since been deprecated. You can learn more about that [here](//docs/migrate/migrating-from-root-terragrunt-hcl).
+Previously, a best practice recommended by Terragrunt maintainers was to name the root configuration included by units `terragrunt.hcl`. Which might be why you might see a different naming convention in your project. That has since been deprecated. You can learn more about that [here](/docs/migrate/migrating-from-root-terragrunt-hcl).
 
 ### Stack
 

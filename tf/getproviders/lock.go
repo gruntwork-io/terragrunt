@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -19,7 +20,6 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
-	"golang.org/x/exp/slices"
 )
 
 // UpdateLockfile updates the dependency lock file. If `.terraform.lock.hcl` does not exist, it will be created, otherwise it will be updated.

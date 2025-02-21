@@ -149,6 +149,7 @@ The `terraform` block supports the following arguments:
   - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
     case of "after" hooks, if the OpenTofu/Terraform command hit an error. Default is false.
   - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on OpenTofu/Terraform's output and any other output would break their parsing.
+  - `if` (optional) : hook will be skipped when the argument is set or evaluates to `false`.
 
 - `after_hook` (block): Nested blocks used to specify command hooks that should be run after `tofu`/`terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
@@ -1160,7 +1161,7 @@ The `dependency` block supports the following arguments:
 - `name` (label): You can define multiple `dependency` blocks in a single terragrunt config. As such, each block needs a
   name to differentiate between the other blocks, which is what the first label of the block is used for. You can
   reference the specific dependency output by the name. E.g if you had a block `dependency "vpc"`, you can reference the
-  outputs and inputs of this dependency with the expressions `dependency.vpc.outputs` and `dependency.vpc.inputs`.
+  outputs of this dependency with the expression `dependency.vpc.outputs`.
 - `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
   as a dependency in this configuration.
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
@@ -1208,7 +1209,6 @@ dependency "rds" {
 }
 
 inputs = {
-  region = dependency.vpn.inputs.region
   vpc_id = dependency.vpc.outputs.vpc_id
   db_url = dependency.rds.outputs.db_url
 }

@@ -4,6 +4,8 @@ package flags
 import (
 	"context"
 	"flag"
+	"io"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 )
@@ -33,37 +35,57 @@ func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn 
 	return NewFlag(nil, WithDeprecatedMovedFlag(deprecatedFlag, newCommandName, regControlsFn))
 }
 
-// TakesValue implements `cli.Flag` interface.
-func (new *Flag) TakesValue() bool {
-	if new.Flag.Value() == nil {
+// TakesValue implements `github.com/urfave/cli.DocGenerationFlag` required to generate help.
+// TakesValue returns `true` for all flags except boolean ones that are `false` or `true` inverted.
+func (newFlag *Flag) TakesValue() bool {
+	if newFlag.Flag.Value() == nil {
 		return false
 	}
 
-	val, ok := new.Flag.Value().Get().(bool)
+	val, ok := newFlag.Flag.Value().Get().(bool)
+
+	if newFlag.Flag.Value().IsNegativeBoolFlag() {
+		val = !val
+	}
 
 	return !ok || !val
 }
 
+// DeprecatedNames returns all deprecated names for this flag.
+func (newFlag *Flag) DeprecatedNames() []string {
+	var names []string
+
+	if flag, ok := newFlag.Flag.(interface{ DeprecatedNames() []string }); ok {
+		names = flag.DeprecatedNames()
+	}
+
+	for _, deprecated := range newFlag.deprecatedFlags {
+		names = append(names, deprecated.Names()...)
+	}
+
+	return names
+}
+
 // Value implements `cli.Flag` interface.
-func (new *Flag) Value() cli.FlagValue {
-	for _, deprecatedFlag := range new.deprecatedFlags {
+func (newFlag *Flag) Value() cli.FlagValue {
+	for _, deprecatedFlag := range newFlag.deprecatedFlags {
 		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue.IsSet() && deprecatedFlag.newValueFn != nil {
 			newValue := deprecatedFlag.newValueFn(deprecatedFlagValue)
-			new.Flag.Value().Set(newValue) //nolint:errcheck
+			newFlag.Flag.Value().Getter(deprecatedFlagValue.GetName()).Set(newValue) //nolint:errcheck
 		}
 	}
 
-	return new.Flag.Value()
+	return newFlag.Flag.Value()
 }
 
 // Apply implements `cli.Flag` interface.
-func (new *Flag) Apply(set *flag.FlagSet) error {
-	if err := new.Flag.Apply(set); err != nil {
+func (newFlag *Flag) Apply(set *flag.FlagSet) error {
+	if err := newFlag.Flag.Apply(set); err != nil {
 		return err
 	}
 
-	for _, deprecated := range new.deprecatedFlags {
-		if deprecated.Flag == new.Flag {
+	for _, deprecated := range newFlag.deprecatedFlags {
+		if deprecated.Flag == newFlag.Flag {
 			if err := cli.ApplyFlag(deprecated, set); err != nil {
 				return err
 			}
@@ -80,13 +102,13 @@ func (new *Flag) Apply(set *flag.FlagSet) error {
 }
 
 // RunAction implements `cli.Flag` interface.
-func (new *Flag) RunAction(ctx *cli.Context) error {
-	for _, deprecated := range new.deprecatedFlags {
+func (newFlag *Flag) RunAction(ctx *cli.Context) error {
+	for _, deprecated := range newFlag.deprecatedFlags {
 		if err := deprecated.Evaluate(ctx); err != nil {
 			return err
 		}
 
-		if deprecated.Flag == nil || deprecated.Flag == new.Flag || !deprecated.Value().IsSet() {
+		if deprecated.Flag == nil || deprecated.Flag == newFlag.Flag || !deprecated.Value().IsSet() {
 			continue
 		}
 
@@ -95,7 +117,7 @@ func (new *Flag) RunAction(ctx *cli.Context) error {
 		}
 	}
 
-	if deprecated, ok := new.Flag.(interface {
+	if deprecated, ok := newFlag.Flag.(interface {
 		Evaluate(ctx context.Context) error
 	}); ok {
 		if err := deprecated.Evaluate(ctx); err != nil {
@@ -103,5 +125,34 @@ func (new *Flag) RunAction(ctx *cli.Context) error {
 		}
 	}
 
-	return new.Flag.RunAction(ctx)
+	return newFlag.Flag.RunAction(ctx)
+}
+
+// Parse parses the given `args` for the flag value and env vars values specified in the flag.
+// The value will be assigned to the `Destination` field.
+// The value can also be retrieved using `flag.Value().Get()`.
+func (newFlag *Flag) Parse(args cli.Args) error {
+	flagSet := flag.NewFlagSet("", flag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+
+	if err := newFlag.Apply(flagSet); err != nil {
+		return err
+	}
+
+	const maxFlagsParse = 1000 // Maximum flags parse
+
+	for range maxFlagsParse {
+		err := flagSet.Parse(args)
+		if err == nil {
+			break
+		}
+
+		if errStr := err.Error(); !strings.HasPrefix(errStr, cli.ErrFlagUndefined) {
+			break
+		}
+
+		args = flagSet.Args()
+	}
+
+	return nil
 }

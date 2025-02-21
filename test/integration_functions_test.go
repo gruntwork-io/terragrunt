@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -178,10 +177,7 @@ func TestGetRepoRootCaching(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
 
-	gitOutput, err := exec.Command("git", "init", rootPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(gitOutput))
-	}
+	helpers.CreateGitRepo(t, rootPath)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
@@ -198,10 +194,7 @@ func TestGetRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
 
-	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
+	helpers.CreateGitRepo(t, rootPath)
 	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -230,10 +223,7 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetWorkingDir))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetWorkingDir)
 
-	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
+	helpers.CreateGitRepo(t, rootPath)
 	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -254,7 +244,7 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	expectedWorkingDir := filepath.Join(rootPath, util.TerragruntCacheDir)
 	curWalkStep := 0
 
-	err = filepath.Walk(expectedWorkingDir,
+	err := filepath.Walk(expectedWorkingDir,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil || !info.IsDir() {
 				return err
@@ -299,11 +289,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	basePath := util.JoinPath(rootPath, "base")
 	clusterPath := util.JoinPath(rootPath, "cluster")
 
-	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
-
+	helpers.CreateGitRepo(t, tmpEnvPath)
 	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -331,11 +317,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathFromRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
-	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
-
+	helpers.CreateGitRepo(t, tmpEnvPath)
 	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
@@ -364,10 +346,7 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathToRepoRoot)
 	helpers.CleanupTerraformFolder(t, rootPath)
 
-	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
+	helpers.CreateGitRepo(t, tmpEnvPath)
 	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty

@@ -1,0 +1,36 @@
+---
+name: scaffold
+path: scaffold
+description: Generate Terragrunt configuration files from a catalog.
+sidebar:
+  order: 600
+usage: |
+  Generate Terragrunt configuration files from a catalog.
+flags:
+  - name: no-include-root
+    description: Disable inclusion of the root module in the generated `terragrunt.hcl` file (equivalent to using `--var=EnableRootInclude=false`, and will be overridden if the corresponding `var` value is set).
+    type: bool
+    env:
+      - TG_NO_INCLUDE_ROOT
+  - name: root-file-name
+    description: Set the name of the root configuration file to include in the generated `terragrunt.hcl` file (equivalent to using `--var=RootFileName=<name>`, and will be overridden if the corresponding `var` value is set).
+    type: string
+    env:
+      - TG_ROOT_FILE_NAME
+  - name: var
+    description: Variable to use for the boilerplate template.
+    type: string
+    env:
+      - TG_VAR
+  - name: var-file
+    description: Variable file to use for the boilerplate template.
+    type: string
+    env:
+      - TG_VAR_FILE
+---
+
+```bash
+terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--no-include-root] [--root-file-name]
+```
+
+For more information on how scaffolding works, see the dedicated [scaffold documentation](/docs/features/scaffold).

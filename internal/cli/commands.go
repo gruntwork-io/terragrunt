@@ -19,6 +19,17 @@ func (commands Commands) Get(name string) *Command {
 	return nil
 }
 
+// Names returns names of the commands.
+func (commands Commands) Names() []string {
+	var names = make([]string, len(commands))
+
+	for i, cmd := range commands {
+		names[i] = cmd.Name
+	}
+
+	return names
+}
+
 // Add adds a new cmd to the list.
 func (commands *Commands) Add(cmd *Command) {
 	*commands = append(*commands, cmd)

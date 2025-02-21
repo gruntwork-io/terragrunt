@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"regexp"
 	"sort"
 	"strconv"
@@ -637,7 +638,7 @@ func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string
 
 // WrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
 func WrappedBinary() string {
-	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
+	value, found := os.LookupEnv("TG_TF_PATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
 		if util.IsCommandExecutable(TofuBinary, "-version") {
@@ -914,4 +915,11 @@ func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
 	}
 
 	return false
+}
+
+func CreateGitRepo(t *testing.T, dir string) {
+	t.Helper()
+
+	commandOutput, err := exec.Command("git", "init", dir).CombinedOutput()
+	require.NoErrorf(t, err, "Error initializing git repo: %v\n%s", err, string(commandOutput))
 }

@@ -189,3 +189,15 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hclvalidate --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath)
 	require.NoError(t, err)
 }
+
+func TestScaffoldOutputFolderFlag(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := t.TempDir()
+
+	outputFolder := tmpEnvPath + "/foo/bar"
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --output-folder %s", tmpEnvPath, testScaffoldModuleURL, outputFolder))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.FileExists(t, outputFolder+"/terragrunt.hcl")
+}

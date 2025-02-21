@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -24,9 +25,10 @@ type StackConfigFile struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
-	Name   string `hcl:",label"`
-	Source string `hcl:"source,attr"`
-	Path   string `hcl:"path,attr"`
+	Name   string     `hcl:",label"`
+	Source string     `hcl:"source,attr"`
+	Path   string     `hcl:"path,attr"`
+	Values *cty.Value `hcl:"values,attr"`
 }
 
 // ReadOutputs reads the outputs from the unit.
@@ -78,7 +80,62 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions) (
 		return nil, errors.New(err)
 	}
 
+	if err := ValidateStackConfig(config); err != nil {
+		return nil, errors.New(err)
+	}
+
 	return config, nil
+}
+
+// ValidateStackConfig validates a StackConfigFile instance according to the rules:
+// - Unit name, source, and path shouldn't be empty
+// - Unit names should be unique
+// - Units shouldn't have duplicate paths
+func ValidateStackConfig(config *StackConfigFile) error {
+	if len(config.Units) == 0 {
+		return errors.New("stack config must contain at least one unit")
+	}
+
+	validationErrors := &errors.MultiError{}
+
+	names := make(map[string]bool)
+	paths := make(map[string]bool)
+
+	for i, unit := range config.Units {
+		name := strings.TrimSpace(unit.Name)
+		path := strings.TrimSpace(unit.Path)
+
+		if name == "" {
+			validationErrors = validationErrors.Append(errors.Errorf("unit at index %d has empty name", i))
+		}
+
+		if strings.TrimSpace(unit.Source) == "" {
+			validationErrors = validationErrors.Append(errors.Errorf("unit '%s' has empty source", unit.Name))
+		}
+
+		if path == "" {
+			validationErrors = validationErrors.Append(errors.Errorf("unit '%s' has empty path", unit.Name))
+		}
+
+		if names[name] {
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate unit name found: '%s'", unit.Name))
+		}
+
+		if name != "" {
+			// save non-empty names for reuse
+			names[name] = true
+		}
+
+		if paths[path] {
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate unit path found: '%s'", unit.Path))
+		}
+
+		if path != "" {
+			paths[path] = true
+		}
+	}
+
+	return validationErrors.ErrorOrNil()
 }
 
 func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {

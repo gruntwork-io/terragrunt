@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -86,10 +85,7 @@ func TestDestroyDependentModule(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDestroyDependentModule))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDestroyDependentModule)
 
-	commandOutput, err := exec.Command("git", "init", rootPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(commandOutput))
-	}
+	helpers.CreateGitRepo(t, rootPath)
 	// apply each module in order
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+util.JoinPath(rootPath, "a"))
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+util.JoinPath(rootPath, "b"))
@@ -102,7 +98,7 @@ func TestDestroyDependentModule(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	workingDir := util.JoinPath(rootPath, "c")
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+workingDir, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+workingDir, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := stderr.String()
@@ -281,10 +277,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	})
 	require.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
 
-	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
+	helpers.CreateGitRepo(t, tmpEnvPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -293,7 +286,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	oldStdout := os.Stderr
 	os.Stderr = w
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt destroy --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	os.Stderr = oldStdout
 	require.NoError(t, w.Close())
 

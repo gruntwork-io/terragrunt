@@ -4,15 +4,33 @@ go 1.23
 
 require (
 	cloud.google.com/go/storage v1.50.0
+	dario.cat/mergo v1.0.1
+	github.com/NYTimes/gziphandler v1.1.1
+	github.com/ProtonMail/go-crypto v1.1.5
 	github.com/aws/aws-sdk-go v1.55.6
+	github.com/aws/aws-sdk-go-v2 v1.36.1
+	github.com/charmbracelet/bubbles v0.20.0
+	github.com/charmbracelet/bubbletea v1.3.3
+	github.com/charmbracelet/glamour v0.8.0
+	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/creack/pty v1.1.24
 	github.com/fatih/structs v1.1.0
+	github.com/getsops/sops/v3 v3.9.4
+	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/go-errors/errors v1.5.1
+	github.com/gofrs/flock v0.12.1
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
+	github.com/google/uuid v1.6.0
+	github.com/gruntwork-io/boilerplate v0.6.0
+	github.com/gruntwork-io/go-commons v0.17.2
+	github.com/gruntwork-io/terragrunt-engine-go v0.0.8
 	github.com/gruntwork-io/terratest v0.47.2
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-getter v1.7.8
+	github.com/hashicorp/go-getter/v2 v2.2.3
+	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/hashicorp/go-plugin v1.6.3
 	github.com/hashicorp/go-safetemp v1.0.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/hcl/v2 v2.23.0
@@ -21,63 +39,25 @@ require (
 	// can't use terraform as a library after v0.15.3, so we pull that in here.
 	github.com/hashicorp/terraform v0.15.3
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20210318070130-9a80970d6b34
-	github.com/mattn/go-zglob v0.0.6
-	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/mapstructure v1.5.0
-	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.10.0
-	github.com/zclconf/go-cty v1.16.2
-	golang.org/x/crypto v0.32.0 // indirect
-	golang.org/x/oauth2 v0.26.0
-	golang.org/x/sync v0.11.0
-	golang.org/x/sys v0.30.0
-	google.golang.org/api v0.220.0
-)
-
-require (
-	cloud.google.com/go v0.118.2 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
-	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
-	github.com/hashicorp/vault/api v1.15.0 // indirect
-	github.com/klauspost/compress v1.17.11 // indirect
-	github.com/mitchellh/go-wordwrap v1.0.1
-	github.com/pquerna/otp v1.4.0 // indirect
-	github.com/terraform-linters/tflint v0.55.0
-	github.com/ulikunitz/xz v0.5.12 // indirect
-	golang.org/x/time v0.10.0 // indirect
-	google.golang.org/genproto v0.0.0-20250204164813-702378808489 // indirect
-)
-
-require (
-	dario.cat/mergo v1.0.1
-	github.com/NYTimes/gziphandler v1.1.1
-	github.com/ProtonMail/go-crypto v1.1.5
-	github.com/aws/aws-sdk-go-v2 v1.36.1
-	github.com/charmbracelet/bubbles v0.20.0
-	github.com/charmbracelet/bubbletea v1.2.4
-	github.com/charmbracelet/glamour v0.8.0
-	github.com/charmbracelet/lipgloss v1.0.0
-	github.com/getsops/sops/v3 v3.9.4
-	github.com/gitsight/go-vcsurl v1.0.1
-	github.com/gofrs/flock v0.12.1
-	github.com/google/uuid v1.6.0
-	github.com/gruntwork-io/boilerplate v0.6.0
-	github.com/gruntwork-io/go-commons v0.17.2
-	github.com/gruntwork-io/terragrunt-engine-go v0.0.8
-	github.com/hashicorp/go-getter/v2 v2.2.3
-	github.com/hashicorp/go-hclog v1.6.3
-	github.com/hashicorp/go-plugin v1.6.3
 	github.com/hashicorp/terraform-svchost v0.1.1
 	github.com/huandu/go-clone v1.7.2
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/mattn/go-isatty v0.0.20
+	github.com/mattn/go-zglob v0.0.6
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
+	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mitchellh/go-wordwrap v1.0.1
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/errors v0.9.1
 	github.com/posener/complete v1.2.3
 	github.com/puzpuzpuz/xsync/v3 v3.5.0
+	github.com/sirupsen/logrus v1.9.3
+	github.com/stretchr/testify v1.10.0
+	github.com/terraform-linters/tflint v0.55.0
 	github.com/urfave/cli/v2 v2.27.5
+	github.com/zclconf/go-cty v1.16.2
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.34.0
@@ -89,10 +69,13 @@ require (
 	go.opentelemetry.io/otel/sdk v1.34.0
 	go.opentelemetry.io/otel/sdk/metric v1.34.0
 	go.opentelemetry.io/otel/trace v1.34.0
-	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
-	golang.org/x/mod v0.22.0
+	golang.org/x/mod v0.23.0
+	golang.org/x/oauth2 v0.26.0
+	golang.org/x/sync v0.11.0
+	golang.org/x/sys v0.30.0
 	golang.org/x/term v0.29.0
 	golang.org/x/text v0.22.0
+	google.golang.org/api v0.221.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/ini.v1 v1.67.0
@@ -103,6 +86,7 @@ require (
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
 	cel.dev/expr v0.19.1 // indirect
+	cloud.google.com/go v0.118.2 // indirect
 	cloud.google.com/go/auth v0.14.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
@@ -160,7 +144,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/charmbracelet/x/ansi v0.7.0 // indirect
+	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42 // indirect
@@ -196,13 +180,16 @@ require (
 	github.com/goware/prefixer v0.0.0-20160118172347-395022866408 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.9 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/hashicorp/terraform-registry-address v0.2.4 // indirect
+	github.com/hashicorp/vault/api v1.15.0 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3 // indirect
@@ -210,6 +197,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jstemmer/go-junit-report v1.0.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/lib/pq v1.10.9 // indirect
@@ -226,11 +214,12 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.15.3-0.20240618155329-98d742f6907a // indirect
+	github.com/muesli/termenv v0.15.3-0.20241212154518-8c990cd6cf4b // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/owenrumney/go-sarif v1.1.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20241121165744-79df5c4772f2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pquerna/otp v1.4.0 // indirect
 	github.com/pterm/pterm v0.12.80 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -244,6 +233,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/terraform-linters/tflint-plugin-sdk v0.22.0 // indirect
 	github.com/terraform-linters/tflint-ruleset-terraform v0.10.0 // indirect
+	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/urfave/cli v1.22.16 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
@@ -260,10 +250,14 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.59.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.34.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
-	golang.org/x/net v0.34.0 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
+	golang.org/x/net v0.35.0 // indirect
+	golang.org/x/time v0.10.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
+	google.golang.org/genproto v0.0.0-20250204164813-702378808489 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250204164813-702378808489 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250204164813-702378808489 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250207221924-e9438ea467c6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
