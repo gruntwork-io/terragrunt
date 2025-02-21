@@ -187,9 +187,11 @@ func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag
 		expectedDefaultValue string
 	)
 
-	if val := flag.Destination; val != nil {
-		expectedDefaultValue = fmt.Sprintf("%v", *val)
+	if flag.Destination == nil {
+		flag.Destination = new(T)
 	}
+
+	expectedDefaultValue = fmt.Sprintf("%v", *flag.Destination)
 
 	flag.LookupEnvFunc = func(key string) []string {
 		if envs == nil {
