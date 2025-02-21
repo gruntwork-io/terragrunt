@@ -100,15 +100,20 @@ func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 		opts.Logger.Debugf("No values to write for unit %s in %s", unit.Name, filePath)
 		return nil
 	}
+
 	opts.Logger.Debugf("Writing values for unit %s in %s", unit.Name, filePath)
+
 	file := hclwrite.NewEmptyFile()
 	body := file.Body()
+
 	for key, val := range unit.Values.AsValueMap() {
 		body.SetAttributeValue(key, val)
 	}
+
 	if err := os.WriteFile(filePath, file.Bytes(), defaultPerms); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -118,24 +123,29 @@ func ReadUnitValues(ctx context.Context, opts *options.TerragruntOptions, unitDi
 	if util.FileNotExists(filePath) {
 		return nil, nil
 	}
+
 	opts.Logger.Debugf("Reading Terragrunt stack values file at %s", filePath)
-
 	parser := NewParsingContext(ctx, opts)
-
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
+
 	if err != nil {
 		return nil, errors.New(err)
 	}
+	//nolint:contextcheck
 	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
+
 	if err != nil {
 		return nil, errors.New(err)
 	}
-	// empty eval context to parse values only
+
 	values := map[string]cty.Value{}
+
 	if err := file.Decode(&values, evalParsingContext); err != nil {
 		return nil, errors.New(err)
 	}
+
 	result := cty.ObjectVal(values)
+
 	return &result, nil
 }
 
