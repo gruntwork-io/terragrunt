@@ -362,6 +362,20 @@ func TestStacksUnitValues(t *testing.T) {
 	assert.Contains(t, stdout, "data = \"payload: app2-test-project\"")
 }
 
+func TestStacksUnitValuesRunInApp1(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitValues)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitValues)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// run apply in generated app1 directory
+	app1Path := util.JoinPath(rootPath, ".terragrunt-stack", "app1")
+	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+app1Path)
+}
+
 func TestStacksUnitValuesOutput(t *testing.T) {
 	t.Parallel()
 
