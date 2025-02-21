@@ -4112,3 +4112,17 @@ func TestLogStreaming(t *testing.T) {
 		require.GreaterOrEqualf(t, secondTimestamp.Sub(firstTimestamp), 1*time.Second, "Second log entry for unit %s is not at least 1 second after the first log entry", unit)
 	}
 }
+
+func TestLogFormatBare(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --log-format=bare --no-color --non-interactive --working-dir "+testPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Initializing the backend...")
+	assert.NotContains(t, stdout, "STDO[0000] Initializing the backend...")
+}
