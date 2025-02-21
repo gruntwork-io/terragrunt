@@ -317,7 +317,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 
 	for _, env := range os.Environ() {
 		pair := strings.SplitN(env, "=", 2)
-		fmt.Printf(" v1 %s=%s\n", pair[0], pair[1])
+		fmt.Printf("env vars v1 %s=%s\n", pair[0], pair[1])
 	}
 
 	// plan and apply
@@ -326,7 +326,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 
 	for _, env := range os.Environ() {
 		pair := strings.SplitN(env, "=", 2)
-		fmt.Printf(" v2 %s=%s\n", pair[0], pair[1])
+		fmt.Printf("env vars v2 %s=%s\n", pair[0], pair[1])
 	}
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
@@ -342,7 +342,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 
 	for _, env := range os.Environ() {
 		pair := strings.SplitN(env, "=", 2)
-		fmt.Printf(" v3 %s=%s\n", pair[0], pair[1])
+		fmt.Printf("env vars v3 %s=%s\n", pair[0], pair[1])
 	}
 
 	// prepare destroy plan
@@ -360,7 +360,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 
 	for _, env := range os.Environ() {
 		pair := strings.SplitN(env, "=", 2)
-		fmt.Printf(" v4 %s=%s\n", pair[0], pair[1])
+		fmt.Printf("env vars v4 %s=%s\n", pair[0], pair[1])
 
 	}
 
@@ -369,7 +369,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 
 	for _, env := range os.Environ() {
 		pair := strings.SplitN(env, "=", 2)
-		fmt.Printf(" env1 %s=%s\n", pair[0], pair[1])
+		fmt.Printf("env vars env1 %s=%s\n", pair[0], pair[1])
 	}
 
 }
