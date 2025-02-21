@@ -122,9 +122,11 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 		expectedDefaultValue string
 	)
 
-	if val := flag.Destination; val != nil {
-		expectedDefaultValue = strconv.FormatBool(*val)
+	if flag.Destination == nil {
+		flag.Destination = new(bool)
 	}
+
+	expectedDefaultValue = strconv.FormatBool(*flag.Destination)
 
 	flag.LookupEnvFunc = func(key string) []string {
 		if envs == nil {
