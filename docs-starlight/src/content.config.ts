@@ -36,7 +36,7 @@ const commands = defineCollection({
 			env: z.array(z.string()),
 			type: z.string(),
 			moreInfo: z.object({
-				link: z.string(),
+				link: z.string().url(),
 				description: z.string(),
 			}).optional(),
 		})).optional(),
