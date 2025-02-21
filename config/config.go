@@ -895,12 +895,14 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	// read unit files and add to context
-	unitValues, err := ReadUnitValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
-	if err != nil {
-		return nil, err
-	}
+	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.Stacks) {
+		unitValues, err := ReadUnitValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+		if err != nil {
+			return nil, err
+		}
 
-	ctx = ctx.WithValues(unitValues)
+		ctx = ctx.WithValues(unitValues)
+	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)
