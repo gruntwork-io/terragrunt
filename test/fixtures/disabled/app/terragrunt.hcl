@@ -1,12 +1,12 @@
-dependency "m1" {
-  config_path  = "../m1"
+dependency "unit_without_enabled" {
+  config_path  = "../unit-without-enabled"
   mock_outputs = {
     "output1" = "mocked_output1"
   }
 }
 
-dependency "m2" {
-  config_path = "../m2"
+dependency "unit_disabled" {
+  config_path = "../unit-disabled"
   enabled     = false
 
   mock_outputs = {
@@ -14,11 +14,16 @@ dependency "m2" {
   }
 }
 
-dependency "m3" {
-  config_path = "../m3"
+dependency "unit_enabled" {
+  config_path = "../unit-enabled"
   enabled     = true
 
   mock_outputs = {
     "output3" = "mocked_output3"
   }
+}
+
+dependency "unit_missing" {
+  config_path = "../unit-missing"
+  enabled     = false
 }

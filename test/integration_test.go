@@ -3649,8 +3649,8 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 
 	for _, path := range []string{
 		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "app"),
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m1"),
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m3"),
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-without-enabled"),
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-enabled"),
 	} {
 		relPath, err := filepath.Rel(testPath, path)
 		require.NoError(t, err)
@@ -3658,7 +3658,7 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m2"),
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-disabled"),
 	} {
 		relPath, err := filepath.Rel(testPath, path)
 		require.NoError(t, err)
