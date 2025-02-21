@@ -373,7 +373,7 @@ func TestStacksUnitValuesRunInApp1(t *testing.T) {
 
 	// run apply in generated app1 directory
 	app1Path := util.JoinPath(rootPath, ".terragrunt-stack", "app1")
-	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+app1Path)
+	helpers.RunTerragrunt(t, "terragrunt apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+app1Path)
 }
 
 func TestStacksUnitValuesOutput(t *testing.T) {
