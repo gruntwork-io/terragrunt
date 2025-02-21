@@ -346,6 +346,13 @@ func PartialParseConfigString(ctx *ParsingContext, configPath, configString stri
 func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	ctx = ctx.WithTrackInclude(nil)
 
+	// read unit files and add to context
+	unitValues, err := ReadUnitValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+	if err != nil {
+		return nil, err
+	}
+	ctx = ctx.WithValues(unitValues)
+
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.
 	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)

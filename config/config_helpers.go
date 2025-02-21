@@ -210,6 +210,10 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		evalCtx.Variables[MetadataFeatureFlag] = *ctx.Features
 	}
 
+	if ctx.Values != nil {
+		evalCtx.Variables[MetadataValues] = *ctx.Values
+	}
+
 	if ctx.DecodedDependencies != nil {
 		evalCtx.Variables[MetadataDependency] = *ctx.DecodedDependencies
 	}
@@ -223,15 +227,6 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		}
 
 		evalCtx.Variables[MetadataInclude] = exposedInclude
-	}
-
-	// read unit files and add to context
-	unitValues, err := ReadUnitValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(configPath))
-	if err != nil {
-		return evalCtx, err
-	}
-	if unitValues != nil {
-		evalCtx.Variables[MetadataValues] = cty.ObjectVal(unitValues)
 	}
 
 	return evalCtx, nil

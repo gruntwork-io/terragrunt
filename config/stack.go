@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
 	"github.com/zclconf/go-cty/cty"
@@ -114,28 +113,30 @@ func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 }
 
 // ReadUnitValues reads the unit values from the terragrunt.values.hcl file.
-func ReadUnitValues(ctx context.Context, opts *options.TerragruntOptions, unitDirectory string) (map[string]cty.Value, error) {
+func ReadUnitValues(ctx context.Context, opts *options.TerragruntOptions, unitDirectory string) (*cty.Value, error) {
 	filePath := filepath.Join(unitDirectory, unitValuesFile)
-	if !util.FileNotExists(filePath) {
+	if util.FileNotExists(filePath) {
 		return nil, nil
 	}
 	opts.Logger.Debugf("Reading Terragrunt stack values file at %s", filePath)
 
 	parser := NewParsingContext(ctx, opts)
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(opts.TerragruntStackConfigPath)
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 	// empty eval context to parse values only
-	evalCtx := &hcl.EvalContext{
-		Variables: map[string]cty.Value{},
-	}
 	values := map[string]cty.Value{}
-	if err := file.Decode(&values, evalCtx); err != nil {
+	if err := file.Decode(&values, evalParsingContext); err != nil {
 		return nil, errors.New(err)
 	}
-	return values, nil
+	result := cty.ObjectVal(values)
+	return &result, nil
 }
 
 // ValidateStackConfig validates a StackConfigFile instance according to the rules:

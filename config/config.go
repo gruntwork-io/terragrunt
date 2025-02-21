@@ -79,7 +79,6 @@ const (
 	MetadataErrors                      = "errors"
 	MetadataRetry                       = "retry"
 	MetadataIgnore                      = "ignore"
-	MetadataUnit                        = "unit"
 	MetadataValues                      = "values"
 )
 
@@ -894,6 +893,13 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	if err := setIAMRole(ctx, file, includeFromChild); err != nil {
 		return nil, err
 	}
+
+	// read unit files and add to context
+	unitValues, err := ReadUnitValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+	if err != nil {
+		return nil, err
+	}
+	ctx = ctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)
