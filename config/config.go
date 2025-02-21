@@ -439,6 +439,7 @@ func (deps *ModuleDependencies) String() string {
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
 type Hook struct {
 	Name           string   `hcl:"name,label" cty:"name"`
+	If             *bool    `hcl:"if,attr" cty:"if"`
 	Commands       []string `hcl:"commands,attr" cty:"commands"`
 	Execute        []string `hcl:"execute,attr" cty:"execute"`
 	RunOnError     *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
