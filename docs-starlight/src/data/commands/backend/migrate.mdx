@@ -1,0 +1,21 @@
+---
+name: migrate
+path: backend/migrate
+sidebar:
+  order: 301
+description: Migrate OpenTofu/Terraform state from one unit to another.
+usage: |
+  Migrate OpenTofu/Terraform state from one unit to another.
+experiment:
+  control: cli-redesign
+  name: cli redesign
+examples:
+  - description: |
+      Migrate backend state from `unit` to `unit-renamed`.
+    code: |
+      backend migrate unit unit-renamed
+  - description: |
+      Force state migration, even if the bucket doesn't have versioning enabled.
+    code: |
+      backend migrate --force unit unit-renamed
+---

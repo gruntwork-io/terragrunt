@@ -1,0 +1,58 @@
+---
+name: bootstrap
+path: backend/bootstrap
+sidebar:
+  order: 300
+description: Bootstrap OpenTofu/Terraform backend infrastructure.
+usage: |
+  Bootstrap OpenTofu/Terraform backend infrastructure.
+experiment:
+  control: cli-redesign
+  name: cli redesign
+examples:
+  - description: |
+      Provision backend resources defined in remote_state.
+    code: |
+      terragrunt backend bootstrap
+---
+
+## Provision remote_state
+
+Using this command bootstraps the resources described in your [`remote_state` block](/docs/reference/hcl/blocks/#remote_state). 
+
+If unavailable, Terragrunt will provision them. If they are present, but configured in a way that differs from `remote_state` configuration, Terragrunt will attempt to update them when it is safe to do so.
+
+For example, if you have the following `remote_state` block:
+
+```hcl
+# terragrunt.hcl
+
+remote_state {
+  backend = "s3"
+  config = {
+    bucket  = "mybucket"
+    key     = "path/to/my/key"
+    region  = "us-east-1"
+    encrypt = true
+
+    dynamodb_table = "tf-lock"
+
+    accesslogging_bucket_name = "mybucket-logs"
+  }
+}
+```
+
+Then run the following:
+
+```bash
+terragrunt backend bootstrap
+```
+
+You'll ensure the availability of:
+
+- An S3 bucket named `mybucket` in the `us-east-1` region with the following enabled:
+  - Server Side Encryption (SSE)
+  - Versioning
+  - TLS Enforcement
+- A DynamoDB table named `tf-lock` in the `us-east-1` region with SSE.
+- An S3 bucket named `mybucket-logs` configured as the access log destination for the `mybucket` bucket.

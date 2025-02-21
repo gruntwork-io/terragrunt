@@ -1,14 +1,71 @@
 ---
-import { getEntry } from 'astro:content';
-const { name } = Astro.props;
+import { Aside, Badge, Code, Card } from '@astrojs/starlight/components';
+import { getEntry, render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
 
-const command = await getEntry('commands', name);
+const { path } = Astro.props;
+
+const command = await getEntry('commands', path) as CollectionEntry<'commands'>;
 
 const data = command?.data;
 
 const usage = data?.usage;
-const description = data?.description;
+const { Content } = await render(command);
 ---
 
-<p>{usage}</p>
-<p>{description}</p>
+{
+  data?.experiment ? (
+    <Aside type="tip" title={data?.experiment?.name}>
+      The <code dir="auto">{data?.name}</code> command is experimental, usage requires the <a href={"/docs/reference/experiments#"+data?.experiment?.control}><code dir="auto">--experiment {data?.experiment?.control}</code></a> flag.
+    </Aside>
+  ) : null
+}
+
+<h2 id="usage">Usage</h2>
+
+{
+  usage?.split('\n').map((line) => (
+    <p>{line}</p>
+  ))
+}
+
+{
+  data?.examples ? (
+  <h2 id="examples">Examples</h2>
+  <div>
+    {data?.examples.map((example) => (
+      example && (
+        <p>{example?.description}</p>
+        <Code code={example?.code} lang="bash" />
+      )
+    ))}
+  </div>
+  ) : null
+}
+
+<Content />
+
+{
+  data?.flags ? (
+  <h2 id="flags">Flags</h2>
+  <div>
+  {data?.flags.map((flag) => (
+    flag &&
+    <section id={flag?.name} >
+    <Card title={"--" + flag?.name} icon="custom:terragrunt">
+      <p id={flag?.name}>{flag?.description}</p>
+        <div>
+        <span>Type: </span><Badge text={flag?.type} variant="note" style={{ fontWeight: 'bold' }}/>
+        </div>
+        <p>Environment Variables:</p>
+        <ul>
+          {flag?.env.map((env) => (
+            <li><code dir="auto">{env}</code></li>
+          ))}
+        </ul>
+      </Card>
+    </section>
+    ))}
+</div>
+  ) : null
+}

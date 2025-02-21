@@ -1,0 +1,26 @@
+---
+name: catalog
+path: catalog
+description: Launch a Terminal User Interface (TUI) to browse and use OpenTofu/Terraform modules.
+sidebar:
+  order: 500
+usage: |
+  Launch a Terminal User Interface (TUI) to browse and use OpenTofu/Terraform modules.
+flags:
+  - name: format
+    description: "Format the results as specified. Supported values: (json). default: json."
+    type: string
+    env:
+      - TG_FORMAT
+  - name: sort
+    description: "Sort results in the specified order. Supported values: (dag). default: dag."
+    type: string
+    env:
+      - TG_SORT
+---
+
+```bash
+terragrunt catalog [repo-url] [options]
+```
+
+For more information on how the catalog works, see the dedicated [catalog documentation](/docs/features/catalog).

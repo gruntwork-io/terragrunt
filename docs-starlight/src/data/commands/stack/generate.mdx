@@ -1,0 +1,64 @@
+---
+name: generate
+description: Generate a stack of units based on configurations in a terragrunt.stack.hcl file.
+usage: |
+  Generate a stack of units based on configurations in a terragrunt.stack.hcl file.
+path: "stack/generate"
+sidebar:
+  order: 400
+experiment:
+  control: stacks
+  name: Stacks
+---
+
+import { FileTree } from '@astrojs/starlight/components';
+
+## Generating a stack
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "mother" {
+	source = "units/chicken"
+	path   = "mother"
+}
+
+unit "father" {
+	source = "./units/chicken"
+	path   = "father"
+}
+
+unit "chick_1" {
+	source = "./units/chick"
+	path   = "chicks/chick-1"
+}
+
+unit "chick_2" {
+	source = "units/chick"
+	path   = "chicks/chick-2"
+}
+```
+
+Running the following:
+
+```bash
+terragrunt stack generate
+```
+
+Generates the following stack:
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - mother
+    - terragrunt.hcl
+  - father
+    - terragrunt.hcl
+  - chicks
+    - chick-1
+      - terragrunt.hcl
+    - chick-2
+      - terragrunt.hcl
+
+</FileTree>

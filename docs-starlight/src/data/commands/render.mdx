@@ -1,0 +1,19 @@
+---
+name: render
+path: render
+sidebar:
+  order: 1100
+description: Render a simplified, but equivalent Terragrunt config.
+usage: |
+  Generate a simplified version of the Terragrunt configuration with all includes and dependencies resolved.
+experiment:
+  control: cli-redesign
+  name: CLI Redesign
+flags:
+  - name: format
+    description: |
+      Use the specified format for the rendered configuration. Supported values: hcl, json. (default: hcl)
+    type: string
+    env:
+      - TG_FORMAT
+---

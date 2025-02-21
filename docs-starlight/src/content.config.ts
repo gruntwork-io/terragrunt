@@ -15,12 +15,32 @@ const docs = defineCollection({
 
 	)
 });
+
 const commands = defineCollection({
-	loader: glob({ pattern: "**/*.yml", base: "src/data/commands" }),
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/commands" }),
 	schema: z.object({
 		name: z.string(),
-		usage: z.string(),
 		description: z.string(),
+		path: z.string().regex(/^[a-z0-9-/]+$/),
+		sidebar: z.object({
+			parent: z.string().optional(),
+			order: z.number(),
+		}),
+		usage: z.string(),
+		examples: z.array(z.object({
+			code: z.string(),
+			description: z.string().optional(),
+		})).optional(),
+		flags: z.array(z.object({
+			name: z.string(),
+			description: z.string(),
+			env: z.array(z.string()),
+			type: z.string(),
+		})).optional(),
+		experiment: z.object({
+			control: z.string(),
+			name: z.string(),
+		}).optional(),
 	}),
 });
 
