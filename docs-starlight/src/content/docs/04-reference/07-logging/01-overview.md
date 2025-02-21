@@ -63,7 +63,7 @@ Here, we have three types of log messages:
 
 1. `DEBUG` messages from Terragrunt itself. By default, Terragrunt's log level is `INFO`, but we've set it to `DEBUG` using the `--log-level` flag.
 2. `STDOUT` messages from OpenTofu. These are messages that OpenTofu would normally print directly to the terminal, but instead, Terragrunt captures them and logs them as `STDOUT` log messages, along with timestamps and other metadata.
-3. `INFO` messages from Terragrunt [auto-init](/docs/features/auto-init). These were initially emitted by OpenTofu, however the user did not specifically ask for them, so Terragrunt logs them as `INFO` messages.
+3. `INFO` messages from Terragrunt [auto-init](/docs/features/auto-init). These were initially emitted by OpenTofu. However, the user did not specifically ask for them, so Terragrunt logs them as `INFO` messages.
 
 ## Enrichment
 
@@ -195,7 +195,7 @@ $ terragrunt output -json
 }
 ```
 
-As you can see, the output from OpenTofu here isn't being enriched even though the user explicitly asked Terragrunt to run `output -json`.
+As you can see, the output from OpenTofu here isn't being enriched, even though the user explicitly asked Terragrunt to run `output -json`.
 
 This is because the user is pretty likely to want to programmatically interact with the output of `output`, and so Terragrunt doesn't enrich it.
 
@@ -224,7 +224,7 @@ $ terragrunt output -json | jq '.something'
 
 While Terragrunt logs stdout from OpenTofu/Terraform in real time, it buffers each line of stdout before logging it. This is because Terragrunt needs to be able to buffer stdout to prevent different units from interleaving their log messages.
 
-Depending on what you're doing with Terragrunt, this might occasionally result in issues when multiple units are running concurrently and they are each producing multi-line output that is more convenient to be read independently. In these cases, you can do some post-processing on the logs to read the units in isolation.
+Depending on what you're doing with Terragrunt, this might occasionally result in issues when multiple units are running concurrently, and they are each producing multi-line output that is more convenient to be read independently. In these cases, you can do some post-processing on the logs to read the units in isolation.
 
 For example:
 
@@ -322,4 +322,4 @@ OpenTofu has compared your real infrastructure against your configuration and
 found no differences, so no changes are needed.
 ```
 
-This will give you the closes experience to using OpenTofu/Terraform directly, with Terragrunt doing all of its work in the background.
+This will give you the closest experience to using OpenTofu/Terraform directly, with Terragrunt doing all of its work in the background.
