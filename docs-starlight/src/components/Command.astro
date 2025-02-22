@@ -1,5 +1,5 @@
 ---
-import { Aside, Badge, Code, Card } from '@astrojs/starlight/components';
+import { Aside, Code } from '@astrojs/starlight/components';
 import { getEntry, render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import Flag from './Flag.astro';
@@ -52,12 +52,13 @@ const { Content } = await render(command);
   <div>
   {data?.flags.map((flag) => (
     flag &&
-      <Flag 
-        name={flag.name} 
-        description={flag.description} 
-        type={flag.type} 
-        env={flag.env} 
-        moreInfo={flag.moreInfo} 
+      <Flag
+        name={flag.name}
+        description={flag.description}
+        lookup={flag.lookup}
+        type={flag.type}
+        env={flag.env}
+        moreInfo={flag.moreInfo}
       />
     ))}
 </div>

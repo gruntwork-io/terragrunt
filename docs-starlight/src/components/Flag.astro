@@ -1,9 +1,12 @@
 ---
 import { Badge, Card } from '@astrojs/starlight/components';
+import type { CollectionEntry } from 'astro:content';
+import { render, getEntry } from 'astro:content';
 
 interface Props {
   name: string;
   description: string;
+  lookup?: boolean;
   type: string;
   env?: string[];
   moreInfo?: {
@@ -12,26 +15,28 @@ interface Props {
   };
 }
 
-const { name, description, type, env, moreInfo } = Astro.props;
-
+const { name, description, lookup, type, env, moreInfo } = Astro.props;
+const flagEntry = lookup ? await getEntry('flags', name) as CollectionEntry<'flags'>: null
+const { Content } = flagEntry ? await render(flagEntry) : { Content: null };
 ---
 
 <section id={name} >
 <Card title={"--" + name} icon="custom:terragrunt">
-  <p id={name}>{description}</p>
-    <div>
-    <span>Type: </span><Badge text={type} variant="note" style={{ fontWeight: 'bold' }}/>
-    </div>
-    <p>Environment Variables:</p>
-    <ul>
-      {env?.map((env: string) => (
-        <li><code dir="auto">{env}</code></li>
-      ))}
-    </ul>
-    {moreInfo ? (
-      <p>
-        <a href={moreInfo.link}>{moreInfo.description}</a>
-      </p>
-    ) : null}
+    <p id={name}>{description}</p>
+    {Content ? <Content /> : null}
+  <div>
+  <span>Type: </span><Badge text={type} variant="note" style={{ fontWeight: 'bold' }}/>
+  </div>
+  <p>Environment Variables:</p>
+  <ul>
+    {env?.map((env: string) => (
+      <li><code dir="auto">{env}</code></li>
+    ))}
+  </ul>
+  {moreInfo ? (
+    <p>
+      <a href={moreInfo.link}>{moreInfo.description}</a>
+    </p>
+  ) : null}
   </Card>
 </section>

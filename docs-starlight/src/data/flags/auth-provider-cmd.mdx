@@ -1,0 +1,47 @@
+The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command whenever it might need authentication. This includes HCL parsing, where it might be useful to authenticate with a cloud provider _before_ running HCL functions like [`get_aws_account_id`](/docs/reference/hcl/functions#get_aws_account_id) where authentication has to already have taken place. It can also be useful for HCL functions like [`run_cmd`](/docs/reference/hcl/functions#run_cmd) where it may be useful to be authenticated before calling the function.
+
+The output must be valid JSON of the following schema:
+
+```json
+{
+  "awsCredentials": {
+    "ACCESS_KEY_ID": "",
+    "SECRET_ACCESS_KEY": "",
+    "SESSION_TOKEN": ""
+  },
+  "awsRole": {
+    "roleARN": "",
+    "sessionName": "",
+    "duration": 0,
+    "webIdentityToken": ""
+  },
+  "envs": {
+    "ANY_KEY": ""
+  }
+}
+```
+
+This allows Terragrunt to acquire different credentials at runtime without changing any `terragrunt.hcl` configuration. You can use this flag to set arbitrary credentials for continuous integration, authentication with providers other than AWS and more.
+
+As long as the standard output of the command passed to `auth-provider-cmd` results in JSON matching the schema above, corresponding environment variables will be set (and/or roles assumed) before Terragrunt begins parsing an `terragrunt.hcl` file or running an OpenTofu/Terraform command.
+
+The simplest approach to leverage this flag is to write a script that fetches desired credentials, and emits them to STDOUT in the JSON format listed above:
+
+```bash
+#!/usr/bin/env bash
+
+echo -n '{"envs": {"KEY": "a secret"}}'
+```
+
+You can use any technology for the authentication provider you'd like, however, as long as Terragrunt can execute it. The expected pattern for using this flag is to author a script/program that will dynamically fetch secret values from a secret store, etc. then emit them to STDOUT for consumption by Terragrunt.
+
+Note that more specific configurations (e.g. `awsCredentials`) take precedence over less specific configurations (e.g. `envs`).
+
+If you would like to set credentials for AWS with this method, you are encouraged to use `awsCredentials` instead of `envs`, as these keys will be validated to conform to the officially supported environment variables expected by the AWS SDK.
+
+Similarly, if you would like Terragrunt to assume an AWS role on your behalf, you are encouraged to use the `awsRole` configuration instead of `envs`.
+
+Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the `envs` field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
+
+**Note**: The `awsRole` configuration is only used when the `awsCredentials` configuration is not present. If both are present, the `awsCredentials` configuration will take precedence.
+

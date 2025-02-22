@@ -32,6 +32,7 @@ flags:
       - TG_ALL
   - name: auth-provider-cmd
     description: Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.
+    lookup: true
     type: string
     env:
       - TG_AUTH_PROVIDER_CMD
