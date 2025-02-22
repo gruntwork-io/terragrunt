@@ -5,6 +5,7 @@ The Starlight rewrite of the Terragrunt website is a work in progress.
 Here are some of the tasks that need to be completed:
 
 ## Infrastructure
+
 - [x] **Docker compose local dev setup**
 - [x] **Vercel deployment**
   - [x] **Vercel preview deployments**
@@ -13,6 +14,7 @@ Here are some of the tasks that need to be completed:
 - [ ] **Add a sitemap.xml**
 
 ## Content
+
 - [ ] **Content parity with current docs site**
   - [x] **Parity for all docs except CLI reference**
   - [ ] **Parity for CLI reference**
@@ -23,6 +25,7 @@ Here are some of the tasks that need to be completed:
   - [x] **Automate IaC Engine version lookup in docs**
 
 ## User Experience
+
 - [x] **User feedback collection**
 - [ ] **Broken link checking**
   - [x] **Automate broken link checking**
