@@ -38,7 +38,7 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
 	baseDir := filepath.Join(opts.WorkingDir, stackDir)
-	if err := os.MkdirAll(baseDir, defaultPerms); err != nil {
+	if err := os.MkdirAll(baseDir, os.ModePerm); err != nil {
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
 
@@ -70,7 +70,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 				return errors.New(err)
 			}
 		} else {
-			if err := os.MkdirAll(dest, defaultPerms); err != nil {
+			if err := os.MkdirAll(dest, os.ModePerm); err != nil {
 				return errors.New(err)
 			}
 

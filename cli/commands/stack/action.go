@@ -17,7 +17,6 @@ import (
 const (
 	stackDir         = ".terragrunt-stack"
 	defaultStackFile = "terragrunt.stack.hcl"
-	defaultPerms     = 0755
 )
 
 // RunGenerate runs the stack command.
