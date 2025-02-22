@@ -96,7 +96,14 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions) (
 	return config, nil
 }
 
-// WriteUnitValues generate unit values to the terragrunt.stack.hcl file.
+// WriteUnitValues generates and writes unit values to a terragrunt.values.hcl file in the specified unit directory.
+// If the unit has no values (Values is nil), the function logs a debug message and returns.
+// Parameters:
+//   - opts: TerragruntOptions containing logger and other configuration
+//   - unit: Unit containing the values to write
+//   - unitDirectory: Target directory where the values file will be created
+//
+// Returns an error if the directory creation or file writing fails.
 func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory string) error {
 	if unitDirectory == "" {
 		return errors.New("WriteUnitValues: unit directory path cannot be empty")
@@ -182,6 +189,7 @@ func ValidateStackConfig(config *StackConfigFile) error {
 
 	validationErrors := &errors.MultiError{}
 
+	// Pre-allocate maps with known capacity to avoid resizing
 	names := make(map[string]bool, len(config.Units))
 	paths := make(map[string]bool, len(config.Units))
 
