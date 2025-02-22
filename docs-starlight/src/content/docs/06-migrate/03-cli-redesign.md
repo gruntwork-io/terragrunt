@@ -23,11 +23,11 @@ The high-level changes made as a part of that RFC that require migration for cur
 
 ## Migration guide
 
-All of the changes you need to make to adopt to this new CLI design involve changing how you invoke Terragrunt.
+All changes you need to make to adapt to this new CLI design involve changing how you invoke Terragrunt.
 
 ### Remove `terragrunt-` prefix from flags
 
-If you are currently using flags that are prefixed with `terragrunt-`, you will need to stop using that flag, and use a differently named one instead (usually the same exact flag with `terragrunt-` removed from the beginning, but not always).
+If you are currently using flags that are prefixed with `terragrunt-`, you will need to stop using that flag, and use a differently named one instead (usually the same flag without the `terragrunt-` prefix, but not always).
 
 For example, if you are using the `--terragrunt-non-interactive` flag, you will need to switch to the [`--non-interactive`](/docs/reference/cli/#non-interactive) flag instead.
 
@@ -63,7 +63,7 @@ You can find the new flag names in the [CLI reference](/docs/reference/cli/) (in
 
 ### Update environment variables
 
-If you are currently using environment variables to configure Terragrunt, you will need to stop using that environment variable, and use a differently named one instead (usually the same exact environment variable with `TERRAGRUNT_` replaced with `TG_`, but not always).
+If you are currently using environment variables to configure Terragrunt, you will need to stop using that environment variable, and use a differently named one instead (usually the same environment variable with `TERRAGRUNT_` replaced by `TG_`, but not always).
 
 For example, if you are using the `TERRAGRUNT_NON_INTERACTIVE` environment variable, you will need to switch to the [`TG_NON_INTERACTIVE`](/docs/reference/cli/#non-interactive) environment variable instead.
 
