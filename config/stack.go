@@ -128,7 +128,7 @@ func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 	}
 
 	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
-		return err
+		return errors.Errorf("failed to write values file %s: %w", filePath, err)
 	}
 
 	return nil
