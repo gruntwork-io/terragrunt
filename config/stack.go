@@ -97,6 +97,9 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions) (
 
 // WriteUnitValues generate unit values to the terragrunt.stack.hcl file.
 func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory string) error {
+	if unitDirectory == "" {
+		return errors.New("write unit values: unit directory path cannot be empty")
+	}
 	filePath := filepath.Join(unitDirectory, unitValuesFile)
 	if unit.Values == nil {
 		opts.Logger.Debugf("No values to write for unit %s in %s", unit.Name, filePath)
@@ -128,7 +131,7 @@ func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 // ReadUnitValues reads the unit values from the terragrunt.values.hcl file.
 func ReadUnitValues(ctx context.Context, opts *options.TerragruntOptions, unitDirectory string) (*cty.Value, error) {
 	if unitDirectory == "" {
-		return nil, errors.New("unit directory path cannot be empty")
+		return nil, errors.New("read unit values: unit directory path cannot be empty")
 	}
 
 	filePath := filepath.Join(unitDirectory, unitValuesFile)
