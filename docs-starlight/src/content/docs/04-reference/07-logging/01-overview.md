@@ -297,7 +297,7 @@ $ grep '\[unit2\]' < logs
 
 ## Disabling logs
 
-Finally, you can also disable logs entirely like so:
+Finally, you can also disable logs entirely, like so:
 
 ```bash
 $ terragrunt --log-disable plan
