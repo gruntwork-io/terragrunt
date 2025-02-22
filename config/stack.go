@@ -22,6 +22,8 @@ import (
 const (
 	stackDir       = ".terragrunt-stack"
 	unitValuesFile = "terragrunt.values.hcl"
+	unitDirPerm    = 0755
+	valueFilePerm  = 0644
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -100,7 +102,7 @@ func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 		return errors.New("WriteUnitValues: unit directory path cannot be empty")
 	}
 
-	if err := os.MkdirAll(unitDirectory, os.ModePerm); err != nil {
+	if err := os.MkdirAll(unitDirectory, unitDirPerm); err != nil {
 		return errors.Errorf("failed to create directory %s: %w", unitDirectory, err)
 	}
 
@@ -125,7 +127,7 @@ func WriteUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 		body.SetAttributeValue(key, val)
 	}
 
-	if err := os.WriteFile(filePath, file.Bytes(), os.ModePerm); err != nil {
+	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
 		return err
 	}
 
