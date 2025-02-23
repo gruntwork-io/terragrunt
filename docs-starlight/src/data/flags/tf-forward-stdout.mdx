@@ -1,0 +1,31 @@
+---
+name: tf-forward-stdout
+description: If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.
+type: bool
+env:
+  - TG_TF_FORWARD_STDOUT
+---
+
+By default, Terragrunt integrates OpenTofu/Terraform output into its own logging system. When this flag is enabled, OpenTofu/Terraform output will be printed directly to stdout without Terragrunt's logging wrapper.
+
+For example, without `--tf-forward-stdout`:
+
+```bash
+14:19:25.081 INFO   [app] Running command: tofu plan -input=false
+14:19:25.174 STDOUT [app] tofu: OpenTofu used the selected providers to generate the following execution
+14:19:25.174 STDOUT [app] tofu: plan. Resource actions are indicated with the following symbols:
+14:19:25.174 STDOUT [app] tofu:   + create
+14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
+```
+
+With `--tf-forward-stdout`:
+
+```bash
+14:19:25.081 INFO   [app] Running command: tofu plan -input=false
+
+OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+OpenTofu will perform the following actions:
+```

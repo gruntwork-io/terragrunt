@@ -1,3 +1,12 @@
+---
+name: auth-provider-cmd
+description: Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.
+lookup: true
+type: string
+env:
+  - TG_AUTH_PROVIDER_CMD
+---
+
 The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command whenever it might need authentication. This includes HCL parsing, where it might be useful to authenticate with a cloud provider _before_ running HCL functions like [`get_aws_account_id`](/docs/reference/hcl/functions#get_aws_account_id) where authentication has to already have taken place. It can also be useful for HCL functions like [`run_cmd`](/docs/reference/hcl/functions#run_cmd) where it may be useful to be authenticated before calling the function.
 
 The output must be valid JSON of the following schema:

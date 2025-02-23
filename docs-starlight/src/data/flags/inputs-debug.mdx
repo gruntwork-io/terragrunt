@@ -1,0 +1,11 @@
+---
+name: inputs-debug
+description: Write debug.tfvars to working folder to help root-cause issues.
+type: bool
+env:
+  - TG_INPUTS_DEBUG
+---
+
+When enabled, Terragrunt will write a `debug.tfvars` file to the working directory. This file contains the resolved input values and can be useful for debugging configuration issues.
+
+To learn more about how to use this flag, see the [Debugging](/docs/troubleshooting/debugging) guide.

@@ -1,0 +1,11 @@
+---
+name: provider-cache-registry-names
+description: The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.
+type: string
+env:
+  - TG_PROVIDER_CACHE_REGISTRY_NAMES
+---
+
+Specifies which provider registries should be cached by the Provider Cache server. This flag is only used when [`provider-cache`](#provider-cache) is enabled.
+
+To learn more about how to use this flag, see the [Provider Cache Server](/docs/features/provider-cache-server) feature documentation.

@@ -1,0 +1,17 @@
+---
+name: all
+description: Run the specified OpenTofu/Terraform command on the stack of units in the current directory.
+type: bool
+env:
+  - TG_ALL
+---
+
+When this flag is set, Terragrunt will run the specified OpenTofu/Terraform command against all units in the current stack. This is useful when you want to apply changes across multiple units at once.
+
+For example:
+
+```bash
+terragrunt run --all plan
+```
+
+This will run the `plan` command against all units in the current stack.

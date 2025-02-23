@@ -1,0 +1,9 @@
+---
+name: queue-include-external
+description: Include external dependencies in the queue of Units to run.
+type: bool
+env:
+  - TG_QUEUE_INCLUDE_EXTERNAL
+---
+
+When enabled, Terragrunt will include external dependencies (dependencies outside the current working directory) in the queue when running commands with [`--all`](#all).

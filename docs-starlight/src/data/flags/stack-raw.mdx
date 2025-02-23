@@ -1,0 +1,18 @@
+---
+name: raw
+description: Format stack output as raw string. Alias for --format raw.
+type: bool
+env:
+  - TG_RAW
+---
+
+A convenience flag that formats the stack output as a raw string. This is equivalent to using `--format raw`.
+
+This is particularly useful when you need to use the output in shell scripts or other automation.
+
+Example:
+
+```bash
+# Store the output in a variable
+APP_ID=$(terragrunt stack output --raw app.id)
+```

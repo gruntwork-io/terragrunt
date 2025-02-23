@@ -1,0 +1,11 @@
+---
+name: queue-excludes-file
+description: Path to a file containing Unix-style globs of directories to exclude from the queue of Units to run.
+type: string
+env:
+  - TG_QUEUE_EXCLUDES_FILE
+---
+
+Specifies a file containing patterns of directories to exclude when running commands with [`--all`](#all).
+
+To learn more about how to use this flag, see the [Stacks](/docs/features/stacks/#the-run---all-command) feature documentation.

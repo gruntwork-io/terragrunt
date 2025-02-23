@@ -1,0 +1,23 @@
+---
+name: source
+description: Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.
+type: string
+env:
+  - TG_SOURCE
+---
+
+Specifies a source URL where Terragrunt should download the OpenTofu/Terraform configuration. This overrides any `source` parameters specified in the Terragrunt configuration files.
+
+The configuration will be downloaded into a temporary folder, and Terragrunt will execute OpenTofu/Terraform commands in that folder.
+
+Example:
+
+```bash
+terragrunt run plan --source github.com/example/infrastructure//modules/vpc
+```
+
+This is particularly useful when:
+
+- Testing changes to modules without modifying the source in your configuration.
+- Using a specific version or branch of your infrastructure modules.
+- Running configurations from a different source than what's specified in your Terragrunt files.

@@ -1,0 +1,24 @@
+---
+name: in-download-dir
+description: Run the provided command in the download directory.
+type: bool
+env:
+  - TG_IN_DOWNLOAD_DIR
+---
+
+When enabled, Terragrunt will execute the provided command in the temporary download directory where modules are cached, rather than the current working directory.
+
+This is particularly useful when you need to:
+- Inspect downloaded module contents.
+- Execute commands against the actual module source code.
+- Debug issues with downloaded modules.
+
+Example:
+
+```bash
+# View the contents of main.tf in the downloaded module
+terragrunt exec --in-download-dir -- cat main.tf
+
+# List all files in the downloaded module
+terragrunt exec --in-download-dir -- ls -la
+```
