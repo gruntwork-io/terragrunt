@@ -7,6 +7,7 @@ package clngo
 import (
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // Options configures the behavior of the Cln operation
@@ -62,16 +63,11 @@ func (c *Cln) Clone() error {
 
 	// Check if we have the complete reference
 	if c.store.HasReference(hash) {
-		return c.linkExistingContent(targetDir, hash)
+		return c.linkFromStore(targetDir, hash)
 	}
 
 	// If we don't have the reference, do a full clone
-	if err := c.cloneAndStoreContent(targetDir, hash); err != nil {
-		return err
-	}
-
-	// Mark this reference as completely stored
-	return c.store.StoreReference(hash)
+	return c.cloneAndStoreContent(targetDir, hash)
 }
 
 func (c *Cln) prepareTargetDirectory() (string, error) {
@@ -102,10 +98,8 @@ func (c *Cln) resolveReference() (string, error) {
 	return results[0].Hash, nil
 }
 
-func (c *Cln) linkExistingContent(targetDir, hash string) error {
-	content := NewContent(c.store)
-
-	// Create a temporary directory for git operations
+func (c *Cln) linkFromStore(targetDir, hash string) error {
+	// Set up a temporary git repo to read the tree
 	tempDir, cleanup, err := c.git.CreateTempDir()
 	if err != nil {
 		return err
@@ -113,16 +107,19 @@ func (c *Cln) linkExistingContent(targetDir, hash string) error {
 	defer cleanup()
 
 	// Do a bare clone to get the git objects
-	if err := c.git.Clone(c.repo, true, 1, c.opts.Branch); err != nil {
+	if err := c.git.Clone(c.repo, true, 0, ""); err != nil {
 		return err
 	}
 
-	c.git.SetWorkDir(tempDir) // Set working directory for git operations
+	c.git.SetWorkDir(tempDir)
+
+	// Get the tree structure using git cat-file
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
 	}
 
+	content := NewContent(c.store)
 	return c.processTreeEntries(targetDir, tree, content)
 }
 
@@ -139,28 +136,73 @@ func (c *Cln) cloneAndStoreContent(targetDir, hash string) error {
 		return err
 	}
 
-	// Store and link the content
-	return c.storeAndLinkContent(tempDir, targetDir, hash)
-}
-
-func (c *Cln) storeAndLinkContent(tempDir, targetDir, hash string) error {
-	c.git.SetWorkDir(tempDir) // Set working directory for git commands
+	c.git.SetWorkDir(tempDir)
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
 	}
 
-	content := NewContent(c.store)
+	// Collect all blob entries first
+	var blobEntries []TreeEntry
 	for _, entry := range tree.Entries() {
 		if entry.Type == "blob" {
-			data, err := c.git.CatFile(entry.Hash)
-			if err != nil {
-				return err
-			}
-			if err := content.Store(entry.Hash, data); err != nil {
-				return err
-			}
+			blobEntries = append(blobEntries, entry)
 		}
+	}
+
+	// Use a worker pool to fetch blobs in parallel
+	blobs := make(map[string][]byte)
+	var mu sync.Mutex
+	errChan := make(chan error, 1)
+	semaphore := make(chan struct{}, 4) // Limit concurrent git operations
+
+	var wg sync.WaitGroup
+	for _, entry := range blobEntries {
+		if c.store.HasContent(entry.Hash) {
+			continue
+		}
+
+		wg.Add(1)
+		go func(hash string) {
+			defer wg.Done()
+
+			semaphore <- struct{}{}        // Acquire
+			defer func() { <-semaphore }() // Release
+
+			data, err := c.git.CatFile(hash)
+			if err != nil {
+				select {
+				case errChan <- err:
+				default:
+				}
+				return
+			}
+
+			mu.Lock()
+			blobs[hash] = data
+			mu.Unlock()
+		}(entry.Hash)
+	}
+
+	// Wait for all fetches to complete
+	wg.Wait()
+
+	// Check for errors
+	select {
+	case err := <-errChan:
+		return err
+	default:
+	}
+
+	// Store all blobs in one batch operation
+	content := NewContent(c.store)
+	if err := content.StoreBatch(blobs); err != nil {
+		return err
+	}
+
+	// Mark this reference as stored
+	if err := c.store.StoreReference(hash); err != nil {
+		return err
 	}
 
 	return c.processTreeEntries(targetDir, tree, content)

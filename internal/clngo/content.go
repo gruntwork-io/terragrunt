@@ -96,3 +96,21 @@ func (c *Content) Store(hash string, data []byte) error {
 
 	return nil
 }
+
+// StoreBatch stores multiple content items efficiently
+func (c *Content) StoreBatch(items map[string][]byte) error {
+	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
+	}
+
+	for hash, data := range items {
+		if c.store.HasContent(hash) {
+			continue
+		}
+		path := filepath.Join(c.store.Path(), hash)
+		if err := os.WriteFile(path, data, StoredFilePerms); err != nil {
+			return wrapError("write_to_store", path, ErrWriteToStore)
+		}
+	}
+	return nil
+}
