@@ -7,10 +7,10 @@ import (
 
 // TreeEntry represents a single entry in a git tree
 type TreeEntry struct {
-	Mode string // File mode (e.g., "100644" for regular file)
-	Type string // Object type (blob or tree)
-	Hash string // Object hash
-	Path string // File path
+	Mode string
+	Type string
+	Hash string
+	Path string
 }
 
 // Tree represents a git tree object with its entries
