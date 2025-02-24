@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
 
@@ -345,6 +347,16 @@ func PartialParseConfigString(ctx *ParsingContext, configPath, configString stri
 
 func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	ctx = ctx.WithTrackInclude(nil)
+
+	// read unit files and add to context
+	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.Stacks) {
+		unitValues, err := ReadUnitValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+		if err != nil {
+			return nil, err
+		}
+
+		ctx = ctx.WithValues(unitValues)
+	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.

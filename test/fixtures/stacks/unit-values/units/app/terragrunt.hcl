@@ -1,10 +1,10 @@
 
 locals {
-  data = "payload: ${unit.values.deployment}-${unit.values.project}"
+  data = "payload: ${values.deployment}-${values.project}"
 }
 
 inputs = {
-  deployment = unit.values.deployment
-  project = unit.values.project
+  deployment = values.deployment
+  project = values.project
   data = local.data
 }
