@@ -9,15 +9,10 @@ usage: |
 experiment:
   control: cli-redesign
   name: CLI Redesign
-flags:
-  - name: format
-    description: |
-      Use the specified format for the rendered configuration. Supported values: hcl, json. (default: hcl)
-    type: string
-    env:
-      - TG_FORMAT
 examples:
   - description: Render the configurations for the current unit in JSON format.
     code: |
       terragrunt render --format=json
+flags:
+  - render-format
 ---

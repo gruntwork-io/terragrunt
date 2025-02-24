@@ -8,7 +8,7 @@ env:
 
 import { FileTree } from '@astrojs/starlight/components';
 
-When enabled, Terragrunt will only process directories that match the patterns specified by [`--queue-include-dir`](#queue-include-dir).
+When enabled, Terragrunt will only process directories that match the patterns specified by [`--queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir).
 
 For example, with the following directory structure:
 
@@ -27,6 +27,6 @@ For example, with the following directory structure:
 
 </FileTree>
 
-Running `terragrunt run --all plan --queue-include-dir "prod/*"` would process all directories, but the [`--all`](#all) flag includes by default when no [excludes](#queue-exclude-dir) are provided, so the `stage` stack would also be included by default.
+Running `terragrunt run --all plan --queue-include-dir "prod/*"` would process all directories, but the [`--all`](/docs/reference/cli/commands/run#all) flag includes by default when no [excludes](/docs/reference/cli/commands/run#queue-exclude-dir) are provided, so the `stage` stack would also be included by default.
 
 Running `terragrunt run --all plan --queue-include-dir "prod/*" --queue-strict-include` tells Terragrunt to exclude by default, so it only include units `prod/app` and `prod/db`.

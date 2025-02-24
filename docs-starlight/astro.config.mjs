@@ -79,6 +79,10 @@ export default defineConfig({
 					// TODO: Remove these once the CLI redesign is done
 					'/docs/reference/cli**/*',
 					'/docs/reference/cli*',
+
+					// Unfortunately, these have to be ignored, as they're
+					// referencing links that exist outside the file.
+					'/docs/reference/cli/commands/run#*',
 				],
 			})],
 		}),

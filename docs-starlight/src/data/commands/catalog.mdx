@@ -1,30 +1,21 @@
 ---
 name: catalog
 path: catalog
-description: Launch a Terminal User Interface (TUI) to browse and use OpenTofu/Terraform modules.
 sidebar:
   order: 500
+description: Launch a Terminal User Interface (TUI) to browse and use OpenTofu/Terraform modules.
 usage: |
   Launch a Terminal User Interface (TUI) to browse and use OpenTofu/Terraform modules.
 examples:
   - description: Start up a catalog using the configurations discovered in a parent Terragrunt configuration.
-    code: terragrunt catalog
+    code: |
+      terragrunt catalog
   - description: Explicitly indicate the name of the root configuration being discovered.
-    code: terragrunt catalog --root-file-name root.hcl
+    code: |
+      terragrunt catalog --root-file-name root.hcl
 flags:
-  - name: no-include-root
-    description: "Do not include the root configuration file in any generated terragrunt.hcl file during scaffolding."
-    type: bool
-    env:
-      - TG_NO_INCLUDE_ROOT
-  - name: root-file-name
-    description: |
-      The name of the root configuration file to include in any generated terragrunt.hcl during scaffolding.
-
-      This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
-    type: string
-    env:
-      - TG_ROOT_FILE_NAME
+  - catalog-no-include-root
+  - catalog-root-file-name
 ---
 
 ```bash

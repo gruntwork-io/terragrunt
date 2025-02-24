@@ -5,38 +5,31 @@ import { render, getEntry } from 'astro:content';
 
 interface Props {
   name: string;
-  description: string;
-  lookup?: boolean;
-  type: string;
-  env?: string[];
-  moreInfo?: {
-    link: string;
-    description: string;
-  };
 }
 
-const { name, description, lookup, type, env, moreInfo } = Astro.props;
-const flagEntry = lookup ? await getEntry('flags', name) as CollectionEntry<'flags'>: null
-const { Content } = flagEntry ? await render(flagEntry) : { Content: null };
+const { name } = Astro.props;
+
+const flagEntry = await getEntry('flags', name) as CollectionEntry<'flags'>;
+const { Content } = await render(flagEntry);
+const { description, type, env } = flagEntry.data;
 ---
 
-<section id={name} >
-<Card title={"--" + name} icon="custom:terragrunt">
+<section id={name}>
+  <Card title={"--" + name} icon="custom:terragrunt">
     <p id={name}>{description}</p>
-    {Content ? <Content /> : null}
-  <div>
-  <span>Type: </span><Badge text={type} variant="note" style={{ fontWeight: 'bold' }}/>
-  </div>
-  <p>Environment Variables:</p>
-  <ul>
-    {env?.map((env: string) => (
-      <li><code dir="auto">{env}</code></li>
-    ))}
-  </ul>
-  {moreInfo ? (
-    <p>
-      <a href={moreInfo.link}>{moreInfo.description}</a>
-    </p>
-  ) : null}
+    <Content />
+    <div>
+      <span>Type: </span><Badge text={type} variant="note" style={{ fontWeight: 'bold' }}/>
+    </div>
+    {env && (
+      <>
+        <p>Environment Variables:</p>
+        <ul>
+          {env.map((envVar: string) => (
+            <li><code dir="auto">{envVar}</code></li>
+          ))}
+        </ul>
+      </>
+    )}
   </Card>
 </section>

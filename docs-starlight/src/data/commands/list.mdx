@@ -23,16 +23,6 @@ examples:
     code: |
       terragrunt list --sort 'dag'
 flags:
-  - name: format
-    description: |
-      Format the results as specified. Supported values: (json). default: json.
-    type: string
-    env:
-      - TG_FORMAT
-  - name: sort
-    description: |
-      Sort results in the specified order. Supported values: (dag). default: dag.
-    type: string
-    env:
-      - TG_SORT
+  - list-format
+  - list-sort
 ---

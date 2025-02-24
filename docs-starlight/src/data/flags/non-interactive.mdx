@@ -1,0 +1,9 @@
+---
+name: non-interactive
+description: Assume "yes" for all prompts.
+type: bool
+env:
+  - TG_NON_INTERACTIVE
+---
+
+When enabled, Terragrunt will automatically answer "yes" to any prompts that would normally require user input. This is particularly useful in automated environments or CI/CD pipelines where user interaction isn't possible.

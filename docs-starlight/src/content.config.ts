@@ -30,17 +30,7 @@ const commands = defineCollection({
 			code: z.string(),
 			description: z.string().optional(),
 		})),
-		flags: z.array(z.object({
-			name: z.string(),
-			description: z.string(),
-			lookup: z.boolean().optional(),
-			env: z.array(z.string()),
-			type: z.string(),
-			moreInfo: z.object({
-				link: z.string().url(),
-				description: z.string(),
-			}).optional(),
-		})).optional(),
+		flags: z.array(z.string()).optional(),
 		experiment: z.object({
 			control: z.string(),
 			name: z.string(),
@@ -50,7 +40,12 @@ const commands = defineCollection({
 
 const flags = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/flags" }),
-	schema: z.object({}),
+	schema: z.object({
+		name: z.string(),
+		description: z.string(),
+		type: z.string(),
+		env: z.array(z.string()).optional(),
+	}),
 });
 
 export const collections = { docs, commands, flags };
