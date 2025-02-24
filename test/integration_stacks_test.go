@@ -25,6 +25,7 @@ const (
 	testFixtureStacksOutputs     = "fixtures/stacks/outputs"
 	testFixtureStacksUnitValues  = "fixtures/stacks/unit-values"
 	testFixtureStacksEmptyPath   = "fixtures/stacks/errors/empty-path"
+	testFixtureNestedStacks      = "fixtures/stacks/nested"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -33,6 +34,19 @@ func TestStacksGenerateBasic(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
+
+func TestStacksGenerateNested(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks, "project")
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 
