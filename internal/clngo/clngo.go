@@ -158,7 +158,7 @@ func (c *Cln) cloneAndStoreContent(targetDir, hash string) error {
 	blobs := make(map[string][]byte)
 	var mu sync.Mutex
 	errChan := make(chan error, 1)
-	semaphore := make(chan struct{}, 4) // Limit concurrent git operations
+	semaphore := make(chan struct{}, 4)
 
 	var wg sync.WaitGroup
 	for _, entry := range blobEntries {
@@ -170,8 +170,8 @@ func (c *Cln) cloneAndStoreContent(targetDir, hash string) error {
 		go func(hash string) {
 			defer wg.Done()
 
-			semaphore <- struct{}{}        // Acquire
-			defer func() { <-semaphore }() // Release
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 
 			data, err := c.git.CatFile(hash)
 			if err != nil {

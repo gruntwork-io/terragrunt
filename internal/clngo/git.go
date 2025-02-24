@@ -11,9 +11,8 @@ import (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	mu      sync.RWMutex // Add mutex for workDir protection
-	workDir string
-	// Add command preparation cache
+	mu       sync.RWMutex
+	workDir  string
 	cmdCache sync.Map
 }
 
