@@ -1,10 +1,12 @@
 package clngo_test
 
 import (
-	"os"
+	"fmt"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/clngo"
 )
@@ -79,34 +81,52 @@ func BenchmarkContent(b *testing.B) {
 
 	// Prepare test data
 	testData := []byte("test content for benchmarking")
-	testHash := "benchmark123456789"
 
 	b.Run("store", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if err := content.Store(testHash+strconv.Itoa(i), testData); err != nil {
+			hash := fmt.Sprintf("benchmark%d", i)
+			if err := content.Store(hash, testData); err != nil {
 				b.Fatal(err)
 			}
 		}
 	})
 
-	b.Run("link", func(b *testing.B) {
-		// First store the content
-		if err := content.Store(testHash, testData); err != nil {
-			b.Fatal(err)
-		}
-
-		targetDir := filepath.Join(b.TempDir(), "links")
-		if err := os.MkdirAll(targetDir, 0755); err != nil {
-			b.Fatal(err)
-		}
-
-		b.ResetTimer()
+	b.Run("batch_store", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			targetPath := filepath.Join(targetDir, strconv.Itoa(i))
-			if err := content.Link(testHash, targetPath); err != nil {
+			items := make(map[string][]byte, 100)
+			for j := 0; j < 100; j++ {
+				hash := fmt.Sprintf("benchmark%d_%d", i, j)
+				items[hash] = testData
+			}
+			if err := content.StoreBatch(items); err != nil {
 				b.Fatal(err)
 			}
 		}
+	})
+
+	b.Run("parallel_store", func(b *testing.B) {
+		var mu sync.Mutex
+		seen := make(map[string]bool)
+
+		b.RunParallel(func(pb *testing.PB) {
+			i := 0
+			for pb.Next() {
+				// Generate unique hash for each goroutine iteration
+				hash := fmt.Sprintf("benchmark%d_%d_%d", b.N, i, time.Now().UnixNano())
+				mu.Lock()
+				if seen[hash] {
+					mu.Unlock()
+					continue
+				}
+				seen[hash] = true
+				mu.Unlock()
+
+				if err := content.Store(hash, testData); err != nil {
+					b.Fatal(err)
+				}
+				i++
+			}
+		})
 	})
 }
 

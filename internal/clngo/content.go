@@ -1,13 +1,16 @@
 package clngo
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // Content manages git object storage and linking
 type Content struct {
 	store *Store
+	mu    sync.RWMutex // Add mutex for concurrent operations
 }
 
 const (
@@ -67,50 +70,98 @@ func (c *Content) ensureTargetDirectory(targetPath string) error {
 	return nil
 }
 
-// Store stores content in the content store
+// Store stores a single content item
 func (c *Content) Store(hash string, data []byte) error {
-	path := filepath.Join(c.store.Path(), hash)
+	// Quick check with read lock first
+	c.mu.RLock()
+	if c.store.HasContent(hash) {
+		c.mu.RUnlock()
+		return nil
+	}
+	c.mu.RUnlock()
 
-	// Check if content already exists
+	// If content might not exist, take write lock
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Double-check after acquiring write lock
 	if c.store.HasContent(hash) {
 		return nil
 	}
 
-	// Ensure store directory exists
 	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return &WrappedError{
-			Op:   "create_store_dir",
-			Path: c.store.Path(),
-			Err:  ErrCreateDir,
-		}
+		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
 
-	// Write content to store with read-only permissions
-	if err := os.WriteFile(path, data, StoredFilePerms); err != nil {
-		return &WrappedError{
-			Op:   "write_to_store",
-			Path: path,
-			Err:  ErrWriteToStore,
-		}
+	path := filepath.Join(c.store.Path(), hash)
+	tempPath := path + ".tmp"
+
+	// Write to temporary file first
+	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
+	if err != nil {
+		return wrapError("open_temp_file", tempPath, err)
+	}
+
+	buf := bufio.NewWriter(f)
+	if _, err := buf.Write(data); err != nil {
+		f.Close()
+		os.Remove(tempPath)
+		return wrapError("write_to_store", tempPath, err)
+	}
+
+	if err := buf.Flush(); err != nil {
+		f.Close()
+		os.Remove(tempPath)
+		return wrapError("flush_buffer", tempPath, err)
+	}
+
+	if err := f.Close(); err != nil {
+		os.Remove(tempPath)
+		return wrapError("close_file", tempPath, err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tempPath, path); err != nil {
+		os.Remove(tempPath)
+		return wrapError("finalize_store", path, err)
 	}
 
 	return nil
 }
 
-// StoreBatch stores multiple content items efficiently
+// StoreBatch stores multiple content items efficiently using buffered writes
 func (c *Content) StoreBatch(items map[string][]byte) error {
 	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
 
+	// Process items sequentially to avoid race conditions
 	for hash, data := range items {
 		if c.store.HasContent(hash) {
 			continue
 		}
+
 		path := filepath.Join(c.store.Path(), hash)
-		if err := os.WriteFile(path, data, StoredFilePerms); err != nil {
-			return wrapError("write_to_store", path, ErrWriteToStore)
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
+		if err != nil {
+			return wrapError("open_file", path, err)
+		}
+
+		buf := bufio.NewWriter(f)
+		if _, err := buf.Write(data); err != nil {
+			f.Close()
+			return wrapError("write_to_store", path, err)
+		}
+
+		if err := buf.Flush(); err != nil {
+			f.Close()
+			return wrapError("flush_buffer", path, err)
+		}
+
+		if err := f.Close(); err != nil {
+			return wrapError("close_file", path, err)
 		}
 	}
+
 	return nil
 }
