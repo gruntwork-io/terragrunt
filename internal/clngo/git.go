@@ -14,8 +14,25 @@ type GitRunner struct {
 }
 
 // NewGitRunner creates a new GitRunner instance
-func NewGitRunner(workDir string) *GitRunner {
+func NewGitRunner() *GitRunner {
+	return &GitRunner{}
+}
+
+// WithWorkDir returns a new GitRunner with the specified working directory
+func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	return &GitRunner{workDir: workDir}
+}
+
+// RequiresWorkDir returns an error if no working directory is set
+func (g *GitRunner) RequiresWorkDir() error {
+	if g.workDir == "" {
+		return &WrappedError{
+			Op:      "check_work_dir",
+			Context: "working directory not set",
+			Err:     ErrNoWorkDir,
+		}
+	}
+	return nil
 }
 
 // LsRemoteResult represents the output of git ls-remote
@@ -69,6 +86,10 @@ func (g *GitRunner) LsRemote(repo, reference string) ([]LsRemoteResult, error) {
 
 // Clone performs a git clone operation
 func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) error {
+	if err := g.RequiresWorkDir(); err != nil {
+		return err
+	}
+
 	args := []string{"clone"}
 
 	if bare {
@@ -133,6 +154,10 @@ func GetRepoName(repo string) string {
 
 // LsTree runs git ls-tree and returns the parsed tree
 func (g *GitRunner) LsTree(reference, path string) (*Tree, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
 	cmd := exec.Command("git", "ls-tree", reference)
 	cmd.Dir = g.workDir
 	var stdout, stderr bytes.Buffer
@@ -152,6 +177,10 @@ func (g *GitRunner) LsTree(reference, path string) (*Tree, error) {
 
 // CatFile retrieves the content of a git object
 func (g *GitRunner) CatFile(hash string) ([]byte, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
 	cmd := exec.Command("git", "cat-file", "-p", hash)
 	cmd.Dir = g.workDir
 
