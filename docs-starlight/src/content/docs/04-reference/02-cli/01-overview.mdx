@@ -13,42 +13,28 @@ export const commands = await getCollection('commands');
 export const openTofuShortcutsEntry = commands.filter((command) => command.data.path === 'opentofu-shortcuts')[0];
 
 export const mainCommands = commands.filter((command) => {
-    return command.data.path === 'run' || command.data.path === 'exec';
+    return command.data.category === 'main'
 });
 
 export const backendCommands = commands.filter((command) => {
-    return command.data.path.startsWith('backend');
+    return command.data.category === 'backend'
 });
 
 export const stackCommands = commands.filter((command) => {
-    return command.data.path.startsWith('stack');
+    return command.data.category === 'stack'
 });
 
 export const catalogCommands = commands.filter((command) => {
-    return command.data.path === 'catalog' || command.data.path === 'scaffold';
+    return command.data.category === 'catalog'
 });
 
 export const discoveryCommands = commands.filter((command) => {
-    return command.data.path === 'list' || command.data.path === 'find';
+    return command.data.category === 'discovery'
 });
 
-export const hclCommands = commands.filter((command) => {
-    return command.data.path.startsWith('hcl');
+export const configurationCommands = commands.filter((command) => {
+    return command.data.category === 'configuration'
 });
-
-export const dagCommands = commands.filter((command) => {
-    return command.data.path.startsWith('dag');
-});
-
-export const renderCommands = commands.filter((command) => {
-    return command.data.path === 'render';
-});
-
-export const configurationCommands = [
-    ...hclCommands,
-    ...dagCommands,
-    ...renderCommands,
-];
 
 export const globalFlags = await getEntry('docs', 'docs/reference/cli/global-flags');
 
@@ -132,7 +118,7 @@ These are the commands that are used to interact directly with Terragrunt config
 
 {
     configurationCommands.map((doc) => (
-        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={doc.data.path.split('/').join(' ')} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 

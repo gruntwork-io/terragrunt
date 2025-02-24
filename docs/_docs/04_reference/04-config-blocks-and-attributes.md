@@ -60,7 +60,9 @@ The following is a reference of all the supported blocks and attributes in the c
 - [generate](#generate)
 - [engine](#engine)
 - [feature](#feature)
+- [exclude](#exclude)
 - [errors](#errors)
+- [unit](#unit)
 
 ### terraform
 
@@ -1602,6 +1604,9 @@ Evaluation Order:
 
 ### unit
 
+> **Note:**
+> The [`stacks`](/docs/reference/experiments/#stacks) experiment is still active, and using the `unit` block requires enabling the `stacks` experiment.
+
 The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
 
 The `unit` block supports the following arguments:
@@ -1626,7 +1631,37 @@ unit "vpc" {
 }
 ```
 
-Note that each unit must have a unique name and path within the stack. The values provided in the `values` block will be made available to the unit's configuration as input variables.
+Note that each unit must have a unique name and path within the stack.
+
+When `values` are specified, generated units will have access to those values via a special `terragrunt.values.hcl` file generated next to the `terragrunt.hcl` file of the unit.
+
+```tree
+terragrunt.stack.hcl
+.terragrunt-stack
+├── vpc
+│   ├── terragrunt.values.hcl
+│   └── terragrunt.hcl
+```
+
+The `terragrunt.values.hcl` file will contain the values specified in the `values` block as top-level attributes:
+
+```hcl
+# .terragrunt-stack/vpc/terragrunt.values.hcl
+
+vpc_name = "main"
+cidr     = "10.0.0.0/16"
+```
+
+The unit will be able to leverage those values via `values` variables.
+
+```hcl
+# .terragrunt-stack/vpc/terragrunt.hcl
+
+inputs = {
+  vpc_name = values.vpc_name
+  cidr     = values.cidr
+}
+```
 
 ## Attributes
 

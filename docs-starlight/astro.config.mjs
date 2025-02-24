@@ -115,10 +115,6 @@ export default defineConfig({
 		"/docs/community/": "/docs/community/contributing/",
 		"/support/": "/docs/community/support/",
 
-		// Support old reference paths
-		"/docs/reference/cli/commands/": "/docs/reference/cli/",
-		"/docs/reference/hcl/functions/": "/docs/reference/hcl/functions/",
-
 		// Support old feature paths
 		"/docs/features/inputs/": "/docs/features/units/",
 		"/docs/features/locals/": "/docs/features/units/",
