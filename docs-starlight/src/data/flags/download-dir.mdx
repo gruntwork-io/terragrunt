@@ -1,0 +1,13 @@
+---
+name: download-dir
+description: The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.
+type: string
+env:
+  - TG_DOWNLOAD_DIR
+---
+
+Specifies a custom directory where Terragrunt will download and cache OpenTofu/Terraform modules.
+
+By default, modules are downloaded to `.terragrunt-cache` in the working directory.
+
+This flag is not recommended as a mechanism for sharing providers between units. Instead, use the [Provider Cache Server](/docs/features/provider-cache-server) feature.

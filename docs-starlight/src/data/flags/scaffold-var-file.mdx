@@ -1,0 +1,20 @@
+---
+name: var-file
+description: Variable file to use for the boilerplate template.
+type: string
+env:
+  - TG_VAR_FILE
+---
+
+Specifies a file containing variables to be used in the boilerplate template during scaffolding. The file should contain variable definitions in HCL format.
+
+Example:
+
+```bash
+# vars.hcl
+environment = "prod"
+region = "us-east-1"
+
+# Command
+terragrunt scaffold github.com/org/repo//modules/mysql --var-file=vars.hcl
+```

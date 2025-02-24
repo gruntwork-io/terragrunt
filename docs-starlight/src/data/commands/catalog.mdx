@@ -1,0 +1,25 @@
+---
+name: catalog
+path: catalog
+sidebar:
+  order: 500
+description: Launch a Terminal User Interface (TUI) to browse and use OpenTofu/Terraform modules.
+usage: |
+  Launch a Terminal User Interface (TUI) to browse and use OpenTofu/Terraform modules.
+examples:
+  - description: Start up a catalog using the configurations discovered in a parent Terragrunt configuration.
+    code: |
+      terragrunt catalog
+  - description: Explicitly indicate the name of the root configuration being discovered.
+    code: |
+      terragrunt catalog --root-file-name root.hcl
+flags:
+  - catalog-no-include-root
+  - catalog-root-file-name
+---
+
+```bash
+terragrunt catalog [repo-url] [options]
+```
+
+For more information on how the catalog works, see the dedicated [catalog documentation](/docs/features/catalog).

@@ -25,6 +25,6 @@ In some cases, it might be desirable to disable Auto-Init.
 
 For example, you might want to specify a different `-plugin-dir` option to `tofu init` (and don't want to have it set in `extra_arguments`).
 
-To disable Auto-Init, use the `--no-auto-init` command line option or set the `TERRAGRUNT_NO_AUTO_INIT` environment variable to `true`.
+To disable Auto-Init, use the `--no-auto-init` command line option or set the `TG_NO_AUTO_INIT` environment variable to `true`.
 
 Disabling Auto-Init requires you to explicitly run `terragrunt init` before executing any other Terragrunt commands for that configuration. If Auto-Init is disabled and Terragrunt detects that `init` should have been run, it will throw an error.

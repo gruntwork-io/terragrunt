@@ -1,0 +1,11 @@
+---
+name: no-auto-retry
+description: Don't automatically retry commands which fail with transient errors.
+type: bool
+env:
+  - TG_NO_AUTO_RETRY
+---
+
+When enabled, Terragrunt will not automatically retry commands that fail with transient errors (like network timeouts). By default, Terragrunt will retry such commands a limited number of times.
+
+To learn more about how Terragrunt handles retries, see the [Errors](/docs/features/runtime-control#errors) section of the [Runtime Control](/docs/features/runtime-control#errors) feature documentation.

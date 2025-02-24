@@ -1,0 +1,17 @@
+---
+name: engine-skip-check
+description: Skip checksum check for Terragrunt engine files.
+type: bool
+env:
+  - TG_ENGINE_SKIP_CHECK
+---
+
+When enabled, Terragrunt will skip the checksum validation of engine files.
+
+This can be useful during development or testing, and is currently the only way to use self-developed engines.
+
+Terragrunt currently only has support for verifying the signatures of official engines, though this will change in the future.
+
+In the meantime, you are encouraged to download engines from a trusted source, verify the integrity of the engine manually, and then reference the local path to the engine in your Terragrunt configuration.
+
+You must also set the [`experimental-engine`](/docs/reference/cli/commands/run#experimental-engine) flag to use engines.

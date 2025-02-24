@@ -2515,6 +2515,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"execute":         []interface{}{"touch", "before.out"},
 					"working_dir":     nil,
 					"run_on_error":    true,
+					"if":              nil,
 					"suppress_stdout": nil,
 				},
 			},
@@ -2525,6 +2526,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"execute":         []interface{}{"touch", "after.out"},
 					"working_dir":     nil,
 					"run_on_error":    true,
+					"if":              nil,
 					"suppress_stdout": nil,
 				},
 			},
@@ -3647,8 +3649,8 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 
 	for _, path := range []string{
 		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "app"),
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m1"),
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m3"),
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-without-enabled"),
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-enabled"),
 	} {
 		relPath, err := filepath.Rel(testPath, path)
 		require.NoError(t, err)
@@ -3656,7 +3658,7 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m2"),
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "unit-disabled"),
 	} {
 		relPath, err := filepath.Rel(testPath, path)
 		require.NoError(t, err)
@@ -4109,4 +4111,18 @@ func TestLogStreaming(t *testing.T) {
 		// Confirm that the timestamps are at least 1 second apart
 		require.GreaterOrEqualf(t, secondTimestamp.Sub(firstTimestamp), 1*time.Second, "Second log entry for unit %s is not at least 1 second after the first log entry", unit)
 	}
+}
+
+func TestLogFormatBare(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --log-format=bare --no-color --non-interactive --working-dir "+testPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Initializing the backend...")
+	assert.NotContains(t, stdout, "STDO[0000] Initializing the backend...")
 }

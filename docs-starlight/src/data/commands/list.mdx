@@ -1,0 +1,28 @@
+---
+name: list
+path: list
+sidebar:
+  order: 700
+description: List Terragrunt configurations.
+usage: |
+  List all Terragrunt configurations in the current directory tree.
+experiment:
+  control: cli-redesign
+  name: CLI Redesign
+examples:
+  - description: |
+      List all units in the current directory.
+    code: |
+      terragrunt list
+  - description: |
+      List all units and emit them as a JSON string.
+    code: |
+      terragrunt list --format 'json'
+  - description: |
+      List all units and sort them in the order they would be run in the Directed Acyclic Graph (DAG).
+    code: |
+      terragrunt list --sort 'dag'
+flags:
+  - list-format
+  - list-sort
+---

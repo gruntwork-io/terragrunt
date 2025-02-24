@@ -18,16 +18,16 @@ OpenTofu/Terraform has a provider caching feature, the [Provider Plugin Cache](h
 
 ## Usage
 
-Terragrunt Provider Cache is currently considered an experimental feature, so it is disabled by default. To enable it, you need to use the flag [`provider-cache`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#provider-cache):
+Terragrunt Provider Cache is currently considered an experimental feature, so it is disabled by default. To enable it, you need to use the flag [`provider-cache`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run#provider-cache):
 
 ```shell
 terragrunt run-all apply --provider-cache
 ```
 
-or the environment variable `TERRAGRUNT_PROVIDER_CACHE`:
+or the environment variable `TG_PROVIDER_CACHE`:
 
 ```shell
-TERRAGRUNT_PROVIDER_CACHE=1 terragrunt run-all apply
+TG_PROVIDER_CACHE=1 terragrunt run-all apply
 ```
 
 By default, cached providers are stored in `terragrunt/providers` folder, which is located in the user cache directory:
@@ -36,7 +36,7 @@ By default, cached providers are stored in `terragrunt/providers` folder, which 
 - `$HOME/Library/Caches/terragrunt/providers` on Darwin
 - `%LocalAppData%\terragrunt\providers` on Windows
 
-The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) directory. If you already have a directory with providers cached by OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), you can set this path using the flag [`provider-cache-dir`](/docs/reference/cli-options/#provider-cache-dir), to enable the Provider Cache Server to reuse existing cached providers.
+The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) directory. If you already have a directory with providers cached by OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), you can set this path using the flag [`provider-cache-dir`](/docs/reference/cli/commands/run#provider-cache-dir), to enable the Provider Cache Server to reuse existing cached providers.
 
 ```shell
 terragrunt plan \
@@ -44,15 +44,15 @@ terragrunt plan \
 --provider-cache-dir /new/path/to/cache/dir
 ```
 
-or the environment variable `TERRAGRUNT_PROVIDER_CACHE_DIR`:
+or the environment variable `TG_PROVIDER_CACHE_DIR`:
 
 ```shell
-TERRAGRUNT_PROVIDER_CACHE=1 \
-TERRAGRUNT_PROVIDER_CACHE_DIR=/new/path/to/cache/dir \
+TG_PROVIDER_CACHE=1 \
+TG_PROVIDER_CACHE_DIR=/new/path/to/cache/dir \
 terragrunt plan
 ```
 
-By default, Terragrunt only caches providers from the following registries: `registry.terraform.io`, `registry.opentofu.org`. You can override this list using the flag [`provider-cache-registry-names`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#provider-cache-registry-names):
+By default, Terragrunt only caches providers from the following registries: `registry.terraform.io`, `registry.opentofu.org`. You can override this list using the flag [`provider-cache-registry-names`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run#provider-cache-registry-names):
 
 ```shell
 terragrunt apply \
@@ -61,11 +61,11 @@ terragrunt apply \
 --provider-cache-registry-names example2.com
 ```
 
-or the environment variable `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES`:
+or the environment variable `TG_PROVIDER_CACHE_REGISTRY_NAMES`:
 
 ```shell
-TERRAGRUNT_PROVIDER_CACHE=1 \
-TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES=example1.com,example2.com \
+TG_PROVIDER_CACHE=1 \
+TG_PROVIDER_CACHE_REGISTRY_NAMES=example1.com,example2.com \
 terragrunt apply
 ```
 
@@ -113,9 +113,9 @@ terragrunt providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform
 
 Since the Provider Cache Server is essentially a Private Registry server that accepts requests from OpenTofu/Terraform, downloads and saves providers to the cache directory, there are a few more flags that are unlikely to be needed, but are useful to know about:
 
-- [`provider-cache-hostname`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#provider-cache-hostname) - Default: `localhost`.
-- [`provider-cache-port`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#provider-cache-port) - Default: Assigned random port automatically.
-- [`provider-cache-token`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#provider-cache-token) - Default: Generated randomly.
+- [`provider-cache-hostname`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run#provider-cache-hostname) - Default: `localhost`.
+- [`provider-cache-port`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run#provider-cache-port) - Default: Assigned random port automatically.
+- [`provider-cache-token`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run#provider-cache-token) - Default: Generated randomly.
 
 To enhance security, the Terragrunt Provider Cache has authentication to prevent unauthorized connections from third-party applications. You can set your own token using any character set.
 
@@ -130,9 +130,9 @@ terragrunt apply \
 or using environment variables:
 
 ```shell
-TERRAGRUNT_PROVIDER_CACHE=1 \
-TERRAGRUNT_PROVIDER_CACHE_HOST=192.168.0.100 \
-TERRAGRUNT_PROVIDER_CACHE_PORT=5758 \
-TERRAGRUNT_PROVIDER_CACHE_TOKEN=my-secret \
+TG_PROVIDER_CACHE=1 \
+TG_PROVIDER_CACHE_HOST=192.168.0.100 \
+TG_PROVIDER_CACHE_PORT=5758 \
+TG_PROVIDER_CACHE_TOKEN=my-secret \
 terragrunt apply
 ```

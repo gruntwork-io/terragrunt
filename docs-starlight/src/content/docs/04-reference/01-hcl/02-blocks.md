@@ -1361,7 +1361,7 @@ The `feature` block is used to configure feature flags in HCL for a specific Ter
 
 Each feature flag must include a default value.
 
-Feature flags can be overridden via the [`--feature`](/docs/reference/cli-options/#feature) CLI option.
+Feature flags can be overridden via the [`--feature`](/docs/reference/cli/commands/run#feature) CLI option.
 
 ```hcl
 # terragrunt.hcl
@@ -1397,10 +1397,10 @@ terragrunt --feature run_hook=true --feature string_flag=dev apply
 Setting feature flags through env variables:
 
 ```bash
-export TERRAGRUNT_FEATURE=run_hook=true
+export TG_FEATURE=run_hook=true
 terragrunt apply
 
-export TERRAGRUNT_FEATURE=run_hook=true,string_flag=dev
+export TG_FEATURE=run_hook=true,string_flag=dev
 terragrunt apply
 ```
 
@@ -1616,3 +1616,31 @@ Evaluation Order:
 
 > **Note:**
 > Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
+
+## unit
+
+The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
+
+The `unit` block supports the following arguments:
+
+- `name` (label): A unique identifier for the unit. This is used to reference the unit elsewhere in your configuration.
+- `source` (attribute): Specifies where to find the Terragrunt configuration files for this unit. This follows the same syntax as the `source` parameter in the `terraform` block.
+- `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`).
+- `values` (attribute, optional): A map of values that will be passed to the unit as inputs.
+
+Example:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-units.git//networking/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+```
+
+Note that each unit must have a unique name and path within the stack. The values provided in the `values` block will be made available to the unit's configuration as input variables.

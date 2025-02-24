@@ -42,6 +42,7 @@ const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
 	RecommendedParentConfigName     = "root.hcl"
+	StackValuesFile                 = "terragrunt.values.hcl"
 
 	FoundInFile = "found_in_file"
 
@@ -78,7 +79,6 @@ const (
 	MetadataErrors                      = "errors"
 	MetadataRetry                       = "retry"
 	MetadataIgnore                      = "ignore"
-	MetadataUnit                        = "unit"
 	MetadataValues                      = "values"
 )
 
@@ -439,6 +439,7 @@ func (deps *ModuleDependencies) String() string {
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
 type Hook struct {
 	Name           string   `hcl:"name,label" cty:"name"`
+	If             *bool    `hcl:"if,attr" cty:"if"`
 	Commands       []string `hcl:"commands,attr" cty:"commands"`
 	Execute        []string `hcl:"execute,attr" cty:"execute"`
 	RunOnError     *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
@@ -892,6 +893,16 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	// https://github.com/gruntwork-io/terragrunt/issues/667
 	if err := setIAMRole(ctx, file, includeFromChild); err != nil {
 		return nil, err
+	}
+
+	// read unit files and add to context
+	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.Stacks) {
+		unitValues, err := ReadUnitValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+		if err != nil {
+			return nil, err
+		}
+
+		ctx = ctx.WithValues(unitValues)
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.

@@ -33,7 +33,30 @@ const (
 	testFixtureHooksInitOnceWithSourceNoBackend                   = "fixtures/hooks/init-once/with-source-no-backend"
 	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout = "fixtures/hooks/init-once/with-source-no-backend-suppress-hook-stdout"
 	testFixtureHooksInitOnceWithSourceWithBackend                 = "fixtures/hooks/init-once/with-source-with-backend"
+	testFixtureTerragruntHookIfParameter                          = "fixtures/hooks/if-parameter"
 )
+
+func TestTerragruntHookIfParameter(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureTerragruntHookIfParameter)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTerragruntHookIfParameter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureTerragruntHookIfParameter)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+
+	require.NoError(t, err)
+
+	output := stdout.String()
+
+	assert.Contains(t, output, "running before hook")
+	assert.NotContains(t, output, "skip after hook")
+}
 
 func TestTerragruntBeforeHook(t *testing.T) {
 	t.Parallel()

@@ -1,0 +1,13 @@
+---
+name: strict-control
+description: Enables specific strict controls.
+type: string
+env:
+  - TG_STRICT_CONTROL
+---
+
+Enables specific strict controls in Terragrunt. For a list of available controls and their descriptions, run `terragrunt info strict`.
+
+This flag provides finer-grained control compared to `--strict-mode`, allowing you to enable specific controls rather than all of them.
+
+For more information, see the [strict controls documentation](/docs/reference/strict-controls).

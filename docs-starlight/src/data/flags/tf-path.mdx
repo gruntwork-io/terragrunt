@@ -1,0 +1,26 @@
+---
+name: tf-path
+description: Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).
+type: string
+env:
+  - TG_TF_PATH
+---
+
+Specifies the path to the OpenTofu/Terraform binary that Terragrunt should use. By default, Terragrunt will look for a binary named `tofu` in your system's PATH.
+
+This is useful when:
+
+- You have multiple versions of OpenTofu/Terraform installed.
+- The binary is not in your PATH.
+- You want to use a specific version for certain operations.
+- You want to switch between OpenTofu and Terraform binaries.
+
+Example:
+
+```bash
+terragrunt run plan --tf-path=/usr/local/bin/tofu
+```
+
+Note that if you only have `terraform` installed, and it is available in your `PATH`, Terragrunt will automatically use that binary.
+
+NOTE: This will override the terraform binary that is used by terragrunt in all instances, including dependency lookups. This setting will also override any terraform_binary configuration values specified in the terragrunt.hcl config for both the top level, and dependency lookups.

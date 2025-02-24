@@ -1,0 +1,39 @@
+---
+name: units-that-include
+description: If flag is set, 'run --all' will only run the command against Terragrunt units that include the specified file.
+type: string
+env:
+  - TG_UNITS_THAT_INCLUDE
+---
+
+import { FileTree } from '@astrojs/starlight/components';
+
+When specified, Terragrunt will only run commands against units that include the specified configuration file. This is useful for targeting specific configurations that share common included files.
+
+For example, with the following directory structure:
+
+<FileTree>
+- dev
+  - app
+    - terragrunt.hcl
+  - db
+    - terragrunt.hcl
+- prod
+  - app
+    - terragrunt.hcl
+  - db
+    - terragrunt.hcl
+- _envcommon
+  - app.hcl
+  - db.hcl
+</FileTree>
+
+If both `dev/app/terragrunt.hcl` and `prod/app/terragrunt.hcl` include files from `_envcommon`, you can target all units that include the `app.hcl` file:
+
+```bash
+terragrunt run --all --units-that-include=./_envcommon/app.hcl plan
+```
+
+This will only run the command against units that include the `app.hcl` file.
+
+Note: This flag is functionally covered by the `--queue-include-units-reading` flag, but is more explicitly focused on the `include` configuration block.

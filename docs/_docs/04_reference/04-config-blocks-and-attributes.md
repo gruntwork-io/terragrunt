@@ -33,6 +33,8 @@ The following is a reference of all the supported blocks and attributes in the c
   - [engine](#engine)
   - [feature](#feature)
   - [exclude](#exclude)
+  - [errors](#errors)
+  - [unit](#unit)
 - [Attributes](#attributes)
   - [inputs](#inputs)
   - [download\_dir](#download_dir)
@@ -149,6 +151,7 @@ The `terraform` block supports the following arguments:
   - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
     case of "after" hooks, if the OpenTofu/Terraform command hit an error. Default is false.
   - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on OpenTofu/Terraform's output and any other output would break their parsing.
+  - `if` (optional) : hook will be skipped when the argument is set or evaluates to `false`.
 
 - `after_hook` (block): Nested blocks used to specify command hooks that should be run after `tofu`/`terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
@@ -1595,20 +1598,75 @@ Evaluation Order:
 > **Note:**
 > Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
 
+### unit
+
+The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
+
+The `unit` block supports the following arguments:
+
+- `name` (label): A unique identifier for the unit. This is used to reference the unit elsewhere in your configuration.
+- `source` (attribute): Specifies where to find the Terragrunt configuration files for this unit. This follows the same syntax as the `source` parameter in the `terraform` block.
+- `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`).
+- `values` (attribute, optional): A map of values that will be passed to the unit as inputs.
+
+Example:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-units.git//networking/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+```
+
+Note that each unit must have a unique name and path within the stack. The values provided in the `values` block will be made available to the unit's configuration as input variables.
+
 ## Attributes
 
-- [inputs](#inputs)
-- [download\_dir](#download_dir)
-- [prevent\_destroy](#prevent_destroy)
-- [skip](#skip) (DEPRECATED: Use [exclude](#exclude) instead)
-- [iam\_role](#iam_role)
-- [iam\_assume\_role\_duration](#iam_assume_role_duration)
-- [iam\_assume\_role\_session\_name](#iam_assume_role_session_name)
-- [iam\_web\_identity\_token](#iam_web_identity_token)
-- [terraform\_binary](#terraform_binary)
-- [terraform\_version\_constraint](#terraform_version_constraint)
-- [terragrunt\_version\_constraint](#terragrunt_version_constraint)
-- [retryable\_errors](#retryable_errors) (DEPRECATED: Use [errors](#errors) instead)
+- [Blocks](#blocks)
+  - [terraform](#terraform)
+    - [A note about using modules from the registry](#a-note-about-using-modules-from-the-registry)
+  - [remote\_state](#remote_state)
+    - [backend](#backend)
+    - [encryption](#encryption)
+  - [include](#include)
+    - [Single include](#single-include)
+    - [Multiple includes](#multiple-includes)
+    - [Limitations on accessing exposed config](#limitations-on-accessing-exposed-config)
+  - [locals](#locals)
+    - [Complex locals](#complex-locals)
+    - [Computed locals](#computed-locals)
+  - [dependency](#dependency)
+  - [dependencies](#dependencies)
+  - [generate](#generate)
+  - [engine](#engine)
+  - [feature](#feature)
+  - [exclude](#exclude)
+  - [errors](#errors)
+    - [Retry Configuration](#retry-configuration)
+    - [Ignore Configuration](#ignore-configuration)
+    - [Combined Example](#combined-example)
+  - [unit](#unit)
+- [Attributes](#attributes)
+  - [inputs](#inputs)
+    - [Variable Precedence](#variable-precedence)
+  - [download\_dir](#download_dir)
+  - [prevent\_destroy](#prevent_destroy)
+  - [skip](#skip)
+  - [iam\_role](#iam_role)
+  - [iam\_assume\_role\_duration](#iam_assume_role_duration)
+  - [iam\_assume\_role\_session\_name](#iam_assume_role_session_name)
+  - [iam\_web\_identity\_token](#iam_web_identity_token)
+    - [Git Provider Configuration](#git-provider-configuration)
+  - [terraform\_binary](#terraform_binary)
+  - [terraform\_version\_constraint](#terraform_version_constraint)
+  - [terragrunt\_version\_constraint](#terragrunt_version_constraint)
+  - [retryable\_errors](#retryable_errors)
 
 ### inputs
 

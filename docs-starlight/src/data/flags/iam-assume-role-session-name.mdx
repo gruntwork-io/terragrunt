@@ -1,0 +1,11 @@
+---
+name: iam-assume-role-session-name
+description: Name for the IAM Assumed Role session.
+type: string
+env:
+  - TG_IAM_ASSUME_ROLE_SESSION_NAME
+---
+
+Specifies a custom session name when assuming an IAM role. This flag is only used when [`iam-assume-role`](/docs/reference/cli/commands/run#iam-assume-role) is specified.
+
+For more information on how to use this flag, and how it differs from other ways of managing authentication with Terragrunt, see the [Authentication](/docs/features/authentication) feature documentation.

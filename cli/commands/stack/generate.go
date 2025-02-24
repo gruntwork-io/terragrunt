@@ -22,6 +22,7 @@ const (
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
+	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 
 	if err != nil {
@@ -37,7 +38,7 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
 	baseDir := filepath.Join(opts.WorkingDir, stackDir)
-	if err := os.MkdirAll(baseDir, dirPerm); err != nil {
+	if err := os.MkdirAll(baseDir, os.ModePerm); err != nil {
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
 
@@ -69,13 +70,18 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 				return errors.New(err)
 			}
 		} else {
-			if err := os.MkdirAll(dest, dirPerm); err != nil {
+			if err := os.MkdirAll(dest, os.ModePerm); err != nil {
 				return errors.New(err)
 			}
 
 			if _, err := getter.GetAny(ctx, dest, src); err != nil {
 				return errors.New(err)
 			}
+		}
+
+		// generate unit values file
+		if err := config.WriteUnitValues(opts, unit, dest); err != nil {
+			return errors.New(err)
 		}
 	}
 

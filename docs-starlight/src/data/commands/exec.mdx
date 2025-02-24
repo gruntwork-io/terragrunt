@@ -1,0 +1,57 @@
+---
+name: exec
+path: exec
+sidebar:
+  order: 200
+description: Execute an arbitrary command, wrapped by Terragrunt.
+usage: |
+  Execute an arbitrary command, wrapped by Terragrunt.
+experiment:
+  control: cli-redesign
+  name: CLI Redesign
+examples:
+  - description: |
+      Execute 'echo "Hello, Terragrunt!"' via Terragrunt.
+    code: |
+      terragrunt exec -- echo "Hello, Terragrunt!"
+  - description: |
+      Inspect `main.tf` file of module for Unit
+    code: |
+      terragrunt exec --in-download-dir -- cat main.tf
+flags:
+  - auth-provider-cmd
+  - config
+  - download-dir
+  - iam-assume-role
+  - iam-assume-role-duration
+  - iam-assume-role-session-name
+  - iam-assume-role-web-identity-token
+  - in-download-dir
+  - inputs-debug
+---
+
+## Difference between `run` and `exec`
+
+In contrast to the `run` command, which will always invoke OpenTofu/Terraform, the `exec` command allows for execution of any arbitrary command via Terragrunt.
+
+This can be useful, as it allows you full control over the process that is being orchestrated by Terragrunt, while taking advantage of Terragrunt's features such as dependency resolution, inputs, and more.
+
+## Interaction with configuration
+
+When using `exec`, you will have almost the exact same configuration context that you have when using `run`, including inputs.
+
+```hcl
+# terragrunt.hcl
+
+inputs = {
+  message = "Hello, Terragrunt!"
+}
+```
+
+Running the following command will show that the `message` input is available to the command:
+
+```bash
+$ terragrunt exec -- env | grep 'TF_VAR_message'
+TF_VAR_message=Hello, Terragrunt!
+```
+

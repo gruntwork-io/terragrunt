@@ -1,0 +1,143 @@
+---
+title: Overview
+description: Learn how the Terragrunt CLI works
+slug: docs/reference/cli
+sidebar:
+  order: 1
+---
+
+import { Aside, Badge, LinkCard } from '@astrojs/starlight/components';
+import { getCollection, getEntry } from 'astro:content';
+export const commands = await getCollection('commands');
+
+export const openTofuShortcutsEntry = commands.filter((command) => command.data.path === 'opentofu-shortcuts')[0];
+
+export const mainCommands = commands.filter((command) => {
+    return command.data.path === 'run' || command.data.path === 'exec';
+});
+
+export const backendCommands = commands.filter((command) => {
+    return command.data.path.startsWith('backend');
+});
+
+export const stackCommands = commands.filter((command) => {
+    return command.data.path.startsWith('stack');
+});
+
+export const catalogCommands = commands.filter((command) => {
+    return command.data.path === 'catalog' || command.data.path === 'scaffold';
+});
+
+export const discoveryCommands = commands.filter((command) => {
+    return command.data.path === 'list' || command.data.path === 'find';
+});
+
+export const hclCommands = commands.filter((command) => {
+    return command.data.path.startsWith('hcl');
+});
+
+export const dagCommands = commands.filter((command) => {
+    return command.data.path.startsWith('dag');
+});
+
+export const renderCommands = commands.filter((command) => {
+    return command.data.path === 'render';
+});
+
+export const configurationCommands = [
+    ...hclCommands,
+    ...dagCommands,
+    ...renderCommands,
+];
+
+export const globalFlags = await getEntry('docs', 'docs/reference/cli/global-flags');
+
+The Terragrunt CLI is designed to make it as easy as possible to manage infrastructure at any scale.
+
+To support that design, there are certain patterns that are used throughout the CLI. This document will help you understand those patterns so you can use the CLI more effectively.
+
+## Usage
+
+Most of the time, if you are trying to use Terragrunt to run a command that you would normally run with OpenTofu/Terraform, you can just replace `tofu`/ `terraform` with `terragrunt`.
+
+Terragrunt will pass the command to `tofu`/ `terraform` with the same arguments.
+
+```bash
+terragrunt plan
+```
+
+Terragrunt doesn't always _just_ pass the command. It frequently does some additional processing to make it easier to manage infrastructure at scale.
+
+For example, in the previous `plan` command, you wouldn't have to explicitly run `init` like you would with `tofu`/ `terraform`. Terragrunt takes advantage of a feature called [Auto-init](/docs/features/auto-init) to automatically run `init` when necessary.
+
+Using Terragrunt in this way is taking advantage of the **OpenTofu Shortcuts** that Terragrunt provides.
+
+<LinkCard title={openTofuShortcutsEntry.data.name} href={`/docs/reference/cli/commands/${openTofuShortcutsEntry.id}`} description={openTofuShortcutsEntry.data.description} />
+
+Terragrunt also has some other commands that are unique to Terragrunt.
+
+## Main Commands
+
+These are the main commands you will use with Terragrunt:
+
+{
+    mainCommands.map((doc) => (
+        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Backend Commands
+
+These are the commands that are used when working with OpenTofu/Terraform state backends:
+
+{
+    backendCommands.map((doc) => (
+        <LinkCard title={"backend " + doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Stack Commands
+
+These are the commands that are used when working with a `terragrunt.stack.hcl` file:
+
+{
+    stackCommands.map((doc) => (
+        <LinkCard title={"stack " + doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Catalog Commands
+
+These are the commands that are used when working with a Terragrunt catalog:
+
+{
+    catalogCommands.map((doc) => (
+        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Discovery Commands
+
+These are the commands that are used to discover units in your Terragrunt project:
+
+{
+    discoveryCommands.map((doc) => (
+        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Configuration Commands
+
+These are the commands that are used to interact directly with Terragrunt configuration:
+
+{
+    configurationCommands.map((doc) => (
+        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+    ))
+}
+
+## Global Flags
+
+There are some flags that are available to all Terragrunt commands:
+
+<LinkCard title={globalFlags.data.title} href={`/${globalFlags.id}`} description={globalFlags.data.description} />

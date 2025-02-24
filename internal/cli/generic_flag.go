@@ -46,6 +46,10 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 		return ApplyFlag(flag, set)
 	}
 
+	if flag.Destination == nil {
+		flag.Destination = new(T)
+	}
+
 	valueType := &genericVar[T]{dest: flag.Destination}
 	value := newGenericValue(valueType, flag.Setter)
 
