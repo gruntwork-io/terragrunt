@@ -28,10 +28,11 @@ type Options struct {
 // Cln clones a git repository using content-addressable storage.
 // If the content already exists in the store, it creates hard links instead of copying files.
 type Cln struct {
-	store *Store
-	git   *GitRunner
-	opts  Options
-	repo  string
+	store     *Store
+	git       *GitRunner
+	opts      Options
+	repo      string
+	cloneLock sync.Mutex
 }
 
 // New creates a new Cln instance with the given options
@@ -51,6 +52,9 @@ func New(repo string, opts Options) (*Cln, error) {
 
 // Clone performs the clone operation
 func (c *Cln) Clone() error {
+	c.cloneLock.Lock()
+	defer c.cloneLock.Unlock()
+
 	targetDir, err := c.prepareTargetDirectory()
 	if err != nil {
 		return err
