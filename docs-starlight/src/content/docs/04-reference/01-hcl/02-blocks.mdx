@@ -6,6 +6,8 @@ sidebar:
   order: 2
 ---
 
+import { FileTree } from '@astrojs/starlight/components';
+
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
 Think of configuration blocks as a way to control different systems used by Terragrunt, whereas [attributes](/docs/reference/hcl/attributes) are used to define values for those systems.
@@ -1645,4 +1647,37 @@ unit "vpc" {
 }
 ```
 
-Note that each unit must have a unique name and path within the stack. The values provided in the `values` block will be made available to the unit's configuration as input variables.
+Note that each unit must have a unique name and path within the stack.
+
+When `values` are specified, generated units will have access to those values via a special `terragrunt.values.hcl` file generated next to the `terragrunt.hcl` file of the unit.
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - vpc
+    - **terragrunt.values.hcl**
+    - terragrunt.hcl
+
+</FileTree>
+
+The `terragrunt.values.hcl` file will contain the values specified in the `values` block as top-level attributes:
+
+```hcl
+# .terragrunt-stack/vpc/terragrunt.values.hcl
+
+vpc_name = "main"
+cidr     = "10.0.0.0/16"
+```
+
+The unit will be able to leverage those values via `values` variables.
+
+```hcl
+# .terragrunt-stack/vpc/terragrunt.hcl
+
+inputs = {
+  vpc_name = values.vpc_name
+  cidr     = values.cidr
+}
+```
+
