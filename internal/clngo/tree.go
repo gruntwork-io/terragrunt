@@ -1,6 +1,7 @@
 package clngo
 
 import (
+	"bufio"
 	"strings"
 )
 
@@ -50,17 +51,14 @@ func ParseTreeEntry(line string) (TreeEntry, error) {
 
 // ParseTree parses the complete output of git ls-tree
 func ParseTree(output, path string) (*Tree, error) {
-	if output == "" {
-		return &Tree{
-			entries: make([]TreeEntry, 0),
-			path:    path,
-		}, nil
-	}
+	// Pre-allocate capacity based on newline count
+	capacity := strings.Count(output, "\n") + 1
+	entries := make([]TreeEntry, 0, capacity)
 
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	entries := make([]TreeEntry, 0, len(lines))
-
-	for _, line := range lines {
+	// Use a scanner for more efficient line reading
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		line := scanner.Text()
 		if line == "" {
 			continue
 		}
@@ -70,6 +68,10 @@ func ParseTree(output, path string) (*Tree, error) {
 			return nil, err
 		}
 		entries = append(entries, entry)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, wrapErrorWithContext("scan_tree", "failed to read tree output", err)
 	}
 
 	return &Tree{
