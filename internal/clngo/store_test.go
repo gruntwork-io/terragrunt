@@ -25,22 +25,16 @@ func TestStore(t *testing.T) {
 
 	t.Run("default path", func(t *testing.T) {
 		t.Parallel()
-		store, err := clngo.NewStore("")
-		require.NoError(t, err)
-
 		home, err := os.UserHomeDir()
 		require.NoError(t, err)
 
-		expected := filepath.Join(home, ".cache", ".cln-store")
-		t.Cleanup(func() {
-			err := os.RemoveAll(expected)
-			assert.NoError(t, err, "Failed to cleanup store directory")
-		})
+		expectedPath := filepath.Join(home, ".cln-store")
 
-		assert.Equal(t, expected, store.Path())
+		store, err := clngo.NewStore("")
+		require.NoError(t, err)
+		assert.Equal(t, expectedPath, store.Path())
 
-		// Verify directory was created
-		_, err = os.Stat(expected)
+		_, err = os.Stat(expectedPath)
 		assert.NoError(t, err, "Store directory should exist")
 	})
 }
