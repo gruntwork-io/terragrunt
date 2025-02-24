@@ -17,6 +17,7 @@ type Store struct {
 	path string
 	// Add cache for frequently accessed content
 	contentCache sync.Map
+	mu           sync.RWMutex // Add mutex for file operations
 }
 
 // NewStore creates a new Store instance. If path is empty, it will use
@@ -88,14 +89,28 @@ func (s *Store) HasReference(hash string) bool {
 
 // StoreReference marks a git reference as completely stored
 func (s *Store) StoreReference(hash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	refPath := filepath.Join(s.path, "refs", hash)
+
+	// Check if reference already exists to avoid race conditions
+	if s.HasReference(hash) {
+		return nil
+	}
 
 	if err := os.MkdirAll(filepath.Dir(refPath), DefaultDirPerms); err != nil {
 		return wrapError("create_refs_dir", filepath.Dir(refPath), ErrCreateDir)
 	}
 
-	// Create empty file to mark reference as stored
-	if err := os.WriteFile(refPath, []byte{}, StoredFilePerms); err != nil {
+	// Use atomic write operation
+	tempFile := refPath + ".tmp"
+	if err := os.WriteFile(tempFile, []byte{}, StoredFilePerms); err != nil {
+		return wrapError("write_temp_reference", tempFile, ErrWriteToStore)
+	}
+
+	if err := os.Rename(tempFile, refPath); err != nil {
+		os.Remove(tempFile) // Clean up temp file
 		return wrapError("store_reference", refPath, ErrWriteToStore)
 	}
 
