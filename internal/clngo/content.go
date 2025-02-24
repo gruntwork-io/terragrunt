@@ -13,8 +13,6 @@ type Content struct {
 const (
 	// DefaultDirPerms represents standard directory permissions (rwxr-xr-x)
 	DefaultDirPerms = os.FileMode(0755)
-	// DefaultFilePerms represents standard file permissions (rw-r--r--)
-	DefaultFilePerms = os.FileMode(0644)
 	// StoredFilePerms represents read-only file permissions (r--r--r--)
 	StoredFilePerms = os.FileMode(0444)
 )
