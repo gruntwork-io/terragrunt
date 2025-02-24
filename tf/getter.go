@@ -224,6 +224,9 @@ func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain str
 	if err := json.Unmarshal(bodyData, &responseJSON); err != nil {
 		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
 	}
+	if len(responseJSON.Modules) == 0 {
+		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+	}
 	availableVersions := responseJSON.Modules[0].ModuleVersions
 
 	// Filter the available versions based on the version constraint
