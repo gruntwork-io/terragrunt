@@ -5,8 +5,10 @@
 package clngo
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -21,7 +23,7 @@ type Options struct {
 	Branch string
 
 	// StorePath specifies a custom path for the content store
-	// If empty, uses $HOME/.cache/.cln-store
+	// If empty, uses $HOME/.cln-store
 	StorePath string
 }
 
@@ -40,6 +42,19 @@ func New(repo string, opts Options) (*Cln, error) {
 	store, err := NewStore(opts.StorePath)
 	if err != nil {
 		return nil, err
+	}
+
+	// Strip the git:: prefix if present
+	repo = strings.TrimPrefix(repo, "git::")
+	// Also strip any ssh:// prefix as git handles SSH URLs without it
+	repo = strings.TrimPrefix(repo, "ssh://")
+
+	// Convert github.com/org/repo to github.com:org/repo format for SSH URLs
+	if strings.HasPrefix(repo, "git@") {
+		parts := strings.SplitN(repo, "/", 2)
+		if len(parts) == 2 {
+			repo = parts[0] + ":" + parts[1]
+		}
 	}
 
 	return &Cln{
@@ -65,12 +80,33 @@ func (c *Cln) Clone() error {
 		return err
 	}
 
-	// Check if we have the complete reference
-	if c.store.HasReference(hash) {
-		return c.linkFromStore(targetDir, hash)
+	// Check if we have the tree structure cached
+	if treeData, err := c.git.CatFile(hash); err == nil {
+		// We have the tree structure, try to link files directly
+		tree, err := ParseTree(string(treeData), targetDir)
+		if err == nil {
+			// Try to link all files from the store
+			content := NewContent(c.store)
+			allFilesPresent := true
+
+			for _, entry := range tree.Entries() {
+				if entry.Type != "blob" {
+					continue
+				}
+				targetPath := filepath.Join(targetDir, entry.Path)
+				if err := content.Link(entry.Hash, targetPath); err != nil {
+					allFilesPresent = false
+					break
+				}
+			}
+
+			if allFilesPresent {
+				return nil // Successfully reused all content
+			}
+		}
 	}
 
-	// If we don't have the reference, do a full clone
+	// Fall back to full clone if optimization fails
 	return c.cloneAndStoreContent(targetDir, hash)
 }
 
@@ -102,66 +138,74 @@ func (c *Cln) resolveReference() (string, error) {
 	return results[0].Hash, nil
 }
 
-func (c *Cln) linkFromStore(targetDir, hash string) error {
-	// Set up a temporary git repo to read the tree
-	tempDir, cleanup, err := c.git.CreateTempDir()
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
-	// Do a bare clone to get the git objects
-	if err := c.git.Clone(c.repo, true, 0, ""); err != nil {
-		return err
-	}
-
-	c.git.SetWorkDir(tempDir)
-
-	// Get the tree structure using git cat-file
-	tree, err := c.git.LsTree(hash, ".")
-	if err != nil {
-		return err
-	}
-
-	content := NewContent(c.store)
-	return c.processTreeEntries(targetDir, tree, content)
-}
-
 func (c *Cln) cloneAndStoreContent(targetDir, hash string) error {
-	// Create temporary directory for initial clone
 	tempDir, cleanup, err := c.git.CreateTempDir()
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	// Perform shallow clone to temporary directory
 	if err := c.git.Clone(c.repo, true, 1, c.opts.Branch); err != nil {
 		return err
 	}
 
 	c.git.SetWorkDir(tempDir)
+
+	return c.storeTreeRecursively(hash, "", targetDir)
+}
+
+func (c *Cln) storeTreeRecursively(hash, prefix, targetDir string) error {
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
 	}
 
-	// Collect all blob entries first
-	var blobEntries []TreeEntry
+	// Store the tree data itself
+	content := NewContent(c.store)
+	treeData := strings.Builder{}
 	for _, entry := range tree.Entries() {
+		fmt.Fprintf(&treeData, "%s %s %s %s\n", entry.Mode, entry.Type, entry.Hash, entry.Path)
+	}
+	if err := content.Store(hash, []byte(treeData.String())); err != nil {
+		return err
+	}
+
+	var blobEntries []TreeEntry
+	var subTrees []TreeEntry
+
+	for _, entry := range tree.Entries() {
+		if prefix != "" {
+			entry.Path = filepath.Join(prefix, entry.Path)
+		}
+
 		if entry.Type == "blob" {
 			blobEntries = append(blobEntries, entry)
+		} else if entry.Type == "tree" {
+			subTrees = append(subTrees, entry)
 		}
 	}
 
-	// Use a worker pool to fetch blobs in parallel
+	if err := c.storeBlobEntries(blobEntries); err != nil {
+		return err
+	}
+
+	for _, subTree := range subTrees {
+		if err := c.storeTreeRecursively(subTree.Hash, subTree.Path, targetDir); err != nil {
+			return err
+		}
+	}
+
+	return c.processTreeEntries(targetDir, tree, content)
+}
+
+func (c *Cln) storeBlobEntries(entries []TreeEntry) error {
 	blobs := make(map[string][]byte)
 	var mu sync.Mutex
 	errChan := make(chan error, 1)
 	semaphore := make(chan struct{}, 4)
 
 	var wg sync.WaitGroup
-	for _, entry := range blobEntries {
+	for _, entry := range entries {
 		if c.store.HasContent(entry.Hash) {
 			continue
 		}
@@ -188,28 +232,20 @@ func (c *Cln) cloneAndStoreContent(targetDir, hash string) error {
 		}(entry.Hash)
 	}
 
-	// Wait for all fetches to complete
 	wg.Wait()
 
-	// Check for errors
 	select {
 	case err := <-errChan:
 		return err
 	default:
 	}
 
-	// Store all blobs in one batch operation
-	content := NewContent(c.store)
-	if err := content.StoreBatch(blobs); err != nil {
-		return err
+	if len(blobs) > 0 {
+		content := NewContent(c.store)
+		return content.StoreBatch(blobs)
 	}
 
-	// Mark this reference as stored
-	if err := c.store.StoreReference(hash); err != nil {
-		return err
-	}
-
-	return c.processTreeEntries(targetDir, tree, content)
+	return nil
 }
 
 func (c *Cln) processTreeEntries(targetDir string, tree *Tree, content *Content) error {

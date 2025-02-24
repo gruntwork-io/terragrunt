@@ -20,7 +20,7 @@ type Store struct {
 }
 
 // NewStore creates a new Store instance. If path is empty, it will use
-// $HOME/.cache/.cln-store
+// $HOME/.cln-store
 func NewStore(path string) (*Store, error) {
 	if path != "" {
 		return &Store{path: path}, nil
@@ -34,21 +34,11 @@ func NewStore(path string) (*Store, error) {
 		}
 	}
 
-	storePath := filepath.Join(home, ".cache", ".cln-store")
+	storePath := filepath.Join(home, ".cln-store")
 	if err := os.MkdirAll(storePath, storePathPerm); err != nil {
 		return nil, &WrappedError{
 			Op:   "create_store_dir",
 			Path: storePath,
-			Err:  ErrCreateDir,
-		}
-	}
-
-	// Ensure refs directory exists
-	refsPath := filepath.Join(storePath, "refs")
-	if err := os.MkdirAll(refsPath, storePathPerm); err != nil {
-		return nil, &WrappedError{
-			Op:   "create_refs_dir",
-			Path: refsPath,
 			Err:  ErrCreateDir,
 		}
 	}
@@ -79,27 +69,4 @@ func (s *Store) HasContent(hash string) bool {
 	}
 
 	return exists
-}
-
-// HasReference checks if a complete reference exists in the store
-func (s *Store) HasReference(hash string) bool {
-	refPath := filepath.Join(s.path, "refs", hash)
-	_, err := os.Stat(refPath)
-	return err == nil
-}
-
-// StoreReference marks a git reference as completely stored
-func (s *Store) StoreReference(hash string) error {
-	refPath := filepath.Join(s.path, "refs", hash)
-
-	if err := os.MkdirAll(filepath.Dir(refPath), DefaultDirPerms); err != nil {
-		return wrapError("create_refs_dir", filepath.Dir(refPath), ErrCreateDir)
-	}
-
-	// Create empty file to mark reference as stored
-	if err := os.WriteFile(refPath, []byte{}, StoredFilePerms); err != nil {
-		return wrapError("store_reference", refPath, ErrWriteToStore)
-	}
-
-	return nil
 }
