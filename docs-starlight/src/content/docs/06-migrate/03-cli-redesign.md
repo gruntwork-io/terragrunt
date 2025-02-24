@@ -29,7 +29,7 @@ All changes you need to make to adapt to this new CLI design involve changing ho
 
 If you are currently using flags that are prefixed with `terragrunt-`, you will need to stop using that flag, and use a differently named one instead (usually the same flag without the `terragrunt-` prefix, but not always).
 
-For example, if you are using the `--terragrunt-non-interactive` flag, you will need to switch to the [`--non-interactive`](/docs/reference/cli/#non-interactive) flag instead.
+For example, if you are using the `--terragrunt-non-interactive` flag, you will need to switch to the [`--non-interactive`](/docs/reference/cli/commands/run#non-interactive) flag instead.
 
 Before:
 
@@ -45,7 +45,7 @@ terragrunt plan --non-interactive
 
 Sometimes, the flag change might be slightly more involved than simply removing the `terragrunt-` prefix.
 
-For example, if you are using the `--terragrunt-debug` flag, you will need to switch to the [`--inputs-debug`](/docs/reference/cli/#inputs-debug) flag instead.
+For example, if you are using the `--terragrunt-debug` flag, you will need to switch to the [`--inputs-debug`](/docs/reference/cli/commands/run#inputs-debug) flag instead.
 
 Before:
 
@@ -65,7 +65,7 @@ You can find the new flag names in the [CLI reference](/docs/reference/cli/) (in
 
 If you are currently using environment variables to configure Terragrunt, you will need to stop using that environment variable, and use a differently named one instead (usually the same environment variable with `TERRAGRUNT_` replaced by `TG_`, but not always).
 
-For example, if you are using the `TERRAGRUNT_NON_INTERACTIVE` environment variable, you will need to switch to the [`TG_NON_INTERACTIVE`](/docs/reference/cli/#non-interactive) environment variable instead.
+For example, if you are using the `TERRAGRUNT_NON_INTERACTIVE` environment variable, you will need to switch to the [`TG_NON_INTERACTIVE`](/docs/reference/cli/commands/run#non-interactive) environment variable instead.
 
 Before:
 
@@ -81,7 +81,7 @@ export TG_NON_INTERACTIVE=true
 
 Sometimes, the environment variable change might be slightly more involved than simply replacing `TERRAGRUNT_` with `TG_`.
 
-For example, if you are using the `TERRAGRUNT_DEBUG` environment variable, you will need to switch to the [`TG_DEBUG_INPUTS`](/docs/reference/cli/#inputs-debug) environment variable instead.
+For example, if you are using the `TERRAGRUNT_DEBUG` environment variable, you will need to switch to the [`TG_DEBUG_INPUTS`](/docs/reference/cli/commands/run#inputs-debug) environment variable instead.
 
 Before:
 

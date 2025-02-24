@@ -1361,7 +1361,7 @@ The `feature` block is used to configure feature flags in HCL for a specific Ter
 
 Each feature flag must include a default value.
 
-Feature flags can be overridden via the [`--feature`](/docs/reference/cli-options/#feature) CLI option.
+Feature flags can be overridden via the [`--feature`](/docs/reference/cli/commands/run#feature) CLI option.
 
 ```hcl
 # terragrunt.hcl

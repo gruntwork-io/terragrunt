@@ -23,7 +23,7 @@ Sometimes, the criteria for an experiment to be considered stable is unknown, as
 
 ## Controlling Experiment Mode
 
-The simplest way to enable experiment mode is to set the [experiment-mode](/docs/reference/cli-options/#experiment-mode) flag.
+The simplest way to enable experiment mode is to set the [experiment-mode](/docs/reference/experiments) flag.
 
 This will enable experiment mode for all Terragrunt commands, for all experiments (note that this isn't generally recommended, unless you are following Terragrunt development closely and are prepared for the possibility of breaking changes).
 
@@ -37,7 +37,7 @@ You can also use the environment variable, which can be more useful in CI/CD pip
 TG_EXPERIMENT_MODE='true' terragrunt plan
 ```
 
-Instead of enabling experiment mode, you can also enable specific experiments by setting the [experiment](/docs/reference/cli-options/#experiment)
+Instead of enabling experiment mode, you can also enable specific experiments by setting the [experiment](/docs/reference/experiments)
 flag to a value that's specific to an experiment.
 This can allow you to experiment with a specific unstable feature that you think might be useful to you.
 

@@ -76,10 +76,6 @@ export default defineConfig({
 					'http://localhost:16686/',
 					'http://localhost:9090/',
 
-					// TODO: Remove these once the CLI redesign is done
-					'/docs/reference/cli**/*',
-					'/docs/reference/cli*',
-
 					// Unfortunately, these have to be ignored, as they're
 					// referencing links that exist outside the file.
 					'/docs/reference/cli/commands/run#*',
