@@ -12,6 +12,8 @@ Here are some of the tasks that need to be completed:
   - [x] **Custom domain setup** - [terragrunt-v1.gruntwork.io](https://terragrunt-v1.gruntwork.io)
 - [ ] **Remove the no-index robots.txt**
 - [ ] **Add a sitemap.xml**
+  - [x] **Add sitemap for terragrunt-v1.gruntwork.io**
+  - [ ] **Update sitemap to use terragrunt.gruntwork.io as the URL**
 
 ## Content
 
@@ -19,7 +21,7 @@ Here are some of the tasks that need to be completed:
   - [x] **Parity for all docs except CLI reference**
   - [x] **Parity for CLI reference**
 - [x] **Redesign reference to use cards**
-- [ ] **Setup redirects for all old URLs**
+- [x] **Setup redirects for all old URLs**
 - [x] **Automate keeping versions updated**
   - [x] **Automate Terragrunt version lookup in docs**
   - [x] **Automate IaC Engine version lookup in docs**

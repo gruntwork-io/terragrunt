@@ -49,6 +49,7 @@ export const sidebar = [
 
 // https://astro.build/config
 export default defineConfig({
+	site: 'https://terragrunt-v1.gruntwork.io',
 	output: 'server',
 	adapter: vercel({
 		isr: {
@@ -83,4 +84,53 @@ export default defineConfig({
 			})],
 		}),
 	],
+	redirects: {
+		// Pages that have been rehomed.
+		"/docs/features/debugging/": "/docs/troubleshooting/debugging/",
+		"/docs/upgrade/upgrading_to_terragrunt_0.19.x/": "/docs/migrate/upgrading_to_terragrunt_0.19.x/",
+
+		// Redirects to external sites.
+		"/contact/": "https://gruntwork.io/contact",
+		"/commercial-support/": "https://gruntwork.io/support",
+		"/cookie-policy/": "https://gruntwork.io/legal/cookie-policy/",
+
+		// Restructured docs
+		"/docs/reference/configuration/": "/docs/reference/hcl/",
+		"/docs/reference/cli-options/": "/docs/reference/cli/",
+		"/docs/reference/built-in-functions/": "/docs/reference/hcl/functions/",
+		"/docs/reference/config-blocks-and-attributes/": "/docs/reference/hcl/blocks/",
+		"/docs/reference/strict-mode/": "/docs/reference/strict-controls/",
+		"/docs/reference/log-formatting/": "/docs/reference/logging/formatting/",
+		"/docs/features/aws-authentication/": "/docs/features/authentication/",
+
+		// Support old doc structure paths
+		"/docs/": "/docs/getting-started/quick-start/",
+		"/docs/getting-started/": "/docs/getting-started/quick-start/",
+		"/docs/features/": "/docs/features/units/",
+		"/docs/reference/": "/docs/reference/hcl/",
+		"/docs/troubleshooting/": "/docs/troubleshooting/debugging/",
+		"/docs/migrate/": "/docs/migrate/migrating-from-root-terragrunt-hcl/",
+
+		// Support old community paths
+		"/docs/community/": "/docs/community/contributing/",
+		"/support/": "/docs/community/support/",
+
+		// Support old reference paths
+		"/docs/reference/cli/commands/": "/docs/reference/cli/",
+		"/docs/reference/hcl/functions/": "/docs/reference/hcl/functions/",
+
+		// Support old feature paths
+		"/docs/features/inputs/": "/docs/features/units/",
+		"/docs/features/locals/": "/docs/features/units/",
+		"/docs/features/keep-your-terraform-code-dry/": "/docs/features/units/",
+		"/docs/features/execute-terraform-commands-on-multiple-units-at-once/": "/docs/features/stacks/",
+		"/docs/features/keep-your-terragrunt-architecture-dry/": "/docs/features/includes/",
+		"/docs/features/keep-your-remote-state-configuration-dry/": "/docs/features/state-backend/",
+		"/docs/features/keep-your-cli-flags-dry/": "/docs/features/extra-arguments/",
+		"/docs/features/aws-auth/": "/docs/features/aws-authentication/",
+		"/docs/features/work-with-multiple-aws-accounts/": "/docs/features/aws-authentication/",
+		"/docs/features/auto-retry/": "/docs/features/runtime-control/",
+		"/docs/features/provider-cache/": "/docs/features/provider-cache-server/",
+		"/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
+	},
 });
