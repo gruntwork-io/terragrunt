@@ -1,0 +1,19 @@
+---
+name: source-map
+description: Replace any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest.
+type: string
+env:
+  - TG_SOURCE_MAP
+---
+
+Allows you to replace source URLs that match a specified pattern with a different URL. This affects both direct source references and sources specified in dependency blocks.
+
+The format is `source-regex=replacement-source`.
+
+For example:
+
+```bash
+terragrunt run plan --source-map "git::ssh://git@github.com/org/repo.git=../local/repo"
+```
+
+This will replace any source URL that matches `github.com/example/infrastructure//modules/vpc` with `github.com/example/infrastructure//modules/vpc-new`.

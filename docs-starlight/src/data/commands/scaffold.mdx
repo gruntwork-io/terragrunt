@@ -7,26 +7,14 @@ sidebar:
 usage: |
   Generate Terragrunt configuration files from a catalog.
 flags:
-  - name: no-include-root
-    description: Disable inclusion of the root module in the generated `terragrunt.hcl` file (equivalent to using `--var=EnableRootInclude=false`, and will be overridden if the corresponding `var` value is set).
-    type: bool
-    env:
-      - TG_NO_INCLUDE_ROOT
-  - name: root-file-name
-    description: Set the name of the root configuration file to include in the generated `terragrunt.hcl` file (equivalent to using `--var=RootFileName=<name>`, and will be overridden if the corresponding `var` value is set).
-    type: string
-    env:
-      - TG_ROOT_FILE_NAME
-  - name: var
-    description: Variable to use for the boilerplate template.
-    type: string
-    env:
-      - TG_VAR
-  - name: var-file
-    description: Variable file to use for the boilerplate template.
-    type: string
-    env:
-      - TG_VAR_FILE
+  - scaffold-no-include-root
+  - scaffold-root-file-name
+  - scaffold-var
+  - scaffold-var-file
+examples:
+  - description: Scaffold a standard MySQL database module as a new unit.
+    code: |
+      terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql
 ---
 
 ```bash

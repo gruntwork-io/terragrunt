@@ -1,0 +1,17 @@
+---
+name: no-include-root
+description: "Do not include the root configuration file in any generated terragrunt.hcl file during scaffolding."
+type: bool
+env:
+  - TG_NO_INCLUDE_ROOT
+---
+
+When enabled, Terragrunt will not automatically include the root configuration file in generated `terragrunt.hcl` files during scaffolding operations in the catalog.
+
+This is useful when you want more control over which configurations are included in newly scaffolded modules.
+
+Examples:
+
+```bash
+terragrunt catalog --no-include-root
+```

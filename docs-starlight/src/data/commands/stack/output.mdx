@@ -11,22 +11,20 @@ usage: |
 experiment:
   control: stacks
   name: Stacks
+examples:
+  - description: Get outputs from a stack of units.
+    code: |
+      terragrunt stack output
+  - description: Get outputs from a stack of units in JSON format.
+    code: |
+      terragrunt stack output --format json
+  - description: Get an output from a stack of units in raw format.
+    code: |
+      terragrunt stack output --format raw app.id
 flags:
-  - name: format
-    description: Format stack output. (json, raw).
-    type: string
-    env:
-      - TG_FORMAT
-  - name: json
-    description: Format stack output as JSON. Alias for --format json.
-    type: bool
-    env:
-      - TG_JSON
-  - name: raw
-    description: Format stack output as raw string. Alias for --format raw.
-    type: bool
-    env:
-      - TG_RAW
+  - stack-output-format
+  - stack-output-json
+  - stack-output-raw
 ---
 
 Executing `terragrunt stack output` in a stack directory produces an aggregated output from all units within the stack:

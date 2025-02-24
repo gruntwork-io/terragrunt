@@ -1,0 +1,9 @@
+---
+name: no-color
+description: Disable color output for both Terragrunt and OpenTofu/Terraform.
+type: bool
+env:
+  - TG_NO_COLOR
+---
+
+When enabled, Terragrunt will disable colored output in both its own logs and in OpenTofu/Terraform output. This is useful when running in environments where color codes might cause issues, such as CI/CD pipelines or when redirecting output to files.

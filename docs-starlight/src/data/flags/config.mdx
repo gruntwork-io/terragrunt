@@ -1,0 +1,20 @@
+---
+name: config
+description: The path to the Terragrunt config file. Default is terragrunt.hcl.
+type: string
+env:
+  - TG_CONFIG
+---
+
+This flag allows you to specify a custom path to your Terragrunt configuration file. By default, Terragrunt looks for a file named `terragrunt.hcl` in the current directory.
+
+This is useful when you:
+- Have multiple Terragrunt configurations in the same directory.
+- Want to use a different naming convention for your configuration files.
+- Need to test alternative configurations without modifying the default file.
+
+Example usage:
+
+```bash
+terragrunt run plan --config custom-config.hcl
+```

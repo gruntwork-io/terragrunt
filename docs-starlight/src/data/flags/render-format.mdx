@@ -1,0 +1,24 @@
+---
+name: format
+description: Use the specified format for the rendered configuration. Supported values (hcl, json). default hcl.
+type: string
+env:
+  - TG_FORMAT
+---
+
+Controls the output format of the rendered Terragrunt configuration. Supports:
+
+- `hcl` - Output in HCL format (default)
+- `json` - Output in JSON format
+
+The HCL format is human-readable and matches the original configuration style, while JSON format is useful for programmatic processing.
+
+Example:
+
+```bash
+# Render as HCL (default)
+terragrunt render
+
+# Render as JSON
+terragrunt render --format json
+```

@@ -9,4 +9,14 @@ usage: |
 experiment:
   control: cli-redesign
   name: cli redesign
+examples:
+  - description: Recursively format all HCL files in the current directory.
+    code: |
+      terragrunt hcl fmt
+flags:
+  - hcl-fmt-check
+  - hcl-fmt-diff
+  - hcl-fmt-exclude-dir
+  - hcl-fmt-file
+  - hcl-fmt-stdin
 ---

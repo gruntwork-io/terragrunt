@@ -1,8 +1,8 @@
-import type { CollectionEntry } from 'astro:content';
+import { getEntry, type CollectionEntry } from 'astro:content';
 
-export function getHeadings(
+export async function getHeadings(
 	command: CollectionEntry<'commands'>,
-): { depth: number; slug: string; text: string }[] {
+): Promise<{ depth: number; slug: string; text: string }[]> {
 	const headings: { depth: number; slug: string; text: string }[] = [];
 
 	headings.push({ depth: 2, slug: 'usage', text: 'Usage' });
@@ -35,13 +35,14 @@ export function getHeadings(
 	if (command.data.flags) {
 		headings.push({ depth: 2, slug: 'flags', text: 'Flags' });
 
-		const flags = command.data.flags.map((flag) => {
+		const flags = await Promise.all(command.data.flags.map(async (flagName: string) => {
+			const flag = (await getEntry('flags', flagName))!;
 			return {
 				depth: 3,
-				slug: flag.name,
-				text: `--${flag.name}`,
+				slug: flag.data.name,
+				text: `--${flag.data.name}`,
 			};
-		});
+		}));
 
 		headings.push(...flags);
 	}

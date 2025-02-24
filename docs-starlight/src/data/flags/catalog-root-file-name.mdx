@@ -1,0 +1,19 @@
+---
+name: root-file-name
+description: The name of the root configuration file to include in any generated terragrunt.hcl during scaffolding.
+type: string
+env:
+  - TG_ROOT_FILE_NAME
+---
+
+Specifies the name of the root configuration file that should be:
+- Included in generated `terragrunt.hcl` files during scaffolding
+- Used when searching for Catalog URLs
+
+This is particularly useful when your root configuration uses a different naming convention than the default.
+
+Example:
+
+```bash
+terragrunt catalog --root-file-name root.hcl
+```

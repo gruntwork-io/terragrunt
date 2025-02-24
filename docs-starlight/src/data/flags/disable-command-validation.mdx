@@ -1,0 +1,9 @@
+---
+name: disable-command-validation
+description: When this flag is set, Terragrunt will not validate the tofu/terraform command.
+type: bool
+env:
+  - TG_DISABLE_COMMAND_VALIDATION
+---
+
+This flag disables Terragrunt's built-in validation of OpenTofu/Terraform commands. When enabled, Terragrunt will pass commands through to OpenTofu/Terraform without checking if they are valid or supported.

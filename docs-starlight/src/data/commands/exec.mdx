@@ -9,6 +9,25 @@ usage: |
 experiment:
   control: cli-redesign
   name: CLI Redesign
+examples:
+  - description: |
+      Execute 'echo "Hello, Terragrunt!"' via Terragrunt.
+    code: |
+      terragrunt exec -- echo "Hello, Terragrunt!"
+  - description: |
+      Inspect `main.tf` file of module for Unit
+    code: |
+      terragrunt exec --in-download-dir -- cat main.tf
+flags:
+  - auth-provider-cmd
+  - config
+  - download-dir
+  - iam-assume-role
+  - iam-assume-role-duration
+  - iam-assume-role-session-name
+  - iam-assume-role-web-identity-token
+  - in-download-dir
+  - inputs-debug
 ---
 
 ## Difference between `run` and `exec`

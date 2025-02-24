@@ -182,8 +182,8 @@ func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty
 		case rootName == MetadataFeatureFlag:
 			// If the variable is `feature`
 
-		case rootName == MetadataUnit:
-			// If the variable is `unit`
+		case rootName == MetadataValues:
+			// If the variable is `values`
 
 		case rootName != "local":
 			// We can't evaluate any variable other than `local`

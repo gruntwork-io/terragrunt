@@ -1,0 +1,13 @@
+---
+name: engine-cache-path
+description: Cache path for Terragrunt engine files.
+type: string
+env:
+  - TG_ENGINE_CACHE_PATH
+---
+
+Specifies the directory where Terragrunt will store its engine cache files. The engine cache helps improve performance by storing compiled configurations and other internal data.
+
+When not specified, Terragrunt will use a default location in the system's temporary directory.
+
+You must also set the [`experimental-engine`](/docs/reference/cli/commands/run#experimental-engine) flag to enable engine usage.

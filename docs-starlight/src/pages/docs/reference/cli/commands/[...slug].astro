@@ -12,13 +12,13 @@ export async function getStaticPaths() {
 
 	const sidebar = await getSidebar(commands);
 
-	return commands.map((command) => {
-		const headings = getHeadings(command);
+	return Promise.all(commands.map(async (command) => {
+		const headings = await getHeadings(command);
 
 		const data = command.data;
 
 		return {
-			params: { 
+			params: {
 				slug: data.path,
 			},
 			props: {
@@ -31,17 +31,17 @@ export async function getStaticPaths() {
 				sidebar: sidebar,
 			},
 		}
-	});
+	}));
 }
 
 const { name, path, description, headings, sidebar } = Astro.props;
 ---
 
-<StarlightPage 
-	frontmatter={{ 
+<StarlightPage
+	frontmatter={{
 		title: name,
 		description: description,
-	}} 
+	}}
 	headings={headings}
 	sidebar={sidebar}
 >

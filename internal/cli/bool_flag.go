@@ -44,6 +44,10 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 		return ApplyFlag(flag, set)
 	}
 
+	if flag.Destination == nil {
+		flag.Destination = new(bool)
+	}
+
 	valueType := newBoolVar(flag.Destination, flag.Negative)
 	value := newGenericValue(valueType, flag.Setter)
 

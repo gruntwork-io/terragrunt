@@ -1,0 +1,17 @@
+---
+name: no-include-root
+description: Disable inclusion of the root module in the generated `terragrunt.hcl` file (equivalent to using `--var=EnableRootInclude=false`, and will be overridden if the corresponding `var` value is set).
+type: bool
+env:
+  - TG_NO_INCLUDE_ROOT
+---
+
+When enabled, Terragrunt will not automatically include the root configuration file in generated `terragrunt.hcl` files during scaffolding operations.
+
+This is equivalent to setting `--var=EnableRootInclude=false` and will be overridden if that variable is explicitly set.
+
+Example:
+
+```bash
+terragrunt scaffold github.com/org/repo//modules/mysql --no-include-root
+```

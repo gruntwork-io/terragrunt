@@ -9,4 +9,11 @@ usage: |
 experiment:
   control: cli-redesign
   name: cli redesign
+examples:
+  - description: Discover all HCL files in the current directory, and validate them.
+    code: |
+      terragrunt hcl validate
+flags:
+  - hcl-validate-json
+  - hcl-validate-show-config-path
 ---

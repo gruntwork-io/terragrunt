@@ -3,7 +3,7 @@ title: Terragrunt Cache
 description: Learn what the `.terragrunt-cache` directory is and how to manage it.
 slug: docs/reference/terragrunt-cache
 sidebar:
-  order: 7
+  order: 10
 ---
 
 Terragrunt uses a cache directory (`.terragrunt-cache`) to store downloaded modules when using the `source` attribute in the `terraform` block.

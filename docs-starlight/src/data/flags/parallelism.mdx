@@ -1,0 +1,9 @@
+---
+name: parallelism
+description: Parallelism for --all commands.
+type: integer
+env:
+  - TG_PARALLELISM
+---
+
+Sets the maximum number of concurrent operations when running commands with `--all`. This helps control resource usage and API rate limits when working with multiple units.

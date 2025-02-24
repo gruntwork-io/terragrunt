@@ -1,0 +1,11 @@
+---
+name: log-disable
+description: Disable logging.
+type: bool
+env:
+  - TG_LOG_DISABLE
+---
+
+When enabled, Terragrunt will disable all logging output. This is useful when you want to see only the OpenTofu/Terraform output or when using Terragrunt in scripts where logging isn't needed.
+
+Note that this automatically enables the `--tf-forward-stdout` flag to ensure OpenTofu/Terraform output is still visible.

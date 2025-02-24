@@ -25,7 +25,7 @@ gradually increase your confidence in the future compatibility of your Terragrun
 
 ## Controlling Strict Mode
 
-The simplest way to enable strict mode is to set the [strict-mode](/docs/reference/cli-options/#strict-mode) flag.
+The simplest way to enable strict mode is to set the [strict-mode](/docs/reference/strict-controls) flag.
 
 This will enable strict mode for all Terragrunt commands, for all strict mode controls.
 
@@ -46,7 +46,7 @@ $ TG_STRICT_MODE='true' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
-Instead of enabling strict mode like this, you can also enable specific strict controls by setting the [strict-control](/docs/reference/cli-options/#strict-control)
+Instead of enabling strict mode like this, you can also enable specific strict controls by setting the [strict-control](/docs/reference/strict-controls)
 flag to a value that's specific to a particular strict control.
 This can allow you to gradually increase your confidence in the future compatibility of your Terragrunt usage.
 
