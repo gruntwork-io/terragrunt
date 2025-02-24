@@ -60,7 +60,9 @@ The following is a reference of all the supported blocks and attributes in the c
 - [generate](#generate)
 - [engine](#engine)
 - [feature](#feature)
+- [exclude](#exclude)
 - [errors](#errors)
+- [unit](#unit)
 
 ### terraform
 
@@ -1599,6 +1601,9 @@ Evaluation Order:
 > Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
 
 ### unit
+
+> **Note:**
+> The [`stacks`](/docs/reference/experiments/#stacks) experiment is still active, and using the `unit` block requires enabling the `stacks` experiment.
 
 The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
 

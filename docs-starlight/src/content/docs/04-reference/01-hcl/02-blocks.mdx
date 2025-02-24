@@ -6,7 +6,7 @@ sidebar:
   order: 2
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { Aside, FileTree } from '@astrojs/starlight/components';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
@@ -1622,6 +1622,10 @@ Evaluation Order:
 > Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
 
 ## unit
+
+<Aside type="tip" title="Stacks">
+      The <code dir="auto">unit</code> block is experimental, usage requires the <a href="/docs/reference/experiments#stacks"><code dir="auto">--experiment stacks</code></a> flag.
+</Aside>
 
 The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
 
