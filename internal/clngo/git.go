@@ -11,6 +11,7 @@ import (
 
 // GitRunner handles git command execution
 type GitRunner struct {
+	mu      sync.RWMutex // Add mutex for workDir protection
 	workDir string
 	// Add command preparation cache
 	cmdCache sync.Map
@@ -23,11 +24,17 @@ func NewGitRunner() *GitRunner {
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	return &GitRunner{workDir: workDir}
+	// Create new instance instead of modifying existing one
+	return &GitRunner{
+		workDir:  workDir,
+		cmdCache: sync.Map{},
+	}
 }
 
 // RequiresWorkDir returns an error if no working directory is set
 func (g *GitRunner) RequiresWorkDir() error {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
 	if g.workDir == "" {
 		return &WrappedError{
 			Op:      "check_work_dir",
@@ -203,6 +210,8 @@ func (g *GitRunner) CatFile(hash string) ([]byte, error) {
 
 // SetWorkDir sets the working directory for git commands
 func (g *GitRunner) SetWorkDir(dir string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.workDir = dir
 }
 
