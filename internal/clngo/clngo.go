@@ -42,7 +42,7 @@ func New(repo string, opts Options) (*Cln, error) {
 
 	return &Cln{
 		store: store,
-		git:   NewGitRunner(""),
+		git:   NewGitRunner(),
 		opts:  opts,
 		repo:  repo,
 	}, nil
