@@ -1,0 +1,19 @@
+---
+name: check
+description: Enable check mode in the hclfmt command.
+type: bool
+env:
+  - TG_HCLFMT_CHECK
+---
+
+When enabled, Terragrunt will check if HCL files are properly formatted without making any changes. This is useful in CI/CD pipelines to ensure consistent formatting.
+
+The command will:
+- Exit with status code 0 if files are properly formatted
+- Exit with status code 1 if any files need formatting
+
+Example:
+
+```bash
+terragrunt hcl fmt --check
+```

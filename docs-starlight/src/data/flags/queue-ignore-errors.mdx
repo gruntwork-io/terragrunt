@@ -1,0 +1,13 @@
+---
+name: queue-ignore-errors
+description: Continue processing Units even if a dependency fails.
+type: bool
+env:
+  - TG_QUEUE_IGNORE_ERRORS
+---
+
+When enabled, Terragrunt will continue processing remaining units even if one fails. This can be useful when you want to see all potential errors in your configuration, rather than stopping at the first failure.
+
+Note that this may lead to incomplete or inconsistent states if used with commands that modify infrastructure.
+
+To learn more about how to use this flag, see the [Stacks](/docs/features/stacks/#the-run---all-command) feature documentation.

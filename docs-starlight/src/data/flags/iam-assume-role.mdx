@@ -1,0 +1,11 @@
+---
+name: iam-assume-role
+description: Assume the specified IAM role before executing OpenTofu/Terraform.
+type: string
+env:
+  - TG_IAM_ASSUME_ROLE
+---
+
+Specifies an IAM role ARN that Terragrunt should assume before executing OpenTofu/Terraform commands. This is useful for managing resources across different AWS accounts or with different permission sets.
+
+For more information on how to use this flag, and how it differs from other ways of managing authentication with Terragrunt, see the [Authentication](/docs/features/authentication) feature documentation.

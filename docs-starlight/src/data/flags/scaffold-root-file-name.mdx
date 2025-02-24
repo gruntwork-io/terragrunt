@@ -1,0 +1,15 @@
+---
+name: root-file-name
+description: Set the name of the root configuration file to include in the generated `terragrunt.hcl` file.
+type: string
+env:
+  - TG_ROOT_FILE_NAME
+---
+
+Specifies the name of the root configuration file to include in generated `terragrunt.hcl` files during scaffolding. This is equivalent to using `--var=RootFileName=<name>`, and will be overridden if the corresponding `var` value is set.
+
+Example:
+
+```bash
+terragrunt scaffold github.com/org/repo//modules/mysql --root-file-name root.hcl
+```

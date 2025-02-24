@@ -1,0 +1,25 @@
+---
+name: format
+description: Format stack output. (json, raw).
+type: string
+env:
+  - TG_FORMAT
+---
+
+Specifies the output format for stack outputs. Available formats are:
+
+- `default` - Format output as HCL (default)
+- `json` - Format output as JSON for machine readability
+- `raw` - Format output as raw string for shell script integration
+
+Example:
+
+```bash
+# JSON format
+terragrunt stack output --format json
+
+# Raw format
+terragrunt stack output --format raw project1_app1.custom_value1
+```
+
+{/* TODO: Port over the better docs from the old docs */}

@@ -1,0 +1,15 @@
+---
+name: source-update
+description: Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.
+type: bool
+env:
+  - TG_SOURCE_UPDATE
+---
+
+When enabled, Terragrunt will delete any existing content in the temporary download directory before fetching new source code into it. This ensures you're working with a fresh copy of the source code.
+
+Example:
+
+```bash
+terragrunt run plan --source-update
+```

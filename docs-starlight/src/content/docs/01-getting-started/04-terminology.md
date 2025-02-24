@@ -48,7 +48,7 @@ While not a requirement, a general tendency experienced when working with Terrag
 
 A common pattern used in the repository structure for Terragrunt projects is to have a single `terragrunt.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the root `terragrunt.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the root `terragrunt.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
 
-Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via the [--config](/docs/reference/cli-options/#config)), and users don't technically need to use a root `terragrunt.hcl` file or to name it that. This is the most common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
+Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via the [--config](/docs/reference/cli/commands/run#config)), and users don't technically need to use a root `terragrunt.hcl` file or to name it that. This is the most common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
 
 ### Stack
 
@@ -154,9 +154,9 @@ These utilities are part of what makes Terragrunt so powerful, as they allow use
 
 The Run Queue is the queue of all units that Terragrunt will do work on over one or more runs.
 
-Certain commands like [run-all](/docs/reference/cli-options/#run-all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
+Certain commands like [run-all](/docs/reference/cli/commands/run#all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
 
-Certain flags like [--include-dir](/docs/reference/cli-options/#include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--exclude-dir](/docs/reference/cli-options/#exclude-dir) that can be used to adjust the Run Queue to exclude units.
+Certain flags like [--include-dir](/docs/reference/cli/commands/run#include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--exclude-dir](/docs/reference/cli/commands/run#exclude-dir) that can be used to adjust the Run Queue to exclude units.
 
 Terragrunt will always attempt to run until the Run Queue is empty.
 
@@ -164,7 +164,7 @@ Terragrunt will always attempt to run until the Run Queue is empty.
 
 The Runner Pool is the pool of available resources that Terragrunt can use to execute runs.
 
-Units are dequeued from the Runner Pool into the Runner Pool depending on factors like [parallelism](/docs/reference/cli-options/#parallelism) and the DAG.
+Units are dequeued from the Runner Pool into the Runner Pool depending on factors like [parallelism](/docs/reference/cli/commands/run#parallelism) and the DAG.
 
 Units are only considered "running" when they are in the Runner Pool.
 
@@ -207,15 +207,15 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--fetch-dependency-output-from-state](/docs/reference/cli-options/#fetch-dependency-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--fetch-dependency-output-from-state](/docs/reference/cli/commands/run#fetch-dependency-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
 
 ### Feature
 
-A [feature](/docs/reference/cli-options/#feature) is a configuration that can be dynamically controlled in Terragrunt configurations.
+A [feature](/docs/reference/cli/commands/run#feature) is a configuration that can be dynamically controlled in Terragrunt configurations.
 
 They operate very similarly to variables, but are designed to be used to dynamically adjust the behavior of Terragrunt configurations, rather than OpenTofu/Terraform configurations.
 
-Features can be adjusted using feature flags, which are set in Terragrunt configurations using the [feature block](/docs/reference/hcl/blocks#feature) and the [feature flag](/docs/reference/cli-options#feature) attribute.
+Features can be adjusted using feature flags, which are set in Terragrunt configurations using the [feature block](/docs/reference/hcl/blocks#feature) and the [feature flag](/docs/reference/cli/commands/run#feature) attribute.
 
 Like all good feature flags, you are encouraged to use them with good judgement and to avoid using them as a crutch to avoid making decisions about permanent adjustments to your infrastructure.
 

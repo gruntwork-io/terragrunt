@@ -1,0 +1,11 @@
+---
+name: no-auto-init
+description: Don't automatically run init on tofu/terraform commands.
+type: bool
+env:
+  - TG_NO_AUTO_INIT
+---
+
+When enabled, Terragrunt will not automatically run `init` before other OpenTofu/Terraform commands. This means you'll need to manually run `init` when required.
+
+To learn more about how to use this flag, see the [Auto-init](/docs/features/auto-init) feature documentation.

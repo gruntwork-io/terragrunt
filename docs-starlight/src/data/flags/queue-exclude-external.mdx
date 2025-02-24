@@ -1,0 +1,13 @@
+---
+name: queue-exclude-external
+description: Exclude external dependencies from the queue of Units to run.
+type: bool
+env:
+  - TG_QUEUE_EXCLUDE_EXTERNAL
+---
+
+When enabled, Terragrunt will exclude external dependencies (dependencies outside the current working directory) from the queue when running commands with [`all`](/docs/reference/cli/commands/run#all).
+
+Note that an external dependency is a dependency that is outside the current Terragrunt working directory and is not within any directories specified by [`queue-include-dir`](/docs/reference/cli/commands/run#queue-include-dir).
+
+This flag is useful when you want to limit the scope of execution to only units within your current working directory structure.

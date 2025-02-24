@@ -1,0 +1,35 @@
+---
+import { Badge, Card } from '@astrojs/starlight/components';
+import type { CollectionEntry } from 'astro:content';
+import { render, getEntry } from 'astro:content';
+
+interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+
+const flagEntry = await getEntry('flags', name) as CollectionEntry<'flags'>;
+const { Content } = await render(flagEntry);
+const { description, type, env } = flagEntry.data;
+---
+
+<section id={name}>
+  <Card title={"--" + name} icon="custom:terragrunt">
+    <p id={name}>{description}</p>
+    <Content />
+    <div>
+      <span>Type: </span><Badge text={type} variant="note" style={{ fontWeight: 'bold' }}/>
+    </div>
+    {env && (
+      <>
+        <p>Environment Variables:</p>
+        <ul>
+          {env.map((envVar: string) => (
+            <li><code dir="auto">{envVar}</code></li>
+          ))}
+        </ul>
+      </>
+    )}
+  </Card>
+</section>

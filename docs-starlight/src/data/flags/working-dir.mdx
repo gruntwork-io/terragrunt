@@ -1,0 +1,15 @@
+---
+name: working-dir
+description: The path where all commands should be run. Default is current directory.
+type: string
+env:
+  - TG_WORKING_DIR
+---
+
+Specifies the working directory where Terragrunt should execute its commands. By default, Terragrunt uses the current directory.
+
+Example:
+
+```bash
+terragrunt run plan --working-dir /path/to/infrastructure/prod
+```

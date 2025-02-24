@@ -1,0 +1,13 @@
+---
+name: experimental-engine
+description: Enable Terragrunt experimental engine.
+type: bool
+env:
+  - TG_EXPERIMENTAL_ENGINE
+---
+
+Enables usage of [Terragrunt IaC engines](/docs/features/engine).
+
+IaC engines are still experimental, as the API is unstable and may change in future minor versions of Terragrunt.
+
+If you are using a remote custom engine, you must also set the [`engine-skip-check`](/docs/reference/cli/commands/run#engine-skip-check) flag to skip the signature check for the engine.

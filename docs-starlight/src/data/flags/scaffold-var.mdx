@@ -1,0 +1,17 @@
+---
+name: var
+description: Variable to use for the boilerplate template.
+type: string
+env:
+  - TG_VAR
+---
+
+Sets variables to be used in the boilerplate template during scaffolding. You can specify multiple variables by using the flag multiple times.
+
+Example:
+
+```bash
+terragrunt scaffold github.com/org/repo//modules/mysql \
+  --var="environment=prod" \
+  --var="region=us-east-1"
+```

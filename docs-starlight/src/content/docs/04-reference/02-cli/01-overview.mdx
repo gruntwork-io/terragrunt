@@ -25,11 +25,11 @@ export const stackCommands = commands.filter((command) => {
 });
 
 export const catalogCommands = commands.filter((command) => {
-    return command.data.path.startsWith('catalog');
+    return command.data.path === 'catalog' || command.data.path === 'scaffold';
 });
 
 export const discoveryCommands = commands.filter((command) => {
-    return command.data.path === 'list' || command.data.path === 'find'
+    return command.data.path === 'list' || command.data.path === 'find';
 });
 
 export const hclCommands = commands.filter((command) => {
@@ -66,7 +66,9 @@ Terragrunt will pass the command to `tofu`/ `terraform` with the same arguments.
 terragrunt plan
 ```
 
-Terragrunt doesn't always _just_ pass the command. It frequently does some additional processing to make it easier to manage infrastructure at scale. For example, in the previous `plan` command, you wouldn't have to explicitly run `init` like you would with `tofu`/ `terraform`. Terragrunt takes advantage of a feature called [Auto-init](/docs/features/auto-init) to automatically run `init` when necessary.
+Terragrunt doesn't always _just_ pass the command. It frequently does some additional processing to make it easier to manage infrastructure at scale.
+
+For example, in the previous `plan` command, you wouldn't have to explicitly run `init` like you would with `tofu`/ `terraform`. Terragrunt takes advantage of a feature called [Auto-init](/docs/features/auto-init) to automatically run `init` when necessary.
 
 Using Terragrunt in this way is taking advantage of the **OpenTofu Shortcuts** that Terragrunt provides.
 
