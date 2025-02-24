@@ -6,11 +6,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // GitRunner handles git command execution
 type GitRunner struct {
 	workDir string
+	// Add command preparation cache
+	cmdCache sync.Map
 }
 
 // NewGitRunner creates a new GitRunner instance
@@ -160,7 +163,7 @@ func (g *GitRunner) LsTree(reference, path string) (*Tree, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command("git", "ls-tree", reference)
+	cmd := g.prepareCommand("ls-tree", reference)
 	cmd.Dir = g.workDir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -183,7 +186,7 @@ func (g *GitRunner) CatFile(hash string) ([]byte, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command("git", "cat-file", "-p", hash)
+	cmd := g.prepareCommand("cat-file", "-p", hash)
 	cmd.Dir = g.workDir
 
 	output, err := cmd.Output()
@@ -201,4 +204,17 @@ func (g *GitRunner) CatFile(hash string) ([]byte, error) {
 // SetWorkDir sets the working directory for git commands
 func (g *GitRunner) SetWorkDir(dir string) {
 	g.workDir = dir
+}
+
+func (g *GitRunner) prepareCommand(name string, args ...string) *exec.Cmd {
+	key := name + strings.Join(args, " ")
+	if cached, ok := g.cmdCache.Load(key); ok {
+		cmd := cached.(*exec.Cmd)
+		// Clone the command with new pipes
+		return exec.Command(cmd.Path, cmd.Args[1:]...)
+	}
+
+	cmd := exec.Command("git", append([]string{name}, args...)...)
+	g.cmdCache.Store(key, cmd)
+	return exec.Command(cmd.Path, cmd.Args[1:]...)
 }

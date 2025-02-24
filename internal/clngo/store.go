@@ -3,6 +3,7 @@ package clngo
 import (
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 const (
@@ -14,6 +15,8 @@ const (
 // Store manages the path where cloned repositories are stored
 type Store struct {
 	path string
+	// Add cache for frequently accessed content
+	contentCache sync.Map
 }
 
 // NewStore creates a new Store instance. If path is empty, it will use
@@ -60,12 +63,23 @@ func (s *Store) Path() string {
 
 // HasContent checks if a given hash exists in the store
 func (s *Store) HasContent(hash string) bool {
+	// Check cache first
+	if _, ok := s.contentCache.Load(hash); ok {
+		return true
+	}
+
 	path := filepath.Join(s.path, hash)
 	_, err := os.Stat(path)
-	return err == nil
+	exists := err == nil
+
+	if exists {
+		s.contentCache.Store(hash, struct{}{})
+	}
+
+	return exists
 }
 
-// HasReference checks if a git reference is completely stored
+// HasReference checks if a complete reference exists in the store
 func (s *Store) HasReference(hash string) bool {
 	refPath := filepath.Join(s.path, "refs", hash)
 	_, err := os.Stat(refPath)
@@ -76,22 +90,13 @@ func (s *Store) HasReference(hash string) bool {
 func (s *Store) StoreReference(hash string) error {
 	refPath := filepath.Join(s.path, "refs", hash)
 
-	// Ensure refs directory exists
 	if err := os.MkdirAll(filepath.Dir(refPath), DefaultDirPerms); err != nil {
-		return &WrappedError{
-			Op:   "create_refs_dir",
-			Path: filepath.Dir(refPath),
-			Err:  ErrCreateDir,
-		}
+		return wrapError("create_refs_dir", filepath.Dir(refPath), ErrCreateDir)
 	}
 
 	// Create empty file to mark reference as stored
 	if err := os.WriteFile(refPath, []byte{}, StoredFilePerms); err != nil {
-		return &WrappedError{
-			Op:   "store_reference",
-			Path: refPath,
-			Err:  ErrWriteToStore,
-		}
+		return wrapError("store_reference", refPath, ErrWriteToStore)
 	}
 
 	return nil
