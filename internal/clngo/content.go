@@ -10,7 +10,7 @@ import (
 // Content manages git object storage and linking
 type Content struct {
 	store *Store
-	mu    sync.RWMutex // Add mutex for concurrent operations
+	mu    sync.RWMutex
 }
 
 const (
