@@ -198,7 +198,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 }
 
 // getHighestVersion returns the highest version from the list of versions, or an empty string if the list is empty.
-func getHighestVersion(logger log.Logger, availableVersions []*version.Version) string {
+func getHighestVersion(availableVersions []*version.Version) string {
 	if len(availableVersions) == 0 {
 		return ""
 	}
@@ -216,12 +216,14 @@ func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain str
 	if err != nil {
 		return "", errors.New(err)
 	}
-	body, _, err := httpGETAndGetResponse(ctx, logger, *moduleVersionsURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, logger, *moduleVersionsURL)
 	if err != nil {
 		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
 	}
 	var responseJSON Modules
-	json.Unmarshal(body, &responseJSON)
+	if err := json.Unmarshal(bodyData, &responseJSON); err != nil {
+		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+	}
 	availableVersions := responseJSON.Modules[0].ModuleVersions
 
 	// Filter the available versions based on the version constraint
@@ -241,9 +243,9 @@ func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain str
 	}
 
 	// Get the highest version from the filtered versions
-	targetVersion := getHighestVersion(logger, filteredVersions)
+	targetVersion := getHighestVersion(filteredVersions)
 	if targetVersion == "" {
-		return "", errors.New(ModuleVersionConstraintErr{versionConstraint: targetVersion})
+		return "", errors.New(ModuleVersionConstraintErr{versionConstraint: versionQuery})
 	}
 	return targetVersion, nil
 }
