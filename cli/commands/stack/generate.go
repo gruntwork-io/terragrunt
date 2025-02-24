@@ -2,7 +2,6 @@ package stack
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +38,7 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
 	baseDir := filepath.Join(opts.WorkingDir, stackDir)
 	if err := os.MkdirAll(baseDir, os.ModePerm); err != nil {
-		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
+		return errors.Errorf("failed to create base directory: %s %v", baseDir, err)
 	}
 
 	for _, unit := range stackFile.Units {
@@ -49,7 +48,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		dest, err := filepath.Abs(destPath)
 
 		if err != nil {
-			return errors.New(fmt.Errorf("failed to get absolute path for destination '%s': %w", dest, err))
+			return errors.Errorf("failed to get absolute path for destination '%s': %v", dest, err)
 		}
 
 		src := unit.Source
@@ -67,21 +66,21 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 			if err := util.CopyFolderContentsWithFilter(opts.Logger, src, dest, ManifestName, func(absolutePath string) bool {
 				return true
 			}); err != nil {
-				return errors.New(err)
+				return errors.Errorf("Failed to copy unit directory %s %v", unit.Name, err)
 			}
 		} else {
 			if err := os.MkdirAll(dest, os.ModePerm); err != nil {
-				return errors.New(err)
+				return errors.Errorf("Failed to create unit directory %s for unit %s %v", dest, unit.Name, err)
 			}
 
 			if _, err := getter.GetAny(ctx, dest, src); err != nil {
-				return errors.New(err)
+				return errors.Errorf("Failed to fetch unit %s %v", unit.Name, err)
 			}
 		}
 
 		// generate unit values file
 		if err := config.WriteUnitValues(opts, unit, dest); err != nil {
-			return errors.New(err)
+			return errors.Errorf("Failed to write unit values %v %v", unit.Name, err)
 		}
 	}
 
