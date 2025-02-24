@@ -40,6 +40,16 @@ func NewStore(path string) (*Store, error) {
 		}
 	}
 
+	// Ensure refs directory exists
+	refsPath := filepath.Join(storePath, "refs")
+	if err := os.MkdirAll(refsPath, storePathPerm); err != nil {
+		return nil, &WrappedError{
+			Op:   "create_refs_dir",
+			Path: refsPath,
+			Err:  ErrCreateDir,
+		}
+	}
+
 	return &Store{path: storePath}, nil
 }
 
@@ -53,4 +63,36 @@ func (s *Store) HasContent(hash string) bool {
 	path := filepath.Join(s.path, hash)
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// HasReference checks if a git reference is completely stored
+func (s *Store) HasReference(hash string) bool {
+	refPath := filepath.Join(s.path, "refs", hash)
+	_, err := os.Stat(refPath)
+	return err == nil
+}
+
+// StoreReference marks a git reference as completely stored
+func (s *Store) StoreReference(hash string) error {
+	refPath := filepath.Join(s.path, "refs", hash)
+
+	// Ensure refs directory exists
+	if err := os.MkdirAll(filepath.Dir(refPath), DefaultDirPerms); err != nil {
+		return &WrappedError{
+			Op:   "create_refs_dir",
+			Path: filepath.Dir(refPath),
+			Err:  ErrCreateDir,
+		}
+	}
+
+	// Create empty file to mark reference as stored
+	if err := os.WriteFile(refPath, []byte{}, StoredFilePerms); err != nil {
+		return &WrappedError{
+			Op:   "store_reference",
+			Path: refPath,
+			Err:  ErrWriteToStore,
+		}
+	}
+
+	return nil
 }
