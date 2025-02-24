@@ -99,3 +99,46 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		assert.ErrorIs(t, wrappedErr.Err, clngo.ErrCommandSpawn)
 	})
 }
+
+func TestIntegration_TreeStorage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("stores tree objects", func(t *testing.T) {
+		t.Parallel()
+		tempDir := t.TempDir()
+		storePath := filepath.Join(tempDir, "store")
+
+		// First clone to populate store
+		cln, err := clngo.New(
+			"https://github.com/yhakbar/cln.git",
+			clngo.Options{
+				Dir:       filepath.Join(tempDir, "repo"),
+				StorePath: storePath,
+			},
+		)
+		require.NoError(t, err)
+		require.NoError(t, cln.Clone())
+
+		// Get the commit hash
+		git := clngo.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
+		results, err := git.LsRemote("https://github.com/yhakbar/cln.git", "HEAD")
+		require.NoError(t, err)
+		require.NotEmpty(t, results)
+		commitHash := results[0].Hash
+
+		// Verify the tree object is stored
+		store, err := clngo.NewStore(storePath)
+		require.NoError(t, err)
+		assert.True(t, store.HasContent(commitHash), "Tree object should be stored")
+
+		// Verify we can read the tree content
+		content := clngo.NewContent(store)
+		treeData, err := content.Read(commitHash)
+		require.NoError(t, err)
+
+		// Parse the tree data to confirm it's valid
+		tree, err := clngo.ParseTree(string(treeData), "")
+		require.NoError(t, err)
+		assert.NotEmpty(t, tree.Entries(), "Tree should have entries")
+	})
+}

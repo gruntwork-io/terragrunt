@@ -165,3 +165,9 @@ func (c *Content) StoreBatch(items map[string][]byte) error {
 
 	return nil
 }
+
+// Read retrieves content from the store by hash
+func (c *Content) Read(hash string) ([]byte, error) {
+	path := filepath.Join(c.store.Path(), hash)
+	return os.ReadFile(path)
+}
