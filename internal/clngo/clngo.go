@@ -60,11 +60,18 @@ func (c *Cln) Clone() error {
 		return err
 	}
 
-	if c.store.HasContent(hash) {
+	// Check if we have the complete reference
+	if c.store.HasReference(hash) {
 		return c.linkExistingContent(targetDir, hash)
 	}
 
-	return c.cloneAndStoreContent(targetDir, hash)
+	// If we don't have the reference, do a full clone
+	if err := c.cloneAndStoreContent(targetDir, hash); err != nil {
+		return err
+	}
+
+	// Mark this reference as completely stored
+	return c.store.StoreReference(hash)
 }
 
 func (c *Cln) prepareTargetDirectory() (string, error) {
@@ -97,6 +104,20 @@ func (c *Cln) resolveReference() (string, error) {
 
 func (c *Cln) linkExistingContent(targetDir, hash string) error {
 	content := NewContent(c.store)
+
+	// Create a temporary directory for git operations
+	tempDir, cleanup, err := c.git.CreateTempDir()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	// Do a bare clone to get the git objects
+	if err := c.git.Clone(c.repo, true, 1, c.opts.Branch); err != nil {
+		return err
+	}
+
+	c.git.SetWorkDir(tempDir) // Set working directory for git operations
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
@@ -106,25 +127,20 @@ func (c *Cln) linkExistingContent(targetDir, hash string) error {
 }
 
 func (c *Cln) cloneAndStoreContent(targetDir, hash string) error {
-	tempDir, cleanup, err := CreateTempDir()
+	// Create temporary directory for initial clone
+	tempDir, cleanup, err := c.git.CreateTempDir()
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	if err := c.performInitialClone(tempDir); err != nil {
+	// Perform shallow clone to temporary directory
+	if err := c.git.Clone(c.repo, true, 1, c.opts.Branch); err != nil {
 		return err
 	}
 
+	// Store and link the content
 	return c.storeAndLinkContent(tempDir, targetDir, hash)
-}
-
-func (c *Cln) performInitialClone(tempDir string) error {
-	c.git.SetWorkDir(tempDir)
-	if err := c.git.Clone(c.repo, false, 0, c.opts.Branch); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (c *Cln) storeAndLinkContent(tempDir, targetDir, hash string) error {

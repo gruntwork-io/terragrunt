@@ -123,7 +123,7 @@ func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) erro
 }
 
 // CreateTempDir creates a new temporary directory for git operations
-func CreateTempDir() (string, func() error, error) {
+func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 	tempDir, err := os.MkdirTemp("", "clngo-*")
 	if err != nil {
 		return "", nil, &WrappedError{
@@ -131,6 +131,8 @@ func CreateTempDir() (string, func() error, error) {
 			Err: ErrTempDir,
 		}
 	}
+
+	g.SetWorkDir(tempDir)
 
 	cleanup := func() error {
 		if err := os.RemoveAll(tempDir); err != nil {
