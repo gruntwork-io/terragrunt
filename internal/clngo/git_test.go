@@ -75,7 +75,8 @@ func TestGitRunner_Clone(t *testing.T) {
 
 func TestCreateTempDir(t *testing.T) {
 	t.Parallel()
-	dir, cleanup, err := clngo.CreateTempDir()
+	git := clngo.NewGitRunner()
+	dir, cleanup, err := git.CreateTempDir()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, cleanup())
