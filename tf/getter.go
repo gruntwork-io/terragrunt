@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -17,6 +18,7 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
+	"github.com/hashicorp/go-version"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -38,6 +40,21 @@ const (
 // RegistryServicePath is a struct for extracting the modules service path in the Registry.
 type RegistryServicePath struct {
 	ModulesPath string `json:"modules.v1"`
+}
+
+// Modules is a struct for extracting the modules list from a versions endpoint in the Registry.
+type Modules struct {
+	Modules []Module `json:"modules"`
+}
+
+// Module is a struct for extracting the module versions from Modules.
+type Module struct {
+	ModuleVersions []ModuleVersion `json:"versions"`
+}
+
+// ModuleVersion is a struct for extracting the module version from Module.
+type ModuleVersion struct {
+	Version string `json:"version"`
 }
 
 // RegistryGetter is a Getter (from go-getter) implementation that will download from the terraform module
@@ -135,17 +152,23 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
 	}
 
-	version := versionList[0]
+	versionQuery := versionList[0]
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.TerragruntOptions.Logger, registryDomain)
 	if err != nil {
 		return err
 	}
 
-	moduleURL, err := BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version)
+	targetVersion, err := GetTargetVersion(ctx, tfrGetter.TerragruntOptions.Logger, registryDomain, moduleRegistryBasePath, modulePath, versionQuery)
 	if err != nil {
 		return err
 	}
+
+	moduleURL, err := BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, targetVersion)
+	if err != nil {
+		return err
+	}
+	tfrGetter.TerragruntOptions.Logger.Infof("Downloading module from %s", moduleURL.String())
 
 	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.TerragruntOptions.Logger, *moduleURL)
 	if err != nil {
@@ -172,6 +195,57 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 
 	// We have a subdir, time to jump some hoops
 	return tfrGetter.getSubdir(ctx, dstPath, source, path.Join(subDir, moduleSubDir))
+}
+
+// getHighestVersion returns the highest version from the list of versions, or an empty string if the list is empty.
+func getHighestVersion(logger log.Logger, availableVersions []*version.Version) string {
+	if len(availableVersions) == 0 {
+		return ""
+	}
+	sort.Sort(version.Collection(availableVersions))
+	return availableVersions[len(availableVersions)-1].String()
+}
+
+func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain string, moduleRegistryBasePath string, modulePath string, versionQuery string) (string, error) {
+	// Retrieve the available versions for the module
+	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+	moduleVersionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
+	moduleVersionsURL, err := url.Parse(moduleVersionsPath)
+	if err != nil {
+		return "", errors.New(err)
+	}
+	body, _, err := httpGETAndGetResponse(ctx, logger, *moduleVersionsURL)
+	if err != nil {
+		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+	}
+	var responseJSON Modules
+	json.Unmarshal(body, &responseJSON)
+	availableVersions := responseJSON.Modules[0].ModuleVersions
+
+	// Filter the available versions based on the version constraint
+	filteredVersions := []*version.Version{}
+	versionConstraint, err := version.NewConstraint(versionQuery)
+	if err != nil {
+		return "", errors.New(ModuleVersionConstraintMalformedErr{versionConstraint: versionQuery})
+	}
+	for _, availableVersion := range availableVersions {
+		availableVersionParsed, err := version.NewVersion(availableVersion.Version)
+		if err != nil {
+			return "", errors.New(ModuleVersionMalformedErr{version: availableVersion.Version})
+		}
+		if versionConstraint.Check(availableVersionParsed) {
+			filteredVersions = append(filteredVersions, availableVersionParsed)
+		}
+	}
+
+	// Get the highest version from the filtered versions
+	targetVersion := getHighestVersion(logger, filteredVersions)
+	if targetVersion == "" {
+		return "", errors.New(ModuleVersionConstraintErr{versionConstraint: targetVersion})
+	}
+	return targetVersion, nil
 }
 
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
