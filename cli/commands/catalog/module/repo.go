@@ -13,6 +13,7 @@ import (
 
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/files"
+	"github.com/gruntwork-io/terragrunt/internal/clngo"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -46,14 +47,16 @@ type Repo struct {
 	BranchName string
 
 	walkWithSymlinks bool
+	useClnGo         bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool) (*Repo, error) {
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool, useClnGo bool) (*Repo, error) {
 	repo := &Repo{
 		logger:           logger,
 		cloneURL:         cloneURL,
 		path:             tempDir,
 		walkWithSymlinks: walkWithSymlinks,
+		useClnGo:         useClnGo,
 	}
 
 	if err := repo.clone(ctx); err != nil {
@@ -217,19 +220,21 @@ func (repo *Repo) clone(ctx context.Context) error {
 	}
 
 	repo.cloneURL = sourceURL.String()
-
 	repo.logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
-	// We need to explicitly specify the reference, otherwise we will get an error:
-	// "fatal: The empty string is not a valid pathspec. Use . instead if you wanted to match all paths"
-	// when updating an existing repository.
-	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
-
-	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir)); err != nil {
-		return errors.New(err)
+	if repo.useClnGo {
+		cln, err := clngo.New(repo.cloneURL, clngo.Options{
+			Dir: repo.path,
+		})
+		if err != nil {
+			return err
+		}
+		return cln.Clone()
 	}
 
-	return nil
+	// Existing go-getter logic
+	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
+	return getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir))
 }
 
 // parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
