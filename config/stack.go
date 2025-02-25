@@ -29,6 +29,7 @@ const (
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
 type StackConfigFile struct {
 	Locals *terragruntLocal `hcl:"locals,block"`
+	Stacks []*Stack         `hcl:"stack,block"`
 	Units  []*Unit          `hcl:"unit,block"`
 }
 
@@ -38,6 +39,13 @@ type Unit struct {
 	Source string     `hcl:"source,attr"`
 	Path   string     `hcl:"path,attr"`
 	Values *cty.Value `hcl:"values,attr"`
+}
+
+// Stack represents the stack block in the configuration.
+type Stack struct {
+	Name   string `hcl:",label"`
+	Source string `hcl:"source,attr"`
+	Path   string `hcl:"path,attr"`
 }
 
 // ReadOutputs reads the outputs from the unit.
@@ -65,12 +73,12 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions)
 }
 
 // ReadStackConfigFile reads the terragrunt.stack.hcl file.
-func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions) (*StackConfigFile, error) {
-	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", opts.TerragruntStackConfigPath)
+func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string) (*StackConfigFile, error) {
+	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
 	parser := NewParsingContext(ctx, opts)
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(opts.TerragruntStackConfigPath)
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
