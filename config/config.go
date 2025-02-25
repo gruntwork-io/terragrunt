@@ -464,10 +464,6 @@ func (conf *ErrorHook) String() string {
 	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
 }
 
-type Clone struct {
-	Errors *ErrorsConfig `hcl:"errors,block"`
-}
-
 // TerraformConfig specifies where to find the Terraform configuration files
 // NOTE: If any attributes or blocks are added here, be sure to add it to ctyTerraformConfig in config_as_cty.go as
 // well.
@@ -484,8 +480,6 @@ type TerraformConfig struct {
 	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
 
 	CopyTerraformLockFile *bool `hcl:"copy_terraform_lock_file,attr"`
-
-	Clone *Clone `hcl:"clone,block"`
 }
 
 func (cfg *TerraformConfig) String() string {
@@ -1537,32 +1531,18 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	}, nil
 }
 
-// ErrorsConfig fetches errors configuration for options package
+// ErrorsConfig fetch errors configuration for options package
 func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 	if cfg.Errors == nil {
 		return nil, nil
 	}
 
-	return cfg.Errors.ToOptionsConfig()
-}
-
-// CloneErrorsConfig fetches errors configuration for options package
-func (cfg *TerragruntConfig) CloneErrorsConfig() (*options.ErrorsConfig, error) {
-	if cfg.Terraform == nil || cfg.Terraform.Clone == nil || cfg.Terraform.Clone.Errors == nil {
-		return nil, nil
-	}
-
-	return cfg.Terraform.Clone.Errors.ToOptionsConfig()
-}
-
-// ToOptionsConfig converts config.ErrorsConfig to options.ErrorsConfig
-func (c *ErrorsConfig) ToOptionsConfig() (*options.ErrorsConfig, error) {
 	result := &options.ErrorsConfig{
 		Retry:  make(map[string]*options.RetryConfig),
 		Ignore: make(map[string]*options.IgnoreConfig),
 	}
 
-	for _, retryBlock := range c.Retry {
+	for _, retryBlock := range cfg.Errors.Retry {
 		if retryBlock == nil {
 			continue
 		}
@@ -1587,7 +1567,7 @@ func (c *ErrorsConfig) ToOptionsConfig() (*options.ErrorsConfig, error) {
 		}
 	}
 
-	for _, ignoreBlock := range c.Ignore {
+	for _, ignoreBlock := range cfg.Errors.Ignore {
 		if ignoreBlock == nil {
 			continue
 		}

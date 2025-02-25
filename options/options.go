@@ -382,9 +382,6 @@ type TerragruntOptions struct {
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
 
-	// CloneErrors is a configuration for clone error handling.
-	CloneErrors *ErrorsConfig
-
 	// Headless is set when Terragrunt is running in
 	// headless mode. In this mode, Terragrunt will not
 	// return stdout/stderr directly to the caller.
