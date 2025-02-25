@@ -1621,6 +1621,30 @@ Evaluation Order:
 > **Note:**
 > Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
 
+#### Errors during source fetching
+
+In addition to handling errors during OpenTofu/Terraform runs, the `errors` block will also handle errors that occur during source fetching.
+
+This can be particularly useful when fetching from artifact repositories that may be temporarily unavailable.
+
+Example:
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  source = "https://unreliable-source.com/module.zip"
+}
+
+errors {
+    retry "source_fetch" {
+        retryable_errors = [".*Error: transient network issue.*"]
+        max_attempts = 3
+        sleep_interval_sec = 5
+    }
+}
+```
+
 ## unit
 
 <Aside type="tip" title="Stacks">
