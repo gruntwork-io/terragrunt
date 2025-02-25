@@ -207,6 +207,10 @@ func getHighestVersion(availableVersions []*version.Version) string {
 }
 
 func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain string, moduleRegistryBasePath string, modulePath string, versionQuery string) (string, error) {
+	// Handle the case where the registry domain is not part of the module registry base path
+	if !strings.HasPrefix(moduleRegistryBasePath, "https://") {
+		moduleRegistryBasePath = fmt.Sprintf("https://%s%s", registryDomain, moduleRegistryBasePath)
+	}
 	// Retrieve the available versions for the module
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
 	modulePath = strings.TrimSuffix(modulePath, "/")
@@ -224,7 +228,7 @@ func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain str
 	if err := json.Unmarshal(bodyData, &responseJSON); err != nil {
 		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
 	}
-	if len(responseJSON.Modules) == 0 {
+	if len(responseJSON.Modules) == 0 || len(responseJSON.Modules[0].ModuleVersions) == 0 {
 		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
 	}
 	availableVersions := responseJSON.Modules[0].ModuleVersions
