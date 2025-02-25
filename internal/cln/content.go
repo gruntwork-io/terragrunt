@@ -2,6 +2,7 @@ package cln
 
 import (
 	"bufio"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,6 +19,8 @@ const (
 	DefaultDirPerms = os.FileMode(0755)
 	// StoredFilePerms represents read-only file permissions (r--r--r--)
 	StoredFilePerms = os.FileMode(0444)
+	// RegularFilePerms represents standard file permissions (rw-r--r--)
+	RegularFilePerms = os.FileMode(0644)
 )
 
 // NewContent creates a new Content instance
@@ -42,16 +45,41 @@ func (c *Content) Link(hash, targetPath string) error {
 		return &WrappedError{
 			Op:   "stat_target",
 			Path: targetPath,
-			Err:  ErrReadFile,
+			Err:  err,
 		}
 	}
 
-	// Create hard link since target doesn't exist
+	// Create hard link
 	if err := os.Link(sourcePath, targetPath); err != nil {
-		return &WrappedError{
-			Op:   "create_hard_link",
-			Path: targetPath,
-			Err:  ErrHardLink,
+		// If hard link fails, try to copy the file
+		data, readErr := os.ReadFile(sourcePath)
+
+		if readErr != nil {
+			return &WrappedError{
+				Op:   "read_source",
+				Path: sourcePath,
+				Err:  ErrReadFile,
+			}
+		}
+
+		// Write to temporary file first
+		tempPath := targetPath + ".tmp"
+
+		if err := os.WriteFile(tempPath, data, RegularFilePerms); err != nil {
+			return &WrappedError{
+				Op:   "write_target",
+				Path: tempPath,
+				Err:  err,
+			}
+		}
+
+		// Rename to final path
+		if err := os.Rename(tempPath, targetPath); err != nil {
+			return &WrappedError{
+				Op:   "rename_target",
+				Path: tempPath,
+				Err:  err,
+			}
 		}
 	}
 
@@ -67,24 +95,15 @@ func (c *Content) ensureTargetDirectory(targetPath string) error {
 			Err:  ErrCreateDir,
 		}
 	}
+
 	return nil
 }
 
 // Store stores a single content item
 func (c *Content) Store(hash string, data []byte) error {
-	// Quick check with read lock first
-	c.mu.RLock()
-	if c.store.HasContent(hash) {
-		c.mu.RUnlock()
-		return nil
-	}
-	c.mu.RUnlock()
-
-	// If content might not exist, take write lock
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Double-check after acquiring write lock
 	if c.store.HasContent(hash) {
 		return nil
 	}
@@ -96,33 +115,47 @@ func (c *Content) Store(hash string, data []byte) error {
 	path := filepath.Join(c.store.Path(), hash)
 	tempPath := path + ".tmp"
 
-	// Write to temporary file first
 	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
 	if err != nil {
-		return wrapError("open_temp_file", tempPath, err)
+		return wrapError("create_temp_file", tempPath, err)
 	}
 
 	buf := bufio.NewWriter(f)
+
 	if _, err := buf.Write(data); err != nil {
 		f.Close()
-		os.Remove(tempPath)
+
+		if err := os.Remove(tempPath); err != nil {
+			log.Printf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
 		return wrapError("write_to_store", tempPath, err)
 	}
 
 	if err := buf.Flush(); err != nil {
 		f.Close()
-		os.Remove(tempPath)
+
+		if err := os.Remove(tempPath); err != nil {
+			log.Printf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
 		return wrapError("flush_buffer", tempPath, err)
 	}
 
 	if err := f.Close(); err != nil {
-		os.Remove(tempPath)
+		if err := os.Remove(tempPath); err != nil {
+			log.Printf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
 		return wrapError("close_file", tempPath, err)
 	}
 
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
-		os.Remove(tempPath)
+		if err := os.Remove(tempPath); err != nil {
+			log.Printf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
 		return wrapError("finalize_store", path, err)
 	}
 
@@ -142,6 +175,7 @@ func (c *Content) StoreBatch(items map[string][]byte) error {
 		}
 
 		path := filepath.Join(c.store.Path(), hash)
+
 		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
 		if err != nil {
 			return wrapError("open_file", path, err)
