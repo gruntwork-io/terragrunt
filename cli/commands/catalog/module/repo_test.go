@@ -141,6 +141,13 @@ func TestModuleURL(t *testing.T) {
 			nil,
 		},
 		{
+			"cln",
+			newRepo(t, "cln://github.com/acme/terraform-aws-modules"),
+			".",
+			"cln://https://github.com/acme/terraform-aws-modules/tree/main/.",
+			nil,
+		},
+		{
 			"unsupported",
 			newRepo(t, "https://fake.com/acme/terraform-aws-modules"),
 			".",
