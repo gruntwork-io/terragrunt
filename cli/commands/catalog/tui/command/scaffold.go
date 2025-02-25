@@ -4,7 +4,9 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 
@@ -25,9 +27,25 @@ func NewScaffold(opts *options.TerragruntOptions, module *module.Module) *Scaffo
 }
 
 func (cmd *Scaffold) Run() error {
-	cmd.module.Logger().Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
+	sourcePath := cmd.module.TerraformSourcePath()
+	cmd.module.Logger().Infof("Run Scaffold for the module: %q", sourcePath)
 
-	return scaffold.Run(context.Background(), cmd.terragruntOptions, cmd.module.TerraformSourcePath(), "")
+	// For cln:// URLs, we need to strip the protocol for the scaffold command
+	if strings.HasPrefix(sourcePath, "cln://") {
+		sourcePath = strings.TrimPrefix(sourcePath, "cln://")
+
+		// If it's already in SSH format (git@github.com:org/repo), use it directly
+		if strings.HasPrefix(sourcePath, "git@") {
+			return scaffold.Run(context.Background(), cmd.terragruntOptions, "git::"+sourcePath, "")
+		}
+
+		// Otherwise, convert to SSH format
+		sourcePath = strings.TrimPrefix(sourcePath, "github.com/")
+		sourcePath = fmt.Sprintf("git@github.com:%s", sourcePath)
+		return scaffold.Run(context.Background(), cmd.terragruntOptions, "git::"+sourcePath, "")
+	}
+
+	return scaffold.Run(context.Background(), cmd.terragruntOptions, sourcePath, "")
 }
 
 func (cmd *Scaffold) SetStdin(io.Reader) {
