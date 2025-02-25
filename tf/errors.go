@@ -40,3 +40,40 @@ type RegistryAPIErr struct {
 func (err RegistryAPIErr) Error() string {
 	return fmt.Sprintf("Failed to fetch url %s: status code %d", err.url, err.statusCode)
 }
+
+// ModuleVersionsErr is returned if we failed to fetch the module versions from the registry.
+type ModuleVersionsErr struct {
+	moduleName string
+}
+
+func (err ModuleVersionsErr) Error() string {
+	return fmt.Sprintf("Failed to fetch versions for module %s. Ensure you're properly authenticated and your registry is reachable", err.moduleName)
+}
+
+// ModuleVersionConstraintErr is returned if the version constraint is not satisfied. This means there are no
+// available versions for the module that satisfy the constraint.
+type ModuleVersionConstraintErr struct {
+	versionConstraint string
+}
+
+func (err ModuleVersionConstraintErr) Error() string {
+	return fmt.Sprintf("Version constraint %s not satisfied", err.versionConstraint)
+}
+
+// ModuleVersionConstraintMalformedErr is returned if the version constraint is malformed and cannot be parsed.
+type ModuleVersionConstraintMalformedErr struct {
+	versionConstraint string
+}
+
+func (err ModuleVersionConstraintMalformedErr) Error() string {
+	return fmt.Sprintf("Version constraint %s is malformed and cannot be parsed", err.versionConstraint)
+}
+
+// ModuleVersionMalformedErr is returned if the version string is malformed and cannot be parsed.
+type ModuleVersionMalformedErr struct {
+	version string
+}
+
+func (err ModuleVersionMalformedErr) Error() string {
+	return fmt.Sprintf("Version %s is malformed and cannot be parsed", err.version)
+}
