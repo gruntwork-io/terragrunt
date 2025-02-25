@@ -20,6 +20,9 @@ const (
 	CLIRedesign = "cli-redesign"
 	// Stacks is the experiment that allows stacks to be used in Terragrunt.
 	Stacks = "stacks"
+	// Cln is the experiment that enables using the Cln package for git operations
+	// in the catalog command, which provides better performance through content-addressable storage.
+	Cln = "cln"
 )
 
 const (
@@ -44,6 +47,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: Stacks,
+		},
+		{
+			Name: Cln,
 		},
 	}
 }
