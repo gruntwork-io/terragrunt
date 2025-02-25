@@ -1,4 +1,4 @@
-package clngo_test
+package cln_test
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 )
 
 func BenchmarkClone(b *testing.B) {
@@ -23,7 +23,7 @@ func BenchmarkClone(b *testing.B) {
 			storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
-			cln, err := clngo.New(repo, clngo.Options{
+			cln, err := cln.New(repo, cln.Options{
 				Dir:       targetPath,
 				StorePath: storePath,
 			})
@@ -42,14 +42,14 @@ func BenchmarkClone(b *testing.B) {
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone to populate store
-		cln, err := clngo.New(repo, clngo.Options{
+		c, err := cln.New(repo, cln.Options{
 			Dir:       filepath.Join(tempDir, "initial"),
 			StorePath: storePath,
 		})
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := cln.Clone(); err != nil {
+		if err := c.Clone(); err != nil {
 			b.Fatal(err)
 		}
 
@@ -57,7 +57,7 @@ func BenchmarkClone(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
-			cln, err := clngo.New(repo, clngo.Options{
+			c, err := cln.New(repo, cln.Options{
 				Dir:       targetPath,
 				StorePath: storePath,
 			})
@@ -65,7 +65,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := cln.Clone(); err != nil {
+			if err := c.Clone(); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -73,11 +73,11 @@ func BenchmarkClone(b *testing.B) {
 }
 
 func BenchmarkContent(b *testing.B) {
-	store, err := clngo.NewStore(b.TempDir())
+	store, err := cln.NewStore(b.TempDir())
 	if err != nil {
 		b.Fatal(err)
 	}
-	content := clngo.NewContent(store)
+	content := cln.NewContent(store)
 
 	// Prepare test data
 	testData := []byte("test content for benchmarking")
@@ -133,13 +133,13 @@ func BenchmarkContent(b *testing.B) {
 func BenchmarkGitOperations(b *testing.B) {
 	// Setup a git repository for testing
 	repoDir := b.TempDir()
-	git := clngo.NewGitRunner().WithWorkDir(repoDir)
+	git := cln.NewGitRunner().WithWorkDir(repoDir)
 	if err := git.Clone("https://github.com/yhakbar/cln.git", false, 1, "main"); err != nil {
 		b.Fatal(err)
 	}
 
 	b.Run("ls-remote", func(b *testing.B) {
-		git := clngo.NewGitRunner() // No workDir needed for ls-remote
+		git := cln.NewGitRunner() // No workDir needed for ls-remote
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			_, err := git.LsRemote("https://github.com/yhakbar/cln.git", "HEAD")

@@ -1,11 +1,11 @@
-package clngo
+package cln
 
 import (
 	"errors"
 	"fmt"
 )
 
-// Error types that can be returned by the clngo package
+// Error types that can be returned by the cln package
 type Error string
 
 func (e Error) Error() string {

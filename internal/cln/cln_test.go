@@ -1,11 +1,11 @@
-package clngo_test
+package cln_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,9 +19,9 @@ func TestCln_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		cln, err := clngo.New(
+		cln, err := cln.New(
 			"https://github.com/yhakbar/cln.git",
-			clngo.Options{
+			cln.Options{
 				Dir:       targetPath,
 				StorePath: storePath,
 			},
@@ -42,9 +42,9 @@ func TestCln_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		cln, err := clngo.New(
+		cln, err := cln.New(
 			"https://github.com/yhakbar/cln.git",
-			clngo.Options{
+			cln.Options{
 				Dir:       targetPath,
 				Branch:    "main",
 				StorePath: storePath,

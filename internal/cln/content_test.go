@@ -1,11 +1,11 @@
-package clngo_test
+package cln_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,10 +15,10 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
-		store, err := clngo.NewStore(t.TempDir())
+		store, err := cln.NewStore(t.TempDir())
 		require.NoError(t, err)
 
-		content := clngo.NewContent(store)
+		content := cln.NewContent(store)
 		testHash := "abcdef123456"
 		testData := []byte("test content")
 
@@ -34,10 +34,10 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("store existing content", func(t *testing.T) {
 		t.Parallel()
-		store, err := clngo.NewStore(t.TempDir())
+		store, err := cln.NewStore(t.TempDir())
 		require.NoError(t, err)
 
-		content := clngo.NewContent(store)
+		content := cln.NewContent(store)
 		testHash := "abcdef123456"
 		testData := []byte("test content")
 
@@ -61,10 +61,10 @@ func TestContent_Link(t *testing.T) {
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
 		storeDir := t.TempDir()
-		store, err := clngo.NewStore(storeDir)
+		store, err := cln.NewStore(storeDir)
 		require.NoError(t, err)
 
-		content := clngo.NewContent(store)
+		content := cln.NewContent(store)
 		testHash := "abcdef123456"
 		testData := []byte("test content")
 
@@ -93,10 +93,10 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("link to existing file", func(t *testing.T) {
 		t.Parallel()
-		store, err := clngo.NewStore(t.TempDir())
+		store, err := cln.NewStore(t.TempDir())
 		require.NoError(t, err)
 
-		content := clngo.NewContent(store)
+		content := cln.NewContent(store)
 		testHash := "abcdef123456"
 		testData := []byte("test content")
 

@@ -1,11 +1,11 @@
-package clngo_test
+package cln_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,9 +20,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		// First clone
 		firstClonePath := filepath.Join(tempDir, "first")
-		cln1, err := clngo.New(
+		cln1, err := cln.New(
 			"https://github.com/yhakbar/cln.git",
-			clngo.Options{
+			cln.Options{
 				Dir:       firstClonePath,
 				StorePath: storePath,
 			},
@@ -37,9 +37,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		// Second clone
 		secondClonePath := filepath.Join(tempDir, "second")
-		cln2, err := clngo.New(
+		cln2, err := cln.New(
 			"https://github.com/yhakbar/cln.git",
-			clngo.Options{
+			cln.Options{
 				Dir:       secondClonePath,
 				StorePath: storePath,
 			},
@@ -64,9 +64,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		t.Parallel()
 		tempDir := t.TempDir()
 
-		cln, err := clngo.New(
+		c, err := cln.New(
 			"https://github.com/yhakbar/cln.git",
-			clngo.Options{
+			cln.Options{
 				Dir:       filepath.Join(tempDir, "repo"),
 				Branch:    "nonexistent-branch",
 				StorePath: filepath.Join(tempDir, "store"),
@@ -74,29 +74,29 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = cln.Clone()
+		err = c.Clone()
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*clngo.WrappedError).Err, clngo.ErrNoMatchingReference)
+		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrNoMatchingReference)
 	})
 
 	t.Run("clone with invalid repository fails gracefully", func(t *testing.T) {
 		t.Parallel()
 		tempDir := t.TempDir()
 
-		cln, err := clngo.New(
+		c, err := cln.New(
 			"https://github.com/yhakbar/nonexistent-repo.git",
-			clngo.Options{
+			cln.Options{
 				Dir:       filepath.Join(tempDir, "repo"),
 				StorePath: filepath.Join(tempDir, "store"),
 			},
 		)
 		require.NoError(t, err)
 
-		err = cln.Clone()
+		err = c.Clone()
 		require.Error(t, err)
-		var wrappedErr *clngo.WrappedError
+		var wrappedErr *cln.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, clngo.ErrCommandSpawn)
+		assert.ErrorIs(t, wrappedErr.Err, cln.ErrCommandSpawn)
 	})
 }
 
@@ -109,35 +109,35 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone to populate store
-		cln, err := clngo.New(
+		c, err := cln.New(
 			"https://github.com/yhakbar/cln.git",
-			clngo.Options{
+			cln.Options{
 				Dir:       filepath.Join(tempDir, "repo"),
 				StorePath: storePath,
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, cln.Clone())
+		require.NoError(t, c.Clone())
 
 		// Get the commit hash
-		git := clngo.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
+		git := cln.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
 		results, err := git.LsRemote("https://github.com/yhakbar/cln.git", "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash
 
 		// Verify the tree object is stored
-		store, err := clngo.NewStore(storePath)
+		store, err := cln.NewStore(storePath)
 		require.NoError(t, err)
 		assert.True(t, store.HasContent(commitHash), "Tree object should be stored")
 
 		// Verify we can read the tree content
-		content := clngo.NewContent(store)
+		content := cln.NewContent(store)
 		treeData, err := content.Read(commitHash)
 		require.NoError(t, err)
 
 		// Parse the tree data to confirm it's valid
-		tree, err := clngo.ParseTree(string(treeData), "")
+		tree, err := cln.ParseTree(string(treeData), "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, tree.Entries(), "Tree should have entries")
 	})
