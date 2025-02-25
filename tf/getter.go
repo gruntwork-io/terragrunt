@@ -206,8 +206,12 @@ func getHighestVersion(availableVersions []*version.Version) string {
 	return availableVersions[len(availableVersions)-1].String()
 }
 
+// GetTargetVersion retrieves the target version of the module based on the version constraint provided. This function
+// will return the highest version that satisfies the version constraint. If no version satisfies the constraint, an
+// error will be returned.
 func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain string, moduleRegistryBasePath string, modulePath string, versionQuery string) (string, error) {
 	// Handle the case where the registry domain is not part of the module registry base path
+	// since sometimes the registry domain is not part of the base path, but other times it is.
 	if !strings.HasPrefix(moduleRegistryBasePath, "https://") {
 		moduleRegistryBasePath = fmt.Sprintf("https://%s%s", registryDomain, moduleRegistryBasePath)
 	}
