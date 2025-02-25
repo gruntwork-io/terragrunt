@@ -163,73 +163,112 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 	return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
 }
 
-// clone clones the repository to a temporary directory if the repoPath is URL
+type CloneOptions struct {
+	SourceURL  string
+	TargetPath string
+	Context    context.Context
+	Logger     log.Logger
+}
+
 func (repo *Repo) clone(ctx context.Context) error {
+	cloneURL, err := repo.resolveCloneURL()
+	if err != nil {
+		return err
+	}
+
+	// Handle local directory case
+	if files.IsDir(cloneURL) {
+		return repo.handleLocalDir(cloneURL)
+	}
+
+	// Prepare clone options
+	opts := CloneOptions{
+		SourceURL:  cloneURL,
+		TargetPath: repo.path,
+		Context:    ctx,
+		Logger:     repo.logger,
+	}
+
+	if err := repo.prepareCloneDirectory(&opts); err != nil {
+		return err
+	}
+
+	return repo.performClone(&opts)
+}
+
+func (repo *Repo) resolveCloneURL() (string, error) {
 	if repo.cloneURL == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
+			return "", errors.New(err)
+		}
+		return currentDir, nil
+	}
+	return repo.cloneURL, nil
+}
+
+func (repo *Repo) handleLocalDir(repoPath string) error {
+	if !filepath.IsAbs(repoPath) {
+		absRepoPath, err := filepath.Abs(repoPath)
+		if err != nil {
 			return errors.New(err)
 		}
-
-		repo.cloneURL = currentDir
-	}
-
-	if repoPath := repo.cloneURL; files.IsDir(repoPath) {
-		if !filepath.IsAbs(repoPath) {
-			absRepoPath, err := filepath.Abs(repoPath)
-			if err != nil {
-				return errors.New(err)
-			}
-
-			repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
-		}
-
+		repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
+		repo.path = absRepoPath
+	} else {
 		repo.path = repoPath
-
-		return nil
 	}
+	return nil
+}
 
-	if err := os.MkdirAll(repo.path, os.ModePerm); err != nil {
+func (repo *Repo) prepareCloneDirectory(opts *CloneOptions) error {
+	if err := os.MkdirAll(opts.TargetPath, os.ModePerm); err != nil {
 		return errors.New(err)
 	}
 
-	repoName := "temp"
-	if match := repoNameFromCloneURLReg.FindStringSubmatch(repo.cloneURL); len(match) > 0 && match[1] != "" {
-		repoName = match[1]
-	}
+	repoName := repo.extractRepoName()
+	repo.path = filepath.Join(opts.TargetPath, repoName)
 
-	repo.path = filepath.Join(repo.path, repoName)
-
-	// Since we are cloning the repository into a temporary directory, some operating systems such as MacOS have a service for deleting files that have not been accessed for a long time.
-	// For example, in MacOS the service is responsible for deleting unused files deletes only files while leaving the directory structure is untouched, which in turn misleads `go-getter`, which thinks that the repository exists but cannot update it due to the lack of files. In such cases, we simply delete the temporary directory in order to clone the one again.
-	// See https://github.com/gruntwork-io/terragrunt/pull/2888
-	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
+	// Clean up incomplete clones
+	if repo.shouldCleanupIncompleteClone() {
 		repo.logger.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
-
 		if err := os.RemoveAll(repo.path); err != nil {
 			return errors.New(err)
 		}
 	}
+	return nil
+}
 
-	sourceURL, err := tf.ToSourceURL(repo.cloneURL, "")
+func (repo *Repo) extractRepoName() string {
+	repoName := "temp"
+	if match := repoNameFromCloneURLReg.FindStringSubmatch(repo.cloneURL); len(match) > 0 && match[1] != "" {
+		repoName = match[1]
+	}
+	return repoName
+}
+
+func (repo *Repo) shouldCleanupIncompleteClone() bool {
+	return files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile())
+}
+
+func (repo *Repo) performClone(opts *CloneOptions) error {
+	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {
 		return err
 	}
 
 	repo.cloneURL = sourceURL.String()
+	opts.Logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
-	repo.logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
-
-	// We need to explicitly specify the reference, otherwise we will get an error:
-	// "fatal: The empty string is not a valid pathspec. Use . instead if you wanted to match all paths"
-	// when updating an existing repository.
+	// Add HEAD reference to avoid pathspec error
 	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
 
-	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir)); err != nil {
-		return errors.New(err)
-	}
-
-	return nil
+	return getter.Get(
+		repo.path,
+		strings.Trim(sourceURL.String(), "/"),
+		getter.WithContext(opts.Context),
+		getter.WithMode(getter.ClientModeDir),
+	)
 }
 
 // parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
