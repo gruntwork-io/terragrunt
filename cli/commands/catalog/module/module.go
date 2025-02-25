@@ -105,12 +105,20 @@ func (module *Module) TerraformSourcePath() string {
 		return module.cloneURL + "//" + module.moduleDir
 	}
 
+	// For cln:// protocol, normalize the URL format
 	baseURL := strings.TrimPrefix(module.cloneURL, "cln://")
-	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
-		baseURL = "https://" + baseURL
+
+	// Handle SSH URLs (git@github.com:org/repo.git)
+	if strings.HasPrefix(baseURL, "git@") {
+		// Keep the original SSH format
+		return fmt.Sprintf("cln://%s//%s", baseURL, module.moduleDir)
 	}
 
-	return fmt.Sprintf("cln://%s//%s", baseURL, module.moduleDir)
+	// Remove any double slashes that aren't part of the protocol
+	baseURL = strings.TrimRight(baseURL, "/")
+	moduleDir := strings.TrimLeft(module.moduleDir, "/")
+
+	return fmt.Sprintf("cln://%s//%s", baseURL, moduleDir)
 }
 
 func (module *Module) isValid() (bool, error) {

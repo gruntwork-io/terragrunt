@@ -23,7 +23,7 @@ type Options struct {
 	Branch string
 
 	// StorePath specifies a custom path for the content store
-	// If empty, uses $HOME/.cln-store
+	// If empty, uses $HOME/.cache/terragrunt/cln-store
 	StorePath string
 }
 
@@ -39,6 +39,14 @@ type Cln struct {
 
 // New creates a new Cln instance with the given options
 func New(repo string, opts Options) (*Cln, error) {
+	if opts.StorePath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cln-store")
+	}
+
 	store, err := NewStore(opts.StorePath)
 	if err != nil {
 		return nil, err
