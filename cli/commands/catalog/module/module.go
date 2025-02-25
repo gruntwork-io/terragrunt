@@ -2,8 +2,10 @@
 package module
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -98,7 +100,26 @@ func (module *Module) URL() string {
 }
 
 func (module *Module) TerraformSourcePath() string {
-	return module.cloneURL + "//" + module.moduleDir
+	sourcePath := ""
+	// If using cln:// protocol, we need to ensure it's preserved in the source path
+	if strings.HasPrefix(module.cloneURL, "cln://") {
+		// Ensure we have an absolute path by using the full repository URL
+		baseURL := strings.TrimPrefix(module.cloneURL, "cln://")
+		if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+			baseURL = "https://" + baseURL
+		}
+		sourcePath = fmt.Sprintf("cln://%s//%s", baseURL, module.moduleDir)
+	} else {
+		sourcePath = module.cloneURL + "//" + module.moduleDir
+	}
+
+	// Add debug logging
+	if module.Logger() != nil {
+		module.Logger().Debugf("Generated terraform source path: %s (cloneURL: %s, moduleDir: %s)",
+			sourcePath, module.cloneURL, module.moduleDir)
+	}
+
+	return sourcePath
 }
 
 func (module *Module) isValid() (bool, error) {
