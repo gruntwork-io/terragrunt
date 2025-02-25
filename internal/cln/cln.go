@@ -6,10 +6,17 @@ package cln
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+)
+
+const (
+	repoPartsSplitLimit = 2
+	maxConcurrentTasks  = 4
+	dirPermissions      = 0755
 )
 
 // Options configures the behavior of the Cln operation
@@ -44,6 +51,7 @@ func New(repo string, opts Options) (*Cln, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cln-store")
 	}
 
@@ -59,8 +67,8 @@ func New(repo string, opts Options) (*Cln, error) {
 
 	// Convert github.com/org/repo to github.com:org/repo format for SSH URLs
 	if strings.HasPrefix(repo, "git@") {
-		parts := strings.SplitN(repo, "/", 2)
-		if len(parts) == 2 {
+		parts := strings.SplitN(repo, "/", repoPartsSplitLimit)
+		if len(parts) == repoPartsSplitLimit {
 			repo = parts[0] + ":" + parts[1]
 		}
 	}
@@ -78,10 +86,22 @@ func (c *Cln) Clone() error {
 	c.cloneLock.Lock()
 	defer c.cloneLock.Unlock()
 
-	targetDir, err := c.prepareTargetDirectory()
+	targetDir := c.prepareTargetDirectory()
+
+	// Create a temporary directory for git operations
+	tempDir, cleanup, err := c.git.CreateTempDir()
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		if cleanupErr := cleanup(); cleanupErr != nil {
+			log.Printf("cleanup error: %v", cleanupErr)
+		}
+	}()
+
+	// Set the working directory for git operations
+	c.git.SetWorkDir(tempDir)
 
 	hash, err := c.resolveReference()
 	if err != nil {
@@ -101,6 +121,7 @@ func (c *Cln) Clone() error {
 				if entry.Type != "blob" {
 					continue
 				}
+
 				targetPath := filepath.Join(targetDir, entry.Path)
 				if err := content.Link(entry.Hash, targetPath); err != nil {
 					allFilesPresent = false
@@ -115,27 +136,24 @@ func (c *Cln) Clone() error {
 	}
 
 	// Fall back to full clone if optimization fails
-	return c.cloneAndStoreContent(targetDir, hash)
+	return c.cloneAndStoreContent(hash)
 }
 
-func (c *Cln) prepareTargetDirectory() (string, error) {
+func (c *Cln) prepareTargetDirectory() string {
 	targetDir := c.opts.Dir
 	if targetDir == "" {
 		targetDir = GetRepoName(c.repo)
 	}
-	return filepath.Clean(targetDir), nil
+
+	return filepath.Clean(targetDir)
 }
 
 func (c *Cln) resolveReference() (string, error) {
-	reference := "HEAD"
-	if c.opts.Branch != "" {
-		reference = c.opts.Branch
-	}
-
-	results, err := c.git.LsRemote(c.repo, reference)
+	results, err := c.git.LsRemote(c.repo, c.opts.Branch)
 	if err != nil {
 		return "", err
 	}
+
 	if len(results) == 0 {
 		return "", &WrappedError{
 			Op:      "clone",
@@ -143,43 +161,39 @@ func (c *Cln) resolveReference() (string, error) {
 			Err:     ErrNoMatchingReference,
 		}
 	}
+
 	return results[0].Hash, nil
 }
 
-func (c *Cln) cloneAndStoreContent(targetDir, hash string) error {
-	tempDir, cleanup, err := c.git.CreateTempDir()
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
+func (c *Cln) cloneAndStoreContent(hash string) error {
 	if err := c.git.Clone(c.repo, true, 1, c.opts.Branch); err != nil {
 		return err
 	}
 
-	c.git.SetWorkDir(tempDir)
-
-	return c.storeTreeRecursively(hash, "", targetDir)
+	return c.storeTreeRecursively(hash, "")
 }
 
-func (c *Cln) storeTreeRecursively(hash, prefix, targetDir string) error {
+func (c *Cln) storeTreeRecursively(hash, prefix string) error {
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
 	}
 
-	// Store the tree data itself
 	content := NewContent(c.store)
 	treeData := strings.Builder{}
+
 	for _, entry := range tree.Entries() {
 		fmt.Fprintf(&treeData, "%s %s %s %s\n", entry.Mode, entry.Type, entry.Hash, entry.Path)
 	}
+
 	if err := content.Store(hash, []byte(treeData.String())); err != nil {
 		return err
 	}
 
-	var blobEntries []TreeEntry
-	var subTrees []TreeEntry
+	var (
+		subTrees    []TreeEntry
+		blobEntries []TreeEntry
+	)
 
 	for _, entry := range tree.Entries() {
 		if prefix != "" {
@@ -198,27 +212,31 @@ func (c *Cln) storeTreeRecursively(hash, prefix, targetDir string) error {
 	}
 
 	for _, subTree := range subTrees {
-		if err := c.storeTreeRecursively(subTree.Hash, subTree.Path, targetDir); err != nil {
+		if err := c.storeTreeRecursively(subTree.Hash, subTree.Path); err != nil {
 			return err
 		}
 	}
 
-	return c.processTreeEntries(targetDir, tree, content)
+	return nil
 }
 
 func (c *Cln) storeBlobEntries(entries []TreeEntry) error {
 	blobs := make(map[string][]byte)
-	var mu sync.Mutex
 	errChan := make(chan error, 1)
-	semaphore := make(chan struct{}, 4)
+	semaphore := make(chan struct{}, maxConcurrentTasks)
 
-	var wg sync.WaitGroup
+	var (
+		wg sync.WaitGroup
+		mu sync.Mutex
+	)
+
 	for _, entry := range entries {
 		if c.store.HasContent(entry.Hash) {
 			continue
 		}
 
 		wg.Add(1)
+
 		go func(hash string) {
 			defer wg.Done()
 
@@ -231,6 +249,7 @@ func (c *Cln) storeBlobEntries(entries []TreeEntry) error {
 				case errChan <- err:
 				default:
 				}
+
 				return
 			}
 
@@ -250,50 +269,9 @@ func (c *Cln) storeBlobEntries(entries []TreeEntry) error {
 
 	if len(blobs) > 0 {
 		content := NewContent(c.store)
+
 		return content.StoreBatch(blobs)
 	}
 
-	return nil
-}
-
-func (c *Cln) processTreeEntries(targetDir string, tree *Tree, content *Content) error {
-	if err := os.MkdirAll(targetDir, DefaultDirPerms); err != nil {
-		return &WrappedError{
-			Op:   "create_target_dir",
-			Path: targetDir,
-			Err:  ErrCreateDir,
-		}
-	}
-
-	for _, entry := range tree.Entries() {
-		if err := c.processTreeEntry(targetDir, entry, content); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *Cln) processTreeEntry(targetDir string, entry TreeEntry, content *Content) error {
-	entryPath := filepath.Join(targetDir, entry.Path)
-
-	if entry.Type == "tree" {
-		return os.MkdirAll(entryPath, DefaultDirPerms)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
-		return &WrappedError{
-			Op:   "create_parent_dir",
-			Path: filepath.Dir(entryPath),
-			Err:  ErrCreateDir,
-		}
-	}
-
-	if err := content.Link(entry.Hash, entryPath); err != nil {
-		return err
-	}
-
-	if entry.Mode == "100755" {
-		return os.Chmod(entryPath, 0755)
-	}
 	return nil
 }

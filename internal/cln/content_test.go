@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testHashValue = "abcdef123456"
+
 func TestContent_Store(t *testing.T) {
 	t.Parallel()
 
@@ -19,7 +21,7 @@ func TestContent_Store(t *testing.T) {
 		require.NoError(t, err)
 
 		content := cln.NewContent(store)
-		testHash := "abcdef123456"
+		testHash := testHashValue
 		testData := []byte("test content")
 
 		err = content.Store(testHash, testData)
@@ -38,7 +40,7 @@ func TestContent_Store(t *testing.T) {
 		require.NoError(t, err)
 
 		content := cln.NewContent(store)
-		testHash := "abcdef123456"
+		testHash := testHashValue
 		testData := []byte("test content")
 
 		// Store content twice
@@ -65,7 +67,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		content := cln.NewContent(store)
-		testHash := "abcdef123456"
+		testHash := testHashValue
 		testData := []byte("test content")
 
 		// First store some content
@@ -97,7 +99,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		content := cln.NewContent(store)
-		testHash := "abcdef123456"
+		testHash := testHashValue
 		testData := []byte("test content")
 
 		// Store content
