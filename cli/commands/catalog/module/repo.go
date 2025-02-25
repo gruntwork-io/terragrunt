@@ -184,7 +184,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	// Early check for cln:// protocol
 	isClnProtocol := strings.HasPrefix(repo.cloneURL, "cln://")
 	if isClnProtocol && !repo.useClnGo {
-		return errors.Errorf("the cln:// protocol requires the TERRAGRUNT_EXPERIMENT_CLNGO experiment to be enabled")
+		return errors.Errorf("the cln:// protocol requires the `clngo` experiment to be enabled")
 	}
 
 	if repo.cloneURL == "" {
