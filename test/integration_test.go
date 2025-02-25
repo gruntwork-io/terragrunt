@@ -3756,6 +3756,8 @@ func TestTerragruntInfoError(t *testing.T) {
 func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	t.Parallel()
 
+	config.ClearOutputCache()
+
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
@@ -3778,10 +3780,19 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf(" env1 %s=%s\n", pair[0], pair[1])
+	}
 }
 
 func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 	t.Parallel()
+
+	t.Cleanup(func() {
+		config.ClearOutputCache()
+	})
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -3803,10 +3814,17 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test", testPath))
 	require.NoError(t, err)
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf(" env1 %s=%s\n", pair[0], pair[1])
+	}
 }
 
 func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 	t.Parallel()
+
+	config.ClearOutputCache()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -3860,6 +3878,9 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	t.Parallel()
 
+	// clear dependencies output cache
+	config.ClearOutputCache()
+
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
@@ -3894,6 +3915,8 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 
 func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	t.Parallel()
+
+	config.ClearOutputCache()
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()

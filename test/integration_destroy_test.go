@@ -308,14 +308,26 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	t.Parallel()
 
+	config.ClearOutputCache()
+
 	tmpDir := t.TempDir()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf("env vars v1 %s=%s\n", pair[0], pair[1])
+	}
+
 	// plan and apply
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf("env vars v2 %s=%s\n", pair[0], pair[1])
+	}
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
@@ -326,6 +338,11 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	assert.Len(t, list, 2)
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
+	}
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf("env vars v3 %s=%s\n", pair[0], pair[1])
 	}
 
 	// prepare destroy plan
@@ -341,6 +358,18 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf("env vars v4 %s=%s\n", pair[0], pair[1])
+
+	}
+
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		fmt.Printf("env vars env1 %s=%s\n", pair[0], pair[1])
+	}
+
 }
