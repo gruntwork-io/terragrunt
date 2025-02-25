@@ -340,16 +340,26 @@ Occasionally, Terragrunt maintainers will cut a pre-release to get feedback on t
 
 These releases are generally cut off a feature branch, in order to keep the `main` branch stable and releasable at all times.
 
-Pre-releases are tagged with a pre-release suffix that looks like the following: `-alpha2024101701`, `-beta2024101701`, etc. with the following information:
+Pre-releases are tagged with a pre-release name that looks like the following: `alpha2025022501`, etc. with the following information:
 
-- Channel: e.g. `alpha`, `beta` (indicating the stability of the release)
+- Channel: e.g. `alpha` (indicating the stability of the release)
 
-  The `alpha` and `beta` channels have the following meaning in Terragrunt:
+  The `alpha` channel has the following meaning in Terragrunt:
 
-  - `alpha`: This release is not recommended for external use. It is intended for early adoption by Gruntwork developers testing new features.
-  - `beta`: This release is recommended for testing in non-production environments only. It is intended for testing out new features with stakeholders external to Gruntwork before a general release.
+  - `alpha`: This release is recommended for testing in non-production environments only. It is intended for testing out new features with stakeholders external to Gruntwork before a general release.
 
-- Date: e.g. `20241017` (indicating the date the release was cut without dashes or slashes)
+  At the moment, this is really the only channel we need. In the future, we might adjust this to include more channels, such as `beta`, etc.
+
+- Date: e.g. `20250225` (indicating the date the release was cut without dashes or slashes)
 - Incremental number: e.g. `01` (indicating the number of pre-releases cut on that day)
 
-This suffix is appended to the end of the next appropriate version number, e.g. if the current release is `v0.19.1`, and the next appropriate version number is `v0.20.0` based on semver, the pre-release tag would be `v0.20.0-alpha2024101701`.
+This pre-release system is subject to change, and maintainers will update this documentation to reflect any changes.
+
+The current plan for how maintainers are going to handle pre-releases after 1.0 is that:
+
+1. Pre-releases for the `alpha` channel will continue to be cut from feature branches, and use the same naming convention as before.
+2. Pre-releases for the `rc` channel will be cut from the `main` branch, and use a naming convention that looks like `v1.0.0-rc2025022501`, etc.
+
+Release candidates in the `rc` channel will undergo more thorough testing, both automated and manual.
+
+Maintainers will have a workflow to promote release candidates to general availability, and this documentation will be updated to reflect that workflow at the time of the 1.0 release.

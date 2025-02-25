@@ -364,7 +364,7 @@ Occasionally, Terragrunt maintainers will cut a pre-release to get feedback on t
 
 These releases are generally cut off a feature branch, in order to keep the `main` branch stable and releasable at all times.
 
-Pre-releases are tagged with a pre-release name that looks like the following: `alpha2024101701`, etc. with the following information:
+Pre-releases are tagged with a pre-release name that looks like the following: `alpha20250225`, etc. with the following information:
 
 - Channel: e.g. `alpha` (indicating the stability of the release)
 
@@ -377,14 +377,12 @@ Pre-releases are tagged with a pre-release name that looks like the following: `
 - Date: e.g. `20241017` (indicating the date the release was cut without dashes or slashes)
 - Incremental number: e.g. `01` (indicating the number of pre-releases cut on that day)
 
-This pre-release system is subject to change, and maintainers will update this documentation to reflect any changes. It will be updated at the time of the 1.0 release to reflect a new policy for release candidates, as a different policy will be in place at that time.
-
-**Current plan for post-1.0 pre-releases**
+This pre-release system is subject to change, and maintainers will update this documentation to reflect any changes.
 
 The current plan for how maintainers are going to handle pre-releases after 1.0 is that:
 
 1. Pre-releases for the `alpha` channel will continue to be cut from feature branches, and use the same naming convention as before.
-2. Pre-releases for the `rc` channel will be cut from the `main` branch, and use a naming convention that looks like `v1.0.0-rc1`, etc.
+2. Pre-releases for the `rc` channel will be cut from the `main` branch, and use a naming convention that looks like `v1.0.0-rc20250225`, etc.
 
 Release candidates in the `rc` channel will undergo more thorough testing, both automated and manual.
 
