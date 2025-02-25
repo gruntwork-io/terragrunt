@@ -127,6 +127,13 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 
 	terragruntOptions.Errors = errConfig
 
+	cloneErrConfig, err := terragruntConfig.CloneErrorsConfig()
+	if err != nil {
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
+	}
+
+	terragruntOptions.CloneErrors = cloneErrConfig
+
 	terragruntOptionsClone, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return err

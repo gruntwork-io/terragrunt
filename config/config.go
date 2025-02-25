@@ -1537,18 +1537,32 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	}, nil
 }
 
-// ErrorsConfig fetch errors configuration for options package
+// ErrorsConfig fetches errors configuration for options package
 func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 	if cfg.Errors == nil {
 		return nil, nil
 	}
 
+	return cfg.Errors.ToOptionsConfig()
+}
+
+// CloneErrorsConfig fetches errors configuration for options package
+func (cfg *TerragruntConfig) CloneErrorsConfig() (*options.ErrorsConfig, error) {
+	if cfg.Terraform == nil || cfg.Terraform.Clone == nil || cfg.Terraform.Clone.Errors == nil {
+		return nil, nil
+	}
+
+	return cfg.Terraform.Clone.Errors.ToOptionsConfig()
+}
+
+// ToOptionsConfig converts config.ErrorsConfig to options.ErrorsConfig
+func (c *ErrorsConfig) ToOptionsConfig() (*options.ErrorsConfig, error) {
 	result := &options.ErrorsConfig{
 		Retry:  make(map[string]*options.RetryConfig),
 		Ignore: make(map[string]*options.IgnoreConfig),
 	}
 
-	for _, retryBlock := range cfg.Errors.Retry {
+	for _, retryBlock := range c.Retry {
 		if retryBlock == nil {
 			continue
 		}
@@ -1573,7 +1587,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 		}
 	}
 
-	for _, ignoreBlock := range cfg.Errors.Ignore {
+	for _, ignoreBlock := range c.Ignore {
 		if ignoreBlock == nil {
 			continue
 		}

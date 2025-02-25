@@ -129,7 +129,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *tf
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
 	downloadErr := RunActionWithHooks(ctx, "download source", terragruntOptionsForDownload, terragruntConfig, func(_ context.Context) error {
-		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
+		return downloadSource(ctx, terraformSource, terragruntOptions, terragruntConfig)
 	})
 
 	if downloadErr != nil {
@@ -256,7 +256,7 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
-func downloadSource(terraformSource *tf.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func downloadSource(ctx context.Context, terraformSource *tf.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	canonicalSourceURL := terraformSource.CanonicalSourceURL.String()
 
 	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,
@@ -268,11 +268,14 @@ func downloadSource(terraformSource *tf.Source, terragruntOptions *options.Terra
 		canonicalSourceURL,
 		terraformSource.DownloadDir)
 
-	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), UpdateGetters(terragruntOptions, terragruntConfig)); err != nil {
-		return errors.New(err)
-	}
+	return downloadWithErrorHandling(ctx, terraformSource, terragruntOptions, terragruntConfig)
+}
 
-	return nil
+// downloadWithErrorHandling attempts to download the source with retries if the download fails.
+func downloadWithErrorHandling(ctx context.Context, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+	return opts.RunWithErrorHandling(ctx, func() error {
+		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg))
+	})
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is directory
