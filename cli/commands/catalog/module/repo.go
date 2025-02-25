@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter/v2"
 	"gopkg.in/ini.v1"
 )
 
@@ -234,7 +234,8 @@ func (repo *Repo) clone(ctx context.Context) error {
 
 	// Existing go-getter logic
 	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
-	return getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir))
+	_, err = getter.Get(ctx, repo.path, strings.Trim(sourceURL.String(), "/"))
+	return err
 }
 
 // parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
