@@ -1,8 +1,8 @@
-// Package clngo is a golang port of the cln project.
+// Package cln is a golang port of the cln project.
 //
 // The original project is written in Rust and can be found at:
 // https://github.com/yhakbar/cln
-package clngo
+package cln
 
 import (
 	"fmt"

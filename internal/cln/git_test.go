@@ -1,18 +1,18 @@
-package clngo_test
+package cln_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGitRunner_LsRemote(t *testing.T) {
 	t.Parallel()
-	runner := clngo.NewGitRunner()
+	runner := cln.NewGitRunner()
 
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
@@ -27,16 +27,16 @@ func TestGitRunner_LsRemote(t *testing.T) {
 		t.Parallel()
 		_, err := runner.LsRemote("https://github.com/nonexistent/repo.git", "HEAD")
 		require.Error(t, err)
-		var wrappedErr *clngo.WrappedError
+		var wrappedErr *cln.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, clngo.ErrCommandSpawn)
+		assert.ErrorIs(t, wrappedErr.Err, cln.ErrCommandSpawn)
 	})
 
 	t.Run("nonexistent reference", func(t *testing.T) {
 		t.Parallel()
 		_, err := runner.LsRemote("https://github.com/yhakbar/cln.git", "nonexistent-branch")
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*clngo.WrappedError).Err, clngo.ErrNoMatchingReference)
+		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrNoMatchingReference)
 	})
 }
 
@@ -46,7 +46,7 @@ func TestGitRunner_Clone(t *testing.T) {
 	t.Run("shallow clone", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
-		runner := clngo.NewGitRunner().WithWorkDir(cloneDir)
+		runner := cln.NewGitRunner().WithWorkDir(cloneDir)
 		err := runner.Clone("https://github.com/yhakbar/cln.git", true, 1, "main")
 		require.NoError(t, err)
 
@@ -57,25 +57,25 @@ func TestGitRunner_Clone(t *testing.T) {
 
 	t.Run("clone without workdir fails", func(t *testing.T) {
 		t.Parallel()
-		runner := clngo.NewGitRunner()
+		runner := cln.NewGitRunner()
 		err := runner.Clone("https://github.com/yhakbar/cln.git", true, 1, "main")
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*clngo.WrappedError).Err, clngo.ErrNoWorkDir)
+		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrNoWorkDir)
 	})
 
 	t.Run("invalid repository", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
-		runner := clngo.NewGitRunner().WithWorkDir(cloneDir)
+		runner := cln.NewGitRunner().WithWorkDir(cloneDir)
 		err := runner.Clone("https://github.com/yhakbar/cln-fake.git", false, 1, "")
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*clngo.WrappedError).Err, clngo.ErrGitClone)
+		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrGitClone)
 	})
 }
 
 func TestCreateTempDir(t *testing.T) {
 	t.Parallel()
-	git := clngo.NewGitRunner()
+	git := cln.NewGitRunner()
 	dir, cleanup, err := git.CreateTempDir()
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -119,7 +119,7 @@ func TestGetRepoName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, clngo.GetRepoName(tt.repo))
+			assert.Equal(t, tt.want, cln.GetRepoName(tt.repo))
 		})
 	}
 }
@@ -130,7 +130,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
-		runner := clngo.NewGitRunner().WithWorkDir(cloneDir)
+		runner := cln.NewGitRunner().WithWorkDir(cloneDir)
 
 		// First clone a repository
 		err := runner.Clone("https://github.com/yhakbar/cln.git", true, 1, "main")
@@ -157,16 +157,16 @@ func TestGitRunner_LsTree(t *testing.T) {
 
 	t.Run("ls-tree without workdir fails", func(t *testing.T) {
 		t.Parallel()
-		runner := clngo.NewGitRunner()
+		runner := cln.NewGitRunner()
 		_, err := runner.LsTree("HEAD", ".")
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*clngo.WrappedError).Err, clngo.ErrNoWorkDir)
+		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrNoWorkDir)
 	})
 
 	t.Run("invalid reference", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
-		runner := clngo.NewGitRunner().WithWorkDir(cloneDir)
+		runner := cln.NewGitRunner().WithWorkDir(cloneDir)
 
 		// First clone a repository
 		err := runner.Clone("https://github.com/yhakbar/cln.git", true, 1, "main")
@@ -175,17 +175,17 @@ func TestGitRunner_LsTree(t *testing.T) {
 		// Try to ls-tree an invalid reference
 		_, err = runner.LsTree("nonexistent", ".")
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*clngo.WrappedError).Err, clngo.ErrReadTree)
+		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrReadTree)
 	})
 
 	t.Run("invalid repository", func(t *testing.T) {
 		t.Parallel()
-		runner := clngo.NewGitRunner().WithWorkDir(t.TempDir())
+		runner := cln.NewGitRunner().WithWorkDir(t.TempDir())
 
 		// Try to ls-tree in an empty directory
 		_, err := runner.LsTree("HEAD", ".")
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*clngo.WrappedError).Err, clngo.ErrReadTree)
+		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrReadTree)
 	})
 }
 
@@ -194,16 +194,16 @@ func TestGitRunner_RequiresWorkDir(t *testing.T) {
 
 	t.Run("with workdir", func(t *testing.T) {
 		t.Parallel()
-		runner := clngo.NewGitRunner().WithWorkDir(t.TempDir())
+		runner := cln.NewGitRunner().WithWorkDir(t.TempDir())
 		err := runner.RequiresWorkDir()
 		assert.NoError(t, err)
 	})
 
 	t.Run("without workdir", func(t *testing.T) {
 		t.Parallel()
-		runner := clngo.NewGitRunner()
+		runner := cln.NewGitRunner()
 		err := runner.RequiresWorkDir()
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*clngo.WrappedError).Err, clngo.ErrNoWorkDir)
+		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrNoWorkDir)
 	})
 }
