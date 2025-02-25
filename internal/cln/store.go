@@ -50,6 +50,7 @@ func NewStore(path string) (*Store, error) {
 func (s *Store) Path() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	return s.path
 }
 

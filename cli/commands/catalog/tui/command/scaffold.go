@@ -4,7 +4,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"strings"
 
@@ -41,7 +40,8 @@ func (cmd *Scaffold) Run() error {
 
 		// Otherwise, convert to SSH format
 		sourcePath = strings.TrimPrefix(sourcePath, "github.com/")
-		sourcePath = fmt.Sprintf("git@github.com:%s", sourcePath)
+		sourcePath = "git@github.com:" + sourcePath
+
 		return scaffold.Run(context.Background(), cmd.terragruntOptions, "git::"+sourcePath, "")
 	}
 

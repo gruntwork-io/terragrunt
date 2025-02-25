@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+const (
+	repoPartsSplitLimit = 2
+	minURLPartsLength   = 3
+)
+
 // RepoURL represents a parsed repository URL with methods to convert between different formats
 type RepoURL struct {
 	// Original is the unmodified input URL
@@ -48,14 +53,16 @@ func Parse(url string) (*RepoURL, error) {
 	// Handle SSH URLs (git@github.com:org/repo.git)
 	if strings.HasPrefix(url, "git@") {
 		result.Protocol = "ssh"
+
 		parts := strings.Split(strings.TrimPrefix(url, "git@"), ":")
-		if len(parts) != 2 {
+		if len(parts) != repoPartsSplitLimit {
 			return nil, fmt.Errorf("invalid SSH URL format: %s", url)
 		}
+
 		result.Host = parts[0]
 
 		repoPath := strings.TrimSuffix(parts[1], ".git")
-		pathParts := strings.SplitN(repoPath, "/", 2)
+		pathParts := strings.SplitN(repoPath, "/", repoPartsSplitLimit)
 
 		if len(pathParts) > 1 {
 			result.Owner = pathParts[0]
@@ -87,7 +94,7 @@ func Parse(url string) (*RepoURL, error) {
 
 		// Parse the remaining URL
 		parts := strings.Split(url, "/")
-		if len(parts) < 3 {
+		if len(parts) < minURLPartsLength {
 			return nil, fmt.Errorf("invalid HTTPS URL format: %s", result.Original)
 		}
 
@@ -100,7 +107,7 @@ func Parse(url string) (*RepoURL, error) {
 
 	// Default case - assume it's a path without protocol
 	parts := strings.Split(url, "/")
-	if len(parts) < 3 {
+	if len(parts) < minURLPartsLength {
 		return nil, fmt.Errorf("invalid URL format: %s", url)
 	}
 
@@ -108,7 +115,7 @@ func Parse(url string) (*RepoURL, error) {
 	result.Owner = parts[1]
 	result.Repo = strings.TrimSuffix(parts[2], ".git")
 
-	if len(parts) > 3 {
+	if len(parts) > minURLPartsLength {
 		result.Path = strings.Join(parts[3:], "/")
 	}
 
@@ -131,23 +138,20 @@ func (r *RepoURL) ToCLN() string {
 	if r.Path != "" {
 		return fmt.Sprintf("%s//%s", base, r.Path)
 	}
+
 	return base
 }
 
 // ToTerraformSource returns the URL in Terraform source format
 func (r *RepoURL) ToTerraformSource() string {
-	// For CLN protocol, preserve the format
-	if r.Protocol == "cln" {
-		return r.ToCLN()
-	}
-
 	// For SSH protocol, preserve the SSH format for private repos
 	if r.Protocol == "ssh" {
 		sshURL := r.ToSSH()
 		if r.Path != "" {
 			return fmt.Sprintf("git::%s//%s", sshURL, r.Path)
 		}
-		return fmt.Sprintf("git::%s", sshURL)
+
+		return "git::" + sshURL
 	}
 
 	// For other protocols
@@ -155,5 +159,6 @@ func (r *RepoURL) ToTerraformSource() string {
 	if r.Path != "" {
 		return fmt.Sprintf("%s//%s", base, r.Path)
 	}
+
 	return base
 }
