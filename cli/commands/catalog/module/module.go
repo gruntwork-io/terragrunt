@@ -113,12 +113,6 @@ func (module *Module) TerraformSourcePath() string {
 		sourcePath = module.cloneURL + "//" + module.moduleDir
 	}
 
-	// Add debug logging
-	if module.Logger() != nil {
-		module.Logger().Debugf("Generated terraform source path: %s (cloneURL: %s, moduleDir: %s)",
-			sourcePath, module.cloneURL, module.moduleDir)
-	}
-
 	return sourcePath
 }
 
