@@ -7,7 +7,6 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/repourl"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -99,17 +98,7 @@ func (module *Module) URL() string {
 }
 
 func (module *Module) TerraformSourcePath() string {
-	parsedURL, err := repourl.Parse(module.cloneURL)
-	if err != nil {
-		module.logger.Warnf("Failed to parse URL: %s", err)
-		return module.cloneURL + "//" + module.moduleDir
-	}
-
-	// Set the path
-	parsedURL.Path = module.moduleDir
-
-	// Return formatted URL based on protocol
-	return parsedURL.ToTerraformSource()
+	return module.cloneURL + "//" + module.moduleDir
 }
 
 func (module *Module) isValid() (bool, error) {
