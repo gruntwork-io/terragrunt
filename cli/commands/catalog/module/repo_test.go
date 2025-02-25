@@ -64,7 +64,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := context.Background()
 
-			repo, err := module.NewRepo(ctx, log.New(), testCase.repoPath, "", false, false)
+			repo, err := module.NewRepo(ctx, log.New(), testCase.repoPath, "", false)
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)
@@ -138,13 +138,6 @@ func TestModuleURL(t *testing.T) {
 			newRepo(t, "https://dev.azure.com/acme/terraform-aws-modules"),
 			".",
 			"https://dev.azure.com/_git/acme/terraform-aws-modules?path=.&version=GBmain",
-			nil,
-		},
-		{
-			"cln",
-			newRepo(t, "cln://github.com/acme/terraform-aws-modules"),
-			".",
-			"cln://https://github.com/acme/terraform-aws-modules/tree/main/.",
 			nil,
 		},
 		{
