@@ -2,13 +2,12 @@
 package module
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/repourl"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -100,25 +99,17 @@ func (module *Module) URL() string {
 }
 
 func (module *Module) TerraformSourcePath() string {
-	// If using cln:// protocol, we need to ensure it's preserved in the source path
-	if !strings.HasPrefix(module.cloneURL, "cln://") {
+	parsedURL, err := repourl.Parse(module.cloneURL)
+	if err != nil {
+		module.logger.Warnf("Failed to parse URL: %s", err)
 		return module.cloneURL + "//" + module.moduleDir
 	}
 
-	// For cln:// protocol, normalize the URL format
-	baseURL := strings.TrimPrefix(module.cloneURL, "cln://")
+	// Set the path
+	parsedURL.Path = module.moduleDir
 
-	// Handle SSH URLs (git@github.com:org/repo.git)
-	if strings.HasPrefix(baseURL, "git@") {
-		// Keep the original SSH format
-		return fmt.Sprintf("cln://%s//%s", baseURL, module.moduleDir)
-	}
-
-	// Remove any double slashes that aren't part of the protocol
-	baseURL = strings.TrimRight(baseURL, "/")
-	moduleDir := strings.TrimLeft(module.moduleDir, "/")
-
-	return fmt.Sprintf("cln://%s//%s", baseURL, moduleDir)
+	// Return formatted URL based on protocol
+	return parsedURL.ToTerraformSource()
 }
 
 func (module *Module) isValid() (bool, error) {

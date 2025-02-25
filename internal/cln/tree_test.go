@@ -1,9 +1,9 @@
-package clngo_test
+package cln_test
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,13 +14,13 @@ func TestParseTreeEntry(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    clngo.TreeEntry
+		want    cln.TreeEntry
 		wantErr bool
 	}{
 		{
 			name:  "regular file",
 			input: "100644 blob a1b2c3d4 README.md",
-			want: clngo.TreeEntry{
+			want: cln.TreeEntry{
 				Mode: "100644",
 				Type: "blob",
 				Hash: "a1b2c3d4",
@@ -30,7 +30,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "executable file",
 			input: "100755 blob e5f6g7h8 scripts/test.sh",
-			want: clngo.TreeEntry{
+			want: cln.TreeEntry{
 				Mode: "100755",
 				Type: "blob",
 				Hash: "e5f6g7h8",
@@ -40,7 +40,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "directory",
 			input: "040000 tree i9j0k1l2 src",
-			want: clngo.TreeEntry{
+			want: cln.TreeEntry{
 				Mode: "040000",
 				Type: "tree",
 				Hash: "i9j0k1l2",
@@ -50,7 +50,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "path with spaces",
 			input: "100644 blob m3n4o5p6 path with spaces.txt",
-			want: clngo.TreeEntry{
+			want: cln.TreeEntry{
 				Mode: "100644",
 				Type: "blob",
 				Hash: "m3n4o5p6",
@@ -67,7 +67,7 @@ func TestParseTreeEntry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := clngo.ParseTreeEntry(tt.input)
+			got, err := cln.ParseTreeEntry(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -117,7 +117,7 @@ invalid format`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := clngo.ParseTree(tt.input, tt.path)
+			got, err := cln.ParseTree(tt.input, tt.path)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

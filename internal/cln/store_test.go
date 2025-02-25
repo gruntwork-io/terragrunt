@@ -1,11 +1,11 @@
-package clngo_test
+package cln_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ func TestStore(t *testing.T) {
 		tempDir := t.TempDir()
 		customPath := filepath.Join(tempDir, "custom-store")
 
-		store, err := clngo.NewStore(customPath)
+		store, err := cln.NewStore(customPath)
 		require.NoError(t, err)
 		assert.Equal(t, customPath, store.Path())
 	})
@@ -30,7 +30,7 @@ func TestStore(t *testing.T) {
 
 		expectedPath := filepath.Join(home, ".cln-store")
 
-		store, err := clngo.NewStore("")
+		store, err := cln.NewStore("")
 		require.NoError(t, err)
 		assert.Equal(t, expectedPath, store.Path())
 
@@ -42,7 +42,7 @@ func TestStore(t *testing.T) {
 func TestStore_HasContent(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
-	store, err := clngo.NewStore(tempDir)
+	store, err := cln.NewStore(tempDir)
 	require.NoError(t, err)
 
 	// Create a fake content file

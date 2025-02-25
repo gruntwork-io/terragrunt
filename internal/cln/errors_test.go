@@ -1,10 +1,10 @@
-package clngo_test
+package cln_test
 
 import (
 	"errors"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,17 +12,17 @@ func TestErrorString(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		err  clngo.Error
+		err  cln.Error
 		want string
 	}{
 		{
 			name: "temp dir error",
-			err:  clngo.ErrTempDir,
+			err:  cln.ErrTempDir,
 			want: "failed to create or manage temporary directory",
 		},
 		{
 			name: "git clone error",
-			err:  clngo.ErrGitClone,
+			err:  cln.ErrGitClone,
 			want: "failed to complete git clone",
 		},
 	}
@@ -40,12 +40,12 @@ func TestWrappedError(t *testing.T) {
 	baseErr := errors.New("base error")
 	tests := []struct {
 		name    string
-		wrapped *clngo.WrappedError
+		wrapped *cln.WrappedError
 		want    string
 	}{
 		{
 			name: "with path",
-			wrapped: &clngo.WrappedError{
+			wrapped: &cln.WrappedError{
 				Op:   "clone",
 				Path: "/tmp/repo",
 				Err:  baseErr,
@@ -54,7 +54,7 @@ func TestWrappedError(t *testing.T) {
 		},
 		{
 			name: "with context",
-			wrapped: &clngo.WrappedError{
+			wrapped: &cln.WrappedError{
 				Op:      "clone",
 				Context: "repository not found",
 				Err:     baseErr,
@@ -63,7 +63,7 @@ func TestWrappedError(t *testing.T) {
 		},
 		{
 			name: "basic",
-			wrapped: &clngo.WrappedError{
+			wrapped: &cln.WrappedError{
 				Op:  "clone",
 				Err: baseErr,
 			},
