@@ -288,6 +288,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"disable":           false,
 				"if_exists":         "overwrite",
 				"if_disabled":       "skip",
+				"hcl_fmt":           nil,
 				"path":              "provider.tf",
 			},
 		},
