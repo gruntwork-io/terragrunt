@@ -164,6 +164,7 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 					"disable":           false,
 					"if_exists":         "overwrite_terragrunt",
 					"if_disabled":       "skip",
+					"hcl_fmt":           nil,
 					"contents": `provider "aws" {
   region = "us-east-1"
 }
