@@ -464,6 +464,10 @@ func (conf *ErrorHook) String() string {
 	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
 }
 
+type Clone struct {
+	Errors *ErrorsConfig `hcl:"errors,block"`
+}
+
 // TerraformConfig specifies where to find the Terraform configuration files
 // NOTE: If any attributes or blocks are added here, be sure to add it to ctyTerraformConfig in config_as_cty.go as
 // well.
@@ -480,6 +484,8 @@ type TerraformConfig struct {
 	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
 
 	CopyTerraformLockFile *bool `hcl:"copy_terraform_lock_file,attr"`
+
+	Clone *Clone `hcl:"clone,block"`
 }
 
 func (cfg *TerraformConfig) String() string {
