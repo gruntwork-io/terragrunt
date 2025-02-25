@@ -285,7 +285,6 @@ func (repo *Repo) parseRemoteURL() error {
 	// For clngo repositories, use the original clone URL as the remote URL
 	if strings.HasPrefix(repo.cloneURL, "cln://") {
 		repo.RemoteURL = repo.cloneURL
-		repo.logger.Debugf("Using clone URL as remote URL for clngo repository: %s", repo.RemoteURL)
 		return nil
 	}
 
@@ -294,8 +293,6 @@ func (repo *Repo) parseRemoteURL() error {
 	if !files.FileExists(gitConfigPath) {
 		return errors.Errorf("the specified path %q is not a git repository", repo.path)
 	}
-
-	repo.logger.Debugf("Parsing git config %q", gitConfigPath)
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
@@ -322,7 +319,6 @@ func (repo *Repo) parseRemoteURL() error {
 	}
 
 	repo.RemoteURL = inidata.Section(sectionName).Key("url").String()
-	repo.logger.Debugf("Remote url: %q for repo: %q", repo.RemoteURL, repo.path)
 
 	return nil
 }
