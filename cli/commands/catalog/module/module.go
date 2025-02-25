@@ -100,20 +100,17 @@ func (module *Module) URL() string {
 }
 
 func (module *Module) TerraformSourcePath() string {
-	sourcePath := ""
 	// If using cln:// protocol, we need to ensure it's preserved in the source path
-	if strings.HasPrefix(module.cloneURL, "cln://") {
-		// Ensure we have an absolute path by using the full repository URL
-		baseURL := strings.TrimPrefix(module.cloneURL, "cln://")
-		if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
-			baseURL = "https://" + baseURL
-		}
-		sourcePath = fmt.Sprintf("cln://%s//%s", baseURL, module.moduleDir)
-	} else {
-		sourcePath = module.cloneURL + "//" + module.moduleDir
+	if !strings.HasPrefix(module.cloneURL, "cln://") {
+		return module.cloneURL + "//" + module.moduleDir
 	}
 
-	return sourcePath
+	baseURL := strings.TrimPrefix(module.cloneURL, "cln://")
+	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		baseURL = "https://" + baseURL
+	}
+
+	return fmt.Sprintf("cln://%s//%s", baseURL, module.moduleDir)
 }
 
 func (module *Module) isValid() (bool, error) {
