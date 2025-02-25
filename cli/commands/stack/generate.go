@@ -22,29 +22,71 @@ const (
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
-	stackFile, err := config.ReadStackConfigFile(ctx, opts)
-
-	if err != nil {
+	// process recursively stack directory
+	if err := processStackDir(ctx, opts, opts.TerragruntStackConfigPath, opts.WorkingDir); err != nil {
 		return errors.New(err)
 	}
+	return nil
+}
 
-	if err := processStackFile(ctx, opts, stackFile); err != nil {
-		return errors.New(err)
+func processStackDir(ctx context.Context, opts *options.TerragruntOptions, stackFilePath, stackTargetDir string) error {
+	stackSourceDir := filepath.Dir(stackFilePath)
+	stackFile, err := config.ReadStackConfigFile(ctx, opts, stackFilePath)
+	if err != nil {
+		return errors.Errorf("Failed to read stack file %s in %s %v", stackFilePath, stackSourceDir, err)
+	}
+
+	if err := generateUnits(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
+		return err
+	}
+
+	if err := generateStacks(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
-	baseDir := filepath.Join(opts.WorkingDir, stackDir)
-	if err := os.MkdirAll(baseDir, os.ModePerm); err != nil {
-		return errors.Errorf("failed to create base directory: %s %v", baseDir, err)
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*config.Stack) error {
+	var stackDirsToProcess = make(map[string]string, len(stacks))
+	for _, stack := range stacks {
+		opts.Logger.Infof("Processing stack %s", stack.Name)
+
+		destPath := filepath.Join(stackTargetDir, stack.Path)
+		dest, err := filepath.Abs(destPath)
+
+		if err != nil {
+			return errors.Errorf("Failed to get absolute path for destination '%s': %v", dest, err)
+		}
+
+		src := stack.Source
+		opts.Logger.Debugf("Processing stack: %s (%s) to %s", stack.Name, src, dest)
+
+		if err := copyFiles(ctx, opts, stack.Name, stackSourceDir, src, dest); err != nil {
+			return err
+		}
+		stackDirsToProcess[src] = dest
 	}
 
-	for _, unit := range stackFile.Units {
+	// process stack dirs
+	for src, dest := range stackDirsToProcess {
+		if err := processStackDir(ctx, opts, src, dest); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, units []*config.Unit) error {
+	if err := os.MkdirAll(stackTargetDir, os.ModePerm); err != nil {
+		return errors.Errorf("failed to create base directory: %s %v", stackTargetDir, err)
+	}
+
+	for _, unit := range units {
 		opts.Logger.Infof("Processing unit %s", unit.Name)
 
-		destPath := filepath.Join(baseDir, unit.Path)
+		destPath := filepath.Join(stackTargetDir, unit.Path)
 		dest, err := filepath.Abs(destPath)
 
 		if err != nil {
@@ -54,28 +96,8 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		src := unit.Source
 		opts.Logger.Debugf("Processing unit: %s (%s) to %s", unit.Name, src, dest)
 
-		if isLocal(opts, src) {
-			src = filepath.Join(opts.WorkingDir, unit.Source)
-			src, err = filepath.Abs(src)
-
-			if err != nil {
-				opts.Logger.Warnf("failed to get absolute path for source '%s': %v", unit.Source, err)
-				src = unit.Source
-			}
-
-			if err := util.CopyFolderContentsWithFilter(opts.Logger, src, dest, ManifestName, func(absolutePath string) bool {
-				return true
-			}); err != nil {
-				return errors.Errorf("Failed to copy unit directory %s %v", unit.Name, err)
-			}
-		} else {
-			if err := os.MkdirAll(dest, os.ModePerm); err != nil {
-				return errors.Errorf("Failed to create unit directory %s for unit %s %v", dest, unit.Name, err)
-			}
-
-			if _, err := getter.GetAny(ctx, dest, src); err != nil {
-				return errors.Errorf("Failed to fetch unit %s %v", unit.Name, err)
-			}
+		if err := copyFiles(ctx, opts, unit.Name, stackSourceDir, src, dest); err != nil {
+			return err
 		}
 
 		// generate unit values file
@@ -87,13 +109,41 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 	return nil
 }
 
-func isLocal(opts *options.TerragruntOptions, src string) bool {
+func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier, workingDir, src, dest string) error {
+	if isLocal(opts, workingDir, src) {
+		localSrc := filepath.Join(workingDir, src)
+		localSrc, err := filepath.Abs(localSrc)
+
+		if err != nil {
+			opts.Logger.Warnf("failed to get absolute path for source '%s': %v", identifier, err)
+			// fallback to original source
+			localSrc = src
+		}
+
+		if err := util.CopyFolderContentsWithFilter(opts.Logger, localSrc, dest, ManifestName, func(absolutePath string) bool {
+			return true
+		}); err != nil {
+			return errors.Errorf("Failed to copy %s to %s %v", localSrc, dest, err)
+		}
+	} else {
+		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
+			return errors.Errorf("Failed to create directory %s for %s %v", dest, identifier, err)
+		}
+
+		if _, err := getter.GetAny(ctx, dest, src); err != nil {
+			return errors.Errorf("Failed to fetch %s %v", identifier, err)
+		}
+	}
+	return nil
+}
+
+func isLocal(opts *options.TerragruntOptions, workingDir, src string) bool {
 	// check initially if the source is a local file
 	if util.FileExists(src) {
 		return true
 	}
 
-	src = filepath.Join(opts.WorkingDir, src)
+	src = filepath.Join(workingDir, src)
 	if util.FileExists(src) {
 		return true
 	}

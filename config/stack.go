@@ -73,12 +73,12 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions)
 }
 
 // ReadStackConfigFile reads the terragrunt.stack.hcl file.
-func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions) (*StackConfigFile, error) {
-	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", opts.TerragruntStackConfigPath)
+func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string) (*StackConfigFile, error) {
+	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
 	parser := NewParsingContext(ctx, opts)
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(opts.TerragruntStackConfigPath)
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
