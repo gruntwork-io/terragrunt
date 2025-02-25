@@ -13,11 +13,10 @@ import (
 
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/hashicorp/go-getter/v2"
+	"github.com/hashicorp/go-getter"
 	"gopkg.in/ini.v1"
 )
 
@@ -28,7 +27,6 @@ const (
 	azuredevHost          = "dev.azure.com"
 	bitbucketHost         = "bitbucket.org"
 	gitlabSelfHostedRegex = `^(gitlab\.(.+))$`
-	sshPartsLength        = 2
 )
 
 var (
@@ -48,16 +46,14 @@ type Repo struct {
 	BranchName string
 
 	walkWithSymlinks bool
-	useCln           bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool, useCln bool) (*Repo, error) {
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool) (*Repo, error) {
 	repo := &Repo{
 		logger:           logger,
 		cloneURL:         cloneURL,
 		path:             tempDir,
 		walkWithSymlinks: walkWithSymlinks,
-		useCln:           useCln,
 	}
 
 	if err := repo.clone(ctx); err != nil {
@@ -138,51 +134,33 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 		return filepath.Join(repo.path, moduleDir), nil
 	}
 
-	// If using cln:// protocol, strip it before parsing but preserve it for the final URL
-	useClnProtocol := strings.HasPrefix(repo.RemoteURL, "cln://")
-	remoteURL := repo.RemoteURL
-
-	if useClnProtocol {
-		remoteURL = strings.TrimPrefix(remoteURL, "cln://")
-	}
-
-	remote, err := vcsurl.Parse(remoteURL)
+	remote, err := vcsurl.Parse(repo.RemoteURL)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
-	repo.logger.Infof("Generating URL for module %s in repository %s", moduleDir, repo.RemoteURL)
-
 	// Simple, predictable hosts
-	var url string
-
-	switch {
-	case remote.Host == githubHost:
-		url = fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
-	case remote.Host == gitlabHost:
-		url = fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
-	case remote.Host == bitbucketHost:
-		url = fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.BranchName)
-	case remote.Host == azuredevHost:
-		url = fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.BranchName)
-	default:
-		// Hosts that require special handling
-		switch {
-		case githubEnterprisePatternReg.MatchString(string(remote.Host)):
-			url = fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
-		case gitlabSelfHostedPatternReg.MatchString(string(remote.Host)):
-			url = fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
-		default:
-			return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
-		}
+	switch remote.Host {
+	case githubHost:
+		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+	case gitlabHost:
+		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+	case bitbucketHost:
+		return fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.BranchName), nil
+	case azuredevHost:
+		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.BranchName), nil
 	}
 
-	// Add back cln:// protocol if it was present
-	if useClnProtocol {
-		url = "cln://" + url
+	// // Hosts that require special handling
+	if githubEnterprisePatternReg.MatchString(string(remote.Host)) {
+		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
 	}
 
-	return url, nil
+	if gitlabSelfHostedPatternReg.MatchString(string(remote.Host)) {
+		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+	}
+
+	return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
 }
 
 // clone clones the repository to a temporary directory if the repoPath is URL
@@ -194,12 +172,6 @@ func (repo *Repo) clone(ctx context.Context) error {
 		}
 
 		repo.cloneURL = currentDir
-	}
-
-	// Check for cln:// protocol
-	isClnProtocol := strings.HasPrefix(repo.cloneURL, "cln://")
-	if isClnProtocol && !repo.useCln {
-		return errors.Errorf("the cln:// protocol requires the `cln` experiment to be enabled")
 	}
 
 	if repoPath := repo.cloneURL; files.IsDir(repoPath) {
@@ -228,50 +200,9 @@ func (repo *Repo) clone(ctx context.Context) error {
 
 	repo.path = filepath.Join(repo.path, repoName)
 
-	// Check if URL uses cln:// protocol
-	if isClnProtocol {
-		// Strip the cln:// prefix and normalize the URL
-		cloneURL := strings.TrimPrefix(repo.cloneURL, "cln://")
-
-		// Handle SSH URLs (git@github.com:org/repo.git)
-		if strings.HasPrefix(cloneURL, "git@") {
-			// Normalize SSH URL by ensuring proper format
-			parts := strings.Split(strings.TrimPrefix(cloneURL, "git@"), ":")
-			if len(parts) != sshPartsLength {
-				return errors.Errorf("invalid SSH URL format: %s", cloneURL)
-			}
-
-			host := parts[0]
-			path := strings.TrimSuffix(parts[1], ".git")
-			cloneURL = fmt.Sprintf("ssh://git@%s/%s.git", host, path)
-			repo.logger.Debugf("Normalized SSH URL: %s", cloneURL)
-		}
-
-		// Remove existing directory if it exists
-		if files.FileExists(repo.path) {
-			if err := os.RemoveAll(repo.path); err != nil {
-				return errors.New(err)
-			}
-		}
-
-		cln, err := cln.New(cloneURL, cln.Options{
-			Dir: repo.path,
-		})
-		if err != nil {
-			return err
-		}
-
-		if err := cln.Clone(); err != nil {
-			return errors.Errorf("failed to clone repository %q: %w", repo.cloneURL, err)
-		}
-
-		// For cln:// protocol, always use "main" as the branch name
-		repo.BranchName = "main"
-
-		return nil
-	}
-
-	// Non-cln protocol handling
+	// Since we are cloning the repository into a temporary directory, some operating systems such as MacOS have a service for deleting files that have not been accessed for a long time.
+	// For example, in MacOS the service is responsible for deleting unused files deletes only files while leaving the directory structure is untouched, which in turn misleads `go-getter`, which thinks that the repository exists but cannot update it due to the lack of files. In such cases, we simply delete the temporary directory in order to clone the one again.
+	// See https://github.com/gruntwork-io/terragrunt/pull/2888
 	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
 		repo.logger.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
 
@@ -286,28 +217,30 @@ func (repo *Repo) clone(ctx context.Context) error {
 	}
 
 	repo.cloneURL = sourceURL.String()
+
 	repo.logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
-	// Existing go-getter logic
+	// We need to explicitly specify the reference, otherwise we will get an error:
+	// "fatal: The empty string is not a valid pathspec. Use . instead if you wanted to match all paths"
+	// when updating an existing repository.
 	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
-	_, err = getter.Get(ctx, repo.path, strings.Trim(sourceURL.String(), "/"))
 
-	return err
+	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir)); err != nil {
+		return errors.New(err)
+	}
+
+	return nil
 }
 
 // parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
 func (repo *Repo) parseRemoteURL() error {
-	// For cln repositories, use the original clone URL as the remote URL
-	if strings.HasPrefix(repo.cloneURL, "cln://") {
-		repo.RemoteURL = repo.cloneURL
-		return nil
-	}
-
 	gitConfigPath := filepath.Join(repo.path, ".git", "config")
 
 	if !files.FileExists(gitConfigPath) {
 		return errors.Errorf("the specified path %q is not a git repository", repo.path)
 	}
+
+	repo.logger.Debugf("Parsing git config %q", gitConfigPath)
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
@@ -334,6 +267,7 @@ func (repo *Repo) parseRemoteURL() error {
 	}
 
 	repo.RemoteURL = inidata.Section(sectionName).Key("url").String()
+	repo.logger.Debugf("Remote url: %q for repo: %q", repo.RemoteURL, repo.path)
 
 	return nil
 }
@@ -344,11 +278,6 @@ func (repo *Repo) gitHeadfile() string {
 
 // parseBranchName reads `.git/HEAD` file and parses a branch name.
 func (repo *Repo) parseBranchName() error {
-	// If branch name is already set or using cln:// protocol, skip parsing
-	if repo.BranchName != "" || strings.HasPrefix(repo.RemoteURL, "cln://") {
-		return nil
-	}
-
 	data, err := files.ReadFileAsString(repo.gitHeadfile())
 	if err != nil {
 		return errors.Errorf("the specified path %q is not a git repository", repo.path)

@@ -60,8 +60,12 @@ func New(repo string, opts Options) (*Cln, error) {
 		return nil, err
 	}
 
-	// Strip the git:: prefix if present
+	// Strip the cln:// prefix if present - this is just a marker for using CLN
+	repo = strings.TrimPrefix(repo, "cln://")
+
+	// Then strip the git:: prefix if present
 	repo = strings.TrimPrefix(repo, "git::")
+
 	// Also strip any ssh:// prefix as git handles SSH URLs without it
 	repo = strings.TrimPrefix(repo, "ssh://")
 
