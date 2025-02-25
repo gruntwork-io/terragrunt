@@ -13,7 +13,7 @@ import (
 
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/internal/clngo"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -47,16 +47,16 @@ type Repo struct {
 	BranchName string
 
 	walkWithSymlinks bool
-	useClnGo         bool
+	useCln           bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool, useClnGo bool) (*Repo, error) {
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool, useCln bool) (*Repo, error) {
 	repo := &Repo{
 		logger:           logger,
 		cloneURL:         cloneURL,
 		path:             tempDir,
 		walkWithSymlinks: walkWithSymlinks,
-		useClnGo:         useClnGo,
+		useCln:           useCln,
 	}
 
 	if err := repo.clone(ctx); err != nil {
@@ -181,18 +181,18 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 
 // clone clones the repository to a temporary directory if the repoPath is URL
 func (repo *Repo) clone(ctx context.Context) error {
-	// Early check for cln:// protocol
-	isClnProtocol := strings.HasPrefix(repo.cloneURL, "cln://")
-	if isClnProtocol && !repo.useClnGo {
-		return errors.Errorf("the cln:// protocol requires the `clngo` experiment to be enabled")
-	}
-
 	if repo.cloneURL == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return errors.New(err)
 		}
 		repo.cloneURL = currentDir
+	}
+
+	// Check for cln:// protocol
+	isClnProtocol := strings.HasPrefix(repo.cloneURL, "cln://")
+	if isClnProtocol && !repo.useCln {
+		return errors.Errorf("the cln:// protocol requires the `cln` experiment to be enabled")
 	}
 
 	if repoPath := repo.cloneURL; files.IsDir(repoPath) {
@@ -243,14 +243,14 @@ func (repo *Repo) clone(ctx context.Context) error {
 			}
 		}
 
-		cln, err := clngo.New(cloneURL, clngo.Options{
+		cln, err := cln.New(cloneURL, cln.Options{
 			Dir: repo.path,
 		})
 		if err != nil {
 			return err
 		}
 		if err := cln.Clone(); err != nil {
-			return err
+			return errors.Errorf("failed to clone repository %q: %w", repo.cloneURL, err)
 		}
 
 		// For cln:// protocol, always use "main" as the branch name
@@ -282,7 +282,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 
 // parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
 func (repo *Repo) parseRemoteURL() error {
-	// For clngo repositories, use the original clone URL as the remote URL
+	// For cln repositories, use the original clone URL as the remote URL
 	if strings.HasPrefix(repo.cloneURL, "cln://") {
 		repo.RemoteURL = repo.cloneURL
 		return nil

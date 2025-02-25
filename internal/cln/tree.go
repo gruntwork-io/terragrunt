@@ -1,4 +1,4 @@
-package clngo
+package cln
 
 import (
 	"bufio"
