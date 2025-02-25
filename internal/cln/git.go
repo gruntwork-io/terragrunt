@@ -9,6 +9,10 @@ import (
 	"sync"
 )
 
+const (
+	minGitPartsLength = 2
+)
+
 // GitRunner handles git command execution
 type GitRunner struct {
 	mu       sync.RWMutex
@@ -32,15 +36,14 @@ func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 
 // RequiresWorkDir returns an error if no working directory is set
 func (g *GitRunner) RequiresWorkDir() error {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
 	if g.workDir == "" {
 		return &WrappedError{
-			Op:      "check_work_dir",
-			Context: "working directory not set",
+			Op:      "git",
+			Context: "no working directory set",
 			Err:     ErrNoWorkDir,
 		}
 	}
+
 	return nil
 }
 
@@ -51,8 +54,14 @@ type LsRemoteResult struct {
 }
 
 // LsRemote runs git ls-remote for a specific reference
-func (g *GitRunner) LsRemote(repo, reference string) ([]LsRemoteResult, error) {
-	cmd := exec.Command("git", "ls-remote", repo, reference)
+func (g *GitRunner) LsRemote(repo, ref string) ([]LsRemoteResult, error) {
+	args := []string{"ls-remote", repo}
+	if ref != "" {
+		args = append(args, ref)
+	}
+
+	cmd := g.prepareCommand("ls-remote", args...)
+
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -65,16 +74,17 @@ func (g *GitRunner) LsRemote(repo, reference string) ([]LsRemoteResult, error) {
 		}
 	}
 
-	output := strings.TrimSpace(stdout.String())
-	lines := strings.Split(output, "\n")
-	results := make([]LsRemoteResult, 0, len(lines))
+	var results []LsRemoteResult
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
 
 		parts := strings.Fields(line)
-		if len(parts) >= 2 {
+		if len(parts) >= minGitPartsLength {
 			results = append(results, LsRemoteResult{
 				Hash: parts[0],
 				Ref:  parts[1],
@@ -133,11 +143,12 @@ func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) erro
 
 // CreateTempDir creates a new temporary directory for git operations
 func (g *GitRunner) CreateTempDir() (string, func() error, error) {
-	tempDir, err := os.MkdirTemp("", "cln-*")
+	tempDir, err := os.MkdirTemp("", "terragrunt-cln-*")
 	if err != nil {
 		return "", nil, &WrappedError{
-			Op:  "create_temp_dir",
-			Err: ErrTempDir,
+			Op:      "create_temp_dir",
+			Context: err.Error(),
+			Err:     ErrCreateTempDir,
 		}
 	}
 
@@ -146,11 +157,12 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 	cleanup := func() error {
 		if err := os.RemoveAll(tempDir); err != nil {
 			return &WrappedError{
-				Op:   "cleanup_temp_dir",
-				Path: tempDir,
-				Err:  ErrTempDir,
+				Op:      "cleanup_temp_dir",
+				Context: err.Error(),
+				Err:     ErrCleanupTempDir,
 			}
 		}
+
 		return nil
 	}
 
@@ -171,6 +183,7 @@ func (g *GitRunner) LsTree(reference, path string) (*Tree, error) {
 
 	cmd := g.prepareCommand("ls-tree", reference)
 	cmd.Dir = g.workDir
+
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -219,10 +232,12 @@ func (g *GitRunner) prepareCommand(name string, args ...string) *exec.Cmd {
 	if cached, ok := g.cmdCache.Load(key); ok {
 		cmd := cached.(*exec.Cmd)
 		// Clone the command with new pipes
+
 		return exec.Command(cmd.Path, cmd.Args[1:]...)
 	}
 
 	cmd := exec.Command("git", append([]string{name}, args...)...)
 	g.cmdCache.Store(key, cmd)
+
 	return exec.Command(cmd.Path, cmd.Args[1:]...)
 }

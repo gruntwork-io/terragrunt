@@ -28,6 +28,7 @@ const (
 	azuredevHost          = "dev.azure.com"
 	bitbucketHost         = "bitbucket.org"
 	gitlabSelfHostedRegex = `^(gitlab\.(.+))$`
+	sshPartsLength        = 2
 )
 
 var (
@@ -140,6 +141,7 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 	// If using cln:// protocol, strip it before parsing but preserve it for the final URL
 	useClnProtocol := strings.HasPrefix(repo.RemoteURL, "cln://")
 	remoteURL := repo.RemoteURL
+
 	if useClnProtocol {
 		remoteURL = strings.TrimPrefix(remoteURL, "cln://")
 	}
@@ -149,24 +151,28 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 		return "", errors.New(err)
 	}
 
+	repo.logger.Infof("Generating URL for module %s in repository %s", moduleDir, repo.RemoteURL)
+
 	// Simple, predictable hosts
 	var url string
-	switch remote.Host {
-	case githubHost:
+
+	switch {
+	case remote.Host == githubHost:
 		url = fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
-	case gitlabHost:
+	case remote.Host == gitlabHost:
 		url = fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
-	case bitbucketHost:
+	case remote.Host == bitbucketHost:
 		url = fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.BranchName)
-	case azuredevHost:
+	case remote.Host == azuredevHost:
 		url = fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.BranchName)
 	default:
 		// Hosts that require special handling
-		if githubEnterprisePatternReg.MatchString(string(remote.Host)) {
+		switch {
+		case githubEnterprisePatternReg.MatchString(string(remote.Host)):
 			url = fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
-		} else if gitlabSelfHostedPatternReg.MatchString(string(remote.Host)) {
+		case gitlabSelfHostedPatternReg.MatchString(string(remote.Host)):
 			url = fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
-		} else {
+		default:
 			return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
 		}
 	}
@@ -186,6 +192,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 		if err != nil {
 			return errors.New(err)
 		}
+
 		repo.cloneURL = currentDir
 	}
 
@@ -201,9 +208,12 @@ func (repo *Repo) clone(ctx context.Context) error {
 			if err != nil {
 				return errors.New(err)
 			}
+
 			repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		}
+
 		repo.path = repoPath
+
 		return nil
 	}
 
@@ -227,9 +237,10 @@ func (repo *Repo) clone(ctx context.Context) error {
 		if strings.HasPrefix(cloneURL, "git@") {
 			// Normalize SSH URL by ensuring proper format
 			parts := strings.Split(strings.TrimPrefix(cloneURL, "git@"), ":")
-			if len(parts) != 2 {
+			if len(parts) != sshPartsLength {
 				return errors.Errorf("invalid SSH URL format: %s", cloneURL)
 			}
+
 			host := parts[0]
 			path := strings.TrimSuffix(parts[1], ".git")
 			cloneURL = fmt.Sprintf("ssh://git@%s/%s.git", host, path)
@@ -249,18 +260,21 @@ func (repo *Repo) clone(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
 		if err := cln.Clone(); err != nil {
 			return errors.Errorf("failed to clone repository %q: %w", repo.cloneURL, err)
 		}
 
 		// For cln:// protocol, always use "main" as the branch name
 		repo.BranchName = "main"
+
 		return nil
 	}
 
 	// Non-cln protocol handling
 	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
 		repo.logger.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
+
 		if err := os.RemoveAll(repo.path); err != nil {
 			return errors.New(err)
 		}
@@ -277,6 +291,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	// Existing go-getter logic
 	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
 	_, err = getter.Get(ctx, repo.path, strings.Trim(sourceURL.String(), "/"))
+
 	return err
 }
 

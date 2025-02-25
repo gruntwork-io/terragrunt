@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+const (
+	minTreePartsLength = 4
+)
+
 // TreeEntry represents a single entry in a git tree
 type TreeEntry struct {
 	Mode string
@@ -33,7 +37,7 @@ func (t *Tree) Path() string {
 func ParseTreeEntry(line string) (TreeEntry, error) {
 	// Format: <mode> <type> <hash> <path>
 	parts := strings.Fields(line)
-	if len(parts) < 4 {
+	if len(parts) < minTreePartsLength {
 		return TreeEntry{}, &WrappedError{
 			Op:      "parse_tree_entry",
 			Context: "invalid tree entry format",
@@ -67,6 +71,7 @@ func ParseTree(output, path string) (*Tree, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		entries = append(entries, entry)
 	}
 

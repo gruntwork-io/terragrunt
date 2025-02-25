@@ -76,7 +76,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		err = c.Clone()
 		require.Error(t, err)
-		assert.ErrorIs(t, err.(*cln.WrappedError).Err, cln.ErrNoMatchingReference)
+		var wrappedErr *cln.WrappedError
+		require.ErrorAs(t, err, &wrappedErr)
+		assert.ErrorIs(t, wrappedErr.Err, cln.ErrNoMatchingReference)
 	})
 
 	t.Run("clone with invalid repository fails gracefully", func(t *testing.T) {

@@ -123,7 +123,7 @@ invalid format`,
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantLen, len(got.Entries()))
+			assert.Len(t, got.Entries(), tt.wantLen)
 			assert.Equal(t, tt.wantPath, got.Path())
 		})
 	}

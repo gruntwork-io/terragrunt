@@ -25,7 +25,8 @@ func (e ErrRepositoryNotFound) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("repository not found or cannot be accessed: %s (cause: %s)", e.RepoURL, e.Cause)
 	}
-	return fmt.Sprintf("repository not found or cannot be accessed: %s", e.RepoURL)
+
+	return "repository not found or cannot be accessed: " + e.RepoURL
 }
 
 // ErrInvalidURL is returned when a URL cannot be parsed
@@ -38,7 +39,8 @@ func (e ErrInvalidURL) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("invalid URL format: %s (cause: %s)", e.URL, e.Cause)
 	}
-	return fmt.Sprintf("invalid URL format: %s", e.URL)
+
+	return "invalid URL format: " + e.URL
 }
 
 // ErrExperimentRequired is returned when an operation requires an experiment that is not enabled
@@ -61,7 +63,8 @@ func (e ErrCloneFailure) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("failed to clone repository '%s': %s", e.RepoURL, e.Cause)
 	}
-	return fmt.Sprintf("failed to clone repository '%s'", e.RepoURL)
+
+	return "failed to clone repository '" + e.RepoURL + "'"
 }
 
 // ErrScaffoldFailure is returned when scaffolding a module fails
@@ -75,7 +78,8 @@ func (e ErrScaffoldFailure) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("failed to scaffold module '%s' to '%s': %s", e.ModulePath, e.TargetDir, e.Cause)
 	}
-	return fmt.Sprintf("failed to scaffold module '%s' to '%s'", e.ModulePath, e.TargetDir)
+
+	return "failed to scaffold module '" + e.ModulePath + "' to '" + e.TargetDir + "'"
 }
 
 // Wrap wraps the given error with additional context
@@ -83,5 +87,6 @@ func Wrap(err error, format string, args ...interface{}) error {
 	if err == nil {
 		return nil
 	}
+
 	return fmt.Errorf(format+": %w", append(args, err)...)
 }

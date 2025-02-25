@@ -31,6 +31,10 @@ const (
 	ErrParseTree Error = "failed to parse git tree output"
 	// ErrGitClone is returned when the git clone operation fails
 	ErrGitClone Error = "failed to complete git clone"
+	// ErrCreateTempDir is returned when failing to create a temporary directory
+	ErrCreateTempDir Error = "failed to create temporary directory"
+	// ErrCleanupTempDir is returned when failing to clean up a temporary directory
+	ErrCleanupTempDir Error = "failed to clean up temporary directory"
 )
 
 // WrappedError provides additional context for errors
@@ -42,12 +46,10 @@ type WrappedError struct {
 }
 
 func (e *WrappedError) Error() string {
-	if e.Path != "" {
-		return fmt.Sprintf("%s: %s: %v", e.Op, e.Path, e.Err)
-	}
 	if e.Context != "" {
 		return fmt.Sprintf("%s: %s: %v", e.Op, e.Context, e.Err)
 	}
+
 	return fmt.Sprintf("%s: %v", e.Op, e.Err)
 }
 
