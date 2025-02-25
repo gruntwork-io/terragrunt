@@ -155,7 +155,6 @@ func TestBuildRequestUrlRelativePath(t *testing.T) {
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestURL.String())
 }
 
-// Combine all the tests cases below into one test function, including the last one where a non existant module is requested
 func TestGetTargetVersion(t *testing.T) {
 	t.Parallel()
 	registryDomain := "registry.terraform.io"

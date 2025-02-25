@@ -58,7 +58,6 @@ func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey stri
 	assert.True(t, hasOutput)
 }
 
-// test that the version of the module is correctly resolved and downloaded when running a terragrunt init
 func TestTerraformRegistryVersionResolution(t *testing.T) {
 	t.Parallel()
 
