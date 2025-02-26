@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -22,11 +24,56 @@ const (
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
-	// process recursively stack directory
-	if err := processStackFile(ctx, opts, opts.TerragruntStackConfigPath); err != nil {
-		return errors.New(err)
+	processedFiles := make(map[string]bool)
+	for {
+		foundFiles, err := listStackFiles(opts, opts.WorkingDir)
+		if err != nil {
+			return errors.Errorf("Failed to list stack files %v", err)
+		}
+		// check if we have already processed the files
+		processedNewFiles := false
+		for _, file := range foundFiles {
+			if processedFiles[file] {
+				continue
+			}
+			processedNewFiles = true
+			processedFiles[file] = true
+			if err := processStackFile(ctx, opts, file); err != nil {
+				return errors.Errorf("Failed to process stack file %s %v", file, err)
+			}
+		}
+		if !processedNewFiles {
+			break
+		}
 	}
 	return nil
+}
+
+func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, error) {
+	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+	walkFunc := filepath.Walk
+	if walkWithSymlinks {
+		walkFunc = util.WalkWithSymlinks
+	}
+
+	opts.Logger.Debugf("Searching for stack files in %s", dir)
+	stackFiles := []string{}
+	// find all defaultStackFile files
+	if err := walkFunc(opts.WorkingDir, func(path string, info os.FileInfo, err error) error {
+
+		if info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, defaultStackFile) {
+			opts.Logger.Debugf("Found stack file %s", path)
+			stackFiles = append(stackFiles, path)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return stackFiles, nil
 }
 
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
@@ -79,7 +126,6 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSo
 }
 
 func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*config.Stack) error {
-	var stackDirsToProcess = make(map[string]string, len(stacks))
 	for _, stack := range stacks {
 		opts.Logger.Infof("Processing stack %s", stack.Name)
 
@@ -94,15 +140,6 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackS
 		opts.Logger.Debugf("Processing stack: %s (%s) to %s", stack.Name, src, dest)
 
 		if err := copyFiles(ctx, opts, stack.Name, stackSourceDir, src, dest); err != nil {
-			return err
-		}
-		stackDirsToProcess[src] = dest
-	}
-
-	// process stack dirs
-	for _, dest := range stackDirsToProcess {
-		stackFile := filepath.Join(dest, defaultStackFile)
-		if err := processStackFile(ctx, opts, stackFile); err != nil {
 			return err
 		}
 	}
