@@ -118,30 +118,12 @@ func (c *Cln) Clone() error {
 		return err
 	}
 
-	if c.store.HasContent(hash) {
-		content := NewContent(c.store)
-
-		treeData, err := content.Read(hash)
-		if err != nil {
-			return err
-		}
-
-		tree, err := ParseTree(string(treeData), targetDir)
-		if err != nil {
-			return err
-		}
-
-		if err := tree.LinkTree(c.store, targetDir); err != nil {
+	if !c.store.HasContent(hash) {
+		if err := c.cloneAndStoreContent(hash); err != nil {
 			return err
 		}
 	}
 
-	// Fall back to full clone if optimization fails
-	if err := c.cloneAndStoreContent(hash); err != nil {
-		return err
-	}
-
-	// Link the tree to the target directory
 	content := NewContent(c.store)
 
 	treeData, err := content.Read(hash)
