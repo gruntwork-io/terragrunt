@@ -20,7 +20,7 @@ func TestCln_Clone(t *testing.T) {
 		targetPath := filepath.Join(tempDir, "repo")
 
 		cln, err := cln.New(
-			"https://github.com/yhakbar/cln.git",
+			"https://github.com/gruntwork-io/terragrunt.git",
 			cln.Options{
 				Dir:       targetPath,
 				StorePath: storePath,
@@ -43,7 +43,7 @@ func TestCln_Clone(t *testing.T) {
 		targetPath := filepath.Join(tempDir, "repo")
 
 		cln, err := cln.New(
-			"https://github.com/yhakbar/cln.git",
+			"https://github.com/gruntwork-io/terragrunt.git",
 			cln.Options{
 				Dir:       targetPath,
 				Branch:    "main",
