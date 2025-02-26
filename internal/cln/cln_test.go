@@ -34,6 +34,10 @@ func TestCln_Clone(t *testing.T) {
 		// Verify repository was cloned
 		_, err = os.Stat(filepath.Join(targetPath, "README.md"))
 		assert.NoError(t, err)
+
+		// Verify nested files were linked
+		_, err = os.Stat(filepath.Join(targetPath, "test", "integration_test.go"))
+		assert.NoError(t, err)
 	})
 
 	t.Run("clone with specific branch", func(t *testing.T) {

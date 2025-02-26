@@ -97,11 +97,12 @@ func (t *Tree) LinkTree(store *Store, targetDir string) error {
 
 		content := NewContent(store)
 
-		if entry.Type == "blob" {
-			content.Link(entry.Hash, entryPath)
-		}
-
-		if entry.Type == "tree" {
+		switch entry.Type {
+		case "blob":
+			if err := content.Link(entry.Hash, entryPath); err != nil {
+				return err
+			}
+		case "tree":
 			treeData, err := content.Read(entry.Hash)
 			if err != nil {
 				return err
@@ -111,6 +112,8 @@ func (t *Tree) LinkTree(store *Store, targetDir string) error {
 			if err != nil {
 				return err
 			}
+
+			targetDir := filepath.Join(targetDir, entry.Path)
 
 			if err := subTree.LinkTree(store, targetDir); err != nil {
 				return err
