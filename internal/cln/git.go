@@ -53,12 +53,14 @@ type LsRemoteResult struct {
 	Ref  string
 }
 
-// LsRemote runs git ls-remote for a specific reference
+// LsRemote runs git ls-remote for a specific reference.
+// If ref is empty, we check HEAD instead.
 func (g *GitRunner) LsRemote(repo, ref string) ([]LsRemoteResult, error) {
-	args := []string{repo}
-	if ref != "" {
-		args = append(args, ref)
+	if ref == "" {
+		ref = "HEAD"
 	}
+
+	args := []string{repo, ref}
 
 	cmd := g.prepareCommand("ls-remote", args...)
 
