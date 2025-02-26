@@ -16,7 +16,7 @@ func TestGitRunner_LsRemote(t *testing.T) {
 
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
-		results, err := runner.LsRemote("https://github.com/yhakbar/cln.git", "HEAD")
+		results, err := runner.LsRemote("https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		assert.Regexp(t, "^[0-9a-f]{40}$", results[0].Hash)
@@ -34,7 +34,7 @@ func TestGitRunner_LsRemote(t *testing.T) {
 
 	t.Run("nonexistent reference", func(t *testing.T) {
 		t.Parallel()
-		_, err := runner.LsRemote("https://github.com/yhakbar/cln.git", "nonexistent-branch")
+		_, err := runner.LsRemote("https://github.com/gruntwork-io/terragrunt.git", "nonexistent-branch")
 		require.Error(t, err)
 		var wrappedErr *cln.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -49,7 +49,7 @@ func TestGitRunner_Clone(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
 		runner := cln.NewGitRunner().WithWorkDir(cloneDir)
-		err := runner.Clone("https://github.com/yhakbar/cln.git", true, 1, "main")
+		err := runner.Clone("https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.NoError(t, err)
 
 		// Verify it's a git repository
@@ -60,7 +60,7 @@ func TestGitRunner_Clone(t *testing.T) {
 	t.Run("clone without workdir fails", func(t *testing.T) {
 		t.Parallel()
 		runner := cln.NewGitRunner()
-		err := runner.Clone("https://github.com/yhakbar/cln.git", true, 1, "main")
+		err := runner.Clone("https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.Error(t, err)
 		var wrappedErr *cln.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -71,7 +71,7 @@ func TestGitRunner_Clone(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
 		runner := cln.NewGitRunner().WithWorkDir(cloneDir)
-		err := runner.Clone("https://github.com/yhakbar/cln-fake.git", false, 1, "")
+		err := runner.Clone("https://github.com/gruntwork-io/terragrunt-fake.git", false, 1, "")
 		require.Error(t, err)
 		var wrappedErr *cln.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -139,7 +139,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		runner := cln.NewGitRunner().WithWorkDir(cloneDir)
 
 		// First clone a repository
-		err := runner.Clone("https://github.com/yhakbar/cln.git", true, 1, "main")
+		err := runner.Clone("https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.NoError(t, err)
 
 		// Then try to ls-tree HEAD
@@ -177,7 +177,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 		runner := cln.NewGitRunner().WithWorkDir(cloneDir)
 
 		// First clone a repository
-		err := runner.Clone("https://github.com/yhakbar/cln.git", true, 1, "main")
+		err := runner.Clone("https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.NoError(t, err)
 
 		// Try to ls-tree an invalid reference
