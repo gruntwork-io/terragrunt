@@ -152,7 +152,14 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackS
 
 func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier, sourceDir, src, dest string) error {
 	if isLocal(opts, sourceDir, src) {
-		localSrc := filepath.Join(sourceDir, src)
+		// check if src is absolute path
+		// if not, join with sourceDir
+		var localSrc string
+		if filepath.IsAbs(src) {
+			localSrc = src
+		} else {
+			localSrc = filepath.Join(sourceDir, src)
+		}
 		localSrc, err := filepath.Abs(localSrc)
 
 		if err != nil {
