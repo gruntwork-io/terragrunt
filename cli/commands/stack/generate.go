@@ -22,14 +22,12 @@ const (
 )
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
-	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
+	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 	processedFiles := make(map[string]bool)
+	// initial files setting as stack file
+	foundFiles := []string{opts.TerragruntStackConfigPath}
 	for {
-		foundFiles, err := listStackFiles(opts, opts.WorkingDir)
-		if err != nil {
-			return errors.Errorf("Failed to list stack files %v", err)
-		}
 		// check if we have already processed the files
 		processedNewFiles := false
 		for _, file := range foundFiles {
@@ -45,6 +43,11 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 		if !processedNewFiles {
 			break
 		}
+		newFiles, err := listStackFiles(opts, opts.WorkingDir)
+		if err != nil {
+			return errors.Errorf("Failed to list stack files %v", err)
+		}
+		foundFiles = newFiles
 	}
 	return nil
 }
@@ -57,7 +60,7 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 	}
 
 	opts.Logger.Debugf("Searching for stack files in %s", dir)
-	stackFiles := []string{}
+	var stackFiles []string
 	// find all defaultStackFile files
 	if err := walkFunc(opts.WorkingDir, func(path string, info os.FileInfo, err error) error {
 
