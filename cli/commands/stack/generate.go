@@ -23,13 +23,13 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	// process recursively stack directory
-	if err := processStackDir(ctx, opts, opts.TerragruntStackConfigPath); err != nil {
+	if err := processStackFile(ctx, opts, opts.TerragruntStackConfigPath); err != nil {
 		return errors.New(err)
 	}
 	return nil
 }
 
-func processStackDir(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
+func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts, stackFilePath)
 	if err != nil {
@@ -100,8 +100,9 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackS
 	}
 
 	// process stack dirs
-	for src, dest := range stackDirsToProcess {
-		if err := processStackDir(ctx, opts, src, dest); err != nil {
+	for _, dest := range stackDirsToProcess {
+		stackFile := filepath.Join(dest, defaultStackFile)
+		if err := processStackFile(ctx, opts, stackFile); err != nil {
 			return err
 		}
 	}
