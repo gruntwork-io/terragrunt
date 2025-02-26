@@ -118,35 +118,47 @@ func (c *Cln) Clone() error {
 		return err
 	}
 
-	// Check if we have the tree structure cached
-	if treeData, err := c.git.CatFile(hash); err == nil {
-		// We have the tree structure, try to link files directly
+	if c.store.HasContent(hash) {
+		content := NewContent(c.store)
+
+		treeData, err := content.Read(hash)
+		if err != nil {
+			return err
+		}
+
 		tree, err := ParseTree(string(treeData), targetDir)
-		if err == nil {
-			// Try to link all files from the store
-			content := NewContent(c.store)
-			allFilesPresent := true
+		if err != nil {
+			return err
+		}
 
-			for _, entry := range tree.Entries() {
-				if entry.Type != "blob" {
-					continue
-				}
-
-				targetPath := filepath.Join(targetDir, entry.Path)
-				if err := content.Link(entry.Hash, targetPath); err != nil {
-					allFilesPresent = false
-					break
-				}
-			}
-
-			if allFilesPresent {
-				return nil // Successfully reused all content
-			}
+		if err := tree.LinkTree(c.store, targetDir); err != nil {
+			return err
 		}
 	}
 
 	// Fall back to full clone if optimization fails
-	return c.cloneAndStoreContent(hash)
+	if err := c.cloneAndStoreContent(hash); err != nil {
+		return err
+	}
+
+	// Link the tree to the target directory
+	content := NewContent(c.store)
+
+	treeData, err := content.Read(hash)
+	if err != nil {
+		return err
+	}
+
+	tree, err := ParseTree(string(treeData), targetDir)
+	if err != nil {
+		return err
+	}
+
+	if err := tree.LinkTree(c.store, targetDir); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Cln) prepareTargetDirectory() string {

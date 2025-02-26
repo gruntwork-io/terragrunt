@@ -55,7 +55,7 @@ type LsRemoteResult struct {
 
 // LsRemote runs git ls-remote for a specific reference
 func (g *GitRunner) LsRemote(repo, ref string) ([]LsRemoteResult, error) {
-	args := []string{"ls-remote", repo}
+	args := []string{repo}
 	if ref != "" {
 		args = append(args, ref)
 	}
