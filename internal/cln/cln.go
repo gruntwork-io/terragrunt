@@ -40,12 +40,12 @@ type Cln struct {
 	store     *Store
 	git       *GitRunner
 	opts      Options
-	repo      string
+	url       string
 	cloneLock sync.Mutex
 }
 
 // New creates a new Cln instance with the given options
-func New(repo string, opts Options) (*Cln, error) {
+func New(url string, opts Options) (*Cln, error) {
 	if opts.StorePath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -60,20 +60,13 @@ func New(repo string, opts Options) (*Cln, error) {
 		return nil, err
 	}
 
-	// Strip the cln:// prefix if present - this is just a marker for using CLN
-	repo = strings.TrimPrefix(repo, "cln://")
-
-	// Then strip the git:: prefix if present
-	repo = strings.TrimPrefix(repo, "git::")
-
-	// Also strip any ssh:// prefix as git handles SSH URLs without it
-	repo = strings.TrimPrefix(repo, "ssh://")
+	url = stripGoGetterPrefixes(url)
 
 	// Convert github.com/org/repo to github.com:org/repo format for SSH URLs
-	if strings.HasPrefix(repo, "git@") {
-		parts := strings.SplitN(repo, "/", repoPartsSplitLimit)
+	if strings.HasPrefix(url, "git@") {
+		parts := strings.SplitN(url, "/", repoPartsSplitLimit)
 		if len(parts) == repoPartsSplitLimit {
-			repo = parts[0] + ":" + parts[1]
+			url = parts[0] + ":" + parts[1]
 		}
 	}
 
@@ -81,8 +74,21 @@ func New(repo string, opts Options) (*Cln, error) {
 		store: store,
 		git:   NewGitRunner(),
 		opts:  opts,
-		repo:  repo,
+		url:   url,
 	}, nil
+}
+
+func stripGoGetterPrefixes(url string) string {
+	// Strip the cln:// prefix if present - this is just a marker for using CLN
+	url = strings.TrimPrefix(url, "cln://")
+
+	// Then strip the git:: prefix if present
+	url = strings.TrimPrefix(url, "git::")
+
+	// Also strip any ssh:// prefix as git handles SSH URLs without it
+	url = strings.TrimPrefix(url, "ssh://")
+
+	return url
 }
 
 // Clone performs the clone operation
@@ -146,14 +152,14 @@ func (c *Cln) Clone() error {
 func (c *Cln) prepareTargetDirectory() string {
 	targetDir := c.opts.Dir
 	if targetDir == "" {
-		targetDir = GetRepoName(c.repo)
+		targetDir = GetRepoName(c.url)
 	}
 
 	return filepath.Clean(targetDir)
 }
 
 func (c *Cln) resolveReference() (string, error) {
-	results, err := c.git.LsRemote(c.repo, c.opts.Branch)
+	results, err := c.git.LsRemote(c.url, c.opts.Branch)
 	if err != nil {
 		return "", err
 	}
@@ -170,7 +176,7 @@ func (c *Cln) resolveReference() (string, error) {
 }
 
 func (c *Cln) cloneAndStoreContent(hash string) error {
-	if err := c.git.Clone(c.repo, true, 1, c.opts.Branch); err != nil {
+	if err := c.git.Clone(c.url, true, 1, c.opts.Branch); err != nil {
 		return err
 	}
 
