@@ -1,7 +1,7 @@
 // Package cln is a golang port of the cln project.
 //
 // The original project is written in Rust and can be found at:
-// https://github.com/yhakbar/cln
+// https://github.com/gruntwork-io/terragrunt
 package cln
 
 import (

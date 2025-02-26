@@ -21,7 +21,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		// First clone
 		firstClonePath := filepath.Join(tempDir, "first")
 		cln1, err := cln.New(
-			"https://github.com/yhakbar/cln.git",
+			"https://github.com/gruntwork-io/terragrunt.git",
 			cln.Options{
 				Dir:       firstClonePath,
 				StorePath: storePath,
@@ -38,7 +38,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		// Second clone
 		secondClonePath := filepath.Join(tempDir, "second")
 		cln2, err := cln.New(
-			"https://github.com/yhakbar/cln.git",
+			"https://github.com/gruntwork-io/terragrunt.git",
 			cln.Options{
 				Dir:       secondClonePath,
 				StorePath: storePath,
@@ -65,7 +65,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		tempDir := t.TempDir()
 
 		c, err := cln.New(
-			"https://github.com/yhakbar/cln.git",
+			"https://github.com/gruntwork-io/terragrunt.git",
 			cln.Options{
 				Dir:       filepath.Join(tempDir, "repo"),
 				Branch:    "nonexistent-branch",
@@ -112,7 +112,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 
 		// First clone to populate store
 		c, err := cln.New(
-			"https://github.com/yhakbar/cln.git",
+			"https://github.com/gruntwork-io/terragrunt.git",
 			cln.Options{
 				Dir:       filepath.Join(tempDir, "repo"),
 				StorePath: storePath,
@@ -123,7 +123,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 
 		// Get the commit hash
 		git := cln.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
-		results, err := git.LsRemote("https://github.com/yhakbar/cln.git", "HEAD")
+		results, err := git.LsRemote("https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash

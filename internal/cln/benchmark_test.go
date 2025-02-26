@@ -13,7 +13,7 @@ import (
 
 func BenchmarkClone(b *testing.B) {
 	// Use a small, public repository for consistent results
-	repo := "https://github.com/yhakbar/cln.git"
+	repo := "https://github.com/gruntwork-io/terragrunt.git"
 
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
@@ -134,7 +134,7 @@ func BenchmarkGitOperations(b *testing.B) {
 	// Setup a git repository for testing
 	repoDir := b.TempDir()
 	git := cln.NewGitRunner().WithWorkDir(repoDir)
-	if err := git.Clone("https://github.com/yhakbar/cln.git", false, 1, "main"); err != nil {
+	if err := git.Clone("https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
 		b.Fatal(err)
 	}
 
@@ -142,7 +142,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		git := cln.NewGitRunner() // No workDir needed for ls-remote
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := git.LsRemote("https://github.com/yhakbar/cln.git", "HEAD")
+			_, err := git.LsRemote("https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 			if err != nil {
 				b.Fatal(err)
 			}
