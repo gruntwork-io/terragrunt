@@ -27,6 +27,8 @@ const (
 	azuredevHost          = "dev.azure.com"
 	bitbucketHost         = "bitbucket.org"
 	gitlabSelfHostedRegex = `^(gitlab\.(.+))$`
+
+	cloneCompleteSentinel = ".catalog-clone-complete"
 )
 
 var (
@@ -46,14 +48,28 @@ type Repo struct {
 	BranchName string
 
 	walkWithSymlinks bool
+	useCln           bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool) (*Repo, error) {
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool, allowCln bool) (*Repo, error) {
+	useCln := false
+
+	if strings.HasPrefix(cloneURL, "cln://") {
+		cloneURL = strings.TrimPrefix(cloneURL, "cln://")
+
+		if !allowCln {
+			return nil, errors.Errorf("cln:// protocol is not allowed without using the `cln` experiment. Please enable the experiment and try again.")
+		}
+
+		useCln = true
+	}
+
 	repo := &Repo{
 		logger:           logger,
 		cloneURL:         cloneURL,
 		path:             tempDir,
 		walkWithSymlinks: walkWithSymlinks,
+		useCln:           useCln,
 	}
 
 	if err := repo.clone(ctx); err != nil {
@@ -204,6 +220,7 @@ func (repo *Repo) resolveCloneURL() (string, error) {
 		}
 		return currentDir, nil
 	}
+
 	return repo.cloneURL, nil
 }
 
@@ -215,9 +232,12 @@ func (repo *Repo) handleLocalDir(repoPath string) error {
 		}
 		repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		repo.path = absRepoPath
-	} else {
-		repo.path = repoPath
+
+		return nil
 	}
+
+	repo.path = repoPath
+
 	return nil
 }
 
@@ -236,6 +256,7 @@ func (repo *Repo) prepareCloneDirectory(opts *CloneOptions) error {
 			return errors.New(err)
 		}
 	}
+
 	return nil
 }
 
@@ -244,11 +265,12 @@ func (repo *Repo) extractRepoName() string {
 	if match := repoNameFromCloneURLReg.FindStringSubmatch(repo.cloneURL); len(match) > 0 && match[1] != "" {
 		repoName = match[1]
 	}
+
 	return repoName
 }
 
 func (repo *Repo) shouldCleanupIncompleteClone() bool {
-	return files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile())
+	return files.FileExists(repo.path) && !files.FileExists(filepath.Join(repo.path, cloneCompleteSentinel))
 }
 
 func (repo *Repo) performClone(opts *CloneOptions) error {
@@ -263,12 +285,24 @@ func (repo *Repo) performClone(opts *CloneOptions) error {
 	// Add HEAD reference to avoid pathspec error
 	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
 
-	return getter.Get(
+	if err := getter.Get(
 		repo.path,
 		strings.Trim(sourceURL.String(), "/"),
 		getter.WithContext(opts.Context),
 		getter.WithMode(getter.ClientModeDir),
-	)
+	); err != nil {
+		return err
+	}
+
+	// Create the sentinel file to indicate that the clone is complete
+	f, err := os.Create(filepath.Join(repo.path, cloneCompleteSentinel))
+	if err != nil {
+		return errors.New(err)
+	}
+
+	f.Close()
+
+	return nil
 }
 
 // parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
@@ -324,6 +358,7 @@ func (repo *Repo) parseBranchName() error {
 
 	if match := gitHeadBranchNameReg.FindStringSubmatch(data); len(match) > 0 {
 		repo.BranchName = strings.TrimSpace(match[1])
+
 		return nil
 	}
 
