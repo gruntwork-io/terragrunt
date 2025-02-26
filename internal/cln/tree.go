@@ -2,6 +2,8 @@ package cln
 
 import (
 	"bufio"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -83,4 +85,38 @@ func ParseTree(output, path string) (*Tree, error) {
 		entries: entries,
 		path:    path,
 	}, nil
+}
+
+// LinkTree writes the tree to a target directory
+func (t *Tree) LinkTree(store *Store, targetDir string) error {
+	for _, entry := range t.entries {
+		entryPath := filepath.Join(targetDir, entry.Path)
+		if err := os.MkdirAll(filepath.Dir(entryPath), 0755); err != nil {
+			return err
+		}
+
+		content := NewContent(store)
+
+		if entry.Type == "blob" {
+			content.Link(entry.Hash, entryPath)
+		}
+
+		if entry.Type == "tree" {
+			treeData, err := content.Read(entry.Hash)
+			if err != nil {
+				return err
+			}
+
+			subTree, err := ParseTree(string(treeData), entryPath)
+			if err != nil {
+				return err
+			}
+
+			if err := subTree.LinkTree(store, targetDir); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
