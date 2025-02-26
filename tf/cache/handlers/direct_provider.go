@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/tf/cache/models"
-	"github.com/gruntwork-io/terragrunt/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 )
 
@@ -60,7 +59,7 @@ func (handler *DirectProviderHandler) GetVersions(ctx context.Context, provider 
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
-func (handler *DirectProviderHandler) GetPlatform(ctx context.Context, provider *models.Provider, downloaderController router.Controller) (*models.ResponseBody, error) {
+func (handler *DirectProviderHandler) GetPlatform(ctx context.Context, provider *models.Provider) (*models.ResponseBody, error) {
 	apiURLs, err := handler.DiscoveryURL(ctx, provider.RegistryName)
 	if err != nil {
 		return nil, err

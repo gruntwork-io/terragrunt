@@ -121,7 +121,7 @@ func TestProviderCache(t *testing.T) {
 			testCase.opts = append(testCase.opts,
 				cache.WithProviderService(providerService),
 				cache.WithProviderHandlers(providerHandler),
-				cache.WithPorxyProviderHandler(proxyProviderHandler),
+				cache.WithProxyProviderHandler(proxyProviderHandler),
 			)
 
 			server := cache.NewServer(testCase.opts...)

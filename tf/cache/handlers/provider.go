@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf/cache/models"
-	"github.com/gruntwork-io/terragrunt/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 )
 
@@ -35,7 +34,7 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, logger log.Logger, registryNa
 	var (
 		providerHandlers = make([]ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
 		excludeAddrs     = make([]string, 0, len(cliCfg.ProviderInstallation.Methods))
-		directIsdefined  bool
+		directIsDefined  bool
 	)
 
 	for _, registryName := range registryNames {
@@ -55,13 +54,13 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, logger log.Logger, registryNa
 			providerHandlers = append(providerHandlers, networkMirrorHandler)
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(providerHandlers, NewDirectProviderHandler(logger, method, cliCfg.CredentialsSource()))
-			directIsdefined = true
+			directIsDefined = true
 		}
 
 		method.AppendExclude(excludeAddrs)
 	}
 
-	if !directIsdefined {
+	if !directIsDefined {
 		// In a case if none of direct provider installation methods `cliCfg.ProviderInstallation.Methods` are specified.
 		providerHandlers = append(providerHandlers, NewDirectProviderHandler(logger, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
 	}
@@ -92,7 +91,7 @@ type ProviderHandler interface {
 	GetVersions(ctx context.Context, provider *models.Provider) (models.Versions, error)
 
 	// GetPlatform serves a request that returns a provider for a specific platform.
-	GetPlatform(ctx context.Context, provider *models.Provider, downloaderController router.Controller) (*models.ResponseBody, error)
+	GetPlatform(ctx context.Context, provider *models.Provider) (*models.ResponseBody, error)
 
 	// DiscoveryURL discovers modules and providers API endpoints for the specified `registryName`.
 	// https://developer.hashicorp.com/terraform/internals/remote-service-discovery#discovery-process

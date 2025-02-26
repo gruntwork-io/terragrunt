@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/tf/cache/models"
-	"github.com/gruntwork-io/terragrunt/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 )
 
@@ -29,7 +28,7 @@ type NetworkMirrorProviderHandler struct {
 func NewNetworkMirrorProviderHandler(logger log.Logger, networkMirror *cliconfig.ProviderInstallationNetworkMirror, credsSource *cliconfig.CredentialsSource) (*NetworkMirrorProviderHandler, error) {
 	networkMirrorURL, err := url.Parse(networkMirror.URL)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, errors.Errorf("failed to parse network mirror URL %q: %w", networkMirror.URL, err)
 	}
 
 	return &NetworkMirrorProviderHandler{
@@ -69,7 +68,7 @@ func (handler *NetworkMirrorProviderHandler) GetVersions(ctx context.Context, pr
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
-func (handler *NetworkMirrorProviderHandler) GetPlatform(ctx context.Context, provider *models.Provider, downloaderController router.Controller) (*models.ResponseBody, error) {
+func (handler *NetworkMirrorProviderHandler) GetPlatform(ctx context.Context, provider *models.Provider) (*models.ResponseBody, error) {
 	var mirrorData struct {
 		Archives map[string]struct {
 			URL    string   `json:"url"`

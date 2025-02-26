@@ -58,7 +58,7 @@ func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
 	}
 }
 
-func WithPorxyProviderHandler(handler *handlers.ProxyProviderHandler) Option {
+func WithProxyProviderHandler(handler *handlers.ProxyProviderHandler) Option {
 	return func(cfg Config) Config {
 		cfg.proxyProviderHandler = handler
 		return cfg

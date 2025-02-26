@@ -100,7 +100,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 
 	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, opts.Logger, opts.ProviderCacheRegistryNames)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("creating provider handlers failed: %w", err)
 	}
 
 	cache := cache.NewServer(
@@ -109,7 +109,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		cache.WithToken(opts.ProviderCacheToken),
 		cache.WithProviderService(providerService),
 		cache.WithProviderHandlers(providerHandlers...),
-		cache.WithPorxyProviderHandler(proxyProviderHandler),
+		cache.WithProxyProviderHandler(proxyProviderHandler),
 		cache.WithCacheProviderHTTPStatusCode(CacheProviderHTTPStatusCode),
 		cache.WithLogger(opts.Logger),
 	)

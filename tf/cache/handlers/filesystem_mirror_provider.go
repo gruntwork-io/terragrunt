@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf/cache/models"
-	"github.com/gruntwork-io/terragrunt/tf/cache/router"
 	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -58,7 +57,7 @@ func (handler *FilesystemMirrorProviderHandler) GetVersions(_ context.Context, p
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
-func (handler *FilesystemMirrorProviderHandler) GetPlatform(_ context.Context, provider *models.Provider, downloaderController router.Controller) (*models.ResponseBody, error) {
+func (handler *FilesystemMirrorProviderHandler) GetPlatform(_ context.Context, provider *models.Provider) (*models.ResponseBody, error) {
 	var mirrorData struct {
 		Archives map[string]struct {
 			URL    string   `json:"url"`

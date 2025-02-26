@@ -128,7 +128,7 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			resp, err = handler.GetPlatform(ctx.Request().Context(), provider, controller.DownloaderController)
+			resp, err = handler.GetPlatform(ctx.Request().Context(), provider)
 			if err != nil {
 				controller.Logger.Errorf("Failed to get provider platform from %q: %s", handler, err.Error())
 			}
