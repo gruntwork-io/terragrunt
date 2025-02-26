@@ -191,8 +191,8 @@ func ReadUnitValues(ctx context.Context, opts *options.TerragruntOptions, unitDi
 // - Unit names should be unique
 // - Units shouldn't have duplicate paths
 func ValidateStackConfig(config *StackConfigFile) error {
-	if len(config.Units) == 0 {
-		return errors.New("stack config must contain at least one unit")
+	if len(config.Units) == 0 || len(config.Stacks) == 0 {
+		return errors.New("stack config must contain at least one unit or stack")
 	}
 
 	validationErrors := &errors.MultiError{}
