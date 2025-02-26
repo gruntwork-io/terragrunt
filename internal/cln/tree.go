@@ -2,9 +2,12 @@ package cln
 
 import (
 	"bufio"
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const (
@@ -89,36 +92,94 @@ func ParseTree(output, path string) (*Tree, error) {
 
 // LinkTree writes the tree to a target directory
 func (t *Tree) LinkTree(store *Store, targetDir string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var (
+		errMu sync.Mutex
+		errs  []error
+	)
+
+	var wg sync.WaitGroup
+
+	const maxConcurrentOps = 16
+	semaphore := make(chan struct{}, maxConcurrentOps)
+
 	for _, entry := range t.entries {
-		entryPath := filepath.Join(targetDir, entry.Path)
-		if err := os.MkdirAll(filepath.Dir(entryPath), 0755); err != nil {
-			return err
-		}
+		wg.Add(1)
 
-		content := NewContent(store)
+		go func(entry TreeEntry) {
+			defer wg.Done()
 
-		switch entry.Type {
-		case "blob":
-			if err := content.Link(entry.Hash, entryPath); err != nil {
-				return err
-			}
-		case "tree":
-			treeData, err := content.Read(entry.Hash)
-			if err != nil {
-				return err
+			select {
+			case <-ctx.Done():
+				return
+			default:
 			}
 
-			subTree, err := ParseTree(string(treeData), entryPath)
-			if err != nil {
-				return err
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-ctx.Done():
+				return
 			}
 
-			targetDir := filepath.Join(targetDir, entry.Path)
-
-			if err := subTree.LinkTree(store, targetDir); err != nil {
-				return err
+			entryPath := filepath.Join(targetDir, entry.Path)
+			if err := os.MkdirAll(filepath.Dir(entryPath), 0755); err != nil {
+				errMu.Lock()
+				errs = append(errs, wrapError("mkdir_all", entryPath, err))
+				errMu.Unlock()
+				cancel()
+				return
 			}
-		}
+
+			content := NewContent(store)
+
+			switch entry.Type {
+			case "blob":
+				if err := content.Link(entry.Hash, entryPath); err != nil {
+					errMu.Lock()
+					errs = append(errs, wrapError("link_blob", entryPath, err))
+					errMu.Unlock()
+					cancel()
+					return
+				}
+			case "tree":
+				treeData, err := content.Read(entry.Hash)
+				if err != nil {
+					errMu.Lock()
+					errs = append(errs, wrapError("read_tree", entry.Hash, err))
+					errMu.Unlock()
+					cancel()
+					return
+				}
+
+				subTree, err := ParseTree(string(treeData), entryPath)
+				if err != nil {
+					errMu.Lock()
+					errs = append(errs, wrapError("parse_tree", entry.Hash, err))
+					errMu.Unlock()
+					cancel()
+					return
+				}
+
+				subTargetDir := filepath.Join(targetDir, entry.Path)
+
+				if err := subTree.LinkTree(store, subTargetDir); err != nil {
+					errMu.Lock()
+					errs = append(errs, wrapError("link_subtree", subTargetDir, err))
+					errMu.Unlock()
+					cancel()
+					return
+				}
+			}
+		}(entry)
+	}
+
+	wg.Wait()
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	return nil
