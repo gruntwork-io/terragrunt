@@ -4,9 +4,11 @@ package controllers
 import (
 	"net/http"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/tf/cache/router"
+	"github.com/gruntwork-io/terragrunt/tf/cache/services"
 	"github.com/labstack/echo/v4"
 )
 
@@ -20,11 +22,15 @@ const (
 type ProviderController struct {
 	*router.Router
 
+	Logger               log.Logger
 	Server               http.Server
 	DownloaderController router.Controller
 
-	AuthMiddleware   echo.MiddlewareFunc
-	ProviderHandlers []handlers.ProviderHandler
+	AuthMiddleware              echo.MiddlewareFunc
+	ProviderHandlers            []handlers.ProviderHandler
+	ProxyProviderHandler        *handlers.ProxyProviderHandler
+	ProviderService             *services.ProviderService
+	CacheProviderHTTPStatusCode int
 }
 
 // Endpoints implements controllers.Endpointer.Endpoints
@@ -65,15 +71,30 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 		Name:         name,
 	}
 
+	var allVersions models.Versions
+
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			if err := handler.GetVersions(ctx, provider); err == nil {
-				break
+			versions, err := handler.GetVersions(ctx.Request().Context(), provider)
+			if err != nil {
+				controller.Logger.Errorf("Failed to get provider versions from %q: %s", handler, err.Error())
+			}
+
+			if versions != nil {
+				allVersions = append(allVersions, versions...)
 			}
 		}
 	}
 
-	return ctx.NoContent(http.StatusNotFound)
+	versions := struct {
+		ID       string          `json:"id"`
+		Versions models.Versions `json:"versions"`
+	}{
+		ID:       provider.Address(),
+		Versions: allVersions,
+	}
+
+	return ctx.JSON(http.StatusOK, versions)
 }
 
 func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er error) {
@@ -96,13 +117,32 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 		Arch:         arch,
 	}
 
+	if cacheRequestID == "" {
+		return controller.ProxyProviderHandler.GetPlatform(ctx, provider, controller.DownloaderController)
+	}
+
+	var (
+		resp *models.ResponseBody
+		err  error
+	)
+
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			if err := handler.GetPlatform(ctx, provider, controller.DownloaderController, cacheRequestID); err == nil {
+			resp, err = handler.GetPlatform(ctx.Request().Context(), provider, controller.DownloaderController)
+			if err != nil {
+				controller.Logger.Errorf("Failed to get provider platform from %q: %s", handler, err.Error())
+			}
+
+			if resp != nil {
 				break
 			}
 		}
 	}
 
-	return ctx.NoContent(http.StatusNotFound)
+	provider.ResponseBody = resp
+
+	// start caching and return 423 status
+	controller.ProviderService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
+
+	return ctx.NoContent(controller.CacheProviderHTTPStatusCode)
 }

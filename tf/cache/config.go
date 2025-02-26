@@ -44,9 +44,9 @@ func WithToken(token string) Option {
 	}
 }
 
-func WithServices(services ...services.Service) Option {
+func WithProviderService(service *services.ProviderService) Option {
 	return func(cfg Config) Config {
-		cfg.services = services
+		cfg.providerService = service
 		return cfg
 	}
 }
@@ -54,6 +54,20 @@ func WithServices(services ...services.Service) Option {
 func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
 	return func(cfg Config) Config {
 		cfg.providerHandlers = handlers
+		return cfg
+	}
+}
+
+func WithPorxyProviderHandler(handler *handlers.ProxyProviderHandler) Option {
+	return func(cfg Config) Config {
+		cfg.proxyProviderHandler = handler
+		return cfg
+	}
+}
+
+func WithCacheProviderHTTPStatusCode(statusCode int) Option {
+	return func(cfg Config) Config {
+		cfg.cacheProviderHTTPStatusCode = statusCode
 		return cfg
 	}
 }
@@ -71,8 +85,10 @@ type Config struct {
 	token           string
 	shutdownTimeout time.Duration
 
-	services         []services.Service
-	providerHandlers handlers.ProviderHandlers
+	providerService             *services.ProviderService
+	providerHandlers            handlers.ProviderHandlers
+	proxyProviderHandler        *handlers.ProxyProviderHandler
+	cacheProviderHTTPStatusCode int
 
 	logger log.Logger
 }

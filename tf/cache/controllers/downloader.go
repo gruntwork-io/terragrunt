@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/tf/cache/models"
 	"github.com/gruntwork-io/terragrunt/tf/cache/router"
+	"github.com/gruntwork-io/terragrunt/tf/cache/services"
 	"github.com/labstack/echo/v4"
 )
 
@@ -17,7 +18,8 @@ const (
 type DownloaderController struct {
 	*router.Router
 
-	ProviderHandlers []handlers.ProviderHandler
+	ProviderService      *services.ProviderService
+	ProxyProviderHandler *handlers.ProxyProviderHandler
 }
 
 // Register implements router.Controller.Register
@@ -45,12 +47,15 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 		},
 	}
 
-	for _, handler := range controller.ProviderHandlers {
-		if handler.CanHandleProvider(provider) {
-			if err := handler.Download(ctx, provider); err == nil {
-				break
-			}
+	if cache := controller.ProviderService.GetProviderCache(provider); cache != nil {
+		if path := cache.ArchivePath(); path != "" {
+			controller.ProviderService.Logger().Debugf("Download cached provider %s", cache.Provider)
+			return ctx.File(path)
 		}
+	}
+
+	if err := controller.ProxyProviderHandler.Download(ctx, provider); err != nil {
+		return err
 	}
 
 	return ctx.NoContent(http.StatusNotFound)
