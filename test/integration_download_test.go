@@ -23,6 +23,7 @@ const (
 	testFixtureCustomLockFile                         = "fixtures/download/custom-lock-file"
 	testFixtureRemoteDownloadPath                     = "fixtures/download/remote"
 	testFixtureInvalidRemoteDownloadPath              = "fixtures/download/remote-invalid"
+	testFixtureInvalidRemoteDownloadPathWithRetries   = "fixtures/download/remote-invalid-with-retries"
 	testFixtureOverrideDonwloadPath                   = "fixtures/download/override"
 	testFixtureLocalRelativeDownloadPath              = "fixtures/download/local-relative"
 	testFixtureRemoteRelativeDownloadPath             = "fixtures/download/remote-relative"
@@ -174,6 +175,24 @@ func TestInvalidRemoteDownload(t *testing.T) {
 
 	require.Error(t, err)
 	errMessage := "downloading source url"
+	assert.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
+
+}
+
+func TestInvalidRemoteDownloadWithRetries(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureInvalidRemoteDownloadPathWithRetries)
+	applyStdout := bytes.Buffer{}
+	applyStderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureInvalidRemoteDownloadPathWithRetries, &applyStdout, &applyStderr)
+
+	helpers.LogBufferContentsLineByLine(t, applyStdout, "apply stdout")
+	helpers.LogBufferContentsLineByLine(t, applyStderr, "apply stderr")
+
+	require.Error(t, err)
+	errMessage := "max retry attempts (2) reached for error"
 	assert.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
 
 }
