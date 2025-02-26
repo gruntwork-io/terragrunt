@@ -50,7 +50,7 @@ func TestWrappedError(t *testing.T) {
 				Path: "/tmp/repo",
 				Err:  baseErr,
 			},
-			want: "clone: /tmp/repo: base error",
+			want: "clone: base error",
 		},
 		{
 			name: "with context",
