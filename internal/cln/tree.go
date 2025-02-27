@@ -12,6 +12,7 @@ import (
 
 const (
 	minTreePartsLength = 4
+	maxConcurrentLinks = 4
 )
 
 // TreeEntry represents a single entry in a git tree
@@ -102,8 +103,7 @@ func (t *Tree) LinkTree(store *Store, targetDir string) error {
 
 	var wg sync.WaitGroup
 
-	const maxConcurrentOps = 16
-	semaphore := make(chan struct{}, maxConcurrentOps)
+	semaphore := make(chan struct{}, maxConcurrentLinks)
 
 	for _, entry := range t.entries {
 		wg.Add(1)

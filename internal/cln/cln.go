@@ -15,7 +15,7 @@ import (
 
 const (
 	repoPartsSplitLimit = 2
-	maxConcurrentTasks  = 4
+	maxConcurrentStores = 4
 	dirPermissions      = 0755
 )
 
@@ -227,7 +227,7 @@ func (c *Cln) storeTreeRecursively(hash, prefix string) error {
 func (c *Cln) storeBlobEntries(entries []TreeEntry) error {
 	blobs := make(map[string][]byte)
 	errChan := make(chan error, 1)
-	semaphore := make(chan struct{}, maxConcurrentTasks)
+	semaphore := make(chan struct{}, maxConcurrentStores)
 
 	var (
 		wg sync.WaitGroup
