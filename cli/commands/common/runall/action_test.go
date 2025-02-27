@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

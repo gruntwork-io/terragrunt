@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"

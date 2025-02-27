@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
