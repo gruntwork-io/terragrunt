@@ -1,5 +1,5 @@
 unit "api" {
-	source = "../../units/api"
+	source = "${get_repo_root()}/units/api"
 	path   = "api"
 	values = {
 		ver = "prod-api 1.0.0"
@@ -7,7 +7,7 @@ unit "api" {
 }
 
 unit "db" {
-	source = "../../units/db"
+	source = "${get_repo_root()}/units/db"
 	path   = "db"
 	values = {
 		ver = "prod-db 1.0.0"
@@ -15,7 +15,7 @@ unit "db" {
 }
 
 unit "web" {
-	source = "../../units/web"
+	source = "${get_repo_root()}/units/web"
 	path   = "web"
 	values = {
 		ver = "prod-web 1.0.0"

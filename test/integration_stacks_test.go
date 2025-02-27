@@ -46,8 +46,9 @@ func TestStacksGenerateNested(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks, "project")
-
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
