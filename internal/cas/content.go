@@ -102,12 +102,16 @@ func (c *Content) ensureTargetDirectory(targetPath string) error {
 
 // Store stores a single content item
 func (c *Content) Store(hash string, data []byte) error {
+	c.store.mapLock.Lock()
+
 	if _, ok := c.store.locks[hash]; !ok {
 		c.store.locks[hash] = &sync.Mutex{}
 	}
 
 	c.store.locks[hash].Lock()
 	defer c.store.locks[hash].Unlock()
+
+	c.store.mapLock.Unlock()
 
 	if c.store.HasContent(hash) {
 		return nil
@@ -173,15 +177,33 @@ func (c *Content) Store(hash string, data []byte) error {
 	return nil
 }
 
-// StoreBatch stores multiple content items efficiently using buffered writes
+// StoreBatch stores multiple content items efficiently using parallel writes
 func (c *Content) StoreBatch(items map[string][]byte) error {
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, len(items))
+
 	for hash, data := range items {
-		if err := c.Store(hash, data); err != nil {
-			return err
-		}
+		wg.Add(1)
+
+		go func(h string, d []byte) {
+			defer wg.Done()
+
+			if err := c.Store(h, d); err != nil {
+				errChan <- err
+			}
+		}(hash, data)
 	}
 
-	return nil
+	wg.Wait()
+	close(errChan)
+
+	select {
+	case err := <-errChan:
+		return err
+	default:
+		return nil
+	}
 }
 
 // Read retrieves content from the store by hash
