@@ -62,10 +62,7 @@ func New(url string, opts Options) (*CAS, error) {
 		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
 	}
 
-	store, err := NewStore(opts.StorePath)
-	if err != nil {
-		return nil, err
-	}
+	store := NewStore(opts.StorePath)
 
 	return &CAS{
 		store: store,

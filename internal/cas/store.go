@@ -12,64 +12,31 @@ const (
 	storePathPerm = 0755
 )
 
-// Store manages the path where cloned repositories are stored
+// Store manages the store directory and locks to prevent concurrent writes
 type Store struct {
-	path         string
-	contentCache sync.Map
-	mu           sync.RWMutex
+	path  string
+	locks map[string]*sync.Mutex
 }
 
-// NewStore creates a new Store instance. If path is empty, it will use
-// $HOME/.cas-store
-func NewStore(path string) (*Store, error) {
-	if path != "" {
-		return &Store{path: path}, nil
+// NewStore creates a new Store instance.
+func NewStore(path string) *Store {
+	return &Store{
+		path:  path,
+		locks: make(map[string]*sync.Mutex),
 	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, &WrappedError{
-			Op:  "get_home_dir",
-			Err: ErrHomeDir,
-		}
-	}
-
-	storePath := filepath.Join(home, ".cas-store")
-	if err := os.MkdirAll(storePath, storePathPerm); err != nil {
-		return nil, &WrappedError{
-			Op:   "create_store_dir",
-			Path: storePath,
-			Err:  ErrCreateDir,
-		}
-	}
-
-	return &Store{path: storePath}, nil
 }
 
 // Path returns the current store path
 func (s *Store) Path() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	return s.path
 }
 
 // HasContent checks if a given hash exists in the store
 func (s *Store) HasContent(hash string) bool {
-	// Check cache first
-	if _, ok := s.contentCache.Load(hash); ok {
-		return true
-	}
-
 	// Use partitioned path: first two characters of hash as subdirectory
 	partitionDir := filepath.Join(s.path, hash[:2])
 	path := filepath.Join(partitionDir, hash)
 	_, err := os.Stat(path)
-	exists := err == nil
 
-	if exists {
-		s.contentCache.Store(hash, struct{}{})
-	}
-
-	return exists
+	return err == nil && !os.IsNotExist(err)
 }
