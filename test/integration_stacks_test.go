@@ -439,6 +439,35 @@ func TestStacksEmptyPathError(t *testing.T) {
 	assert.NotContains(t, message, "unit 'app3_not_empty_path' has empty path")
 }
 
+func TestNestedStackOutput(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	assert.Len(t, result, 6)
+	// check output contains stacks
+	assert.Contains(t, result, "dev-api")
+	assert.Contains(t, result, "dev-db")
+	assert.Contains(t, result, "dev-web")
+
+	assert.Contains(t, result, "prod-api")
+	assert.Contains(t, result, "prod-db")
+	assert.Contains(t, result, "prod-web")
+
+}
+
 func TestNestedStacksApply(t *testing.T) {
 	t.Parallel()
 

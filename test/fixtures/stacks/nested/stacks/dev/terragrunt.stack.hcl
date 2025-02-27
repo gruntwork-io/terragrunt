@@ -1,4 +1,4 @@
-unit "api" {
+unit "dev-api" {
 	source = "${get_repo_root()}/units/api"
 	path   = "api"
 	values = {
@@ -6,7 +6,7 @@ unit "api" {
 	}
 }
 
-unit "db" {
+unit "dev-db" {
 	source = "${get_repo_root()}/units/db"
 	path   = "db"
 	values = {
@@ -14,7 +14,7 @@ unit "db" {
 	}
 }
 
-unit "web" {
+unit "dev-web" {
 	source = "${get_repo_root()}/units/web"
 	path   = "web"
 	values = {
