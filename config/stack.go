@@ -106,8 +106,10 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 
 	unitOutputs := make(map[string]map[string]cty.Value)
 
-	// add default stack file
-	stackFiles = append(stackFiles, opts.TerragruntStackConfigPath)
+	if util.FileExists(opts.TerragruntStackConfigPath) {
+		// add default stack file if exists
+		stackFiles = append(stackFiles, opts.TerragruntStackConfigPath)
+	}
 
 	for _, path := range stackFiles {
 		stackFile, err := ReadStackConfigFile(ctx, opts, path)
