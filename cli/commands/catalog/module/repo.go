@@ -34,7 +34,7 @@ const (
 
 var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
-	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z_.]+)[^/]*?(?:\.git)?$`)
+	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+)[^/]*?(?:\.git)?$`)
 
 	modulesPaths = []string{"modules"}
 
@@ -54,7 +54,7 @@ type Repo struct {
 	useCAS           bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
 	useCAS := false
 
 	if strings.HasPrefix(cloneURL, "cas://") {
@@ -70,7 +70,7 @@ func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, w
 	repo := &Repo{
 		logger:           logger,
 		cloneURL:         cloneURL,
-		path:             tempDir,
+		path:             path,
 		walkWithSymlinks: walkWithSymlinks,
 		useCAS:           useCAS,
 	}
@@ -212,7 +212,13 @@ func (repo *Repo) clone(ctx context.Context) error {
 		return err
 	}
 
-	return repo.performClone(&opts)
+	if repo.cloneCompleted() {
+		repo.logger.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
+
+		return nil
+	}
+
+	return repo.performClone(ctx, &opts)
 }
 
 func (repo *Repo) resolveCloneURL() (string, error) {
@@ -221,6 +227,7 @@ func (repo *Repo) resolveCloneURL() (string, error) {
 		if err != nil {
 			return "", errors.New(err)
 		}
+
 		return currentDir, nil
 	}
 
@@ -233,6 +240,7 @@ func (repo *Repo) handleLocalDir(repoPath string) error {
 		if err != nil {
 			return errors.New(err)
 		}
+
 		repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		repo.path = absRepoPath
 
@@ -255,6 +263,7 @@ func (repo *Repo) prepareCloneDirectory(opts *CloneOptions) error {
 	// Clean up incomplete clones
 	if repo.shouldCleanupIncompleteClone() {
 		repo.logger.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
+
 		if err := os.RemoveAll(repo.path); err != nil {
 			return errors.New(err)
 		}
@@ -273,10 +282,14 @@ func (repo *Repo) extractRepoName() string {
 }
 
 func (repo *Repo) shouldCleanupIncompleteClone() bool {
-	return files.FileExists(repo.path) && !files.FileExists(filepath.Join(repo.path, cloneCompleteSentinel))
+	return files.FileExists(repo.path) && !repo.cloneCompleted()
 }
 
-func (repo *Repo) performClone(opts *CloneOptions) error {
+func (repo *Repo) cloneCompleted() bool {
+	return files.FileExists(filepath.Join(repo.path, cloneCompleteSentinel))
+}
+
+func (repo *Repo) performClone(ctx context.Context, opts *CloneOptions) error {
 	if repo.useCAS {
 		c, err := cas.New(opts.SourceURL, cas.Options{
 			Dir:              repo.path,
@@ -286,7 +299,7 @@ func (repo *Repo) performClone(opts *CloneOptions) error {
 			return err
 		}
 
-		if err := c.Clone(); err != nil {
+		if err := c.Clone(ctx); err != nil {
 			return err
 		}
 
@@ -315,7 +328,8 @@ func (repo *Repo) performClone(opts *CloneOptions) error {
 	if err := getter.Get(
 		repo.path,
 		strings.Trim(sourceURL.String(), "/"),
-		getter.WithContext(opts.Context),
+		// TODO: Resolve this context issue
+		getter.WithContext(opts.Context), //nolint:contextcheck
 		getter.WithMode(getter.ClientModeDir),
 	); err != nil {
 		return err

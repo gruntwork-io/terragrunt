@@ -6,6 +6,7 @@
 package cas
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -73,7 +74,7 @@ func New(url string, opts Options) (*CAS, error) {
 }
 
 // Clone performs the clone operation
-func (c *CAS) Clone() error {
+func (c *CAS) Clone(ctx context.Context) error {
 	c.cloneLock.Lock()
 	defer c.cloneLock.Unlock()
 
@@ -118,7 +119,7 @@ func (c *CAS) Clone() error {
 		return err
 	}
 
-	if err := tree.LinkTree(c.store, targetDir); err != nil {
+	if err := tree.LinkTree(ctx, c.store, targetDir); err != nil {
 		return err
 	}
 
