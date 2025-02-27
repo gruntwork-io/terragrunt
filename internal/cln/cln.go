@@ -66,39 +66,12 @@ func New(url string, opts Options) (*Cln, error) {
 		return nil, err
 	}
 
-	url = adjustFromGoGetterURL(url)
-
 	return &Cln{
 		store: store,
 		git:   NewGitRunner(),
 		opts:  opts,
 		url:   url,
 	}, nil
-}
-
-// adjustFromGoGetterURL strips the go-getter prefixes from the URL
-// That's passed in.
-//
-// Long term, we should strip them before they're used in this package.
-func adjustFromGoGetterURL(url string) string {
-	// Strip the cln:// prefix if present - this is just a marker for using CLN
-	url = strings.TrimPrefix(url, "cln://")
-
-	// Then strip the git:: prefix if present
-	url = strings.TrimPrefix(url, "git::")
-
-	// Also strip any ssh:// prefix as git handles SSH URLs without it
-	url = strings.TrimPrefix(url, "ssh://")
-
-	// Convert github.com/org/repo to github.com:org/repo format for SSH URLs
-	if strings.HasPrefix(url, "git@") {
-		parts := strings.SplitN(url, "/", repoPartsSplitLimit)
-		if len(parts) == repoPartsSplitLimit {
-			url = parts[0] + ":" + parts[1]
-		}
-	}
-
-	return url
 }
 
 // Clone performs the clone operation
