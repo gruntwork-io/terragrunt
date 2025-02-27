@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 func BenchmarkClone(b *testing.B) {
 	// Use a small, public repository for consistent results
 	repo := "https://github.com/gruntwork-io/terragrunt.git"
+
+	l := log.New()
 
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
@@ -32,7 +35,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := cas.Clone(context.TODO()); err != nil {
+			if err := cas.Clone(context.TODO(), &l); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -50,7 +53,7 @@ func BenchmarkClone(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := c.Clone(context.TODO()); err != nil {
+		if err := c.Clone(context.TODO(), &l); err != nil {
 			b.Fatal(err)
 		}
 
@@ -66,7 +69,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(context.TODO()); err != nil {
+			if err := c.Clone(context.TODO(), &l); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -81,10 +84,12 @@ func BenchmarkContent(b *testing.B) {
 	// Prepare test data
 	testData := []byte("test content for benchmarking")
 
+	l := log.New()
+
 	b.Run("store", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			hash := fmt.Sprintf("benchmark%d", i)
-			if err := content.Store(hash, testData); err != nil {
+			if err := content.Store(&l, hash, testData); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -97,7 +102,7 @@ func BenchmarkContent(b *testing.B) {
 				hash := fmt.Sprintf("benchmark%d_%d", i, j)
 				items[hash] = testData
 			}
-			if err := content.StoreBatch(items); err != nil {
+			if err := content.StoreBatch(&l, items); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -120,7 +125,7 @@ func BenchmarkContent(b *testing.B) {
 				seen[hash] = true
 				mu.Unlock()
 
-				if err := content.Store(hash, testData); err != nil {
+				if err := content.Store(&l, hash, testData); err != nil {
 					b.Fatal(err)
 				}
 				i++

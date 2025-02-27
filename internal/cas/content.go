@@ -2,10 +2,11 @@ package cas
 
 import (
 	"bufio"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Content manages git object storage and linking
@@ -101,7 +102,7 @@ func (c *Content) ensureTargetDirectory(targetPath string) error {
 }
 
 // Store stores a single content item
-func (c *Content) Store(hash string, data []byte) error {
+func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	c.store.mapLock.Lock()
 
 	if _, ok := c.store.locks[hash]; !ok {
@@ -141,7 +142,7 @@ func (c *Content) Store(hash string, data []byte) error {
 		f.Close()
 
 		if err := os.Remove(tempPath); err != nil {
-			log.Printf("failed to remove temp file %s: %v", tempPath, err)
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("write_to_store", tempPath, err)
@@ -151,7 +152,7 @@ func (c *Content) Store(hash string, data []byte) error {
 		f.Close()
 
 		if err := os.Remove(tempPath); err != nil {
-			log.Printf("failed to remove temp file %s: %v", tempPath, err)
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("flush_buffer", tempPath, err)
@@ -159,7 +160,7 @@ func (c *Content) Store(hash string, data []byte) error {
 
 	if err := f.Close(); err != nil {
 		if err := os.Remove(tempPath); err != nil {
-			log.Printf("failed to remove temp file %s: %v", tempPath, err)
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("close_file", tempPath, err)
@@ -168,7 +169,7 @@ func (c *Content) Store(hash string, data []byte) error {
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
 		if err := os.Remove(tempPath); err != nil {
-			log.Printf("failed to remove temp file %s: %v", tempPath, err)
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("finalize_store", path, err)
@@ -178,7 +179,7 @@ func (c *Content) Store(hash string, data []byte) error {
 }
 
 // StoreBatch stores multiple content items efficiently using parallel writes
-func (c *Content) StoreBatch(items map[string][]byte) error {
+func (c *Content) StoreBatch(l *log.Logger, items map[string][]byte) error {
 	var wg sync.WaitGroup
 
 	errChan := make(chan error, len(items))
@@ -189,7 +190,7 @@ func (c *Content) StoreBatch(items map[string][]byte) error {
 		go func(h string, d []byte) {
 			defer wg.Done()
 
-			if err := c.Store(h, d); err != nil {
+			if err := c.Store(l, h, d); err != nil {
 				errChan <- err
 			}
 		}(hash, data)
