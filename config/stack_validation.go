@@ -38,107 +38,77 @@ func ValidateStackConfig(config *StackConfigFile) error {
 
 // validateUnits validates all units in the configuration
 func validateUnits(units []*Unit) error {
-	if len(units) == 0 {
-		return nil
-	}
-
-	validationErrors := &errors.MultiError{}
-
-	// Pre-allocate maps with known capacity to avoid resizing
-	names := make(map[string]bool, len(units))
-	paths := make(map[string]bool, len(units))
-
-	for i, unit := range units {
-		if unit == nil {
-			validationErrors = validationErrors.Append(errors.Errorf("unit at index %d is nil", i))
-			continue
-		}
-
-		name := strings.TrimSpace(unit.Name)
-		path := strings.TrimSpace(unit.Path)
-		source := strings.TrimSpace(unit.Source)
-
-		// Validate name
-		if name == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("unit at index %d has empty name", i))
-		}
-
-		// Validate source
-		if source == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("unit '%s' has empty source", unit.Name))
-		}
-
-		// Validate path
-		if path == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("unit '%s' has empty path", unit.Name))
-		}
-
-		// Check for duplicates
-		if names[name] {
-			validationErrors = validationErrors.Append(errors.Errorf("duplicate unit name found: '%s'", unit.Name))
-		}
-
-		if paths[path] {
-			validationErrors = validationErrors.Append(errors.Errorf("duplicate unit path found: '%s'", unit.Path))
-		}
-
-		// Save non-empty values for uniqueness check
-		if name != "" {
-			names[name] = true
-		}
-
-		if path != "" {
-			paths[path] = true
-		}
-	}
-
-	return validationErrors.ErrorOrNil()
+	return validateConfigElementsGeneric(units, "unit", func(element interface{}, i int) (string, string, string) {
+		unit := element.(*Unit)
+		return unit.Name, unit.Path, unit.Source
+	})
 }
 
 // validateStacks validates all stacks in the configuration
 func validateStacks(stacks []*Stack) error {
-	if len(stacks) == 0 {
-		return nil
-	}
+	return validateConfigElementsGeneric(stacks, "stack", func(element interface{}, i int) (string, string, string) {
+		stack := element.(*Stack)
+		return stack.Name, stack.Path, stack.Source
+	})
+}
 
+// validateConfigElementsGeneric is a generic function to validate configuration elements
+// It takes a slice of elements, the element type name, and a function to extract name, path, and source from an element
+func validateConfigElementsGeneric(elements interface{}, elementType string, getValues func(element interface{}, index int) (name, path, source string)) error {
 	validationErrors := &errors.MultiError{}
 
-	// Pre-allocate maps with known capacity to avoid resizing
-	names := make(map[string]bool, len(stacks))
-	paths := make(map[string]bool, len(stacks))
+	var slice []interface{}
 
-	for i, stack := range stacks {
-		if stack == nil {
-			validationErrors = validationErrors.Append(errors.Errorf("stack at index %d is nil", i))
+	// Convert the slice to a slice of interface{}
+	switch v := elements.(type) {
+	case []*Unit:
+		slice = make([]interface{}, len(v))
+		for i, unit := range v {
+			slice[i] = unit
+		}
+	case []*Stack:
+		slice = make([]interface{}, len(v))
+		for i, stack := range v {
+			slice[i] = stack
+		}
+	default:
+		return errors.New("unknown element type")
+	}
+
+	names := make(map[string]bool, len(slice))
+	paths := make(map[string]bool, len(slice))
+
+	for i, element := range slice {
+		if element == nil {
+			validationErrors = validationErrors.Append(errors.Errorf("%s at index %d is nil", elementType, i))
 			continue
 		}
 
-		name := strings.TrimSpace(stack.Name)
-		path := strings.TrimSpace(stack.Path)
-		source := strings.TrimSpace(stack.Source)
+		name, path, source := getValues(element, i)
+		name = strings.TrimSpace(name)
+		path = strings.TrimSpace(path)
+		source = strings.TrimSpace(source)
 
-		// Validate name
+		// Validate name, source, and path
 		if name == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("stack at index %d has empty name", i))
+			validationErrors = validationErrors.Append(errors.Errorf("%s at index %d has empty name", elementType, i))
 		}
 
-		// Validate source
 		if source == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("stack '%s' has empty source", stack.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("%s '%s' has empty source", elementType, name))
 		}
 
-		// Validate path
 		if path == "" {
-			validationErrors = validationErrors.Append(errors.Errorf("stack '%s' has empty path", stack.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("%s '%s' has empty path", elementType, name))
 		}
 
 		// Check for duplicates
 		if names[name] {
-			validationErrors = validationErrors.Append(errors.Errorf("duplicate stack name found: '%s'", stack.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate %s name found: '%s'", elementType, name))
 		}
 
 		if paths[path] {
-			validationErrors = validationErrors.Append(errors.Errorf("duplicate stack path found: '%s'", stack.Path))
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate %s path found: '%s'", elementType, path))
 		}
 
 		// Save non-empty values for uniqueness check
