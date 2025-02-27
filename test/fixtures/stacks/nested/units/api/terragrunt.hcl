@@ -1,0 +1,3 @@
+inputs = {
+  ver = values.ver
+}
