@@ -54,7 +54,7 @@ type Stack struct {
 }
 
 // GenerateStacks generates the stack files.
-func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) (error, bool) {
+func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
 	// initial files setting as stack file
 	foundFiles := []string{opts.TerragruntStackConfigPath}
@@ -72,7 +72,7 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) (error
 			processedFiles[file] = true
 
 			if err := processStackFile(ctx, opts, file); err != nil {
-				return errors.Errorf("Failed to process stack file %s %v", file, err), true
+				return errors.Errorf("Failed to process stack file %s %v", file, err)
 			}
 		}
 
@@ -83,13 +83,13 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) (error
 		newFiles, err := listStackFiles(opts, opts.WorkingDir)
 
 		if err != nil {
-			return errors.Errorf("Failed to list stack files %v", err), true
+			return errors.Errorf("Failed to list stack files %v", err)
 		}
 
 		foundFiles = newFiles
 	}
 
-	return nil, false
+	return nil
 }
 
 // StackOutput generates the output from the stack files.
