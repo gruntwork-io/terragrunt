@@ -6,16 +6,11 @@ import (
 	"sync"
 )
 
-const (
-	// storePathPerm defines the default permission (0755) for the store directory
-	// equivalent to user:rwx group:rx others:rx
-	storePathPerm = 0755
-)
-
 // Store manages the store directory and locks to prevent concurrent writes
 type Store struct {
-	path  string
-	locks map[string]*sync.Mutex
+	path    string
+	locks   map[string]*sync.Mutex
+	mapLock sync.Mutex
 }
 
 // NewStore creates a new Store instance.
