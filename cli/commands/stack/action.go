@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/config"
+
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 
@@ -15,8 +17,8 @@ import (
 )
 
 const (
-	stackDir         = ".terragrunt-stack"
 	defaultStackFile = "terragrunt.stack.hcl"
+	stackDir         = ".terragrunt-stack"
 )
 
 // RunGenerate runs the stack command.
@@ -50,7 +52,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 	}
 
 	// collect outputs
-	outputs, err := generateOutput(ctx, opts)
+	outputs, err := config.StackOutput(ctx, opts)
 	if err != nil {
 		return errors.New(err)
 	}

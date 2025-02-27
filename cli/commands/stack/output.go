@@ -2,10 +2,8 @@ package stack
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -19,43 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[string]map[string]cty.Value, error) {
-	opts.Logger.Debugf("Generating output from %s", opts.TerragruntStackConfigPath)
-	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
-	stackTargetDir := filepath.Join(opts.WorkingDir, stackDir)
-	stackFiles, err := listStackFiles(opts, stackTargetDir)
-	if err != nil {
-		return nil, errors.Errorf("Failed to list stack files in %s %v", stackTargetDir, err)
-	}
-	unitOutputs := make(map[string]map[string]cty.Value)
-
-	// add default stack file
-	stackFiles = append(stackFiles, opts.TerragruntStackConfigPath)
-
-	for _, path := range stackFiles {
-		stackFile, err := config.ReadStackConfigFile(ctx, opts, path)
-
-		if err != nil {
-			return nil, errors.New(err)
-		}
-
-		// process each unit and get outputs
-		for _, unit := range stackFile.Units {
-			opts.Logger.Debugf("Processing unit %s", unit.Name)
-			dir := filepath.Dir(path)
-			unitDir := filepath.Join(dir, stackDir, unit.Path)
-			output, err := unit.ReadOutputs(ctx, opts, unitDir)
-
-			if err != nil {
-				return nil, errors.New(err)
-			}
-
-			unitOutputs[unit.Name] = output
-		}
-	}
-
-	return unitOutputs, nil
-}
 func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
 	if len(outputIndex) == 0 {
 		// output index is required in raw mode
