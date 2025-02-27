@@ -47,7 +47,12 @@ func TestStore_HasContent(t *testing.T) {
 
 	// Create a fake content file
 	testHash := "abcdef123456"
-	testPath := filepath.Join(store.Path(), testHash)
+	// Create partition directory
+	partitionDir := filepath.Join(store.Path(), testHash[:2])
+	err = os.MkdirAll(partitionDir, 0755)
+	require.NoError(t, err, "Failed to create partition directory")
+
+	testPath := filepath.Join(partitionDir, testHash)
 	err = os.WriteFile(testPath, []byte("test"), 0644)
 	require.NoError(t, err, "Failed to create test file")
 

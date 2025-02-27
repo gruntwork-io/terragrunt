@@ -34,7 +34,7 @@ func (c *Content) Link(hash, targetPath string) error {
 		return err
 	}
 
-	sourcePath := filepath.Join(c.store.Path(), hash)
+	sourcePath := c.getPath(hash)
 
 	// Check if target exists
 	if _, err := os.Stat(targetPath); err == nil {
@@ -112,7 +112,13 @@ func (c *Content) Store(hash string, data []byte) error {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
 
-	path := filepath.Join(c.store.Path(), hash)
+	// Ensure partition directory exists
+	partitionDir := c.getPartition(hash)
+	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+	}
+
+	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 
 	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
@@ -174,7 +180,13 @@ func (c *Content) StoreBatch(items map[string][]byte) error {
 			continue
 		}
 
-		path := filepath.Join(c.store.Path(), hash)
+		// Ensure partition directory exists
+		partitionDir := c.getPartition(hash)
+		if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+			return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+		}
+
+		path := c.getPath(hash)
 
 		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
 		if err != nil {
@@ -202,6 +214,16 @@ func (c *Content) StoreBatch(items map[string][]byte) error {
 
 // Read retrieves content from the store by hash
 func (c *Content) Read(hash string) ([]byte, error) {
-	path := filepath.Join(c.store.Path(), hash)
+	path := c.getPath(hash)
 	return os.ReadFile(path)
+}
+
+// getPartition returns the partition path for a given hash
+func (c *Content) getPartition(hash string) string {
+	return filepath.Join(c.store.Path(), hash[:2])
+}
+
+// getPath returns the full path for a given hash
+func (c *Content) getPath(hash string) string {
+	return filepath.Join(c.getPartition(hash), hash)
 }

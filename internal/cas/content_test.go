@@ -28,7 +28,8 @@ func TestContent_Store(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify content was stored
-		storedPath := filepath.Join(store.Path(), testHash)
+		partitionDir := filepath.Join(store.Path(), testHash[:2])
+		storedPath := filepath.Join(partitionDir, testHash)
 		storedData, err := os.ReadFile(storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
@@ -50,7 +51,8 @@ func TestContent_Store(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify original content remains
-		storedPath := filepath.Join(store.Path(), testHash)
+		partitionDir := filepath.Join(store.Path(), testHash[:2])
+		storedPath := filepath.Join(partitionDir, testHash)
 		storedData, err := os.ReadFile(storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
@@ -86,7 +88,8 @@ func TestContent_Link(t *testing.T) {
 		assert.Equal(t, testData, linkedData)
 
 		// Verify it's a hard link by checking inode numbers
-		sourceInfo, err := os.Stat(filepath.Join(store.Path(), testHash))
+		partitionDir := filepath.Join(store.Path(), testHash[:2])
+		sourceInfo, err := os.Stat(filepath.Join(partitionDir, testHash))
 		require.NoError(t, err)
 		targetInfo, err := os.Stat(targetPath)
 		require.NoError(t, err)
