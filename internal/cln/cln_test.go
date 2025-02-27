@@ -63,4 +63,31 @@ func TestCln_Clone(t *testing.T) {
 		_, err = os.Stat(filepath.Join(targetPath, "README.md"))
 		assert.NoError(t, err)
 	})
+
+	t.Run("clone with included git files", func(t *testing.T) {
+		t.Parallel()
+		tempDir := t.TempDir()
+		storePath := filepath.Join(tempDir, "store")
+		targetPath := filepath.Join(tempDir, "repo")
+
+		cln, err := cln.New(
+			"https://github.com/gruntwork-io/terragrunt.git",
+			cln.Options{
+				Dir:              targetPath,
+				IncludedGitFiles: []string{"HEAD", "config"},
+				StorePath:        storePath,
+			},
+		)
+		require.NoError(t, err)
+
+		err = cln.Clone()
+		require.NoError(t, err)
+
+		// Verify repository was cloned
+		_, err = os.Stat(filepath.Join(targetPath, ".git", "HEAD"))
+		assert.NoError(t, err)
+
+		_, err = os.Stat(filepath.Join(targetPath, ".git", "config"))
+		assert.NoError(t, err)
+	})
 }

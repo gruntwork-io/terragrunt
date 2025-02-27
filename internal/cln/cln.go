@@ -5,6 +5,8 @@
 package cln
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -32,6 +34,10 @@ type Options struct {
 	// StorePath specifies a custom path for the content store
 	// If empty, uses $HOME/.cache/terragrunt/cln-store
 	StorePath string
+
+	// IncludedGitFiles specifies the files to preserve from the .git directory
+	// If empty, does not preserve any files
+	IncludedGitFiles []string
 }
 
 // Cln clones a git repository using content-addressable storage.
@@ -60,15 +66,7 @@ func New(url string, opts Options) (*Cln, error) {
 		return nil, err
 	}
 
-	url = stripGoGetterPrefixes(url)
-
-	// Convert github.com/org/repo to github.com:org/repo format for SSH URLs
-	if strings.HasPrefix(url, "git@") {
-		parts := strings.SplitN(url, "/", repoPartsSplitLimit)
-		if len(parts) == repoPartsSplitLimit {
-			url = parts[0] + ":" + parts[1]
-		}
-	}
+	url = adjustFromGoGetterURL(url)
 
 	return &Cln{
 		store: store,
@@ -78,7 +76,11 @@ func New(url string, opts Options) (*Cln, error) {
 	}, nil
 }
 
-func stripGoGetterPrefixes(url string) string {
+// adjustFromGoGetterURL strips the go-getter prefixes from the URL
+// That's passed in.
+//
+// Long term, we should strip them before they're used in this package.
+func adjustFromGoGetterURL(url string) string {
 	// Strip the cln:// prefix if present - this is just a marker for using CLN
 	url = strings.TrimPrefix(url, "cln://")
 
@@ -87,6 +89,14 @@ func stripGoGetterPrefixes(url string) string {
 
 	// Also strip any ssh:// prefix as git handles SSH URLs without it
 	url = strings.TrimPrefix(url, "ssh://")
+
+	// Convert github.com/org/repo to github.com:org/repo format for SSH URLs
+	if strings.HasPrefix(url, "git@") {
+		parts := strings.SplitN(url, "/", repoPartsSplitLimit)
+		if len(parts) == repoPartsSplitLimit {
+			url = parts[0] + ":" + parts[1]
+		}
+	}
 
 	return url
 }
@@ -106,6 +116,7 @@ func (c *Cln) Clone() error {
 
 	defer func() {
 		if cleanupErr := cleanup(); cleanupErr != nil {
+			// TODO: Move to proper logger
 			log.Printf("cleanup error: %v", cleanupErr)
 		}
 	}()
@@ -190,10 +201,6 @@ func (c *Cln) storeTreeRecursively(hash, prefix string) error {
 		fmt.Fprintf(&treeData, "%s %s %s %s\n", entry.Mode, entry.Type, entry.Hash, entry.Path)
 	}
 
-	if err := content.Store(hash, []byte(treeData.String())); err != nil {
-		return err
-	}
-
 	var (
 		subTrees    []TreeEntry
 		blobEntries []TreeEntry
@@ -204,9 +211,10 @@ func (c *Cln) storeTreeRecursively(hash, prefix string) error {
 			entry.Path = filepath.Join(prefix, entry.Path)
 		}
 
-		if entry.Type == "blob" {
+		switch entry.Type {
+		case "blob":
 			blobEntries = append(blobEntries, entry)
-		} else if entry.Type == "tree" {
+		case "tree":
 			subTrees = append(subTrees, entry)
 		}
 	}
@@ -219,6 +227,46 @@ func (c *Cln) storeTreeRecursively(hash, prefix string) error {
 		if err := c.storeTreeRecursively(subTree.Hash, subTree.Path); err != nil {
 			return err
 		}
+	}
+
+	// We only do this if we're at the root of the repository.
+	if prefix == "" {
+		for _, file := range c.opts.IncludedGitFiles {
+			stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
+			if err != nil {
+				return err
+			}
+
+			if stat.IsDir() {
+				continue
+			}
+
+			workDirPath := filepath.Join(c.git.WorkDir, file)
+
+			data, err := os.ReadFile(workDirPath)
+			if err != nil {
+				return err
+			}
+
+			hash, err := hashFile(workDirPath)
+			if err != nil {
+				return err
+			}
+
+			content := NewContent(c.store)
+
+			if err := content.Store(hash, data); err != nil {
+				return err
+			}
+
+			path := filepath.Join(".git", file)
+
+			fmt.Fprintf(&treeData, "%s %s %s %s\n", stat.Mode(), "blob", hash, path)
+		}
+	}
+
+	if err := content.Store(hash, []byte(treeData.String())); err != nil {
+		return err
 	}
 
 	return nil
@@ -278,4 +326,15 @@ func (c *Cln) storeBlobEntries(entries []TreeEntry) error {
 	}
 
 	return nil
+}
+
+func hashFile(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha1.Sum(data)
+
+	return hex.EncodeToString(hash[:]), nil
 }
