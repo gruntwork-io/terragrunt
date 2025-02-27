@@ -125,11 +125,12 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 			}
 
 			entryPath := filepath.Join(targetDir, entry.Path)
-			if err := os.MkdirAll(filepath.Dir(entryPath), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(entryPath), dirPermissions); err != nil {
 				errMu.Lock()
 				errs = append(errs, wrapError("mkdir_all", entryPath, err))
 				errMu.Unlock()
 				cancel()
+
 				return
 			}
 
@@ -142,6 +143,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					errs = append(errs, wrapError("link_blob", entryPath, err))
 					errMu.Unlock()
 					cancel()
+
 					return
 				}
 			case "tree":
@@ -151,6 +153,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					errs = append(errs, wrapError("read_tree", entry.Hash, err))
 					errMu.Unlock()
 					cancel()
+
 					return
 				}
 
@@ -160,6 +163,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					errs = append(errs, wrapError("parse_tree", entry.Hash, err))
 					errMu.Unlock()
 					cancel()
+
 					return
 				}
 
@@ -170,6 +174,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					errs = append(errs, wrapError("link_subtree", subTargetDir, err))
 					errMu.Unlock()
 					cancel()
+
 					return
 				}
 			}
@@ -179,7 +184,6 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 	wg.Wait()
 
 	if len(errs) > 0 {
-
 		return errors.Join(errs...)
 	}
 

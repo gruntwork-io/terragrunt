@@ -1,6 +1,7 @@
 package cas_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +29,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, cas1.Clone())
+		require.NoError(t, cas1.Clone(context.TODO()))
 
 		// Get info about first clone
 		firstReadme := filepath.Join(firstClonePath, "README.md")
@@ -45,7 +46,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, cas2.Clone())
+		require.NoError(t, cas2.Clone(context.TODO()))
 
 		// Get info about second clone
 		secondReadme := filepath.Join(secondClonePath, "README.md")
@@ -74,7 +75,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = c.Clone()
+		err = c.Clone(context.TODO())
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -94,7 +95,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = c.Clone()
+		err = c.Clone(context.TODO())
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -119,7 +120,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, c.Clone())
+		require.NoError(t, c.Clone(context.TODO()))
 
 		// Get the commit hash
 		git := cas.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
