@@ -103,7 +103,7 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger) error {
 	}
 
 	if !c.store.HasContent(hash) {
-		if err := c.cloneAndStoreContent(ctx, l, hash); err != nil {
+		if err := c.cloneAndStoreContent(l, hash); err != nil {
 			return err
 		}
 	}
@@ -153,7 +153,7 @@ func (c *CAS) resolveReference() (string, error) {
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, hash string) error {
+func (c *CAS) cloneAndStoreContent(l *log.Logger, hash string) error {
 	if err := c.git.Clone(c.url, true, 1, c.opts.Branch); err != nil {
 		return err
 	}
