@@ -23,12 +23,13 @@ import (
 )
 
 const (
-	stackDir         = ".terragrunt-stack"
-	unitValuesFile   = "terragrunt.values.hcl"
-	manifestName     = ".terragrunt-stack-manifest"
-	defaultStackFile = "terragrunt.stack.hcl"
-	unitDirPerm      = 0755
-	valueFilePerm    = 0644
+	stackDir           = ".terragrunt-stack"
+	unitValuesFile     = "terragrunt.values.hcl"
+	manifestName       = ".terragrunt-stack-manifest"
+	defaultStackFile   = "terragrunt.stack.hcl"
+	unitDirPerm        = 0755
+	valueFilePerm      = 0644
+	generationMaxDepth = 100
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -500,10 +501,25 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 
 	// find all defaultStackFile files
 	if err := walkFunc(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			opts.Logger.Warnf("Error accessing path %s: %v", path, err)
+			return nil
+		}
 
 		if info.IsDir() {
 			return nil
 		}
+
+		relPath, _ := filepath.Rel(dir, path)
+		depth := len(strings.Split(relPath, string(os.PathSeparator)))
+		if depth > generationMaxDepth {
+			opts.Logger.Warnf("Skipping path %s: max depth of %d exceeded", path, generationMaxDepth)
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
 		if strings.HasSuffix(path, defaultStackFile) {
 			opts.Logger.Debugf("Found stack file %s", path)
 			stackFiles = append(stackFiles, path)
