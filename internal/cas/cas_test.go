@@ -1,16 +1,16 @@
-package cln_test
+package cas_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cln"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCln_Clone(t *testing.T) {
+func TestCAS_Clone(t *testing.T) {
 	t.Parallel()
 
 	t.Run("clone new repository", func(t *testing.T) {
@@ -19,16 +19,16 @@ func TestCln_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		cln, err := cln.New(
+		cas, err := cas.New(
 			"https://github.com/gruntwork-io/terragrunt.git",
-			cln.Options{
+			cas.Options{
 				Dir:       targetPath,
 				StorePath: storePath,
 			},
 		)
 		require.NoError(t, err)
 
-		err = cln.Clone()
+		err = cas.Clone()
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -46,9 +46,9 @@ func TestCln_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		cln, err := cln.New(
+		cas, err := cas.New(
 			"https://github.com/gruntwork-io/terragrunt.git",
-			cln.Options{
+			cas.Options{
 				Dir:       targetPath,
 				Branch:    "main",
 				StorePath: storePath,
@@ -56,7 +56,7 @@ func TestCln_Clone(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = cln.Clone()
+		err = cas.Clone()
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -70,9 +70,9 @@ func TestCln_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		cln, err := cln.New(
+		cas, err := cas.New(
 			"https://github.com/gruntwork-io/terragrunt.git",
-			cln.Options{
+			cas.Options{
 				Dir:              targetPath,
 				IncludedGitFiles: []string{"HEAD", "config"},
 				StorePath:        storePath,
@@ -80,7 +80,7 @@ func TestCln_Clone(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = cln.Clone()
+		err = cas.Clone()
 		require.NoError(t, err)
 
 		// Verify repository was cloned
