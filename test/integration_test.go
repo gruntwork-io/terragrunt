@@ -3809,25 +3809,41 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	testCases := []struct {
+		args string
+	}{
+		{"run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test --terragrunt-json-out-dir json"},
+		{"run --all plan --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
+		{"run plan --all --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
+		{"run --all --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json -- plan"},
+	}
 
-	// run plan with output directory
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test --terragrunt-json-out-dir json", testPath))
-	require.NoError(t, err)
+	for _, testCase := range testCases {
+		t.Run("terragrunt args: "+testCase.args, func(t *testing.T) {
+			t.Parallel()
 
-	// verify that tfplan files are created in the tmpDir, 2 files
-	outDir := util.JoinPath(testPath, "test")
-	list, err := findFilesWithExtension(outDir, ".tfplan")
-	require.NoError(t, err)
-	assert.Len(t, list, 2)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
+			helpers.CleanupTerraformFolder(t, tmpEnvPath)
+			testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
-	// verify that json files are create
-	jsonDir := util.JoinPath(testPath, "json")
-	listJSON, err := findFilesWithExtension(jsonDir, ".json")
-	require.NoError(t, err)
-	assert.Len(t, listJSON, 2)
+			// run plan with output directory
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+testCase.args, testPath))
+			require.NoError(t, err)
+
+			// verify that tfplan files are created in the tmpDir, 2 files
+			outDir := util.JoinPath(testPath, "test")
+			list, err := findFilesWithExtension(outDir, ".tfplan")
+			require.NoError(t, err)
+			assert.Len(t, list, 2)
+
+			// verify that json files are create
+			jsonDir := util.JoinPath(testPath, "json")
+			listJSON, err := findFilesWithExtension(jsonDir, ".json")
+			require.NoError(t, err)
+			assert.Len(t, listJSON, 2)
+
+		})
+	}
 }
 
 func TestPlanJsonFilesRunAll(t *testing.T) {
