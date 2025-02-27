@@ -1,6 +1,7 @@
 package cas_test
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -31,7 +32,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := cas.Clone(); err != nil {
+			if err := cas.Clone(context.TODO()); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -49,7 +50,7 @@ func BenchmarkClone(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := c.Clone(); err != nil {
+		if err := c.Clone(context.TODO()); err != nil {
 			b.Fatal(err)
 		}
 
@@ -65,7 +66,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(); err != nil {
+			if err := c.Clone(context.TODO()); err != nil {
 				b.Fatal(err)
 			}
 		}
