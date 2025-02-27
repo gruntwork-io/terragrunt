@@ -45,6 +45,16 @@ func (methods ProviderInstallationMethods) Merge(withMethods ...ProviderInstalla
 	return mergedMethods
 }
 
+func (methods ProviderInstallationMethods) Clone() ProviderInstallationMethods {
+	var cloned = make(ProviderInstallationMethods, len(methods))
+
+	for i, method := range methods {
+		cloned[i] = method.Clone()
+	}
+
+	return cloned
+}
+
 // ProviderInstallationMethod is an interface type representing the different installation path types and represents an installation method block inside a provider_installation block. The concrete implementations of this interface are:
 //
 //	ProviderInstallationDirect:           install from the provider's origin registry
@@ -56,6 +66,7 @@ type ProviderInstallationMethod interface {
 	RemoveInclude(addrs []string)
 	RemoveExclude(addrs []string)
 	Merge(with ProviderInstallationMethod) bool
+	Clone() ProviderInstallationMethod
 }
 
 type ProviderInstallationDirect struct {
@@ -78,6 +89,24 @@ func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallat
 	}
 
 	return res
+}
+
+func (method *ProviderInstallationDirect) Clone() ProviderInstallationMethod {
+	cloned := &ProviderInstallationDirect{
+		Name: method.Name,
+	}
+
+	if method.Include != nil {
+		include := *method.Include
+		cloned.Include = &include
+	}
+
+	if method.Exclude != nil {
+		exclude := *method.Exclude
+		cloned.Exclude = &exclude
+	}
+
+	return cloned
 }
 
 func (method *ProviderInstallationDirect) Merge(with ProviderInstallationMethod) bool {
@@ -174,6 +203,25 @@ func NewProviderInstallationFilesystemMirror(path string, include, exclude []str
 	return res
 }
 
+func (method *ProviderInstallationFilesystemMirror) Clone() ProviderInstallationMethod {
+	cloned := &ProviderInstallationFilesystemMirror{
+		Name: method.Name,
+		Path: method.Path,
+	}
+
+	if method.Include != nil {
+		include := *method.Include
+		cloned.Include = &include
+	}
+
+	if method.Exclude != nil {
+		exclude := *method.Exclude
+		cloned.Exclude = &exclude
+	}
+
+	return cloned
+}
+
 func (method *ProviderInstallationFilesystemMirror) Merge(with ProviderInstallationMethod) bool {
 	if with, ok := with.(*ProviderInstallationFilesystemMirror); ok && method.Path == with.Path {
 		if with.Exclude != nil {
@@ -266,6 +314,25 @@ func NewProviderInstallationNetworkMirror(url string, include, exclude []string)
 	}
 
 	return res
+}
+
+func (method *ProviderInstallationNetworkMirror) Clone() ProviderInstallationMethod {
+	cloned := &ProviderInstallationNetworkMirror{
+		Name: method.Name,
+		URL:  method.URL,
+	}
+
+	if method.Include != nil {
+		include := *method.Include
+		cloned.Include = &include
+	}
+
+	if method.Exclude != nil {
+		exclude := *method.Exclude
+		cloned.Exclude = &exclude
+	}
+
+	return cloned
 }
 
 func (method *ProviderInstallationNetworkMirror) Merge(with ProviderInstallationMethod) bool {

@@ -48,7 +48,7 @@ func TestProviderCache(t *testing.T) {
 	providerCacheDir := t.TempDir()
 	pluginCacheDir := t.TempDir()
 
-	opts := []cache.Option{cache.WithToken(token)}
+	opts := []cache.Option{cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(cli.CacheProviderHTTPStatusCode)}
 
 	testCases := []struct {
 		opts               []cache.Option
@@ -112,11 +112,17 @@ func TestProviderCache(t *testing.T) {
 			defer cancel()
 
 			errGroup, ctx := errgroup.WithContext(ctx)
+			logger := log.New()
 
-			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, log.New())
-			providerHandler := handlers.NewProviderDirectHandler(providerService, cli.CacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect), nil)
+			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, logger)
+			providerHandler := handlers.NewDirectProviderHandler(logger, new(cliconfig.ProviderInstallationDirect), nil)
+			proxyProviderHandler := handlers.NewProxyProviderHandler(logger, nil)
 
-			testCase.opts = append(testCase.opts, cache.WithServices(providerService), cache.WithProviderHandlers(providerHandler))
+			testCase.opts = append(testCase.opts,
+				cache.WithProviderService(providerService),
+				cache.WithProviderHandlers(providerHandler),
+				cache.WithProxyProviderHandler(proxyProviderHandler),
+			)
 
 			server := cache.NewServer(testCase.opts...)
 			ln, err := server.Listen()
