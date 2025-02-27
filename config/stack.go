@@ -58,28 +58,37 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) (error
 	processedFiles := make(map[string]bool)
 	// initial files setting as stack file
 	foundFiles := []string{opts.TerragruntStackConfigPath}
+
 	for {
 		// check if we have already processed the files
 		processedNewFiles := false
+
 		for _, file := range foundFiles {
 			if processedFiles[file] {
 				continue
 			}
+
 			processedNewFiles = true
 			processedFiles[file] = true
+
 			if err := processStackFile(ctx, opts, file); err != nil {
 				return errors.Errorf("Failed to process stack file %s %v", file, err), true
 			}
 		}
+
 		if !processedNewFiles {
 			break
 		}
+
 		newFiles, err := listStackFiles(opts, opts.WorkingDir)
+
 		if err != nil {
 			return errors.Errorf("Failed to list stack files %v", err), true
 		}
+
 		foundFiles = newFiles
 	}
+
 	return nil, false
 }
 
@@ -89,9 +98,11 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	stackTargetDir := filepath.Join(opts.WorkingDir, stackDir)
 	stackFiles, err := listStackFiles(opts, stackTargetDir)
+
 	if err != nil {
 		return nil, errors.Errorf("Failed to list stack files in %s %v", stackTargetDir, err)
 	}
+
 	unitOutputs := make(map[string]map[string]cty.Value)
 
 	// add default stack file
@@ -107,6 +118,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 		// process each unit and get outputs
 		for _, unit := range stackFile.Units {
 			opts.Logger.Debugf("Processing unit %s", unit.Name)
+
 			dir := filepath.Dir(path)
 			unitDir := filepath.Join(dir, stackDir, unit.Path)
 			output, err := unit.ReadOutputs(ctx, opts, unitDir)
@@ -126,10 +138,13 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 	stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath)
+
 	if err != nil {
 		return errors.Errorf("Failed to read stack file %s in %s %v", stackFilePath, stackSourceDir, err)
 	}
+
 	stackTargetDir := filepath.Join(stackSourceDir, stackDir)
+
 	if err := os.MkdirAll(stackTargetDir, os.ModePerm); err != nil {
 		return errors.Errorf("failed to create base directory: %s %v", stackTargetDir, err)
 	}
@@ -205,11 +220,13 @@ func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier,
 	if isLocal(opts, sourceDir, src) {
 		// check if src is absolute path, if not, join with sourceDir
 		var localSrc string
+
 		if filepath.IsAbs(src) {
 			localSrc = src
 		} else {
 			localSrc = filepath.Join(sourceDir, src)
 		}
+
 		localSrc, err := filepath.Abs(localSrc)
 
 		if err != nil {
@@ -232,6 +249,7 @@ func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier,
 			return errors.Errorf("Failed to fetch %s %v", identifier, err)
 		}
 	}
+
 	return nil
 }
 
@@ -471,12 +489,15 @@ func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file
 func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 	walkFunc := filepath.Walk
+
 	if walkWithSymlinks {
 		walkFunc = util.WalkWithSymlinks
 	}
 
 	opts.Logger.Debugf("Searching for stack files in %s", dir)
+
 	var stackFiles []string
+
 	// find all defaultStackFile files
 	if err := walkFunc(dir, func(path string, info os.FileInfo, err error) error {
 

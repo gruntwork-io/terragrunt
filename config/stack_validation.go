@@ -24,12 +24,15 @@ func ValidateStackConfig(config *StackConfigFile) error {
 	}
 
 	validationErrors := &errors.MultiError{}
+
 	if err := validateUnits(config.Units); err != nil {
-		validationErrors.Append(err)
+		validationErrors = validationErrors.Append(err)
 	}
+
 	if err := validateStacks(config.Stacks); err != nil {
-		validationErrors.Append(err)
+		validationErrors = validationErrors.Append(err)
 	}
+
 	return validationErrors.ErrorOrNil()
 }
 
@@ -38,14 +41,16 @@ func validateUnits(units []*Unit) error {
 	if len(units) == 0 {
 		return nil
 	}
+
 	validationErrors := &errors.MultiError{}
+
 	// Pre-allocate maps with known capacity to avoid resizing
 	names := make(map[string]bool, len(units))
 	paths := make(map[string]bool, len(units))
 
 	for i, unit := range units {
 		if unit == nil {
-			validationErrors.Append(errors.Errorf("unit at index %d is nil", i))
+			validationErrors = validationErrors.Append(errors.Errorf("unit at index %d is nil", i))
 			continue
 		}
 
@@ -55,26 +60,26 @@ func validateUnits(units []*Unit) error {
 
 		// Validate name
 		if name == "" {
-			validationErrors.Append(errors.Errorf("unit at index %d has empty name", i))
+			validationErrors = validationErrors.Append(errors.Errorf("unit at index %d has empty name", i))
 		}
 
 		// Validate source
 		if source == "" {
-			validationErrors.Append(errors.Errorf("unit '%s' has empty source", unit.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("unit '%s' has empty source", unit.Name))
 		}
 
 		// Validate path
 		if path == "" {
-			validationErrors.Append(errors.Errorf("unit '%s' has empty path", unit.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("unit '%s' has empty path", unit.Name))
 		}
 
 		// Check for duplicates
 		if names[name] {
-			validationErrors.Append(errors.Errorf("duplicate unit name found: '%s'", unit.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate unit name found: '%s'", unit.Name))
 		}
 
 		if paths[path] {
-			validationErrors.Append(errors.Errorf("duplicate unit path found: '%s'", unit.Path))
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate unit path found: '%s'", unit.Path))
 		}
 
 		// Save non-empty values for uniqueness check
@@ -86,6 +91,7 @@ func validateUnits(units []*Unit) error {
 			paths[path] = true
 		}
 	}
+
 	return validationErrors.ErrorOrNil()
 }
 
@@ -94,14 +100,16 @@ func validateStacks(stacks []*Stack) error {
 	if len(stacks) == 0 {
 		return nil
 	}
+
 	validationErrors := &errors.MultiError{}
+
 	// Pre-allocate maps with known capacity to avoid resizing
 	names := make(map[string]bool, len(stacks))
 	paths := make(map[string]bool, len(stacks))
 
 	for i, stack := range stacks {
 		if stack == nil {
-			validationErrors.Append(errors.Errorf("stack at index %d is nil", i))
+			validationErrors = validationErrors.Append(errors.Errorf("stack at index %d is nil", i))
 			continue
 		}
 
@@ -111,26 +119,26 @@ func validateStacks(stacks []*Stack) error {
 
 		// Validate name
 		if name == "" {
-			validationErrors.Append(errors.Errorf("stack at index %d has empty name", i))
+			validationErrors = validationErrors.Append(errors.Errorf("stack at index %d has empty name", i))
 		}
 
 		// Validate source
 		if source == "" {
-			validationErrors.Append(errors.Errorf("stack '%s' has empty source", stack.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("stack '%s' has empty source", stack.Name))
 		}
 
 		// Validate path
 		if path == "" {
-			validationErrors.Append(errors.Errorf("stack '%s' has empty path", stack.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("stack '%s' has empty path", stack.Name))
 		}
 
 		// Check for duplicates
 		if names[name] {
-			validationErrors.Append(errors.Errorf("duplicate stack name found: '%s'", stack.Name))
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate stack name found: '%s'", stack.Name))
 		}
 
 		if paths[path] {
-			validationErrors.Append(errors.Errorf("duplicate stack path found: '%s'", stack.Path))
+			validationErrors = validationErrors.Append(errors.Errorf("duplicate stack path found: '%s'", stack.Path))
 		}
 
 		// Save non-empty values for uniqueness check
@@ -142,5 +150,6 @@ func validateStacks(stacks []*Stack) error {
 			paths[path] = true
 		}
 	}
+
 	return validationErrors.ErrorOrNil()
 }
