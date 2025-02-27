@@ -1700,7 +1700,7 @@ The `stack` block supports the following arguments:
 
 - `name` (label): A unique identifier for the stack. This is used to reference the stack elsewhere in your configuration.
 - `source` (attribute): Specifies where to find the Terragrunt configuration files for this stack. This follows the same syntax as the `source` parameter in the `terraform` block.
-- `path` (attribute): The relative path where this stack should be deployed within the stack directory (`.terragrunt-stack`).
+- `path` (attribute): The relative path within `.terragrunt-stack` where this stack should be generated.If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory.
 
 Example:
 
