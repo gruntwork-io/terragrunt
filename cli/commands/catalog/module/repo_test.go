@@ -64,7 +64,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := context.Background()
 
-			repo, err := module.NewRepo(ctx, log.New(), testCase.repoPath, "", false)
+			repo, err := module.NewRepo(ctx, log.New(), testCase.repoPath, "", false, false)
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)
