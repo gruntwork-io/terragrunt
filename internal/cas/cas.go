@@ -11,11 +11,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -75,7 +76,7 @@ func New(url string, opts Options) (*CAS, error) {
 }
 
 // Clone performs the clone operation
-func (c *CAS) Clone(ctx context.Context) error {
+func (c *CAS) Clone(ctx context.Context, l *log.Logger) error {
 	c.cloneLock.Lock()
 	defer c.cloneLock.Unlock()
 
@@ -89,8 +90,7 @@ func (c *CAS) Clone(ctx context.Context) error {
 
 	defer func() {
 		if cleanupErr := cleanup(); cleanupErr != nil {
-			// TODO: Move to proper logger
-			log.Printf("cleanup error: %v", cleanupErr)
+			(*l).Warnf("cleanup error: %v", cleanupErr)
 		}
 	}()
 
@@ -103,7 +103,7 @@ func (c *CAS) Clone(ctx context.Context) error {
 	}
 
 	if !c.store.HasContent(hash) {
-		if err := c.cloneAndStoreContent(hash); err != nil {
+		if err := c.cloneAndStoreContent(ctx, l, hash); err != nil {
 			return err
 		}
 	}
@@ -153,15 +153,15 @@ func (c *CAS) resolveReference() (string, error) {
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(hash string) error {
+func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, hash string) error {
 	if err := c.git.Clone(c.url, true, 1, c.opts.Branch); err != nil {
 		return err
 	}
 
-	return c.storeTreeRecursively(hash, "")
+	return c.storeTreeRecursively(l, hash, "")
 }
 
-func (c *CAS) storeTreeRecursively(hash, prefix string) error {
+func (c *CAS) storeTreeRecursively(l *log.Logger, hash, prefix string) error {
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
@@ -192,12 +192,12 @@ func (c *CAS) storeTreeRecursively(hash, prefix string) error {
 		}
 	}
 
-	if err := c.storeBlobEntries(blobEntries); err != nil {
+	if err := c.storeBlobEntries(l, blobEntries); err != nil {
 		return err
 	}
 
 	for _, subTree := range subTrees {
-		if err := c.storeTreeRecursively(subTree.Hash, subTree.Path); err != nil {
+		if err := c.storeTreeRecursively(l, subTree.Hash, subTree.Path); err != nil {
 			return err
 		}
 	}
@@ -228,7 +228,7 @@ func (c *CAS) storeTreeRecursively(hash, prefix string) error {
 
 			content := NewContent(c.store)
 
-			if err := content.Store(hash, data); err != nil {
+			if err := content.Store(l, hash, data); err != nil {
 				return err
 			}
 
@@ -238,14 +238,14 @@ func (c *CAS) storeTreeRecursively(hash, prefix string) error {
 		}
 	}
 
-	if err := content.Store(hash, []byte(treeData.String())); err != nil {
+	if err := content.Store(l, hash, []byte(treeData.String())); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (c *CAS) storeBlobEntries(entries []TreeEntry) error {
+func (c *CAS) storeBlobEntries(l *log.Logger, entries []TreeEntry) error {
 	blobs := make(map[string][]byte)
 	errChan := make(chan error, 1)
 	semaphore := make(chan struct{}, maxConcurrentStores)
@@ -295,7 +295,7 @@ func (c *CAS) storeBlobEntries(entries []TreeEntry) error {
 	if len(blobs) > 0 {
 		content := NewContent(c.store)
 
-		return content.StoreBatch(blobs)
+		return content.StoreBatch(l, blobs)
 	}
 
 	return nil

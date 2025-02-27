@@ -7,12 +7,15 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestIntegration_CloneAndReuse(t *testing.T) {
 	t.Parallel()
+
+	l := log.New()
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
@@ -29,7 +32,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, cas1.Clone(context.TODO()))
+		require.NoError(t, cas1.Clone(context.TODO(), &l))
 
 		// Get info about first clone
 		firstReadme := filepath.Join(firstClonePath, "README.md")
@@ -46,7 +49,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, cas2.Clone(context.TODO()))
+		require.NoError(t, cas2.Clone(context.TODO(), &l))
 
 		// Get info about second clone
 		secondReadme := filepath.Join(secondClonePath, "README.md")
@@ -75,7 +78,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO())
+		err = c.Clone(context.TODO(), &l)
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -95,7 +98,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO())
+		err = c.Clone(context.TODO(), &l)
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -105,6 +108,8 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 func TestIntegration_TreeStorage(t *testing.T) {
 	t.Parallel()
+
+	l := log.New()
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()
@@ -120,7 +125,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, c.Clone(context.TODO()))
+		require.NoError(t, c.Clone(context.TODO(), &l))
 
 		// Get the commit hash
 		git := cas.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,6 +16,8 @@ const testHashValue = "abcdef123456"
 func TestContent_Store(t *testing.T) {
 	t.Parallel()
 
+	l := log.New()
+
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
 		store := cas.NewStore(t.TempDir())
@@ -23,7 +26,7 @@ func TestContent_Store(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err := content.Store(testHash, testData)
+		err := content.Store(&l, testHash, testData)
 		require.NoError(t, err)
 
 		// Verify content was stored
@@ -43,9 +46,9 @@ func TestContent_Store(t *testing.T) {
 		testData := []byte("test content")
 
 		// Store content twice
-		err := content.Store(testHash, testData)
+		err := content.Store(&l, testHash, testData)
 		require.NoError(t, err)
-		err = content.Store(testHash, []byte("different content"))
+		err = content.Store(&l, testHash, []byte("different content"))
 		require.NoError(t, err)
 
 		// Verify original content remains
@@ -60,6 +63,8 @@ func TestContent_Store(t *testing.T) {
 func TestContent_Link(t *testing.T) {
 	t.Parallel()
 
+	l := log.New()
+
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
 		storeDir := t.TempDir()
@@ -70,7 +75,7 @@ func TestContent_Link(t *testing.T) {
 		testData := []byte("test content")
 
 		// First store some content
-		err := content.Store(testHash, testData)
+		err := content.Store(&l, testHash, testData)
 		require.NoError(t, err)
 
 		// Then create a link to it
@@ -102,7 +107,7 @@ func TestContent_Link(t *testing.T) {
 		testData := []byte("test content")
 
 		// Store content
-		err := content.Store(testHash, testData)
+		err := content.Store(&l, testHash, testData)
 		require.NoError(t, err)
 
 		// Create target file

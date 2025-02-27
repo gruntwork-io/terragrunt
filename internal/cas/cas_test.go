@@ -7,11 +7,14 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCAS_Clone(t *testing.T) {
 	t.Parallel()
+
+	l := log.New()
 
 	t.Run("clone new repository", func(t *testing.T) {
 		t.Parallel()
@@ -28,7 +31,7 @@ func TestCAS_Clone(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = cas.Clone(context.TODO())
+		err = cas.Clone(context.TODO(), &l)
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -56,7 +59,7 @@ func TestCAS_Clone(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = cas.Clone(context.TODO())
+		err = cas.Clone(context.TODO(), &l)
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -80,7 +83,7 @@ func TestCAS_Clone(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		err = cas.Clone(context.TODO())
+		err = cas.Clone(context.TODO(), &l)
 		require.NoError(t, err)
 
 		// Verify repository was cloned
