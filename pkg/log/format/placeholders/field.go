@@ -10,6 +10,10 @@ const (
 	TFPathKeyName      = "tf-path"
 	TFCmdArgsKeyName   = "tf-command-args"
 	TFCmdKeyName       = "tf-command"
+
+	// Terragrunt Provider Cache Server fields.
+	CacheServerURLKeyName    = "url"
+	CacheServerStatusKeyName = "status"
 )
 
 type fieldPlaceholder struct {

@@ -96,47 +96,21 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	}
 
 	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), opts.Logger)
+	proxyProviderHandler := handlers.NewProxyProviderHandler(opts.Logger, cliCfg.CredentialsSource())
 
-	var (
-		providerHandlers = make([]handlers.ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
-		excludeAddrs     = make([]string, 0, len(cliCfg.ProviderInstallation.Methods))
-		directIsdefined  bool
-	)
-
-	for _, registryName := range opts.ProviderCacheRegistryNames {
-		excludeAddrs = append(excludeAddrs, registryName+"/*/*")
-	}
-
-	for _, method := range cliCfg.ProviderInstallation.Methods {
-		switch method := method.(type) {
-		case *cliconfig.ProviderInstallationFilesystemMirror:
-			providerHandlers = append(providerHandlers, handlers.NewProviderFilesystemMirrorHandler(providerService, CacheProviderHTTPStatusCode, method))
-		case *cliconfig.ProviderInstallationNetworkMirror:
-			networkMirrorHandler, err := handlers.NewProviderNetworkMirrorHandler(providerService, CacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource())
-			if err != nil {
-				return nil, err
-			}
-
-			providerHandlers = append(providerHandlers, networkMirrorHandler)
-		case *cliconfig.ProviderInstallationDirect:
-			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource()))
-			directIsdefined = true
-		}
-
-		method.AppendExclude(excludeAddrs)
-	}
-
-	if !directIsdefined {
-		// In a case if none of direct provider installation methods `cliCfg.ProviderInstallation.Methods` are specified.
-		providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
+	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, opts.Logger, opts.ProviderCacheRegistryNames)
+	if err != nil {
+		return nil, errors.Errorf("creating provider handlers failed: %w", err)
 	}
 
 	cache := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),
 		cache.WithPort(opts.ProviderCachePort),
 		cache.WithToken(opts.ProviderCacheToken),
-		cache.WithServices(providerService),
+		cache.WithProviderService(providerService),
 		cache.WithProviderHandlers(providerHandlers...),
+		cache.WithProxyProviderHandler(proxyProviderHandler),
+		cache.WithCacheProviderHTTPStatusCode(CacheProviderHTTPStatusCode),
 		cache.WithLogger(opts.Logger),
 	)
 

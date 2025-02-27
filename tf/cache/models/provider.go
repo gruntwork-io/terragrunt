@@ -52,15 +52,27 @@ func (list SigningKeyList) Keys() map[string]string {
 	return keys
 }
 
+type Versions []*Version
+
 type Version struct {
-	Version   string      `json:"version"`
-	Protocols []string    `json:"protocols"`
-	Platforms []*Platform `json:"platforms"`
+	Version   string    `json:"version"`
+	Protocols []string  `json:"protocols"`
+	Platforms Platforms `json:"platforms"`
 }
+
+func (version Version) String() string {
+	return fmt.Sprintf("%s/%s/%s", version.Version, version.Protocols, version.Platforms)
+}
+
+type Platforms []*Platform
 
 type Platform struct {
 	OS   string `json:"os"`
 	Arch string `json:"arch"`
+}
+
+func (platform Platform) String() string {
+	return fmt.Sprintf("%s/%s", platform.OS, platform.Arch)
 }
 
 // ResponseBody represents the details of the Terraform provider received from a registry.
@@ -128,7 +140,11 @@ func ParseProvider(str string) *Provider {
 }
 
 func (provider *Provider) String() string {
-	return fmt.Sprintf("%s/%s/%s v%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
+	if provider.Version != "" {
+		return fmt.Sprintf("%s/%s/%s v%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
+	}
+
+	return fmt.Sprintf("%s/%s/%s", provider.RegistryName, provider.Namespace, provider.Name)
 }
 
 func (provider *Provider) Platform() string {

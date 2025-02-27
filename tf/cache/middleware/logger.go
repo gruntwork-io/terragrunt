@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -12,10 +13,12 @@ func Logger(logger log.Logger) echo.MiddlewareFunc {
 		LogURI:      true,
 		LogError:    true,
 		HandleError: true, // forwards error to the global error handler, so it can decide appropriate status code
-		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-			logger := logger.WithField("uri", v.URI).WithField("status", v.Status)
-			if v.Error != nil {
-				logger.Errorf("Cache server was unable to process the received request, %s", v.Error.Error())
+		LogValuesFunc: func(_ echo.Context, req middleware.RequestLoggerValues) error {
+			logger := logger.
+				WithField(placeholders.CacheServerURLKeyName, req.URI).
+				WithField(placeholders.CacheServerStatusKeyName, req.Status)
+			if req.Error != nil {
+				logger.Errorf("Cache server was unable to process the received request, %s", req.Error.Error())
 			} else {
 				logger.Tracef("Cache server received request")
 			}

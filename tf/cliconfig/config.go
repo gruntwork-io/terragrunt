@@ -52,7 +52,7 @@ func (cfg *Config) Clone() *Config {
 
 	if cfg.ProviderInstallation != nil {
 		providerInstallation = &ProviderInstallation{
-			Methods: cfg.ProviderInstallation.Methods,
+			Methods: cfg.ProviderInstallation.Methods.Clone(),
 		}
 	}
 
