@@ -11,7 +11,6 @@ import (
 // Content manages git object storage and linking
 type Content struct {
 	store *Store
-	mu    sync.RWMutex
 }
 
 const (
@@ -25,7 +24,9 @@ const (
 
 // NewContent creates a new Content instance
 func NewContent(store *Store) *Content {
-	return &Content{store: store}
+	return &Content{
+		store: store,
+	}
 }
 
 // Link creates a hard link from the store to the target path
@@ -101,8 +102,12 @@ func (c *Content) ensureTargetDirectory(targetPath string) error {
 
 // Store stores a single content item
 func (c *Content) Store(hash string, data []byte) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	if _, ok := c.store.locks[hash]; !ok {
+		c.store.locks[hash] = &sync.Mutex{}
+	}
+
+	c.store.locks[hash].Lock()
+	defer c.store.locks[hash].Unlock()
 
 	if c.store.HasContent(hash) {
 		return nil
@@ -170,42 +175,9 @@ func (c *Content) Store(hash string, data []byte) error {
 
 // StoreBatch stores multiple content items efficiently using buffered writes
 func (c *Content) StoreBatch(items map[string][]byte) error {
-	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
-	}
-
-	// Process items sequentially to avoid race conditions
 	for hash, data := range items {
-		if c.store.HasContent(hash) {
-			continue
-		}
-
-		// Ensure partition directory exists
-		partitionDir := c.getPartition(hash)
-		if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-			return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
-		}
-
-		path := c.getPath(hash)
-
-		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
-		if err != nil {
-			return wrapError("open_file", path, err)
-		}
-
-		buf := bufio.NewWriter(f)
-		if _, err := buf.Write(data); err != nil {
-			f.Close()
-			return wrapError("write_to_store", path, err)
-		}
-
-		if err := buf.Flush(); err != nil {
-			f.Close()
-			return wrapError("flush_buffer", path, err)
-		}
-
-		if err := f.Close(); err != nil {
-			return wrapError("close_file", path, err)
+		if err := c.Store(hash, data); err != nil {
+			return err
 		}
 	}
 

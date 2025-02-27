@@ -17,14 +17,13 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
-		store, err := cas.NewStore(t.TempDir())
-		require.NoError(t, err)
+		store := cas.NewStore(t.TempDir())
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err = content.Store(testHash, testData)
+		err := content.Store(testHash, testData)
 		require.NoError(t, err)
 
 		// Verify content was stored
@@ -37,15 +36,14 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("store existing content", func(t *testing.T) {
 		t.Parallel()
-		store, err := cas.NewStore(t.TempDir())
-		require.NoError(t, err)
+		store := cas.NewStore(t.TempDir())
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
 
 		// Store content twice
-		err = content.Store(testHash, testData)
+		err := content.Store(testHash, testData)
 		require.NoError(t, err)
 		err = content.Store(testHash, []byte("different content"))
 		require.NoError(t, err)
@@ -65,15 +63,14 @@ func TestContent_Link(t *testing.T) {
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
 		storeDir := t.TempDir()
-		store, err := cas.NewStore(storeDir)
-		require.NoError(t, err)
+		store := cas.NewStore(storeDir)
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
 
 		// First store some content
-		err = content.Store(testHash, testData)
+		err := content.Store(testHash, testData)
 		require.NoError(t, err)
 
 		// Then create a link to it
@@ -98,15 +95,14 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("link to existing file", func(t *testing.T) {
 		t.Parallel()
-		store, err := cas.NewStore(t.TempDir())
-		require.NoError(t, err)
+		store := cas.NewStore(t.TempDir())
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
 
 		// Store content
-		err = content.Store(testHash, testData)
+		err := content.Store(testHash, testData)
 		require.NoError(t, err)
 
 		// Create target file

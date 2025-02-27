@@ -73,10 +73,8 @@ func BenchmarkClone(b *testing.B) {
 }
 
 func BenchmarkContent(b *testing.B) {
-	store, err := cas.NewStore(b.TempDir())
-	if err != nil {
-		b.Fatal(err)
-	}
+	store := cas.NewStore(b.TempDir())
+
 	content := cas.NewContent(store)
 
 	// Prepare test data
