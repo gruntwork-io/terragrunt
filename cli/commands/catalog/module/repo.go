@@ -13,6 +13,7 @@ import (
 
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/files"
+	"github.com/gruntwork-io/terragrunt/internal/cln"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -36,6 +37,8 @@ var (
 	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z_.]+)[^/]*?(?:\.git)?$`)
 
 	modulesPaths = []string{"modules"}
+
+	includedGitFiles = []string{"HEAD", "config"}
 )
 
 type Repo struct {
@@ -251,7 +254,7 @@ func (repo *Repo) prepareCloneDirectory(opts *CloneOptions) error {
 
 	// Clean up incomplete clones
 	if repo.shouldCleanupIncompleteClone() {
-		repo.logger.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
+		repo.logger.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
 		if err := os.RemoveAll(repo.path); err != nil {
 			return errors.New(err)
 		}
@@ -274,6 +277,30 @@ func (repo *Repo) shouldCleanupIncompleteClone() bool {
 }
 
 func (repo *Repo) performClone(opts *CloneOptions) error {
+	if repo.useCln {
+		c, err := cln.New(opts.SourceURL, cln.Options{
+			Dir:              repo.path,
+			IncludedGitFiles: includedGitFiles,
+		})
+		if err != nil {
+			return err
+		}
+
+		if err := c.Clone(); err != nil {
+			return err
+		}
+
+		// Create the sentinel file to indicate that the clone is complete
+		f, err := os.Create(filepath.Join(repo.path, cloneCompleteSentinel))
+		if err != nil {
+			return errors.New(err)
+		}
+
+		f.Close()
+
+		return nil
+	}
+
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {
 		return err
@@ -310,7 +337,7 @@ func (repo *Repo) parseRemoteURL() error {
 	gitConfigPath := filepath.Join(repo.path, ".git", "config")
 
 	if !files.FileExists(gitConfigPath) {
-		return errors.Errorf("the specified path %q is not a git repository", repo.path)
+		return errors.Errorf("the specified path %q is not a git repository (no .git/config file found)", repo.path)
 	}
 
 	repo.logger.Debugf("Parsing git config %q", gitConfigPath)
@@ -353,7 +380,7 @@ func (repo *Repo) gitHeadfile() string {
 func (repo *Repo) parseBranchName() error {
 	data, err := files.ReadFileAsString(repo.gitHeadfile())
 	if err != nil {
-		return errors.Errorf("the specified path %q is not a git repository", repo.path)
+		return errors.Errorf("the specified path %q is not a git repository (no .git/HEAD file found)", repo.path)
 	}
 
 	if match := gitHeadBranchNameReg.FindStringSubmatch(data); len(match) > 0 {
