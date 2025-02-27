@@ -22,23 +22,36 @@ import (
 func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[string]map[string]cty.Value, error) {
 	opts.Logger.Debugf("Generating output from %s", opts.TerragruntStackConfigPath)
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
-	stackFile, err := config.ReadStackConfigFile(ctx, opts, opts.TerragruntStackConfigPath)
-
+	stackTargetDir := filepath.Join(opts.WorkingDir, stackDir)
+	stackFiles, err := listStackFiles(opts, stackTargetDir)
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, errors.Errorf("Failed to list stack files in %s %v", stackTargetDir, err)
 	}
-
 	unitOutputs := make(map[string]map[string]cty.Value)
-	// process each unit and get outputs
-	for _, unit := range stackFile.Units {
-		opts.Logger.Debugf("Processing unit %s", unit.Name)
-		output, err := unit.ReadOutputs(ctx, opts)
+
+	// add default stack file
+	stackFiles = append(stackFiles, opts.TerragruntStackConfigPath)
+
+	for _, path := range stackFiles {
+		stackFile, err := config.ReadStackConfigFile(ctx, opts, path)
 
 		if err != nil {
 			return nil, errors.New(err)
 		}
 
-		unitOutputs[unit.Name] = output
+		// process each unit and get outputs
+		for _, unit := range stackFile.Units {
+			opts.Logger.Debugf("Processing unit %s", unit.Name)
+			dir := filepath.Dir(path)
+			unitDir := filepath.Join(dir, stackDir, unit.Path)
+			output, err := unit.ReadOutputs(ctx, opts, unitDir)
+
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			unitOutputs[unit.Name] = output
+		}
 	}
 
 	return unitOutputs, nil

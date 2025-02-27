@@ -49,11 +49,9 @@ type Stack struct {
 }
 
 // ReadOutputs reads the outputs from the unit.
-func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions) (map[string]cty.Value, error) {
-	baseDir := filepath.Join(opts.WorkingDir, stackDir)
-	unitPath := filepath.Join(baseDir, u.Path)
-	configPath := filepath.Join(unitPath, DefaultTerragruntConfigPath)
-	opts.Logger.Debugf("Getting output from unit %s in %s", u.Name, unitPath)
+func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions, unitDir string) (map[string]cty.Value, error) {
+	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
+	opts.Logger.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
 
 	parserCtx := NewParsingContext(ctx, opts)
 

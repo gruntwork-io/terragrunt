@@ -62,7 +62,7 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 	opts.Logger.Debugf("Searching for stack files in %s", dir)
 	var stackFiles []string
 	// find all defaultStackFile files
-	if err := walkFunc(opts.WorkingDir, func(path string, info os.FileInfo, err error) error {
+	if err := walkFunc(dir, func(path string, info os.FileInfo, err error) error {
 
 		if info.IsDir() {
 			return nil
