@@ -1685,6 +1685,36 @@ inputs = {
 }
 ```
 
+### stack
+
+> **Note:**
+> The [`stacks`](/docs/reference/experiments/#stacks) experiment is still active, and using the `stack` block requires enabling the `stacks` experiment.
+
+The `stack` block is used to define a stack of deployment units in a Terragrunt configuration file (`terragrunt.stack.hcl`).
+Stacks allow for nesting, enabling the organization of infrastructure components into modular, reusable groups, reducing redundancy and improving maintainability.
+
+Stacks are designed to be nestable, helping to mitigate the risk of stacks becoming too large or too repetitive.
+When a stack is generated, it can include nested stacks, ensuring that the configuration scales efficiently.
+
+The `stack` block supports the following arguments:
+
+- `name` (label): A unique identifier for the stack. This is used to reference the stack elsewhere in your configuration.
+- `source` (attribute): Specifies where to find the Terragrunt configuration files for this stack. This follows the same syntax as the `source` parameter in the `terraform` block.
+- `path` (attribute): The relative path where this stack should be deployed within the stack directory (`.terragrunt-stack`).
+
+Example:
+
+```hcl
+# terragrunt.stack.hcl
+stack "services" {
+    source = "github.com/gruntwork-io/terragrunt-stacks//stacks/mock/services?ref=v0.0.1"
+    path   = "services"
+}
+```
+
+In this example, the `services` stack is defined, which will be generated at `.terragrunt-stack/services`.
+Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
+
 ## Attributes
 
 - [Blocks](#blocks)
