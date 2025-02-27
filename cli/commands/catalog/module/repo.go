@@ -13,7 +13,7 @@ import (
 
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/internal/cln"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -51,20 +51,20 @@ type Repo struct {
 	BranchName string
 
 	walkWithSymlinks bool
-	useCln           bool
+	useCAS           bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool, allowCln bool) (*Repo, error) {
-	useCln := false
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
+	useCAS := false
 
-	if strings.HasPrefix(cloneURL, "cln://") {
-		cloneURL = strings.TrimPrefix(cloneURL, "cln://")
+	if strings.HasPrefix(cloneURL, "cas://") {
+		cloneURL = strings.TrimPrefix(cloneURL, "cas://")
 
-		if !allowCln {
-			return nil, errors.Errorf("cln:// protocol is not allowed without using the `cln` experiment. Please enable the experiment and try again.")
+		if !allowCAS {
+			return nil, errors.Errorf("cas:// protocol is not allowed without using the `cas` experiment. Please enable the experiment and try again.")
 		}
 
-		useCln = true
+		useCAS = true
 	}
 
 	repo := &Repo{
@@ -72,7 +72,7 @@ func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, w
 		cloneURL:         cloneURL,
 		path:             tempDir,
 		walkWithSymlinks: walkWithSymlinks,
-		useCln:           useCln,
+		useCAS:           useCAS,
 	}
 
 	if err := repo.clone(ctx); err != nil {
@@ -277,8 +277,8 @@ func (repo *Repo) shouldCleanupIncompleteClone() bool {
 }
 
 func (repo *Repo) performClone(opts *CloneOptions) error {
-	if repo.useCln {
-		c, err := cln.New(opts.SourceURL, cln.Options{
+	if repo.useCAS {
+		c, err := cas.New(opts.SourceURL, cas.Options{
 			Dir:              repo.path,
 			IncludedGitFiles: includedGitFiles,
 		})

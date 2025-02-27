@@ -1,10 +1,10 @@
-package cln_test
+package cas_test
 
 import (
 	"errors"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cln"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,17 +12,17 @@ func TestErrorString(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		err  cln.Error
+		err  cas.Error
 		want string
 	}{
 		{
 			name: "temp dir error",
-			err:  cln.ErrTempDir,
+			err:  cas.ErrTempDir,
 			want: "failed to create or manage temporary directory",
 		},
 		{
 			name: "git clone error",
-			err:  cln.ErrGitClone,
+			err:  cas.ErrGitClone,
 			want: "failed to complete git clone",
 		},
 	}
@@ -40,12 +40,12 @@ func TestWrappedError(t *testing.T) {
 	baseErr := errors.New("base error")
 	tests := []struct {
 		name    string
-		wrapped *cln.WrappedError
+		wrapped *cas.WrappedError
 		want    string
 	}{
 		{
 			name: "with path",
-			wrapped: &cln.WrappedError{
+			wrapped: &cas.WrappedError{
 				Op:   "clone",
 				Path: "/tmp/repo",
 				Err:  baseErr,
@@ -54,7 +54,7 @@ func TestWrappedError(t *testing.T) {
 		},
 		{
 			name: "with context",
-			wrapped: &cln.WrappedError{
+			wrapped: &cas.WrappedError{
 				Op:      "clone",
 				Context: "repository not found",
 				Err:     baseErr,
@@ -63,7 +63,7 @@ func TestWrappedError(t *testing.T) {
 		},
 		{
 			name: "basic",
-			wrapped: &cln.WrappedError{
+			wrapped: &cas.WrappedError{
 				Op:  "clone",
 				Err: baseErr,
 			},
