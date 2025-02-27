@@ -16,7 +16,7 @@ const (
 // GitRunner handles git command execution
 type GitRunner struct {
 	mu       sync.RWMutex
-	workDir  string
+	WorkDir  string
 	cmdCache sync.Map
 }
 
@@ -29,14 +29,14 @@ func NewGitRunner() *GitRunner {
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	// Create new instance instead of modifying existing one
 	return &GitRunner{
-		workDir:  workDir,
+		WorkDir:  workDir,
 		cmdCache: sync.Map{},
 	}
 }
 
 // RequiresWorkDir returns an error if no working directory is set
 func (g *GitRunner) RequiresWorkDir() error {
-	if g.workDir == "" {
+	if g.WorkDir == "" {
 		return &WrappedError{
 			Op:      "git",
 			Context: "no working directory set",
@@ -125,7 +125,7 @@ func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) erro
 		args = append(args, "--branch", branch)
 	}
 
-	args = append(args, repo, g.workDir)
+	args = append(args, repo, g.WorkDir)
 
 	cmd := exec.Command("git", args...)
 
@@ -184,7 +184,7 @@ func (g *GitRunner) LsTree(reference, path string) (*Tree, error) {
 	}
 
 	cmd := g.prepareCommand("ls-tree", reference)
-	cmd.Dir = g.workDir
+	cmd.Dir = g.WorkDir
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -208,7 +208,7 @@ func (g *GitRunner) CatFile(hash string) ([]byte, error) {
 	}
 
 	cmd := g.prepareCommand("cat-file", "-p", hash)
-	cmd.Dir = g.workDir
+	cmd.Dir = g.WorkDir
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -226,7 +226,7 @@ func (g *GitRunner) CatFile(hash string) ([]byte, error) {
 func (g *GitRunner) SetWorkDir(dir string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.workDir = dir
+	g.WorkDir = dir
 }
 
 func (g *GitRunner) prepareCommand(name string, args ...string) *exec.Cmd {
