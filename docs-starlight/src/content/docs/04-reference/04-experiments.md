@@ -170,7 +170,7 @@ At the moment, the CAS is only used to speed up catalog cloning, but in the futu
 
 #### `cas` - How to provide feedback
 
-Share your experience with this feature in the [CAS]() Feedback GitHub Discussion.
+Share your experience with this feature in the [CAS](https://github.com/gruntwork-io/terragrunt/discussions/3939) Feedback GitHub Discussion.
 Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
 
 - Any bugs or issues encountered (including logs or stack traces if possible).
