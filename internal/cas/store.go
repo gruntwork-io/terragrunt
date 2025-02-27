@@ -61,7 +61,9 @@ func (s *Store) HasContent(hash string) bool {
 		return true
 	}
 
-	path := filepath.Join(s.path, hash)
+	// Use partitioned path: first two characters of hash as subdirectory
+	partitionDir := filepath.Join(s.path, hash[:2])
+	path := filepath.Join(partitionDir, hash)
 	_, err := os.Stat(path)
 	exists := err == nil
 
