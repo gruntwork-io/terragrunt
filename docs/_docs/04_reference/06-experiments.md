@@ -166,3 +166,29 @@ To transition `cli-redesign` features to a stable release, the following must be
   - [ ] Add support for `find` with the `exclude` block used to exclude units from the search.
   - [ ] Add integration with `symlinks` experiment to support finding units/stacks via symlinks.
 - [ ] Add support for the `list` command.
+
+### `cas`
+
+Support for Terragrunt Content Addressable Storage (CAS).
+
+#### `cas` - What it does
+
+Allow Terragrunt to store and retrieve state files from a Content Addressable Storage (CAS) system.
+
+At the moment, the CAS is only used to speed up catalog cloning, but in the future, it can be used to store more content.
+
+#### `cas` - How to provide feedback
+
+Share your experience with this feature in the [CAS]() Feedback GitHub Discussion.
+Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
+
+- Any bugs or issues encountered (including logs or stack traces if possible).
+- Suggestions for additional improvements or enhancements.
+
+#### `cas` - Criteria for stabilization
+
+To transition the `cas` feature to a stable release, the following must be addressed:
+
+- [x] Add support for storing and retrieving catalog repositories from the CAS.
+- [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
+- [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
