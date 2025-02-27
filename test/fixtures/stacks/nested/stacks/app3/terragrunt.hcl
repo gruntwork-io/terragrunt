@@ -1,4 +1,0 @@
-
-intput = {
-  config = value.version
-}
