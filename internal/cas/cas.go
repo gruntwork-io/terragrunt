@@ -10,6 +10,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -301,12 +302,18 @@ func (c *CAS) storeBlobEntries(entries []TreeEntry) error {
 }
 
 func hashFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 
-	hash := sha1.Sum(data)
+	defer file.Close()
 
-	return hex.EncodeToString(hash[:]), nil
+	h := sha1.New()
+
+	if _, err := io.Copy(h, file); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
