@@ -299,7 +299,7 @@ func (repo *Repo) performClone(ctx context.Context, opts *CloneOptions) error {
 			return err
 		}
 
-		if err := c.Clone(ctx, opts.Logger); err != nil {
+		if err := c.Clone(ctx, &opts.Logger); err != nil {
 			return err
 		}
 
