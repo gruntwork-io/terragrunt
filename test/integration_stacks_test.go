@@ -17,15 +17,16 @@ import (
 )
 
 const (
-	testFixtureStacksBasic       = "fixtures/stacks/basic"
-	testFixtureStacksLocals      = "fixtures/stacks/locals"
-	testFixtureStacksLocalsError = "fixtures/stacks/errors/locals-error"
-	testFixtureStacksRemote      = "fixtures/stacks/remote"
-	testFixtureStacksInputs      = "fixtures/stacks/inputs"
-	testFixtureStacksOutputs     = "fixtures/stacks/outputs"
-	testFixtureStacksUnitValues  = "fixtures/stacks/unit-values"
-	testFixtureStacksEmptyPath   = "fixtures/stacks/errors/empty-path"
-	testFixtureNestedStacks      = "fixtures/stacks/nested"
+	testFixtureStacksBasic         = "fixtures/stacks/basic"
+	testFixtureStacksLocals        = "fixtures/stacks/locals"
+	testFixtureStacksRemote        = "fixtures/stacks/remote"
+	testFixtureStacksInputs        = "fixtures/stacks/inputs"
+	testFixtureStacksOutputs       = "fixtures/stacks/outputs"
+	testFixtureStacksUnitValues    = "fixtures/stacks/unit-values"
+	testFixtureStacksLocalsError   = "fixtures/stacks/errors/locals-error"
+	testFixtureStacksUnitEmptyPath = "fixtures/stacks/errors/unit-empty-path"
+	testFixtureStacksEmptyPath     = "fixtures/stacks/errors/stack-empty-path"
+	testFixtureNestedStacks        = "fixtures/stacks/nested"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -422,7 +423,24 @@ func TestStacksUnitValuesOutput(t *testing.T) {
 	assert.Contains(t, result, "app2")
 }
 
-func TestStacksEmptyPathError(t *testing.T) {
+func TestStacksUnitEmptyPathError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitEmptyPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitEmptyPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitEmptyPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+
+	message := err.Error()
+	// check for app1 and app2 empty path error
+	assert.Contains(t, message, "unit 'app1_empty_path' has empty path")
+	assert.Contains(t, message, "unit 'app2_empty_path' has empty path")
+	assert.NotContains(t, message, "unit 'app3_not_empty_path' has empty path")
+}
+
+func TestStackStackEmptyPathError(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksEmptyPath)
@@ -433,10 +451,7 @@ func TestStacksEmptyPathError(t *testing.T) {
 	require.Error(t, err)
 
 	message := err.Error()
-	// check for app1 and app2 empty path error
-	assert.Contains(t, message, "unit 'app1_empty_path' has empty path")
-	assert.Contains(t, message, "unit 'app2_empty_path' has empty path")
-	assert.NotContains(t, message, "unit 'app3_not_empty_path' has empty path")
+	assert.Contains(t, message, "stack 'prod' has empty path")
 }
 
 func TestNestedStackOutput(t *testing.T) {
