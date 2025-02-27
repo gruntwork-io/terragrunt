@@ -41,7 +41,7 @@ func TestStacksGenerateBasic(t *testing.T) {
 	validateStackDir(t, path)
 }
 
-func TestStacksGenerateNested(t *testing.T) {
+func TestNestedStacksGenerate(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
@@ -437,6 +437,26 @@ func TestStacksEmptyPathError(t *testing.T) {
 	assert.Contains(t, message, "unit 'app1_empty_path' has empty path")
 	assert.Contains(t, message, "unit 'app2_empty_path' has empty path")
 	assert.NotContains(t, message, "unit 'app3_not_empty_path' has empty path")
+}
+
+func TestNestedStacksApply(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "data = \"web dev-web 1.0.0\"")
+	assert.Contains(t, stdout, "data = \"api dev-api 1.0.0\"")
+	assert.Contains(t, stdout, "data = \"db dev-db 1.0.0\"")
+
+	assert.Contains(t, stdout, "data = \"web prod-web 1.0.0\"")
+	assert.Contains(t, stdout, "data = \"api prod-api 1.0.0\"")
+	assert.Contains(t, stdout, "data = \"db prod-db 1.0.0\"")
 }
 
 // check if the stack directory is created and contains files.
