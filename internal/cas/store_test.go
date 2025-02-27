@@ -1,11 +1,11 @@
-package cln_test
+package cas_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cln"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ func TestStore(t *testing.T) {
 		tempDir := t.TempDir()
 		customPath := filepath.Join(tempDir, "custom-store")
 
-		store, err := cln.NewStore(customPath)
+		store, err := cas.NewStore(customPath)
 		require.NoError(t, err)
 		assert.Equal(t, customPath, store.Path())
 	})
@@ -28,9 +28,9 @@ func TestStore(t *testing.T) {
 		home, err := os.UserHomeDir()
 		require.NoError(t, err)
 
-		expectedPath := filepath.Join(home, ".cln-store")
+		expectedPath := filepath.Join(home, ".cas-store")
 
-		store, err := cln.NewStore("")
+		store, err := cas.NewStore("")
 		require.NoError(t, err)
 		assert.Equal(t, expectedPath, store.Path())
 
@@ -42,7 +42,7 @@ func TestStore(t *testing.T) {
 func TestStore_HasContent(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
-	store, err := cln.NewStore(tempDir)
+	store, err := cas.NewStore(tempDir)
 	require.NoError(t, err)
 
 	// Create a fake content file

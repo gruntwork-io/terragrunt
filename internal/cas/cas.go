@@ -1,8 +1,9 @@
-// Package cln is a golang port of the cln project.
+// Package cas implements a content-addressable storage for git content.
 //
-// The original project is written in Rust and can be found at:
-// https://github.com/gruntwork-io/terragrunt
-package cln
+// Blobs are copied from cloned repositories to a local store, along with trees.
+// When the same content is requested again, the content is read from the local store,
+// avoiding the need to clone the repository or read from the network.
+package cas
 
 import (
 	"crypto/sha1"
@@ -21,7 +22,7 @@ const (
 	dirPermissions      = 0755
 )
 
-// Options configures the behavior of the Cln operation
+// Options configures the behavior of the CAS operation
 type Options struct {
 	// Dir specifies the target directory for the clone
 	// If empty, uses the repository name
@@ -32,7 +33,7 @@ type Options struct {
 	Branch string
 
 	// StorePath specifies a custom path for the content store
-	// If empty, uses $HOME/.cache/terragrunt/cln-store
+	// If empty, uses $HOME/.cache/terragrunt/cas-store
 	StorePath string
 
 	// IncludedGitFiles specifies the files to preserve from the .git directory
@@ -40,9 +41,9 @@ type Options struct {
 	IncludedGitFiles []string
 }
 
-// Cln clones a git repository using content-addressable storage.
+// CAS clones a git repository using content-addressable storage.
 // If the content already exists in the store, it creates hard links instead of copying files.
-type Cln struct {
+type CAS struct {
 	store     *Store
 	git       *GitRunner
 	opts      Options
@@ -50,15 +51,15 @@ type Cln struct {
 	cloneLock sync.Mutex
 }
 
-// New creates a new Cln instance with the given options
-func New(url string, opts Options) (*Cln, error) {
+// New creates a new CAS instance with the given options
+func New(url string, opts Options) (*CAS, error) {
 	if opts.StorePath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return nil, err
 		}
 
-		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cln-store")
+		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cas-store")
 	}
 
 	store, err := NewStore(opts.StorePath)
@@ -66,7 +67,7 @@ func New(url string, opts Options) (*Cln, error) {
 		return nil, err
 	}
 
-	return &Cln{
+	return &CAS{
 		store: store,
 		git:   NewGitRunner(),
 		opts:  opts,
@@ -75,7 +76,7 @@ func New(url string, opts Options) (*Cln, error) {
 }
 
 // Clone performs the clone operation
-func (c *Cln) Clone() error {
+func (c *CAS) Clone() error {
 	c.cloneLock.Lock()
 	defer c.cloneLock.Unlock()
 
@@ -127,7 +128,7 @@ func (c *Cln) Clone() error {
 	return nil
 }
 
-func (c *Cln) prepareTargetDirectory() string {
+func (c *CAS) prepareTargetDirectory() string {
 	targetDir := c.opts.Dir
 	if targetDir == "" {
 		targetDir = GetRepoName(c.url)
@@ -136,7 +137,7 @@ func (c *Cln) prepareTargetDirectory() string {
 	return filepath.Clean(targetDir)
 }
 
-func (c *Cln) resolveReference() (string, error) {
+func (c *CAS) resolveReference() (string, error) {
 	results, err := c.git.LsRemote(c.url, c.opts.Branch)
 	if err != nil {
 		return "", err
@@ -153,7 +154,7 @@ func (c *Cln) resolveReference() (string, error) {
 	return results[0].Hash, nil
 }
 
-func (c *Cln) cloneAndStoreContent(hash string) error {
+func (c *CAS) cloneAndStoreContent(hash string) error {
 	if err := c.git.Clone(c.url, true, 1, c.opts.Branch); err != nil {
 		return err
 	}
@@ -161,7 +162,7 @@ func (c *Cln) cloneAndStoreContent(hash string) error {
 	return c.storeTreeRecursively(hash, "")
 }
 
-func (c *Cln) storeTreeRecursively(hash, prefix string) error {
+func (c *CAS) storeTreeRecursively(hash, prefix string) error {
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
@@ -245,7 +246,7 @@ func (c *Cln) storeTreeRecursively(hash, prefix string) error {
 	return nil
 }
 
-func (c *Cln) storeBlobEntries(entries []TreeEntry) error {
+func (c *CAS) storeBlobEntries(entries []TreeEntry) error {
 	blobs := make(map[string][]byte)
 	errChan := make(chan error, 1)
 	semaphore := make(chan struct{}, maxConcurrentStores)

@@ -1,11 +1,11 @@
-package cln
+package cas
 
 import (
 	"errors"
 	"fmt"
 )
 
-// Error types that can be returned by the cln package
+// Error types that can be returned by the cas package
 type Error string
 
 func (e Error) Error() string {
@@ -19,8 +19,8 @@ const (
 	ErrCreateDir Error = "failed to create directory"
 	// ErrHomeDir is returned when failing to find home directory
 	ErrHomeDir Error = "failed to find home directory"
-	// ErrWriteToStore is returned when failing to write to the cln store
-	ErrWriteToStore Error = "failed to write to cln-store"
+	// ErrWriteToStore is returned when failing to write to the cas store
+	ErrWriteToStore Error = "failed to write to cas-store"
 	// ErrHardLink is returned when failing to create a hard link
 	ErrHardLink Error = "failed to create hard link"
 	// ErrParseMode is returned when failing to parse file mode

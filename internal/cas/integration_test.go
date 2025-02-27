@@ -1,11 +1,11 @@
-package cln_test
+package cas_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/cln"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,15 +20,15 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		// First clone
 		firstClonePath := filepath.Join(tempDir, "first")
-		cln1, err := cln.New(
+		cas1, err := cas.New(
 			"https://github.com/gruntwork-io/terragrunt.git",
-			cln.Options{
+			cas.Options{
 				Dir:       firstClonePath,
 				StorePath: storePath,
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, cln1.Clone())
+		require.NoError(t, cas1.Clone())
 
 		// Get info about first clone
 		firstReadme := filepath.Join(firstClonePath, "README.md")
@@ -37,15 +37,15 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		// Second clone
 		secondClonePath := filepath.Join(tempDir, "second")
-		cln2, err := cln.New(
+		cas2, err := cas.New(
 			"https://github.com/gruntwork-io/terragrunt.git",
-			cln.Options{
+			cas.Options{
 				Dir:       secondClonePath,
 				StorePath: storePath,
 			},
 		)
 		require.NoError(t, err)
-		require.NoError(t, cln2.Clone())
+		require.NoError(t, cas2.Clone())
 
 		// Get info about second clone
 		secondReadme := filepath.Join(secondClonePath, "README.md")
@@ -64,9 +64,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		t.Parallel()
 		tempDir := t.TempDir()
 
-		c, err := cln.New(
+		c, err := cas.New(
 			"https://github.com/gruntwork-io/terragrunt.git",
-			cln.Options{
+			cas.Options{
 				Dir:       filepath.Join(tempDir, "repo"),
 				Branch:    "nonexistent-branch",
 				StorePath: filepath.Join(tempDir, "store"),
@@ -76,18 +76,18 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		err = c.Clone()
 		require.Error(t, err)
-		var wrappedErr *cln.WrappedError
+		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, cln.ErrNoMatchingReference)
+		assert.ErrorIs(t, wrappedErr.Err, cas.ErrNoMatchingReference)
 	})
 
 	t.Run("clone with invalid repository fails gracefully", func(t *testing.T) {
 		t.Parallel()
 		tempDir := t.TempDir()
 
-		c, err := cln.New(
+		c, err := cas.New(
 			"https://github.com/yhakbar/nonexistent-repo.git",
-			cln.Options{
+			cas.Options{
 				Dir:       filepath.Join(tempDir, "repo"),
 				StorePath: filepath.Join(tempDir, "store"),
 			},
@@ -96,9 +96,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		err = c.Clone()
 		require.Error(t, err)
-		var wrappedErr *cln.WrappedError
+		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, cln.ErrCommandSpawn)
+		assert.ErrorIs(t, wrappedErr.Err, cas.ErrCommandSpawn)
 	})
 }
 
@@ -111,9 +111,9 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone to populate store
-		c, err := cln.New(
+		c, err := cas.New(
 			"https://github.com/gruntwork-io/terragrunt.git",
-			cln.Options{
+			cas.Options{
 				Dir:       filepath.Join(tempDir, "repo"),
 				StorePath: storePath,
 			},
@@ -122,24 +122,24 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		require.NoError(t, c.Clone())
 
 		// Get the commit hash
-		git := cln.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
+		git := cas.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
 		results, err := git.LsRemote("https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash
 
 		// Verify the tree object is stored
-		store, err := cln.NewStore(storePath)
+		store, err := cas.NewStore(storePath)
 		require.NoError(t, err)
 		assert.True(t, store.HasContent(commitHash), "Tree object should be stored")
 
 		// Verify we can read the tree content
-		content := cln.NewContent(store)
+		content := cas.NewContent(store)
 		treeData, err := content.Read(commitHash)
 		require.NoError(t, err)
 
 		// Parse the tree data to confirm it's valid
-		tree, err := cln.ParseTree(string(treeData), "")
+		tree, err := cas.ParseTree(string(treeData), "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, tree.Entries(), "Tree should have entries")
 	})

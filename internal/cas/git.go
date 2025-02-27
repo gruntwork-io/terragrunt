@@ -1,4 +1,4 @@
-package cln
+package cas
 
 import (
 	"bytes"
@@ -145,7 +145,7 @@ func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) erro
 
 // CreateTempDir creates a new temporary directory for git operations
 func (g *GitRunner) CreateTempDir() (string, func() error, error) {
-	tempDir, err := os.MkdirTemp("", "terragrunt-cln-*")
+	tempDir, err := os.MkdirTemp("", "terragrunt-cas-*")
 	if err != nil {
 		return "", nil, &WrappedError{
 			Op:      "create_temp_dir",

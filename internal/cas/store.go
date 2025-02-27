@@ -1,4 +1,4 @@
-package cln
+package cas
 
 import (
 	"os"
@@ -20,7 +20,7 @@ type Store struct {
 }
 
 // NewStore creates a new Store instance. If path is empty, it will use
-// $HOME/.cln-store
+// $HOME/.cas-store
 func NewStore(path string) (*Store, error) {
 	if path != "" {
 		return &Store{path: path}, nil
@@ -34,7 +34,7 @@ func NewStore(path string) (*Store, error) {
 		}
 	}
 
-	storePath := filepath.Join(home, ".cln-store")
+	storePath := filepath.Join(home, ".cas-store")
 	if err := os.MkdirAll(storePath, storePathPerm); err != nil {
 		return nil, &WrappedError{
 			Op:   "create_store_dir",
