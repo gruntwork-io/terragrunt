@@ -1,0 +1,42 @@
+---
+layout: collection-browser-doc
+title: Content Addressable Store (CAS)
+category: features
+categories_url: features
+excerpt: Learn how Terragrunt supports deduplication of content using a Content Addressable Store (CAS).
+tags: ["cas"]
+order: 214
+nav_title: Documentation
+nav_title_link: /docs/
+slug: cas
+---
+
+Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations. This feature is still experimental and not recommended for general production usage.
+
+At the moment, the only supported use case for the CAS is to speed up catalog cloning. In the future, the CAS can be used to store more content.
+
+To use the CAS, you will need to enable the [cas](/docs/reference/experiments/#cas) experiment.
+
+## Usage
+
+To opt in to having Terragrunt use the CAS for a particular repository clone, use the `cas://` prefix for a valid Git URL in your Terragrunt configuration:
+
+```hcl
+catalog {
+  urls = [
+    "cas://git@github.com:acme/modules.git"
+  ]
+}
+```
+
+When Terragrunt encounters a URL prefixed with `cas://`, it will attempt to clone the repository from the CAS. If the repository is not found in the CAS, Terragrunt will clone the repository from the original URL and store it in the CAS for future use.
+
+When generating a repository from the CAS, Terragrunt will hard link entries from the CAS to the new repository. This allows Terragrunt to deduplicate content across multiple repositories.
+
+In the event that hard linking fails due to some operating system / host incompatibility with hard links, Terragrunt will fall back to performing copies of the content from the CAS.
+
+## Storage
+
+The CAS is stored in the `~/.cache/terragrunt/cas` directory. This directory can be safely deleted at any time, as Terragrunt will automatically regenerate the CAS as needed.
+
+Avoid partial deletions of the CAS directory without care, as that might result in partially cloned repositories and unexpected behavior.
