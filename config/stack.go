@@ -72,7 +72,7 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 			processedNewFiles = true
 			processedFiles[file] = true
 
-			if err := processStackFile(ctx, opts, file); err != nil {
+			if err := generateStackFile(ctx, opts, file); err != nil {
 				return errors.Errorf("Failed to process stack file %s %v", file, err)
 			}
 		}
@@ -135,8 +135,8 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 	return unitOutputs, nil
 }
 
-// processStackFile process single stack file.
-func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
+// generateStackFile process single stack file.
+func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 	stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath)
 
@@ -150,19 +150,21 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		return errors.Errorf("failed to create base directory: %s %v", stackTargetDir, err)
 	}
 
-	if err := processUnits(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := processStacks(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// processUnits processes the units in the stack file.
-func processUnits(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, units []*Unit) error {
+// generateUnits processes each unit by resolving its destination path and copying files from the source.
+// It then writes the unit's values file and logs any errors encountered.
+// In case of an error, the function exits early.
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, units []*Unit) error {
 	for _, unit := range units {
 		opts.Logger.Infof("Processing unit %s", unit.Name)
 
@@ -189,8 +191,9 @@ func processUnits(ctx context.Context, opts *options.TerragruntOptions, stackSou
 	return nil
 }
 
-// processStacks processes the stacks in the stack file.
-func processStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack) error {
+// generateStacks processes each stack by resolving its destination path and copying files from the source.
+// It logs each operation and returns early if any error is encountered.
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		opts.Logger.Infof("Processing stack %s", stack.Name)
 
@@ -288,7 +291,8 @@ func isLocal(opts *options.TerragruntOptions, workingDir, src string) bool {
 	return strings.HasPrefix(req.Src, "file://")
 }
 
-// ReadOutputs reads the outputs from the unit.
+// ReadOutputs retrieves the Terraform output JSON for this unit, converts it into a map of cty.Values,
+// and logs the operation for debugging. It returns early in case of any errors during retrieval or conversion.
 func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions, unitDir string) (map[string]cty.Value, error) {
 	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 	opts.Logger.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
@@ -310,7 +314,9 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions,
 	return outputMap, nil
 }
 
-// ReadStackConfigFile reads the terragrunt.stack.hcl file.
+// ReadStackConfigFile reads and parses a Terragrunt stack configuration file from the given path.
+// It creates a parsing context, processes locals, and decodes the file into a StackConfigFile struct.
+// Validation is performed on the resulting config, and any encountered errors cause an early return.
 func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string) (*StackConfigFile, error) {
 	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
@@ -364,8 +370,6 @@ func writeUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 		opts.Logger.Debugf("No values to write for unit %s in %s", unit.Name, filePath)
 		return nil
 	}
-
-	opts.Logger.Debugf("Writing values for unit %s in %s", unit.Name, filePath)
 
 	file := hclwrite.NewEmptyFile()
 	body := file.Body()
