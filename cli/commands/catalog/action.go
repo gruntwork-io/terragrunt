@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
@@ -41,9 +42,26 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
 
 	for _, repoURL := range repoURLs {
-		tempDir := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repoURL)))
+		path := util.EncodeBase64Sha1(repoURL)
 
-		repo, err := module.NewRepo(ctx, opts.Logger, repoURL, tempDir, walkWithSymlinks, allowCAS)
+		// NOTE: We do this check again later, but it's just to make sure that we're leaving
+		// the separation of concerns for the directory destination and repo cloning.
+		if strings.HasPrefix(repoURL, "cas://") {
+			if !allowCAS {
+				return errors.Errorf("cas:// protocol is not allowed without using the `cas` experiment. Please enable the experiment and try again.")
+			}
+
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+
+			path = filepath.Join(homeDir, ".cache", "terragrunt", "cas", "catalog", path)
+		} else {
+			path = filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, path))
+		}
+
+		repo, err := module.NewRepo(ctx, opts.Logger, repoURL, path, walkWithSymlinks, allowCAS)
 		if err != nil {
 			return err
 		}

@@ -92,8 +92,8 @@ func ParseTree(output, path string) (*Tree, error) {
 }
 
 // LinkTree writes the tree to a target directory
-func (t *Tree) LinkTree(store *Store, targetDir string) error {
-	ctx, cancel := context.WithCancel(context.Background())
+func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var (
@@ -165,7 +165,7 @@ func (t *Tree) LinkTree(store *Store, targetDir string) error {
 
 				subTargetDir := filepath.Join(targetDir, entry.Path)
 
-				if err := subTree.LinkTree(store, subTargetDir); err != nil {
+				if err := subTree.LinkTree(ctx, store, subTargetDir); err != nil {
 					errMu.Lock()
 					errs = append(errs, wrapError("link_subtree", subTargetDir, err))
 					errMu.Unlock()
@@ -179,6 +179,7 @@ func (t *Tree) LinkTree(store *Store, targetDir string) error {
 	wg.Wait()
 
 	if len(errs) > 0 {
+
 		return errors.Join(errs...)
 	}
 
