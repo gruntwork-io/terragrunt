@@ -154,6 +154,139 @@ func TestValidateStackConfig(t *testing.T) {
 			},
 			wantErr: "duplicate unit path found: 'path1'",
 		},
+
+		{
+			name: "valid config with stacks",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "stack1",
+						Source: "source1",
+						Path:   "path1",
+					},
+					{
+						Name:   "stack2",
+						Source: "source2",
+						Path:   "path2",
+					},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "empty stack name",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "",
+						Source: "source1",
+						Path:   "path1",
+					},
+				},
+			},
+			wantErr: "stack at index 0 has empty name",
+		},
+		{
+			name: "whitespace stack name",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "  ",
+						Source: "source1",
+						Path:   "path1",
+					},
+				},
+			},
+			wantErr: "stack at index 0 has empty name",
+		},
+		{
+			name: "empty stack source",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "stack1",
+						Source: "",
+						Path:   "path1",
+					},
+				},
+			},
+			wantErr: "stack 'stack1' has empty source",
+		},
+		{
+			name: "whitespace stack source",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "stack1",
+						Source: "   ",
+						Path:   "path1",
+					},
+				},
+			},
+			wantErr: "stack 'stack1' has empty source",
+		},
+		{
+			name: "empty stack path",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "stack1",
+						Source: "source1",
+						Path:   "",
+					},
+				},
+			},
+			wantErr: "stack 'stack1' has empty path",
+		},
+		{
+			name: "whitespace stack path",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "stack1",
+						Source: "source1",
+						Path:   "  ",
+					},
+				},
+			},
+			wantErr: "stack 'stack1' has empty path",
+		},
+		{
+			name: "duplicate stack names",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "stack1",
+						Source: "source1",
+						Path:   "path1",
+					},
+					{
+						Name:   "stack1",
+						Source: "source2",
+						Path:   "path2",
+					},
+				},
+			},
+			wantErr: "duplicate stack name found: 'stack1'",
+		},
+		{
+			name: "duplicate stack paths",
+			config: &config.StackConfigFile{
+				Stacks: []*config.Stack{
+					{
+						Name:   "stack1",
+						Source: "source1",
+						Path:   "path1",
+					},
+					{
+						Name:   "stack2",
+						Source: "source2",
+						Path:   "path1",
+					},
+				},
+			},
+			wantErr: "duplicate stack path found: 'path1'",
+		},
 	}
 
 	for _, tt := range tests {
