@@ -21,6 +21,15 @@ const commands = defineCollection({
 		name: z.string(),
 		description: z.string(),
 		path: z.string().regex(/^[a-z0-9-/]+$/),
+		category: z.enum([
+			"main",
+			"backend",
+			"stack",
+			"catalog",
+			"discovery",
+			"configuration",
+			"shortcuts",
+		]),
 		sidebar: z.object({
 			parent: z.string().optional(),
 			order: z.number(),

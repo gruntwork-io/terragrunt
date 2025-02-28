@@ -104,7 +104,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheNetworkMirror)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheNetworkMirror)
 
-	appPath := filepath.Join(rootPath, "app")
+	appsPath := filepath.Join(rootPath, "apps")
 	providersNetkworMirrorPath := filepath.Join(rootPath, "providers-network-mirror")
 	providersFilesystemMirrorPath := filepath.Join(rootPath, "providers-filesystem-mirror")
 
@@ -122,6 +122,16 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	netowrkProvider.CreateMirror(t, providersNetkworMirrorPath)
 
 	filesystemProvider := FakeProvider{
+		RegistryName: "example.com",
+		Namespace:    "hashicorp",
+		Name:         "aws",
+		Version:      "5.58.0",
+		PlatformOS:   runtime.GOOS,
+		PlatformArch: runtime.GOARCH,
+	}
+	filesystemProvider.CreateMirror(t, providersFilesystemMirrorPath)
+
+	filesystemProvider = FakeProvider{
 		RegistryName: "example.com",
 		Namespace:    "hashicorp",
 		Name:         "azurerm",
@@ -169,7 +179,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 		FilesystemMirrorMethods: []test.CLIConfigProviderInstallationFilesystemMirror{
 			{
 				Path:    providersFilesystemMirrorPath,
-				Include: []string{"example.com/hashicorp/azurerm"},
+				Include: []string{"example.com/hashicorp/azurerm", "example.com/hashicorp/aws"},
 			},
 		},
 		NetworkMirrorMethods: []test.CLIConfigProviderInstallationNetworkMirror{
@@ -181,16 +191,18 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	}
 	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.opentofu.org --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.opentofu.org --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appsPath))
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/hashicorp/azurerm"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "network_mirror" { url = "%s" exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/hashicorp/azurerm", "example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "network_mirror" { url = "%s" exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
 
-	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
-	require.NoError(t, err)
-	terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
+	for _, filename := range []string{"app0/.terraformrc", "app1/.terraformrc"} {
+		terraformrcBytes, err := os.ReadFile(filepath.Join(appsPath, filename))
+		require.NoError(t, err)
+		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
 
-	assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
+		assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
+	}
 }
 
 func TestTerragruntInputsFromDependency(t *testing.T) {

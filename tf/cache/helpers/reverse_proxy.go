@@ -1,4 +1,4 @@
-package handlers
+package helpers
 
 import (
 	"net/http"
@@ -19,7 +19,7 @@ type ReverseProxy struct {
 	ModifyResponse func(resp *http.Response) error
 	ErrorHandler   func(http.ResponseWriter, *http.Request, error)
 
-	logger log.Logger
+	Logger log.Logger
 }
 
 func (reverseProxy ReverseProxy) WithRewrite(fn func(req *httputil.ProxyRequest)) *ReverseProxy {
@@ -56,7 +56,7 @@ func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.UR
 			return nil
 		},
 		ErrorHandler: func(resp http.ResponseWriter, req *http.Request, err error) {
-			reverseProxy.logger.Errorf("remote %s unreachable, could not forward: %v", targetURL, err)
+			reverseProxy.Logger.Errorf("remote %s unreachable, could not forward: %v", targetURL, err)
 			ctx.Error(echo.NewHTTPError(http.StatusServiceUnavailable))
 
 			if reverseProxy.ErrorHandler != nil {

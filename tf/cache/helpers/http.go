@@ -92,7 +92,7 @@ func ResponseBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	buffer := new(bytes.Buffer)
 
 	if _, err := buffer.ReadFrom(reader); err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
 	return buffer, nil
@@ -110,7 +110,7 @@ func DecodeJSONBody(resp *http.Response, value any) error {
 
 	decoder := json.NewDecoder(buffer)
 	if err := decoder.Decode(value); err != nil {
-		return err
+		return errors.New(err)
 	}
 
 	resp.Body = io.NopCloser(buffer)
@@ -130,7 +130,7 @@ func ModifyJSONBody(resp *http.Response, value any, fn func() error) error {
 
 	decoder := json.NewDecoder(buffer)
 	if err := decoder.Decode(value); err != nil {
-		return err
+		return errors.New(err)
 	}
 
 	if fn == nil {
@@ -143,7 +143,7 @@ func ModifyJSONBody(resp *http.Response, value any, fn func() error) error {
 
 	encoder := json.NewEncoder(buffer)
 	if err := encoder.Encode(value); err != nil {
-		return err
+		return errors.New(err)
 	}
 
 	resp.Body = io.NopCloser(buffer)

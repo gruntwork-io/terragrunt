@@ -60,7 +60,9 @@ The following is a reference of all the supported blocks and attributes in the c
 - [generate](#generate)
 - [engine](#engine)
 - [feature](#feature)
+- [exclude](#exclude)
 - [errors](#errors)
+- [unit](#unit)
 
 ### terraform
 
@@ -1301,6 +1303,8 @@ The `generate` block supports the following arguments:
   `false`. Optional.
 - `contents` (attribute): The contents of the generated file.
 - `disable` (attribute): Disables this generate block.
+- `hcl_fmt` (attribute): Unless disabled (set to `false`), files with `.hcl`, `.tf`, and `.tofu` extensions will be formatted before being written to disk.
+  If explicitly set to `true`, formatting will be applied to the generated files.
 
 Example:
 
@@ -1598,7 +1602,32 @@ Evaluation Order:
 > **Note:**
 > Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
 
+#### Errors during source fetching
+
+In addition to handling errors during OpenTofu/Terraform runs, the `errors` block will also handle errors that occur during source fetching.
+
+This can be particularly useful when fetching from artifact repositories that may be temporarily unavailable.
+
+Example:
+
+```hcl
+terraform {
+  source = "https://unreliable-source.com/module.zip"
+}
+
+errors {
+    retry "source_fetch" {
+        retryable_errors = [".*Error: transient network issue.*"]
+        max_attempts = 3
+        sleep_interval_sec = 5
+    }
+}
+```
+
 ### unit
+
+> **Note:**
+> The [`stacks`](/docs/reference/experiments/#stacks) experiment is still active, and using the `unit` block requires enabling the `stacks` experiment.
 
 The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
 
@@ -1624,7 +1653,67 @@ unit "vpc" {
 }
 ```
 
-Note that each unit must have a unique name and path within the stack. The values provided in the `values` block will be made available to the unit's configuration as input variables.
+Note that each unit must have a unique name and path within the stack.
+
+When `values` are specified, generated units will have access to those values via a special `terragrunt.values.hcl` file generated next to the `terragrunt.hcl` file of the unit.
+
+```tree
+terragrunt.stack.hcl
+.terragrunt-stack
+├── vpc
+│   ├── terragrunt.values.hcl
+│   └── terragrunt.hcl
+```
+
+The `terragrunt.values.hcl` file will contain the values specified in the `values` block as top-level attributes:
+
+```hcl
+# .terragrunt-stack/vpc/terragrunt.values.hcl
+
+vpc_name = "main"
+cidr     = "10.0.0.0/16"
+```
+
+The unit will be able to leverage those values via `values` variables.
+
+```hcl
+# .terragrunt-stack/vpc/terragrunt.hcl
+
+inputs = {
+  vpc_name = values.vpc_name
+  cidr     = values.cidr
+}
+```
+
+### stack
+
+> **Note:**
+> The [`stacks`](/docs/reference/experiments/#stacks) experiment is still active, and using the `stack` block requires enabling the `stacks` experiment.
+
+The `stack` block is used to define a stack of deployment units in a Terragrunt configuration file (`terragrunt.stack.hcl`).
+Stacks allow for nesting, enabling the organization of infrastructure components into modular, reusable groups, reducing redundancy and improving maintainability.
+
+Stacks are designed to be nestable, helping to mitigate the risk of stacks becoming too large or too repetitive.
+When a stack is generated, it can include nested stacks, ensuring that the configuration scales efficiently.
+
+The `stack` block supports the following arguments:
+
+- `name` (label): A unique identifier for the stack. This is used to reference the stack elsewhere in your configuration.
+- `source` (attribute): Specifies where to find the Terragrunt configuration files for this stack. This follows the same syntax as the `source` parameter in the `terraform` block.
+- `path` (attribute): The relative path within `.terragrunt-stack` where this stack should be generated.If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory.
+
+Example:
+
+```hcl
+# terragrunt.stack.hcl
+stack "services" {
+    source = "github.com/gruntwork-io/terragrunt-stacks//stacks/mock/services?ref=v0.0.1"
+    path   = "services"
+}
+```
+
+In this example, the `services` stack is defined with path `services`, which will be generated at `.terragrunt-stack/services`.
+Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
 
 ## Attributes
 

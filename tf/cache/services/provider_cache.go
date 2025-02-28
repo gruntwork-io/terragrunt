@@ -1,3 +1,5 @@
+// Package services provides services
+// that can be run in the background.
 package services
 
 import (

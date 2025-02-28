@@ -11,7 +11,6 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
-
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
@@ -87,6 +86,7 @@ type GenerateConfig struct {
 	Contents         string `cty:"contents"`
 	DisableSignature bool   `cty:"disable_signature"`
 	Disable          bool   `cty:"disable"`
+	HclFmt           *bool  `cty:"hcl_fmt"`
 }
 
 // WriteToFile will generate a new file at the given target path with the given contents. If a file already exists at
@@ -135,10 +135,30 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 		prefix = fmt.Sprintf("%s%s\n", config.CommentPrefix, TerragruntGeneratedSignature)
 	}
 
-	contentsToWrite := fmt.Sprintf("%s%s", prefix, config.Contents)
+	fmtGeneratedCode := false
+
+	if config.HclFmt == nil {
+		var fmtExt = map[string]struct{}{
+			".hcl":  {},
+			".tf":   {},
+			".tofu": {},
+		}
+
+		ext := filepath.Ext(config.Path)
+		if _, ok := fmtExt[ext]; ok {
+			fmtGeneratedCode = true
+		}
+	} else {
+		fmtGeneratedCode = *config.HclFmt
+	}
+
+	contentsToWrite := []byte(fmt.Sprintf("%s%s", prefix, config.Contents))
+	if fmtGeneratedCode {
+		contentsToWrite = hclwrite.Format(contentsToWrite)
+	}
 
 	const ownerWriteGlobalReadPerms = 0644
-	if err := os.WriteFile(targetPath, []byte(contentsToWrite), ownerWriteGlobalReadPerms); err != nil {
+	if err := os.WriteFile(targetPath, contentsToWrite, ownerWriteGlobalReadPerms); err != nil {
 		return errors.New(err)
 	}
 

@@ -3,6 +3,7 @@ package codegen_test
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -140,6 +141,81 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 				actual, _ := codegen.RemoteStateConfigToTerraformCode(tt.backend, tt.config, tt.encryption)
 				assert.Equal(t, output, actual)
 			}
+		})
+	}
+}
+
+func TestFmtGeneratedFile(t *testing.T) {
+	t.Parallel()
+
+	testDir := t.TempDir()
+
+	bTrue := true
+	bFalse := false
+
+	tc := []struct {
+		name     string
+		disabled bool
+		fmt      *bool
+		path     string
+		contents string
+		expected string
+		ifExists codegen.GenerateConfigExists
+	}{
+		{
+			name:     "fmt-simple-hcl-file",
+			fmt:      &bTrue,
+			path:     fmt.Sprintf("%s/%s", testDir, "fmt_simple.hcl"),
+			contents: "variable \"msg\"{\ntype=string\n  default=\"hello\"\n}\n",
+			expected: "variable \"msg\" {\n  type    = string\n  default = \"hello\"\n}\n",
+			ifExists: codegen.ExistsError,
+		},
+		{
+			name:     "fmt-hcl-file-by-default",
+			path:     fmt.Sprintf("%s/%s", testDir, "fmt_hcl_file_by_default.hcl"),
+			contents: "variable \"msg\"{\ntype=string\n  default=\"hello\"\n}\n",
+			expected: "variable \"msg\" {\n  type    = string\n  default = \"hello\"\n}\n",
+			ifExists: codegen.ExistsError,
+		},
+		{
+			name:     "ignore-hcl-fmt",
+			fmt:      &bFalse,
+			path:     fmt.Sprintf("%s/%s", testDir, "ignore_hcl_fmt.hcl"),
+			contents: "variable \"msg\"{\ntype=string\n  default=\"hello\"\n}\n",
+			expected: "variable \"msg\"{\ntype=string\n  default=\"hello\"\n}\n",
+			ifExists: codegen.ExistsError,
+		},
+	}
+
+	for _, tt := range tc {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := codegen.GenerateConfig{
+				Path:             tt.path,
+				IfExists:         tt.ifExists,
+				CommentPrefix:    "",
+				DisableSignature: true,
+				Contents:         tt.contents,
+				Disable:          tt.disabled,
+				HclFmt:           tt.fmt,
+			}
+
+			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
+			require.NoError(t, err)
+			assert.NotNil(t, opts)
+
+			err = codegen.WriteToFile(opts, "", config)
+			require.NoError(t, err)
+
+			assert.True(t, util.FileExists(tt.path))
+
+			fileContent, err := os.ReadFile(tt.path)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expected, string(fileContent))
 		})
 	}
 }

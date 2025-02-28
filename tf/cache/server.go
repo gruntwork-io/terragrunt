@@ -31,13 +31,18 @@ func NewServer(opts ...Option) *Server {
 	authMiddleware := middleware.KeyAuth(cfg.token)
 
 	downloaderController := &controllers.DownloaderController{
-		ProviderHandlers: cfg.providerHandlers,
+		ProxyProviderHandler: cfg.proxyProviderHandler,
+		ProviderService:      cfg.providerService,
 	}
 
 	providerController := &controllers.ProviderController{
-		AuthMiddleware:       authMiddleware,
-		DownloaderController: downloaderController,
-		ProviderHandlers:     cfg.providerHandlers,
+		AuthMiddleware:              authMiddleware,
+		DownloaderController:        downloaderController,
+		ProviderHandlers:            cfg.providerHandlers,
+		ProxyProviderHandler:        cfg.proxyProviderHandler,
+		ProviderService:             cfg.providerService,
+		CacheProviderHTTPStatusCode: cfg.cacheProviderHTTPStatusCode,
+		Logger:                      cfg.logger,
 	}
 
 	discoveryController := &controllers.DiscoveryController{
@@ -55,7 +60,7 @@ func NewServer(opts ...Option) *Server {
 	return &Server{
 		Router:             rootRouter,
 		Config:             cfg,
-		services:           cfg.services,
+		services:           []services.Service{cfg.providerService},
 		ProviderController: providerController,
 	}
 }

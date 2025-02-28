@@ -2461,6 +2461,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"provider": map[string]interface{}{
 				"path":              "provider.tf",
 				"if_exists":         "overwrite_terragrunt",
+				"hcl_fmt":           nil,
 				"if_disabled":       "skip",
 				"comment_prefix":    "# ",
 				"disable_signature": false,

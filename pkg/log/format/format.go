@@ -66,6 +66,12 @@ func NewPrettyFormatPlaceholders() Placeholders {
 		Message(
 			PathFormat(RelativePath),
 		),
+		Field(CacheServerURLKeyName,
+			Prefix(" "+CacheServerURLKeyName+"="),
+		),
+		Field(CacheServerStatusKeyName,
+			Prefix(" "+CacheServerStatusKeyName+"="),
+		),
 	}
 }
 
