@@ -4,8 +4,10 @@ package graph
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -16,7 +18,7 @@ const (
 	DeprecatedGraphRootFlagName = "graph-root"
 )
 
-func NewFlags(opts *options.TerragruntOptions, commandName string, graphFlag *bool, prefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, commandName)
@@ -25,8 +27,15 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, graphFlag *bo
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        GraphFlagName,
 			EnvVars:     tgPrefix.EnvVars(GraphFlagName),
-			Destination: graphFlag,
+			Destination: &opts.Graph,
 			Usage:       "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
+			Action: func(_ *cli.Context, _ bool) error {
+				if opts.RunAll {
+					return errors.New(new(common.AllGraphFlagsError))
+				}
+
+				return nil
+			},
 		}),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
@@ -41,10 +50,8 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, graphFlag *bo
 
 // WrapCommand appends flags to the given `cmd` and wraps its action.
 func WrapCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
-	var graphFlag bool
-
 	cmd = cmd.WrapAction(func(cliCtx *cli.Context, action cli.ActionFunc) error {
-		if !graphFlag {
+		if !opts.Graph {
 			return action(cliCtx)
 		}
 
@@ -56,7 +63,7 @@ func WrapCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command
 		return Run(cliCtx, opts.OptionsFromContext(cliCtx))
 	})
 
-	flags := append(cmd.Flags, NewFlags(opts, cmd.Name, &graphFlag, nil)...)
+	flags := append(cmd.Flags, NewFlags(opts, cmd.Name, nil)...)
 	cmd.Flags = flags.Sort()
 
 	return cmd

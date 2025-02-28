@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
@@ -3804,6 +3805,12 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test", testPath))
 	require.NoError(t, err)
+}
+
+func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --graph --all")
+	expectedErr := new(common.AllGraphFlagsError)
+	require.ErrorAs(t, err, &expectedErr)
 }
 
 func TestStorePlanFilesJsonRelativePath(t *testing.T) {

@@ -22,7 +22,7 @@ const (
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	flags := graph.NewFlags(opts, CommandName, nil, nil).Filter(graph.GraphRootFlagName)
+	flags := graph.NewFlags(opts, CommandName, nil).Filter(graph.GraphRootFlagName)
 	flags = append(flags, run.NewFlags(opts, nil)...)
 
 	return &cli.Command{

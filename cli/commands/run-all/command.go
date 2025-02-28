@@ -22,7 +22,7 @@ const (
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	flags := runall.NewFlags(opts, CommandName, nil, nil).Filter(runall.OutDirFlagName, runall.JSONOutDirFlagName)
+	flags := runall.NewFlags(opts, CommandName, nil).Filter(runall.OutDirFlagName, runall.JSONOutDirFlagName)
 	flags = append(flags, run.NewFlags(opts, nil)...)
 
 	return &cli.Command{
