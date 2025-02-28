@@ -151,12 +151,13 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, sta
 	if err := os.MkdirAll(stackTargetDir, os.ModePerm); err != nil {
 		return errors.Errorf("failed to create base directory: %s %v", stackTargetDir, err)
 	}
+	pool := util.NewWorkerPool(opts.Parallelism)
 
-	if err := generateUnits(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -166,52 +167,58 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, sta
 // generateUnits processes each unit by resolving its destination path and copying files from the source.
 // It then writes the unit's values file and logs any errors encountered.
 // In case of an error, the function exits early.
-func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, stackSourceDir, stackTargetDir string, units []*Unit) error {
 	for _, unit := range units {
-		opts.Logger.Infof("Processing unit %s", unit.Name)
+		pool.Submit(func() error {
+			opts.Logger.Infof("Processing unit %s", unit.Name)
 
-		destPath := filepath.Join(stackTargetDir, unit.Path)
-		dest, err := filepath.Abs(destPath)
+			destPath := filepath.Join(stackTargetDir, unit.Path)
+			dest, err := filepath.Abs(destPath)
 
-		if err != nil {
-			return errors.Errorf("failed to get absolute path for destination '%s': %v", dest, err)
-		}
+			if err != nil {
+				return errors.Errorf("failed to get absolute path for destination '%s': %v", dest, err)
+			}
 
-		src := unit.Source
-		opts.Logger.Debugf("Processing unit: %s (%s) to %s", unit.Name, src, dest)
+			src := unit.Source
+			opts.Logger.Debugf("Processing unit: %s (%s) to %s", unit.Name, src, dest)
 
-		if err := copyFiles(ctx, opts, unit.Name, stackSourceDir, src, dest); err != nil {
-			return err
-		}
+			if err := copyFiles(ctx, opts, unit.Name, stackSourceDir, src, dest); err != nil {
+				return err
+			}
 
-		// generate unit values file
-		if err := writeUnitValues(opts, unit, dest); err != nil {
-			return errors.Errorf("Failed to write unit values %v %v", unit.Name, err)
-		}
+			// generate unit values file
+			if err := writeUnitValues(opts, unit, dest); err != nil {
+				return errors.Errorf("Failed to write unit values %v %v", unit.Name, err)
+			}
+			return nil
+		})
 	}
-
 	return nil
 }
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, stackSourceDir, stackTargetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
-		opts.Logger.Infof("Processing stack %s", stack.Name)
+		pool.Submit(func() error {
+			opts.Logger.Infof("Processing stack %s", stack.Name)
 
-		destPath := filepath.Join(stackTargetDir, stack.Path)
-		dest, err := filepath.Abs(destPath)
+			destPath := filepath.Join(stackTargetDir, stack.Path)
+			dest, err := filepath.Abs(destPath)
 
-		if err != nil {
-			return errors.Errorf("Failed to get absolute path for destination '%s': %v", dest, err)
-		}
+			if err != nil {
+				return errors.Errorf("Failed to get absolute path for destination '%s': %v", dest, err)
+			}
 
-		src := stack.Source
-		opts.Logger.Debugf("Processing stack: %s (%s) to %s", stack.Name, src, dest)
+			src := stack.Source
+			opts.Logger.Debugf("Processing stack: %s (%s) to %s", stack.Name, src, dest)
 
-		if err := copyFiles(ctx, opts, stack.Name, stackSourceDir, src, dest); err != nil {
-			return err
-		}
+			if err := copyFiles(ctx, opts, stack.Name, stackSourceDir, src, dest); err != nil {
+				return err
+			}
+
+			return nil
+		})
 	}
 
 	return nil
