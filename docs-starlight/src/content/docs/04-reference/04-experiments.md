@@ -143,10 +143,10 @@ Feedback is crucial for ensuring the feature meets real-world use cases. Please 
 
 To transition `cli-redesign` features to a stable release, the following must be addressed:
 
-- [ ] Add support for `run` command.
+- [x] Add support for `run` command.
   - [x] Add support for basic usage of the `run` command (e.g., `terragrunt run plan`, `terragrunt run -- plan -no-color`).
-  - [ ] Add support for the `--all` flag.
-  - [ ] Add support for the `--graph` flag.
+  - [x] Add support for the `--all` flag.
+  - [x] Add support for the `--graph` flag.
 - [x] Add support for `exec` command.
 - [x] Rename legacy `--terragrunt-` prefixed flags so that they no longer need the prefix.
 - [ ] Add the `hcl` command, replacing commands like `hclfmt`, `hclvalidate` and `validate-inputs`.
