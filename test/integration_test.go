@@ -3808,6 +3808,8 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 }
 
 func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
+	t.Parallel()
+
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --graph --all")
 	expectedErr := new(common.AllGraphFlagsError)
 	require.ErrorAs(t, err, &expectedErr)
