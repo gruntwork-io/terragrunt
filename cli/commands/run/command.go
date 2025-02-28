@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -17,7 +19,7 @@ const (
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	return &cli.Command{
+	cmd := &cli.Command{
 		Name:        CommandName,
 		Usage:       "Run an OpenTofu/Terraform command.",
 		UsageText:   "terragrunt run [options] -- <tofu/terraform command>",
@@ -32,11 +34,14 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                NewFlags(opts, nil),
 		ErrorOnUndefinedFlag: true,
 		Subcommands:          NewSubcommands(opts),
-		Action: func(ctx *cli.Context) error {
+		Before: func(ctx *cli.Context) error {
 			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
 			}
 
+			return nil
+		},
+		Action: func(ctx *cli.Context) error {
 			if len(ctx.Args()) == 0 {
 				return cli.ShowCommandHelp(ctx)
 			}
@@ -44,6 +49,11 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			return Action(opts)(ctx)
 		},
 	}
+
+	cmd = runall.WrapCommand(opts, cmd)
+	cmd = graph.WrapCommand(opts, cmd)
+
+	return cmd
 }
 
 func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
@@ -52,7 +62,7 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 	for i, name := range tf.CommandNames {
 		usage, visible := tf.CommandUsages[name]
 
-		subcommands[i] = &cli.Command{
+		subcommand := &cli.Command{
 			Name:                 name,
 			Usage:                usage,
 			Hidden:               !visible,
@@ -62,6 +72,7 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 				return Action(opts)(ctx)
 			},
 		}
+		subcommands[i] = subcommand
 	}
 
 	return subcommands

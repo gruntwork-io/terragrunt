@@ -3,6 +3,8 @@
 package validateinputs
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -34,10 +36,15 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	return &cli.Command{
+	cmd := &cli.Command{
 		Name:   CommandName,
 		Usage:  "Checks if the terragrunt configured inputs align with the terraform defined variables.",
 		Flags:  append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
+
+	cmd = runall.WrapCommand(opts, cmd)
+	cmd = graph.WrapCommand(opts, cmd)
+
+	return cmd
 }
