@@ -2,6 +2,8 @@
 package renderjson
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -53,11 +55,16 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	prefix := flags.Prefix{CommandName}
 
-	return &cli.Command{
+	cmd := &cli.Command{
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
 		Flags:       append(run.NewFlags(opts, nil), NewFlags(opts, prefix)...).Sort(),
 		Action:      func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
+
+	cmd = runall.WrapCommand(opts, cmd)
+	cmd = graph.WrapCommand(opts, cmd)
+
+	return cmd
 }

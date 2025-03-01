@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-
-	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -16,12 +14,11 @@ import (
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	target := run.NewTarget(run.TargetPointParseConfig, graph)
+	cfg, err := config.ReadTerragruntConfig(ctx, opts, config.DefaultParserOptions(opts))
+	if err != nil {
+		return err
+	}
 
-	return run.RunWithTarget(ctx, opts, target)
-}
-
-func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
 		return errors.New("terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
 	}

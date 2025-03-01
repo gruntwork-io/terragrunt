@@ -6,15 +6,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
-	AllFlagName                            = "all"
-	GraphFlagName                          = "graph"
 	ConfigFlagName                         = "config"
 	NoAutoInitFlagName                     = "no-auto-init"
 	NoAutoRetryFlagName                    = "no-auto-retry"
@@ -137,24 +134,6 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	legacyLogsControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName, controls.LegacyLogs)
 
 	flags := cli.Flags{
-		flags.NewFlag(&cli.BoolFlag{
-			Name:    AllFlagName,
-			EnvVars: tgPrefix.EnvVars(AllFlagName),
-			Usage:   `Run the specified OpenTofu/Terraform command on the stack of units in the current directory.`,
-			Action: func(_ *cli.Context, _ bool) error {
-				return errors.Errorf("`--%s` flag is under development", AllFlagName)
-			},
-		}),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:    GraphFlagName,
-			EnvVars: tgPrefix.EnvVars(GraphFlagName),
-			Usage:   "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
-			Action: func(_ *cli.Context, _ bool) error {
-				return errors.Errorf("`--%s` flag is under development", GraphFlagName)
-			},
-		}),
-
 		//  Backward compatibility with `terragrunt-` prefix flags.
 
 		flags.NewFlag(&cli.GenericFlag[string]{

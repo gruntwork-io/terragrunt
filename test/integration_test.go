@@ -14,8 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/common"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -3757,8 +3758,6 @@ func TestTerragruntInfoError(t *testing.T) {
 func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	t.Parallel()
 
-	config.ClearOutputCache()
-
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
@@ -3781,19 +3780,10 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
-
-	for _, env := range os.Environ() {
-		pair := strings.SplitN(env, "=", 2)
-		fmt.Printf(" env1 %s=%s\n", pair[0], pair[1])
-	}
 }
 
 func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 	t.Parallel()
-
-	t.Cleanup(func() {
-		config.ClearOutputCache()
-	})
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
@@ -3815,37 +3805,54 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test", testPath))
 	require.NoError(t, err)
+}
 
-	for _, env := range os.Environ() {
-		pair := strings.SplitN(env, "=", 2)
-		fmt.Printf(" env1 %s=%s\n", pair[0], pair[1])
-	}
+func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --graph --all")
+	expectedErr := new(common.AllGraphFlagsError)
+	require.ErrorAs(t, err, &expectedErr)
 }
 
 func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 	t.Parallel()
 
-	config.ClearOutputCache()
+	testCases := []struct {
+		args string
+	}{
+		{"run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test --terragrunt-json-out-dir json"},
+		{"run --all plan --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
+		{"run plan --all --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
+		{"run --all --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json -- plan"},
+	}
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	for _, testCase := range testCases {
+		t.Run("terragrunt args: "+testCase.args, func(t *testing.T) {
+			t.Parallel()
 
-	// run plan with output directory
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test --terragrunt-json-out-dir json", testPath))
-	require.NoError(t, err)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
+			helpers.CleanupTerraformFolder(t, tmpEnvPath)
+			testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
-	// verify that tfplan files are created in the tmpDir, 2 files
-	outDir := util.JoinPath(testPath, "test")
-	list, err := findFilesWithExtension(outDir, ".tfplan")
-	require.NoError(t, err)
-	assert.Len(t, list, 2)
+			// run plan with output directory
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+testCase.args, testPath))
+			require.NoError(t, err)
 
-	// verify that json files are create
-	jsonDir := util.JoinPath(testPath, "json")
-	listJSON, err := findFilesWithExtension(jsonDir, ".json")
-	require.NoError(t, err)
-	assert.Len(t, listJSON, 2)
+			// verify that tfplan files are created in the tmpDir, 2 files
+			outDir := util.JoinPath(testPath, "test")
+			list, err := findFilesWithExtension(outDir, ".tfplan")
+			require.NoError(t, err)
+			assert.Len(t, list, 2)
+
+			// verify that json files are create
+			jsonDir := util.JoinPath(testPath, "json")
+			listJSON, err := findFilesWithExtension(jsonDir, ".json")
+			require.NoError(t, err)
+			assert.Len(t, listJSON, 2)
+
+		})
+	}
 }
 
 func TestPlanJsonFilesRunAll(t *testing.T) {
@@ -3878,9 +3885,6 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 
 func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	t.Parallel()
-
-	// clear dependencies output cache
-	config.ClearOutputCache()
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
@@ -3916,8 +3920,6 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 
 func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	t.Parallel()
-
-	config.ClearOutputCache()
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
