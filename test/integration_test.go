@@ -110,6 +110,7 @@ const (
 	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
+	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
 
 	terraformFolder = ".terraform"
 
@@ -528,12 +529,12 @@ func TestLogStdoutLevel(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStdoutLevel)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogStdoutLevel)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "STDOUT "+wrappedBinary()+": Changes to Outputs")
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "STDOUT "+wrappedBinary()+": Changes to Outputs")
@@ -4163,4 +4164,24 @@ func TestLogFormatBare(t *testing.T) {
 
 	assert.Contains(t, stdout, "Initializing the backend...")
 	assert.NotContains(t, stdout, "STDO[0000] Initializing the backend...")
+}
+
+func TestTF110EphemeralVars(t *testing.T) {
+	t.Parallel()
+	if !helpers.IsTerraform110OrHigher() {
+		t.Skip("This test requires Terraform 1.10 or higher")
+		return
+	}
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEphemeralInputs)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureEphemeralInputs)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy")
+
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 }
