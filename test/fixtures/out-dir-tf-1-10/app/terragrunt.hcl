@@ -5,7 +5,7 @@ dependency "dependency" {
   mock_outputs = {
     result = "46521694"
   }
-  mock_outputs_allowed_terraform_commands = ["plan", "apply", "show"]
+  mock_outputs_allowed_terraform_commands = ["show"]
 }
 
 inputs = {
