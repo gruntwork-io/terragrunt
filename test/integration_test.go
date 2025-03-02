@@ -4170,6 +4170,7 @@ func TestTF110EphemeralVars(t *testing.T) {
 	t.Parallel()
 	if !helpers.IsTerraform110OrHigher() {
 		t.Skip("This test requires Terraform 1.10 or higher")
+
 		return
 	}
 

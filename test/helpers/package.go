@@ -658,10 +658,12 @@ func ExpectedWrongCommandErr(command string) error {
 	return run.WrongTerraformCommand(command)
 }
 
+// IsTerraform checks if the wrapped binary currently in use is the Terraform binary.
 func IsTerraform() bool {
 	return WrappedBinary() == TerraformBinary
 }
 
+// IsTerraform110OrHigher checks if the installed Terraform binary is version 1.10.0 or higher.
 func IsTerraform110OrHigher() bool {
 	const (
 		requiredMajor = 1
