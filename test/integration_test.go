@@ -3793,6 +3793,9 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
+	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", dependencyPath, testPath))
+
 	// run plan with output directory
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, "test"))
 	require.NoError(t, err)
