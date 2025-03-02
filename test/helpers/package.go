@@ -662,39 +662,27 @@ func IsTerraform() bool {
 	return WrappedBinary() == TerraformBinary
 }
 
-func IsTerraform110() bool {
+func IsTerraform110OrHigher() bool {
+	const (
+		requiredMajor = 1
+		requiredMinor = 10
+	)
+
 	if !IsTerraform() {
 		return false
 	}
-	// run `terraform -version` and check if it's at least 1.10
+
 	output, err := exec.Command(WrappedBinary(), "-version").Output()
 	if err != nil {
 		return false
 	}
 
-	versionStr := string(output)
+	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
 
-	re := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.(\d+)`)
-	matches := re.FindStringSubmatch(versionStr)
-	if len(matches) < 4 {
-		return false
-	}
+	major, _ := strconv.Atoi(matches[1])
+	minor, _ := strconv.Atoi(matches[2])
 
-	major, err1 := strconv.Atoi(matches[1])
-	minor, err2 := strconv.Atoi(matches[2])
-
-	if err1 != nil || err2 != nil {
-		return false
-	}
-
-	if major > 1 {
-		return true
-	}
-	if major == 1 && minor >= 10 {
-		return true
-	}
-
-	return false
+	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
 }
 
 func FindFilesWithExtension(dir string, ext string) ([]string, error) {
