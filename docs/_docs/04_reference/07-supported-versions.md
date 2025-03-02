@@ -28,7 +28,7 @@ The officially supported versions are:
 
 | Terraform Version | Terragrunt Version                                                                                                                                    |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1.10.x            | >= [0.73.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.73.0)                                                                          |
+| 1.10.x            | >= [0.74.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.74.0)                                                                          |
 | 1.9.x             | >= [0.60.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.60.0)                                                                          |
 | 1.8.x             | >= [0.57.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.57.0)                                                                          |
 | 1.7.x             | >= [0.56.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.56.0)                                                                          |
