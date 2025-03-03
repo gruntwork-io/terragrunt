@@ -1099,6 +1099,11 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 			nil,
 		},
 		{
+			[]string{"--", "graph"},
+			"digraph {",
+			nil,
+		},
+		{
 			[]string{"--", "paln"}, //codespell:ignore
 			"",
 			expectedWrongCommandErr("paln"), //codespell:ignore
@@ -1125,7 +1130,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 
 		output := stdout.String()
 		errOutput := stderr.String()
-		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
+		assert.Contains(t, output+errOutput, testCase.expected)
 	}
 }
 

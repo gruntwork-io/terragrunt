@@ -37,6 +37,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
+const (
+	AppName = "terragrunt"
+)
+
 func init() {
 	cli.AppVersionTemplate = AppVersionTemplate
 	cli.AppHelpTemplate = AppHelpTemplate
@@ -53,7 +57,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	terragruntCommands := commands.New(opts)
 
 	app := cli.NewApp()
-	app.Name = "terragrunt"
+	app.Name = AppName
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
@@ -241,8 +245,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
-	switch cmdName {
-	case runCmd.CommandName, runall.CommandName, graph.CommandName:
+	switch {
+	case cmdName == runCmd.CommandName:
+		fallthrough
+	case cmdName == runall.CommandName:
+		fallthrough
+	case cmdName == graph.CommandName && cliCtx.Parent().Command.IsRoot:
 		cmdName = args.CommandName()
 	default:
 		args = append([]string{cmdName}, args...)
