@@ -41,13 +41,13 @@ func (err RegistryAPIErr) Error() string {
 	return fmt.Sprintf("Failed to fetch url %s: status code %d", err.url, err.statusCode)
 }
 
-// ModuleVersionsErr is returned if we failed to fetch the module versions from the registry.
-type ModuleVersionsErr struct {
-	moduleName string
+// ModuleVersionsFetchErr is returned if we failed to fetch the module versions from the registry.
+type ModuleVersionsFetchErr struct {
+	sourceURL string
 }
 
-func (err ModuleVersionsErr) Error() string {
-	return fmt.Sprintf("Failed to fetch versions for module %s. Ensure you're properly authenticated and your registry is reachable", err.moduleName)
+func (err ModuleVersionsFetchErr) Error() string {
+	return fmt.Sprintf("Failed to fetch versions from %s. Please check authentication and registry is reachable", err.sourceURL)
 }
 
 // ModuleVersionConstraintErr is returned if the version constraint is not satisfied. This means there are no

@@ -159,7 +159,12 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return err
 	}
 
-	targetVersion, err := GetTargetVersion(ctx, tfrGetter.TerragruntOptions.Logger, registryDomain, moduleRegistryBasePath, modulePath, versionQuery)
+	moduleVersionsURL, err := BuildModuleVersionsURL(registryDomain, moduleRegistryBasePath, modulePath)
+	if err != nil {
+		return err
+	}
+
+	targetVersion, err := GetTargetVersion(ctx, tfrGetter.TerragruntOptions.Logger, *moduleVersionsURL, versionQuery)
 	if err != nil {
 		return err
 	}
@@ -295,35 +300,19 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 // GetTargetVersion retrieves the target version of the module based on the version constraint provided. This function
 // will return the highest version that satisfies the version constraint. If no version satisfies the constraint, an
 // error will be returned.
-func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain string, moduleRegistryBasePath string, modulePath string, versionQuery string) (string, error) {
-	// Handle the case where the registry domain is not part of the module registry base path
-	// since sometimes the registry domain is not part of the base path, but other times it is.
-	if !strings.HasPrefix(moduleRegistryBasePath, "https://") {
-		moduleRegistryBasePath = fmt.Sprintf("https://%s%s", registryDomain, moduleRegistryBasePath)
-	}
-	// Retrieve the available versions for the module
-	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
-	modulePath = strings.TrimSuffix(modulePath, "/")
-	modulePath = strings.TrimPrefix(modulePath, "/")
-	moduleVersionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
-
-	moduleVersionsURL, err := url.Parse(moduleVersionsPath)
+func GetTargetVersion(ctx context.Context, logger log.Logger, url url.URL, versionQuery string) (string, error) {
+	body, _, err := httpGETAndGetResponse(ctx, logger, url)
 	if err != nil {
-		return "", errors.New(err)
-	}
-
-	bodyData, _, err := httpGETAndGetResponse(ctx, logger, *moduleVersionsURL)
-	if err != nil {
-		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+		return "", errors.New(ModuleVersionsFetchErr{sourceURL: url.String()})
 	}
 
 	var responseJSON Modules
-	if err := json.Unmarshal(bodyData, &responseJSON); err != nil {
-		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+	if err := json.Unmarshal(body, &responseJSON); err != nil {
+		return "", errors.New(ModuleVersionsFetchErr{sourceURL: url.String()})
 	}
 
 	if len(responseJSON.Modules) == 0 || len(responseJSON.Modules[0].ModuleVersions) == 0 {
-		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+		return "", errors.New(ModuleVersionsFetchErr{sourceURL: url.String()})
 	}
 
 	// Filter the available module versions based on the version constraint
@@ -432,6 +421,26 @@ func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.UR
 	bodyData, err := io.ReadAll(resp.Body)
 
 	return bodyData, &resp.Header, errors.New(err)
+}
+
+// BuildModuleVersionsURL - create url to fetch module versions using moduleRegistryBasePath.
+func BuildModuleVersionsURL(registryDomain string, moduleRegistryBasePath string, modulePath string) (*url.URL, error) {
+	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+
+	moduleVersionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
+
+	moduleVersionsURL, err := url.Parse(moduleVersionsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if moduleVersionsURL.Scheme != "" {
+		return moduleVersionsURL, nil
+	}
+
+	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleVersionsPath}, nil
 }
 
 // BuildRequestURL - create url to download module using moduleRegistryBasePath

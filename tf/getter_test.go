@@ -162,55 +162,55 @@ func TestGetTargetVersion(t *testing.T) {
 	tc := []struct {
 		name           string
 		modulePath     string
-		targetVersion  string
+		versionQuery   string
 		expectedResult string
 	}{
 		{
 			name:           "FixedVersion",
 			modulePath:     "/terraform-aws-modules/iam/aws",
-			targetVersion:  "3.3.0",
+			versionQuery:   "3.3.0",
 			expectedResult: "3.3.0",
 		},
 		{
 			name:           "PessimisticPatchVersion",
 			modulePath:     "/terraform-aws-modules/iam/aws",
-			targetVersion:  "~> 0.0.1",
+			versionQuery:   "~> 0.0.1",
 			expectedResult: "0.0.7",
 		},
 		{
 			name:           "PessimisticMinorVersion",
 			modulePath:     "/terraform-aws-modules/iam/aws",
-			targetVersion:  "~> 3.3",
+			versionQuery:   "~> 3.3",
 			expectedResult: "3.16.0",
 		},
 		{
 			name:           "ComplexConstraint",
 			modulePath:     "/terraform-aws-modules/iam/aws",
-			targetVersion:  ">= 3.3.0, <5.0.0,!= 4.24.1,!=4.24.0",
+			versionQuery:   ">= 3.3.0, <5.0.0,!= 4.24.1,!=4.24.0",
 			expectedResult: "4.23.0",
 		},
 		{
 			name:           "InvalidConstraint",
 			modulePath:     "/terraform-aws-modules/iam/aws",
-			targetVersion:  ">= 3.3.0 and >4.24.1",
+			versionQuery:   ">= 3.3.0 and >4.24.1",
 			expectedResult: "",
 		},
 		{
 			name:           "UnsatisfiableConstraint",
 			modulePath:     "/terraform-aws-modules/iam/aws",
-			targetVersion:  ">= 3.3.0, <3.2.0",
+			versionQuery:   ">= 3.3.0, <3.2.0",
 			expectedResult: "",
 		},
 		{
 			name:           "InvalidVersion",
 			modulePath:     "/terraform-aws-modules/iam/aws",
-			targetVersion:  "~> a.b.c",
+			versionQuery:   "~> a.b.c",
 			expectedResult: "",
 		},
 		{
 			name:           "NotExistingModule",
 			modulePath:     "/terraform-not-existing-modules/not-existing-module",
-			targetVersion:  "3.3.0",
+			versionQuery:   "3.3.0",
 			expectedResult: "",
 		},
 	}
@@ -221,7 +221,10 @@ func TestGetTargetVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			targetVersion, err := tf.GetTargetVersion(context.Background(), log.New(), registryDomain, moduleRegistryBasePath, tt.modulePath, tt.targetVersion)
+			moduleVersionsURL, err := tf.BuildModuleVersionsURL(registryDomain, moduleRegistryBasePath, tt.modulePath)
+			require.NoError(t, err)
+
+			targetVersion, err := tf.GetTargetVersion(context.Background(), log.New(), *moduleVersionsURL, tt.versionQuery)
 			if tt.expectedResult == "" {
 				require.Error(t, err)
 			} else {
