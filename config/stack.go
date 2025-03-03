@@ -49,9 +49,10 @@ type Unit struct {
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
-	Name   string `hcl:",label"`
-	Source string `hcl:"source,attr"`
-	Path   string `hcl:"path,attr"`
+	Name   string     `hcl:",label"`
+	Source string     `hcl:"source,attr"`
+	Path   string     `hcl:"path,attr"`
+	Values *cty.Value `hcl:"values,attr"`
 }
 
 // GenerateStacks generates the stack files.
