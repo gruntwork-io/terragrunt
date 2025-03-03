@@ -168,6 +168,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	if err != nil {
 		return err
 	}
+
 	tfrGetter.TerragruntOptions.Logger.Infof("Downloading module from %s", moduleURL.String())
 
 	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.TerragruntOptions.Logger, *moduleURL)
@@ -202,7 +203,9 @@ func getHighestVersion(availableVersions []*version.Version) string {
 	if len(availableVersions) == 0 {
 		return ""
 	}
+
 	sort.Sort(version.Collection(availableVersions))
+
 	return availableVersions[len(availableVersions)-1].String()
 }
 
@@ -220,34 +223,42 @@ func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain str
 	modulePath = strings.TrimSuffix(modulePath, "/")
 	modulePath = strings.TrimPrefix(modulePath, "/")
 	moduleVersionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
+
 	moduleVersionsURL, err := url.Parse(moduleVersionsPath)
 	if err != nil {
 		return "", errors.New(err)
 	}
+
 	bodyData, _, err := httpGETAndGetResponse(ctx, logger, *moduleVersionsURL)
 	if err != nil {
 		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
 	}
+
 	var responseJSON Modules
 	if err := json.Unmarshal(bodyData, &responseJSON); err != nil {
 		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
 	}
+
 	if len(responseJSON.Modules) == 0 || len(responseJSON.Modules[0].ModuleVersions) == 0 {
 		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
 	}
+
 	availableVersions := responseJSON.Modules[0].ModuleVersions
 
 	// Filter the available versions based on the version constraint
 	filteredVersions := []*version.Version{}
+
 	versionConstraint, err := version.NewConstraint(versionQuery)
 	if err != nil {
 		return "", errors.New(ModuleVersionConstraintMalformedErr{versionConstraint: versionQuery})
 	}
+
 	for _, availableVersion := range availableVersions {
 		availableVersionParsed, err := version.NewVersion(availableVersion.Version)
 		if err != nil {
 			return "", errors.New(ModuleVersionMalformedErr{version: availableVersion.Version})
 		}
+
 		if versionConstraint.Check(availableVersionParsed) {
 			filteredVersions = append(filteredVersions, availableVersionParsed)
 		}
@@ -258,6 +269,7 @@ func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain str
 	if targetVersion == "" {
 		return "", errors.New(ModuleVersionConstraintErr{versionConstraint: versionQuery})
 	}
+
 	return targetVersion, nil
 }
 
