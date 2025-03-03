@@ -198,81 +198,6 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	return tfrGetter.getSubdir(ctx, dstPath, source, path.Join(subDir, moduleSubDir))
 }
 
-// getHighestVersion returns the highest version from the list of versions, or an empty string if the list is empty.
-func getHighestVersion(availableVersions []*version.Version) string {
-	if len(availableVersions) == 0 {
-		return ""
-	}
-
-	sort.Sort(version.Collection(availableVersions))
-
-	return availableVersions[len(availableVersions)-1].String()
-}
-
-// GetTargetVersion retrieves the target version of the module based on the version constraint provided. This function
-// will return the highest version that satisfies the version constraint. If no version satisfies the constraint, an
-// error will be returned.
-func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain string, moduleRegistryBasePath string, modulePath string, versionQuery string) (string, error) {
-	// Handle the case where the registry domain is not part of the module registry base path
-	// since sometimes the registry domain is not part of the base path, but other times it is.
-	if !strings.HasPrefix(moduleRegistryBasePath, "https://") {
-		moduleRegistryBasePath = fmt.Sprintf("https://%s%s", registryDomain, moduleRegistryBasePath)
-	}
-	// Retrieve the available versions for the module
-	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
-	modulePath = strings.TrimSuffix(modulePath, "/")
-	modulePath = strings.TrimPrefix(modulePath, "/")
-	moduleVersionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
-
-	moduleVersionsURL, err := url.Parse(moduleVersionsPath)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	bodyData, _, err := httpGETAndGetResponse(ctx, logger, *moduleVersionsURL)
-	if err != nil {
-		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
-	}
-
-	var responseJSON Modules
-	if err := json.Unmarshal(bodyData, &responseJSON); err != nil {
-		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
-	}
-
-	if len(responseJSON.Modules) == 0 || len(responseJSON.Modules[0].ModuleVersions) == 0 {
-		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
-	}
-
-	availableVersions := responseJSON.Modules[0].ModuleVersions
-
-	// Filter the available versions based on the version constraint
-	filteredVersions := []*version.Version{}
-
-	versionConstraint, err := version.NewConstraint(versionQuery)
-	if err != nil {
-		return "", errors.New(ModuleVersionConstraintMalformedErr{versionConstraint: versionQuery})
-	}
-
-	for _, availableVersion := range availableVersions {
-		availableVersionParsed, err := version.NewVersion(availableVersion.Version)
-		if err != nil {
-			return "", errors.New(ModuleVersionMalformedErr{version: availableVersion.Version})
-		}
-
-		if versionConstraint.Check(availableVersionParsed) {
-			filteredVersions = append(filteredVersions, availableVersionParsed)
-		}
-	}
-
-	// Get the highest version from the filtered versions
-	targetVersion := getHighestVersion(filteredVersions)
-	if targetVersion == "" {
-		return "", errors.New(ModuleVersionConstraintErr{versionConstraint: versionQuery})
-	}
-
-	return targetVersion, nil
-}
-
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
 // a single file.
 func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
@@ -365,6 +290,55 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 	}
 
 	return respJSON.ModulesPath, nil
+}
+
+// GetTargetVersion retrieves the target version of the module based on the version constraint provided. This function
+// will return the highest version that satisfies the version constraint. If no version satisfies the constraint, an
+// error will be returned.
+func GetTargetVersion(ctx context.Context, logger log.Logger, registryDomain string, moduleRegistryBasePath string, modulePath string, versionQuery string) (string, error) {
+	// Handle the case where the registry domain is not part of the module registry base path
+	// since sometimes the registry domain is not part of the base path, but other times it is.
+	if !strings.HasPrefix(moduleRegistryBasePath, "https://") {
+		moduleRegistryBasePath = fmt.Sprintf("https://%s%s", registryDomain, moduleRegistryBasePath)
+	}
+	// Retrieve the available versions for the module
+	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+	moduleVersionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
+
+	moduleVersionsURL, err := url.Parse(moduleVersionsPath)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	bodyData, _, err := httpGETAndGetResponse(ctx, logger, *moduleVersionsURL)
+	if err != nil {
+		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+	}
+
+	var responseJSON Modules
+	if err := json.Unmarshal(bodyData, &responseJSON); err != nil {
+		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+	}
+
+	if len(responseJSON.Modules) == 0 || len(responseJSON.Modules[0].ModuleVersions) == 0 {
+		return "", errors.New(ModuleVersionsErr{moduleName: modulePath})
+	}
+
+	// Filter the available module versions based on the version constraint
+	filteredVersions, err := getCompatibleVersions(responseJSON.Modules[0].ModuleVersions, versionQuery)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the highest version from the filtered versions
+	targetVersion := getHighestVersion(filteredVersions)
+	if targetVersion == "" {
+		return "", errors.New(ModuleVersionConstraintErr{versionConstraint: versionQuery})
+	}
+
+	return targetVersion, nil
 }
 
 // GetTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
@@ -478,4 +452,39 @@ func BuildRequestURL(registryDomain string, moduleRegistryBasePath string, modul
 	}
 
 	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleFullPath}, nil
+}
+
+// getHighestVersion returns the highest version from the list of versions, or an empty string if the list is empty.
+func getHighestVersion(availableVersions []*version.Version) string {
+	if len(availableVersions) == 0 {
+		return ""
+	}
+
+	sort.Sort(version.Collection(availableVersions))
+
+	return availableVersions[len(availableVersions)-1].String()
+}
+
+// getCompatibleVersions returns the list of versions that satisfy the version constraint.
+func getCompatibleVersions(availableVersions []ModuleVersion, versionQuery string) ([]*version.Version, error) {
+	// Filter the available versions based on the version constraint
+	filteredVersions := []*version.Version{}
+
+	versionConstraint, err := version.NewConstraint(versionQuery)
+	if err != nil {
+		return nil, errors.New(ModuleVersionConstraintMalformedErr{versionConstraint: versionQuery})
+	}
+
+	for _, availableVersion := range availableVersions {
+		availableVersionParsed, err := version.NewVersion(availableVersion.Version)
+		if err != nil {
+			return nil, errors.New(ModuleVersionMalformedErr{version: availableVersion.Version})
+		}
+
+		if versionConstraint.Check(availableVersionParsed) {
+			filteredVersions = append(filteredVersions, availableVersionParsed)
+		}
+	}
+
+	return filteredVersions, nil
 }
