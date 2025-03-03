@@ -11,7 +11,7 @@ env: &env
     OPENTOFU_VERSION: "1.9.0"
     TERRAFORM_VERSION: "1.11.0"
     TFLINT_VERSION: "0.47.0"
-    TOFU_ENGINE_VERSION: "v0.0.11"
+    TOFU_ENGINE_VERSION: "v0.0.16"
 
 defaults: &defaults
   docker:
