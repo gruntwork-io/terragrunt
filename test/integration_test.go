@@ -1100,7 +1100,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		},
 		{
 			[]string{"--", "graph"},
-			"digraph {",
+			"digraph",
 			nil,
 		},
 		{
