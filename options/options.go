@@ -399,6 +399,12 @@ type TerragruntOptions struct {
 
 	// StackOutputFormat format how the stack output is rendered.
 	StackOutputFormat string
+
+	// RunAll runs the provided OpenTofu/Terraform command against a stack.
+	RunAll bool
+
+	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
+	Graph bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
