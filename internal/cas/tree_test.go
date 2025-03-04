@@ -272,11 +272,17 @@ func TestLinkTree(t *testing.T) {
 					require.NoError(t, err)
 					assert.Equal(t, want.content, data)
 
-					// Verify hard link by comparing inode numbers
-					storePath := filepath.Join(store.Path(), want.hash[:2], want.hash)
-					storeInfo, err := os.Stat(storePath)
+					dataStat, err := os.Stat(path)
 					require.NoError(t, err)
-					assert.Equal(t, storeInfo.Sys().(*syscall.Stat_t).Ino, info.Sys().(*syscall.Stat_t).Ino)
+
+					// Verify hard link by comparing content.
+					// We don't compare inode numbers because the test might be running on Windows.
+					storePath := filepath.Join(store.Path(), want.hash[:2], want.hash)
+					storeStat, err := os.Stat(storePath)
+					require.NoError(t, err)
+
+					assert.True(t, os.SameFile(dataStat, storeStat))
+
 				}
 			}
 		})
