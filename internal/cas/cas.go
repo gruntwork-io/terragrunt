@@ -52,6 +52,8 @@ type CAS struct {
 }
 
 // New creates a new CAS instance with the given options
+//
+// TODO: Make these options optional
 func New(opts Options) (*CAS, error) {
 	if opts.StorePath == "" {
 		home, err := os.UserHomeDir()
@@ -72,6 +74,8 @@ func New(opts Options) (*CAS, error) {
 }
 
 // Clone performs the clone operation
+//
+// TODO: Make options optional
 func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts CloneOptions, url string) error {
 	c.cloneLock.Lock()
 	defer c.cloneLock.Unlock()
