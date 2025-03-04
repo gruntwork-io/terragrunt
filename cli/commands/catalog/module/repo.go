@@ -3,7 +3,6 @@ package module
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -51,28 +50,16 @@ type Repo struct {
 	BranchName string
 
 	walkWithSymlinks bool
-	useCAS           bool
+	allowCAS         bool
 }
 
 func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
-	useCAS := false
-
-	if strings.HasPrefix(cloneURL, "cas://") {
-		cloneURL = strings.TrimPrefix(cloneURL, "cas://")
-
-		if !allowCAS {
-			return nil, errors.Errorf("cas:// protocol is not allowed without using the `cas` experiment. Please enable the experiment and try again.")
-		}
-
-		useCAS = true
-	}
-
 	repo := &Repo{
 		logger:           l,
 		cloneURL:         cloneURL,
 		path:             path,
 		walkWithSymlinks: walkWithSymlinks,
-		useCAS:           useCAS,
+		allowCAS:         allowCAS,
 	}
 
 	if err := repo.clone(ctx, l); err != nil {
@@ -208,7 +195,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 		Logger:     repo.logger,
 	}
 
-	if err := repo.prepareCloneDirectory(&opts); err != nil {
+	if err := repo.prepareCloneDirectory(); err != nil {
 		return err
 	}
 
@@ -252,13 +239,13 @@ func (repo *Repo) handleLocalDir(repoPath string) error {
 	return nil
 }
 
-func (repo *Repo) prepareCloneDirectory(opts *CloneOptions) error {
-	if err := os.MkdirAll(opts.TargetPath, os.ModePerm); err != nil {
+func (repo *Repo) prepareCloneDirectory() error {
+	if err := os.MkdirAll(repo.path, os.ModePerm); err != nil {
 		return errors.New(err)
 	}
 
 	repoName := repo.extractRepoName()
-	repo.path = filepath.Join(opts.TargetPath, repoName)
+	repo.path = filepath.Join(repo.path, repoName)
 
 	// Clean up incomplete clones
 	if repo.shouldCleanupIncompleteClone() {
@@ -290,31 +277,20 @@ func (repo *Repo) cloneCompleted() bool {
 }
 
 func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOptions) error {
-	if repo.useCAS {
+	client := getter.DefaultClient
+
+	if repo.allowCAS {
 		c, err := cas.New(cas.Options{})
 		if err != nil {
 			return err
 		}
 
-		if err := c.Clone(ctx, &opts.Logger, cas.CloneOptions{
+		cloneOpts := cas.CloneOptions{
 			Dir:              repo.path,
 			IncludedGitFiles: includedGitFiles,
-		}, opts.SourceURL); err != nil {
-			return err
 		}
 
-		// Create the sentinel file to indicate that the clone is complete
-		f, err := os.Create(filepath.Join(repo.path, cloneCompleteSentinel))
-		if err != nil {
-			return errors.New(err)
-		}
-
-		if err := f.Close(); err != nil {
-			// This isn't a big enough issue to fail the whole clone operation, so just log a warning
-			l.Warnf("Failed to close the file %q: %v", f.Name(), err)
-		}
-
-		return nil
+		client.Getters = append([]getter.Getter{cas.NewCASGetter(&l, c, cloneOpts)}, client.Getters...)
 	}
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
@@ -325,14 +301,22 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 	repo.cloneURL = sourceURL.String()
 	opts.Logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
-	// Add HEAD reference to avoid pathspec error
-	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
+	// Check first if the query param ref is already set
+	q := sourceURL.Query()
 
-	if _, err := getter.Get( //nolint:contextcheck
-		opts.Context,
-		repo.path,
-		strings.Trim(sourceURL.String(), "/"),
-	); err != nil {
+	ref := q.Get("ref")
+	if ref != "" {
+		q.Set("ref", "HEAD")
+	}
+
+	sourceURL.RawQuery = q.Encode()
+
+	_, err = client.Get(ctx, &getter.Request{
+		Src:     sourceURL.String(),
+		Dst:     repo.path,
+		GetMode: getter.ModeDir,
+	})
+	if err != nil {
 		return err
 	}
 
