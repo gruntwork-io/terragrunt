@@ -27,6 +27,7 @@ type TreeEntry struct {
 type Tree struct {
 	entries []TreeEntry
 	path    string
+	data    []byte
 }
 
 // Entries returns the tree entries
@@ -37,6 +38,11 @@ func (t *Tree) Entries() []TreeEntry {
 // Path returns the tree path
 func (t *Tree) Path() string {
 	return t.path
+}
+
+// Data returns the tree data
+func (t *Tree) Data() []byte {
+	return t.data
 }
 
 // ParseTreeEntry parses a single line from git ls-tree output
@@ -88,6 +94,7 @@ func ParseTree(output, path string) (*Tree, error) {
 	return &Tree{
 		entries: entries,
 		path:    path,
+		data:    []byte(output),
 	}, nil
 }
 

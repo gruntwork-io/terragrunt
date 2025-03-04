@@ -33,5 +33,5 @@ func (s *Store) HasContent(hash string) bool {
 	path := filepath.Join(partitionDir, hash)
 	_, err := os.Stat(path)
 
-	return err == nil && !os.IsNotExist(err)
+	return err == nil
 }

@@ -96,19 +96,6 @@ func BenchmarkContent(b *testing.B) {
 		}
 	})
 
-	b.Run("batch_store", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			items := make(map[string][]byte, 100)
-			for j := 0; j < 100; j++ {
-				hash := fmt.Sprintf("benchmark%d_%d", i, j)
-				items[hash] = testData
-			}
-			if err := content.StoreBatch(&l, items); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
 	b.Run("parallel_store", func(b *testing.B) {
 		var mu sync.Mutex
 		seen := make(map[string]bool)

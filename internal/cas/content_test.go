@@ -46,9 +46,9 @@ func TestContent_Store(t *testing.T) {
 		testData := []byte("test content")
 
 		// Store content twice
-		err := content.Store(&l, testHash, testData)
+		err := content.Ensure(&l, testHash, testData)
 		require.NoError(t, err)
-		err = content.Store(&l, testHash, []byte("different content"))
+		err = content.Ensure(&l, testHash, []byte("different content"))
 		require.NoError(t, err)
 
 		// Verify original content remains

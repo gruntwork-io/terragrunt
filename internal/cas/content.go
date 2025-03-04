@@ -115,10 +115,6 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 
 	c.store.mapLock.Unlock()
 
-	if c.store.HasContent(hash) {
-		return nil
-	}
-
 	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
@@ -132,7 +128,7 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 
-	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
+	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
 	if err != nil {
 		return wrapError("create_temp_file", tempPath, err)
 	}
@@ -167,6 +163,15 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 		return wrapError("close_file", tempPath, err)
 	}
 
+	// Set read-only permissions on the temporary file
+	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
+		if err := os.Remove(tempPath); err != nil {
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
+		return wrapError("chmod_temp_file", tempPath, err)
+	}
+
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
 		if err := os.Remove(tempPath); err != nil {
@@ -179,12 +184,17 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	return nil
 }
 
-// GetTmpHandle returns a file handle to a temporary file where content will be stored.
-func (c *Content) GetTmpHandle(hash string) (*os.File, error) {
+// Ensure ensures that a content item exists in the store
+func (c *Content) Ensure(l *log.Logger, hash string, data []byte) error {
 	if c.store.HasContent(hash) {
-		return nil, nil
+		return nil
 	}
 
+	return c.Store(l, hash, data)
+}
+
+// GetTmpHandle returns a file handle to a temporary file where content will be stored.
+func (c *Content) GetTmpHandle(hash string) (*os.File, error) {
 	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return nil, wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
@@ -198,41 +208,12 @@ func (c *Content) GetTmpHandle(hash string) (*os.File, error) {
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 
-	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
+	f, err := os.Create(tempPath)
 	if err != nil {
 		return nil, wrapError("create_temp_file", tempPath, err)
 	}
 
 	return f, err
-}
-
-// StoreBatch stores multiple content items efficiently using parallel writes
-func (c *Content) StoreBatch(l *log.Logger, items map[string][]byte) error {
-	var wg sync.WaitGroup
-
-	errChan := make(chan error, len(items))
-
-	for hash, data := range items {
-		wg.Add(1)
-
-		go func(h string, d []byte) {
-			defer wg.Done()
-
-			if err := c.Store(l, h, d); err != nil {
-				errChan <- err
-			}
-		}(hash, data)
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	select {
-	case err := <-errChan:
-		return err
-	default:
-		return nil
-	}
 }
 
 // Read retrieves content from the store by hash
