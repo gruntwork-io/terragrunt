@@ -113,7 +113,7 @@ To transition the `stacks` feature to a stable release, the following must be ad
 - [x] Add support for `stack run *` command
 - [x] Add support for `stack output` commands to extend stack-level operations.
 - [x] Add support for stack "values".
-- [ ] Add support for recursive stacks.
+- [x] Add support for recursive stacks.
 - [ ] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
 - [ ] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
 - [ ] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
@@ -143,10 +143,10 @@ Feedback is crucial for ensuring the feature meets real-world use cases. Please 
 
 To transition `cli-redesign` features to a stable release, the following must be addressed:
 
-- [ ] Add support for `run` command.
+- [x] Add support for `run` command.
   - [x] Add support for basic usage of the `run` command (e.g., `terragrunt run plan`, `terragrunt run -- plan -no-color`).
-  - [ ] Add support for the `--all` flag.
-  - [ ] Add support for the `--graph` flag.
+  - [x] Add support for the `--all` flag.
+  - [x] Add support for the `--graph` flag.
 - [x] Add support for `exec` command.
 - [x] Rename legacy `--terragrunt-` prefixed flags so that they no longer need the prefix.
 - [ ] Add the `hcl` command, replacing commands like `hclfmt`, `hclvalidate` and `validate-inputs`.

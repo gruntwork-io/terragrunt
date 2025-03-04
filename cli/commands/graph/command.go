@@ -6,47 +6,30 @@ import (
 	"sort"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 const (
 	CommandName = "graph"
-
-	GraphRootFlagName = "graph-root"
-
-	DeprecatedGraphRootFlagName = "graph-root"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
-
-	return cli.Flags{
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        GraphRootFlagName,
-			EnvVars:     tgPrefix.EnvVars(GraphRootFlagName),
-			Destination: &opts.GraphRoot,
-			Usage:       "Root directory from where to build graph dependencies.",
-		},
-			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedGraphRootFlagName), terragruntPrefixControl)),
-	}
-}
-
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	flags := graph.NewFlags(opts, CommandName, nil).Filter(graph.GraphRootFlagName)
+	flags = append(flags, run.NewFlags(opts, nil)...)
+
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
 		ErrorOnUndefinedFlag: true,
-		Flags:                append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
+		Flags:                flags.Sort(),
 		Subcommands:          subCommands(opts).SkipRunning(),
 		Action:               action(opts),
 	}
@@ -64,7 +47,7 @@ func action(opts *options.TerragruntOptions) cli.ActionFunc {
 			return run.Run(ctx, opts)
 		}
 
-		return Run(cliCtx.Context, opts.OptionsFromContext(cliCtx))
+		return graph.Run(cliCtx.Context, opts.OptionsFromContext(cliCtx))
 	}
 }
 

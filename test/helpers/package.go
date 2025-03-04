@@ -658,8 +658,33 @@ func ExpectedWrongCommandErr(command string) error {
 	return run.WrongTerraformCommand(command)
 }
 
+// IsTerraform checks if the wrapped binary currently in use is the Terraform binary.
 func IsTerraform() bool {
 	return WrappedBinary() == TerraformBinary
+}
+
+// IsTerraform110OrHigher checks if the installed Terraform binary is version 1.10.0 or higher.
+func IsTerraform110OrHigher() bool {
+	const (
+		requiredMajor = 1
+		requiredMinor = 10
+	)
+
+	if !IsTerraform() {
+		return false
+	}
+
+	output, err := exec.Command(WrappedBinary(), "-version").Output()
+	if err != nil {
+		return false
+	}
+
+	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+
+	major, _ := strconv.Atoi(matches[1])
+	minor, _ := strconv.Atoi(matches[2])
+
+	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
 }
 
 func FindFilesWithExtension(dir string, ext string) ([]string, error) {

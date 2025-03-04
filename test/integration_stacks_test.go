@@ -17,14 +17,16 @@ import (
 )
 
 const (
-	testFixtureStacksBasic       = "fixtures/stacks/basic"
-	testFixtureStacksLocals      = "fixtures/stacks/locals"
-	testFixtureStacksLocalsError = "fixtures/stacks/errors/locals-error"
-	testFixtureStacksRemote      = "fixtures/stacks/remote"
-	testFixtureStacksInputs      = "fixtures/stacks/inputs"
-	testFixtureStacksOutputs     = "fixtures/stacks/outputs"
-	testFixtureStacksUnitValues  = "fixtures/stacks/unit-values"
-	testFixtureStacksEmptyPath   = "fixtures/stacks/errors/empty-path"
+	testFixtureStacksBasic         = "fixtures/stacks/basic"
+	testFixtureStacksLocals        = "fixtures/stacks/locals"
+	testFixtureStacksRemote        = "fixtures/stacks/remote"
+	testFixtureStacksInputs        = "fixtures/stacks/inputs"
+	testFixtureStacksOutputs       = "fixtures/stacks/outputs"
+	testFixtureStacksUnitValues    = "fixtures/stacks/unit-values"
+	testFixtureStacksLocalsError   = "fixtures/stacks/errors/locals-error"
+	testFixtureStacksUnitEmptyPath = "fixtures/stacks/errors/unit-empty-path"
+	testFixtureStacksEmptyPath     = "fixtures/stacks/errors/stack-empty-path"
+	testFixtureNestedStacks        = "fixtures/stacks/nested"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -34,6 +36,20 @@ func TestStacksGenerateBasic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
 
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
+
+func TestNestedStacksGenerate(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
@@ -407,7 +423,24 @@ func TestStacksUnitValuesOutput(t *testing.T) {
 	assert.Contains(t, result, "app2")
 }
 
-func TestStacksEmptyPathError(t *testing.T) {
+func TestStacksUnitEmptyPathError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitEmptyPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitEmptyPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitEmptyPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+
+	message := err.Error()
+	// check for app1 and app2 empty path error
+	assert.Contains(t, message, "unit 'app1_empty_path' has empty path")
+	assert.Contains(t, message, "unit 'app2_empty_path' has empty path")
+	assert.NotContains(t, message, "unit 'app3_not_empty_path' has empty path")
+}
+
+func TestStackStackEmptyPathError(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksEmptyPath)
@@ -418,10 +451,56 @@ func TestStacksEmptyPathError(t *testing.T) {
 	require.Error(t, err)
 
 	message := err.Error()
-	// check for app1 and app2 empty path error
-	assert.Contains(t, message, "unit 'app1_empty_path' has empty path")
-	assert.Contains(t, message, "unit 'app2_empty_path' has empty path")
-	assert.NotContains(t, message, "unit 'app3_not_empty_path' has empty path")
+	assert.Contains(t, message, "stack 'prod' has empty path")
+}
+
+func TestNestedStackOutput(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	assert.Len(t, result, 6)
+	// check output contains stacks
+	assert.Contains(t, result, "dev-api")
+	assert.Contains(t, result, "dev-db")
+	assert.Contains(t, result, "dev-web")
+
+	assert.Contains(t, result, "prod-api")
+	assert.Contains(t, result, "prod-db")
+	assert.Contains(t, result, "prod-web")
+
+}
+
+func TestNestedStacksApply(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "data = \"web dev-web 1.0.0\"")
+	assert.Contains(t, stdout, "data = \"api dev-api 1.0.0\"")
+	assert.Contains(t, stdout, "data = \"db dev-db 1.0.0\"")
+
+	assert.Contains(t, stdout, "data = \"web prod-web 1.0.0\"")
+	assert.Contains(t, stdout, "data = \"api prod-api 1.0.0\"")
+	assert.Contains(t, stdout, "data = \"db prod-db 1.0.0\"")
 }
 
 // check if the stack directory is created and contains files.

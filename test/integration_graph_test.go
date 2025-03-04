@@ -86,21 +86,25 @@ func TestTerragruntApplyGraph(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		args               string
 		path               string
 		expectedModules    []string
 		notExpectedModules []string
 	}{
 		{
+			args:               "graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s",
 			path:               "services/eks-service-3-v2",
 			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-3-v3"},
 			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
 		},
 		{
+			args:               "run --graph apply --experiment cli-redesign --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s",
 			path:               "lambda",
 			expectedModules:    []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
 			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
 		},
 		{
+			args:               "run apply --graph --experiment cli-redesign --non-interactive --working-dir %s --graph-root %s",
 			path:               "services/eks-service-5",
 			expectedModules:    []string{"services/eks-service-5"},
 			notExpectedModules: []string{"eks", "lambda", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
@@ -108,8 +112,6 @@ func TestTerragruntApplyGraph(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(testCase.path, func(t *testing.T) {
 			t.Parallel()
 
@@ -117,7 +119,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
@@ -145,19 +147,32 @@ func TestTerragruntApplyGraph(t *testing.T) {
 func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := prepareGraphFixture(t)
-	tmpModulePath := util.JoinPath(tmpEnvPath, testFixtureGraph, "eks")
+	testCases := []struct {
+		args string
+	}{
+		{"graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
+		{"render-json --graph --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
+	}
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
+	for _, testCase := range testCases {
+		t.Run("terragrunt args: "+testCase.args, func(t *testing.T) {
+			t.Parallel()
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
-	require.NoError(t, err)
+			tmpEnvPath := prepareGraphFixture(t)
+			tmpModulePath := util.JoinPath(tmpEnvPath, testFixtureGraph, "eks")
 
-	// check that terragrunt_rendered.json is created in mod1/mod2/mod3
-	for _, module := range []string{"services/eks-service-1", "eks"} {
-		_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureGraph, module, "terragrunt_rendered.json"))
-		require.NoError(t, err)
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			require.NoError(t, err)
+
+			// check that terragrunt_rendered.json is created in mod1/mod2/mod3
+			for _, module := range []string{"services/eks-service-1", "eks"} {
+				_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureGraph, module, "terragrunt_rendered.json"))
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
