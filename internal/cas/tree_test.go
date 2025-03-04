@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
