@@ -132,7 +132,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 			}
 
 			entryPath := filepath.Join(targetDir, entry.Path)
-			if err := os.MkdirAll(filepath.Dir(entryPath), dirPermissions); err != nil {
+			if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
 				errMu.Lock()
 				errs = append(errs, wrapError("mkdir_all", entryPath, err))
 				errMu.Unlock()
@@ -174,11 +174,9 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					return
 				}
 
-				subTargetDir := filepath.Join(targetDir, entry.Path)
-
-				if err := subTree.LinkTree(ctx, store, subTargetDir); err != nil {
+				if err := subTree.LinkTree(ctx, store, entryPath); err != nil {
 					errMu.Lock()
-					errs = append(errs, wrapError("link_subtree", subTargetDir, err))
+					errs = append(errs, wrapError("link_subtree", entryPath, err))
 					errMu.Unlock()
 					cancel()
 
