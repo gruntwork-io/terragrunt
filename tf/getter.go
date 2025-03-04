@@ -315,14 +315,14 @@ func GetTargetVersion(ctx context.Context, logger log.Logger, url url.URL, versi
 		return "", errors.New(ModuleVersionsFetchErr{sourceURL: url.String()})
 	}
 
-	// Filter the available module versions based on the version constraint
-	filteredVersions, err := getCompatibleVersions(responseJSON.Modules[0].ModuleVersions, versionQuery)
+	// Filter the available module versions based on the version constraint to get the compatible versions
+	compatibleVersions, err := getCompatibleVersions(responseJSON.Modules[0].ModuleVersions, versionQuery)
 	if err != nil {
 		return "", err
 	}
 
-	// Get the highest version from the filtered versions
-	targetVersion := getHighestVersion(filteredVersions)
+	// Get the highest version from the compatible versions
+	targetVersion := getHighestVersion(compatibleVersions)
 	if targetVersion == "" {
 		return "", errors.New(ModuleVersionConstraintErr{versionConstraint: versionQuery})
 	}
@@ -474,10 +474,10 @@ func getHighestVersion(availableVersions []*version.Version) string {
 	return availableVersions[len(availableVersions)-1].String()
 }
 
-// getCompatibleVersions returns the list of versions that satisfy the version constraint.
+// getCompatibleVersions returns the list of versions within availableVersions that satisfy the version
+// constraint defined by versionQuery.
 func getCompatibleVersions(availableVersions []ModuleVersion, versionQuery string) ([]*version.Version, error) {
-	// Filter the available versions based on the version constraint
-	filteredVersions := []*version.Version{}
+	var compatibleVersions []*version.Version
 
 	versionConstraint, err := version.NewConstraint(versionQuery)
 	if err != nil {
@@ -491,9 +491,9 @@ func getCompatibleVersions(availableVersions []ModuleVersion, versionQuery strin
 		}
 
 		if versionConstraint.Check(availableVersionParsed) {
-			filteredVersions = append(filteredVersions, availableVersionParsed)
+			compatibleVersions = append(compatibleVersions, availableVersionParsed)
 		}
 	}
 
-	return filteredVersions, nil
+	return compatibleVersions, nil
 }
