@@ -1,6 +1,9 @@
 package cas_test
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -127,4 +130,81 @@ invalid format`,
 			assert.Equal(t, tt.wantPath, got.Path())
 		})
 	}
+}
+
+func TestLinkTree(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary store directory
+	storeDir := t.TempDir()
+	store := cas.NewStore(storeDir)
+	content := cas.NewContent(store)
+
+	// Create test content
+	testData := []byte("test content")
+	testHash := "a1b2c3d4" // Using a fixed hash for testing
+	err := content.Store(nil, testHash, testData)
+	require.NoError(t, err)
+
+	// Create and store the src directory tree data
+	srcTreeData := `100644 blob a1b2c3d4 README.md`
+	srcTreeHash := "i9j0k1l2"
+	err = content.Store(nil, srcTreeHash, []byte(srcTreeData))
+	require.NoError(t, err)
+
+	// Create a test tree with both files and directories
+	treeData := `100644 blob a1b2c3d4 README.md
+100755 blob a1b2c3d4 scripts/test.sh
+040000 tree i9j0k1l2 src`
+	tree, err := cas.ParseTree(treeData, "test-repo")
+	require.NoError(t, err)
+
+	// Create target directory
+	targetDir := t.TempDir()
+
+	// Link the tree
+	err = tree.LinkTree(context.Background(), store, targetDir)
+	require.NoError(t, err)
+
+	// Verify the structure was created correctly
+	readmePath := filepath.Join(targetDir, "README.md")
+	scriptPath := filepath.Join(targetDir, "scripts", "test.sh")
+	srcPath := filepath.Join(targetDir, "src")
+	srcReadmePath := filepath.Join(targetDir, "src", "README.md")
+
+	// Check files exist and have correct content
+	readmeData, err := os.ReadFile(readmePath)
+	require.NoError(t, err)
+	assert.Equal(t, testData, readmeData)
+
+	scriptData, err := os.ReadFile(scriptPath)
+	require.NoError(t, err)
+	assert.Equal(t, testData, scriptData)
+
+	// Check directory exists
+	srcInfo, err := os.Stat(srcPath)
+	require.NoError(t, err)
+	assert.True(t, srcInfo.IsDir())
+
+	// Check file in src directory exists and has correct content
+	srcReadmeData, err := os.ReadFile(srcReadmePath)
+	require.NoError(t, err)
+	assert.Equal(t, testData, srcReadmeData)
+
+	// Verify hard links were created
+	storePath := filepath.Join(store.Path(), testHash[:2], testHash)
+	storeInfo, err := os.Stat(storePath)
+	require.NoError(t, err)
+
+	readmeInfo, err := os.Stat(readmePath)
+	require.NoError(t, err)
+	assert.Equal(t, storeInfo.Sys(), readmeInfo.Sys())
+
+	scriptInfo, err := os.Stat(scriptPath)
+	require.NoError(t, err)
+	assert.Equal(t, storeInfo.Sys(), scriptInfo.Sys())
+
+	srcReadmeInfo, err := os.Stat(srcReadmePath)
+	require.NoError(t, err)
+	assert.Equal(t, storeInfo.Sys(), srcReadmeInfo.Sys())
 }
