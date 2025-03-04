@@ -2,6 +2,7 @@ package cas
 
 import (
 	"bufio"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -193,13 +194,54 @@ func (c *Content) Ensure(l *log.Logger, hash string, data []byte) error {
 	return c.Store(l, hash, data)
 }
 
-// GetTmpHandle returns a file handle to a temporary file where content will be stored.
-func (c *Content) GetTmpHandle(hash string) (*os.File, error) {
-	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
-		return nil, wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
+// EnsureCopy ensures that a content item exists in the store by copying from a file
+func (c *Content) EnsureCopy(l *log.Logger, hash, src string) error {
+	if c.store.HasContent(hash) {
+		return nil
 	}
 
+	c.store.mapLock.Lock()
+
+	if _, ok := c.store.locks[hash]; !ok {
+		c.store.locks[hash] = &sync.Mutex{}
+	}
+
+	c.store.locks[hash].Lock()
+	defer c.store.locks[hash].Unlock()
+
+	c.store.mapLock.Unlock()
+
 	// Ensure partition directory exists
+	partitionDir := c.getPartition(hash)
+	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+	}
+
+	path := c.getPath(hash)
+
+	f, err := os.Create(path)
+	if err != nil {
+		return wrapError("create_file", path, err)
+	}
+
+	defer f.Close()
+
+	r, err := os.Open(src)
+	if err != nil {
+		return wrapError("open_source", src, err)
+	}
+
+	defer r.Close()
+
+	if _, err := io.Copy(f, r); err != nil {
+		return wrapError("copy_file", src, err)
+	}
+
+	return nil
+}
+
+// GetTmpHandle returns a file handle to a temporary file where content will be stored.
+func (c *Content) GetTmpHandle(hash string) (*os.File, error) {
 	partitionDir := c.getPartition(hash)
 	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, wrapError("create_partition_dir", partitionDir, ErrCreateDir)
