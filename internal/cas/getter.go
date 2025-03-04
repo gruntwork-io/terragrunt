@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
@@ -51,7 +52,22 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 	opts.Branch = ref
 	opts.Dir = req.Dst
 
-	return g.CAS.Clone(ctx, g.Logger, opts, url.String())
+	urlStr := url.String()
+	urlStr = strings.TrimPrefix(urlStr, "git::")
+
+	// We have to switch back to the original URL scheme to clone the repository
+	// go-getter sets the URL like this:
+	// git::ssh://git@github.com/gruntwork-io/terragrunt.git
+	// We need to switch to a valid Git URL to clone the repository
+	// Like this:
+	// git@github.com:gruntwork-io/terragrunt.git
+	if strings.HasPrefix(urlStr, "ssh://") {
+		urlStr = strings.TrimPrefix(urlStr, "ssh://")
+		// Replace the first slash with a colon
+		urlStr = strings.Replace(urlStr, "/", ":", 1)
+	}
+
+	return g.CAS.Clone(ctx, g.Logger, opts, urlStr)
 }
 
 func (g *CASGetter) GetFile(_ context.Context, req *getter.Request) error {
@@ -63,13 +79,11 @@ func (g *CASGetter) Mode(_ context.Context, url *url.URL) (getter.Mode, error) {
 }
 
 func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
-	for _, detector := range g.Detectors {
-		if _, ok, err := detector.Detect(req.Src, ""); err != nil {
-			return false, err
-		} else if ok {
-			return true, nil
-		}
+	if req.Forced == "git" {
+		return true, nil
+	}
 
+	for _, detector := range g.Detectors {
 		src, ok, err := detector.Detect(req.Src, req.Pwd)
 		if err != nil {
 			return ok, err
