@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -135,76 +136,143 @@ invalid format`,
 func TestLinkTree(t *testing.T) {
 	t.Parallel()
 
-	// Create a temporary store directory
-	storeDir := t.TempDir()
-	store := cas.NewStore(storeDir)
-	content := cas.NewContent(store)
+	tests := []struct {
+		name       string
+		setupStore func(t *testing.T) (*cas.Store, string)
+		treeData   string
+		wantFiles  []struct {
+			path    string
+			content []byte
+			isDir   bool
+			hash    string
+		}
+		wantErr bool
+	}{
+		{
+			name: "basic tree with files and directories",
+			setupStore: func(t *testing.T) (*cas.Store, string) {
+				storeDir := t.TempDir()
+				store := cas.NewStore(storeDir)
+				content := cas.NewContent(store)
 
-	// Create test content
-	testData := []byte("test content")
-	testHash := "a1b2c3d4" // Using a fixed hash for testing
-	err := content.Store(nil, testHash, testData)
-	require.NoError(t, err)
+				// Create test content
+				testData := []byte("test content")
+				testHash := "a1b2c3d4"
+				err := content.Store(nil, testHash, testData)
+				require.NoError(t, err)
 
-	// Create and store the src directory tree data
-	srcTreeData := `100644 blob a1b2c3d4 README.md`
-	srcTreeHash := "i9j0k1l2"
-	err = content.Store(nil, srcTreeHash, []byte(srcTreeData))
-	require.NoError(t, err)
+				// Create and store the src directory tree data
+				srcTreeData := `100644 blob a1b2c3d4 README.md`
+				srcTreeHash := "i9j0k1l2"
+				err = content.Store(nil, srcTreeHash, []byte(srcTreeData))
+				require.NoError(t, err)
 
-	// Create a test tree with both files and directories
-	treeData := `100644 blob a1b2c3d4 README.md
+				return store, testHash
+			},
+			treeData: `100644 blob a1b2c3d4 README.md
 100755 blob a1b2c3d4 scripts/test.sh
-040000 tree i9j0k1l2 src`
-	tree, err := cas.ParseTree(treeData, "test-repo")
-	require.NoError(t, err)
+040000 tree i9j0k1l2 src`,
+			wantFiles: []struct {
+				path    string
+				content []byte
+				isDir   bool
+				hash    string
+			}{
+				{
+					path:    "README.md",
+					content: []byte("test content"),
+					isDir:   false,
+					hash:    "a1b2c3d4",
+				},
+				{
+					path:    "scripts/test.sh",
+					content: []byte("test content"),
+					isDir:   false,
+					hash:    "a1b2c3d4",
+				},
+				{
+					path:  "src",
+					isDir: true,
+				},
+				{
+					path:    "src/README.md",
+					content: []byte("test content"),
+					isDir:   false,
+					hash:    "a1b2c3d4",
+				},
+			},
+		},
+		{
+			name: "empty tree",
+			setupStore: func(t *testing.T) (*cas.Store, string) {
+				storeDir := t.TempDir()
+				store := cas.NewStore(storeDir)
+				return store, ""
+			},
+			treeData: "",
+			wantFiles: []struct {
+				path    string
+				content []byte
+				isDir   bool
+				hash    string
+			}{},
+		},
+		{
+			name: "tree with missing content",
+			setupStore: func(t *testing.T) (*cas.Store, string) {
+				storeDir := t.TempDir()
+				store := cas.NewStore(storeDir)
+				return store, ""
+			},
+			treeData: `100644 blob missing123 README.md`,
+			wantErr:  true,
+		},
+	}
 
-	// Create target directory
-	targetDir := t.TempDir()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Link the tree
-	err = tree.LinkTree(context.Background(), store, targetDir)
-	require.NoError(t, err)
+			// Setup store
+			store, _ := tt.setupStore(t)
 
-	// Verify the structure was created correctly
-	readmePath := filepath.Join(targetDir, "README.md")
-	scriptPath := filepath.Join(targetDir, "scripts", "test.sh")
-	srcPath := filepath.Join(targetDir, "src")
-	srcReadmePath := filepath.Join(targetDir, "src", "README.md")
+			// Parse the tree
+			tree, err := cas.ParseTree(tt.treeData, "test-repo")
+			require.NoError(t, err)
 
-	// Check files exist and have correct content
-	readmeData, err := os.ReadFile(readmePath)
-	require.NoError(t, err)
-	assert.Equal(t, testData, readmeData)
+			// Create target directory
+			targetDir := t.TempDir()
 
-	scriptData, err := os.ReadFile(scriptPath)
-	require.NoError(t, err)
-	assert.Equal(t, testData, scriptData)
+			// Link the tree
+			err = tree.LinkTree(context.Background(), store, targetDir)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 
-	// Check directory exists
-	srcInfo, err := os.Stat(srcPath)
-	require.NoError(t, err)
-	assert.True(t, srcInfo.IsDir())
+			// Verify all expected files and directories
+			for _, want := range tt.wantFiles {
+				path := filepath.Join(targetDir, want.path)
 
-	// Check file in src directory exists and has correct content
-	srcReadmeData, err := os.ReadFile(srcReadmePath)
-	require.NoError(t, err)
-	assert.Equal(t, testData, srcReadmeData)
+				// Check if file/directory exists
+				info, err := os.Stat(path)
+				require.NoError(t, err)
+				assert.Equal(t, want.isDir, info.IsDir())
 
-	// Verify hard links were created
-	storePath := filepath.Join(store.Path(), testHash[:2], testHash)
-	storeInfo, err := os.Stat(storePath)
-	require.NoError(t, err)
+				if !want.isDir {
+					// Check file content
+					data, err := os.ReadFile(path)
+					require.NoError(t, err)
+					assert.Equal(t, want.content, data)
 
-	readmeInfo, err := os.Stat(readmePath)
-	require.NoError(t, err)
-	assert.Equal(t, storeInfo.Sys(), readmeInfo.Sys())
-
-	scriptInfo, err := os.Stat(scriptPath)
-	require.NoError(t, err)
-	assert.Equal(t, storeInfo.Sys(), scriptInfo.Sys())
-
-	srcReadmeInfo, err := os.Stat(srcReadmePath)
-	require.NoError(t, err)
-	assert.Equal(t, storeInfo.Sys(), srcReadmeInfo.Sys())
+					// Verify hard link by comparing inode numbers
+					storePath := filepath.Join(store.Path(), want.hash[:2], want.hash)
+					storeInfo, err := os.Stat(storePath)
+					require.NoError(t, err)
+					assert.Equal(t, storeInfo.Sys().(*syscall.Stat_t).Ino, info.Sys().(*syscall.Stat_t).Ino)
+				}
+			}
+		})
+	}
 }
