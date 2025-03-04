@@ -27,9 +27,9 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir: targetPath,
-		}, &l)
+		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -52,10 +52,10 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir:    targetPath,
 			Branch: "main",
-		}, &l)
+		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -74,10 +74,10 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir:              targetPath,
 			IncludedGitFiles: []string{"HEAD", "config"},
-		}, &l)
+		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.NoError(t, err)
 
 		// Verify repository was cloned

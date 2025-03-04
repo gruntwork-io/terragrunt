@@ -29,9 +29,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, cas1.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+		require.NoError(t, cas1.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir: firstClonePath,
-		}, &l))
+		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
 		// Get info about first clone
 		firstReadme := filepath.Join(firstClonePath, "README.md")
@@ -44,9 +44,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, cas2.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+		require.NoError(t, cas2.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir: secondClonePath,
-		}, &l))
+		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
 		// Get info about second clone
 		secondReadme := filepath.Join(secondClonePath, "README.md")
@@ -70,10 +70,10 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir:    filepath.Join(tempDir, "repo"),
 			Branch: "nonexistent-branch",
-		}, &l)
+		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -89,9 +89,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), "https://github.com/yhakbar/nonexistent-repo.git", cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "repo"),
-		}, &l)
+		}, "https://github.com/yhakbar/nonexistent-repo.git")
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -114,9 +114,9 @@ func TestIntegration_TreeStorage(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, c.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+		require.NoError(t, c.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "repo"),
-		}, &l))
+		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
 		// Get the commit hash
 		git := cas.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))

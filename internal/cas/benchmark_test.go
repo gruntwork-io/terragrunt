@@ -35,9 +35,9 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(context.TODO(), repo, cas.CloneOptions{
+			if err := c.Clone(context.TODO(), &l, cas.CloneOptions{
 				Dir: targetPath,
-			}, &l); err != nil {
+			}, repo); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -54,9 +54,9 @@ func BenchmarkClone(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := c.Clone(context.TODO(), repo, cas.CloneOptions{
+		if err := c.Clone(context.TODO(), &l, cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "initial"),
-		}, &l); err != nil {
+		}, repo); err != nil {
 			b.Fatal(err)
 		}
 
@@ -71,9 +71,9 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(context.TODO(), repo, cas.CloneOptions{
+			if err := c.Clone(context.TODO(), &l, cas.CloneOptions{
 				Dir: targetPath,
-			}, &l); err != nil {
+			}, repo); err != nil {
 				b.Fatal(err)
 			}
 		}

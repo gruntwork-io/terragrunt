@@ -72,7 +72,7 @@ func New(opts Options) (*CAS, error) {
 }
 
 // Clone performs the clone operation
-func (c *CAS) Clone(ctx context.Context, url string, opts CloneOptions, l *log.Logger) error {
+func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts CloneOptions, url string) error {
 	c.cloneLock.Lock()
 	defer c.cloneLock.Unlock()
 
@@ -101,7 +101,7 @@ func (c *CAS) Clone(ctx context.Context, url string, opts CloneOptions, l *log.L
 	}
 
 	if c.store.NeedsWrite(hash, c.cloneStart) {
-		if err := c.cloneAndStoreContent(url, opts, l, hash); err != nil {
+		if err := c.cloneAndStoreContent(l, opts, url, hash); err != nil {
 			return err
 		}
 	}
@@ -151,20 +151,20 @@ func (c *CAS) resolveReference(url, branch string) (string, error) {
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(url string, cloneOpts CloneOptions, l *log.Logger, hash string) error {
-	if err := c.git.Clone(url, true, 1, cloneOpts.Branch); err != nil {
+func (c *CAS) cloneAndStoreContent(l *log.Logger, opts CloneOptions, url string, hash string) error {
+	if err := c.git.Clone(url, true, 1, opts.Branch); err != nil {
 		return err
 	}
 
-	return c.storeRootTree(l, hash, cloneOpts)
+	return c.storeRootTree(l, hash, opts)
 }
 
-func (c *CAS) storeRootTree(l *log.Logger, hash string, cloneOpts CloneOptions) error {
+func (c *CAS) storeRootTree(l *log.Logger, hash string, opts CloneOptions) error {
 	if err := c.storeTree(l, hash, ""); err != nil {
 		return err
 	}
 
-	if len(cloneOpts.IncludedGitFiles) == 0 {
+	if len(opts.IncludedGitFiles) == 0 {
 		return nil
 	}
 
@@ -175,7 +175,7 @@ func (c *CAS) storeRootTree(l *log.Logger, hash string, cloneOpts CloneOptions) 
 		return err
 	}
 
-	for _, file := range cloneOpts.IncludedGitFiles {
+	for _, file := range opts.IncludedGitFiles {
 		stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
 		if err != nil {
 			return err

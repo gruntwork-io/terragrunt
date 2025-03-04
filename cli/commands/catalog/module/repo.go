@@ -291,15 +291,15 @@ func (repo *Repo) cloneCompleted() bool {
 
 func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOptions) error {
 	if repo.useCAS {
-		c, err := cas.New(opts.SourceURL, cas.Options{
-			Dir:              repo.path,
-			IncludedGitFiles: includedGitFiles,
-		})
+		c, err := cas.New(cas.Options{})
 		if err != nil {
 			return err
 		}
 
-		if err := c.Clone(ctx, &opts.Logger); err != nil {
+		if err := c.Clone(ctx, &opts.Logger, cas.CloneOptions{
+			Dir:              repo.path,
+			IncludedGitFiles: includedGitFiles,
+		}, opts.SourceURL); err != nil {
 			return err
 		}
 
