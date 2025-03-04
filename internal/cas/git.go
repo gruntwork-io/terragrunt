@@ -209,15 +209,20 @@ func (g *GitRunner) CatFile(hash string, out io.Writer) error {
 		return err
 	}
 
+	var stderr bytes.Buffer
+
 	cmd := g.prepareCommand("cat-file", "-p", hash)
 	cmd.Dir = g.WorkDir
 	cmd.Stdout = out
+	cmd.Stderr = &stderr
 
-	err := cmd.Wait()
+	err := cmd.Run()
 	if err != nil {
+		context := stderr.String()
+
 		return &WrappedError{
 			Op:      "git_cat_file",
-			Context: err.Error(),
+			Context: context,
 			Err:     ErrCommandSpawn,
 		}
 	}

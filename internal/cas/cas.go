@@ -10,6 +10,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -197,19 +198,24 @@ func (c *CAS) storeRootTree(l *log.Logger, hash string) error {
 
 		content := NewContent(c.store)
 
-		if err := content.Store(l, hash, fData); err != nil {
+		if err := content.Ensure(l, hash, fData); err != nil {
 			return err
 		}
 
 		path := filepath.Join(".git", file)
 
-		data = append(data, []byte(stat.Mode().String()+" blob "+hash+" "+path+"\n")...)
+		data = append(data, []byte(fmt.Sprintf("%06o blob %s\t%s\n", stat.Mode().Perm(), hash, path))...)
 	}
 
+	// Overwrite the root tree with the new data
 	return content.Store(l, hash, data)
 }
 
 func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
+	if c.store.HasContent(hash) {
+		return nil
+	}
+
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
@@ -217,8 +223,8 @@ func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
 
 	// Optimistically assume half the entries are trees and half are blobs
 	var (
-		trees []TreeEntry = make([]TreeEntry, 0, len(tree.Entries())/2)
-		blobs []TreeEntry = make([]TreeEntry, 0, len(tree.Entries())/2)
+		trees = make([]TreeEntry, 0, len(tree.Entries())/2) //nolint:mnd
+		blobs = make([]TreeEntry, 0, len(tree.Entries())/2) //nolint:mnd
 	)
 
 	for _, entry := range tree.Entries() {
@@ -234,7 +240,7 @@ func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
 		}
 	}
 
-	ch := make(chan error, 2)
+	ch := make(chan error, 2) //nolint:mnd
 
 	var wg sync.WaitGroup
 
@@ -282,6 +288,12 @@ func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
 		return errors.Join(errs...)
 	}
 
+	content := NewContent(c.store)
+
+	if err := content.Ensure(l, hash, tree.Data()); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -301,7 +313,7 @@ func (c *CAS) storeBlobs(entries []TreeEntry) error {
 		go func(hash string) {
 			defer wg.Done()
 
-			if err := c.storeHash(hash); err != nil {
+			if err := c.ensureBlob(hash); err != nil {
 				ch <- err
 
 				return
@@ -375,8 +387,26 @@ func (c *CAS) storeTrees(l *log.Logger, entries []TreeEntry, prefix string) erro
 	return nil
 }
 
-// storeHash stores an entry represented by a Git hash in the CAS
-func (c *CAS) storeHash(hash string) (err error) {
+// ensureBlob ensures that a blob exists in the CAS.
+// It doesn't use the standard content.Store method because
+// we want to take advantage of the ability to write to the
+// entry using `git cat-file`.
+func (c *CAS) ensureBlob(hash string) (err error) {
+	c.store.mapLock.Lock()
+
+	if _, ok := c.store.locks[hash]; !ok {
+		c.store.locks[hash] = &sync.Mutex{}
+	}
+
+	c.store.locks[hash].Lock()
+	defer c.store.locks[hash].Unlock()
+
+	c.store.mapLock.Unlock()
+
+	if c.store.HasContent(hash) {
+		return nil
+	}
+
 	content := NewContent(c.store)
 	tmpHandle, err := content.GetTmpHandle(hash)
 	if err != nil {
@@ -388,7 +418,7 @@ func (c *CAS) storeHash(hash string) (err error) {
 	// We want to make sure we remove the temporary file
 	// if we encounter an error
 	defer func() {
-		if _, osStatErr := os.Stat(tmpPath); osStatErr != nil {
+		if _, osStatErr := os.Stat(tmpPath); osStatErr == nil {
 			err = errors.Join(err, os.Remove(tmpPath))
 		}
 	}()
@@ -403,6 +433,10 @@ func (c *CAS) storeHash(hash string) (err error) {
 	}
 
 	if err = os.Rename(tmpPath, content.getPath(hash)); err != nil {
+		return err
+	}
+
+	if err = os.Chmod(content.getPath(hash), StoredFilePerms); err != nil {
 		return err
 	}
 
