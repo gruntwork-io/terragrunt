@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -45,11 +46,12 @@ type Options struct {
 // CAS clones a git repository using content-addressable storage.
 // If the content already exists in the store, it creates hard links instead of copying files.
 type CAS struct {
-	store     *Store
-	git       *GitRunner
-	opts      Options
-	url       string
-	cloneLock sync.Mutex
+	store      *Store
+	git        *GitRunner
+	opts       Options
+	url        string
+	cloneLock  sync.Mutex
+	cloneStart time.Time
 }
 
 // New creates a new CAS instance with the given options
@@ -78,6 +80,8 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger) error {
 	c.cloneLock.Lock()
 	defer c.cloneLock.Unlock()
 
+	c.cloneStart = time.Now()
+
 	targetDir := c.prepareTargetDirectory()
 
 	// Create a temporary directory for git operations
@@ -100,7 +104,7 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger) error {
 		return err
 	}
 
-	if !c.store.HasContent(hash) {
+	if c.store.NeedsWrite(hash, c.cloneStart) {
 		if err := c.cloneAndStoreContent(l, hash); err != nil {
 			return err
 		}
@@ -169,6 +173,7 @@ func (c *CAS) storeRootTree(l *log.Logger, hash string) error {
 	}
 
 	content := NewContent(c.store)
+
 	data, err := content.Read(hash)
 	if err != nil {
 		return err
@@ -207,7 +212,7 @@ func (c *CAS) storeRootTree(l *log.Logger, hash string) error {
 }
 
 func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
-	if c.store.HasContent(hash) {
+	if !c.store.NeedsWrite(hash, c.cloneStart) {
 		return nil
 	}
 
@@ -299,7 +304,7 @@ func (c *CAS) storeBlobs(entries []TreeEntry) error {
 	var wg sync.WaitGroup
 
 	for _, entry := range entries {
-		if c.store.HasContent(entry.Hash) {
+		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
 			continue
 		}
 
@@ -344,7 +349,7 @@ func (c *CAS) storeTrees(l *log.Logger, entries []TreeEntry, prefix string) erro
 	var wg sync.WaitGroup
 
 	for _, entry := range entries {
-		if c.store.HasContent(entry.Hash) {
+		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
 			continue
 		}
 
@@ -398,11 +403,12 @@ func (c *CAS) ensureBlob(hash string) (err error) {
 
 	c.store.mapLock.Unlock()
 
-	if c.store.HasContent(hash) {
+	if !c.store.NeedsWrite(hash, c.cloneStart) {
 		return nil
 	}
 
 	content := NewContent(c.store)
+
 	tmpHandle, err := content.GetTmpHandle(hash)
 	if err != nil {
 		return err

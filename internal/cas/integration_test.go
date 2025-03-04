@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -137,7 +138,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		// Verify the tree object is stored
 		store := cas.NewStore(storePath)
 		require.NoError(t, err)
-		assert.True(t, store.HasContent(commitHash), "Tree object should be stored")
+		assert.False(t, store.NeedsWrite(commitHash, time.Now()), "Tree object should be stored")
 
 		// Verify we can read the tree content
 		content := cas.NewContent(store)
