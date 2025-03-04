@@ -20,7 +20,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Options configures the behavior of the CAS operation
+// Options configures the behavior of CAS
+//
+// TODO: This is the wrong abstraction.
+// These options are specific to the CAS clone operation.
+// We should refactor this to be more specific to the clone operation.
 type Options struct {
 	// Dir specifies the target directory for the clone
 	// If empty, uses the repository name
@@ -31,7 +35,7 @@ type Options struct {
 	Branch string
 
 	// StorePath specifies a custom path for the content store
-	// If empty, uses $HOME/.cache/terragrunt/cas-store
+	// If empty, uses $HOME/.cache/terragrunt/cas/store
 	StorePath string
 
 	// IncludedGitFiles specifies the files to preserve from the .git directory
@@ -40,7 +44,6 @@ type Options struct {
 }
 
 // CAS clones a git repository using content-addressable storage.
-// If the content already exists in the store, it creates hard links instead of copying files.
 type CAS struct {
 	store      *Store
 	git        *GitRunner
