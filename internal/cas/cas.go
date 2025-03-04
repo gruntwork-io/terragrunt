@@ -21,11 +21,14 @@ import (
 )
 
 // Options configures the behavior of CAS
-//
-// TODO: This is the wrong abstraction.
-// These options are specific to the CAS clone operation.
-// We should refactor this to be more specific to the clone operation.
 type Options struct {
+	// StorePath specifies a custom path for the content store
+	// If empty, uses $HOME/.cache/terragrunt/cas/store
+	StorePath string
+}
+
+// CloneOptions configures the behavior of a specific clone operation
+type CloneOptions struct {
 	// Dir specifies the target directory for the clone
 	// If empty, uses the repository name
 	Dir string
@@ -33,10 +36,6 @@ type Options struct {
 	// Branch specifies which branch to clone
 	// If empty, uses HEAD
 	Branch string
-
-	// StorePath specifies a custom path for the content store
-	// If empty, uses $HOME/.cache/terragrunt/cas/store
-	StorePath string
 
 	// IncludedGitFiles specifies the files to preserve from the .git directory
 	// If empty, does not preserve any files
@@ -48,13 +47,12 @@ type CAS struct {
 	store      *Store
 	git        *GitRunner
 	opts       Options
-	url        string
 	cloneLock  sync.Mutex
 	cloneStart time.Time
 }
 
 // New creates a new CAS instance with the given options
-func New(url string, opts Options) (*CAS, error) {
+func New(opts Options) (*CAS, error) {
 	if opts.StorePath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -70,18 +68,17 @@ func New(url string, opts Options) (*CAS, error) {
 		store: store,
 		git:   NewGitRunner(),
 		opts:  opts,
-		url:   url,
 	}, nil
 }
 
 // Clone performs the clone operation
-func (c *CAS) Clone(ctx context.Context, l *log.Logger) error {
+func (c *CAS) Clone(ctx context.Context, url string, opts CloneOptions, l *log.Logger) error {
 	c.cloneLock.Lock()
 	defer c.cloneLock.Unlock()
 
 	c.cloneStart = time.Now()
 
-	targetDir := c.prepareTargetDirectory()
+	targetDir := c.prepareTargetDirectory(opts.Dir, url)
 
 	// Create a temporary directory for git operations
 	tempDir, cleanup, err := c.git.CreateTempDir()
@@ -98,13 +95,13 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger) error {
 	// Set the working directory for git operations
 	c.git.SetWorkDir(tempDir)
 
-	hash, err := c.resolveReference()
+	hash, err := c.resolveReference(url, opts.Branch)
 	if err != nil {
 		return err
 	}
 
 	if c.store.NeedsWrite(hash, c.cloneStart) {
-		if err := c.cloneAndStoreContent(l, hash); err != nil {
+		if err := c.cloneAndStoreContent(url, opts, l, hash); err != nil {
 			return err
 		}
 	}
@@ -128,17 +125,17 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger) error {
 	return nil
 }
 
-func (c *CAS) prepareTargetDirectory() string {
-	targetDir := c.opts.Dir
+func (c *CAS) prepareTargetDirectory(dir, url string) string {
+	targetDir := dir
 	if targetDir == "" {
-		targetDir = GetRepoName(c.url)
+		targetDir = GetRepoName(url)
 	}
 
 	return filepath.Clean(targetDir)
 }
 
-func (c *CAS) resolveReference() (string, error) {
-	results, err := c.git.LsRemote(c.url, c.opts.Branch)
+func (c *CAS) resolveReference(url, branch string) (string, error) {
+	results, err := c.git.LsRemote(url, branch)
 	if err != nil {
 		return "", err
 	}
@@ -154,20 +151,20 @@ func (c *CAS) resolveReference() (string, error) {
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(l *log.Logger, hash string) error {
-	if err := c.git.Clone(c.url, true, 1, c.opts.Branch); err != nil {
+func (c *CAS) cloneAndStoreContent(url string, cloneOpts CloneOptions, l *log.Logger, hash string) error {
+	if err := c.git.Clone(url, true, 1, cloneOpts.Branch); err != nil {
 		return err
 	}
 
-	return c.storeRootTree(l, hash)
+	return c.storeRootTree(l, hash, cloneOpts)
 }
 
-func (c *CAS) storeRootTree(l *log.Logger, hash string) error {
+func (c *CAS) storeRootTree(l *log.Logger, hash string, cloneOpts CloneOptions) error {
 	if err := c.storeTree(l, hash, ""); err != nil {
 		return err
 	}
 
-	if len(c.opts.IncludedGitFiles) == 0 {
+	if len(cloneOpts.IncludedGitFiles) == 0 {
 		return nil
 	}
 
@@ -178,7 +175,7 @@ func (c *CAS) storeRootTree(l *log.Logger, hash string) error {
 		return err
 	}
 
-	for _, file := range c.opts.IncludedGitFiles {
+	for _, file := range cloneOpts.IncludedGitFiles {
 		stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
 		if err != nil {
 			return err

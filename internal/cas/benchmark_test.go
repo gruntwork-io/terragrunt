@@ -28,15 +28,16 @@ func BenchmarkClone(b *testing.B) {
 			storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
-			cas, err := cas.New(repo, cas.Options{
-				Dir:       targetPath,
+			c, err := cas.New(cas.Options{
 				StorePath: storePath,
 			})
 			if err != nil {
 				b.Fatal(err)
 			}
 
-			if err := cas.Clone(context.TODO(), &l); err != nil {
+			if err := c.Clone(context.TODO(), repo, cas.CloneOptions{
+				Dir: targetPath,
+			}, &l); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -47,14 +48,15 @@ func BenchmarkClone(b *testing.B) {
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone to populate store
-		c, err := cas.New(repo, cas.Options{
-			Dir:       filepath.Join(tempDir, "initial"),
+		c, err := cas.New(cas.Options{
 			StorePath: storePath,
 		})
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := c.Clone(context.TODO(), &l); err != nil {
+		if err := c.Clone(context.TODO(), repo, cas.CloneOptions{
+			Dir: filepath.Join(tempDir, "initial"),
+		}, &l); err != nil {
 			b.Fatal(err)
 		}
 
@@ -62,15 +64,16 @@ func BenchmarkClone(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
-			c, err := cas.New(repo, cas.Options{
-				Dir:       targetPath,
+			c, err := cas.New(cas.Options{
 				StorePath: storePath,
 			})
 			if err != nil {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(context.TODO(), &l); err != nil {
+			if err := c.Clone(context.TODO(), repo, cas.CloneOptions{
+				Dir: targetPath,
+			}, &l); err != nil {
 				b.Fatal(err)
 			}
 		}

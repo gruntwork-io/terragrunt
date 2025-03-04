@@ -22,16 +22,14 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		cas, err := cas.New(
-			"https://github.com/gruntwork-io/terragrunt.git",
-			cas.Options{
-				Dir:       targetPath,
-				StorePath: storePath,
-			},
-		)
+		c, err := cas.New(cas.Options{
+			StorePath: storePath,
+		})
 		require.NoError(t, err)
 
-		err = cas.Clone(context.TODO(), &l)
+		err = c.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+			Dir: targetPath,
+		}, &l)
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -49,17 +47,15 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		cas, err := cas.New(
-			"https://github.com/gruntwork-io/terragrunt.git",
-			cas.Options{
-				Dir:       targetPath,
-				Branch:    "main",
-				StorePath: storePath,
-			},
-		)
+		c, err := cas.New(cas.Options{
+			StorePath: storePath,
+		})
 		require.NoError(t, err)
 
-		err = cas.Clone(context.TODO(), &l)
+		err = c.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+			Dir:    targetPath,
+			Branch: "main",
+		}, &l)
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -73,17 +69,15 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		cas, err := cas.New(
-			"https://github.com/gruntwork-io/terragrunt.git",
-			cas.Options{
-				Dir:              targetPath,
-				IncludedGitFiles: []string{"HEAD", "config"},
-				StorePath:        storePath,
-			},
-		)
+		c, err := cas.New(cas.Options{
+			StorePath: storePath,
+		})
 		require.NoError(t, err)
 
-		err = cas.Clone(context.TODO(), &l)
+		err = c.Clone(context.TODO(), "https://github.com/gruntwork-io/terragrunt.git", cas.CloneOptions{
+			Dir:              targetPath,
+			IncludedGitFiles: []string{"HEAD", "config"},
+		}, &l)
 		require.NoError(t, err)
 
 		// Verify repository was cloned
