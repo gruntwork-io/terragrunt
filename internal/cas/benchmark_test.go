@@ -3,6 +3,7 @@ package cas_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -169,14 +170,25 @@ func BenchmarkGitOperations(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+
 		if len(tree.Entries()) == 0 {
 			b.Fatal("no entries in tree")
 		}
+
 		hash := tree.Entries()[0].Hash
+
+		tmpFile := b.TempDir() + "/cat-file"
+		tmp, err := os.Create(tmpFile)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		defer os.Remove(tmpFile)
+		defer tmp.Close()
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := git.CatFile(hash)
+			err := git.CatFile(hash, tmp)
 			if err != nil {
 				b.Fatal(err)
 			}
