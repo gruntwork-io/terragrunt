@@ -91,7 +91,7 @@ Examples:
    # Run a plan against a Stack of configurations in the current directory
    terragrunt run --all -- plan
 
-Subcommands:
+Commands:
    fmt        Recursively find hcl files and rewrite them into a canonical format.
    validate   Find all hcl files from the config stack and validate them.
 

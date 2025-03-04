@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -69,8 +70,23 @@ func (newFlag *Flag) DeprecatedNames() []string {
 // Value implements `cli.Flag` interface.
 func (newFlag *Flag) Value() cli.FlagValue {
 	for _, deprecatedFlag := range newFlag.deprecatedFlags {
-		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue.IsSet() && deprecatedFlag.newValueFn != nil {
-			newValue := deprecatedFlag.newValueFn(deprecatedFlagValue)
+		if deprecatedFlag.Flag == newFlag.Flag {
+			continue
+		}
+
+		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue.IsSet() {
+			newValue := deprecatedFlagValue.String()
+
+			if newFlag.Flag.Value().IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
+				if v, ok := deprecatedFlagValue.Get().(bool); ok {
+					newValue = strconv.FormatBool(!v)
+				}
+			}
+
+			if deprecatedFlag.newValueFn != nil {
+				newValue = deprecatedFlag.newValueFn(deprecatedFlagValue)
+			}
+
 			newFlag.Flag.Value().Getter(deprecatedFlagValue.GetName()).Set(newValue) //nolint:errcheck
 		}
 	}

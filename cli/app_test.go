@@ -339,17 +339,21 @@ func TestParseMultiStringArg(t *testing.T) {
 		{[]string{commands.CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName}, []string{"default_bar"}, nil, argMissingValueError(run.UnitsThatIncludeFlagName)},
 	}
 
-	for _, testCase := range testCases {
-		opts := options.NewTerragruntOptions()
-		opts.ModulesThatInclude = testCase.defaultValue
-		actualOptions, actualErr := runAppTest(testCase.args, opts)
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
 
-		if testCase.expectedErr != nil {
-			assert.EqualError(t, actualErr, testCase.expectedErr.Error())
-		} else {
-			require.NoError(t, actualErr)
-			assert.Equal(t, testCase.expectedVals, actualOptions.ModulesThatInclude, "For args %q", testCase.args)
-		}
+			opts := options.NewTerragruntOptions()
+			opts.ModulesThatInclude = testCase.defaultValue
+			actualOptions, actualErr := runAppTest(testCase.args, opts)
+
+			if testCase.expectedErr != nil {
+				assert.EqualError(t, actualErr, testCase.expectedErr.Error())
+			} else {
+				require.NoError(t, actualErr)
+				assert.Equal(t, testCase.expectedVals, actualOptions.ModulesThatInclude, "For args %q", testCase.args)
+			}
+		})
 	}
 }
 
