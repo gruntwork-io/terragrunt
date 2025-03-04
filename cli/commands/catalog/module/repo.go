@@ -54,7 +54,7 @@ type Repo struct {
 	useCAS           bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
+func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
 	useCAS := false
 
 	if strings.HasPrefix(cloneURL, "cas://") {
@@ -68,14 +68,14 @@ func NewRepo(ctx context.Context, logger log.Logger, cloneURL, path string, walk
 	}
 
 	repo := &Repo{
-		logger:           logger,
+		logger:           l,
 		cloneURL:         cloneURL,
 		path:             path,
 		walkWithSymlinks: walkWithSymlinks,
 		useCAS:           useCAS,
 	}
 
-	if err := repo.clone(ctx); err != nil {
+	if err := repo.clone(ctx, l); err != nil {
 		return nil, err
 	}
 
@@ -189,7 +189,7 @@ type CloneOptions struct {
 	Logger     log.Logger
 }
 
-func (repo *Repo) clone(ctx context.Context) error {
+func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 	cloneURL, err := repo.resolveCloneURL()
 	if err != nil {
 		return err
@@ -218,7 +218,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 		return nil
 	}
 
-	return repo.performClone(ctx, &opts)
+	return repo.performClone(ctx, l, &opts)
 }
 
 func (repo *Repo) resolveCloneURL() (string, error) {
@@ -289,7 +289,7 @@ func (repo *Repo) cloneCompleted() bool {
 	return files.FileExists(filepath.Join(repo.path, cloneCompleteSentinel))
 }
 
-func (repo *Repo) performClone(ctx context.Context, opts *CloneOptions) error {
+func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOptions) error {
 	if repo.useCAS {
 		c, err := cas.New(opts.SourceURL, cas.Options{
 			Dir:              repo.path,
@@ -309,7 +309,10 @@ func (repo *Repo) performClone(ctx context.Context, opts *CloneOptions) error {
 			return errors.New(err)
 		}
 
-		f.Close()
+		if err := f.Close(); err != nil {
+			// This isn't a big enough issue to fail the whole clone operation, so just log a warning
+			l.Warnf("Failed to close the file %q: %v", f.Name(), err)
+		}
 
 		return nil
 	}

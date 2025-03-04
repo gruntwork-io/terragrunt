@@ -9,20 +9,17 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
-	"fmt"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
-	repoPartsSplitLimit = 2
-	maxConcurrentStores = 4
-	dirPermissions      = 0755
+	dirPermissions = 0755
 )
 
 // Options configures the behavior of the CAS operation
@@ -158,25 +155,70 @@ func (c *CAS) cloneAndStoreContent(l *log.Logger, hash string) error {
 		return err
 	}
 
-	return c.storeTreeRecursively(l, hash, "")
+	return c.storeRootTree(l, hash)
 }
 
-func (c *CAS) storeTreeRecursively(l *log.Logger, hash, prefix string) error {
+func (c *CAS) storeRootTree(l *log.Logger, hash string) error {
+	if err := c.storeTree(l, hash, ""); err != nil {
+		return err
+	}
+
+	if len(c.opts.IncludedGitFiles) == 0 {
+		return nil
+	}
+
+	content := NewContent(c.store)
+	data, err := content.Read(hash)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range c.opts.IncludedGitFiles {
+		stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
+		if err != nil {
+			return err
+		}
+
+		if stat.IsDir() {
+			continue
+		}
+
+		workDirPath := filepath.Join(c.git.WorkDir, file)
+
+		fData, err := os.ReadFile(workDirPath)
+		if err != nil {
+			return err
+		}
+
+		hash, err := hashFile(workDirPath)
+		if err != nil {
+			return err
+		}
+
+		content := NewContent(c.store)
+
+		if err := content.Store(l, hash, fData); err != nil {
+			return err
+		}
+
+		path := filepath.Join(".git", file)
+
+		data = append(data, []byte(stat.Mode().String()+" blob "+hash+" "+path+"\n")...)
+	}
+
+	return content.Store(l, hash, data)
+}
+
+func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
 	tree, err := c.git.LsTree(hash, ".")
 	if err != nil {
 		return err
 	}
 
-	content := NewContent(c.store)
-	treeData := strings.Builder{}
-
-	for _, entry := range tree.Entries() {
-		fmt.Fprintf(&treeData, "%s %s %s %s\n", entry.Mode, entry.Type, entry.Hash, entry.Path)
-	}
-
+	// Optimistically assume half the entries are trees and half are blobs
 	var (
-		subTrees    []TreeEntry
-		blobEntries []TreeEntry
+		trees []TreeEntry = make([]TreeEntry, 0, len(tree.Entries())/2)
+		blobs []TreeEntry = make([]TreeEntry, 0, len(tree.Entries())/2)
 	)
 
 	for _, entry := range tree.Entries() {
@@ -186,74 +228,68 @@ func (c *CAS) storeTreeRecursively(l *log.Logger, hash, prefix string) error {
 
 		switch entry.Type {
 		case "blob":
-			blobEntries = append(blobEntries, entry)
+			blobs = append(blobs, entry)
 		case "tree":
-			subTrees = append(subTrees, entry)
+			trees = append(trees, entry)
 		}
 	}
 
-	if err := c.storeBlobEntries(l, blobEntries); err != nil {
-		return err
-	}
+	ch := make(chan error, 2)
 
-	for _, subTree := range subTrees {
-		if err := c.storeTreeRecursively(l, subTree.Hash, subTree.Path); err != nil {
-			return err
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		if err := c.storeBlobs(blobs); err != nil {
+			ch <- err
+
+			return
+		}
+
+		ch <- nil
+	}()
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		if err := c.storeTrees(l, trees, prefix); err != nil {
+			ch <- err
+
+			return
+		}
+
+		ch <- nil
+	}()
+
+	wg.Wait()
+
+	close(ch)
+
+	errs := []error{}
+
+	for err := range ch {
+		if err != nil {
+			errs = append(errs, err)
 		}
 	}
 
-	// We only do this if we're at the root of the repository.
-	if prefix == "" {
-		for _, file := range c.opts.IncludedGitFiles {
-			stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
-			if err != nil {
-				return err
-			}
-
-			if stat.IsDir() {
-				continue
-			}
-
-			workDirPath := filepath.Join(c.git.WorkDir, file)
-
-			data, err := os.ReadFile(workDirPath)
-			if err != nil {
-				return err
-			}
-
-			hash, err := hashFile(workDirPath)
-			if err != nil {
-				return err
-			}
-
-			content := NewContent(c.store)
-
-			if err := content.Store(l, hash, data); err != nil {
-				return err
-			}
-
-			path := filepath.Join(".git", file)
-
-			fmt.Fprintf(&treeData, "%s %s %s %s\n", stat.Mode(), "blob", hash, path)
-		}
-	}
-
-	if err := content.Store(l, hash, []byte(treeData.String())); err != nil {
-		return err
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	return nil
 }
 
-func (c *CAS) storeBlobEntries(l *log.Logger, entries []TreeEntry) error {
-	blobs := make(map[string][]byte)
-	errChan := make(chan error, 1)
-	semaphore := make(chan struct{}, maxConcurrentStores)
+// storeBlobs concurrently stores blobs in the CAS
+func (c *CAS) storeBlobs(entries []TreeEntry) error {
+	ch := make(chan error, len(entries))
 
-	var (
-		wg sync.WaitGroup
-		mu sync.Mutex
-	)
+	var wg sync.WaitGroup
 
 	for _, entry := range entries {
 		if c.store.HasContent(entry.Hash) {
@@ -265,37 +301,109 @@ func (c *CAS) storeBlobEntries(l *log.Logger, entries []TreeEntry) error {
 		go func(hash string) {
 			defer wg.Done()
 
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-
-			data, err := c.git.CatFile(hash)
-			if err != nil {
-				select {
-				case errChan <- err:
-				default:
-				}
+			if err := c.storeHash(hash); err != nil {
+				ch <- err
 
 				return
 			}
 
-			mu.Lock()
-			blobs[hash] = data
-			mu.Unlock()
+			ch <- nil
 		}(entry.Hash)
 	}
 
 	wg.Wait()
 
-	select {
-	case err := <-errChan:
-		return err
-	default:
+	close(ch)
+
+	errs := []error{}
+
+	for err := range ch {
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	if len(blobs) > 0 {
-		content := NewContent(c.store)
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
 
-		return content.StoreBatch(l, blobs)
+	return nil
+}
+
+// storeTrees concurrently stores trees in the CAS
+func (c *CAS) storeTrees(l *log.Logger, entries []TreeEntry, prefix string) error {
+	ch := make(chan error, len(entries))
+
+	var wg sync.WaitGroup
+
+	for _, entry := range entries {
+		if c.store.HasContent(entry.Hash) {
+			continue
+		}
+
+		wg.Add(1)
+
+		go func(hash string) {
+			defer wg.Done()
+
+			if err := c.storeTree(l, hash, prefix); err != nil {
+				ch <- err
+
+				return
+			}
+
+			ch <- nil
+		}(entry.Hash)
+	}
+
+	wg.Wait()
+
+	close(ch)
+
+	errs := []error{}
+
+	for err := range ch {
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
+// storeHash stores an entry represented by a Git hash in the CAS
+func (c *CAS) storeHash(hash string) (err error) {
+	content := NewContent(c.store)
+	tmpHandle, err := content.GetTmpHandle(hash)
+	if err != nil {
+		return err
+	}
+
+	tmpPath := tmpHandle.Name()
+
+	// We want to make sure we remove the temporary file
+	// if we encounter an error
+	defer func() {
+		if _, osStatErr := os.Stat(tmpPath); osStatErr != nil {
+			err = errors.Join(err, os.Remove(tmpPath))
+		}
+	}()
+
+	err = c.git.CatFile(hash, tmpHandle)
+	if err != nil {
+		return err
+	}
+
+	if err = tmpHandle.Close(); err != nil {
+		return err
+	}
+
+	if err = os.Rename(tmpPath, content.getPath(hash)); err != nil {
+		return err
 	}
 
 	return nil

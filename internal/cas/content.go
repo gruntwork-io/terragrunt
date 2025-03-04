@@ -101,7 +101,8 @@ func (c *Content) ensureTargetDirectory(targetPath string) error {
 	return nil
 }
 
-// Store stores a single content item
+// Store stores a single content item. This is typically used for trees,
+// As blobs are written directly from git cat-file stdout.
 func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	c.store.mapLock.Lock()
 
@@ -176,6 +177,33 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	}
 
 	return nil
+}
+
+// GetTmpHandle returns a file handle to a temporary file where content will be stored.
+func (c *Content) GetTmpHandle(hash string) (*os.File, error) {
+	if c.store.HasContent(hash) {
+		return nil, nil
+	}
+
+	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+		return nil, wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
+	}
+
+	// Ensure partition directory exists
+	partitionDir := c.getPartition(hash)
+	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+		return nil, wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+	}
+
+	path := c.getPath(hash)
+	tempPath := path + ".tmp"
+
+	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, StoredFilePerms)
+	if err != nil {
+		return nil, wrapError("create_temp_file", tempPath, err)
+	}
+
+	return f, err
 }
 
 // StoreBatch stores multiple content items efficiently using parallel writes

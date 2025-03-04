@@ -2,6 +2,7 @@ package cas
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -201,25 +202,27 @@ func (g *GitRunner) LsTree(reference, path string) (*Tree, error) {
 	return ParseTree(stdout.String(), path)
 }
 
-// CatFile retrieves the content of a git object
-func (g *GitRunner) CatFile(hash string) ([]byte, error) {
+// CatFile writes the contents of a git object
+// to a given writer.
+func (g *GitRunner) CatFile(hash string, out io.Writer) error {
 	if err := g.RequiresWorkDir(); err != nil {
-		return nil, err
+		return err
 	}
 
 	cmd := g.prepareCommand("cat-file", "-p", hash)
 	cmd.Dir = g.WorkDir
+	cmd.Stdout = out
 
-	output, err := cmd.Output()
+	err := cmd.Wait()
 	if err != nil {
-		return nil, &WrappedError{
+		return &WrappedError{
 			Op:      "git_cat_file",
 			Context: err.Error(),
 			Err:     ErrCommandSpawn,
 		}
 	}
 
-	return output, nil
+	return nil
 }
 
 // SetWorkDir sets the working directory for git commands
