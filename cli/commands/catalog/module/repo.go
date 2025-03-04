@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter/v2"
 	"gopkg.in/ini.v1"
 )
 
@@ -328,12 +328,10 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 	// Add HEAD reference to avoid pathspec error
 	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
 
-	if err := getter.Get(
+	if _, err := getter.Get( //nolint:contextcheck
+		opts.Context,
 		repo.path,
 		strings.Trim(sourceURL.String(), "/"),
-		// TODO: Resolve this context issue
-		getter.WithContext(opts.Context), //nolint:contextcheck
-		getter.WithMode(getter.ClientModeDir),
 	); err != nil {
 		return err
 	}
