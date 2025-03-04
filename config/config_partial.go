@@ -350,7 +350,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 	// read unit files and add to context
 	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.Stacks) {
-		unitValues, err := ReadUnitValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+		unitValues, err := ReadValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
 		if err != nil {
 			return nil, err
 		}

@@ -24,7 +24,7 @@ import (
 
 const (
 	stackDir           = ".terragrunt-stack"
-	unitValuesFile     = "terragrunt.values.hcl"
+	valuesFile         = "terragrunt.values.hcl"
 	manifestName       = ".terragrunt-stack-manifest"
 	defaultStackFile   = "terragrunt.stack.hcl"
 	unitDirPerm        = 0755
@@ -186,7 +186,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSo
 		}
 
 		// generate unit values file
-		if err := writeUnitValues(opts, unit, dest); err != nil {
+		if err := writeValues(opts, unit.Values, dest); err != nil {
 			return errors.Errorf("Failed to write unit values %v %v", unit.Name, err)
 		}
 	}
@@ -196,7 +196,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSo
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack, parentValues *cty.Value) error {
 	for _, stack := range stacks {
 		opts.Logger.Infof("Processing stack %s", stack.Name)
 
@@ -351,7 +351,7 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	return config, nil
 }
 
-// writeUnitValues generates and writes unit values to a terragrunt.values.hcl file in the specified unit directory.
+// writeValues generates and writes unit values to a terragrunt.values.hcl file in the specified unit directory.
 // If the unit has no values (Values is nil), the function logs a debug message and returns.
 // Parameters:
 //   - opts: TerragruntOptions containing logger and other configuration
@@ -359,20 +359,20 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 //   - unitDirectory: Target directory where the values file will be created
 //
 // Returns an error if the directory creation or file writing fails.
-func writeUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory string) error {
-	if unitDirectory == "" {
-		return errors.New("writeUnitValues: unit directory path cannot be empty")
-	}
-
-	if err := os.MkdirAll(unitDirectory, unitDirPerm); err != nil {
-		return errors.Errorf("failed to create directory %s: %w", unitDirectory, err)
-	}
-
-	filePath := filepath.Join(unitDirectory, unitValuesFile)
-	if unit.Values == nil {
-		opts.Logger.Debugf("No values to write for unit %s in %s", unit.Name, filePath)
+func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory string) error {
+	if values == nil {
+		opts.Logger.Debugf("No values to write in %s", directory)
 		return nil
 	}
+	if directory == "" {
+		return errors.New("writeValues: unit directory path cannot be empty")
+	}
+
+	if err := os.MkdirAll(directory, unitDirPerm); err != nil {
+		return errors.Errorf("failed to create directory %s: %w", directory, err)
+	}
+	opts.Logger.Debugf("Writing values file in %s", directory)
+	filePath := filepath.Join(directory, valuesFile)
 
 	file := hclwrite.NewEmptyFile()
 	body := file.Body()
@@ -383,7 +383,7 @@ func writeUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 		},
 	})
 
-	for key, val := range unit.Values.AsValueMap() {
+	for key, val := range values.AsValueMap() {
 		body.SetAttributeValue(key, val)
 	}
 
@@ -394,13 +394,13 @@ func writeUnitValues(opts *options.TerragruntOptions, unit *Unit, unitDirectory 
 	return nil
 }
 
-// ReadUnitValues reads the unit values from the terragrunt.values.hcl file.
-func ReadUnitValues(ctx context.Context, opts *options.TerragruntOptions, unitDirectory string) (*cty.Value, error) {
-	if unitDirectory == "" {
-		return nil, errors.New("ReadUnitValues: unit directory path cannot be empty")
+// ReadValues reads the unit values from the terragrunt.values.hcl file.
+func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory string) (*cty.Value, error) {
+	if directory == "" {
+		return nil, errors.New("ReadValues: directory path cannot be empty")
 	}
 
-	filePath := filepath.Join(unitDirectory, unitValuesFile)
+	filePath := filepath.Join(directory, valuesFile)
 
 	if util.FileNotExists(filePath) {
 		return nil, nil
@@ -538,4 +538,42 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 	}
 
 	return stackFiles, nil
+}
+
+// writeStackValues generates a terragrunt.values.hcl file in the given stackDirectory,
+// using the cty.Value fields defined in the stack’s `Values` attribute.
+func writeStackValues(opts *options.TerragruntOptions, stack *Stack, stackDirectory string) error {
+	if stackDirectory == "" {
+		return errors.New("writeStackValues: stack directory path cannot be empty")
+	}
+
+	if err := os.MkdirAll(stackDirectory, unitDirPerm); err != nil {
+		return errors.Errorf("failed to create directory %s: %w", stackDirectory, err)
+	}
+
+	filePath := filepath.Join(stackDirectory, valuesFile)
+	if stack.Values == nil {
+		opts.Logger.Debugf("No values to write for stack %s in %s", stack.Name, filePath)
+		return nil
+	}
+
+	file := hclwrite.NewEmptyFile()
+	body := file.Body()
+	body.AppendUnstructuredTokens([]*hclwrite.Token{
+		{
+			Type:  hclsyntax.TokenComment,
+			Bytes: []byte("# Auto-generated by Terragrunt from stack values. Do not edit manually.\n"),
+		},
+	})
+
+	// Write out all keys in stack.Values
+	for key, val := range stack.Values.AsValueMap() {
+		body.SetAttributeValue(key, val)
+	}
+
+	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
+		return errors.Errorf("failed to write stack values file %s: %w", filePath, err)
+	}
+
+	return nil
 }
