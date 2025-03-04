@@ -20,10 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const (
-	dirPermissions = 0755
-)
-
 // Options configures the behavior of the CAS operation
 type Options struct {
 	// Dir specifies the target directory for the clone
