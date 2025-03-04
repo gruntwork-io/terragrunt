@@ -186,11 +186,6 @@ func (c *CAS) storeRootTree(l *log.Logger, hash string) error {
 
 		workDirPath := filepath.Join(c.git.WorkDir, file)
 
-		fData, err := os.ReadFile(workDirPath)
-		if err != nil {
-			return err
-		}
-
 		hash, err := hashFile(workDirPath)
 		if err != nil {
 			return err
@@ -198,7 +193,7 @@ func (c *CAS) storeRootTree(l *log.Logger, hash string) error {
 
 		content := NewContent(c.store)
 
-		if err := content.Ensure(l, hash, fData); err != nil {
+		if err := content.EnsureCopy(l, hash, workDirPath); err != nil {
 			return err
 		}
 

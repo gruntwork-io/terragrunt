@@ -37,18 +37,19 @@ func TestContent_Store(t *testing.T) {
 		assert.Equal(t, testData, storedData)
 	})
 
-	t.Run("store existing content", func(t *testing.T) {
+	t.Run("ensure existing content", func(t *testing.T) {
 		t.Parallel()
 		store := cas.NewStore(t.TempDir())
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
+		differentData := []byte("different content")
 
 		// Store content twice
 		err := content.Ensure(&l, testHash, testData)
 		require.NoError(t, err)
-		err = content.Ensure(&l, testHash, []byte("different content"))
+		err = content.Ensure(&l, testHash, differentData)
 		require.NoError(t, err)
 
 		// Verify original content remains
@@ -57,6 +58,28 @@ func TestContent_Store(t *testing.T) {
 		storedData, err := os.ReadFile(storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
+	})
+
+	t.Run("overwrite existing content", func(t *testing.T) {
+		store := cas.NewStore(t.TempDir())
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+		differentData := []byte("different content")
+
+		// Store content twice
+		err := content.Store(&l, testHash, testData)
+		require.NoError(t, err)
+		err = content.Store(&l, testHash, differentData)
+		require.NoError(t, err)
+
+		// Verify original content remains
+		partitionDir := filepath.Join(store.Path(), testHash[:2])
+		storedPath := filepath.Join(partitionDir, testHash)
+		storedData, err := os.ReadFile(storedPath)
+		require.NoError(t, err)
+		assert.Equal(t, differentData, storedData)
 	})
 }
 
