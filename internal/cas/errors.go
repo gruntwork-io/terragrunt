@@ -17,14 +17,6 @@ const (
 	ErrTempDir Error = "failed to create or manage temporary directory"
 	// ErrCreateDir is returned when failing to create a directory
 	ErrCreateDir Error = "failed to create directory"
-	// ErrHomeDir is returned when failing to find home directory
-	ErrHomeDir Error = "failed to find home directory"
-	// ErrWriteToStore is returned when failing to write to the cas store
-	ErrWriteToStore Error = "failed to write to cas-store"
-	// ErrHardLink is returned when failing to create a hard link
-	ErrHardLink Error = "failed to create hard link"
-	// ErrParseMode is returned when failing to parse file mode
-	ErrParseMode Error = "failed to parse file mode"
 	// ErrReadFile is returned when failing to read a file
 	ErrReadFile Error = "failed to read file"
 	// ErrParseTree is returned when failing to parse git tree output
