@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ func TestStore(t *testing.T) {
 	})
 }
 
-func TestStore_HasContent(t *testing.T) {
+func TestStore_NeedsWrite(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
 	store := cas.NewStore(tempDir)
@@ -47,19 +48,19 @@ func TestStore_HasContent(t *testing.T) {
 		{
 			name: "existing content",
 			hash: testHash,
-			want: true,
+			want: false,
 		},
 		{
 			name: "non-existing content",
 			hash: "nonexistent",
-			want: false,
+			want: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, store.HasContent(tt.hash))
+			assert.Equal(t, tt.want, store.NeedsWrite(tt.hash, time.Now()))
 		})
 	}
 }

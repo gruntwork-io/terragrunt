@@ -39,6 +39,7 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("ensure existing content", func(t *testing.T) {
 		t.Parallel()
+
 		store := cas.NewStore(t.TempDir())
 
 		content := cas.NewContent(store)
@@ -61,6 +62,8 @@ func TestContent_Store(t *testing.T) {
 	})
 
 	t.Run("overwrite existing content", func(t *testing.T) {
+		t.Parallel()
+
 		store := cas.NewStore(t.TempDir())
 
 		content := cas.NewContent(store)

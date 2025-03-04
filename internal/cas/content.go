@@ -187,7 +187,8 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 
 // Ensure ensures that a content item exists in the store
 func (c *Content) Ensure(l *log.Logger, hash string, data []byte) error {
-	if c.store.HasContent(hash) {
+	path := c.getPath(hash)
+	if c.store.hasContent(path) {
 		return nil
 	}
 
@@ -196,7 +197,8 @@ func (c *Content) Ensure(l *log.Logger, hash string, data []byte) error {
 
 // EnsureCopy ensures that a content item exists in the store by copying from a file
 func (c *Content) EnsureCopy(l *log.Logger, hash, src string) error {
-	if c.store.HasContent(hash) {
+	path := c.getPath(hash)
+	if c.store.hasContent(path) {
 		return nil
 	}
 
@@ -216,8 +218,6 @@ func (c *Content) EnsureCopy(l *log.Logger, hash, src string) error {
 	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
-
-	path := c.getPath(hash)
 
 	f, err := os.Create(path)
 	if err != nil {
