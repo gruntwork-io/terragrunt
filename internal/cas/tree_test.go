@@ -151,6 +151,8 @@ func TestLinkTree(t *testing.T) {
 		{
 			name: "basic tree with files and directories",
 			setupStore: func(t *testing.T) (*cas.Store, string) {
+				t.Helper()
+
 				storeDir := t.TempDir()
 				store := cas.NewStore(storeDir)
 				content := cas.NewContent(store)
@@ -205,6 +207,8 @@ func TestLinkTree(t *testing.T) {
 		{
 			name: "empty tree",
 			setupStore: func(t *testing.T) (*cas.Store, string) {
+				t.Helper()
+
 				storeDir := t.TempDir()
 				store := cas.NewStore(storeDir)
 				return store, ""
@@ -220,6 +224,8 @@ func TestLinkTree(t *testing.T) {
 		{
 			name: "tree with missing content",
 			setupStore: func(t *testing.T) (*cas.Store, string) {
+				t.Helper()
+
 				storeDir := t.TempDir()
 				store := cas.NewStore(storeDir)
 				return store, ""
