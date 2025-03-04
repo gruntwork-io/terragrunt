@@ -14,19 +14,19 @@ To use the CAS, you will need to enable the [cas](/docs/reference/experiments/#c
 
 ## Usage
 
-To opt in to having Terragrunt use the CAS for a particular repository clone, use the `cas://` prefix for a valid Git URL in your Terragrunt configuration:
+When you enable the `cas` experiment, Terragrunt will automatically use the CAS when cloning any compatible source (right now, only Git repositories).
 
 ```hcl
 # root.hcl
 
 catalog {
   urls = [
-    "cas://git@github.com:acme/modules.git"
+    "git@github.com:acme/modules.git"
   ]
 }
 ```
 
-When Terragrunt encounters a URL prefixed with `cas://`, it will attempt to clone the repository from the CAS. If the repository is not found in the CAS, Terragrunt will clone the repository from the original URL and store it in the CAS for future use.
+When Terragrunt clones a repository while using the CAS. If the repository is not found in the CAS, Terragrunt will clone the repository from the original URL and store it in the CAS for future use.
 
 When generating a repository from the CAS, Terragrunt will hard link entries from the CAS to the new repository. This allows Terragrunt to deduplicate content across multiple repositories.
 
