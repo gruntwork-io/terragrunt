@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -61,8 +62,24 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		assert.FileExists(t, firstReadme)
 		assert.FileExists(t, secondReadme)
 
-		// Verify they're hard links using os.SameFile instead of comparing entire Stat_t
+		// I don't have a Windows machine, so I can't
+		// confirm this is necessary.
+		//
+		// switch runtime.GOOS {
+		// case "windows":
+		// 	firstData, err := os.ReadFile(firstReadme)
+		// 	require.NoError(t, err)
+
+		// 	secondData, err := os.ReadFile(secondReadme)
+		// 	require.NoError(t, err)
+
+		// 	assert.Equal(t, firstData, secondData)
+		// default:
+		// 	assert.True(t, os.SameFile(firstStat, secondStat))
+		// }
+
 		assert.True(t, os.SameFile(firstStat, secondStat))
+
 	})
 
 	t.Run("clone with nonexistent branch fails gracefully", func(t *testing.T) {
