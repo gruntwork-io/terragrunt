@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
 const (
@@ -16,7 +15,6 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	mu      sync.RWMutex
 	WorkDir string
 }
 
@@ -110,7 +108,7 @@ func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) erro
 		return err
 	}
 
-	args := []string{"clone"}
+	args := []string{}
 
 	if bare {
 		args = append(args, "--bare")
@@ -126,7 +124,7 @@ func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) erro
 
 	args = append(args, repo, g.WorkDir)
 
-	cmd := exec.Command("git", args...)
+	cmd := g.prepareCommand("clone", args...)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -230,13 +228,9 @@ func (g *GitRunner) CatFile(hash string, out io.Writer) error {
 
 // SetWorkDir sets the working directory for git commands
 func (g *GitRunner) SetWorkDir(dir string) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
 	g.WorkDir = dir
 }
 
 func (g *GitRunner) prepareCommand(name string, args ...string) *exec.Cmd {
-	cmd := exec.Command("git", append([]string{name}, args...)...)
-
-	return exec.Command(cmd.Path, cmd.Args[1:]...)
+	return exec.Command("git", append([]string{name}, args...)...)
 }
