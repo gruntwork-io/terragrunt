@@ -113,7 +113,14 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 	}
 
 	for _, path := range stackFiles {
-		stackFile, err := ReadStackConfigFile(ctx, opts, path)
+		// read stack values file
+		dir := filepath.Dir(path)
+		values, err := ReadValues(ctx, opts, dir)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		stackFile, err := ReadStackConfigFile(ctx, opts, path, values)
 
 		if err != nil {
 			return nil, errors.New(err)
@@ -141,7 +148,13 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 // generateStackFile process single stack file.
 func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
-	stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath)
+
+	values, err := ReadValues(ctx, opts, stackSourceDir)
+	if err != nil {
+		return errors.Errorf("Failed to read values file %s in %s %v", stackFilePath, stackSourceDir, err)
+	}
+
+	stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath, values)
 
 	if err != nil {
 		return errors.Errorf("Failed to read stack file %s in %s %v", stackFilePath, stackSourceDir, err)
@@ -196,7 +209,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSo
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack, parentValues *cty.Value) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		opts.Logger.Infof("Processing stack %s", stack.Name)
 
@@ -212,6 +225,11 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackS
 
 		if err := copyFiles(ctx, opts, stack.Name, stackSourceDir, src, dest); err != nil {
 			return err
+		}
+
+		// generate stack values file
+		if err := writeValues(opts, stack.Values, dest); err != nil {
+			return errors.Errorf("Failed to write stack values %v %v", stack.Name, err)
 		}
 	}
 
@@ -320,11 +338,13 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions,
 // ReadStackConfigFile reads and parses a Terragrunt stack configuration file from the given path.
 // It creates a parsing context, processes locals, and decodes the file into a StackConfigFile struct.
 // Validation is performed on the resulting config, and any encountered errors cause an early return.
-func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string) (*StackConfigFile, error) {
+func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfigFile, error) {
 	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
 	parser := NewParsingContext(ctx, opts)
-
+	if values != nil {
+		parser = parser.WithValues(values)
+	}
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
@@ -352,13 +372,6 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 }
 
 // writeValues generates and writes unit values to a terragrunt.values.hcl file in the specified unit directory.
-// If the unit has no values (Values is nil), the function logs a debug message and returns.
-// Parameters:
-//   - opts: TerragruntOptions containing logger and other configuration
-//   - unit: Unit containing the values to write
-//   - unitDirectory: Target directory where the values file will be created
-//
-// Returns an error if the directory creation or file writing fails.
 func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory string) error {
 	if values == nil {
 		opts.Logger.Debugf("No values to write in %s", directory)
@@ -538,42 +551,4 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 	}
 
 	return stackFiles, nil
-}
-
-// writeStackValues generates a terragrunt.values.hcl file in the given stackDirectory,
-// using the cty.Value fields defined in the stack’s `Values` attribute.
-func writeStackValues(opts *options.TerragruntOptions, stack *Stack, stackDirectory string) error {
-	if stackDirectory == "" {
-		return errors.New("writeStackValues: stack directory path cannot be empty")
-	}
-
-	if err := os.MkdirAll(stackDirectory, unitDirPerm); err != nil {
-		return errors.Errorf("failed to create directory %s: %w", stackDirectory, err)
-	}
-
-	filePath := filepath.Join(stackDirectory, valuesFile)
-	if stack.Values == nil {
-		opts.Logger.Debugf("No values to write for stack %s in %s", stack.Name, filePath)
-		return nil
-	}
-
-	file := hclwrite.NewEmptyFile()
-	body := file.Body()
-	body.AppendUnstructuredTokens([]*hclwrite.Token{
-		{
-			Type:  hclsyntax.TokenComment,
-			Bytes: []byte("# Auto-generated by Terragrunt from stack values. Do not edit manually.\n"),
-		},
-	})
-
-	// Write out all keys in stack.Values
-	for key, val := range stack.Values.AsValueMap() {
-		body.SetAttributeValue(key, val)
-	}
-
-	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
-		return errors.Errorf("failed to write stack values file %s: %w", filePath, err)
-	}
-
-	return nil
 }
