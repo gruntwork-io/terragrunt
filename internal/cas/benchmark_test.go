@@ -129,7 +129,10 @@ func BenchmarkGitOperations(b *testing.B) {
 	// Setup a git repository for testing
 	repoDir := b.TempDir()
 	git := cas.NewGitRunner().WithWorkDir(repoDir)
-	if err := git.Clone("https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
+
+	ctx := context.Background()
+
+	if err := git.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
 		b.Fatal(err)
 	}
 
@@ -137,7 +140,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		git := cas.NewGitRunner() // No workDir needed for ls-remote
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := git.LsRemote("https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+			_, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -147,7 +150,7 @@ func BenchmarkGitOperations(b *testing.B) {
 	b.Run("ls-tree", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := git.LsTree("HEAD", ".")
+			_, err := git.LsTree(ctx, "HEAD", ".")
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -156,7 +159,7 @@ func BenchmarkGitOperations(b *testing.B) {
 
 	b.Run("cat-file", func(b *testing.B) {
 		// First get a valid hash
-		tree, err := git.LsTree("HEAD", ".")
+		tree, err := git.LsTree(ctx, "HEAD", ".")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -178,7 +181,7 @@ func BenchmarkGitOperations(b *testing.B) {
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			err := git.CatFile(hash, tmp)
+			err := git.CatFile(ctx, hash, tmp)
 			if err != nil {
 				b.Fatal(err)
 			}

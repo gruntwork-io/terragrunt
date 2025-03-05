@@ -102,6 +102,8 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 func TestIntegration_TreeStorage(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	l := log.New()
 
 	t.Run("stores tree objects", func(t *testing.T) {
@@ -114,13 +116,13 @@ func TestIntegration_TreeStorage(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, c.Clone(context.TODO(), &l, cas.CloneOptions{
+		require.NoError(t, c.Clone(ctx, &l, cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "repo"),
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
 		// Get the commit hash
 		git := cas.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
-		results, err := git.LsRemote("https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+		results, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash

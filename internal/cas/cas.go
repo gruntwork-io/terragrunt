@@ -95,13 +95,13 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts CloneOptions, url s
 	// Set the working directory for git operations
 	c.git.SetWorkDir(tempDir)
 
-	hash, err := c.resolveReference(url, opts.Branch)
+	hash, err := c.resolveReference(ctx, url, opts.Branch)
 	if err != nil {
 		return err
 	}
 
 	if c.store.NeedsWrite(hash, c.cloneStart) {
-		if err := c.cloneAndStoreContent(l, opts, url, hash); err != nil {
+		if err := c.cloneAndStoreContent(ctx, l, opts, url, hash); err != nil {
 			return err
 		}
 	}
@@ -134,8 +134,8 @@ func (c *CAS) prepareTargetDirectory(dir, url string) string {
 	return filepath.Clean(targetDir)
 }
 
-func (c *CAS) resolveReference(url, branch string) (string, error) {
-	results, err := c.git.LsRemote(url, branch)
+func (c *CAS) resolveReference(ctx context.Context, url, branch string) (string, error) {
+	results, err := c.git.LsRemote(ctx, url, branch)
 	if err != nil {
 		return "", err
 	}
@@ -151,16 +151,16 @@ func (c *CAS) resolveReference(url, branch string) (string, error) {
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(l *log.Logger, opts CloneOptions, url string, hash string) error {
-	if err := c.git.Clone(url, true, 1, opts.Branch); err != nil {
+func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, opts CloneOptions, url string, hash string) error {
+	if err := c.git.Clone(ctx, url, true, 1, opts.Branch); err != nil {
 		return err
 	}
 
-	return c.storeRootTree(l, hash, opts)
+	return c.storeRootTree(ctx, l, hash, opts)
 }
 
-func (c *CAS) storeRootTree(l *log.Logger, hash string, opts CloneOptions) error {
-	if err := c.storeTree(l, hash, ""); err != nil {
+func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opts CloneOptions) error {
+	if err := c.storeTree(ctx, l, hash, ""); err != nil {
 		return err
 	}
 
@@ -207,12 +207,12 @@ func (c *CAS) storeRootTree(l *log.Logger, hash string, opts CloneOptions) error
 	return content.Store(l, hash, data)
 }
 
-func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
+func (c *CAS) storeTree(ctx context.Context, l *log.Logger, hash, prefix string) error {
 	if !c.store.NeedsWrite(hash, c.cloneStart) {
 		return nil
 	}
 
-	tree, err := c.git.LsTree(hash, ".")
+	tree, err := c.git.LsTree(ctx, hash, ".")
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
 	go func() {
 		defer wg.Done()
 
-		if err := c.storeBlobs(blobs); err != nil {
+		if err := c.storeBlobs(ctx, blobs); err != nil {
 			ch <- err
 
 			return
@@ -259,7 +259,7 @@ func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
 	go func() {
 		defer wg.Done()
 
-		if err := c.storeTrees(l, trees, prefix); err != nil {
+		if err := c.storeTrees(ctx, l, trees, prefix); err != nil {
 			ch <- err
 
 			return
@@ -294,7 +294,7 @@ func (c *CAS) storeTree(l *log.Logger, hash, prefix string) error {
 }
 
 // storeBlobs concurrently stores blobs in the CAS
-func (c *CAS) storeBlobs(entries []TreeEntry) error {
+func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
 	ch := make(chan error, len(entries))
 
 	var wg sync.WaitGroup
@@ -309,7 +309,7 @@ func (c *CAS) storeBlobs(entries []TreeEntry) error {
 		go func(hash string) {
 			defer wg.Done()
 
-			if err := c.ensureBlob(hash); err != nil {
+			if err := c.ensureBlob(ctx, hash); err != nil {
 				ch <- err
 
 				return
@@ -339,7 +339,7 @@ func (c *CAS) storeBlobs(entries []TreeEntry) error {
 }
 
 // storeTrees concurrently stores trees in the CAS
-func (c *CAS) storeTrees(l *log.Logger, entries []TreeEntry, prefix string) error {
+func (c *CAS) storeTrees(ctx context.Context, l *log.Logger, entries []TreeEntry, prefix string) error {
 	ch := make(chan error, len(entries))
 
 	var wg sync.WaitGroup
@@ -354,7 +354,7 @@ func (c *CAS) storeTrees(l *log.Logger, entries []TreeEntry, prefix string) erro
 		go func(hash string) {
 			defer wg.Done()
 
-			if err := c.storeTree(l, hash, prefix); err != nil {
+			if err := c.storeTree(ctx, l, hash, prefix); err != nil {
 				ch <- err
 
 				return
@@ -387,7 +387,7 @@ func (c *CAS) storeTrees(l *log.Logger, entries []TreeEntry, prefix string) erro
 // It doesn't use the standard content.Store method because
 // we want to take advantage of the ability to write to the
 // entry using `git cat-file`.
-func (c *CAS) ensureBlob(hash string) (err error) {
+func (c *CAS) ensureBlob(ctx context.Context, hash string) (err error) {
 	c.store.mapLock.Lock()
 
 	if _, ok := c.store.locks[hash]; !ok {
@@ -420,7 +420,7 @@ func (c *CAS) ensureBlob(hash string) (err error) {
 		}
 	}()
 
-	err = c.git.CatFile(hash, tmpHandle)
+	err = c.git.CatFile(ctx, hash, tmpHandle)
 	if err != nil {
 		return err
 	}

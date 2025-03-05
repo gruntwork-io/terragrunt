@@ -2,6 +2,7 @@ package cas
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -52,14 +53,14 @@ type LsRemoteResult struct {
 
 // LsRemote runs git ls-remote for a specific reference.
 // If ref is empty, we check HEAD instead.
-func (g *GitRunner) LsRemote(repo, ref string) ([]LsRemoteResult, error) {
+func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteResult, error) {
 	if ref == "" {
 		ref = "HEAD"
 	}
 
 	args := []string{repo, ref}
 
-	cmd := g.prepareCommand("ls-remote", args...)
+	cmd := g.prepareCommand(ctx, "ls-remote", args...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -103,7 +104,7 @@ func (g *GitRunner) LsRemote(repo, ref string) ([]LsRemoteResult, error) {
 }
 
 // Clone performs a git clone operation
-func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) error {
+func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int, branch string) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
@@ -124,7 +125,7 @@ func (g *GitRunner) Clone(repo string, bare bool, depth int, branch string) erro
 
 	args = append(args, repo, g.WorkDir)
 
-	cmd := g.prepareCommand("clone", args...)
+	cmd := g.prepareCommand(ctx, "clone", args...)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -175,12 +176,12 @@ func GetRepoName(repo string) string {
 }
 
 // LsTree runs git ls-tree and returns the parsed tree
-func (g *GitRunner) LsTree(reference, path string) (*Tree, error) {
+func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (*Tree, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return nil, err
 	}
 
-	cmd := g.prepareCommand("ls-tree", reference)
+	cmd := g.prepareCommand(ctx, "ls-tree", reference)
 	cmd.Dir = g.WorkDir
 
 	var stdout, stderr bytes.Buffer
@@ -200,14 +201,14 @@ func (g *GitRunner) LsTree(reference, path string) (*Tree, error) {
 
 // CatFile writes the contents of a git object
 // to a given writer.
-func (g *GitRunner) CatFile(hash string, out io.Writer) error {
+func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) error {
 	if err := g.RequiresWorkDir(); err != nil {
 		return err
 	}
 
 	var stderr bytes.Buffer
 
-	cmd := g.prepareCommand("cat-file", "-p", hash)
+	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
 	cmd.Dir = g.WorkDir
 	cmd.Stdout = out
 	cmd.Stderr = &stderr
@@ -231,6 +232,6 @@ func (g *GitRunner) SetWorkDir(dir string) {
 	g.WorkDir = dir
 }
 
-func (g *GitRunner) prepareCommand(name string, args ...string) *exec.Cmd {
-	return exec.Command("git", append([]string{name}, args...)...)
+func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, "git", append([]string{name}, args...)...)
 }
