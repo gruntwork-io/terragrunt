@@ -47,7 +47,6 @@ type CAS struct {
 	store      *Store
 	git        *GitRunner
 	opts       Options
-	cloneLock  sync.Mutex
 	cloneStart time.Time
 }
 
@@ -77,9 +76,6 @@ func New(opts Options) (*CAS, error) {
 //
 // TODO: Make options optional
 func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts CloneOptions, url string) error {
-	c.cloneLock.Lock()
-	defer c.cloneLock.Unlock()
-
 	c.cloneStart = time.Now()
 
 	targetDir := c.prepareTargetDirectory(opts.Dir, url)
