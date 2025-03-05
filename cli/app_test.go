@@ -533,8 +533,6 @@ func (err argMissingValueError) Error() string {
 }
 
 func TestAutocomplete(t *testing.T) { //nolint:paralleltest
-	defer os.Unsetenv("COMP_LINE")
-
 	testCases := []struct {
 		compLine          string
 		expectedCompletes []string
@@ -558,7 +556,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 	}
 
 	for _, testCase := range testCases {
-		os.Setenv("COMP_LINE", "terragrunt "+testCase.compLine)
+		t.Setenv("COMP_LINE", "terragrunt "+testCase.compLine)
 
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)

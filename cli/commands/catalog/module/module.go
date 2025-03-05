@@ -32,7 +32,7 @@ type Module struct {
 	url       string
 }
 
-// NewModule returns a module instance if the given `moduleDir` path contains a Terraform module, otherwise returns nil.
+// NewModule returns a module instance if the given `moduleDir` path contains an OpenTofu/Terraform module, otherwise returns nil.
 func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
 		Repo:      repo,
