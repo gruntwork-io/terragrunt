@@ -419,38 +419,3 @@ func CtyValueAsString(val cty.Value) (string, error) {
 
 	return string(jsonBytes), nil
 }
-
-// MergeValues takes two cty.Value objects (which must be object types) and merges
-// them by shallowly copying all attributes from base, then overwriting with
-// any attributes found in override.
-func MergeValues(base, override *cty.Value) *cty.Value {
-	// If both are nil, nothing to merge
-	if base == nil && override == nil {
-		return nil
-	}
-	// If only one is nil, return the non-nil one
-	if base == nil {
-		return override
-	}
-	if override == nil {
-		return base
-	}
-
-	// Convert each to map
-	baseMap := base.AsValueMap()
-	overrideMap := override.AsValueMap()
-
-	// Copy baseMap
-	merged := make(map[string]cty.Value, len(baseMap)+len(overrideMap))
-	for k, v := range baseMap {
-		merged[k] = v
-	}
-
-	// Override with values from overrideMap
-	for k, v := range overrideMap {
-		merged[k] = v
-	}
-
-	result := cty.ObjectVal(merged)
-	return &result
-}
