@@ -57,6 +57,7 @@ const (
 	DeprecatedLogCustomFormatFlagName = "log-custom-format"
 	DeprecatedNoColorFlagName         = "no-color"
 	DeprecatedNonInteractiveFlagName  = "non-interactive"
+	DeprecatedTFInputFlagName         = "tf-input"
 	DeprecatedWorkingDirFlagName      = "working-dir"
 	DeprecatedStrictModeFlagName      = "strict-mode"
 	DeprecatedStrictControlFlagName   = "strict-control"
@@ -201,7 +202,11 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.NonInteractive,
 			Usage:       `Assume "yes" for all prompts.`,
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNonInteractiveFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNonInteractiveFlagName), terragruntPrefixControl),
+			flags.WithDeprecatedFlag(&cli.BoolFlag{
+				Negative: true,
+				EnvVars:  flags.Prefix{}.EnvVars(DeprecatedTFInputFlagName),
+			}, nil, terragruntPrefixControl)),
 
 		// Experiment Mode flags.
 

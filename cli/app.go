@@ -231,16 +231,6 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 
 // mostly preparing terragrunt options
 func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
-	// The env vars are renamed to "..._NO_AUTO_..." in the global flags`. These ones are left for backwards compatibility.
-	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
-	opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
-	opts.RunAllAutoApprove = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
-
-	// `TF_INPUT` is the old env var for`--terragrunt-non-interactive` flag, now is replaced with `TERRAGRUNT_NON_INTERACTIVE` but kept for backwards compatibility.
-	// If `TF_INPUT` is false then `opts.NonInteractive` is true.
-	opts.NonInteractive = env.GetNegativeBool(os.Getenv("TF_INPUT"), opts.NonInteractive)
-
-	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name

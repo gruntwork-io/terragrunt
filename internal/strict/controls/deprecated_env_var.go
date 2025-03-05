@@ -3,6 +3,7 @@ package controls
 import (
 	"context"
 	"slices"
+	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -69,6 +70,10 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 		envName = names[0]
 
 		value := ctrl.newFlag.Value().String()
+
+		if v, ok := ctrl.newFlag.Value().Get().(bool); ok && ctrl.newFlag.Value().IsNegativeBoolFlag() {
+			value = strconv.FormatBool(!v)
+		}
 
 		if value == "" {
 			value = ctrl.deprecatedFlag.Value().String()

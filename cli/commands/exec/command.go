@@ -53,11 +53,14 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		},
 		Flags:                NewFlags(opts, cmdOpts, nil).Sort(),
 		ErrorOnUndefinedFlag: true,
-		Action: func(ctx *cli.Context) error {
+		Before: func(ctx *cli.Context) error {
 			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
 			}
 
+			return nil
+		},
+		Action: func(ctx *cli.Context) error {
 			tgArgs, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
 
 			// Use unspecified arguments from the terragrunt command if the user

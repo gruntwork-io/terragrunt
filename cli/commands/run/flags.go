@@ -99,8 +99,11 @@ const (
 	DeprecatedSourceUpdateFlagName                   = "source-update"
 	DeprecatedSourceFlagName                         = "source"
 	DeprecatedNoAutoApproveFlagName                  = "no-auto-approve"
+	DeprecatedAutoApproveFlagName                    = "auto-approve"
 	DeprecatedNoAutoRetryFlagName                    = "no-auto-retry"
+	DeprecatedAutoRetryFlagName                      = "auto-retry"
 	DeprecatedNoAutoInitFlagName                     = "no-auto-init"
+	DeprecatedAutoInitFlagName                       = "auto-init"
 	DeprecatedNoDestroyDependenciesCheckFlagName     = "no-destroy-dependencies-check"
 	DeprecatedDisableCommandValidationFlagName       = "disable-command-validation"
 	DeprecatedDisableBucketUpdateFlagName            = "disable-bucket-update"
@@ -153,7 +156,10 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Negative:    true,
 			Destination: &opts.AutoInit,
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoAutoInitFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoAutoInitFlagName), terragruntPrefixControl),
+			flags.WithDeprecatedFlag(&cli.BoolFlag{
+				EnvVars: terragruntPrefix.EnvVars(DeprecatedAutoInitFlagName),
+			}, nil, terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoAutoRetryFlagName,
@@ -162,7 +168,10 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:       "Don't automatically re-run command in case of transient errors.",
 			Negative:    true,
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoAutoRetryFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoAutoRetryFlagName), terragruntPrefixControl),
+			flags.WithDeprecatedFlag(&cli.BoolFlag{
+				EnvVars: terragruntPrefix.EnvVars(DeprecatedAutoRetryFlagName),
+			}, nil, terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoAutoApproveFlagName,
@@ -171,7 +180,10 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:       "Don't automatically append '-auto-approve' to the underlying OpenTofu/Terraform commands run with 'run-all'.",
 			Negative:    true,
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoAutoApproveFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoAutoApproveFlagName), terragruntPrefixControl),
+			flags.WithDeprecatedFlag(&cli.BoolFlag{
+				EnvVars: terragruntPrefix.EnvVars(DeprecatedAutoApproveFlagName),
+			}, nil, terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        DownloadDirFlagName,

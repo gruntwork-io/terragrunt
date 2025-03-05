@@ -272,7 +272,9 @@ func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
 	}
 
 	for _, name := range flag.Names() {
-		set.Var(flag.Value().Getter(name), name, flag.GetUsage())
+		if name != "" {
+			set.Var(flag.Value().Getter(name), name, flag.GetUsage())
+		}
 	}
 
 	return nil
