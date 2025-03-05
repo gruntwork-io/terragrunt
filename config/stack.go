@@ -145,7 +145,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 	return unitOutputs, nil
 }
 
-// generateStackFile process single stack file.
+// generateStackFile processes a single stack file by reading its configuration, creating necessary directories,\n// and generating units and stacks.\n//\n// This function reads the values and stack configuration from the specified stack file path. It creates a target\n// directory for the stack and processes each unit and stack within the configuration. The function logs each\n// operation and returns early if any error is encountered.\n//\n// Parameters:\n//   - ctx: The context for managing timeouts and cancellation signals.\n//   - opts: A pointer to TerragruntOptions, which contains the logger and other configuration settings.\n//   - stackFilePath: A string representing the path to the stack file to be processed.\n//\n// Returns:\n//   - An error if any operation fails, such as reading values, creating directories, or generating units/stacks.\n//     If all operations succeed, it returns nil.\n
 func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
@@ -177,9 +177,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, sta
 	return nil
 }
 
-// generateUnits processes each unit by resolving its destination path and copying files from the source.
-// It then writes the unit's values file and logs any errors encountered.
-// In case of an error, the function exits early.
+// generateUnits processes each unit by resolving its destination path and copying files from the source.\n// It then writes the unit's values file and logs any errors encountered.\n// In case of an error, the function exits early.\n//\n// This function iterates over a list of Unit objects, determines the absolute destination path for each unit,\n// and copies the necessary files from the source to the destination. It also generates a values file for each unit\n// using the writeValues function. The function logs each operation and returns early if any error is encountered.\n//\n// Parameters:\n//   - ctx: The context for managing timeouts and cancellation signals.\n//   - opts: A pointer to TerragruntOptions, which contains the logger and other configuration settings.\n//   - stackSourceDir: A string representing the source directory where the unit files are located.\n//   - stackTargetDir: A string representing the target directory where the unit files will be copied.\n//   - units: A slice of pointers to Unit objects that need to be processed.\n//\n// Returns:\n//   - An error if any operation fails, such as resolving paths, copying files, or writing values.\n//     If all operations succeed, it returns nil.\n
 func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, units []*Unit) error {
 	for _, unit := range units {
 		opts.Logger.Infof("Processing unit %s", unit.Name)
