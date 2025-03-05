@@ -16,9 +16,8 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	mu       sync.RWMutex
-	WorkDir  string
-	cmdCache sync.Map
+	mu      sync.RWMutex
+	WorkDir string
 }
 
 // NewGitRunner creates a new GitRunner instance
@@ -30,8 +29,7 @@ func NewGitRunner() *GitRunner {
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	// Create new instance instead of modifying existing one
 	return &GitRunner{
-		WorkDir:  workDir,
-		cmdCache: sync.Map{},
+		WorkDir: workDir,
 	}
 }
 
@@ -238,16 +236,7 @@ func (g *GitRunner) SetWorkDir(dir string) {
 }
 
 func (g *GitRunner) prepareCommand(name string, args ...string) *exec.Cmd {
-	key := name + strings.Join(args, " ")
-	if cached, ok := g.cmdCache.Load(key); ok {
-		cmd := cached.(*exec.Cmd)
-		// Clone the command with new pipes
-
-		return exec.Command(cmd.Path, cmd.Args[1:]...)
-	}
-
 	cmd := exec.Command("git", append([]string{name}, args...)...)
-	g.cmdCache.Store(key, cmd)
 
 	return exec.Command(cmd.Path, cmd.Args[1:]...)
 }
