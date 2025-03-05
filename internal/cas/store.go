@@ -42,7 +42,7 @@ func (s *Store) hasContent(path string) bool {
 	return err == nil
 }
 
-// WriteInProgress checks if a write is in progress for a given hash
+// writeInProgress checks if a write is in progress for a given hash
 func (s *Store) writeInProgress(path string, cloneStart time.Time) bool {
 	path += ".tmp"
 
