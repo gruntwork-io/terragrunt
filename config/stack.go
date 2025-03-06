@@ -116,6 +116,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 		// read stack values file
 		dir := filepath.Dir(path)
 		values, err := ReadValues(ctx, opts, dir)
+
 		if err != nil {
 			return nil, errors.New(err)
 		}
@@ -344,13 +345,16 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
 	parser := NewParsingContext(ctx, opts)
+
 	if values != nil {
 		parser = parser.WithValues(values)
 	}
+
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
+
 	//nolint:contextcheck
 	if err := processLocals(parser, opts, file); err != nil {
 		return nil, errors.New(err)
@@ -379,6 +383,7 @@ func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory s
 		opts.Logger.Debugf("No values to write in %s", directory)
 		return nil
 	}
+
 	if directory == "" {
 		return errors.New("writeValues: unit directory path cannot be empty")
 	}
@@ -386,6 +391,7 @@ func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory s
 	if err := os.MkdirAll(directory, unitDirPerm); err != nil {
 		return errors.Errorf("failed to create directory %s: %w", directory, err)
 	}
+
 	opts.Logger.Debugf("Writing values file in %s", directory)
 	filePath := filepath.Join(directory, valuesFile)
 
