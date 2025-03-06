@@ -399,6 +399,10 @@ func TestAwsGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 	}{
 		{
 			"all-values",
+			map[string]interface{}{"role_arn": "arn::it", "external_id": "123", "session_name": "foobar", "tags": map[string]string{"foo": "bar"}},
+		},
+		{
+			"no-tags",
 			map[string]interface{}{"role_arn": "arn::it", "external_id": "123", "session_name": "foobar"},
 		},
 	}
@@ -419,6 +423,7 @@ func TestAwsGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 				RoleArn:     s3ConfigExtended.RemoteStateConfigS3.AssumeRole.RoleArn,
 				ExternalID:  s3ConfigExtended.RemoteStateConfigS3.AssumeRole.ExternalID,
 				SessionName: s3ConfigExtended.RemoteStateConfigS3.AssumeRole.SessionName,
+				Tags:        s3ConfigExtended.RemoteStateConfigS3.AssumeRole.Tags,
 			}
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
