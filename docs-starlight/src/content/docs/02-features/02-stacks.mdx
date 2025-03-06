@@ -112,6 +112,8 @@ If your units have dependencies between them, for example, you can’t deploy th
 <Aside type="danger">
 If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)!
 
+In the above example- this would mean that destroying the backend-app would also destroy Valkey and MySQL!
+
 If you wish to prevent external dependencies from being destroyed, add the [`--queue-exclude-external` flag](/docs/reference/cli/commands/run#queue-exclude-external), or use the [`--exclude-dir` flag](/docs/reference/cli/commands/run#exclude-dir) once for each directory you wish to exclude.
 </Aside>
 
