@@ -295,13 +295,17 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 				continue
 			}
 			// extract assume role hcl values to be rendered in HCL
-			var assumeRoleMap map[string]string
+			var assumeRoleMap map[string]any
+			println(assumeRoleValue)
 			// split single line hcl to default multiline file
 			hclValue := strings.TrimSuffix(assumeRoleValue, "}")
 			hclValue = strings.TrimPrefix(hclValue, "{")
 			hclValue = strings.ReplaceAll(hclValue, ",", "\n")
+			fmt.Println("hclValue: ", hclValue)
 			// basic decode of hcl to a map
 			err := hclsimple.Decode("s3_assume_role.hcl", []byte(hclValue), nil, &assumeRoleMap)
+			bs, _ := json.Marshal(assumeRoleMap)
+			fmt.Println("assumeRoleMap: " + string(bs))
 			if err != nil {
 				return nil, errors.New(err)
 			}
@@ -408,6 +412,7 @@ func convertValue(v interface{}) (ctyjson.SimpleJSONValue, error) {
 	if err != nil {
 		return ctyjson.SimpleJSONValue{}, errors.New(err)
 	}
+	println("converted json string: " + string(jsonBytes))
 
 	var ctyVal ctyjson.SimpleJSONValue
 	if err := ctyVal.UnmarshalJSON(jsonBytes); err != nil {

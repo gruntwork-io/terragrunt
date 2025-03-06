@@ -94,9 +94,10 @@ var terragruntOnlyConfigs = []string{
 }
 
 type RemoteStateConfigS3AssumeRole struct {
-	RoleArn     string `mapstructure:"role_arn"`
-	ExternalID  string `mapstructure:"external_id"`
-	SessionName string `mapstructure:"session_name"`
+	RoleArn     string            `mapstructure:"role_arn"`
+	ExternalID  string            `mapstructure:"external_id"`
+	SessionName string            `mapstructure:"session_name"`
+	Tags        map[string]string `mapstructure:"tags"`
 }
 
 type RemoteStateConfigS3Endpoints struct {
@@ -144,6 +145,7 @@ func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSessio
 		CustomDynamoDBEndpoint:  dynamoDBEndpoint,
 		Profile:                 c.RemoteStateConfigS3.Profile,
 		RoleArn:                 c.RemoteStateConfigS3.GetSessionRoleArn(),
+		Tags:                    c.RemoteStateConfigS3.GetSessionTags(),
 		ExternalID:              c.RemoteStateConfigS3.GetExternalID(),
 		SessionName:             c.RemoteStateConfigS3.GetSessionName(),
 		CredsFilename:           c.RemoteStateConfigS3.CredsFilename,
@@ -199,6 +201,15 @@ func (s3Config *RemoteStateConfigS3) GetSessionRoleArn() string {
 	}
 
 	return s3Config.RoleArn
+}
+
+func (s3Config *RemoteStateConfigS3) GetSessionTags() map[string]string {
+	//if s3Config.AssumeRole.SessionName != "" {}
+	if len(s3Config.AssumeRole.Tags) != 0 {
+		return s3Config.AssumeRole.Tags
+	}
+	return nil
+	//return map[string]string{}
 }
 
 // GetExternalID returns the external ID defined in the AssumeRole struct
