@@ -83,12 +83,6 @@ type terraformConfigSourceOnly struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// terragruntEngine is a struct that can be used to store decoded engine configs
-type terragruntEngine struct {
-	Engine EngineConfig `hcl:"engine,block"`
-	Remain hcl.Body     `hcl:",remain"`
-}
-
 // terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy)
 type terragruntFlags struct {
 	IamRole             *string  `hcl:"iam_role,attr"`
