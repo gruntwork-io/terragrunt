@@ -887,8 +887,6 @@ remote_state {
 
 This is useful for situations when you want to mark a file as read, but are not reading it using a native Terragrunt HCL function.
 
-
-
 For example:
 
 ```hcl
