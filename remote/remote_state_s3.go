@@ -94,10 +94,15 @@ var terragruntOnlyConfigs = []string{
 }
 
 type RemoteStateConfigS3AssumeRole struct {
-	RoleArn     string            `mapstructure:"role_arn"`
-	ExternalID  string            `mapstructure:"external_id"`
-	SessionName string            `mapstructure:"session_name"`
-	Tags        map[string]string `mapstructure:"tags"`
+	RoleArn           string            `mapstructure:"role_arn"`
+	Duration          string            `mapstructure:"duration"`
+	ExternalID        string            `mapstructure:"external_id"`
+	Policy            string            `mapstructure:"policy"`
+	PolicyArns        []string          `mapstructure:"policy_arns"`
+	SessionName       string            `mapstructure:"session_name"`
+	SourceIdentity    string            `mapstructure:"source_identity"`
+	Tags              map[string]string `mapstructure:"tags"`
+	TransitiveTagKeys []string          `mapstructure:"transitive_tag_keys"`
 }
 
 type RemoteStateConfigS3Endpoints struct {

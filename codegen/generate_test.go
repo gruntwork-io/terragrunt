@@ -63,6 +63,25 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
   }
 }
 `)
+	expectedS3WithAssumeRole := []byte(`terraform {
+  backend "s3" {
+    assume_role = {
+      duration        = "1h30m"
+      external_id     = "123456789012"
+      policy          = "{}"
+      policy_arns     = ["arn:aws:iam::123456789012:policy/MyPolicy"]
+      role_arn        = "arn:aws:iam::123456789012:role/MyRole"
+      session_name    = "MySession"
+      source_identity = "123456789012"
+      tags = {
+        key = "value"
+      }
+      transitive_tag_keys = ["key"]
+    }
+    bucket = "mybucket"
+  }
+}
+`)
 
 	tc := []struct {
 		name       string
@@ -117,6 +136,17 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 			[]byte(""),
 			true,
 		},
+		{
+			"s3-backend-with-assume-role",
+			"s3",
+			map[string]interface{}{
+				"bucket":      "mybucket",
+				"assume_role": "{role_arn=\"arn:aws:iam::123456789012:role/MyRole\",tags={key=\"value\"}, duration=\"1h30m\", external_id=\"123456789012\", policy=\"{}\", policy_arns=[\"arn:aws:iam::123456789012:policy/MyPolicy\"], session_name=\"MySession\", source_identity=\"123456789012\", transitive_tag_keys=[\"key\"]}",
+			},
+			map[string]interface{}{},
+			expectedS3WithAssumeRole,
+			false,
+		},
 	}
 
 	for _, tt := range tc {
@@ -132,7 +162,8 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.True(t, bytes.Contains(output, []byte(tt.backend)))
-				assert.Equal(t, tt.expected, output)
+				// Comparing as string produces a nicer diff
+				assert.Equal(t, string(tt.expected), string(output))
 			}
 
 			// runs the function a few of times again. All the outputs must be
