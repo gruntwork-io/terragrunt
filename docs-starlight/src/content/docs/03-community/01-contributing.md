@@ -302,6 +302,46 @@ Every source file in this project should be formatted with `go fmt`. There are f
 
 To ensure that your changes get properly formatted, please install the git pre-commit hook with `make install-pre-commit-hook`.
 
+### Development Containers
+
+[Development Containers](https://containers.dev/) enable you to capture an entire development environment within a container. They can specify the required binaries, languages, extensions, and settings for a project. They can even define commands to run when entering the container. The [Dev Container spec](https://containers.dev/implementors/spec/) is met by a number of [supporting tools and editors](https://containers.dev/supporting), but here we demonstrate a Visual Studio Code example for contributing to the Terragrunt project.
+
+1. Install the [Dev Containers VSCode extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
+
+2. Create a `.devcontainer.json` file at the project root. The example below launches a container configured with the appropriate version of Go, integrates the `golangci-lint` tool into the editor, installs the markdownlint extension with specific rules disabled (MD013 and MD024), includes Node.js and Terraform, and starts the Astro Starlight docs upon container startup.
+
+    ```json
+    {
+      "name": "Terragrunt Contributing IDE",
+      "image": "mcr.microsoft.com/devcontainers/go:1-1.23-bookworm",
+      "runArgs": ["--network=host"],
+      "customizations": {
+        "vscode": {
+          "settings": {
+            "go.lintTool": "golangci-lint",
+            "go.lintFlags": [
+              "--fast"
+            ],
+            "markdownlint.config": {
+              "MD013": false,
+              "MD024": false
+            }
+          },
+          "extensions": [
+            "davidanson.vscode-markdownlint"
+          ]
+        }
+      },
+      "features": {
+        "ghcr.io/devcontainers/features/node:1": {},
+        "ghcr.io/devcontainers/features/terraform:1": {}
+      },
+      "postCreateCommand": "cd docs-starlight && npm install && npm run dev"
+    }
+    ```
+
+3. Open the project as a VSCode workspace and, when prompted, select `Reopen in Container`. If you miss the prompt, just open the command palette and run `Dev Containers: Rebuild and Reopen in Container`.
+
 ## Terragrunt Releases
 
 Terragrunt releases follow [semantic versioning guidelines (semver)](https://semver.org/).
