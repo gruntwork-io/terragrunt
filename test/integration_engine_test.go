@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	testFixtureEngineDependency     = "fixtures/engine/engine-dependencies"
 	testFixtureLocalEngine          = "fixtures/engine/local-engine"
 	testFixtureRemoteEngine         = "fixtures/engine/remote-engine"
 	testFixtureOpenTofuEngine       = "fixtures/engine/opentofu-engine"
@@ -215,6 +216,32 @@ func TestEngineOpentofuLatestRunAll(t *testing.T) {
 	assert.Contains(t, stdout, "filename             = \"./test.txt\"\n")
 	assert.Contains(t, stderr, "Tofu Shutdown completed")
 	assert.Contains(t, stdout, "Apply complete!")
+}
+
+func TestEngineDependency(t *testing.T) {
+	t.Setenv(envVarExperimental, "1")
+
+	helpers.CleanupTerraformFolder(t, testFixtureEngineDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEngineDependency)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureEngineDependency)
+
+	terragruntCmd := "terragrunt apply -log-level debug -no-color -auto-approve --non-interactive --tf-forward-stdout --working-dir %s"
+
+	// Run apply in app1, make sure it uses engine
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(terragruntCmd, util.JoinPath(rootPath, "app1")))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Using engine to run command: tofu apply -auto-approve -no-color")
+	assert.Contains(t, stdout, "Changes to Outputs:")
+	assert.Contains(t, stdout, "value = \"app1-test\"")
+
+	// Run apply in app2, make sure it uses engine for both app1 output and apply
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(terragruntCmd, util.JoinPath(rootPath, "app2")))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "prefix=../app1 msg=Using engine to run command: tofu output -json")
+	assert.Contains(t, stderr, "msg=Using engine to run command: tofu apply -auto-approve -no-color")
+	assert.Contains(t, stdout, "resource \"local_file\" \"test\"")
+	assert.Contains(t, stdout, "content              = \"app1-test\"")
+	assert.Contains(t, stdout, "filename             = \"./test.txt\"\n")
 }
 
 func TestEngineLogLevel(t *testing.T) {
