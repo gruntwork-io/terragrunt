@@ -296,19 +296,40 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 			}
 			// extract assume role hcl values to be rendered in HCL
 			var assumeRoleMap map[string]any
-			println(assumeRoleValue)
+			assumeRoleMap = make(map[string]any)
+			// Parse the single line HCL into a temporary struct to extract values
+			type tempStruct struct {
+				ExternalId string            `hcl:"external_id,optional"`
+				RoleArn    string            `hcl:"role_arn,optional"`
+				Tags       map[string]string `hcl:"tags,optional"`
+			}
+			var temp tempStruct
+			println("assumeRoleValue: " + assumeRoleValue)
 			// split single line hcl to default multiline file
 			hclValue := strings.TrimSuffix(assumeRoleValue, "}")
 			hclValue = strings.TrimPrefix(hclValue, "{")
 			hclValue = strings.ReplaceAll(hclValue, ",", "\n")
 			fmt.Println("hclValue: ", hclValue)
 			// basic decode of hcl to a map
-			err := hclsimple.Decode("s3_assume_role.hcl", []byte(hclValue), nil, &assumeRoleMap)
-			bs, _ := json.Marshal(assumeRoleMap)
-			fmt.Println("assumeRoleMap: " + string(bs))
+			err := hclsimple.Decode("s3_assume_role.hcl", []byte(hclValue), nil, &temp)
 			if err != nil {
 				return nil, errors.New(err)
 			}
+
+			// Copy non-zero values to the map
+			// TODO: Find other values that need support (Session Name)
+			if temp.ExternalId != "" {
+				assumeRoleMap["external_id"] = temp.ExternalId
+			}
+			if temp.RoleArn != "" {
+				assumeRoleMap["role_arn"] = temp.RoleArn
+			}
+			if len(temp.Tags) > 0 {
+				assumeRoleMap["tags"] = temp.Tags
+			}
+			bs, _ := json.Marshal(assumeRoleMap)
+			fmt.Println("assumeRoleMap: " + string(bs))
+
 			// write assume role map as HCL object
 			ctyVal, err := convertValue(assumeRoleMap)
 			if err != nil {
