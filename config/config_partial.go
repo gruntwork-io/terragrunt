@@ -35,6 +35,7 @@ const (
 	TerragruntVersionConstraints
 	RemoteStateBlock
 	FeatureFlagsBlock
+	EngineBlock
 	ExcludeBlock
 	ErrorsBlock
 )
@@ -80,6 +81,12 @@ type terragruntTerraformSource struct {
 type terraformConfigSourceOnly struct {
 	Source *string  `hcl:"source,attr"`
 	Remain hcl.Body `hcl:",remain"`
+}
+
+// terragruntEngine is a struct that can be used to store decoded engine configs
+type terragruntEngine struct {
+	Engine EngineConfig `hcl:"engine,block"`
+	Remain hcl.Body     `hcl:",remain"`
 }
 
 // terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy)
@@ -329,6 +336,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 //     the config.
 //   - RemoteStateBlock: Parses the `remote_state` block in the config
 //   - FeatureFlagsBlock: Parses the `feature` block in the config
+//   - EngineBlock: Parses the `engine` block in the config
 //   - ExcludeBlock : Parses the `exclude` block in the config
 //
 // Note that the following blocks are always decoded:
@@ -443,6 +451,14 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			} else {
 				output.Dependencies = dependencies
 			}
+		case EngineBlock:
+			decoded := EngineConfig{}
+
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+			output.Engine = &decoded
 
 		case TerragruntFlags:
 			decoded := terragruntFlags{}
