@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -52,7 +53,13 @@ func DiscoverConfigs(opts *options.TerragruntOptions) (DiscoveredConfigs, error)
 			return nil
 		}
 
+		path, err = filepath.Rel(opts.WorkingDir, path)
+		if err != nil {
+			return errors.New(err.Error())
+		}
+
 		// Ignore files in hidden directories
+		// TODO: Make this configurable.
 		parts := strings.Split(path, string(os.PathSeparator))
 		for _, part := range parts {
 			if strings.HasPrefix(part, ".") {
@@ -60,27 +67,16 @@ func DiscoverConfigs(opts *options.TerragruntOptions) (DiscoveredConfigs, error)
 			}
 		}
 
-		if filepath.Base(path) == filepath.Base(opts.TerragruntConfigPath) {
-			relPath, err := filepath.Rel(opts.WorkingDir, path)
-			if err != nil {
-				return errors.New(err.Error())
-			}
-
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
 			units = append(units, &DiscoveredConfig{
 				config: ConfigTypeUnit,
-				path:   filepath.Dir(relPath),
+				path:   filepath.Dir(path),
 			})
-		}
-
-		if filepath.Base(path) == filepath.Base(opts.TerragruntStackConfigPath) {
-			relPath, err := filepath.Rel(opts.WorkingDir, path)
-			if err != nil {
-				return errors.New(err.Error())
-			}
-
+		case config.DefaultStackFile:
 			units = append(units, &DiscoveredConfig{
 				config: ConfigTypeStack,
-				path:   filepath.Dir(relPath),
+				path:   filepath.Dir(path),
 			})
 		}
 

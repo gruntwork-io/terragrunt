@@ -40,9 +40,10 @@ import (
 
 const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
+	DefaultStackFile                = "terragrunt.stack.hcl"
+	ValuesFile                      = "terragrunt.values.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
 	RecommendedParentConfigName     = "root.hcl"
-	StackValuesFile                 = "terragrunt.values.hcl"
 
 	FoundInFile = "found_in_file"
 
