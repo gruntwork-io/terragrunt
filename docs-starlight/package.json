@@ -11,14 +11,20 @@
   },
   "dependencies": {
     "@astrojs/starlight": "^0.31.1",
-    "@astrojs/vercel": "^8.0.7",
+    "@astrojs/vercel": "^8.1.1",
     "@zachleat/table-saw": "^1.0.6",
-    "astro": "^5.2.1",
+    "astro": "^5.4.2",
     "gray-matter": "^4.0.3",
-    "sharp": "^0.32.5",
-    "starlight-links-validator": "^0.14.2"
+    "sharp": "^0.32.6",
+    "starlight-links-validator": "^0.14.3"
   },
   "patchedDependencies": {
     "@astrojs/starlight@0.31.1": "patches/@astrojs%2Fstarlight@0.31.1.patch"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.4"
+  },
+  "overrides": {
+    "estree-walker": "2.0.2"
   }
 }
