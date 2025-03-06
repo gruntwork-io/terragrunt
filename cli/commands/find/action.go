@@ -53,8 +53,8 @@ type Colorizer struct {
 
 func NewColorizer() *Colorizer {
 	return &Colorizer{
-		unitColorizer:  ansi.ColorFunc(ansi.LightGreen),
-		stackColorizer: ansi.ColorFunc(ansi.LightBlue),
+		unitColorizer:  ansi.ColorFunc("blue+bh"),
+		stackColorizer: ansi.ColorFunc("green+bh"),
 	}
 }
 
@@ -72,7 +72,7 @@ func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
 func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() {
 		for _, config := range configs {
-			fmt.Println(config.Path(), ansi.Reset)
+			fmt.Println(config.Path())
 		}
 
 		return nil
@@ -81,7 +81,7 @@ func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	colorizer := NewColorizer()
 
 	for _, config := range configs {
-		fmt.Println(colorizer.colorize(config), ansi.Reset)
+		fmt.Println(colorizer.colorize(config))
 	}
 
 	return nil
