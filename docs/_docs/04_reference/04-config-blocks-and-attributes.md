@@ -1715,6 +1715,15 @@ stack "services" {
         cidr    = "10.0.0.0/16"
     }
 }
+
+# github.com/gruntwork-io/terragrunt-stacks//stacks/mock/services/terragrunt.stack.hcl
+# ...
+unit "vpc" {
+  # ...
+  values = {
+    cidr = values.cidr
+  }
+}
 ```
 
 In this example, the `services` stack is defined with path `services`, which will be generated at `.terragrunt-stack/services`.
