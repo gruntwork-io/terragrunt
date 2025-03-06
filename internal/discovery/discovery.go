@@ -4,9 +4,11 @@ package discovery
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -41,13 +43,21 @@ type DiscoveredConfigs []*DiscoveredConfig
 func DiscoverConfigs(opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
 	var units DiscoveredConfigs
 
-	walkFn := func(path string, info os.FileInfo, err error) error {
+	walkFn := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return errors.New(err.Error())
 		}
 
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
+		}
+
+		// Ignore files in hidden directories
+		parts := strings.Split(path, string(os.PathSeparator))
+		for _, part := range parts {
+			if strings.HasPrefix(part, ".") {
+				return nil
+			}
 		}
 
 		if filepath.Base(path) == filepath.Base(opts.TerragruntConfigPath) {
@@ -77,7 +87,7 @@ func DiscoverConfigs(opts *options.TerragruntOptions) (DiscoveredConfigs, error)
 		return nil
 	}
 
-	if err := filepath.Walk(opts.WorkingDir, walkFn); err != nil {
+	if err := filepath.WalkDir(opts.WorkingDir, walkFn); err != nil {
 		return nil, errors.New(err.Error())
 	}
 

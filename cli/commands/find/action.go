@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -49,23 +50,44 @@ func outputJSON(configs discovery.DiscoveredConfigs) error {
 type Colorizer struct {
 	unitColorizer  func(string) string
 	stackColorizer func(string) string
+	pathColorizer  func(string) string
 }
 
 func NewColorizer() *Colorizer {
 	return &Colorizer{
 		unitColorizer:  ansi.ColorFunc("blue+bh"),
 		stackColorizer: ansi.ColorFunc("green+bh"),
+		pathColorizer:  ansi.ColorFunc("white+d"),
 	}
 }
 
 func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
+	path := config.Path()
+
+	// Get the directory and base name using filepath
+	dir, base := filepath.Split(path)
+
+	if dir == "" {
+		// No directory part, color the whole path
+		switch config.ConfigType() {
+		case discovery.ConfigTypeUnit:
+			return c.unitColorizer(path)
+		case discovery.ConfigTypeStack:
+			return c.stackColorizer(path)
+		default:
+			return path
+		}
+	}
+
+	// Color the components differently
+	coloredPath := c.pathColorizer(dir)
 	switch config.ConfigType() {
 	case discovery.ConfigTypeUnit:
-		return c.unitColorizer(config.Path())
+		return coloredPath + c.unitColorizer(base)
 	case discovery.ConfigTypeStack:
-		return c.stackColorizer(config.Path())
+		return coloredPath + c.stackColorizer(base)
 	default:
-		return config.Path()
+		return path
 	}
 }
 
