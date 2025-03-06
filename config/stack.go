@@ -154,7 +154,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, sta
 
 	values, err := ReadValues(ctx, opts, stackSourceDir)
 	if err != nil {
-		return errors.Errorf("Failed to read values file %s in %s %v", stackFilePath, stackSourceDir, err)
+		return errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, err)
 	}
 
 	stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath, values)
@@ -397,7 +397,7 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	return config, nil
 }
 
-// writeValues generates and writes unit values to a terragrunt.values.hcl file in the specified unit directory.
+// writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
 func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory string) error {
 	if values == nil {
 		opts.Logger.Debugf("No values to write in %s", directory)
@@ -435,7 +435,7 @@ func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory s
 	return nil
 }
 
-// ReadValues reads the unit values from the terragrunt.values.hcl file.
+// ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
 func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory string) (*cty.Value, error) {
 	if directory == "" {
 		return nil, errors.New("ReadValues: directory path cannot be empty")
