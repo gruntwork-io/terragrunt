@@ -23,5 +23,8 @@
   },
   "devDependencies": {
     "@types/bun": "^1.2.4"
+  },
+  "overrides": {
+    "estree-walker": "2.0.2"
   }
 }
