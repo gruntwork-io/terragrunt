@@ -185,25 +185,19 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, sta
 // It logs the processing progress and returns any errors encountered during the operation.
 func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, units []*Unit) error {
 	for _, unit := range units {
+		item := itemToProcess{
+			sourceDir: stackSourceDir,
+			targetDir: stackTargetDir,
+			name:      unit.Name,
+			path:      unit.Path,
+			source:    unit.Source,
+			values:    unit.Values,
+		}
+
 		opts.Logger.Infof("Processing unit %s", unit.Name)
 
-		destPath := filepath.Join(stackTargetDir, unit.Path)
-		dest, err := filepath.Abs(destPath)
-
-		if err != nil {
-			return errors.Errorf("failed to get absolute path for destination '%s': %v", dest, err)
-		}
-
-		src := unit.Source
-		opts.Logger.Debugf("Processing unit: %s (%s) to %s", unit.Name, src, dest)
-
-		if err := copyFiles(ctx, opts, unit.Name, stackSourceDir, src, dest); err != nil {
+		if err := processItem(ctx, opts, &item); err != nil {
 			return err
-		}
-
-		// generate unit values file
-		if err := writeValues(opts, unit.Values, dest); err != nil {
-			return errors.Errorf("Failed to write unit values %v %v", unit.Name, err)
 		}
 	}
 
@@ -214,26 +208,52 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSo
 // It logs each operation and returns early if any error is encountered.
 func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
-		opts.Logger.Infof("Processing stack %s", stack.Name)
-
-		destPath := filepath.Join(stackTargetDir, stack.Path)
-		dest, err := filepath.Abs(destPath)
-
-		if err != nil {
-			return errors.Errorf("Failed to get absolute path for destination '%s': %v", dest, err)
+		item := itemToProcess{
+			sourceDir: stackSourceDir,
+			targetDir: stackTargetDir,
+			name:      stack.Name,
+			path:      stack.Path,
+			source:    stack.Source,
+			values:    stack.Values,
 		}
 
-		src := stack.Source
-		opts.Logger.Debugf("Processing stack: %s (%s) to %s", stack.Name, src, dest)
+		opts.Logger.Infof("Processing stack %s", stack)
 
-		if err := copyFiles(ctx, opts, stack.Name, stackSourceDir, src, dest); err != nil {
+		if err := processItem(ctx, opts, &item); err != nil {
 			return err
 		}
+	}
 
-		// generate stack values file
-		if err := writeValues(opts, stack.Values, dest); err != nil {
-			return errors.Errorf("Failed to write stack values %v %v", stack.Name, err)
-		}
+	return nil
+}
+
+type itemToProcess struct {
+	sourceDir string
+	targetDir string
+	name      string
+	path      string
+	source    string
+	values    *cty.Value
+}
+
+// processItem copies files from the source directory to the target destination and generates a corresponding values file.
+func processItem(ctx context.Context, opts *options.TerragruntOptions, item *itemToProcess) error {
+	destPath := filepath.Join(item.targetDir, item.path)
+	dest, err := filepath.Abs(destPath)
+
+	if err != nil {
+		return errors.Errorf("failed to get absolute path for destination '%s': %v", dest, err)
+	}
+
+	opts.Logger.Debugf("Processing: %s (%s) to %s", item.name, item.source, dest)
+
+	if err := copyFiles(ctx, opts, item.name, item.sourceDir, item.source, dest); err != nil {
+		return err
+	}
+
+	// generate values file
+	if err := writeValues(opts, item.values, dest); err != nil {
+		return errors.Errorf("failed to write values %v %v", item.name, err)
 	}
 
 	return nil
