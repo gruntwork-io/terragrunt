@@ -367,7 +367,7 @@ During `destroy` runs, Terragrunt will try to find all dependent units and show 
 
 This is because Terragrunt knows that once resources in a dependency are destroyed, any commands run on dependent units may fail.
 
-For example, if `destroy` was called on the `redis` unit, you'd be asked for confirmation, as the `backend-app` depends on `redis`. You can suppress the prompt by using the `--non-interactive` flag.
+For example, if `destroy` was called on the `Valkey` unit, you'd be asked for confirmation, as the `backend-app` depends on `Valkey`. You can suppress the prompt by using the `--non-interactive` flag.
 </Aside>
 
 ## Visualizing the DAG
