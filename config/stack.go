@@ -183,11 +183,11 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, sta
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		item := itemToProcess{
-			sourceDir: stackSourceDir,
-			targetDir: stackTargetDir,
+			sourceDir: sourceDir,
+			targetDir: targetDir,
 			name:      unit.Name,
 			path:      unit.Path,
 			source:    unit.Source,
@@ -206,11 +206,11 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, stackSo
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, stackSourceDir, stackTargetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		item := itemToProcess{
-			sourceDir: stackSourceDir,
-			targetDir: stackTargetDir,
+			sourceDir: sourceDir,
+			targetDir: targetDir,
 			name:      stack.Name,
 			path:      stack.Path,
 			source:    stack.Source,
