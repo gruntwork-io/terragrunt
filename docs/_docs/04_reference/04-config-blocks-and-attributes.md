@@ -1701,6 +1701,7 @@ The `stack` block supports the following arguments:
 - `name` (label): A unique identifier for the stack. This is used to reference the stack elsewhere in your configuration.
 - `source` (attribute): Specifies where to find the Terragrunt configuration files for this stack. This follows the same syntax as the `source` parameter in the `terraform` block.
 - `path` (attribute): The relative path within `.terragrunt-stack` where this stack should be generated.If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory.
+- `values` (attribute, optional): A map of custom values that can be passed to the stack. These values can be referenced within the stack's configuration files, allowing for customization without modifying the stack source.
 
 Example:
 
@@ -1709,10 +1710,15 @@ Example:
 stack "services" {
     source = "github.com/gruntwork-io/terragrunt-stacks//stacks/mock/services?ref=v0.0.1"
     path   = "services"
+    values = {
+        project = "dev-services"
+        cidr    = "10.0.0.0/16"
+    }
 }
 ```
 
 In this example, the `services` stack is defined with path `services`, which will be generated at `.terragrunt-stack/services`.
+The stack is also provided with custom values for `project` and `env`, which can be used within the stack's configuration files.
 Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
 
 ## Attributes
