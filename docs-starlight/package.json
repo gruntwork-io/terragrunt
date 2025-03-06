@@ -20,5 +20,8 @@
   },
   "patchedDependencies": {
     "@astrojs/starlight@0.31.1": "patches/@astrojs%2Fstarlight@0.31.1.patch"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.4"
   }
 }

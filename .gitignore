@@ -16,3 +16,4 @@ terragrunt
 mocks/
 .go-version
 .terragrunt-stack
+.devcontainer.json

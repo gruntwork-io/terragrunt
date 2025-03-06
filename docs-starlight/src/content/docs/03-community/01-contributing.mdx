@@ -6,6 +6,8 @@ sidebar:
   order: 1
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 ## Contribution Guidelines
 
 Contributions to Terragrunt are very welcome! We follow a fairly standard [pull request
@@ -308,9 +310,20 @@ To ensure that your changes get properly formatted, please install the git pre-c
 
 1. Install the [Dev Containers VSCode extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
 
-2. Create a `.devcontainer.json` file at the project root. The example below launches a container configured with the appropriate version of Go, integrates the `golangci-lint` tool into the editor, installs the markdownlint extension with specific rules disabled (MD013 and MD024), includes Node.js and Terraform, and starts the Astro Starlight docs upon container startup.
+2. Create a `.devcontainer.json` file at the project root.
+
+   The example below:
+   - Launches a container configured with the appropriate version of Go.
+   - Integrates `golangci-lint` (the standard Golang linter) into the editor.
+   - Installs the `markdownlint` extension with specific rules disabled:
+     - `MD013`
+     - `MD024`
+   - Includes Node.js and OpenTofu.
+   - Starts the Astro Starlight docs upon container startup.
 
     ```json
+    # .devcontainer.json
+
     {
       "name": "Terragrunt Contributing IDE",
       "image": "mcr.microsoft.com/devcontainers/go:1-1.23-bookworm",
@@ -334,13 +347,23 @@ To ensure that your changes get properly formatted, please install the git pre-c
       },
       "features": {
         "ghcr.io/devcontainers/features/node:1": {},
-        "ghcr.io/devcontainers/features/terraform:1": {}
+        "ghcr.io/robbert229/devcontainer-features/opentofu:1": {}
       },
       "postCreateCommand": "cd docs-starlight && npm install && npm run dev"
     }
     ```
 
-3. Open the project as a VSCode workspace and, when prompted, select `Reopen in Container`. If you miss the prompt, just open the command palette and run `Dev Containers: Rebuild and Reopen in Container`.
+3. Open the project as a VSCode workspace and select `Reopen in Container` when prompted. 
+
+   <Aside type="tip">
+
+     If you miss the prompt, just open the command palette and run:
+
+     ```
+     Dev Containers: Rebuild and Reopen in Container
+     ```
+
+   </Aside>
 
 ## Terragrunt Releases
 
