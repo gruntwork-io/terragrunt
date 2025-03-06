@@ -6,8 +6,14 @@ env:
   - TG_DOWNLOAD_DIR
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Specifies a custom directory where Terragrunt will download and cache OpenTofu/Terraform modules.
 
 By default, modules are downloaded to `.terragrunt-cache` in the working directory.
 
-This flag is not recommended as a mechanism for sharing providers between units. Instead, use the [Provider Cache Server](/docs/features/provider-cache-server) feature.
+<Aside type="note">
+The download directory (`.terragrunt-cache` by default) can grow significantly over time with multiple versions of modules.
+
+Remember to add this directory to your `.gitignore` file and consider periodic cleanup of old cached content.
+</Aside>

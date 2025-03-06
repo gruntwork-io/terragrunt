@@ -6,6 +6,8 @@ env:
   - TG_ALL
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 When this flag is set, Terragrunt will run the specified OpenTofu/Terraform command against all units in the current stack. This is useful when you want to apply changes across multiple units at once.
 
 For example:
@@ -17,3 +19,17 @@ terragrunt run --all plan
 This will run the `plan` command against all units in the current stack.
 
 To learn more about how to use this flag, see the [Stacks](/docs/features/stacks/#the-run---all-command) feature documentation.
+
+<Aside type="note">
+Terragrunt has a notion of "external dependencies". These are units that are not part of the current stack, from the perspective of the current working directory, but are dependencies of units that are part of the current stack.
+
+When running an `--all` command, Terragrunt will discover any external dependencies and prompt you to confirm that you want to run them as well.
+
+If you would like to suppress this prompt, you can use the [`--non-interactive` flag](/docs/reference/cli/commands/run#non-interactive). You can also prevent this behavior by setting  [`--queue-exclude-external`](/docs/reference/cli/commands/run#queue-exclude-external).
+</Aside>
+
+<Aside type="danger">
+When running a `run --all destroy` command, Terragrunt will destroy all dependencies of the units under the current working directory, in addition to the units themselves by default!
+
+If you wish to prevent external dependencies from being destroyed, add the [`--queue-exclude-external` flag](/docs/reference/cli/commands/run#queue-exclude-external), or use the [`--exclude-dir` flag](/docs/reference/cli/commands/run#exclude-dir) once for each directory you wish to exclude.
+</Aside>
