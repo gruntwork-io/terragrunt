@@ -6,6 +6,8 @@ env:
   - TG_SOURCE_MAP
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Allows you to replace source URLs that match a specified pattern with a different URL. This affects both direct source references and sources specified in dependency blocks.
 
 The format is `source-regex=replacement-source`.
@@ -17,3 +19,7 @@ terragrunt run plan --source-map "git::ssh://git@github.com/org/repo.git=../loca
 ```
 
 This will replace any source URL that matches `github.com/example/infrastructure//modules/vpc` with `github.com/example/infrastructure//modules/vpc-new`.
+
+<Aside type="caution">
+Source mapping only performs literal matches on the URL portion. For example, a map key of `ssh://git@github.com/org/repo.git` will not match sources of the form `git::ssh://git@github.com/org/repo.git`. The latter requires a map key of `git::ssh://git@github.com/org/repo.git`.
+</Aside>
