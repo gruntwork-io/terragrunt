@@ -1718,7 +1718,7 @@ stack "services" {
 ```
 
 In this example, the `services` stack is defined with path `services`, which will be generated at `.terragrunt-stack/services`.
-The stack is also provided with custom values for `project` and `env`, which can be used within the stack's configuration files.
+The stack is also provided with custom values for `project` and `cidr`, which can be used within the stack's configuration files.
 Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
 
 ## Attributes
