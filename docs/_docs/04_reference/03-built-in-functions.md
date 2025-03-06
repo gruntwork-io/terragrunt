@@ -887,15 +887,19 @@ remote_state {
 
 This is useful for situations when you want to mark a file as read, but are not reading it using a native Terragrunt HCL function.
 
+
+
 For example:
 
 ```hcl
 locals {
-  filename = mark_as_read("file-read-by-tofu.txt")
+  filename   = mark_as_read("/path/to/my/file-read-by-tofu.txt")
+  many_files = [for f in fileset("./config", "*.yaml") : file(mark_as_read(abspath("${get_terragrunt_dir()}/config/${f}")))]
 }
 
 inputs = {
-  filename = local.filename
+  filename   = local.filename
+  many_files = local.many_files
 }
 ```
 
@@ -903,6 +907,8 @@ By using `mark_as_read` on `file-read-by-tofu.txt`, you can ensure that the `ter
 any `run-all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
 
 The same technique can be used to mark a file as read when reading a file using code in `run_cmd`, etc.
+
+**NOTE**: Due to the way that Terragrunt enqueues files we require an absolute path for mark_as_read to avoid multiple inclusions.
 
 **NOTE**: Due to the way that Terragrunt parses configurations during a `run-all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
