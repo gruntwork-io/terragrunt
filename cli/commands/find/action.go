@@ -27,18 +27,8 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 }
 
-type JSONOutput struct {
-	Units  []string `json:"units,omitempty"`
-	Stacks []string `json:"stacks,omitempty"`
-}
-
 func outputJSON(configs discovery.DiscoveredConfigs) error {
-	output := JSONOutput{
-		Units:  configs.Filter(discovery.ConfigTypeUnit).Paths(),
-		Stacks: configs.Filter(discovery.ConfigTypeStack).Paths(),
-	}
-
-	jsonBytes, err := json.MarshalIndent(output, "", "  ")
+	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -62,7 +52,7 @@ func NewColorizer() *Colorizer {
 }
 
 func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
-	path := config.Path()
+	path := config.Path
 
 	// Get the directory and base name using filepath
 	dir, base := filepath.Split(path)
@@ -94,7 +84,7 @@ func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
 func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() {
 		for _, config := range configs {
-			fmt.Println(config.Path())
+			fmt.Println(config.Path)
 		}
 
 		return nil

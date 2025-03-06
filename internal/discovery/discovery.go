@@ -23,20 +23,16 @@ const (
 
 // DiscoveredConfig represents a discovered Terragrunt configuration.
 type DiscoveredConfig struct {
-	config ConfigType
-	path   string
-}
-
-func (c *DiscoveredConfig) Path() string {
-	return c.path
+	Type ConfigType `json:"type"`
+	Path string     `json:"path"`
 }
 
 func (c *DiscoveredConfig) ConfigType() ConfigType {
-	return c.config
+	return c.Type
 }
 
 func (c *DiscoveredConfig) String() string {
-	return string(c.config) + ": " + c.path
+	return string(c.Type) + ": " + c.Path
 }
 
 type DiscoveredConfigs []*DiscoveredConfig
@@ -70,13 +66,13 @@ func DiscoverConfigs(opts *options.TerragruntOptions) (DiscoveredConfigs, error)
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
 			units = append(units, &DiscoveredConfig{
-				config: ConfigTypeUnit,
-				path:   filepath.Dir(path),
+				Type: ConfigTypeUnit,
+				Path: filepath.Dir(path),
 			})
 		case config.DefaultStackFile:
 			units = append(units, &DiscoveredConfig{
-				config: ConfigTypeStack,
-				path:   filepath.Dir(path),
+				Type: ConfigTypeStack,
+				Path: filepath.Dir(path),
 			})
 		}
 
@@ -92,7 +88,7 @@ func DiscoverConfigs(opts *options.TerragruntOptions) (DiscoveredConfigs, error)
 
 func (c DiscoveredConfigs) Sort() DiscoveredConfigs {
 	sort.Slice(c, func(i, j int) bool {
-		return c[i].path < c[j].path
+		return c[i].Path < c[j].Path
 	})
 
 	return c
@@ -101,7 +97,7 @@ func (c DiscoveredConfigs) Sort() DiscoveredConfigs {
 func (c DiscoveredConfigs) Filter(configType ConfigType) DiscoveredConfigs {
 	filtered := make(DiscoveredConfigs, 0, len(c))
 	for _, config := range c {
-		if config.config == configType {
+		if config.Type == configType {
 			filtered = append(filtered, config)
 		}
 	}
@@ -112,7 +108,7 @@ func (c DiscoveredConfigs) Filter(configType ConfigType) DiscoveredConfigs {
 func (c DiscoveredConfigs) FilterByPath(path string) DiscoveredConfigs {
 	filtered := make(DiscoveredConfigs, 0, len(c))
 	for _, config := range c {
-		if config.path == path {
+		if config.Path == path {
 			filtered = append(filtered, config)
 		}
 	}
@@ -123,7 +119,7 @@ func (c DiscoveredConfigs) FilterByPath(path string) DiscoveredConfigs {
 func (c DiscoveredConfigs) Paths() []string {
 	paths := make([]string, 0, len(c))
 	for _, config := range c {
-		paths = append(paths, config.path)
+		paths = append(paths, config.Path)
 	}
 
 	return paths
