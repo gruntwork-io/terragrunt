@@ -15,7 +15,7 @@ The main benefit this flag provides is performance. Reading directly from state 
 The limitation of this approach is that it is only supported by the S3 backend, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
 
 <Aside type="caution">
-This is an experimental feature. When enabled, Terragrunt will fetch dependency outputs directly from the state file instead of using `terraform output`.
+This is an experimental feature. When enabled, Terragrunt will fetch dependency outputs directly from the state file instead of using `tofu output`.
 
 Currently, only the S3 backend is supported. Use with caution in production environments, as this feature is experimental and may change in the future.
 </Aside>
