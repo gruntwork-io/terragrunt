@@ -452,6 +452,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			if err != nil {
 				return nil, err
 			}
+
 			output.Engine = &decoded
 
 		case TerragruntFlags:
