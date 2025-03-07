@@ -164,4 +164,5 @@ To transition `cli-redesign` features to a stable release, the following must be
   - [x] Add support for `find` with `--sort=alpha` flag.
   - [ ] Add support for `find` with `--sort=dag` flag.
   - [ ] Add support for `find` with the `exclude` block used to exclude units from the search.
+  - [ ] Add integration with `symlinks` experiment to support finding units/stacks via symlinks.
 - [ ] Add support for the `list` command.
