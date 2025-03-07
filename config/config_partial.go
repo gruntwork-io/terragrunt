@@ -119,6 +119,12 @@ type terragruntInputs struct {
 	Remain hcl.Body   `hcl:",remain"`
 }
 
+// terragruntEngine is a struct that can only be used to decode the engine block.
+type terragruntEngine struct {
+	Engine *EngineConfig `hcl:"engine,block"`
+	Remain hcl.Body      `hcl:",remain"`
+}
+
 // DecodeBaseBlocks takes in a parsed HCL2 file and decodes the base blocks. Base blocks are blocks that should always
 // be decoded even in partial decoding, because they provide bindings that are necessary for parsing any block in the
 // file. Currently base blocks are:
@@ -445,15 +451,14 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			} else {
 				output.Dependencies = dependencies
 			}
-		case EngineBlock:
-			decoded := EngineConfig{}
 
+		case EngineBlock:
+			decoded := terragruntEngine{}
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
 			}
-
-			output.Engine = &decoded
+			output.Engine = decoded.Engine
 
 		case TerragruntFlags:
 			decoded := terragruntFlags{}

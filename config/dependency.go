@@ -757,7 +757,8 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 	parseOptions := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
 
 	remoteStateTGConfig, err := PartialParseConfigFile(ctx.WithParseOption(parseOptions).WithDecodeList(RemoteStateBlock, TerragruntFlags, EngineBlock), targetConfig, nil)
-	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
+	// NOTE: can't use dependency optimization if engine is enabled
+	if err != nil || remoteStateTGConfig.Engine != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		targetOpts, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
 		if err != nil {
 			return nil, err
