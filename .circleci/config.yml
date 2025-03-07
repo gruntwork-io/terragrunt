@@ -461,7 +461,7 @@ jobs:
           path: logs
 
   integration_test_tofu_aws:
-    resource_class: "medium+"
+    resource_class: "large"
     <<: *defaults
     <<: *env
     steps:
