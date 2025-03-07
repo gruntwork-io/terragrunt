@@ -297,12 +297,11 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 			// Extracting the values requires two steps.
 			// Parsing into a struct first, enabling hclsimple.Decode() to deal with complex types.
 			// Then copying values into the assumeRoleMap for rendering to HCL.
-			var assumeRoleMap map[string]any
-			assumeRoleMap = make(map[string]any)
+			assumeRoleMap := make(map[string]any)
 			type assumeRoleConfig struct {
 				RoleArn           string            `hcl:"role_arn"`
 				Duration          string            `hcl:"duration,optional"`
-				ExternalId        string            `hcl:"external_id,optional"`
+				ExternalID        string            `hcl:"external_id,optional"`
 				Policy            string            `hcl:"policy,optional"`
 				PolicyArns        []string          `hcl:"policy_arns,optional"`
 				SessionName       string            `hcl:"session_name,optional"`
@@ -327,8 +326,8 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 			if parsedConfig.Duration != "" {
 				assumeRoleMap["duration"] = parsedConfig.Duration
 			}
-			if parsedConfig.ExternalId != "" {
-				assumeRoleMap["external_id"] = parsedConfig.ExternalId
+			if parsedConfig.ExternalID != "" {
+				assumeRoleMap["external_id"] = parsedConfig.ExternalID
 			}
 			if parsedConfig.Policy != "" {
 				assumeRoleMap["policy"] = parsedConfig.Policy

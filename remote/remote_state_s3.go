@@ -209,12 +209,10 @@ func (s3Config *RemoteStateConfigS3) GetSessionRoleArn() string {
 }
 
 func (s3Config *RemoteStateConfigS3) GetSessionTags() map[string]string {
-	//if s3Config.AssumeRole.SessionName != "" {}
 	if len(s3Config.AssumeRole.Tags) != 0 {
 		return s3Config.AssumeRole.Tags
 	}
 	return nil
-	//return map[string]string{}
 }
 
 // GetExternalID returns the external ID defined in the AssumeRole struct
