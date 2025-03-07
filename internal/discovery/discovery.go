@@ -56,10 +56,10 @@ func NewDiscoverySettings() *Discovery {
 	}
 }
 
-func WithHidden(hidden bool) *Discovery {
-	return &Discovery{
-		Hidden: hidden,
-	}
+func (d *Discovery) WithHidden() *Discovery {
+	d.Hidden = true
+
+	return d
 }
 
 func (c *DiscoveredConfig) String() string {
