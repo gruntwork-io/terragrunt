@@ -29,12 +29,17 @@ examples:
       Find all configurations in the current directory and emit them as a JSON string.
     code: |
       terragrunt find --format 'json'
+  - description: |
+      Find all configurations and output them in JSON format (alias for --format=json).
+    code: |
+      terragrunt find --json
   # - description: |
   #     Find all units and sort them in the order they would be run in the Directed Acyclic Graph (DAG).
   #   code: |
   #     terragrunt find --sort 'dag'
 flags:
   - find-format
+  - find-json
   # - find-sort
   - find-hidden
 ---
@@ -55,6 +60,30 @@ Discovered configurations are color coded to help you identify them at a glance:
 - <Badge text="Stacks" style={{ backgroundColor: '#2E8B57', color: '#FFFFFF' }} /> are displayed in green
 
 </Aside>
+
+## Output Formats
+
+The `find` command supports two output formats:
+
+### Text Format (Default)
+
+The default text format displays each configuration on a new line, with color coding for different types.
+
+### JSON Format
+
+You can output the results in JSON format using either:
+
+```bash
+terragrunt find --format json
+```
+
+or the shorter alias:
+
+```bash
+terragrunt find --json
+```
+
+The JSON output includes additional metadata about each configuration, such as its type (unit or stack) and path.
 
 ## Disabling Color Output
 

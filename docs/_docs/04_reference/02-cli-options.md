@@ -601,6 +601,12 @@ $ terragrunt find --format=json | jq '.[:3]'
 ]
 ```
 
+Note that you can also use the `--json` flag to get the same output.
+
+```bash
+terragrunt find --json
+```
+
 By default, hidden directories (those starting with `.`) are excluded from the search. Use `--hidden` to include them.
 
 ```bash
