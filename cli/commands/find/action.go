@@ -62,7 +62,7 @@ func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
 
 	if dir == "" {
 		// No directory part, color the whole path
-		switch config.ConfigType() {
+		switch config.Type {
 		case discovery.ConfigTypeUnit:
 			return c.unitColorizer(path)
 		case discovery.ConfigTypeStack:
@@ -75,7 +75,7 @@ func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
 	// Color the components differently
 	coloredPath := c.pathColorizer(dir)
 
-	switch config.ConfigType() {
+	switch config.Type {
 	case discovery.ConfigTypeUnit:
 		return coloredPath + c.unitColorizer(base)
 	case discovery.ConfigTypeStack:

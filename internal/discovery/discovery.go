@@ -62,10 +62,6 @@ func WithHidden(hidden bool) *Discovery {
 	}
 }
 
-func (c *DiscoveredConfig) ConfigType() ConfigType {
-	return c.Type
-}
-
 func (c *DiscoveredConfig) String() string {
 	return string(c.Type) + ": " + c.Path
 }
