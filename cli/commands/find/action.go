@@ -63,7 +63,7 @@ func NewColorizer() *Colorizer {
 	}
 }
 
-func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
+func (c *Colorizer) Colorize(config *discovery.DiscoveredConfig) string {
 	path := config.Path
 
 	// Get the directory and base name using filepath
@@ -110,7 +110,7 @@ func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	colorizer := NewColorizer()
 
 	for _, config := range configs {
-		_, err := opts.Writer.Write([]byte(colorizer.colorize(config) + "\n"))
+		_, err := opts.Writer.Write([]byte(colorizer.Colorize(config) + "\n"))
 		if err != nil {
 			return errors.New(err)
 		}

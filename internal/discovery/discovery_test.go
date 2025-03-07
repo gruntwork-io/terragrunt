@@ -1,15 +1,18 @@
-package discovery
+package discovery_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDiscovery(t *testing.T) {
+	t.Parallel()
+
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()
 
@@ -47,20 +50,20 @@ func TestDiscovery(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		discovery     *Discovery
+		discovery     *discovery.Discovery
 		wantUnits     []string
 		wantStacks    []string
 		errorExpected bool
 	}{
 		{
 			name:       "basic discovery without hidden",
-			discovery:  NewDiscovery(tmpDir),
+			discovery:  discovery.NewDiscovery(tmpDir),
 			wantUnits:  []string{"unit1", "unit2", "nested/unit4"},
 			wantStacks: []string{"stack1"},
 		},
 		{
 			name:       "discovery with hidden",
-			discovery:  NewDiscovery(tmpDir).WithHidden(),
+			discovery:  discovery.NewDiscovery(tmpDir).WithHidden(),
 			wantUnits:  []string{"unit1", "unit2", ".hidden/hidden-unit", "nested/unit4"},
 			wantStacks: []string{"stack1"},
 		},
@@ -68,13 +71,15 @@ func TestDiscovery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			configs, err := tt.discovery.Discover()
 			if !tt.errorExpected {
 				require.NoError(t, err)
 			}
 
-			units := configs.Filter(ConfigTypeUnit).Paths()
-			stacks := configs.Filter(ConfigTypeStack).Paths()
+			units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+			stacks := configs.Filter(discovery.ConfigTypeStack).Paths()
 
 			assert.ElementsMatch(t, units, tt.wantUnits)
 			assert.ElementsMatch(t, stacks, tt.wantStacks)
@@ -83,11 +88,13 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestDiscoveredConfigsSort(t *testing.T) {
+	t.Parallel()
+
 	// Setup
-	configs := DiscoveredConfigs{
-		{Path: "c", Type: ConfigTypeUnit},
-		{Path: "a", Type: ConfigTypeUnit},
-		{Path: "b", Type: ConfigTypeStack},
+	configs := discovery.DiscoveredConfigs{
+		{Path: "c", Type: discovery.ConfigTypeUnit},
+		{Path: "a", Type: discovery.ConfigTypeUnit},
+		{Path: "b", Type: discovery.ConfigTypeStack},
 	}
 
 	// Act
@@ -101,27 +108,33 @@ func TestDiscoveredConfigsSort(t *testing.T) {
 }
 
 func TestDiscoveredConfigsFilter(t *testing.T) {
+	t.Parallel()
+
 	// Setup
-	configs := DiscoveredConfigs{
-		{Path: "a", Type: ConfigTypeUnit},
-		{Path: "b", Type: ConfigTypeStack},
-		{Path: "c", Type: ConfigTypeUnit},
+	configs := discovery.DiscoveredConfigs{
+		{Path: "a", Type: discovery.ConfigTypeUnit},
+		{Path: "b", Type: discovery.ConfigTypeStack},
+		{Path: "c", Type: discovery.ConfigTypeUnit},
 	}
 
 	// Test unit filtering
 	t.Run("filter units", func(t *testing.T) {
-		units := configs.Filter(ConfigTypeUnit)
+		t.Parallel()
+
+		units := configs.Filter(discovery.ConfigTypeUnit)
 		require.Len(t, units, 2)
-		assert.Equal(t, ConfigTypeUnit, units[0].Type)
-		assert.Equal(t, ConfigTypeUnit, units[1].Type)
+		assert.Equal(t, discovery.ConfigTypeUnit, units[0].Type)
+		assert.Equal(t, discovery.ConfigTypeUnit, units[1].Type)
 		assert.ElementsMatch(t, []string{"a", "c"}, units.Paths())
 	})
 
 	// Test stack filtering
 	t.Run("filter stacks", func(t *testing.T) {
-		stacks := configs.Filter(ConfigTypeStack)
+		t.Parallel()
+
+		stacks := configs.Filter(discovery.ConfigTypeStack)
 		require.Len(t, stacks, 1)
-		assert.Equal(t, ConfigTypeStack, stacks[0].Type)
+		assert.Equal(t, discovery.ConfigTypeStack, stacks[0].Type)
 		assert.Equal(t, "b", stacks[0].Path)
 	})
 }

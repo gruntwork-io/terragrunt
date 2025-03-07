@@ -1,4 +1,4 @@
-package find
+package find_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
@@ -28,6 +29,8 @@ func TestRun(t *testing.T) {
 		{
 			name: "basic discovery",
 			setup: func(t *testing.T) string {
+				t.Helper()
+
 				tmpDir := t.TempDir()
 
 				// Create test directory structure
@@ -63,6 +66,8 @@ func TestRun(t *testing.T) {
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1"},
 			format:        "text",
 			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+
 				// Split output into lines and trim whitespace
 				lines := strings.Split(strings.TrimSpace(output), "\n")
 
@@ -84,6 +89,8 @@ func TestRun(t *testing.T) {
 		{
 			name: "json output format",
 			setup: func(t *testing.T) string {
+				t.Helper()
+
 				tmpDir := t.TempDir()
 
 				// Create test directory structure
@@ -115,6 +122,8 @@ func TestRun(t *testing.T) {
 			expectedPaths: []string{"unit1", "unit2", "stack1"},
 			format:        "json",
 			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+
 				// Verify the output is valid JSON
 				var configs []discovery.DiscoveredConfig
 				err := json.Unmarshal([]byte(output), &configs)
@@ -153,7 +162,7 @@ func TestRun(t *testing.T) {
 			tgOpts.WorkingDir = tmpDir
 
 			// Create options
-			opts := NewOptions(tgOpts)
+			opts := find.NewOptions(tgOpts)
 			opts.Format = tt.format
 
 			// Create a pipe to capture output
@@ -163,7 +172,7 @@ func TestRun(t *testing.T) {
 			// Set the writer in options
 			opts.Writer = w
 
-			err = Run(context.Background(), opts)
+			err = find.Run(context.Background(), opts)
 			require.NoError(t, err)
 
 			// Close the write end of the pipe
@@ -182,7 +191,7 @@ func TestRun(t *testing.T) {
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
-	colorizer := NewColorizer()
+	colorizer := find.NewColorizer()
 
 	tests := []struct {
 		name   string
@@ -211,7 +220,9 @@ func TestColorizer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := colorizer.colorize(tt.config)
+			t.Parallel()
+
+			result := colorizer.Colorize(tt.config)
 			assert.NotEmpty(t, result)
 
 			// Test that different types produce different colorized outputs
@@ -220,7 +231,7 @@ func TestColorizer(t *testing.T) {
 					Type: diffType,
 					Path: tt.config.Path,
 				}
-				diffResult := colorizer.colorize(diffConfig)
+				diffResult := colorizer.Colorize(diffConfig)
 				assert.NotEqual(t, result, diffResult)
 			}
 		})
