@@ -11,10 +11,12 @@ import (
 )
 
 const (
-	CommandName = "find"
+	CommandName  = "find"
+	CommandAlias = "fd"
 
 	FormatFlagName = "format"
 	SortFlagName   = "sort"
+	HiddenFlagName = "hidden"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -35,6 +37,12 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Sort order for the find results. Valid values: alpha", // TODO: add dag
 			DefaultText: "alpha",
 		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        HiddenFlagName,
+			EnvVars:     tgPrefix.EnvVars(HiddenFlagName),
+			Destination: &opts.Hidden,
+			Usage:       "Include hidden directories in the find results.",
+		}),
 	}
 }
 
@@ -43,6 +51,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 	return &cli.Command{
 		Name:                 CommandName,
+		Aliases:              []string{CommandAlias},
 		Usage:                "Find relevant Terragrunt configurations.",
 		ErrorOnUndefinedFlag: true,
 		Flags:                NewFlags(cmdOpts, nil),

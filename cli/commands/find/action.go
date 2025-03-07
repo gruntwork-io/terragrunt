@@ -12,7 +12,9 @@ import (
 )
 
 func Run(ctx context.Context, opts *Options) error {
-	configs, err := discovery.DiscoverConfigs(opts.TerragruntOptions)
+	d := discovery.NewDiscovery(opts.WorkingDir)
+
+	configs, err := d.Discover()
 	if err != nil {
 		return err
 	}
@@ -34,6 +36,7 @@ func outputJSON(configs discovery.DiscoveredConfigs) error {
 	}
 
 	fmt.Println(string(jsonBytes))
+
 	return nil
 }
 
@@ -71,6 +74,7 @@ func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
 
 	// Color the components differently
 	coloredPath := c.pathColorizer(dir)
+
 	switch config.ConfigType() {
 	case discovery.ConfigTypeUnit:
 		return coloredPath + c.unitColorizer(base)

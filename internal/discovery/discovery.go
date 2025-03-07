@@ -1,5 +1,4 @@
 // Package discovery provides functionality for discovering Terragrunt configurations.
-
 package discovery
 
 import (
@@ -11,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/options"
 )
 
 type ConfigType string
@@ -37,30 +35,60 @@ func (c *DiscoveredConfig) String() string {
 
 type DiscoveredConfigs []*DiscoveredConfig
 
-func DiscoverConfigs(opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
+type Discovery struct {
+	// WorkingDir is the directory to search for Terragrunt configurations.
+	WorkingDir string
+
+	// Hidden determines whether to detect configurations in hidden directories.
+	Hidden bool
+}
+
+func NewDiscoverySettings() *Discovery {
+	return &Discovery{
+		Hidden: false,
+	}
+}
+
+func WithHidden(hidden bool) *Discovery {
+	return &Discovery{
+		Hidden: hidden,
+	}
+}
+
+type DiscoveryOption func(*Discovery)
+
+func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
+	discovery := &Discovery{
+		WorkingDir: dir,
+		Hidden:     false,
+	}
+
+	for _, opt := range opts {
+		opt(discovery)
+	}
+
+	return discovery
+}
+
+func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 	var units DiscoveredConfigs
 
-	walkFn := func(path string, d fs.DirEntry, err error) error {
+	walkFn := func(path string, e fs.DirEntry, err error) error {
 		if err != nil {
 			return errors.New(err.Error())
 		}
 
-		if d.IsDir() {
+		if e.IsDir() {
 			return nil
 		}
 
-		path, err = filepath.Rel(opts.WorkingDir, path)
+		path, err = filepath.Rel(d.WorkingDir, path)
 		if err != nil {
 			return errors.New(err.Error())
 		}
 
-		// Ignore files in hidden directories
-		// TODO: Make this configurable.
-		parts := strings.Split(path, string(os.PathSeparator))
-		for _, part := range parts {
-			if strings.HasPrefix(part, ".") {
-				return nil
-			}
+		if !d.Hidden && isInHiddenDirectory(path) {
+			return nil
 		}
 
 		switch filepath.Base(path) {
@@ -79,11 +107,22 @@ func DiscoverConfigs(opts *options.TerragruntOptions) (DiscoveredConfigs, error)
 		return nil
 	}
 
-	if err := filepath.WalkDir(opts.WorkingDir, walkFn); err != nil {
+	if err := filepath.WalkDir(d.WorkingDir, walkFn); err != nil {
 		return nil, errors.New(err.Error())
 	}
 
 	return units, nil
+}
+
+func isInHiddenDirectory(path string) bool {
+	parts := strings.Split(path, string(os.PathSeparator))
+	for _, part := range parts {
+		if strings.HasPrefix(part, ".") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (c DiscoveredConfigs) Sort() DiscoveredConfigs {
@@ -96,6 +135,7 @@ func (c DiscoveredConfigs) Sort() DiscoveredConfigs {
 
 func (c DiscoveredConfigs) Filter(configType ConfigType) DiscoveredConfigs {
 	filtered := make(DiscoveredConfigs, 0, len(c))
+
 	for _, config := range c {
 		if config.Type == configType {
 			filtered = append(filtered, config)
@@ -107,6 +147,7 @@ func (c DiscoveredConfigs) Filter(configType ConfigType) DiscoveredConfigs {
 
 func (c DiscoveredConfigs) FilterByPath(path string) DiscoveredConfigs {
 	filtered := make(DiscoveredConfigs, 0, len(c))
+
 	for _, config := range c {
 		if config.Path == path {
 			filtered = append(filtered, config)

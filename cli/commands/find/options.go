@@ -13,6 +13,9 @@ type Options struct {
 
 	// Sort determines the sort order of the output.
 	Sort string
+
+	// Hidden determines whether to detect hidden directories.
+	Hidden bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
@@ -20,6 +23,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		TerragruntOptions: opts,
 		Format:            "text",
 		Sort:              "alpha",
+		Hidden:            false,
 	}
 }
 
