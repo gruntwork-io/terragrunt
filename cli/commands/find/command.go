@@ -60,10 +60,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
 			}
 
-			if !opts.Experiments.Evaluate(experiment.Stacks) {
-				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.Stacks), cli.ExitCodeGeneralError)
-			}
-
 			return nil
 		},
 		Action: func(ctx *cli.Context) error {
