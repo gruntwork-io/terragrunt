@@ -3,7 +3,6 @@ package find
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -25,20 +24,23 @@ func Run(ctx context.Context, opts *Options) error {
 	case "text":
 		return outputText(opts, configs)
 	case "json":
-		return outputJSON(configs)
+		return outputJSON(opts, configs)
 	default:
 		return errors.New("invalid format: " + opts.Format)
 	}
 }
 
 // outputJSON outputs the discovered configurations in JSON format.
-func outputJSON(configs discovery.DiscoveredConfigs) error {
+func outputJSON(opts *Options, configs discovery.DiscoveredConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(jsonBytes))
+	_, err = opts.Writer.Write(jsonBytes)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -94,7 +96,10 @@ func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
 func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected() {
 		for _, config := range configs {
-			fmt.Println(config.Path)
+			_, err := opts.Writer.Write([]byte(config.Path + "\n"))
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -103,7 +108,10 @@ func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	colorizer := NewColorizer()
 
 	for _, config := range configs {
-		fmt.Println(colorizer.colorize(config))
+		_, err := opts.Writer.Write([]byte(colorizer.colorize(config) + "\n"))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

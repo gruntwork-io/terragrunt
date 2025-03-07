@@ -15,6 +15,7 @@ const (
 	CommandAlias = "fd"
 
 	FormatFlagName = "format"
+	JSONFlagName   = "json"
 	SortFlagName   = "sort"
 	HiddenFlagName = "hidden"
 )
@@ -29,6 +30,12 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Format,
 			Usage:       "Output format for the find results. Valid values: text, json",
 			DefaultText: "text",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        JSONFlagName,
+			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
+			Destination: &opts.JSON,
+			Usage:       "Output in JSON format (equivalent to --format=json)",
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        SortFlagName,
@@ -58,6 +65,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Before: func(ctx *cli.Context) error {
 			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
+			}
+
+			if cmdOpts.Format == "" && cmdOpts.JSON {
+				cmdOpts.Format = "json"
 			}
 
 			return nil
