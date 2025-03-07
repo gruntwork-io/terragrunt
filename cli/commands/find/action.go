@@ -17,7 +17,7 @@ func Run(ctx context.Context, opts *Options) error {
 
 	configs, err := d.Discover()
 	if err != nil {
-		return err
+		return errors.New(err)
 	}
 
 	switch opts.Format {
@@ -26,6 +26,8 @@ func Run(ctx context.Context, opts *Options) error {
 	case "json":
 		return outputJSON(opts, configs)
 	default:
+		// This should never happen, because of validation in the command.
+		// If it happens, we want to throw so we can fix the validation.
 		return errors.New("invalid format: " + opts.Format)
 	}
 }
