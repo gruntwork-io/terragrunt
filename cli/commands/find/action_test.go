@@ -2,9 +2,11 @@ package find
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -16,65 +18,164 @@ import (
 func TestRun(t *testing.T) {
 	t.Parallel()
 
-	// Setup test directory
-	tmpDir := t.TempDir()
+	tests := []struct {
+		name          string
+		setup         func(t *testing.T) string
+		expectedPaths []string
+		format        string
+		validate      func(t *testing.T, output string, expectedPaths []string)
+	}{
+		{
+			name: "basic discovery",
+			setup: func(t *testing.T) string {
+				tmpDir := t.TempDir()
 
-	// Create test directory structure
-	testDirs := []string{
-		"unit1",
-		"unit2",
-		"stack1",
-		".hidden/unit3",
-		"nested/unit4",
+				// Create test directory structure
+				testDirs := []string{
+					"unit1",
+					"unit2",
+					"stack1",
+					".hidden/unit3",
+					"nested/unit4",
+				}
+
+				for _, dir := range testDirs {
+					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+					require.NoError(t, err)
+				}
+
+				// Create test files
+				testFiles := map[string]string{
+					"unit1/terragrunt.hcl":         "",
+					"unit2/terragrunt.hcl":         "",
+					"stack1/terragrunt.stack.hcl":  "",
+					".hidden/unit3/terragrunt.hcl": "",
+					"nested/unit4/terragrunt.hcl":  "",
+				}
+
+				for path, content := range testFiles {
+					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+					require.NoError(t, err)
+				}
+
+				return tmpDir
+			},
+			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1"},
+			format:        "text",
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				// Split output into lines and trim whitespace
+				lines := strings.Split(strings.TrimSpace(output), "\n")
+
+				// Verify we have the expected number of lines
+				assert.Len(t, lines, len(expectedPaths))
+
+				// Verify each line is a clean path without any formatting
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					assert.NotEmpty(t, line)
+					assert.NotContains(t, line, "\n")
+					assert.NotContains(t, line, "\t")
+				}
+
+				// Verify all expected paths are present
+				assert.ElementsMatch(t, expectedPaths, lines)
+			},
+		},
+		{
+			name: "json output format",
+			setup: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+
+				// Create test directory structure
+				testDirs := []string{
+					"unit1",
+					"unit2",
+					"stack1",
+				}
+
+				for _, dir := range testDirs {
+					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+					require.NoError(t, err)
+				}
+
+				// Create test files
+				testFiles := map[string]string{
+					"unit1/terragrunt.hcl":        "",
+					"unit2/terragrunt.hcl":        "",
+					"stack1/terragrunt.stack.hcl": "",
+				}
+
+				for path, content := range testFiles {
+					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+					require.NoError(t, err)
+				}
+
+				return tmpDir
+			},
+			expectedPaths: []string{"unit1", "unit2", "stack1"},
+			format:        "json",
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				// Verify the output is valid JSON
+				var configs []discovery.DiscoveredConfig
+				err := json.Unmarshal([]byte(output), &configs)
+				require.NoError(t, err)
+
+				// Verify we have the expected number of configs
+				assert.Len(t, configs, len(expectedPaths))
+
+				// Extract paths from configs
+				var paths []string
+				for _, config := range configs {
+					paths = append(paths, config.Path)
+				}
+
+				// Verify all expected paths are present
+				assert.ElementsMatch(t, expectedPaths, paths)
+
+				// Verify each config has a valid type
+				for _, config := range configs {
+					assert.NotEmpty(t, config.Type)
+					assert.True(t, config.Type == discovery.ConfigTypeUnit || config.Type == discovery.ConfigTypeStack)
+				}
+			},
+		},
 	}
 
-	for _, dir := range testDirs {
-		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-		require.NoError(t, err)
-	}
+	for _, tt := range tests {
+		tt := tt // capture range variable
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create test files
-	testFiles := map[string]string{
-		"unit1/terragrunt.hcl":         "",
-		"unit2/terragrunt.hcl":         "",
-		"stack1/terragrunt.stack.hcl":  "",
-		".hidden/unit3/terragrunt.hcl": "",
-		"nested/unit4/terragrunt.hcl":  "",
-	}
+			// Setup test directory
+			tmpDir := tt.setup(t)
 
-	for path, content := range testFiles {
-		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-		require.NoError(t, err)
-	}
+			tgOpts := options.NewTerragruntOptions()
+			tgOpts.WorkingDir = tmpDir
 
-	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = tmpDir
+			// Create options
+			opts := NewOptions(tgOpts)
+			opts.Format = tt.format
 
-	// Create a single test case first
-	opts := NewOptions(tgOpts)
+			// Create a pipe to capture output
+			r, w, err := os.Pipe()
+			require.NoError(t, err)
 
-	// Create a pipe to capture output
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
+			// Set the writer in options
+			opts.Writer = w
 
-	// Set the writer in options
-	opts.Writer = w
+			err = Run(context.Background(), opts)
+			require.NoError(t, err)
 
-	err = Run(context.Background(), opts)
-	require.NoError(t, err)
+			// Close the write end of the pipe
+			w.Close()
 
-	// Close the write end of the pipe
-	w.Close()
+			// Read all output
+			output, err := io.ReadAll(r)
+			require.NoError(t, err)
 
-	// Read all output
-	output, err := io.ReadAll(r)
-	require.NoError(t, err)
-
-	// Verify output contains expected paths
-	outputStr := string(output)
-	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1"}
-	for _, path := range expectedPaths {
-		assert.Contains(t, outputStr, path)
+			// Validate the output
+			tt.validate(t, string(output), tt.expectedPaths)
+		})
 	}
 }
 
