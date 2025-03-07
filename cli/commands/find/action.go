@@ -36,12 +36,12 @@ func Run(ctx context.Context, opts *Options) error {
 func outputJSON(opts *Options, configs discovery.DiscoveredConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
-		return err
+		return errors.New(err)
 	}
 
 	_, err = opts.Writer.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
-		return err
+		return errors.New(err)
 	}
 
 	return nil
@@ -100,7 +100,7 @@ func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 		for _, config := range configs {
 			_, err := opts.Writer.Write([]byte(config.Path + "\n"))
 			if err != nil {
-				return err
+				return errors.New(err)
 			}
 		}
 
@@ -112,7 +112,7 @@ func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	for _, config := range configs {
 		_, err := opts.Writer.Write([]byte(colorizer.colorize(config) + "\n"))
 		if err != nil {
-			return err
+			return errors.New(err)
 		}
 	}
 
