@@ -2,7 +2,6 @@
 package discovery
 
 import (
-	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 const (
@@ -71,7 +71,7 @@ func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 
 	walkFn := func(path string, e fs.DirEntry, err error) error {
 		if err != nil {
-			return errors.New(err.Error())
+			return errors.New(err)
 		}
 
 		if e.IsDir() {
@@ -80,7 +80,7 @@ func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 
 		path, err = filepath.Rel(d.WorkingDir, path)
 		if err != nil {
-			return errors.New(err.Error())
+			return errors.New(err)
 		}
 
 		if !d.Hidden && isInHiddenDirectory(path) {
@@ -104,7 +104,7 @@ func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 	}
 
 	if err := filepath.WalkDir(d.WorkingDir, walkFn); err != nil {
-		return nil, errors.New(err.Error())
+		return nil, errors.New(err)
 	}
 
 	return units, nil
