@@ -71,11 +71,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				cmdOpts.Format = "json"
 			}
 
-			switch cmdOpts.Format {
-			case "json":
-			case "text":
-			default:
-				return cli.NewExitError(errors.Errorf("invalid format: %s", cmdOpts.Format), cli.ExitCodeGeneralError)
+			if err := cmdOpts.Validate(); err != nil {
+				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
 
 			return nil
