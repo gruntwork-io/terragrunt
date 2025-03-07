@@ -34,6 +34,7 @@ type AwsSessionConfig struct {
 	DisableComputeChecksums bool
 	ExternalID              string
 	SessionName             string
+	Tags                    map[string]string
 }
 
 // addUserAgent - Add terragrunt version to the user agent for AWS API calls.
