@@ -6,24 +6,72 @@ sidebar:
   order: 800
 description: Find relevant Terragrunt configurations.
 usage: |
-  Find Terragrunt configurations in your codebase that match specific criteria.
+  The `find` command helps you discover Terragrunt configurations in your codebase.
+
+  It recursively searches for `terragrunt.hcl` and `terragrunt.stack.hcl` files and displays them in formatted output.
 experiment:
   control: cli-redesign
   name: CLI Redesign
 examples:
   - description: |
-      Find all units in the current directory.
+      Find all configurations (units and stacks) in the current directory.
     code: |
       terragrunt find
   - description: |
-      Find all units and emit them as a JSON string.
+      Find all configurations in a different directory.
+    code: |
+      terragrunt find --working-dir /path/to/working/dir
+  - description: |
+      Disable color output.
+    code: |
+      terragrunt find --no-color
+  - description: |
+      Find all configurations in the current directory and emit them as a JSON string.
     code: |
       terragrunt find --format 'json'
-  - description: |
-      Find all units and sort them in the order they would be run in the Directed Acyclic Graph (DAG).
-    code: |
-      terragrunt find --sort 'dag'
+  # - description: |
+  #     Find all units and sort them in the order they would be run in the Directed Acyclic Graph (DAG).
+  #   code: |
+  #     terragrunt find --sort 'dag'
 flags:
   - find-format
-  - find-sort
+  # - find-sort
+  - find-hidden
 ---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+## Color Output
+
+When used without any flags, all units and stacks discovered in the current working directory are displayed in colorful text format.
+
+![find](../../assets/img/screenshots/find.png)
+
+<Aside type="note" title="Color Coding">
+
+Discovered configurations are color coded to help you identify them at a glance:
+
+- <Badge text="Units" style={{ backgroundColor: '#1B46DD', color: '#FFFFFF' }} /> are displayed in blue
+- <Badge text="Stacks" style={{ backgroundColor: '#2E8B57', color: '#FFFFFF' }} /> are displayed in green
+
+</Aside>
+
+## Disabling Color Output
+
+You can disable color output by using the global `--no-color` flag:
+
+```bash
+terragrunt find --no-color
+```
+
+When stdout is redirected, color output is disabled automatically to prevent undesired interference with other tools.
+
+![find-no-color](../../assets/img/screenshots/find-no-color.png)
+
+## Working Directory
+
+You can change the working directory for `find` by using the global `--working-dir` flag:
+
+```bash
+terragrunt find --working-dir /path/to/working/dir
+```

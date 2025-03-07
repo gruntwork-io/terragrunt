@@ -1,19 +1,30 @@
 ---
 name: format
-description: Format the results as specified. Supported values (json). default json.
+description: |
+  Format the results as specified. Supported values (text, json). Default: text.
 type: string
 env:
   - TG_FORMAT
 ---
-
-Specifies the output format for the find command results. Currently supports:
-
-- `json` - Output results in JSON format (default)
 
 This is particularly useful when you need to process the results programmatically or integrate with other tools.
 
 Example:
 
 ```bash
-terragrunt find --format json
+$ terragrunt find --format=json | jq '.[:3]'
+[
+  {
+    "type": "stack",
+    "path": "basic"
+  },
+  {
+    "type": "unit",
+    "path": "basic/units/chick"
+  },
+  {
+    "type": "unit",
+    "path": "basic/units/chicken"
+  }
+]
 ```

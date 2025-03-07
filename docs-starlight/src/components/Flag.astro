@@ -4,14 +4,14 @@ import type { CollectionEntry } from 'astro:content';
 import { render, getEntry } from 'astro:content';
 
 interface Props {
-  name: string;
+  slug: string;
 }
 
-const { name } = Astro.props;
+const { slug } = Astro.props;
 
-const flagEntry = await getEntry('flags', name) as CollectionEntry<'flags'>;
+const flagEntry = await getEntry('flags', slug) as CollectionEntry<'flags'>;
 const { Content } = await render(flagEntry);
-const { description, type, env } = flagEntry.data;
+const { description, type, env, name } = flagEntry.data;
 ---
 
 <section id={name}>
