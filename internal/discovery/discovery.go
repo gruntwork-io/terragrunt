@@ -12,25 +12,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 )
 
-type ConfigType string
-
 const (
 	ConfigTypeUnit  ConfigType = "unit"
 	ConfigTypeStack ConfigType = "stack"
 )
 
+type ConfigType string
+
 // DiscoveredConfig represents a discovered Terragrunt configuration.
 type DiscoveredConfig struct {
 	Type ConfigType `json:"type"`
 	Path string     `json:"path"`
-}
-
-func (c *DiscoveredConfig) ConfigType() ConfigType {
-	return c.Type
-}
-
-func (c *DiscoveredConfig) String() string {
-	return string(c.Type) + ": " + c.Path
 }
 
 type DiscoveredConfigs []*DiscoveredConfig
@@ -41,18 +33,6 @@ type Discovery struct {
 
 	// Hidden determines whether to detect configurations in hidden directories.
 	Hidden bool
-}
-
-func NewDiscoverySettings() *Discovery {
-	return &Discovery{
-		Hidden: false,
-	}
-}
-
-func WithHidden(hidden bool) *Discovery {
-	return &Discovery{
-		Hidden: hidden,
-	}
 }
 
 type DiscoveryOption func(*Discovery)
@@ -68,6 +48,26 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	}
 
 	return discovery
+}
+
+func NewDiscoverySettings() *Discovery {
+	return &Discovery{
+		Hidden: false,
+	}
+}
+
+func WithHidden(hidden bool) *Discovery {
+	return &Discovery{
+		Hidden: hidden,
+	}
+}
+
+func (c *DiscoveredConfig) ConfigType() ConfigType {
+	return c.Type
+}
+
+func (c *DiscoveredConfig) String() string {
+	return string(c.Type) + ": " + c.Path
 }
 
 func (d *Discovery) Discover() (DiscoveredConfigs, error) {
@@ -114,17 +114,6 @@ func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 	return units, nil
 }
 
-func isInHiddenDirectory(path string) bool {
-	parts := strings.Split(path, string(os.PathSeparator))
-	for _, part := range parts {
-		if strings.HasPrefix(part, ".") {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (c DiscoveredConfigs) Sort() DiscoveredConfigs {
 	sort.Slice(c, func(i, j int) bool {
 		return c[i].Path < c[j].Path
@@ -164,4 +153,15 @@ func (c DiscoveredConfigs) Paths() []string {
 	}
 
 	return paths
+}
+
+func isInHiddenDirectory(path string) bool {
+	parts := strings.Split(path, string(os.PathSeparator))
+	for _, part := range parts {
+		if strings.HasPrefix(part, ".") {
+			return true
+		}
+	}
+
+	return false
 }
