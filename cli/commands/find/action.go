@@ -37,7 +37,7 @@ func outputJSON(opts *Options, configs discovery.DiscoveredConfigs) error {
 		return err
 	}
 
-	_, err = opts.Writer.Write(jsonBytes)
+	_, err = opts.Writer.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
 		return err
 	}
