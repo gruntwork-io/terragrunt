@@ -212,6 +212,7 @@ func (s3Config *RemoteStateConfigS3) GetSessionTags() map[string]string {
 	if len(s3Config.AssumeRole.Tags) != 0 {
 		return s3Config.AssumeRole.Tags
 	}
+
 	return nil
 }
 

@@ -298,6 +298,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 			// Parsing into a struct first, enabling hclsimple.Decode() to deal with complex types.
 			// Then copying values into the assumeRoleMap for rendering to HCL.
 			assumeRoleMap := make(map[string]any)
+
 			type assumeRoleConfig struct {
 				RoleArn           string            `hcl:"role_arn"`
 				Duration          string            `hcl:"duration,optional"`
@@ -309,11 +310,13 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 				Tags              map[string]string `hcl:"tags,optional"`
 				TransitiveTagKeys []string          `hcl:"transitive_tag_keys,optional"`
 			}
+
 			var parsedConfig assumeRoleConfig
 			// split single line hcl to default multiline file
 			hclValue := strings.TrimSuffix(assumeRoleValue, "}")
 			hclValue = strings.TrimPrefix(hclValue, "{")
 			hclValue = strings.ReplaceAll(hclValue, ",", "\n")
+
 			err := hclsimple.Decode("s3_assume_role.hcl", []byte(hclValue), nil, &parsedConfig)
 			if err != nil {
 				return nil, errors.New(err)
@@ -323,27 +326,35 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 			if parsedConfig.RoleArn != "" {
 				assumeRoleMap["role_arn"] = parsedConfig.RoleArn
 			}
+
 			if parsedConfig.Duration != "" {
 				assumeRoleMap["duration"] = parsedConfig.Duration
 			}
+
 			if parsedConfig.ExternalID != "" {
 				assumeRoleMap["external_id"] = parsedConfig.ExternalID
 			}
+
 			if parsedConfig.Policy != "" {
 				assumeRoleMap["policy"] = parsedConfig.Policy
 			}
+
 			if len(parsedConfig.PolicyArns) > 0 {
 				assumeRoleMap["policy_arns"] = parsedConfig.PolicyArns
 			}
+
 			if parsedConfig.SessionName != "" {
 				assumeRoleMap["session_name"] = parsedConfig.SessionName
 			}
+
 			if parsedConfig.SourceIdentity != "" {
 				assumeRoleMap["source_identity"] = parsedConfig.SourceIdentity
 			}
+
 			if len(parsedConfig.Tags) > 0 {
 				assumeRoleMap["tags"] = parsedConfig.Tags
 			}
+
 			if len(parsedConfig.TransitiveTagKeys) > 0 {
 				assumeRoleMap["transitive_tag_keys"] = parsedConfig.TransitiveTagKeys
 			}
