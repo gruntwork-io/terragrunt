@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -86,7 +87,7 @@ func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
 }
 
 func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
-	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() {
+	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected() {
 		for _, config := range configs {
 			fmt.Println(config.Path)
 		}
@@ -101,4 +102,13 @@ func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	}
 
 	return nil
+}
+
+func isStdoutRedirected() bool {
+	stat, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+
+	return (stat.Mode() & os.ModeCharDevice) == 0
 }
