@@ -4,3 +4,7 @@ resource "null_resource" "test" {
     command = "echo Hello, World!"
   }
 }
+
+output "text" {
+  value = "[I am an example module template.]"
+}

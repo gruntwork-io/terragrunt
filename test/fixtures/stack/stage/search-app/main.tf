@@ -14,7 +14,7 @@ terraform {
 # Create an arbitrary local resource
 resource "null_resource" "test" {
   provisioner "local-exec" {
-    command = "[I am a search-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.outputs.text}, redis = ${data.terraform_remote_state.redis.outputs.text}, example_module = ${module.example_module.text}]"
+    command = "echo '[I am a search-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.outputs.text}, redis = ${data.terraform_remote_state.redis.outputs.text}, example_module = ${module.example_module.text}]'"
   }
 }
 
@@ -43,4 +43,8 @@ data "terraform_remote_state" "redis" {
     bucket = var.terraform_remote_state_s3_bucket
     key    = "stage/redis/terraform.tfstate"
   }
+}
+
+output "text" {
+  value = "[I am a search-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.outputs.text}, redis = ${data.terraform_remote_state.redis.outputs.text}, example_module = ${module.example_module.text}]"
 }
