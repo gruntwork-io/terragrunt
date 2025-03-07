@@ -12,6 +12,7 @@ import (
 	"github.com/mgutz/ansi"
 )
 
+// Run runs the find command.
 func Run(ctx context.Context, opts *Options) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
@@ -30,6 +31,7 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 }
 
+// outputJSON outputs the discovered configurations in JSON format.
 func outputJSON(configs discovery.DiscoveredConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
@@ -41,12 +43,14 @@ func outputJSON(configs discovery.DiscoveredConfigs) error {
 	return nil
 }
 
+// Colorizer is a colorizer for the discovered configurations.
 type Colorizer struct {
 	unitColorizer  func(string) string
 	stackColorizer func(string) string
 	pathColorizer  func(string) string
 }
 
+// NewColorizer creates a new Colorizer.
 func NewColorizer() *Colorizer {
 	return &Colorizer{
 		unitColorizer:  ansi.ColorFunc("blue+bh"),
@@ -86,6 +90,7 @@ func (c *Colorizer) colorize(config *discovery.DiscoveredConfig) string {
 	}
 }
 
+// outputText outputs the discovered configurations in text format.
 func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected() {
 		for _, config := range configs {
@@ -104,6 +109,7 @@ func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
 	return nil
 }
 
+// isStdoutRedirected returns true if the stdout is redirected.
 func isStdoutRedirected() bool {
 	stat, err := os.Stdout.Stat()
 	if err != nil {

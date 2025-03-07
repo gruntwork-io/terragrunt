@@ -17,6 +17,7 @@ const (
 	ConfigTypeStack ConfigType = "stack"
 )
 
+// ConfigType is the type of Terragrunt configuration.
 type ConfigType string
 
 // DiscoveredConfig represents a discovered Terragrunt configuration.
@@ -25,8 +26,10 @@ type DiscoveredConfig struct {
 	Path string     `json:"path"`
 }
 
+// DiscoveredConfigs is a list of discovered Terragrunt configurations.
 type DiscoveredConfigs []*DiscoveredConfig
 
+// Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
 	// WorkingDir is the directory to search for Terragrunt configurations.
 	WorkingDir string
@@ -35,8 +38,10 @@ type Discovery struct {
 	Hidden bool
 }
 
+// DiscoveryOption is a function that modifies a Discovery.
 type DiscoveryOption func(*Discovery)
 
+// NewDiscovery creates a new Discovery.
 func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	discovery := &Discovery{
 		WorkingDir: dir,
@@ -50,22 +55,26 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	return discovery
 }
 
+// NewDiscoverySettings creates a new Discovery with default settings.
 func NewDiscoverySettings() *Discovery {
 	return &Discovery{
 		Hidden: false,
 	}
 }
 
+// WithHidden sets the Hidden flag to true.
 func (d *Discovery) WithHidden() *Discovery {
 	d.Hidden = true
 
 	return d
 }
 
+// String returns a string representation of a DiscoveredConfig.
 func (c *DiscoveredConfig) String() string {
 	return string(c.Type) + ": " + c.Path
 }
 
+// Discover discovers Terragrunt configurations in the WorkingDir.
 func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 	var units DiscoveredConfigs
 
@@ -110,6 +119,7 @@ func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 	return units, nil
 }
 
+// Sort sorts the DiscoveredConfigs by path.
 func (c DiscoveredConfigs) Sort() DiscoveredConfigs {
 	sort.Slice(c, func(i, j int) bool {
 		return c[i].Path < c[j].Path
@@ -118,6 +128,7 @@ func (c DiscoveredConfigs) Sort() DiscoveredConfigs {
 	return c
 }
 
+// Filter filters the DiscoveredConfigs by config type.
 func (c DiscoveredConfigs) Filter(configType ConfigType) DiscoveredConfigs {
 	filtered := make(DiscoveredConfigs, 0, len(c))
 
@@ -130,6 +141,7 @@ func (c DiscoveredConfigs) Filter(configType ConfigType) DiscoveredConfigs {
 	return filtered
 }
 
+// FilterByPath filters the DiscoveredConfigs by path.
 func (c DiscoveredConfigs) FilterByPath(path string) DiscoveredConfigs {
 	filtered := make(DiscoveredConfigs, 0, len(c))
 
@@ -142,6 +154,7 @@ func (c DiscoveredConfigs) FilterByPath(path string) DiscoveredConfigs {
 	return filtered
 }
 
+// Paths returns the paths of the DiscoveredConfigs.
 func (c DiscoveredConfigs) Paths() []string {
 	paths := make([]string, 0, len(c))
 	for _, config := range c {
@@ -151,6 +164,7 @@ func (c DiscoveredConfigs) Paths() []string {
 	return paths
 }
 
+// isInHiddenDirectory returns true if the path is in a hidden directory.
 func isInHiddenDirectory(path string) bool {
 	parts := strings.Split(path, string(os.PathSeparator))
 	for _, part := range parts {
