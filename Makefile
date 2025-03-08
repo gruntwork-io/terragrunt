@@ -39,7 +39,7 @@ clean:
 	rm -f terragrunt
 
 install-lint:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.6
 
 run-lint:
 	golangci-lint run -v --timeout=10m ./...
