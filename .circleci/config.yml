@@ -343,7 +343,7 @@ jobs:
           path: logs
 
   integration_test_tofu_only:
-    resource_class: medium
+    resource_class: "medium+"
     <<: *defaults
     <<: *env
     steps:
@@ -461,6 +461,7 @@ jobs:
           path: logs
 
   integration_test_tofu_aws:
+    resource_class: "large"
     <<: *defaults
     <<: *env
     steps:
@@ -479,6 +480,7 @@ jobs:
           path: logs
 
   integration_test_terraform_aws:
+    resource_class: "medium+"
     <<: *defaults
     <<: *env
     steps:
@@ -495,6 +497,7 @@ jobs:
           path: logs
 
   integration_test_terraform_latest_aws:
+    resource_class: "medium+"
     <<: *defaults
     <<: *env
     steps:
