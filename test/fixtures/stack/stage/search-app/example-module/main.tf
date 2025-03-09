@@ -1,8 +1,10 @@
 # Create an arbitrary local resource
-data "template_file" "text" {
-  template = "Example text from a module"
+resource "null_resource" "test" {
+  provisioner "local-exec" {
+    command = "echo Hello, World!"
+  }
 }
 
 output "text" {
-  value = data.template_file.text.rendered
+  value = "[I am an example module template.]"
 }

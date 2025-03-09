@@ -1,22 +1,30 @@
 terraform {
   backend "s3" {}
+
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    null = {
+      source  = "hashicorp/null"
+      version = "3.2.3"
+    }
+  }
 }
 
 # Create an arbitrary local resource
-data "template_file" "text" {
-  template = "[I am a search-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.outputs.text}, redis = ${data.terraform_remote_state.redis.outputs.text}, example_module = ${module.example_module.text}]"
+resource "null_resource" "test" {
+  provisioner "local-exec" {
+    command = "echo '[I am a search-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.outputs.text}, redis = ${data.terraform_remote_state.redis.outputs.text}, example_module = ${module.example_module.text}]'"
+  }
 }
 
 module "example_module" {
   source = "./example-module"
 }
 
-output "text" {
-  value = data.template_file.text.rendered
-}
-
 variable "terraform_remote_state_s3_bucket" {
   description = "The name of the S3 bucket where Terraform remote state is stored"
+  type        = string
 }
 
 data "terraform_remote_state" "vpc" {
@@ -35,4 +43,8 @@ data "terraform_remote_state" "redis" {
     bucket = var.terraform_remote_state_s3_bucket
     key    = "stage/redis/terraform.tfstate"
   }
+}
+
+output "text" {
+  value = "[I am a search-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.outputs.text}, redis = ${data.terraform_remote_state.redis.outputs.text}, example_module = ${module.example_module.text}]"
 }
