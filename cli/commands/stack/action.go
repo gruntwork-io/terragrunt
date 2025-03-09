@@ -17,8 +17,7 @@ import (
 )
 
 const (
-	defaultStackFile = "terragrunt.stack.hcl"
-	stackDir         = ".terragrunt-stack"
+	stackDir = ".terragrunt-stack"
 )
 
 // RunGenerate runs the stack command.
