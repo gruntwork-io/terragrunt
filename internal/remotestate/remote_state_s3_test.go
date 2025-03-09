@@ -1,6 +1,6 @@
 //go:build aws
 
-package remote_test
+package remotestate_test
 
 import (
 	"bytes"
@@ -12,8 +12,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +38,7 @@ func TestAwsCreateS3LoggingInput(t *testing.T) {
 				BucketLoggingStatus: &s3.BucketLoggingStatus{
 					LoggingEnabled: &s3.LoggingEnabled{
 						TargetBucket: aws.String("logging-bucket"),
-						TargetPrefix: aws.String(remote.DefaultS3BucketAccessLoggingTargetPrefix),
+						TargetPrefix: aws.String(remotestate.DefaultS3BucketAccessLoggingTargetPrefix),
 					},
 				},
 			},
@@ -111,7 +111,7 @@ func TestAwsCreateS3LoggingInput(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			extendedS3Config, _ := remote.ParseExtendedS3Config(testCase.config)
+			extendedS3Config, _ := remotestate.ParseExtendedS3Config(testCase.config)
 			createdLoggingInput := extendedS3Config.CreateS3LoggingInput()
 			actual := reflect.DeepEqual(createdLoggingInput, testCase.loggingInput)
 			if !assert.Equal(t, testCase.shouldBeEqual, actual) {
@@ -130,13 +130,13 @@ func TestAwsConfigValuesEqual(t *testing.T) {
 	tc := []struct {
 		name          string
 		config        map[string]interface{}
-		backend       *remote.TerraformBackend
+		backend       *remotestate.TerraformBackend
 		shouldBeEqual bool
 	}{
 		{
 			"equal-both-empty",
 			map[string]interface{}{},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
 			true,
 		},
 		{
@@ -148,43 +148,43 @@ func TestAwsConfigValuesEqual(t *testing.T) {
 		{
 			"equal-empty-and-nil-backend-config",
 			map[string]interface{}{},
-			&remote.TerraformBackend{Type: "s3"},
+			&remotestate.TerraformBackend{Type: "s3"},
 			true,
 		},
 		{
 			"equal-one-key",
 			map[string]interface{}{"foo": "bar"},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
 			true,
 		},
 		{
 			"equal-multiple-keys",
 			map[string]interface{}{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true}},
 			true,
 		},
 		{
 			"equal-encrypt-bool-handling",
 			map[string]interface{}{"encrypt": true},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{"encrypt": "true"}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{"encrypt": "true"}},
 			true,
 		},
 		{
 			"equal-general-bool-handling",
 			map[string]interface{}{"something": true, "encrypt": true},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "true", "encrypt": "true"}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "true", "encrypt": "true"}},
 			true,
 		},
 		{
 			"equal-ignore-s3-tags",
 			map[string]interface{}{"foo": "bar", "s3_bucket_tags": []map[string]string{{"foo": "bar"}}},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "bar"}},
 			true,
 		},
 		{
 			"equal-ignore-dynamodb-tags",
 			map[string]interface{}{"dynamodb_table_tags": []map[string]string{{"foo": "bar"}}},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
 			true,
 		},
 		{
@@ -198,19 +198,19 @@ func TestAwsConfigValuesEqual(t *testing.T) {
 				"skip_accesslogging_bucket_public_access_blocking":  false,
 				"skip_accesslogging_bucket_ssencryption":            false,
 			},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
 			true,
 		},
 		{
 			"unequal-wrong-backend",
 			map[string]interface{}{"foo": "bar"},
-			&remote.TerraformBackend{Type: "wrong", Config: map[string]interface{}{"foo": "bar"}},
+			&remotestate.TerraformBackend{Type: "wrong", Config: map[string]interface{}{"foo": "bar"}},
 			false,
 		},
 		{
 			"unequal-values",
 			map[string]interface{}{"foo": "bar"},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "different"}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{"foo": "different"}},
 			false,
 		},
 		{
@@ -222,13 +222,13 @@ func TestAwsConfigValuesEqual(t *testing.T) {
 		{
 			"unequal-general-bool-handling",
 			map[string]interface{}{"something": true},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "false"}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "false"}},
 			false,
 		},
 		{
 			"equal-null-ignored",
 			map[string]interface{}{"something": "foo"},
-			&remote.TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "foo", "ignored-because-null": nil}},
+			&remotestate.TerraformBackend{Type: "s3", Config: map[string]interface{}{"something": "foo", "ignored-because-null": nil}},
 			true,
 		},
 	}
@@ -239,7 +239,7 @@ func TestAwsConfigValuesEqual(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			actual := remote.ConfigValuesEqual(tt.config, tt.backend, terragruntOptions)
+			actual := remotestate.ConfigValuesEqual(tt.config, tt.backend, terragruntOptions)
 			assert.Equal(t, tt.shouldBeEqual, actual)
 		})
 	}
@@ -281,10 +281,10 @@ func TestAwsForcePathStyleClientSession(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := remote.ParseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := remotestate.ParseExtendedS3Config(testCase.config)
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
-			s3Client, err := remote.CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
+			s3Client, err := remotestate.CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
 			require.NoError(t, err, "Unexpected error creating client for test: %v", err)
 
 			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
@@ -331,7 +331,7 @@ func TestAwsCustomStateEndpoints(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := remote.ParseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := remotestate.ParseExtendedS3Config(testCase.config)
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
@@ -370,7 +370,7 @@ func TestAwsGetAwsSessionConfig(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			s3ConfigExtended, err := remote.ParseExtendedS3Config(testCase.config)
+			s3ConfigExtended, err := remotestate.ParseExtendedS3Config(testCase.config)
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &awshelper.AwsSessionConfig{
@@ -416,7 +416,7 @@ func TestAwsGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 			t.Parallel()
 
 			config := map[string]interface{}{"assume_role": testCase.config}
-			s3ConfigExtended, err := remote.ParseExtendedS3Config(config)
+			s3ConfigExtended, err := remotestate.ParseExtendedS3Config(config)
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &awshelper.AwsSessionConfig{
@@ -435,7 +435,7 @@ func TestAwsGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 func TestAwsGetTerraformInitArgs(t *testing.T) {
 	t.Parallel()
 
-	initializer := remote.S3Initializer{}
+	initializer := remotestate.S3Initializer{}
 
 	testCases := []struct {
 		name          string
@@ -622,7 +622,7 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			response, err := remote.ValidatePublicAccessBlock(testCase.response)
+			response, err := remotestate.ValidatePublicAccessBlock(testCase.response)
 			require.NoError(t, err)
 			assert.False(t, response)
 		})
@@ -633,33 +633,33 @@ func TestAwsValidateS3Config(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name           string
-		extendedConfig *remote.ExtendedRemoteStateConfigS3
+		extendedConfig *remotestate.ExtendedRemoteStateConfigS3
 		expectedErr    error
 		expectedOutput string
 	}{
 		{
 			name:           "no-region",
-			extendedConfig: &remote.ExtendedRemoteStateConfigS3{},
-			expectedErr:    remote.MissingRequiredS3RemoteStateConfig("region"),
+			extendedConfig: &remotestate.ExtendedRemoteStateConfigS3{},
+			expectedErr:    remotestate.MissingRequiredS3RemoteStateConfig("region"),
 		},
 		{
 			name: "no-bucket",
-			extendedConfig: &remote.ExtendedRemoteStateConfigS3{
-				RemoteStateConfigS3: remote.RemoteStateConfigS3{
+			extendedConfig: &remotestate.ExtendedRemoteStateConfigS3{
+				RemoteStateConfigS3: remotestate.RemoteStateConfigS3{
 					Region: "us-west-2",
 				},
 			},
-			expectedErr: remote.MissingRequiredS3RemoteStateConfig("bucket"),
+			expectedErr: remotestate.MissingRequiredS3RemoteStateConfig("bucket"),
 		},
 		{
 			name: "no-key",
-			extendedConfig: &remote.ExtendedRemoteStateConfigS3{
-				RemoteStateConfigS3: remote.RemoteStateConfigS3{
+			extendedConfig: &remotestate.ExtendedRemoteStateConfigS3{
+				RemoteStateConfigS3: remotestate.RemoteStateConfigS3{
 					Region: "us-west-2",
 					Bucket: "state-bucket",
 				},
 			},
-			expectedErr: remote.MissingRequiredS3RemoteStateConfig("key"),
+			expectedErr: remotestate.MissingRequiredS3RemoteStateConfig("key"),
 		},
 	}
 	for _, testCase := range testCases {
@@ -672,7 +672,7 @@ func TestAwsValidateS3Config(t *testing.T) {
 			logger := logrus.New()
 			logger.SetLevel(logrus.DebugLevel)
 			logger.SetOutput(buf)
-			err := remote.ValidateS3Config(testCase.extendedConfig)
+			err := remotestate.ValidateS3Config(testCase.extendedConfig)
 			if err != nil {
 				require.ErrorIs(t, err, testCase.expectedErr)
 			}

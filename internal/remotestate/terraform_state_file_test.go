@@ -1,4 +1,4 @@
-package remote_test
+package remotestate_test
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 
 	"errors"
 
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,11 +31,11 @@ func TestParseTerraformStateLocal(t *testing.T) {
 	}
 	`
 
-	expectedTerraformState := &remote.TerraformState{
+	expectedTerraformState := &remotestate.TerraformState{
 		Version: 1,
 		Serial:  0,
 		Backend: nil,
-		Modules: []remote.TerraformStateModule{
+		Modules: []remotestate.TerraformStateModule{
 			{
 				Path:      []string{"root"},
 				Outputs:   map[string]interface{}{},
@@ -44,7 +44,7 @@ func TestParseTerraformStateLocal(t *testing.T) {
 		},
 	}
 
-	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remotestate.ParseTerraformState([]byte(stateFile))
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
@@ -80,10 +80,10 @@ func TestParseTerraformStateRemote(t *testing.T) {
 	}
 	`
 
-	expectedTerraformState := &remote.TerraformState{
+	expectedTerraformState := &remotestate.TerraformState{
 		Version: 5,
 		Serial:  12,
-		Backend: &remote.TerraformBackend{
+		Backend: &remotestate.TerraformBackend{
 			Type: "s3",
 			Config: map[string]interface{}{
 				"bucket":  "bucket",
@@ -92,7 +92,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 				"region":  "us-east-1",
 			},
 		},
-		Modules: []remote.TerraformStateModule{
+		Modules: []remotestate.TerraformStateModule{
 			{
 				Path:      []string{"root"},
 				Outputs:   map[string]interface{}{},
@@ -101,7 +101,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 		},
 	}
 
-	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remotestate.ParseTerraformState([]byte(stateFile))
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
@@ -210,10 +210,10 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 
 	`
 
-	expectedTerraformState := &remote.TerraformState{
+	expectedTerraformState := &remotestate.TerraformState{
 		Version: 1,
 		Serial:  51,
-		Backend: &remote.TerraformBackend{
+		Backend: &remotestate.TerraformBackend{
 			Type: "s3",
 			Config: map[string]interface{}{
 				"bucket":  "bucket",
@@ -222,7 +222,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 				"region":  "us-east-1",
 			},
 		},
-		Modules: []remote.TerraformStateModule{
+		Modules: []remotestate.TerraformStateModule{
 			{
 				Path: []string{"root"},
 				Outputs: map[string]interface{}{
@@ -288,7 +288,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 		},
 	}
 
-	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remotestate.ParseTerraformState([]byte(stateFile))
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
@@ -300,9 +300,9 @@ func TestParseTerraformStateEmpty(t *testing.T) {
 
 	stateFile := `{}`
 
-	expectedTerraformState := &remote.TerraformState{}
+	expectedTerraformState := &remotestate.TerraformState{}
 
-	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remotestate.ParseTerraformState([]byte(stateFile))
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
@@ -314,7 +314,7 @@ func TestParseTerraformStateInvalid(t *testing.T) {
 
 	stateFile := `not-valid-json`
 
-	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remotestate.ParseTerraformState([]byte(stateFile))
 
 	assert.Nil(t, actualTerraformState)
 	require.Error(t, err)

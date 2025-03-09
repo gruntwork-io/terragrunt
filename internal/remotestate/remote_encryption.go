@@ -1,4 +1,4 @@
-package remote
+package remotestate
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"

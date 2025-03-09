@@ -24,8 +24,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
@@ -229,7 +229,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 	require.NoError(t, err)
 	enforceSSE := false
 	for _, statement := range policyInBucket.Statement {
-		if statement.Sid == remote.SidEnforcedTLSPolicy {
+		if statement.Sid == remotestate.SidEnforcedTLSPolicy {
 			enforceSSE = true
 		}
 	}
@@ -277,7 +277,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTarge
 	}
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
-	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
+	assert.Equal(t, remotestate.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
 }
 
 func TestAwsRunAllCommand(t *testing.T) {
@@ -1301,12 +1301,12 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 		Region: awsRegion,
 	}
 
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
 	if err != nil {
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
 
-	assert.True(t, remote.DoesS3BucketExist(s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+	assert.True(t, remotestate.DoesS3BucketExist(s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
 
 	if expectedTags != nil {
 		assertS3Tags(t, expectedTags, bucketName, s3Client)
@@ -1343,7 +1343,7 @@ func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.Ge
 		Region: awsRegion,
 	}
 
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
 	if err != nil {
 		t.Logf("Error creating S3 client: %v", err)
 		return nil, err
@@ -1381,7 +1381,7 @@ func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
 		Region: awsRegion,
 	}
 
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
 	if err != nil {
 		t.Logf("Error creating S3 client: %v", err)
 		return err
@@ -1437,7 +1437,7 @@ func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBuc
 		Region: awsRegion,
 	}
 
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
 	if err != nil {
 		return nil, err
 	}

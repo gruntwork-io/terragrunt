@@ -1,9 +1,9 @@
-package remote_test
+package remotestate_test
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -120,7 +120,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			provider, err := remote.NewRemoteEncryptionKeyProvider(tt.providerType)
+			provider, err := remotestate.NewRemoteEncryptionKeyProvider(tt.providerType)
 
 			if tt.expectedErrorCreatingProvider {
 				require.Error(t, err)
@@ -226,7 +226,7 @@ func TestToMap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			provider, err := remote.NewRemoteEncryptionKeyProvider(tt.providerType)
+			provider, err := remotestate.NewRemoteEncryptionKeyProvider(tt.providerType)
 			if err != nil {
 				t.Fatalf("failed to create provider: %v", err)
 			}

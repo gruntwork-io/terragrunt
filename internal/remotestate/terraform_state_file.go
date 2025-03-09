@@ -1,4 +1,4 @@
-package remote
+package remotestate
 
 import (
 	"encoding/json"

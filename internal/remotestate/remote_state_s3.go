@@ -1,4 +1,4 @@
-package remote
+package remotestate
 
 import (
 	"context"
@@ -243,6 +243,8 @@ const SleepBetweenRetriesWaitingForS3Bucket = 5 * time.Second
 // https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
 const s3LogDeliveryGranteeURI = "http://acs.amazonaws.com/groups/s3/LogDelivery"
 
+var _ RemoteStateInitializer = new(S3Initializer)
+
 type S3Initializer struct{}
 
 // NeedsInitialization returns true if the remote state S3 bucket specified in the given config needs to be initialized.
@@ -251,7 +253,7 @@ type S3Initializer struct{}
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
-func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func (s3Initializer S3Initializer) NeedsInitialization(ctx context.Context, remoteState *RemoteState, existingBackend *TerraformBackend, opts *options.TerragruntOptions) (bool, error) {
 	if remoteState.DisableInit {
 		return false, nil
 	}
@@ -262,13 +264,13 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 	// from it altogether. Display a deprecation warning when the "lock_table"
 	// attribute is being used.
 	if util.KindOf(remoteState.Config["lock_table"]) == reflect.String && remoteState.Config["lock_table"] != "" {
-		terragruntOptions.Logger.Warnf("%s\n", lockTableDeprecationMessage)
+		opts.Logger.Warnf("%s\n", lockTableDeprecationMessage)
 
 		remoteState.Config["dynamodb_table"] = remoteState.Config["lock_table"]
 		delete(remoteState.Config, "lock_table")
 	}
 
-	if !ConfigValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
+	if !ConfigValuesEqual(remoteState.Config, existingBackend, opts) {
 		return true, nil
 	}
 
@@ -283,22 +285,22 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 
 	// Validate current AWS session before checking S3
 	if !s3ConfigExtended.SkipCredentialsValidation {
-		if err = awshelper.ValidateAwsSession(sessionConfig, terragruntOptions); err != nil {
+		if err = awshelper.ValidateAwsSession(sessionConfig, opts); err != nil {
 			return false, err
 		}
 	}
 
-	s3Client, err := CreateS3Client(sessionConfig, terragruntOptions)
+	s3Client, err := CreateS3Client(sessionConfig, opts)
 	if err != nil {
 		return false, err
 	}
 
-	if !DoesS3BucketExist(s3Client, &s3Config.Bucket) {
+	if !DoesS3BucketExist(ctx, s3Client, &s3Config.Bucket) {
 		return true, nil
 	}
 
 	if s3Config.GetLockTableName() != "" {
-		dynamodbClient, err := dynamodb.CreateDynamoDBClient(sessionConfig, terragruntOptions)
+		dynamodbClient, err := dynamodb.CreateDynamoDBClient(sessionConfig, opts)
 		if err != nil {
 			return false, err
 		}
@@ -317,13 +319,13 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 }
 
 // ConfigValuesEqual returns true if the given config is in any way different than what is configured for the backend
-func ConfigValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func ConfigValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, opts *options.TerragruntOptions) bool {
 	if existingBackend == nil {
 		return len(config) == 0
 	}
 
 	if existingBackend.Type != "s3" {
-		terragruntOptions.Logger.Debugf("Backend type has changed from s3 to %s", existingBackend.Type)
+		opts.Logger.Debugf("Backend type has changed from s3 to %s", existingBackend.Type)
 		return false
 	}
 
@@ -340,7 +342,7 @@ func ConfigValuesEqual(config map[string]interface{}, existingBackend *Terraform
 		if value, err := strconv.ParseBool(existingBackend.Config["encrypt"].(string)); err == nil {
 			existingBackend.Config["encrypt"] = value
 		} else {
-			terragruntOptions.Logger.Warnf("Remote state configuration encrypt contains invalid value %v, should be boolean.", existingBackend.Config["encrypt"])
+			opts.Logger.Warnf("Remote state configuration encrypt contains invalid value %v, should be boolean.", existingBackend.Config["encrypt"])
 		}
 	}
 
@@ -364,7 +366,7 @@ func ConfigValuesEqual(config map[string]interface{}, existingBackend *Terraform
 	}
 
 	if !terraformStateConfigEqual(existingBackend.Config, terraformConfig) {
-		terragruntOptions.Logger.Debugf("Backend config changed from %s to %s", existingBackend.Config, config)
+		opts.Logger.Debugf("Backend config changed from %s to %s", existingBackend.Config, config)
 		return false
 	}
 
@@ -386,7 +388,7 @@ func (s3Initializer S3Initializer) buildInitializerCacheKey(
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *RemoteState, opts *options.TerragruntOptions) error {
 	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return errors.New(err)
@@ -400,7 +402,7 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 
 	cacheKey := s3Initializer.buildInitializerCacheKey(&s3Config)
 	if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
-		terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
+		opts.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
 		return nil
 	}
 
@@ -408,42 +410,42 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 	return stateAccessLock.StateBucketUpdate(s3Config.Bucket, func() error {
 		// Check if another goroutine has already initialized the bucket
 		if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
-			terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
+			opts.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
 			return nil
 		}
 
 		// Display a deprecation warning when the "lock_table" attribute is being used
 		// during initialization.
 		if s3Config.LockTable != "" {
-			terragruntOptions.Logger.Warnf("%s\n", lockTableDeprecationMessage)
+			opts.Logger.Warnf("%s\n", lockTableDeprecationMessage)
 		}
 
-		s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
+		s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), opts)
 		if err != nil {
 			return errors.New(err)
 		}
 
-		if err := createS3BucketIfNecessary(ctx, s3Client, s3ConfigExtended, terragruntOptions); err != nil {
+		if err := createS3BucketIfNecessary(ctx, s3Client, s3ConfigExtended, opts); err != nil {
 			return errors.New(err)
 		}
 
-		if !terragruntOptions.DisableBucketUpdate && !s3ConfigExtended.DisableBucketUpdate {
-			if err := updateS3BucketIfNecessary(ctx, s3Client, s3ConfigExtended, terragruntOptions); err != nil {
+		if !opts.DisableBucketUpdate && !s3ConfigExtended.DisableBucketUpdate {
+			if err := updateS3BucketIfNecessary(ctx, s3Client, s3ConfigExtended, opts); err != nil {
 				return errors.New(err)
 			}
 		}
 
 		if !s3ConfigExtended.SkipBucketVersioning {
-			if _, err := checkIfVersioningEnabled(s3Client, &s3Config, terragruntOptions); err != nil {
+			if _, err := checkIfVersioningEnabled(s3Client, &s3Config, opts); err != nil {
 				return errors.New(err)
 			}
 		}
 
-		if err := createLockTableIfNecessary(s3ConfigExtended, s3ConfigExtended.DynamotableTags, terragruntOptions); err != nil {
+		if err := createLockTableIfNecessary(s3ConfigExtended, s3ConfigExtended.DynamotableTags, opts); err != nil {
 			return errors.New(err)
 		}
 
-		if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, s3ConfigExtended, terragruntOptions); err != nil {
+		if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, s3ConfigExtended, opts); err != nil {
 			return errors.New(err)
 		}
 
@@ -451,6 +453,209 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 
 		return nil
 	})
+}
+
+// DeleteBucket deletes the remote state S3 bucket specified in the given config.
+func (s3Initializer S3Initializer) DeleteBucket(ctx context.Context, remoteState *RemoteState, opts *options.TerragruntOptions) error {
+	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
+	if err != nil {
+		return err
+	}
+
+	if err := ValidateS3Config(s3ConfigExtended); err != nil {
+		return err
+	}
+
+	s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), opts)
+	if err != nil {
+		return err
+	}
+
+	if err := deleteS3BucketIfNecessary(ctx, s3Client, s3ConfigExtended, opts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func deleteS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	if notExist := !DoesS3BucketExist(ctx, s3Client, &config.RemoteStateConfigS3.Bucket); notExist {
+		opts.Logger.Warnf("Remote state S3 bucket %s does not exist or you don't have permissions to access it.", config.RemoteStateConfigS3.Bucket)
+
+		return nil
+	}
+
+	description := "Delete S3 bucket with retry " + config.RemoteStateConfigS3.Bucket
+
+	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, opts.Logger, log.DebugLevel, func(ctx context.Context) error {
+		err := DeleteS3BucketWithAllObjects(ctx, s3Client, config, opts)
+		if err == nil {
+			return nil
+		}
+
+		if isBucketErrorRetriable(err) {
+			return err
+		}
+		// return FatalError so that retry loop will not continue
+		return util.FatalError{Underlying: err}
+	})
+}
+
+// DeleteS3BucketWithAllObjects deletes the given S3 bucket with all its objects.
+func DeleteS3BucketWithAllObjects(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Delete S3 bucket %s with all objects.", config.RemoteStateConfigS3.Bucket)
+
+	if err := DeleteS3BucketObjects(ctx, s3Client, &config.RemoteStateConfigS3, opts); err != nil {
+		return err
+	}
+
+	return DeleteS3Bucket(ctx, s3Client, &config.RemoteStateConfigS3, opts)
+}
+
+func DeleteS3BucketObject(ctx context.Context, opts *options.TerragruntOptions, s3Client *s3.S3, bucket, key, versionID *string) error {
+	opts.Logger.Debugf("Deleting S3 bucket %s object %s/%s", bucket, aws.StringValue(key), aws.StringValue(versionID))
+
+	objectInput := &s3.DeleteObjectInput{
+		Bucket:    bucket,
+		Key:       key,
+		VersionId: versionID,
+	}
+
+	if _, err := s3Client.DeleteObjectWithContext(ctx, objectInput); err != nil {
+		return errors.Errorf("failed to delete object: %w", err)
+	}
+
+	return nil
+}
+
+func DeleteS3BucketV2Objects(ctx context.Context, s3Client *s3.S3, remoteState *RemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	var (
+		bucket  = aws.String(remoteState.Bucket)
+		v2Input = &s3.ListObjectsV2Input{Bucket: bucket}
+	)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		out, err := s3Client.ListObjectsV2WithContext(ctx, v2Input)
+		if err != nil {
+			return errors.Errorf("failed to list objects: %w", err)
+		}
+
+		for _, item := range out.Contents {
+			if err := DeleteS3BucketObject(ctx, opts, s3Client, bucket, item.Key, nil); err != nil {
+				return err
+			}
+		}
+
+		if aws.BoolValue(out.IsTruncated) {
+			v2Input.ContinuationToken = out.ContinuationToken
+		} else {
+			break
+		}
+	}
+
+	return nil
+}
+
+func DeleteS3BucketVersionObjects(ctx context.Context, s3Client *s3.S3, remoteState *RemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	var (
+		bucket        = aws.String(remoteState.Bucket)
+		versionsInput = &s3.ListObjectVersionsInput{Bucket: bucket}
+	)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		out, err := s3Client.ListObjectVersionsWithContext(ctx, versionsInput)
+		if err != nil {
+			return errors.Errorf("failed to list version objects: %w", err)
+		}
+
+		for _, item := range out.DeleteMarkers {
+			if err := DeleteS3BucketObject(ctx, opts, s3Client, bucket, item.Key, item.VersionId); err != nil {
+				return err
+			}
+		}
+
+		for _, item := range out.Versions {
+			if err := DeleteS3BucketObject(ctx, opts, s3Client, bucket, item.Key, item.VersionId); err != nil {
+				return err
+			}
+		}
+
+		if aws.BoolValue(out.IsTruncated) {
+			versionsInput.VersionIdMarker = out.NextVersionIdMarker
+			versionsInput.KeyMarker = out.NextKeyMarker
+		} else {
+			break
+		}
+	}
+
+	return nil
+}
+
+// DeleteS3BucketObjects deletes the S3 bucket contents.
+func DeleteS3BucketObjects(ctx context.Context, s3Client *s3.S3, remoteState *RemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	if err := DeleteS3BucketV2Objects(ctx, s3Client, remoteState, opts); err != nil {
+		return err
+	}
+
+	return DeleteS3BucketVersionObjects(ctx, s3Client, remoteState, opts)
+}
+
+// DeleteS3Bucket deletes the S3 bucket specified in the given config.
+func DeleteS3Bucket(ctx context.Context, s3Client *s3.S3, remoteState *RemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	var (
+		bucket      = remoteState.Bucket
+		key         = remoteState.Key
+		bucketInput = &s3.DeleteBucketInput{Bucket: aws.String(bucket)}
+	)
+
+	opts.Logger.Debugf("Deleting S3 bucket %s", bucket)
+
+	if _, err := s3Client.DeleteBucketWithContext(ctx, bucketInput); err != nil {
+		if err := checkBucketAccess(s3Client, aws.String(bucket), aws.String(key)); err != nil {
+			return err
+		}
+
+		return errors.New(err)
+	}
+
+	opts.Logger.Debugf("Deleted S3 bucket %s", bucket)
+
+	return WaitUntilS3BucketDeleted(ctx, s3Client, remoteState, opts)
+}
+
+// WaitUntilS3BucketDeleted waits until the given S3 bucket is deleted.
+func WaitUntilS3BucketDeleted(ctx context.Context, s3Client *s3.S3, config *RemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Waiting for bucket %s to be deleted", config.Bucket)
+
+	for retries := 0; retries < MaxRetriesWaitingForS3Bucket; retries++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if notExist := !DoesS3BucketExist(ctx, s3Client, aws.String(config.Bucket)); notExist {
+			opts.Logger.Debugf("S3 bucket %s deleted.", config.Bucket)
+			return nil
+		} else if retries < MaxRetriesWaitingForS3Bucket-1 {
+			opts.Logger.Debugf("S3 bucket %s has not been deleted yet. Sleeping for %s and will check again.", config.Bucket, SleepBetweenRetriesWaitingForS3Bucket)
+			time.Sleep(SleepBetweenRetriesWaitingForS3Bucket)
+		}
+	}
+
+	return errors.New(MaxRetriesWaitingForS3BucketExceeded(config.Bucket))
 }
 
 func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
@@ -537,18 +742,18 @@ func ValidateS3Config(extendedConfig *ExtendedRemoteStateConfigS3) error {
 
 // If the bucket specified in the given config doesn't already exist, prompt the user to create it, and if the user
 // confirms, create the bucket and enable versioning for it.
-func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if DoesS3BucketExist(s3Client, &config.RemoteStateConfigS3.Bucket) {
+func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	if DoesS3BucketExist(ctx, s3Client, &config.RemoteStateConfigS3.Bucket) {
 		return nil
 	}
 
-	if terragruntOptions.FailIfBucketCreationRequired {
+	if opts.FailIfBucketCreationRequired {
 		return BucketCreationNotAllowed(config.RemoteStateConfigS3.Bucket)
 	}
 
 	prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.RemoteStateConfigS3.Bucket)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, prompt, terragruntOptions)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, prompt, opts)
 	if err != nil {
 		return err
 	}
@@ -562,10 +767,10 @@ func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 		// been performed should be a no-op.
 		description := "Create S3 bucket with retry " + config.RemoteStateConfigS3.Bucket
 
-		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, terragruntOptions.Logger, log.DebugLevel, func(ctx context.Context) error {
-			err := CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx, s3Client, config, terragruntOptions)
+		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, opts.Logger, log.DebugLevel, func(ctx context.Context) error {
+			err := CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx, s3Client, config, opts)
 			if err != nil {
-				if isBucketCreationErrorRetriable(err) {
+				if isBucketErrorRetriable(err) {
 					return err
 				}
 				// return FatalError so that retry loop will not continue
@@ -579,28 +784,28 @@ func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 	return nil
 }
 
-func updateS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if !DoesS3BucketExist(s3Client, &config.RemoteStateConfigS3.Bucket) {
-		if terragruntOptions.FailIfBucketCreationRequired {
+func updateS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	if !DoesS3BucketExist(ctx, s3Client, &config.RemoteStateConfigS3.Bucket) {
+		if opts.FailIfBucketCreationRequired {
 			return BucketCreationNotAllowed(config.RemoteStateConfigS3.Bucket)
 		}
 
 		return errors.New(fmt.Errorf("remote state S3 bucket %s does not exist or you don't have permissions to access it", config.RemoteStateConfigS3.Bucket))
 	}
 
-	needsUpdate, bucketUpdatesRequired, err := checkIfS3BucketNeedsUpdate(s3Client, config, terragruntOptions)
+	needsUpdate, bucketUpdatesRequired, err := checkIfS3BucketNeedsUpdate(s3Client, config, opts)
 	if err != nil {
 		return err
 	}
 
 	if !needsUpdate {
-		terragruntOptions.Logger.Debug("S3 bucket is already up to date")
+		opts.Logger.Debug("S3 bucket is already up to date")
 		return nil
 	}
 
 	prompt := fmt.Sprintf("Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?", config.RemoteStateConfigS3.Bucket)
 
-	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, prompt, terragruntOptions)
+	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, prompt, opts)
 	if err != nil {
 		return err
 	}
@@ -611,8 +816,8 @@ func updateS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 
 	if bucketUpdatesRequired.Versioning {
 		if config.SkipBucketVersioning {
-			terragruntOptions.Logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.RemoteStateConfigS3.Bucket)
-		} else if err := EnableVersioningForS3Bucket(s3Client, &config.RemoteStateConfigS3, terragruntOptions); err != nil {
+			opts.Logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.RemoteStateConfigS3.Bucket)
+		} else if err := EnableVersioningForS3Bucket(s3Client, &config.RemoteStateConfigS3, opts); err != nil {
 			return err
 		}
 	}
@@ -621,59 +826,59 @@ func updateS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.RemoteStateConfigS3.Bucket)
 
 		if config.SkipBucketSSEncryption {
-			terragruntOptions.Logger.Debug(msg)
-			terragruntOptions.Logger.Debugf("Server-Side Encryption enabling is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.RemoteStateConfigS3.Bucket)
+			opts.Logger.Debug(msg)
+			opts.Logger.Debugf("Server-Side Encryption enabling is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.RemoteStateConfigS3.Bucket)
 
 			return nil
 		} else {
-			terragruntOptions.Logger.Warn(msg)
+			opts.Logger.Warn(msg)
 		}
 
-		terragruntOptions.Logger.Infof("Enabling Server-Side Encryption for the remote state AWS S3 bucket %s.", config.RemoteStateConfigS3.Bucket)
+		opts.Logger.Infof("Enabling Server-Side Encryption for the remote state AWS S3 bucket %s.", config.RemoteStateConfigS3.Bucket)
 
-		if err := EnableSSEForS3BucketWide(s3Client, config.RemoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
-			terragruntOptions.Logger.Errorf("Failed to enable Server-Side Encryption for the remote state AWS S3 bucket %s: %v", config.RemoteStateConfigS3.Bucket, err)
+		if err := EnableSSEForS3BucketWide(s3Client, config.RemoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, opts); err != nil {
+			opts.Logger.Errorf("Failed to enable Server-Side Encryption for the remote state AWS S3 bucket %s: %v", config.RemoteStateConfigS3.Bucket, err)
 			return err
 		}
 
-		terragruntOptions.Logger.Infof("Successfully enabled Server-Side Encryption for the remote state AWS S3 bucket %s.", config.RemoteStateConfigS3.Bucket)
+		opts.Logger.Infof("Successfully enabled Server-Side Encryption for the remote state AWS S3 bucket %s.", config.RemoteStateConfigS3.Bucket)
 	}
 
 	if bucketUpdatesRequired.RootAccess {
 		if config.SkipBucketRootAccess {
-			terragruntOptions.Logger.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.RemoteStateConfigS3.Bucket)
-		} else if err := EnableRootAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
+			opts.Logger.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.RemoteStateConfigS3.Bucket)
+		} else if err := EnableRootAccesstoS3Bucket(s3Client, config, opts); err != nil {
 			return err
 		}
 	}
 
 	if bucketUpdatesRequired.EnforcedTLS {
 		if config.SkipBucketEnforcedTLS {
-			terragruntOptions.Logger.Debugf("Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.RemoteStateConfigS3.Bucket)
-		} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.RemoteStateConfigS3.Bucket, config, terragruntOptions); err != nil {
+			opts.Logger.Debugf("Enforced TLS is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.RemoteStateConfigS3.Bucket)
+		} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.RemoteStateConfigS3.Bucket, config, opts); err != nil {
 			return err
 		}
 	}
 
 	if bucketUpdatesRequired.AccessLogging {
 		if config.SkipBucketAccessLogging {
-			terragruntOptions.Logger.Debugf("Access logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_access_logging' config.", config.RemoteStateConfigS3.Bucket)
+			opts.Logger.Debugf("Access logging is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_access_logging' config.", config.RemoteStateConfigS3.Bucket)
 		} else {
 			if config.AccessLoggingBucketName != "" {
-				if err := configureAccessLogBucket(ctx, terragruntOptions, s3Client, config); err != nil {
+				if err := configureAccessLogBucket(ctx, opts, s3Client, config); err != nil {
 					// TODO: Remove lint suppression
 					return nil //nolint:nilerr
 				}
 			} else {
-				terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
+				opts.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
 			}
 		}
 	}
 
 	if bucketUpdatesRequired.PublicAccess {
 		if config.SkipBucketPublicAccessBlocking {
-			terragruntOptions.Logger.Debugf("Public access blocking is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_public_access_blocking' config.", config.RemoteStateConfigS3.Bucket)
-		} else if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.RemoteStateConfigS3.Bucket, terragruntOptions); err != nil {
+			opts.Logger.Debugf("Public access blocking is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_public_access_blocking' config.", config.RemoteStateConfigS3.Bucket)
+		} else if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.RemoteStateConfigS3.Bucket, opts); err != nil {
 			return err
 		}
 	}
@@ -682,40 +887,40 @@ func updateS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 }
 
 // configureAccessLogBucket - configure access log bucket.
-func configureAccessLogBucket(ctx context.Context, terragruntOptions *options.TerragruntOptions, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3) error {
-	terragruntOptions.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.RemoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
+func configureAccessLogBucket(ctx context.Context, opts *options.TerragruntOptions, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3) error {
+	opts.Logger.Debugf("Enabling bucket-wide Access Logging on AWS S3 bucket %s - using as TargetBucket %s", config.RemoteStateConfigS3.Bucket, config.AccessLoggingBucketName)
 
-	if err := CreateLogsS3BucketIfNecessary(ctx, s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
-		terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", config.AccessLoggingBucketName, config.RemoteStateConfigS3.Bucket, err.Error())
+	if err := CreateLogsS3BucketIfNecessary(ctx, s3Client, aws.String(config.AccessLoggingBucketName), opts); err != nil {
+		opts.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", config.AccessLoggingBucketName, config.RemoteStateConfigS3.Bucket, err.Error())
 
 		return errors.New(err)
 	}
 
 	if !config.SkipAccessLoggingBucketPublicAccessBlocking {
-		if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
-			terragruntOptions.Logger.Errorf("Could not enable public access blocking on %s\n%s", config.AccessLoggingBucketName, err.Error())
+		if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, opts); err != nil {
+			opts.Logger.Errorf("Could not enable public access blocking on %s\n%s", config.AccessLoggingBucketName, err.Error())
 
 			return errors.New(err)
 		}
 	}
 
-	if err := EnableAccessLoggingForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
-		terragruntOptions.Logger.Errorf("Could not enable access logging on %s\n%s", config.RemoteStateConfigS3.Bucket, err.Error())
+	if err := EnableAccessLoggingForS3BucketWide(s3Client, config, opts); err != nil {
+		opts.Logger.Errorf("Could not enable access logging on %s\n%s", config.RemoteStateConfigS3.Bucket, err.Error())
 
 		return errors.New(err)
 	}
 
 	if !config.SkipAccessLoggingBucketSSEncryption {
-		if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, terragruntOptions); err != nil {
-			terragruntOptions.Logger.Errorf("Could not enable encryption on %s\n%s", config.AccessLoggingBucketName, err.Error())
+		if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, opts); err != nil {
+			opts.Logger.Errorf("Could not enable encryption on %s\n%s", config.AccessLoggingBucketName, err.Error())
 
 			return errors.New(err)
 		}
 	}
 
 	if !config.SkipAccessLoggingBucketEnforcedTLS {
-		if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
-			terragruntOptions.Logger.Errorf("Could not enable TLS access on %s\n%s", config.AccessLoggingBucketName, err.Error())
+		if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, opts); err != nil {
+			opts.Logger.Errorf("Could not enable TLS access on %s\n%s", config.AccessLoggingBucketName, err.Error())
 
 			return errors.New(err)
 		}
@@ -733,14 +938,14 @@ type S3BucketUpdatesRequired struct {
 	PublicAccess  bool
 }
 
-func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, S3BucketUpdatesRequired, error) {
+func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) (bool, S3BucketUpdatesRequired, error) {
 	var (
 		updates  []string
 		toUpdate S3BucketUpdatesRequired
 	)
 
 	if !config.SkipBucketVersioning {
-		enabled, err := checkIfVersioningEnabled(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
+		enabled, err := checkIfVersioningEnabled(s3Client, &config.RemoteStateConfigS3, opts)
 		if err != nil {
 			return false, toUpdate, err
 		}
@@ -753,7 +958,7 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 	}
 
 	if !config.SkipBucketSSEncryption {
-		matches, err := checkIfSSEForS3MatchesConfig(s3Client, config, terragruntOptions)
+		matches, err := checkIfSSEForS3MatchesConfig(s3Client, config, opts)
 		if err != nil {
 			return false, toUpdate, err
 		}
@@ -766,7 +971,7 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 	}
 
 	if !config.SkipBucketRootAccess {
-		enabled, err := checkIfBucketRootAccess(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
+		enabled, err := checkIfBucketRootAccess(s3Client, &config.RemoteStateConfigS3, opts)
 		if err != nil {
 			return false, toUpdate, err
 		}
@@ -779,7 +984,7 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 	}
 
 	if !config.SkipBucketEnforcedTLS {
-		enabled, err := checkIfBucketEnforcedTLS(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
+		enabled, err := checkIfBucketEnforcedTLS(s3Client, &config.RemoteStateConfigS3, opts)
 		if err != nil {
 			return false, toUpdate, err
 		}
@@ -792,7 +997,7 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 	}
 
 	if !config.SkipBucketAccessLogging && config.AccessLoggingBucketName != "" {
-		enabled, err := checkS3AccessLoggingConfiguration(s3Client, config, terragruntOptions)
+		enabled, err := checkS3AccessLoggingConfiguration(s3Client, config, opts)
 		if err != nil {
 			return false, toUpdate, err
 		}
@@ -805,7 +1010,7 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 	}
 
 	if !config.SkipBucketPublicAccessBlocking {
-		enabled, err := checkIfS3PublicAccessBlockingEnabled(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
+		enabled, err := checkIfS3PublicAccessBlockingEnabled(s3Client, &config.RemoteStateConfigS3, opts)
 		if err != nil {
 			return false, toUpdate, err
 		}
@@ -819,10 +1024,10 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 
 	// show update message if any of the above configs are not set
 	if len(updates) > 0 {
-		terragruntOptions.Logger.Warnf("The remote state S3 bucket %s needs to be updated:", config.RemoteStateConfigS3.Bucket)
+		opts.Logger.Warnf("The remote state S3 bucket %s needs to be updated:", config.RemoteStateConfigS3.Bucket)
 
 		for _, update := range updates {
-			terragruntOptions.Logger.Warnf("  - %s", update)
+			opts.Logger.Warnf("  - %s", update)
 		}
 
 		return true, toUpdate, nil
@@ -832,8 +1037,8 @@ func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConf
 }
 
 // Check if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
-func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	terragruntOptions.Logger.Debugf("Verifying AWS S3 Bucket Versioning %s", config.Bucket)
+func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, opts *options.TerragruntOptions) (bool, error) {
+	opts.Logger.Debugf("Verifying AWS S3 Bucket Versioning %s", config.Bucket)
 
 	out, err := s3Client.GetBucketVersioning(&s3.GetBucketVersioningInput{Bucket: aws.String(config.Bucket)})
 	if err != nil {
@@ -843,7 +1048,7 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 	// NOTE: There must be a bug in the AWS SDK since out == nil when versioning is not enabled. In the future,
 	// check the AWS SDK for updates to see if we can remove "out == nil ||".
 	if out == nil || out.Status == nil || *out.Status != s3.BucketVersioningStatusEnabled {
-		terragruntOptions.Logger.Warnf("Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
+		opts.Logger.Warnf("Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", config.Bucket)
 		return false, nil
 	}
 
@@ -851,10 +1056,10 @@ func checkIfVersioningEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 }
 
 // CreateS3BucketWithVersioningSSEncryptionAndAccessLogging creates the given S3 bucket and enable versioning for it.
-func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", config.RemoteStateConfigS3.Bucket)
+func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", config.RemoteStateConfigS3.Bucket)
 
-	err := CreateS3Bucket(s3Client, aws.String(config.RemoteStateConfigS3.Bucket), terragruntOptions)
+	err := CreateS3Bucket(s3Client, aws.String(config.RemoteStateConfigS3.Bucket), opts)
 
 	if err != nil {
 		if accessError := checkBucketAccess(s3Client, aws.String(config.RemoteStateConfigS3.Bucket), aws.String(config.RemoteStateConfigS3.Key)); accessError != nil {
@@ -862,102 +1067,102 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx context.Contex
 		}
 
 		if isBucketAlreadyOwnedByYouError(err) {
-			terragruntOptions.Logger.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", config.RemoteStateConfigS3.Bucket)
-			return WaitUntilS3BucketExists(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
+			opts.Logger.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", config.RemoteStateConfigS3.Bucket)
+			return WaitUntilS3BucketExists(ctx, s3Client, &config.RemoteStateConfigS3, opts)
 		}
 
 		return err
 	}
 
-	if err := WaitUntilS3BucketExists(s3Client, &config.RemoteStateConfigS3, terragruntOptions); err != nil {
+	if err := WaitUntilS3BucketExists(ctx, s3Client, &config.RemoteStateConfigS3, opts); err != nil {
 		return err
 	}
 
 	if config.SkipBucketRootAccess {
-		terragruntOptions.Logger.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.RemoteStateConfigS3.Bucket)
-	} else if err := EnableRootAccesstoS3Bucket(s3Client, config, terragruntOptions); err != nil {
+		opts.Logger.Debugf("Root access is disabled for the remote state S3 bucket %s using 'skip_bucket_root_access' config.", config.RemoteStateConfigS3.Bucket)
+	} else if err := EnableRootAccesstoS3Bucket(s3Client, config, opts); err != nil {
 		return err
 	}
 
 	if config.SkipBucketEnforcedTLS {
-		terragruntOptions.Logger.Debugf("TLS enforcement is disabled for the remote state S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.RemoteStateConfigS3.Bucket)
-	} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.RemoteStateConfigS3.Bucket, config, terragruntOptions); err != nil {
+		opts.Logger.Debugf("TLS enforcement is disabled for the remote state S3 bucket %s using 'skip_bucket_enforced_tls' config.", config.RemoteStateConfigS3.Bucket)
+	} else if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.RemoteStateConfigS3.Bucket, config, opts); err != nil {
 		return err
 	}
 
 	if config.SkipBucketPublicAccessBlocking {
-		terragruntOptions.Logger.Debugf("Public access blocking is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_public_access_blocking' config.", config.RemoteStateConfigS3.Bucket)
-	} else if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.RemoteStateConfigS3.Bucket, terragruntOptions); err != nil {
+		opts.Logger.Debugf("Public access blocking is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_public_access_blocking' config.", config.RemoteStateConfigS3.Bucket)
+	} else if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.RemoteStateConfigS3.Bucket, opts); err != nil {
 		return err
 	}
 
-	if err := TagS3Bucket(s3Client, config, terragruntOptions); err != nil {
+	if err := TagS3Bucket(s3Client, config, opts); err != nil {
 		return err
 	}
 
 	if config.SkipBucketVersioning {
-		terragruntOptions.Logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.RemoteStateConfigS3.Bucket)
-	} else if err := EnableVersioningForS3Bucket(s3Client, &config.RemoteStateConfigS3, terragruntOptions); err != nil {
+		opts.Logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", config.RemoteStateConfigS3.Bucket)
+	} else if err := EnableVersioningForS3Bucket(s3Client, &config.RemoteStateConfigS3, opts); err != nil {
 		return err
 	}
 
 	if config.SkipBucketSSEncryption {
-		terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.RemoteStateConfigS3.Bucket)
-	} else if err := EnableSSEForS3BucketWide(s3Client, config.RemoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
+		opts.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.RemoteStateConfigS3.Bucket)
+	} else if err := EnableSSEForS3BucketWide(s3Client, config.RemoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, opts); err != nil {
 		return err
 	}
 
 	if config.SkipBucketAccessLogging {
-		terragruntOptions.Logger.Warnf("Terragrunt configuration option 'skip_bucket_accesslogging' is now deprecated. Access logging for the state bucket %s is disabled by default. To enable access logging for bucket %s, please provide property `accesslogging_bucket_name` in the terragrunt config file. For more details, please refer to the Terragrunt documentation.", config.RemoteStateConfigS3.Bucket, config.RemoteStateConfigS3.Bucket)
+		opts.Logger.Warnf("Terragrunt configuration option 'skip_bucket_accesslogging' is now deprecated. Access logging for the state bucket %s is disabled by default. To enable access logging for bucket %s, please provide property `accesslogging_bucket_name` in the terragrunt config file. For more details, please refer to the Terragrunt documentation.", config.RemoteStateConfigS3.Bucket, config.RemoteStateConfigS3.Bucket)
 	}
 
 	if config.AccessLoggingBucketName != "" {
-		if err := configureAccessLogBucket(ctx, terragruntOptions, s3Client, config); err != nil {
+		if err := configureAccessLogBucket(ctx, opts, s3Client, config); err != nil {
 			// TODO: Remove lint suppression
 			return nil //nolint:nilerr
 		}
 	} else {
-		terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
+		opts.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
 	}
 
-	if err := TagS3BucketAccessLogging(s3Client, config, terragruntOptions); err != nil {
+	if err := TagS3BucketAccessLogging(s3Client, config, opts); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func CreateLogsS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, logsBucketName *string, terragruntOptions *options.TerragruntOptions) error {
-	if !DoesS3BucketExist(s3Client, logsBucketName) {
-		if terragruntOptions.FailIfBucketCreationRequired {
+func CreateLogsS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, logsBucketName *string, opts *options.TerragruntOptions) error {
+	if !DoesS3BucketExist(ctx, s3Client, logsBucketName) {
+		if opts.FailIfBucketCreationRequired {
 			return BucketCreationNotAllowed(*logsBucketName)
 		}
 
 		prompt := fmt.Sprintf("Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", *logsBucketName)
 
-		shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, prompt, terragruntOptions)
+		shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, prompt, opts)
 		if err != nil {
 			return err
 		}
 
 		if shouldCreateBucket {
-			return CreateS3Bucket(s3Client, logsBucketName, terragruntOptions)
+			return CreateS3Bucket(s3Client, logsBucketName, opts)
 		}
 	}
 
 	return nil
 }
 
-func TagS3BucketAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func TagS3BucketAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
 	if len(config.AccessLoggingBucketTags) == 0 {
-		terragruntOptions.Logger.Debugf("No tags specified for bucket %s.", config.AccessLoggingBucketName)
+		opts.Logger.Debugf("No tags specified for bucket %s.", config.AccessLoggingBucketName)
 		return nil
 	}
 
 	// There must be one entry in the list
 	var tagsConverted = convertTags(config.AccessLoggingBucketTags)
 
-	terragruntOptions.Logger.Debugf("Tagging S3 bucket with %s", config.AccessLoggingBucketTags)
+	opts.Logger.Debugf("Tagging S3 bucket with %s", config.AccessLoggingBucketTags)
 
 	putBucketTaggingInput := s3.PutBucketTaggingInput{
 		Bucket: aws.String(config.AccessLoggingBucketName),
@@ -971,21 +1176,21 @@ func TagS3BucketAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfig
 		return errors.New(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Tagged S3 bucket with %s", config.AccessLoggingBucketTags)
+	opts.Logger.Debugf("Tagged S3 bucket with %s", config.AccessLoggingBucketTags)
 
 	return nil
 }
 
-func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
 	if len(config.S3BucketTags) == 0 {
-		terragruntOptions.Logger.Debugf("No tags specified for bucket %s.", config.RemoteStateConfigS3.Bucket)
+		opts.Logger.Debugf("No tags specified for bucket %s.", config.RemoteStateConfigS3.Bucket)
 		return nil
 	}
 
 	// There must be one entry in the list
 	var tagsConverted = convertTags(config.S3BucketTags)
 
-	terragruntOptions.Logger.Debugf("Tagging S3 bucket with %s", config.S3BucketTags)
+	opts.Logger.Debugf("Tagging S3 bucket with %s", config.S3BucketTags)
 
 	putBucketTaggingInput := s3.PutBucketTaggingInput{
 		Bucket: aws.String(config.RemoteStateConfigS3.Bucket),
@@ -999,7 +1204,7 @@ func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragrun
 		return errors.New(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Tagged S3 bucket with %s", config.S3BucketTags)
+	opts.Logger.Debugf("Tagged S3 bucket with %s", config.S3BucketTags)
 
 	return nil
 }
@@ -1022,15 +1227,15 @@ func convertTags(tags map[string]string) []*s3.Tag {
 //
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
 // about that S3 bucket has propagated everywhere.
-func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Waiting for bucket %s to be created", config.Bucket)
+func WaitUntilS3BucketExists(ctx context.Context, s3Client *s3.S3, config *RemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Waiting for bucket %s to be created", config.Bucket)
 
 	for retries := 0; retries < MaxRetriesWaitingForS3Bucket; retries++ {
-		if DoesS3BucketExist(s3Client, aws.String(config.Bucket)) {
-			terragruntOptions.Logger.Debugf("S3 bucket %s created.", config.Bucket)
+		if DoesS3BucketExist(ctx, s3Client, aws.String(config.Bucket)) {
+			opts.Logger.Debugf("S3 bucket %s created.", config.Bucket)
 			return nil
 		} else if retries < MaxRetriesWaitingForS3Bucket-1 {
-			terragruntOptions.Logger.Debugf("S3 bucket %s has not been created yet. Sleeping for %s and will check again.", config.Bucket, SleepBetweenRetriesWaitingForS3Bucket)
+			opts.Logger.Debugf("S3 bucket %s has not been created yet. Sleeping for %s and will check again.", config.Bucket, SleepBetweenRetriesWaitingForS3Bucket)
 			time.Sleep(SleepBetweenRetriesWaitingForS3Bucket)
 		}
 	}
@@ -1039,15 +1244,15 @@ func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 }
 
 // CreateS3Bucket creates the S3 bucket specified in the given config.
-func CreateS3Bucket(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Creating S3 bucket %s", aws.StringValue(bucket))
+func CreateS3Bucket(s3Client *s3.S3, bucket *string, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Creating S3 bucket %s", aws.StringValue(bucket))
 	// https://github.com/aws/aws-sdk-go/blob/v1.44.245/service/s3/api.go#L41760
 	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: bucket, ObjectOwnership: aws.String("ObjectWriter")})
 	if err != nil {
 		return errors.New(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Created S3 bucket %s", aws.StringValue(bucket))
+	opts.Logger.Debugf("Created S3 bucket %s", aws.StringValue(bucket))
 
 	return nil
 }
@@ -1061,8 +1266,8 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 	return ok && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
 
-// isBucketCreationErrorRetriable returns true if the error is temporary and bucket creation can be retried.
-func isBucketCreationErrorRetriable(err error) bool {
+// isBucketErrorRetriable returns true if the error is temporary and can be retried.
+func isBucketErrorRetriable(err error) bool {
 	var awsErr awserr.Error
 
 	ok := errors.As(err, &awsErr)
@@ -1074,16 +1279,16 @@ func isBucketCreationErrorRetriable(err error) bool {
 }
 
 // EnableRootAccesstoS3Bucket adds a policy to allow root access to the bucket.
-func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
 	bucket := config.RemoteStateConfigS3.Bucket
-	terragruntOptions.Logger.Debugf("Enabling root access to S3 bucket %s", bucket)
+	opts.Logger.Debugf("Enabling root access to S3 bucket %s", bucket)
 
-	accountID, err := awshelper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
+	accountID, err := awshelper.GetAWSAccountID(config.GetAwsSessionConfig(), opts)
 	if err != nil {
 		return errors.Errorf("error getting AWS account ID %s for bucket %s: %w", accountID, bucket, err)
 	}
 
-	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
+	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), opts)
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucket, err)
 	}
@@ -1096,11 +1301,11 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 
 	// If there's no policy, we need to create one
 	if err != nil {
-		terragruntOptions.Logger.Debugf("Policy not exists for bucket %s", bucket)
+		opts.Logger.Debugf("Policy not exists for bucket %s", bucket)
 	}
 
 	if policyOutput.Policy != nil {
-		terragruntOptions.Logger.Debugf("Policy already exists for bucket %s", bucket)
+		opts.Logger.Debugf("Policy already exists for bucket %s", bucket)
 
 		policyInBucket, err = awshelper.UnmarshalPolicy(*policyOutput.Policy)
 		if err != nil {
@@ -1110,7 +1315,7 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 
 	for _, statement := range policyInBucket.Statement {
 		if statement.Sid == SidRootPolicy {
-			terragruntOptions.Logger.Debugf("Policy for RootAccess already exists for bucket %s", bucket)
+			opts.Logger.Debugf("Policy for RootAccess already exists for bucket %s", bucket)
 			return nil
 		}
 	}
@@ -1151,14 +1356,14 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 		return errors.Errorf("error putting policy for bucket %s: %w", bucket, err)
 	}
 
-	terragruntOptions.Logger.Debugf("Enabled root access to bucket %s", bucket)
+	opts.Logger.Debugf("Enabled root access to bucket %s", bucket)
 
 	return nil
 }
 
 // Helper function to check if the root access policy is enabled for the bucket
-func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	terragruntOptions.Logger.Debugf("Checking if bucket %s is have root access", config.Bucket)
+func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, opts *options.TerragruntOptions) (bool, error) {
+	opts.Logger.Debugf("Checking if bucket %s is have root access", config.Bucket)
 
 	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
 		Bucket: aws.String(config.Bucket),
@@ -1172,7 +1377,7 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 			}
 		}
 
-		terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
+		opts.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
 
 		return false, errors.Errorf("error checking if bucket %s is have root access: %w", config.Bucket, err)
 	}
@@ -1189,21 +1394,21 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 
 	for _, statement := range policyInBucket.Statement {
 		if statement.Sid == SidRootPolicy {
-			terragruntOptions.Logger.Debugf("Policy for RootAccess already exists for bucket %s", config.Bucket)
+			opts.Logger.Debugf("Policy for RootAccess already exists for bucket %s", config.Bucket)
 			return true, nil
 		}
 	}
 
-	terragruntOptions.Logger.Debugf("Root access to bucket %s is not enabled", config.Bucket)
+	opts.Logger.Debugf("Root access to bucket %s is not enabled", config.Bucket)
 
 	return false, nil
 }
 
 // EnableEnforcedTLSAccesstoS3Bucket adds a policy to enforce TLS based access to the bucket.
-func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Enabling enforced TLS access for S3 bucket %s", bucket)
+func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Enabling enforced TLS access for S3 bucket %s", bucket)
 
-	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
+	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), opts)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -1215,11 +1420,11 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *E
 	})
 	// If there's no policy, we need to create one
 	if err != nil {
-		terragruntOptions.Logger.Debugf("Policy not exists for bucket %s", bucket)
+		opts.Logger.Debugf("Policy not exists for bucket %s", bucket)
 	}
 
 	if policyOutput.Policy != nil {
-		terragruntOptions.Logger.Debugf("Policy already exists for bucket %s", bucket)
+		opts.Logger.Debugf("Policy already exists for bucket %s", bucket)
 
 		policyInBucket, err = awshelper.UnmarshalPolicy(*policyOutput.Policy)
 		if err != nil {
@@ -1229,7 +1434,7 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *E
 
 	for _, statement := range policyInBucket.Statement {
 		if statement.Sid == SidEnforcedTLSPolicy {
-			terragruntOptions.Logger.Debugf("Policy for EnforceTLS already exists for bucket %s", bucket)
+			opts.Logger.Debugf("Policy for EnforceTLS already exists for bucket %s", bucket)
 			return nil
 		}
 	}
@@ -1271,14 +1476,14 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *E
 		return errors.Errorf("error putting policy for bucket %s: %w", bucket, err)
 	}
 
-	terragruntOptions.Logger.Debugf("Enabled enforced TLS access for bucket %s", bucket)
+	opts.Logger.Debugf("Enabled enforced TLS access for bucket %s", bucket)
 
 	return nil
 }
 
 // Helper function to check if the enforced TLS policy is enabled for the bucket
-func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	terragruntOptions.Logger.Debugf("Checking if bucket %s is enforced with TLS", config.Bucket)
+func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, opts *options.TerragruntOptions) (bool, error) {
+	opts.Logger.Debugf("Checking if bucket %s is enforced with TLS", config.Bucket)
 
 	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
 		Bucket: aws.String(config.Bucket),
@@ -1290,7 +1495,7 @@ func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 		if ok := errors.As(err, &awsErr); ok {
 			// Enforced TLS policy if is not found bucket policy
 			if awsErr.Code() == "NoSuchBucketPolicy" {
-				terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
+				opts.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
 				return false, nil
 			}
 		}
@@ -1309,19 +1514,19 @@ func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 
 	for _, statement := range policyInBucket.Statement {
 		if statement.Sid == SidEnforcedTLSPolicy {
-			terragruntOptions.Logger.Debugf("Policy for EnforcedTLS already exists for bucket %s", config.Bucket)
+			opts.Logger.Debugf("Policy for EnforcedTLS already exists for bucket %s", config.Bucket)
 			return true, nil
 		}
 	}
 
-	terragruntOptions.Logger.Debugf("Bucket %s is not enforced with TLS Policy", config.Bucket)
+	opts.Logger.Debugf("Bucket %s is not enforced with TLS Policy", config.Bucket)
 
 	return false, nil
 }
 
 // EnableVersioningForS3Bucket enables versioning for the S3 bucket specified in the given config.
-func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Enabling versioning on S3 bucket %s", config.Bucket)
+func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Enabling versioning on S3 bucket %s", config.Bucket)
 	input := s3.PutBucketVersioningInput{
 		Bucket:                  aws.String(config.Bucket),
 		VersioningConfiguration: &s3.VersioningConfiguration{Status: aws.String(s3.BucketVersioningStatusEnabled)},
@@ -1332,21 +1537,21 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 		return errors.Errorf("error enabling versioning on S3 bucket %s: %w", config.Bucket, err)
 	}
 
-	terragruntOptions.Logger.Debugf("Enabled versioning on S3 bucket %s", config.Bucket)
+	opts.Logger.Debugf("Enabled versioning on S3 bucket %s", config.Bucket)
 
 	return nil
 }
 
 // EnableSSEForS3BucketWide enables bucket-wide Server-Side Encryption for the AWS S3 bucket specified in the given config.
-func EnableSSEForS3BucketWide(s3Client *s3.S3, bucketName string, algorithm string, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Enabling bucket-wide SSE on AWS S3 bucket %s", bucketName)
+func EnableSSEForS3BucketWide(s3Client *s3.S3, bucketName string, algorithm string, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Enabling bucket-wide SSE on AWS S3 bucket %s", bucketName)
 
-	accountID, err := awshelper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
+	accountID, err := awshelper.GetAWSAccountID(config.GetAwsSessionConfig(), opts)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
+	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), opts)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -1371,7 +1576,7 @@ func EnableSSEForS3BucketWide(s3Client *s3.S3, bucketName string, algorithm stri
 		return errors.Errorf("error enabling bucket-wide SSE on AWS S3 bucket %s: %w", bucketName, err)
 	}
 
-	terragruntOptions.Logger.Debugf("Enabled bucket-wide SSE on AWS S3 bucket %s", bucketName)
+	opts.Logger.Debugf("Enabled bucket-wide SSE on AWS S3 bucket %s", bucketName)
 
 	return nil
 }
@@ -1389,15 +1594,15 @@ func fetchEncryptionAlgorithm(config *ExtendedRemoteStateConfigS3) string {
 func checkIfSSEForS3MatchesConfig(
 	s3Client *s3.S3,
 	config *ExtendedRemoteStateConfigS3,
-	terragruntOptions *options.TerragruntOptions,
+	opts *options.TerragruntOptions,
 ) (bool, error) {
-	terragruntOptions.Logger.Debugf("Checking if SSE is enabled for AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
+	opts.Logger.Debugf("Checking if SSE is enabled for AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
 
 	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(config.RemoteStateConfigS3.Bucket)}
 
 	output, err := s3Client.GetBucketEncryption(input)
 	if err != nil {
-		terragruntOptions.Logger.Debugf("Error checking if SSE is enabled for AWS S3 bucket %s: %s", config.RemoteStateConfigS3.Bucket, err.Error())
+		opts.Logger.Debugf("Error checking if SSE is enabled for AWS S3 bucket %s: %s", config.RemoteStateConfigS3.Bucket, err.Error())
 
 		return false, errors.Errorf("error checking if SSE is enabled for AWS S3 bucket %s: %w", config.RemoteStateConfigS3.Bucket, err)
 	}
@@ -1420,37 +1625,37 @@ func checkIfSSEForS3MatchesConfig(
 }
 
 // EnableAccessLoggingForS3BucketWide enables bucket-wide Access Logging for the AWS S3 bucket specified in the given config.
-func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func EnableAccessLoggingForS3BucketWide(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
 	bucket := config.RemoteStateConfigS3.Bucket
 	logsBucket := config.AccessLoggingBucketName
 	logsBucketPrefix := config.AccessLoggingTargetPrefix
 
 	if !config.SkipAccessLoggingBucketACL {
-		if err := configureBucketAccessLoggingACL(s3Client, aws.String(logsBucket), terragruntOptions); err != nil {
+		if err := configureBucketAccessLoggingACL(s3Client, aws.String(logsBucket), opts); err != nil {
 			return errors.Errorf("error configuring bucket access logging ACL on S3 bucket %s: %w", config.RemoteStateConfigS3.Bucket, err)
 		}
 	}
 
 	loggingInput := config.CreateS3LoggingInput()
-	terragruntOptions.Logger.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s\n%s", bucket, logsBucket, logsBucketPrefix, loggingInput)
+	opts.Logger.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s\n%s", bucket, logsBucket, logsBucketPrefix, loggingInput)
 
 	if _, err := s3Client.PutBucketLogging(&loggingInput); err != nil {
 		return errors.Errorf("error enabling bucket-wide Access Logging on AWS S3 bucket %s: %w", config.RemoteStateConfigS3.Bucket, err)
 	}
 
-	terragruntOptions.Logger.Debugf("Enabled bucket-wide Access Logging on AWS S3 bucket %s", bucket)
+	opts.Logger.Debugf("Enabled bucket-wide Access Logging on AWS S3 bucket %s", bucket)
 
 	return nil
 }
 
-func checkS3AccessLoggingConfiguration(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	terragruntOptions.Logger.Debugf("Checking if Access Logging is enabled for AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
+func checkS3AccessLoggingConfiguration(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) (bool, error) {
+	opts.Logger.Debugf("Checking if Access Logging is enabled for AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
 
 	input := &s3.GetBucketLoggingInput{Bucket: aws.String(config.RemoteStateConfigS3.Bucket)}
 
 	output, err := s3Client.GetBucketLogging(input)
 	if err != nil {
-		terragruntOptions.Logger.Debugf("Error checking if Access Logging is enabled for AWS S3 bucket %s: %s", config.RemoteStateConfigS3.Bucket, err.Error())
+		opts.Logger.Debugf("Error checking if Access Logging is enabled for AWS S3 bucket %s: %s", config.RemoteStateConfigS3.Bucket, err.Error())
 		return false, errors.Errorf("error checking if Access Logging is enabled for AWS S3 bucket %s: %w", config.RemoteStateConfigS3.Bucket, err)
 	}
 
@@ -1471,8 +1676,8 @@ func checkS3AccessLoggingConfiguration(s3Client *s3.S3, config *ExtendedRemoteSt
 // These settings ensure that a misconfiguration of the
 // bucket or objects will not accidentally enable public access to those items. See
 // https://docs.aws.amazon.com/AmazonS3/latest/dev/access-control-block-public-access.html for more information.
-func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, bucketName string, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Blocking all public access to S3 bucket %s", bucketName)
+func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, bucketName string, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Blocking all public access to S3 bucket %s", bucketName)
 	_, err := s3Client.PutPublicAccessBlock(
 		&s3.PutPublicAccessBlockInput{
 			Bucket: aws.String(bucketName),
@@ -1489,13 +1694,13 @@ func EnablePublicAccessBlockingForS3Bucket(s3Client *s3.S3, bucketName string, t
 		return errors.Errorf("error blocking all public access to S3 bucket %s: %w", bucketName, err)
 	}
 
-	terragruntOptions.Logger.Debugf("Blocked all public access to S3 bucket %s", bucketName)
+	opts.Logger.Debugf("Blocked all public access to S3 bucket %s", bucketName)
 
 	return nil
 }
 
-func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	terragruntOptions.Logger.Debugf("Checking if S3 bucket %s is configured to block public access", config.Bucket)
+func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateConfigS3, opts *options.TerragruntOptions) (bool, error) {
+	opts.Logger.Debugf("Checking if S3 bucket %s is configured to block public access", config.Bucket)
 
 	output, err := s3Client.GetPublicAccessBlock(&s3.GetPublicAccessBlockInput{
 		Bucket: aws.String(config.Bucket),
@@ -1505,7 +1710,7 @@ func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateCo
 		if ok := errors.As(err, &awsErr); ok {
 			// Enforced block public access if is not found bucket policy
 			if awsErr.Code() == "NoSuchPublicAccessBlockConfiguration" {
-				terragruntOptions.Logger.Debugf("Could not get public access block for bucket %s", config.Bucket)
+				opts.Logger.Debugf("Could not get public access block for bucket %s", config.Bucket)
 				return false, nil
 			}
 		}
@@ -1546,8 +1751,8 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 // To enable access logging in an S3 bucket, you must grant WRITE and READ_ACP permissions to the Log Delivery
 // Group. For more info, see:
 // https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
-func configureBucketAccessLoggingACL(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.", s3LogDeliveryGranteeURI, aws.StringValue(bucket))
+func configureBucketAccessLoggingACL(s3Client *s3.S3, bucket *string, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.", s3LogDeliveryGranteeURI, aws.StringValue(bucket))
 
 	uri := "uri=" + s3LogDeliveryGranteeURI
 	aclInput := s3.PutBucketAclInput{
@@ -1560,11 +1765,11 @@ func configureBucketAccessLoggingACL(s3Client *s3.S3, bucket *string, terragrunt
 		return errors.Errorf("error granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s: %w", s3LogDeliveryGranteeURI, *bucket, err)
 	}
 
-	return waitUntilBucketHasAccessLoggingACL(s3Client, bucket, terragruntOptions)
+	return waitUntilBucketHasAccessLoggingACL(s3Client, bucket, opts)
 }
 
-func waitUntilBucketHasAccessLoggingACL(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Waiting for ACL bucket %s to have the updated ACL for access logging.", aws.StringValue(bucket))
+func waitUntilBucketHasAccessLoggingACL(s3Client *s3.S3, bucket *string, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Waiting for ACL bucket %s to have the updated ACL for access logging.", aws.StringValue(bucket))
 
 	maxRetries := 10
 
@@ -1590,11 +1795,11 @@ func waitUntilBucketHasAccessLoggingACL(s3Client *s3.S3, bucket *string, terragr
 		}
 
 		if hasReadAcp && hasWrite {
-			terragruntOptions.Logger.Debugf("Bucket %s now has the proper ACL permissions for access logging!", aws.StringValue(bucket))
+			opts.Logger.Debugf("Bucket %s now has the proper ACL permissions for access logging!", aws.StringValue(bucket))
 			return nil
 		}
 
-		terragruntOptions.Logger.Debugf("Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.", aws.StringValue(bucket), s3TimeBetweenRetries)
+		opts.Logger.Debugf("Bucket %s still does not have the ACL permissions for access logging. Will sleep for %v and check again.", aws.StringValue(bucket), s3TimeBetweenRetries)
 		time.Sleep(s3TimeBetweenRetries)
 	}
 
@@ -1605,8 +1810,8 @@ func waitUntilBucketHasAccessLoggingACL(s3Client *s3.S3, bucket *string, terragr
 //
 // Returns true if the S3 bucket specified in the given config exists and the current user has the ability to access
 // it.
-func DoesS3BucketExist(s3Client *s3.S3, bucket *string) bool {
-	_, err := s3Client.HeadBucket(&s3.HeadBucketInput{Bucket: bucket})
+func DoesS3BucketExist(ctx context.Context, s3Client *s3.S3, bucket *string) bool {
+	_, err := s3Client.HeadBucketWithContext(ctx, &s3.HeadBucketInput{Bucket: bucket})
 	return err == nil
 }
 
@@ -1619,9 +1824,8 @@ func checkBucketAccess(s3Client *s3.S3, bucket *string, key *string) error {
 
 	var awsErr awserr.Error
 
-	ok := errors.As(err, &awsErr)
-	if !ok {
-		return err
+	if ok := errors.As(err, &awsErr); !ok {
+		return errors.New(err)
 	}
 
 	// filter permissions errors
@@ -1633,22 +1837,22 @@ func checkBucketAccess(s3Client *s3.S3, bucket *string, key *string) error {
 }
 
 // Create a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
-func createLockTableIfNecessary(extendedS3Config *ExtendedRemoteStateConfigS3, tags map[string]string, terragruntOptions *options.TerragruntOptions) error {
+func createLockTableIfNecessary(extendedS3Config *ExtendedRemoteStateConfigS3, tags map[string]string, opts *options.TerragruntOptions) error {
 	if extendedS3Config.RemoteStateConfigS3.GetLockTableName() == "" {
 		return nil
 	}
 
-	dynamodbClient, err := dynamodb.CreateDynamoDBClient(extendedS3Config.GetAwsSessionConfig(), terragruntOptions)
+	dynamodbClient, err := dynamodb.CreateDynamoDBClient(extendedS3Config.GetAwsSessionConfig(), opts)
 	if err != nil {
 		return err
 	}
 
-	return dynamodb.CreateLockTableIfNecessary(extendedS3Config.RemoteStateConfigS3.GetLockTableName(), tags, dynamodbClient, terragruntOptions)
+	return dynamodb.CreateLockTableIfNecessary(extendedS3Config.RemoteStateConfigS3.GetLockTableName(), tags, dynamodbClient, opts)
 }
 
 // UpdateLockTableSetSSEncryptionOnIfNecessary updates a table for locks in DynamoDB
 // if the user has configured a lock table and the table's server-side encryption isn't turned on.
-func UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config *RemoteStateConfigS3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config *RemoteStateConfigS3, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) error {
 	if !config.EnableLockTableSSEncryption {
 		return nil
 	}
@@ -1657,17 +1861,17 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config *RemoteStateConfigS3, 
 		return nil
 	}
 
-	dynamodbClient, err := dynamodb.CreateDynamoDBClient(config.GetAwsSessionConfig(), terragruntOptions)
+	dynamodbClient, err := dynamodb.CreateDynamoDBClient(config.GetAwsSessionConfig(), opts)
 	if err != nil {
 		return err
 	}
 
-	return dynamodb.UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config.GetLockTableName(), dynamodbClient, terragruntOptions)
+	return dynamodb.UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config.GetLockTableName(), dynamodbClient, opts)
 }
 
 // CreateS3Client creates an authenticated client for DynamoDB.
-func CreateS3Client(config *awshelper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
-	session, err := awshelper.CreateAwsSession(config, terragruntOptions)
+func CreateS3Client(config *awshelper.AwsSessionConfig, opts *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := awshelper.CreateAwsSession(config, opts)
 	if err != nil {
 		return nil, err
 	}

@@ -1,4 +1,4 @@
-package remote
+package remotestate
 
 import (
 	"context"
@@ -81,6 +81,8 @@ const (
 	gcpSleepBetweenRetries = 10 * time.Second
 )
 
+var _ RemoteStateInitializer = new(GCSInitializer)
+
 type GCSInitializer struct{}
 
 // NeedsInitialization returns true if the GCS bucket specified in the given config does not exist or if the bucket
@@ -90,7 +92,7 @@ type GCSInitializer struct{}
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
-func (initializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func (initializer GCSInitializer) NeedsInitialization(ctx context.Context, remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if remoteState.DisableInit {
 		return false, nil
 	}
@@ -109,8 +111,6 @@ func (initializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, 
 	if err != nil {
 		return false, err
 	}
-
-	ctx := context.Background()
 
 	gcsClient, err := CreateGCSClient(ctx, *gcsConfig)
 	if err != nil {
@@ -232,6 +232,11 @@ func (initializer GCSInitializer) Initialize(ctx context.Context, remoteState *R
 
 		return nil
 	})
+}
+
+// DeleteBucket deletes the remote state GCS bucket specified in the given config.
+func (initializer GCSInitializer) DeleteBucket(ctx context.Context, remoteState *RemoteState, opts *options.TerragruntOptions) error {
+	return nil
 }
 
 // GetTerraformInitArgs returns the subset of the given config that should be passed to terraform init

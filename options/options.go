@@ -293,6 +293,9 @@ type TerragruntOptions struct {
 	// Fail execution if is required to create S3 bucket
 	FailIfBucketCreationRequired bool
 
+	// BackendBootstrap automatically bootstraps backend infrastructure before attempting to use it.
+	BackendBootstrap bool
+
 	// Controls if s3 bucket should be updated or skipped
 	DisableBucketUpdate bool
 

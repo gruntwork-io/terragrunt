@@ -14,7 +14,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -164,17 +164,17 @@ func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath stri
 func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketName string, expectedLabels map[string]string) {
 	t.Helper()
 
-	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+	remoteStateConfig := remotestate.RemoteStateConfigGCS{Bucket: bucketName}
 
 	ctx := context.TODO()
 
-	gcsClient, err := remote.CreateGCSClient(ctx, remoteStateConfig)
+	gcsClient, err := remotestate.CreateGCSClient(ctx, remoteStateConfig)
 	require.NoError(t, err, "Error creating GCS client")
 
 	bucketHandle := gcsClient.Bucket(bucketName)
 
 	// verify the bucket exists
-	assert.True(t, remote.DoesGCSBucketExist(ctx, bucketHandle), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
+	assert.True(t, remotestate.DoesGCSBucketExist(ctx, bucketHandle), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
 
 	// verify the bucket location
 	bucket := gcsClient.Bucket(bucketName)
@@ -194,9 +194,9 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 
 	ctx := context.Background()
 
-	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+	remoteStateConfig := remotestate.RemoteStateConfigGCS{Bucket: bucketName}
 
-	gcsClient, err := remote.CreateGCSClient(ctx, remoteStateConfig)
+	gcsClient, err := remotestate.CreateGCSClient(ctx, remoteStateConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}
@@ -237,8 +237,8 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 
 	ctx := context.Background()
 
-	var gcsConfig remote.RemoteStateConfigGCS
-	gcsClient, err := remote.CreateGCSClient(ctx, gcsConfig)
+	var gcsConfig remotestate.RemoteStateConfigGCS
+	gcsClient, err := remotestate.CreateGCSClient(ctx, gcsConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}
@@ -263,8 +263,8 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 
 	ctx := context.Background()
 
-	var gcsConfig remote.RemoteStateConfigGCS
-	gcsClient, err := remote.CreateGCSClient(ctx, gcsConfig)
+	var gcsConfig remotestate.RemoteStateConfigGCS
+	gcsClient, err := remotestate.CreateGCSClient(ctx, gcsConfig)
 	if err != nil {
 		t.Fatalf("Error creating GCS client: %v", err)
 	}

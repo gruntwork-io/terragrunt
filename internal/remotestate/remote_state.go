@@ -1,5 +1,5 @@
-// Package remote contains code for configuring remote state storage.
-package remote
+// Package remotestate contains code for configuring remote state storage.
+package remotestate
 
 import (
 	"context"
@@ -57,14 +57,17 @@ type RemoteStateGenerate struct {
 }
 
 type RemoteStateInitializer interface {
-	// Return true if remote state needs to be initialized
-	NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error)
+	// NeedsInitialization returns true if remote state needs to be initialized.
+	NeedsInitialization(ctx context.Context, remoteState *RemoteState, existingBackend *TerraformBackend, opts *options.TerragruntOptions) (bool, error)
 
-	// Initialize the remote state
-	Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error
+	// Initialize initializes the remote state.
+	Initialize(ctx context.Context, remoteState *RemoteState, opts *options.TerragruntOptions) error
 
-	// Return the config that should be passed on to terraform via -backend-config cmd line param
-	// Allows the Backends to filter and/or modify the configuration given from the user
+	// DeleteBucket deletes the remote state.
+	DeleteBucket(ctx context.Context, remoteState *RemoteState, opts *options.TerragruntOptions) error
+
+	// GetTerraformInitArgs returns the config that should be passed on to terraform via -backend-config cmd line param
+	// Allows the Backends to filter and/or modify the configuration given from the user.
 	GetTerraformInitArgs(config map[string]any) map[string]interface{}
 }
 
@@ -88,14 +91,26 @@ func (state *RemoteState) Validate() error {
 	return nil
 }
 
-// Initialize performs any actions necessary to initialize the remote state before it's used for storage. For example, if you're
-// using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
-func (state *RemoteState) Initialize(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Initializing remote state for the %s backend", state.Backend)
+// DeleteBucket deletes the remote state.
+func (state *RemoteState) DeleteBucket(ctx context.Context, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Deleting remote state for the %s backend", state.Backend)
 
 	initializer, hasInitializer := remoteStateInitializers[state.Backend]
 	if hasInitializer {
-		return initializer.Initialize(ctx, state, terragruntOptions)
+		return initializer.DeleteBucket(ctx, state, opts)
+	}
+
+	return nil
+}
+
+// Initialize performs any actions necessary to initialize the remote state before it's used for storage. For example, if you're
+// using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
+func (state *RemoteState) Initialize(ctx context.Context, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Initializing remote state for the %s backend", state.Backend)
+
+	initializer, hasInitializer := remoteStateInitializers[state.Backend]
+	if hasInitializer {
+		return initializer.Initialize(ctx, state, opts)
 	}
 
 	return nil
@@ -107,13 +122,13 @@ func (state *RemoteState) Initialize(ctx context.Context, terragruntOptions *opt
 // 2. Remote state has not already been configured
 // 3. Remote state has been configured, but with a different configuration
 // 4. The remote state initializer for this backend type, if there is one, says initialization is necessary
-func (state *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if terragruntOptions.DisableBucketUpdate {
-		terragruntOptions.Logger.Debug("Skipping remote state initialization")
+func (state *RemoteState) NeedsInit(ctx context.Context, opts *options.TerragruntOptions) (bool, error) {
+	if opts.DisableBucketUpdate {
+		opts.Logger.Debug("Skipping remote state initialization")
 		return false, nil
 	}
 
-	parsedState, err := ParseTerraformStateFileFromLocation(state.Backend, state.Config, terragruntOptions.WorkingDir, terragruntOptions.DataDir())
+	parsedState, err := ParseTerraformStateFileFromLocation(state.Backend, state.Config, opts.WorkingDir, opts.DataDir())
 	if err != nil {
 		return false, err
 	}
@@ -129,8 +144,8 @@ func (state *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions
 
 	if initializer, hasInitializer := remoteStateInitializers[state.Backend]; hasInitializer {
 		// Remote state initializer says initialization is necessary
-		return initializer.NeedsInitialization(state, parsedState.Backend, terragruntOptions)
-	} else if parsedState.IsRemote() && state.DiffersFrom(parsedState.Backend, terragruntOptions) {
+		return initializer.NeedsInitialization(ctx, state, parsedState.Backend, opts)
+	} else if parsedState.IsRemote() && state.DiffersFrom(parsedState.Backend, opts) {
 		// If there's no remote state initializer, then just compare the the config values
 		return true, nil
 	}
@@ -140,18 +155,18 @@ func (state *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions
 
 // DiffersFrom returns true if this remote state is different than
 // the given remote state that is currently being used by terraform.
-func (state *RemoteState) DiffersFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func (state *RemoteState) DiffersFrom(existingBackend *TerraformBackend, opts *options.TerragruntOptions) bool {
 	if existingBackend.Type != state.Backend {
-		terragruntOptions.Logger.Infof("Backend type has changed from %s to %s", existingBackend.Type, state.Backend)
+		opts.Logger.Infof("Backend type has changed from %s to %s", existingBackend.Type, state.Backend)
 		return true
 	}
 
 	if !terraformStateConfigEqual(existingBackend.Config, state.Config) {
-		terragruntOptions.Logger.Debugf("Changed from %s to %s", existingBackend.Config, state.Config)
+		opts.Logger.Debugf("Changed from %s to %s", existingBackend.Config, state.Config)
 		return true
 	}
 
-	terragruntOptions.Logger.Debugf("Backend %s has not changed.", existingBackend.Type)
+	opts.Logger.Debugf("Backend %s has not changed.", existingBackend.Type)
 
 	return false
 }
@@ -224,7 +239,7 @@ func (state *RemoteState) ToTerraformInitArgs() []string {
 }
 
 // GenerateTerraformCode generates the terraform code for configuring remote state backend.
-func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
+func (state *RemoteState) GenerateTerraformCode(opts *options.TerragruntOptions) error {
 	if state.Generate == nil {
 		return errors.New(ErrGenerateCalledWithNoGenerateAttr)
 	}
@@ -237,9 +252,9 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 
 	switch {
 	case state.Encryption == nil:
-		terragruntOptions.Logger.Debug("No encryption block in remote_state config")
+		opts.Logger.Debug("No encryption block in remote_state config")
 	case len(state.Encryption) == 0:
-		terragruntOptions.Logger.Debug("Empty encryption block in remote_state config")
+		opts.Logger.Debug("Empty encryption block in remote_state config")
 	default:
 		keyProvider, ok := state.Encryption[codegen.EncryptionKeyProviderKey].(string)
 		if !ok {
@@ -286,7 +301,7 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 		CommentPrefix: codegen.DefaultCommentPrefix,
 	}
 
-	return codegen.WriteToFile(terragruntOptions, terragruntOptions.WorkingDir, codegenConfig)
+	return codegen.WriteToFile(opts, opts.WorkingDir, codegenConfig)
 }
 
 // Custom errors

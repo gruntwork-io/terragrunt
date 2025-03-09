@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -31,7 +32,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -784,7 +784,7 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 }
 
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
-func canGetRemoteState(remoteState *remote.RemoteState) bool {
+func canGetRemoteState(remoteState *remotestate.RemoteState) bool {
 	return remoteState != nil && !remoteState.DisableDependencyOptimization
 }
 
@@ -869,7 +869,7 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorking
 func getTerragruntOutputJSONFromRemoteState(
 	ctx *ParsingContext,
 	targetConfigPath string,
-	remoteState *remote.RemoteState,
+	remoteState *remotestate.RemoteState,
 	iamRoleOpts options.IAMRoleOptions,
 ) ([]byte, error) {
 	ctx.TerragruntOptions.Logger.Debugf("Detected remote state block with generate config. Resolving dependency by pulling remote state.")
@@ -924,7 +924,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Generate the backend configuration in the working dir. If no generate config is set on the remote state block,
 	// set a temporary generate config so we can generate the backend code.
 	if remoteState.Generate == nil {
-		remoteState.Generate = &remote.RemoteStateGenerate{
+		remoteState.Generate = &remotestate.RemoteStateGenerate{
 			Path:     "backend.tf",
 			IfExists: codegen.ExistsOverwriteTerragruntStr,
 		}
@@ -963,17 +963,17 @@ func getTerragruntOutputJSONFromRemoteState(
 }
 
 // getTerragruntOutputJSONFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform
-func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.TerragruntOptions, remoteState *remote.RemoteState) ([]byte, error) {
+func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
 	terragruntOptions.Logger.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.Config["bucket"], remoteState.Config["key"])
 
-	s3ConfigExtended, err := remote.ParseExtendedS3Config(remoteState.Config)
+	s3ConfigExtended, err := remotestate.ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return nil, err
 	}
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	s3Client, err := remote.CreateS3Client(sessionConfig, terragruntOptions)
+	s3Client, err := remotestate.CreateS3Client(sessionConfig, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}

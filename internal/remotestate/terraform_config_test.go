@@ -1,9 +1,9 @@
-package remote_test
+package remotestate_test
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
 func TestWrapMapToSingleLineHcl(t *testing.T) {
@@ -32,7 +32,7 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := remote.WrapMapToSingleLineHcl(tt.input)
+			result := remotestate.WrapMapToSingleLineHcl(tt.input)
 			if result != tt.expected {
 				t.Errorf("Expected %s, but got %s", tt.expected, result)
 			}

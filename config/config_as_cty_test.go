@@ -11,7 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
 // This test makes sure that all the fields from the TerragruntConfig struct are accounted for in the conversion to
@@ -69,7 +69,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		TerraformBinary:             "terraform",
 		TerraformVersionConstraint:  "= 0.12.20",
 		TerragruntVersionConstraint: "= 0.23.18",
-		RemoteState: &remote.RemoteState{
+		RemoteState: &remotestate.RemoteState{
 			Backend:                       "foo",
 			DisableInit:                   true,
 			DisableDependencyOptimization: true,
@@ -167,11 +167,11 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 func TestRemoteStateAsCtyDrift(t *testing.T) {
 	t.Parallel()
 
-	testConfig := remote.RemoteState{
+	testConfig := remotestate.RemoteState{
 		Backend:                       "foo",
 		DisableInit:                   true,
 		DisableDependencyOptimization: true,
-		Generate: &remote.RemoteStateGenerate{
+		Generate: &remotestate.RemoteStateGenerate{
 			Path:     "foo",
 			IfExists: "overwrite_terragrunt",
 		},

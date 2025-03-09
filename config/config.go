@@ -18,6 +18,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -34,7 +35,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -117,7 +117,7 @@ type TerragruntConfig struct {
 	TerraformBinary             string
 	TerraformVersionConstraint  string
 	TerragruntVersionConstraint string
-	RemoteState                 *remote.RemoteState
+	RemoteState                 *remotestate.RemoteState
 	Dependencies                *ModuleDependencies
 	DownloadDir                 string
 	PreventDestroy              *bool
@@ -269,17 +269,17 @@ func (remoteState *remoteStateConfigFile) String() string {
 
 // Convert the parsed config file remote state struct to the internal representation struct of remote state
 // configurations.
-func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
+func (remoteState *remoteStateConfigFile) toConfig() (*remotestate.RemoteState, error) {
 	remoteStateConfig, err := ParseCtyValueToMap(remoteState.Config)
 	if err != nil {
 		return nil, err
 	}
 
-	config := &remote.RemoteState{}
+	config := &remotestate.RemoteState{}
 
 	config.Backend = remoteState.Backend
 	if remoteState.Generate != nil {
-		config.Generate = &remote.RemoteStateGenerate{
+		config.Generate = &remotestate.RemoteStateGenerate{
 			Path:     remoteState.Generate.Path,
 			IfExists: remoteState.Generate.IfExists,
 		}
@@ -1144,7 +1144,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 			return nil, err
 		}
 
-		var remoteState *remote.RemoteState
+		var remoteState *remotestate.RemoteState
 		if err := mapstructure.Decode(remoteStateMap, &remoteState); err != nil {
 			return nil, err
 		}

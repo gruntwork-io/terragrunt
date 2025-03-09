@@ -8,7 +8,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
 // TerragruntConfigAsCty serializes TerragruntConfig struct to a cty Value that can be used to reference the attributes in other config. Note
@@ -601,7 +601,7 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 // RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
 // serialize the struct because `config` and `encryption` are arbitrary
 // interfaces whose type we do not know, so we have to do a hack to go through json.
-func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
+func RemoteStateAsCty(remoteState *remotestate.RemoteState) (cty.Value, error) {
 	if remoteState == nil {
 		return cty.NilVal, nil
 	}
