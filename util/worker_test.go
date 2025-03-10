@@ -1,19 +1,20 @@
 package util_test
 
 import (
-	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestWorkerPool is a top-level test function that includes parallel sub-tests.
 func TestWorkerPool(t *testing.T) {
 	t.Run("AllTasksCompleteWithoutErrors", func(t *testing.T) {
 		// Mark this sub-test as parallel. The Go test framework may run
-		// multiple sub-tests simultaneously, which helps catch concurrency issues.
 		t.Parallel()
 
 		wp := util.NewWorkerPool(5)
@@ -31,10 +32,7 @@ func TestWorkerPool(t *testing.T) {
 
 		// Wait for all tasks to complete
 		errs := wp.Wait()
-
-		if len(errs) != 0 {
-			t.Errorf("expected 0 errors, got %d: %v", len(errs), errs)
-		}
+		assert.NoError(t, errs)
 		// Validate counter reached 10
 		if atomic.LoadInt32(&counter) != 10 {
 			t.Errorf("expected counter to be 10, got %d", counter)
@@ -61,14 +59,9 @@ func TestWorkerPool(t *testing.T) {
 			})
 		}
 
-		// Wait for all tasks to complete
 		errs := wp.Wait()
+		assert.Error(t, errs)
 
-		// Expect 5 tasks to fail
-		if len(errs) != 5 {
-			t.Errorf("expected 5 errors, got %d: %v", len(errs), errs)
-		}
-		// Expect 5 successful tasks
 		if atomic.LoadInt32(&successCount) != 5 {
 			t.Errorf("expected successCount to be 5, got %d", successCount)
 		}
@@ -106,12 +99,7 @@ func TestWorkerPool(t *testing.T) {
 			})
 		}
 		errs := wp.Wait()
-
-		// No new tasks should fail
-		if len(errs) != 0 {
-			t.Errorf("expected 0 errors, got %d: %v", len(errs), errs)
-		}
-
+		assert.NoError(t, errs)
 		finalCountAfterRestart := atomic.LoadInt32(&counter)
 		if finalCountAfterRestart != 8 {
 			t.Errorf("expected counter to be 8, got %d", finalCountAfterRestart)
@@ -177,9 +165,8 @@ func TestWorkerPool(t *testing.T) {
 		}
 
 		errs := wp.Wait()
-		if len(errs) != 0 {
-			t.Errorf("expected 0 errors, got %d: %v", len(errs), errs)
-		}
+		assert.NoError(t, errs)
+
 		if atomic.LoadInt32(&totalCount) != 5 {
 			t.Errorf("expected 5 tasks completed, got %d", totalCount)
 		}

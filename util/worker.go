@@ -2,6 +2,8 @@ package util
 
 import (
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // Task represents a unit of work that can be executed by the worker pool
@@ -87,20 +89,22 @@ func (wp *WorkerPool) Submit(task Task) {
 }
 
 // Wait blocks until all tasks are completed
-func (wp *WorkerPool) Wait() []error {
+func (wp *WorkerPool) Wait() error {
 	wp.wg.Wait()
 
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
-	// Create a copy of errors to return
-	errors := make([]error, len(wp.errorsSlice))
-	copy(errors, wp.errorsSlice)
+	var errors *errors.MultiError
 
-	// Clear the errors slice for potential reuse
-	wp.errorsSlice = wp.errorsSlice[:0]
+	for _, err := range wp.errorsSlice {
+		if err == nil {
+			continue
+		}
+		errors = errors.Append(errors, err)
+	}
 
-	return errors
+	return errors.ErrorOrNil()
 }
 
 // Stop shuts down the worker pool after current tasks are completed
