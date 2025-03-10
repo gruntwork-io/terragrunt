@@ -4,6 +4,7 @@ package test_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -1306,7 +1307,7 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
 
-	assert.True(t, remotestate.DoesS3BucketExist(s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+	assert.True(t, remotestate.DoesS3BucketExist(context.TODO(), s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
 
 	if expectedTags != nil {
 		assertS3Tags(t, expectedTags, bucketName, s3Client)
