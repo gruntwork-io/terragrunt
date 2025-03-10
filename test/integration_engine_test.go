@@ -257,6 +257,7 @@ func setupLocalEngine(t *testing.T) string {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalEngine)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalEngine)
 
+	// download engine to local directory
 	engineDir := util.JoinPath(rootPath, "engine")
 	if err := os.MkdirAll(engineDir, 0755); err != nil {
 		require.NoError(t, err)
