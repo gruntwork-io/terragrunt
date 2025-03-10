@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/hashicorp/go-getter"
@@ -504,7 +506,11 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	engineLogLevel := terragruntOptions.EngineLogLevel
 	if len(engineLogLevel) == 0 {
-		engineLogLevel = terragruntOptions.Logger.Level().String()
+		engineLogLevel = hclog.Warn.String()
+		// update log level if it is different from info
+		if terragruntOptions.Logger.Level() != log.InfoLevel {
+			engineLogLevel = terragruntOptions.Logger.Level().String()
+		}
 		// turn off log formatting if disabled for Terragrunt
 		if terragruntOptions.Logger.Formatter().DisabledOutput() {
 			engineLogLevel = hclog.Off.String()
