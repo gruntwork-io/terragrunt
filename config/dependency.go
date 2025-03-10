@@ -756,7 +756,8 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 	// we need to suspend logging diagnostic errors on this attempt
 	parseOptions := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
 
-	remoteStateTGConfig, err := PartialParseConfigFile(ctx.WithParseOption(parseOptions).WithDecodeList(RemoteStateBlock, TerragruntFlags, EngineBlock), targetConfig, nil)
+	remoteStateTGConfig, err := PartialParseConfigFile(ctx.WithParseOption(parseOptions).WithDecodeList(
+		RemoteStateBlock, TerragruntFlags, EngineBlock), targetConfig, nil)
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		targetOpts, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
 		if err != nil {
@@ -786,7 +787,8 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return getTerragruntOutputJSONFromInitFolder(ctx, workingDir, remoteStateTGConfig.GetIAMRoleOptions(), engineOpts)
 	}
 
-	return getTerragruntOutputJSONFromRemoteState(ctx, targetConfig, remoteStateTGConfig.RemoteState, remoteStateTGConfig.GetIAMRoleOptions(), engineOpts)
+	return getTerragruntOutputJSONFromRemoteState(ctx, targetConfig, remoteStateTGConfig.RemoteState,
+		remoteStateTGConfig.GetIAMRoleOptions(), engineOpts)
 }
 
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
@@ -839,7 +841,8 @@ func terragruntAlreadyInit(opts *options.TerragruntOptions, configPath string, c
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
 // running init.
-func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorkingDir string, iamRoleOpts options.IAMRoleOptions, engineOpts *options.EngineOptions) ([]byte, error) {
+func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorkingDir string, iamRoleOpts options.IAMRoleOptions,
+	engineOpts *options.EngineOptions) ([]byte, error) {
 	targetConfigPath := ctx.TerragruntOptions.TerragruntConfigPath
 
 	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, terraformWorkingDir, targetConfigPath, iamRoleOpts, engineOpts)
@@ -1024,7 +1027,8 @@ func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.Terragr
 
 // setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform
 // without going through the full RunTerragrunt operation.
-func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir string, configPath string, iamRoleOpts options.IAMRoleOptions, engineOpts *options.EngineOptions) (*options.TerragruntOptions, error) {
+func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir string, configPath string, iamRoleOpts options.IAMRoleOptions,
+	engineOpts *options.EngineOptions) (*options.TerragruntOptions, error) {
 	// Here we clone the terragrunt options again since we need to make further modifications to it to allow running
 	// terraform directly.
 	// Set the terraform working dir to the tempdir, and set stdout writer to io.Discard so that output content is
