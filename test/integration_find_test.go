@@ -11,6 +11,7 @@ import (
 const (
 	testFixtureFindBasic  = "fixtures/find/basic"
 	testFixtureFindHidden = "fixtures/find/hidden"
+	testFixtureFindDAG    = "fixtures/find/dag"
 )
 
 func TestFindBasic(t *testing.T) {
@@ -69,6 +70,33 @@ func TestFindHidden(t *testing.T) {
 			}
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			assert.Empty(t, stderr)
+			assert.Equal(t, tt.expected, stdout)
+		})
+	}
+}
+
+func TestFindDAG(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		name     string
+		sort     string
+		expected string
+	}{
+		{name: "alpha", sort: "alpha", expected: "a-dependent\nb-dependency\n"},
+		{name: "dag", sort: "dag", expected: "b-dependency\na-dependent\n"},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --sort="+tt.sort+" --no-color --working-dir "+testFixtureFindDAG)
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
