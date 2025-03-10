@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -75,7 +75,7 @@ func New(opts Options) (*CAS, error) {
 // Clone performs the clone operation
 //
 // TODO: Make options optional
-func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts CloneOptions, url string) error {
+func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts *CloneOptions, url string) error {
 	c.cloneStart = time.Now()
 
 	targetDir := c.prepareTargetDirectory(opts.Dir, url)
@@ -151,7 +151,7 @@ func (c *CAS) resolveReference(ctx context.Context, url, branch string) (string,
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, opts CloneOptions, url string, hash string) error {
+func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, opts *CloneOptions, url string, hash string) error {
 	if err := c.git.Clone(ctx, url, true, 1, opts.Branch); err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, opts Clon
 	return c.storeRootTree(ctx, l, hash, opts)
 }
 
-func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opts CloneOptions) error {
+func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opts *CloneOptions) error {
 	if err := c.storeTree(ctx, l, hash, ""); err != nil {
 		return err
 	}

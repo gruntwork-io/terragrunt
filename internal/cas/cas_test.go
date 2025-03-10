@@ -27,7 +27,7 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, &cas.CloneOptions{
 			Dir: targetPath,
 		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, &cas.CloneOptions{
 			Dir:    targetPath,
 			Branch: "main",
 		}, "https://github.com/gruntwork-io/terragrunt.git")
@@ -74,7 +74,7 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, &cas.CloneOptions{
 			Dir:              targetPath,
 			IncludedGitFiles: []string{"HEAD", "config"},
 		}, "https://github.com/gruntwork-io/terragrunt.git")

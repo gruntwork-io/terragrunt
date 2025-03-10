@@ -15,7 +15,7 @@ import (
 func TestCASGetterMode(t *testing.T) {
 	t.Parallel()
 
-	g := cas.NewCASGetter(nil, nil, cas.CloneOptions{})
+	g := cas.NewCASGetter(nil, nil, &cas.CloneOptions{})
 	testURL, err := url.Parse("https://github.com/gruntwork-io/terragrunt")
 	require.NoError(t, err)
 
@@ -27,7 +27,7 @@ func TestCASGetterMode(t *testing.T) {
 func TestCASGetterGetFile(t *testing.T) {
 	t.Parallel()
 
-	g := cas.NewCASGetter(nil, nil, cas.CloneOptions{})
+	g := cas.NewCASGetter(nil, nil, &cas.CloneOptions{})
 	err := g.GetFile(context.Background(), &getter.Request{})
 	require.Error(t, err)
 	assert.Equal(t, "GetFile not implemented", err.Error())
@@ -36,7 +36,7 @@ func TestCASGetterGetFile(t *testing.T) {
 func TestCASGetterDetect(t *testing.T) {
 	t.Parallel()
 
-	g := cas.NewCASGetter(nil, nil, cas.CloneOptions{})
+	g := cas.NewCASGetter(nil, nil, &cas.CloneOptions{})
 
 	tests := []struct {
 		name     string
@@ -77,7 +77,7 @@ func TestCASGetterGet(t *testing.T) {
 	c, err := cas.New(cas.Options{})
 	require.NoError(t, err)
 
-	opts := cas.CloneOptions{
+	opts := &cas.CloneOptions{
 		Branch: "main",
 	}
 

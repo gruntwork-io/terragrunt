@@ -1,8 +1,9 @@
 package cas
 
 import (
-	"errors"
 	"fmt"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // Error types that can be returned by the cas package

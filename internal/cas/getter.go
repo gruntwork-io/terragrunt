@@ -2,10 +2,10 @@ package cas
 
 import (
 	"context"
-	"errors"
 	"net/url"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
 )
@@ -18,10 +18,10 @@ type CASGetter struct {
 	Detectors []getter.Detector
 	CAS       *CAS
 	Logger    *log.Logger
-	Opts      CloneOptions
+	Opts      *CloneOptions
 }
 
-func NewCASGetter(l *log.Logger, cas *CAS, opts CloneOptions) *CASGetter {
+func NewCASGetter(l *log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
 	return &CASGetter{
 		Detectors: []getter.Detector{
 			new(getter.GitHubDetector),

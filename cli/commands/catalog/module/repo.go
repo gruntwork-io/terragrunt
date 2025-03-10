@@ -290,7 +290,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		client.Getters = append([]getter.Getter{cas.NewCASGetter(&l, c, cloneOpts)}, client.Getters...)
+		client.Getters = append([]getter.Getter{cas.NewCASGetter(&l, c, &cloneOpts)}, client.Getters...)
 	}
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
@@ -326,7 +326,9 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 		return errors.New(err)
 	}
 
-	f.Close()
+	if err := f.Close(); err != nil {
+		return errors.New(err)
+	}
 
 	return nil
 }

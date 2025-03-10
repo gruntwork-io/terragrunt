@@ -3,11 +3,12 @@ package cas
 import (
 	"bufio"
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 const (

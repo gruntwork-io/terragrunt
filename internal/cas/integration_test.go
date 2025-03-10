@@ -29,7 +29,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, cas1.Clone(context.TODO(), &l, cas.CloneOptions{
+		require.NoError(t, cas1.Clone(context.TODO(), &l, &cas.CloneOptions{
 			Dir: firstClonePath,
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
@@ -44,7 +44,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, cas2.Clone(context.TODO(), &l, cas.CloneOptions{
+		require.NoError(t, cas2.Clone(context.TODO(), &l, &cas.CloneOptions{
 			Dir: secondClonePath,
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
@@ -70,7 +70,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, &cas.CloneOptions{
 			Dir:    filepath.Join(tempDir, "repo"),
 			Branch: "nonexistent-branch",
 		}, "https://github.com/gruntwork-io/terragrunt.git")
@@ -89,7 +89,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), &l, cas.CloneOptions{
+		err = c.Clone(context.TODO(), &l, &cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "repo"),
 		}, "https://github.com/yhakbar/nonexistent-repo.git")
 		require.Error(t, err)
@@ -116,7 +116,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, c.Clone(ctx, &l, cas.CloneOptions{
+		require.NoError(t, c.Clone(ctx, &l, &cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "repo"),
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
