@@ -35,6 +35,29 @@ func TestAllTasksCompleteWithoutErrors(t *testing.T) {
 	}
 }
 
+func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
+	t.Parallel()
+
+	wp := util.NewWorkerPool(10)
+	defer wp.Stop()
+
+	var counter int32
+	for i := 0; i < 5; i++ {
+		wp.Submit(func() error {
+			atomic.AddInt32(&counter, 1)
+			return nil
+		})
+	}
+
+	// Wait for all tasks to complete
+	errs := wp.Wait()
+	assert.NoError(t, errs)
+
+	if atomic.LoadInt32(&counter) != 5 {
+		t.Errorf("expected counter to be 5, got %d", counter)
+	}
+}
+
 func TestSomeTasksReturnErrors(t *testing.T) {
 	t.Parallel()
 
