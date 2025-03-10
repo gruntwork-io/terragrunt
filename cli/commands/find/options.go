@@ -1,9 +1,6 @@
 package find
 
 import (
-	"io"
-	"os"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -23,11 +20,6 @@ type Options struct {
 
 	// Hidden determines whether to detect hidden directories.
 	Hidden bool
-
-	// Writer is the writer to write the output to.
-	// If not set, the output will be written to stdout.
-	// Useful for testing.
-	Writer io.Writer
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
@@ -36,7 +28,6 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		Format:            "text",
 		Sort:              "alpha",
 		Hidden:            false,
-		Writer:            os.Stdout,
 	}
 }
 
