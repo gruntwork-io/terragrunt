@@ -15,6 +15,10 @@ import (
 func Run(ctx context.Context, opts *Options) error {
 	d := discovery.NewDiscovery(opts.WorkingDir)
 
+	if opts.Hidden {
+		d = d.WithHidden()
+	}
+
 	configs, err := d.Discover()
 	if err != nil {
 		return errors.New(err)

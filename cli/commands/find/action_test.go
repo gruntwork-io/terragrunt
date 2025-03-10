@@ -24,6 +24,7 @@ func TestRun(t *testing.T) {
 		setup         func(t *testing.T) string
 		expectedPaths []string
 		format        string
+		hidden        bool
 		validate      func(t *testing.T, output string, expectedPaths []string)
 	}{
 		{
@@ -148,6 +149,59 @@ func TestRun(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "hidden discovery",
+			setup: func(t *testing.T) string {
+				t.Helper()
+
+				tmpDir := t.TempDir()
+
+				// Create test directory structure
+				testDirs := []string{
+					"unit1",
+					"unit2",
+					"stack1",
+					".hidden/unit3",
+					"nested/unit4",
+				}
+
+				for _, dir := range testDirs {
+					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+					require.NoError(t, err)
+				}
+
+				// Create test files
+				testFiles := map[string]string{
+					"unit1/terragrunt.hcl":         "",
+					"unit2/terragrunt.hcl":         "",
+					"stack1/terragrunt.stack.hcl":  "",
+					".hidden/unit3/terragrunt.hcl": "",
+					"nested/unit4/terragrunt.hcl":  "",
+				}
+
+				for path, content := range testFiles {
+					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+					require.NoError(t, err)
+				}
+
+				return tmpDir
+			},
+			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"},
+			format:        "text",
+			hidden:        true,
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+
+				// Split output into lines and trim whitespace
+				lines := strings.Split(strings.TrimSpace(output), "\n")
+
+				// Verify we have the expected number of lines
+				assert.Len(t, lines, len(expectedPaths))
+
+				// Verify all expected paths are present
+				assert.ElementsMatch(t, expectedPaths, lines)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -164,6 +218,7 @@ func TestRun(t *testing.T) {
 			// Create options
 			opts := find.NewOptions(tgOpts)
 			opts.Format = tt.format
+			opts.Hidden = tt.hidden
 
 			// Create a pipe to capture output
 			r, w, err := os.Pipe()
