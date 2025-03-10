@@ -1,7 +1,6 @@
 package test_test
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -19,14 +18,11 @@ func TestFindBasic(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindBasic)
 
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+testFixtureFindBasic, stdout, stderr)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+testFixtureFindBasic)
 	require.NoError(t, err)
 
-	assert.Equal(t, "", stderr.String())
-	assert.Equal(t, "stack\nunit\n", stdout.String())
+	assert.Empty(t, stderr)
+	assert.Equal(t, "stack\nunit\n", stdout)
 }
 
 func TestFindBasicJSON(t *testing.T) {
@@ -34,14 +30,11 @@ func TestFindBasicJSON(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindBasic)
 
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+testFixtureFindBasic+" --json", stdout, stderr)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+testFixtureFindBasic+" --json")
 	require.NoError(t, err)
 
-	assert.Equal(t, "", stderr.String())
-	assert.JSONEq(t, `[{"type": "stack", "path": "stack"}, {"type": "unit", "path": "unit"}]`, stdout.String())
+	assert.Empty(t, stderr)
+	assert.JSONEq(t, `[{"type": "stack", "path": "stack"}, {"type": "unit", "path": "unit"}]`, stdout)
 }
 
 func TestFindHidden(t *testing.T) {
@@ -69,20 +62,17 @@ func TestFindHidden(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindHidden)
 
-			stdout := &bytes.Buffer{}
-			stderr := &bytes.Buffer{}
-
 			cmd := "terragrunt find --experiment cli-redesign --no-color --working-dir " + testFixtureFindHidden
 
 			if tt.hidden {
 				cmd += " --hidden"
 			}
 
-			err := helpers.RunTerragruntCommand(t, cmd, stdout, stderr)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 
-			assert.Equal(t, "", stderr.String())
-			assert.Equal(t, tt.expected, stdout.String())
+			assert.Empty(t, stderr)
+			assert.Equal(t, tt.expected, stdout)
 		})
 	}
 }
