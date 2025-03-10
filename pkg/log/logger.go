@@ -26,7 +26,7 @@ type Logger interface {
 	// SetFormatter sets the logger formatter.
 	SetFormatter(formatter Formatter)
 
-	// SetFormatter returns the logger formatter.
+	// Formatter returns the logger formatter.
 	Formatter() Formatter
 
 	// WithOptions clones and sets the given options for the new instance.
