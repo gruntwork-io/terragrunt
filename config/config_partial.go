@@ -454,10 +454,12 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 		case EngineBlock:
 			decoded := terragruntEngine{}
+
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
 			}
+
 			output.Engine = decoded.Engine
 
 		case TerragruntFlags:
