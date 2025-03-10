@@ -36,6 +36,11 @@ The commands relevant to managing an IaC catalog are:
   - [catalog](#catalog)
   - [scaffold](#scaffold)
 
+The commands relevant to discovering Terragrunt configurations are:
+
+- [Discovery commands](#discovery-commands)
+  - [find](#find)
+
 The commands used for managing Terragrunt configuration itself are:
 
 - [Configuration commands](#configuration-commands)
@@ -537,6 +542,77 @@ Generate Terragrunt files from existing OpenTofu/Terraform modules.
 
 More details in [scaffold section](https://terragrunt.gruntwork.io/docs/features/scaffold/).
 
+### Discovery commands
+
+#### find
+
+**[NOTE] The `find` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
+
+Find Terragrunt configurations in your codebase.
+
+The `find` command helps you discover Terragrunt configurations in your codebase. It recursively searches for `terragrunt.hcl` and `terragrunt.stack.hcl` files and displays them in formatted output.
+
+```bash
+terragrunt find [options]
+```
+
+When used without any flags, all units and stacks discovered in the current working directory are displayed in colorful text format.
+
+[![find](/assets/img/screenshots/find.png)](/assets/img/screenshots/find.png)
+
+Discovered configurations are color coded to help you identify them at a glance:
+
+- Units are displayed in blue
+- Stacks are displayed in green
+
+You can disable color output by using the `--no-color` flag.
+
+```bash
+terragrunt find --no-color
+```
+
+When stdout is redirected, color output is disabled automatically to prevent undesired interference with other tools.
+
+[![find-no-color](/assets/img/screenshots/find-no-color.png)](/assets/img/screenshots/find-no-color.png)
+
+You can change the working directory used by the command by using the `--working-dir` flag.
+
+```bash
+terragrunt find --working-dir /path/to/working/dir
+```
+
+In JSON format, `find` outputs a structured representation of the discovered configurations, including their types and path relative to the working directory.
+
+```bash
+$ terragrunt find --format=json | jq '.[:3]'
+[
+  {
+    "type": "stack",
+    "path": "basic"
+  },
+  {
+    "type": "unit",
+    "path": "basic/units/chick"
+  },
+  {
+    "type": "unit",
+    "path": "basic/units/chicken"
+  }
+]
+```
+
+Note that you can also use the `--json` flag to get the same output.
+
+```bash
+terragrunt find --json
+```
+
+By default, hidden directories (those starting with `.`) are excluded from the search. Use `--hidden` to include them.
+
+```bash
+terragrunt find --hidden
+```
+
 ### Configuration commands
 
 #### graph-dependencies
@@ -814,6 +890,8 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [Catalog commands](#catalog-commands)
     - [catalog](#catalog)
     - [scaffold](#scaffold)
+  - [Discovery commands](#discovery-commands)
+    - [find](#find)
   - [Configuration commands](#configuration-commands)
     - [graph-dependencies](#graph-dependencies)
     - [hclfmt](#hclfmt)

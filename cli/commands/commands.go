@@ -3,6 +3,7 @@ package commands
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
+	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -34,6 +35,8 @@ const (
 	MainCommandsCategoryName = "Main commands"
 	// CatalogCommandsCategoryName represents commands for managing Terragrunt catalogs.
 	CatalogCommandsCategoryName = "Catalog commands"
+	// DiscoveryCommandsCategoryName represents commands for discovering Terragrunt configurations.
+	DiscoveryCommandsCategoryName = "Discovery commands"
 	// ConfigurationCommandsCategoryName represents commands for managing Terragrunt configurations.
 	ConfigurationCommandsCategoryName = "Configuration commands"
 	// ShortcutsCommandsCategoryName represents OpenTofu-specific shortcut commands.
@@ -67,6 +70,15 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		},
 	)
 
+	discoveryCommands := cli.Commands{
+		find.NewCommand(opts), // find
+	}.SetCategory(
+		&cli.Category{
+			Name:  DiscoveryCommandsCategoryName,
+			Order: 30, //nolint: mnd
+		},
+	)
+
 	configurationCommands := cli.Commands{
 		graphdependencies.NewCommand(opts),  // graph-dependencies
 		outputmodulegroups.NewCommand(opts), // output-module-groups
@@ -82,19 +94,20 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
-			Order: 30, //nolint: mnd
+			Order: 40, //nolint: mnd
 		},
 	)
 
 	shortcutsCommands := NewShortcutsCommands(opts).SetCategory(
 		&cli.Category{
 			Name:  ShortcutsCommandsCategoryName,
-			Order: 40, //nolint: mnd
+			Order: 50, //nolint: mnd
 		},
 	)
 
 	allCommands := mainCommands.
 		Merge(catalogCommands...).
+		Merge(discoveryCommands...).
 		Merge(configurationCommands...).
 		Merge(shortcutsCommands...).
 		Merge(NewDeprecatedCommands(opts)...)
