@@ -40,6 +40,9 @@ const (
 
 	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
+
+	// SkipRemoteStateInit is the control that prevents the remote state from being initialized unless the `--backend-bootstrap` flag is specified.
+	SkipRemoteStateInit = "skip-remote-state-init"
 )
 
 //nolint:lll
@@ -57,6 +60,14 @@ func New() strict.Controls {
 		Description: "Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
 		Error:       errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
 		Warning:     "Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+		Category:    stageCategory,
+	}
+
+	skipRemoteStateInitControl := &Control{
+		Name:        SkipRemoteStateInit,
+		Description: "Disable initialize remote state if `--backend-bootstrap` flag is not specified.",
+		Error:       errors.Errorf("Initializing remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
+		Warning:     "Initializing remote state by default is deprecated and will be removed in a future version of Terragrunt. Use `--backend-bootstrap` flag instead.",
 		Category:    stageCategory,
 	}
 
@@ -85,6 +96,7 @@ func New() strict.Controls {
 			},
 		},
 		skipDependenciesInputsControl,
+		skipRemoteStateInitControl,
 		&Control{
 			Name:        LegacyAll,
 			Description: "Prevents old *-all commands such as plan-all from being used.",

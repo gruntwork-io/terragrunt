@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/codegen"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -29,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -721,17 +723,30 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
 // before running the command.
 func remoteStateNeedsInit(ctx context.Context, remoteState *remotestate.RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	if !terragruntOptions.BackendBootstrap {
+	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
+	// commands such as "get" or "version".
+	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, terragruntOptions.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
-	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
-	// commands such as "get" or "version".
-	if remoteState != nil && util.ListContainsElement(TerraformCommandsThatUseState, terragruntOptions.TerraformCliArgs.First()) {
-		return remoteState.NeedsInit(ctx, terragruntOptions)
+	if ok, err := remoteState.NeedsInit(ctx, terragruntOptions); err != nil || !ok {
+		return false, err
 	}
 
-	return false, nil
+	if terragruntOptions.BackendBootstrap {
+		return true, nil
+	}
+
+	ctx = log.ContextWithLogger(ctx, terragruntOptions.Logger)
+
+	allControls := terragruntOptions.StrictControls
+	skipRemoteStateInit := allControls.Find(controls.SkipRemoteStateInit)
+
+	if err := skipRemoteStateInit.Evaluate(ctx); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // runAll runs the provided terraform command against all the modules that are found in the directory tree.
