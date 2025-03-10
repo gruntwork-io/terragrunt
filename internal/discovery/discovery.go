@@ -31,11 +31,11 @@ type DiscoveredConfigs []*DiscoveredConfig
 
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
-	// WorkingDir is the directory to search for Terragrunt configurations.
-	WorkingDir string
+	// workingDir is the directory to search for Terragrunt configurations.
+	workingDir string
 
-	// Hidden determines whether to detect configurations in hidden directories.
-	Hidden bool
+	// hidden determines whether to detect configurations in hidden directories.
+	hidden bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -44,8 +44,8 @@ type DiscoveryOption func(*Discovery)
 // NewDiscovery creates a new Discovery.
 func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	discovery := &Discovery{
-		WorkingDir: dir,
-		Hidden:     false,
+		workingDir: dir,
+		hidden:     false,
 	}
 
 	for _, opt := range opts {
@@ -55,16 +55,9 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	return discovery
 }
 
-// NewDiscoverySettings creates a new Discovery with default settings.
-func NewDiscoverySettings() *Discovery {
-	return &Discovery{
-		Hidden: false,
-	}
-}
-
 // WithHidden sets the Hidden flag to true.
 func (d *Discovery) WithHidden() *Discovery {
-	d.Hidden = true
+	d.hidden = true
 
 	return d
 }
@@ -87,12 +80,12 @@ func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 			return nil
 		}
 
-		path, err = filepath.Rel(d.WorkingDir, path)
+		path, err = filepath.Rel(d.workingDir, path)
 		if err != nil {
 			return errors.New(err)
 		}
 
-		if !d.Hidden && isInHiddenDirectory(path) {
+		if !d.hidden && isInHiddenDirectory(path) {
 			return nil
 		}
 
@@ -112,7 +105,7 @@ func (d *Discovery) Discover() (DiscoveredConfigs, error) {
 		return nil
 	}
 
-	if err := filepath.WalkDir(d.WorkingDir, walkFn); err != nil {
+	if err := filepath.WalkDir(d.workingDir, walkFn); err != nil {
 		return nil, errors.New(err)
 	}
 
