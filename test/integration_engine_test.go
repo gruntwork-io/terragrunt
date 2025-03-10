@@ -3,7 +3,11 @@
 package test_test
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/hashicorp/go-getter/v2"
+
 	"os"
 	"path/filepath"
 	"runtime"
@@ -29,7 +33,11 @@ const (
 	envVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
 
-var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_rpc_" + testEngineVersion() + "_" + runtime.GOOS + "_" + runtime.GOARCH
+var (
+	engineAssetName    = "terragrunt-iac-engine-opentofu_rpc_" + testEngineVersion() + "_" + runtime.GOOS + "_" + runtime.GOARCH
+	engineAssetArchive = engineAssetName + ".zip"
+	downloadUrl        = fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/%s/%s", testEngineVersion(), engineAssetArchive)
+)
 
 func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
@@ -37,7 +45,7 @@ func TestEngineLocalPlan(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level trace", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, LocalEngineBinaryPath)
+	assert.Contains(t, stderr, engineAssetName)
 	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
@@ -49,7 +57,7 @@ func TestEngineLocalApply(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, LocalEngineBinaryPath)
+	assert.Contains(t, stderr, engineAssetName)
 	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
@@ -249,12 +257,15 @@ func setupLocalEngine(t *testing.T) string {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalEngine)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalEngine)
 
-	// get pwd
-	pwd, err := os.Getwd()
+	engineDir := util.JoinPath(rootPath, "engine")
+	if err := os.MkdirAll(engineDir, 0755); err != nil {
+		require.NoError(t, err)
+	}
+	_, err := getter.GetAny(context.TODO(), engineDir, downloadUrl)
 	require.NoError(t, err)
 
 	helpers.CopyAndFillMapPlaceholders(t, util.JoinPath(testFixtureLocalEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
-		"__engine_source__": pwd + "/../" + LocalEngineBinaryPath,
+		"__engine_source__": filepath.Join(engineDir, engineAssetName),
 	})
 	return rootPath
 }
@@ -263,7 +274,7 @@ func setupLocalEngine(t *testing.T) string {
 func testEngineVersion() string {
 	value, found := os.LookupEnv("TOFU_ENGINE_VERSION")
 	if !found {
-		return "v0.0.1"
+		return "v0.0.16"
 	}
 	return value
 }
