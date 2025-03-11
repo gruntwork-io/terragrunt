@@ -626,6 +626,38 @@ func TestStackApplyDestroyWithDependency(t *testing.T) {
 	assert.True(t, util.FileNotExists(dataPath))
 }
 
+func TestStackOutputWithDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	assert.Len(t, result, 4)
+
+	assert.Contains(t, result, "app-with-dependency")
+	assert.Contains(t, result, "app1")
+	assert.Contains(t, result, "app2")
+	assert.Contains(t, result, "app3")
+
+	// check that result map under app-with-dependency contains result key with value "app1"
+	if appWithDependency, ok := result["app-with-dependency"].(map[string]interface{}); ok {
+		assert.Contains(t, appWithDependency, "result")
+		assert.Equal(t, appWithDependency["result"], "app1")
+	} else {
+		t.Errorf("Expected result[\"app-with-dependency\"] to be a map, but it was not.")
+	}
+}
+
 // check if the stack directory is created and contains files.
 func validateStackDir(t *testing.T, path string) {
 	t.Helper()
