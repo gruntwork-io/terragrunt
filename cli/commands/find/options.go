@@ -5,6 +5,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+const (
+	// FormatText outputs the discovered configurations in text format.
+	FormatText = "text"
+
+	// FormatJSON outputs the discovered configurations in JSON format.
+	FormatJSON = "json"
+
+	// SortAlpha sorts the discovered configurations in alphabetical order.
+	SortAlpha = "alpha"
+
+	// SortDAG sorts the discovered configurations in a topological sort order.
+	SortDAG = "dag"
+)
+
 type Options struct {
 	*options.TerragruntOptions
 
@@ -25,8 +39,8 @@ type Options struct {
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
-		Format:            "text",
-		Sort:              "alpha",
+		Format:            FormatText,
+		Sort:              SortAlpha,
 		Hidden:            false,
 	}
 }
@@ -51,9 +65,9 @@ func (o *Options) Validate() error {
 
 func (o *Options) validateFormat() error {
 	switch o.Format {
-	case "text":
+	case FormatText:
 		return nil
-	case "json":
+	case FormatJSON:
 		return nil
 	default:
 		return errors.New("invalid format: " + o.Format)
@@ -62,7 +76,9 @@ func (o *Options) validateFormat() error {
 
 func (o *Options) validateSort() error {
 	switch o.Sort {
-	case "alpha":
+	case SortAlpha:
+		return nil
+	case SortDAG:
 		return nil
 	default:
 		return errors.New("invalid sort: " + o.Sort)

@@ -19,15 +19,15 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithHidden()
 	}
 
-	configs, err := d.Discover()
+	configs, err := d.Discover(ctx, opts.TerragruntOptions)
 	if err != nil {
 		return errors.New(err)
 	}
 
 	switch opts.Format {
-	case "text":
+	case FormatText:
 		return outputText(opts, configs)
-	case "json":
+	case FormatJSON:
 		return outputJSON(opts, configs)
 	default:
 		// This should never happen, because of validation in the command.

@@ -29,7 +29,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
 			Usage:       "Output format for the find results. Valid values: text, json",
-			DefaultText: "text",
+			DefaultText: FormatText,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
@@ -42,7 +42,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(SortFlagName),
 			Destination: &opts.Sort,
 			Usage:       "Sort order for the find results. Valid values: alpha", // TODO: add dag
-			DefaultText: "alpha",
+			DefaultText: SortAlpha,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        HiddenFlagName,
@@ -68,7 +68,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if cmdOpts.JSON {
-				cmdOpts.Format = "json"
+				cmdOpts.Format = FormatJSON
 			}
 
 			if err := cmdOpts.Validate(); err != nil {
