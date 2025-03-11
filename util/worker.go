@@ -42,6 +42,7 @@ func (wp *WorkerPool) Start() {
 		wp.mu.Unlock()
 		return
 	}
+
 	wp.isRunning = true
 
 	// Recreate the channels if they've been closed
@@ -70,13 +71,17 @@ func (wp *WorkerPool) Submit(task Task) {
 	if !wp.isRunning {
 		wp.Start()
 	}
+
 	wp.wg.Add(1)
 
 	// Start a new goroutine for each task, but limit concurrency with semaphore
 	go func() {
 		wp.semaphore <- struct{}{}
+
 		err := task()
+
 		<-wp.semaphore
+
 		wp.resultChan <- err
 		wp.wg.Done()
 	}()
@@ -95,6 +100,7 @@ func (wp *WorkerPool) Wait() error {
 		if err == nil {
 			continue
 		}
+
 		errors = errors.Append(errors, err)
 	}
 
@@ -137,5 +143,6 @@ func (wp *WorkerPool) SetMaxWorkers(maxWorkers int) {
 func (wp *WorkerPool) GetMaxWorkers() int {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
+
 	return wp.maxWorkers
 }

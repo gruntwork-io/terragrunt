@@ -686,7 +686,7 @@ func TestStackOutputWithDependency(t *testing.T) {
 	// check that result map under app-with-dependency contains result key with value "app1"
 	if appWithDependency, ok := result["app-with-dependency"].(map[string]interface{}); ok {
 		assert.Contains(t, appWithDependency, "result")
-		assert.Equal(t, appWithDependency["result"], "app1")
+		assert.Equal(t, "app1", appWithDependency["result"])
 	} else {
 		t.Errorf("Expected result[\"app-with-dependency\"] to be a map, but it was not.")
 	}

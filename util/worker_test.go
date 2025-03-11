@@ -7,7 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAllTasksCompleteWithoutErrors(t *testing.T) {
@@ -28,7 +28,7 @@ func TestAllTasksCompleteWithoutErrors(t *testing.T) {
 
 	// Wait for all tasks to complete
 	errs := wp.Wait()
-	assert.NoError(t, errs)
+	require.NoError(t, errs)
 
 	if atomic.LoadInt32(&counter) != 10 {
 		t.Errorf("expected counter to be 10, got %d", counter)
@@ -51,7 +51,7 @@ func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
 
 	// Wait for all tasks to complete
 	errs := wp.Wait()
-	assert.NoError(t, errs)
+	require.NoError(t, errs)
 
 	if atomic.LoadInt32(&counter) != 5 {
 		t.Errorf("expected counter to be 5, got %d", counter)
@@ -79,7 +79,7 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 	}
 
 	errs := wp.Wait()
-	assert.Error(t, errs)
+	require.Error(t, errs)
 
 	if atomic.LoadInt32(&successCount) != 5 {
 		t.Errorf("expected successCount to be 5, got %d", successCount)
@@ -119,7 +119,7 @@ func TestStopAndRestart(t *testing.T) {
 		})
 	}
 	errs := wp.Wait()
-	assert.Empty(t, errs, "Expected no errors, got: %v", errs)
+	require.NoError(t, errs)
 
 	finalCountAfterRestart := atomic.LoadInt32(&counter)
 	if finalCountAfterRestart != 8 {
@@ -131,7 +131,9 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 	t.Parallel()
 
 	wp := util.NewWorkerPool(4)
-	defer wp.Stop()
+	t.Cleanup(func() {
+		wp.Stop()
+	})
 
 	var totalCount int32
 
@@ -174,7 +176,7 @@ func TestValidateParallelSubmits(t *testing.T) {
 	}
 
 	errs := wp.Wait()
-	assert.Empty(t, errs, "Expected no errors, got: %v", errs)
+	require.NoError(t, errs)
 
 	if atomic.LoadInt32(&totalCount) != 5 {
 		t.Errorf("expected totalCount to be 5, got %d", totalCount)

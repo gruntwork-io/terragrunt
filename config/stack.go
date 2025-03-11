@@ -208,9 +208,9 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 			if err := processItem(ctx, opts, &item); err != nil {
 				return err
 			}
+
 			return nil
 		})
-
 	}
 
 	return nil
@@ -236,9 +236,9 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 			if err := processItem(ctx, opts, &item); err != nil {
 				return err
 			}
+
 			return nil
 		})
-
 	}
 
 	return nil
