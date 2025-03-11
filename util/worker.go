@@ -156,27 +156,6 @@ func (wp *WorkerPool) GracefulStop() error {
 	return err
 }
 
-// SetMaxWorkers changes the maximum number of concurrent workers
-func (wp *WorkerPool) SetMaxWorkers(maxWorkers int) {
-	if maxWorkers <= 0 {
-		maxWorkers = 1 // Ensure at least one worker
-	}
-
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
-
-	wp.maxWorkers = maxWorkers
-
-	// If the pool is running, recreate the semaphore with the new size
-	if wp.isRunning {
-		// Create a new semaphore with the new size
-		newSemaphore := make(chan struct{}, maxWorkers)
-
-		// Replace the old semaphore (this won't affect already acquired slots)
-		wp.semaphore = newSemaphore
-	}
-}
-
 // GetMaxWorkers returns the current maximum number of concurrent workers
 func (wp *WorkerPool) GetMaxWorkers() int {
 	wp.mu.Lock()
