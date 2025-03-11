@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -9,9 +10,10 @@ import (
 )
 
 const (
-	testFixtureFindBasic  = "fixtures/find/basic"
-	testFixtureFindHidden = "fixtures/find/hidden"
-	testFixtureFindDAG    = "fixtures/find/dag"
+	testFixtureFindBasic             = "fixtures/find/basic"
+	testFixtureFindHidden            = "fixtures/find/hidden"
+	testFixtureFindDAG               = "fixtures/find/dag"
+	testFixtureFindInternalVExternal = "fixtures/find/internal-v-external"
 )
 
 func TestFindBasic(t *testing.T) {
@@ -103,4 +105,24 @@ func TestFindDAG(t *testing.T) {
 			assert.Equal(t, tt.expected, stdout)
 		})
 	}
+}
+
+func TestFindExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
+
+	internalDir := filepath.Join(testFixtureFindInternalVExternal, "internal")
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+internalDir+" --dependencies --external")
+	require.NoError(t, err)
+
+	assert.Empty(t, stderr)
+	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", stdout)
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+internalDir+" --dependencies")
+	require.NoError(t, err)
+
+	assert.Empty(t, stderr)
+	assert.Equal(t, "a-dependent\nb-dependency\n", stdout)
 }
