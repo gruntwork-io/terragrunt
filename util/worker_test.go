@@ -3,7 +3,6 @@ package util_test
 import (
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -96,14 +95,14 @@ func TestStopAndRestart(t *testing.T) {
 	// Submit some tasks
 	for i := 0; i < 5; i++ {
 		wp.Submit(func() error {
-			time.Sleep(10 * time.Millisecond)
 			atomic.AddInt32(&counter, 1)
 			return nil
 		})
 	}
 
 	// Wait for all tasks to complete and stop the pool
-	wp.Wait()
+	err := wp.Wait()
+	require.NoError(t, err)
 	wp.Stop()
 
 	finalCount := atomic.LoadInt32(&counter)

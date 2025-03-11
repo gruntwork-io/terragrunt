@@ -106,17 +106,17 @@ func (wp *WorkerPool) Wait() error {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
-	var errors *errors.MultiError
+	errs := &errors.MultiError{}
 
 	for _, err := range wp.errorsSlice {
 		if err == nil {
 			continue
 		}
 
-		errors = errors.Append(errors, err)
+		errs = errs.Append(errs, err)
 	}
 
-	return errors.ErrorOrNil()
+	return errs.ErrorOrNil()
 }
 
 // Stop shuts down the worker pool after current tasks are completed
