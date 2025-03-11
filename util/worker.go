@@ -124,7 +124,7 @@ func (wp *WorkerPool) Wait() error {
 			continue
 		}
 
-		errs = errs.Append(errs, err)
+		errs = errs.Append(err)
 	}
 
 	return errs.ErrorOrNil()
