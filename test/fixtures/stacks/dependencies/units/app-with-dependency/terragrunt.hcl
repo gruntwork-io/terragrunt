@@ -4,5 +4,5 @@ dependency "app1" {
 }
 
 inputs = {
-  input = dependency.app.outputs.result
+  input = dependency.app1.outputs.result
 }

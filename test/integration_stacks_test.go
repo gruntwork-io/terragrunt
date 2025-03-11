@@ -28,6 +28,7 @@ const (
 	testFixtureStacksEmptyPath     = "fixtures/stacks/errors/stack-empty-path"
 	testFixtureNestedStacks        = "fixtures/stacks/nested"
 	testFixtureStackValues         = "fixtures/stacks/stack-values"
+	testFixtureStackDependencies   = "fixtures/stacks/dependencies"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -575,6 +576,54 @@ func TestStackValuesOutput(t *testing.T) {
 	assert.Contains(t, result, "dev-app-2")
 	assert.Contains(t, result, "prod-app-1")
 	assert.Contains(t, result, "prod-app-2")
+}
+
+func TestStacksGenerateParallelism(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --parallelism 10 --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
+
+func TestStackApplyWithDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+
+	// check that test
+	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
+	assert.FileExists(t, dataPath)
+}
+
+func TestStackApplyDestroyWithDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+
+	// check that the data.txt file was deleted
+	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
+	assert.True(t, util.FileNotExists(dataPath))
 }
 
 // check if the stack directory is created and contains files.
