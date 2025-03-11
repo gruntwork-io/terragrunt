@@ -789,8 +789,12 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return getTerragruntOutputJSONFromInitFolder(ctx, workingDir, remoteStateTGConfig.GetIAMRoleOptions())
 	}
 
-	return getTerragruntOutputJSONFromRemoteState(ctx, targetConfig, remoteStateTGConfig.RemoteState,
-		remoteStateTGConfig.GetIAMRoleOptions(), engineOpts)
+	return getTerragruntOutputJSONFromRemoteState(
+		ctx,
+		targetConfig,
+		remoteStateTGConfig.RemoteState,
+		remoteStateTGConfig.GetIAMRoleOptions(),
+	)
 }
 
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
@@ -881,7 +885,6 @@ func getTerragruntOutputJSONFromRemoteState(
 	targetConfigPath string,
 	remoteState *remote.RemoteState,
 	iamRoleOpts options.IAMRoleOptions,
-	engineOpts *options.EngineOptions,
 ) ([]byte, error) {
 	ctx.TerragruntOptions.Logger.Debugf("Detected remote state block with generate config. Resolving dependency by pulling remote state.")
 	// Create working directory where we will run terraform in. We will create the temporary directory in the download
@@ -905,7 +908,7 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	ctx.TerragruntOptions.Logger.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
-	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, tempWorkDir, targetConfigPath, iamRoleOpts, engineOpts)
+	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, tempWorkDir, targetConfigPath, iamRoleOpts)
 	if err != nil {
 		return nil, err
 	}
