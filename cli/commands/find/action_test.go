@@ -527,6 +527,7 @@ dependency "B" {
 
 			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = tmpDir
+			tgOpts.Logger.Formatter().SetDisabledColors(true)
 
 			// Create options
 			opts := find.NewOptions(tgOpts)
