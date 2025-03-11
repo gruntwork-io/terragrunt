@@ -964,7 +964,6 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [feature](#feature)
   - [experiment](#experiment)
   - [experiment-mode](#experiment-mode)
-  - [feature](#feature-1)
   - [strict-control](#strict-control)
   - [strict-mode](#strict-mode)
   - [in-download-dir](#in-download-dir)
@@ -2000,57 +1999,6 @@ For more information, see the [Experiments](/docs/reference/experiments) documen
 Enable all experimental features in Terragrunt before they're stable.
 
 For more information, see the [Experiments](/docs/reference/experiments) documentation.
-
-### feature
-
-**CLI Arg**: `--feature`<br/>
-**Environment Variable**: `TERRAGRUNT_FEATURE`<br/>
-
-Feature flags in Terragrunt allow users to dynamically control configuration behavior through CLI arguments or environment variables.
-
-These flags enable a more flexible and controlled deployment process, particularly in monorepo contexts with interdependent infrastructure units.
-
-Example HCL flags definition:
-
-```hcl
-feature "string_feature_flag" {
-  default = "test"
-}
-
-feature "int_feature_flag" {
-  default = 777
-}
-
-feature "bool_feature_flag" {
-  default = false
-}
-
-terraform {
-  before_hook "conditional_command" {
-    commands = ["apply", "plan", "destroy"]
-    execute  = feature.bool_feature_flag.value ? ["sh", "-c", "echo running conditional bool_feature_flag"] : [ "sh", "-c", "exit", "0" ]
-  }
-}
-
-inputs = {
-  string_feature_flag = feature.string_feature_flag.value
-  int_feature_flag = feature.int_feature_flag.value
-}
-
-```
-
-Setting a feature flag through the CLI:
-
-```bash
-terragrunt --feature int_feature_flag=123 --feature bool_feature_flag=true --feature string_feature_flag=app1 apply
-```
-
-Setting feature flags through environment variables:
-
-```bash
-export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true,string_feature_flag=app1
-terragrunt apply
-```
 
 ### strict-control
 
