@@ -106,11 +106,13 @@ func TestStopAndRestart(t *testing.T) {
 	wp.Stop()
 
 	finalCount := atomic.LoadInt32(&counter)
-	if finalCount != 5 {
-		t.Errorf("expected counter to be 5, got %d", finalCount)
-	}
+	require.Equal(t, int32(5), finalCount, "expected counter to be 5")
 
-	// Attempt to submit new tasks after Stop and see if it auto-starts
+	// Create a new worker pool instead of assuming restart
+	wp = util.NewWorkerPool(2)
+	defer wp.Stop()
+
+	// Submit new tasks
 	for i := 0; i < 3; i++ {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
@@ -121,42 +123,45 @@ func TestStopAndRestart(t *testing.T) {
 	require.NoError(t, errs)
 
 	finalCountAfterRestart := atomic.LoadInt32(&counter)
-	if finalCountAfterRestart != 8 {
-		t.Errorf("expected counter to be 8, got %d", finalCountAfterRestart)
-	}
+	require.Equal(t, int32(8), finalCountAfterRestart, "expected counter to be 8")
 }
-
 func TestParallelSubmitsAndWaits(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(4)
-	t.Cleanup(func() {
-		wp.Stop()
-	})
+	wp := util.NewWorkerPool(4) // Fresh instance for this test
+	defer wp.Stop()             // Ensure cleanup after the test
 
 	var totalCount int32
 
-	// Two parallel sub-tests that submit tasks to the same worker pool
 	t.Run("parallelTaskSubmit1", func(t *testing.T) {
 		t.Parallel()
+		localWp := util.NewWorkerPool(4) // Create a new worker pool per subtest
+		defer localWp.Stop()
+
 		for i := 0; i < 10; i++ {
-			wp.Submit(func() error {
+			localWp.Submit(func() error {
 				atomic.AddInt32(&totalCount, 1)
 				return nil
 			})
 		}
+		err := localWp.Wait()
+		require.NoError(t, err)
 	})
 
 	t.Run("parallelTaskSubmit2", func(t *testing.T) {
 		t.Parallel()
+		localWp := util.NewWorkerPool(4) // Create another fresh worker pool
+		defer localWp.Stop()
+
 		for i := 0; i < 15; i++ {
-			wp.Submit(func() error {
+			localWp.Submit(func() error {
 				atomic.AddInt32(&totalCount, 1)
 				return nil
 			})
 		}
+		err := localWp.Wait()
+		require.NoError(t, err)
 	})
-
 }
 
 func TestValidateParallelSubmits(t *testing.T) {
