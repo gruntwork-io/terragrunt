@@ -581,6 +581,8 @@ You can change the working directory used by the command by using the `--working
 terragrunt find --working-dir /path/to/working/dir
 ```
 
+##### Find Output Format
+
 In JSON format, `find` outputs a structured representation of the discovered configurations, including their types and path relative to the working directory.
 
 ```bash
@@ -606,6 +608,70 @@ Note that you can also use the `--json` flag to get the same output.
 ```bash
 terragrunt find --json
 ```
+
+##### Find Sorting
+
+The `find` command supports two sorting modes:
+
+- `--sort=alpha` (default): Sort configurations alphabetically by path
+- `--sort=dag`: Sort configurations based on their dependencies, ensuring dependencies are listed before their dependents
+
+When using DAG sorting, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order.
+
+```bash
+$ terragrunt find --sort=dag
+moduleA           # no dependencies
+moduleB           # no dependencies
+moduleC           # depends on moduleA
+moduleD           # depends on moduleA and moduleB
+```
+
+##### Find Dependencies
+
+You can include dependency information in the output using the `--dependencies` flag. When enabled, the JSON output will include the dependency relationships between configurations:
+
+```bash
+$ terragrunt find --dependencies --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "moduleA",
+    "dependencies": []
+  },
+  {
+    "type": "unit",
+    "path": "moduleB",
+    "dependencies": ["../moduleA"]
+  }
+]
+```
+
+##### Find External Dependencies
+
+By default, external dependencies (those outside the working directory) are excluded. Use the `--external` flag to include them in the output:
+
+```bash
+$ terragrunt find --dependencies --external --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "internal/moduleA",
+    "dependencies": []
+  },
+  {
+    "type": "unit",
+    "path": "internal/moduleB",
+    "dependencies": ["../moduleA", "../../external/moduleC"]
+  },
+  {
+    "type": "unit",
+    "path": "external/moduleC",
+    "dependencies": []
+  }
+]
+```
+
+##### Find Hidden Configurations
 
 By default, hidden directories (those starting with `.`) are excluded from the search. Use `--hidden` to include them.
 
@@ -892,6 +958,11 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [scaffold](#scaffold)
   - [Discovery commands](#discovery-commands)
     - [find](#find)
+      - [Find Output Format](#find-output-format)
+      - [Find Sorting](#find-sorting)
+      - [Find Dependencies](#find-dependencies)
+      - [Find External Dependencies](#find-external-dependencies)
+      - [Find Hidden Configurations](#find-hidden-configurations)
   - [Configuration commands](#configuration-commands)
     - [graph-dependencies](#graph-dependencies)
     - [hclfmt](#hclfmt)
