@@ -128,9 +128,8 @@ func TestStopAndRestart(t *testing.T) {
 func TestParallelSubmitsAndWaits(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(4) // Fresh instance for this test
-	defer wp.Stop()             // Ensure cleanup after the test
-
+	wp := util.NewWorkerPool(4)
+	t.Cleanup(func() { wp.Stop() })
 	var totalCount int32
 
 	t.Run("parallelTaskSubmit1", func(t *testing.T) {

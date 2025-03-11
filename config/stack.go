@@ -193,6 +193,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
+
 		pool.Submit(func() error {
 			item := itemToProcess{
 				sourceDir: sourceDir,
@@ -221,6 +222,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
+
 		pool.Submit(func() error {
 			item := itemToProcess{
 				sourceDir: sourceDir,

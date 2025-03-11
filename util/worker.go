@@ -2,6 +2,7 @@ package util
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
@@ -19,6 +20,7 @@ type WorkerPool struct {
 	errorsSlice []error
 	mu          sync.Mutex // Mutex to protect errorsSlice
 	isRunning   bool
+	isStopping  atomic.Bool // Atomic flag to indicate the pool is stopping
 }
 
 // NewWorkerPool creates a new worker pool with the specified maximum number of concurrent workers
@@ -46,6 +48,7 @@ func (wp *WorkerPool) Start() {
 	}
 
 	wp.isRunning = true
+	wp.isStopping.Store(false)
 
 	// Recreate the channels if they've been closed
 	wp.resultChan = make(chan error)
@@ -84,18 +87,26 @@ func (wp *WorkerPool) Submit(task Task) {
 		wp.Start()
 	}
 
+	// Don't submit new tasks if the pool is stopping
+	if wp.isStopping.Load() {
+		return
+	}
+
 	wp.wg.Add(1)
 
 	// Start a new goroutine for each task, but limit concurrency with semaphore
 	go func() {
+		defer wp.wg.Done()
+
 		wp.semaphore <- struct{}{}
+		defer func() { <-wp.semaphore }()
 
 		err := task()
 
-		<-wp.semaphore
-
-		wp.resultChan <- err
-		wp.wg.Done()
+		// Only send result if the pool is not stopping
+		if !wp.isStopping.Load() {
+			wp.resultChan <- err
+		}
 	}()
 }
 
@@ -125,10 +136,24 @@ func (wp *WorkerPool) Stop() {
 	defer wp.mu.Unlock()
 
 	if wp.isRunning {
+		// Mark as stopping to prevent writes to resultChan
+		wp.isStopping.Store(true)
+
 		close(wp.doneChan)
 		close(wp.resultChan)
 		wp.isRunning = false
 	}
+}
+
+// GracefulStop waits for all tasks to complete before stopping the pool
+func (wp *WorkerPool) GracefulStop() error {
+	// Wait for all tasks to complete
+	err := wp.Wait()
+
+	// Then stop the pool
+	wp.Stop()
+
+	return err
 }
 
 // SetMaxWorkers changes the maximum number of concurrent workers
