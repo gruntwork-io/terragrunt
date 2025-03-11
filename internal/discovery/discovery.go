@@ -205,8 +205,10 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 
 		err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
 		if err != nil {
-			return cfgs, errors.New(err)
+			return dependencyDiscovery.cfgs, errors.New(err)
 		}
+
+		cfgs = dependencyDiscovery.cfgs
 
 		if err := cfgs.CycleCheck(); err != nil {
 			return cfgs, errors.New(err)
@@ -333,9 +335,11 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 				External: true,
 			}
 
-			d.cfgs = append(d.cfgs, ext)
+			dCfg.Dependencies = append(dCfg.Dependencies, ext)
 
 			if d.discoverExternal {
+				d.cfgs = append(d.cfgs, ext)
+
 				err := d.DiscoverDependencies(ctx, opts, ext)
 				if err != nil {
 					errs = append(errs, errors.New(err))
