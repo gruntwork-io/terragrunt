@@ -1,6 +1,7 @@
 package discovery_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,9 +44,7 @@ func TestDiscovery(t *testing.T) {
 
 	for path, content := range testFiles {
 		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
 	tests := []struct {
@@ -73,7 +72,7 @@ func TestDiscovery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			configs, err := tt.discovery.Discover()
+			configs, err := tt.discovery.Discover(context.Background(), nil)
 			if !tt.errorExpected {
 				require.NoError(t, err)
 			}
