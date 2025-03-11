@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -139,6 +138,22 @@ func (c *DiscoveredConfig) String() string {
 	return c.Path
 }
 
+// ContainsDependencyInAncestry returns true if the DiscoveredConfig or any of
+// its dependencies contains the given path as a dependency.
+func (c *DiscoveredConfig) ContainsDependencyInAncestry(path string) bool {
+	for _, dep := range c.Dependencies {
+		if dep.Path == path {
+			return true
+		}
+
+		if dep.ContainsDependencyInAncestry(path) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // isInHiddenDirectory returns true if the path is in a hidden directory.
 func (d *Discovery) isInHiddenDirectory(path string) bool {
 	for _, hiddenDir := range d.hiddenDirMemo {
@@ -222,7 +237,6 @@ type DependencyDiscovery struct {
 	cfgs             DiscoveredConfigs
 	depthRemaining   int
 	discoverExternal bool
-	mu               sync.RWMutex
 }
 
 func NewDependencyDiscovery(cfgs DiscoveredConfigs, depthRemaining int, discoverExternal bool) *DependencyDiscovery {
@@ -230,7 +244,6 @@ func NewDependencyDiscovery(cfgs DiscoveredConfigs, depthRemaining int, discover
 		cfgs:             cfgs,
 		depthRemaining:   depthRemaining,
 		discoverExternal: discoverExternal,
-		mu:               sync.RWMutex{},
 	}
 }
 
