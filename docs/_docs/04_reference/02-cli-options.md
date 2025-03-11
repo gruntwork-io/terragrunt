@@ -341,6 +341,12 @@ Will create the following directory structure:
     └── terragrunt.hcl
 ```
 
+**Note**: Stack generation is done in parallel. You can control the number of parallel tasks using the `--parallelism` CLI flag:
+
+```bash
+terragrunt stack generate --parallelism 4
+```
+
 #### stack run
 
 The `stack run *` command allows users to execute IaC commands across all units defined in a `terragrunt.stack.hcl` file.
