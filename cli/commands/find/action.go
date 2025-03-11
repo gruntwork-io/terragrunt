@@ -33,10 +33,6 @@ func Run(ctx context.Context, opts *Options) error {
 	case SortAlpha:
 		cfgs = cfgs.Sort()
 	case SortDAG:
-		// Sort alphabetically first,
-		// just so that the output is deterministic.
-		cfgs = cfgs.Sort()
-
 		q := queue.NewQueue(cfgs)
 		cfgs = q.Entries()
 	}
