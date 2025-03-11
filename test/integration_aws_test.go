@@ -20,7 +20,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
@@ -1048,7 +1047,7 @@ func TestAwsAssumeRole(t *testing.T) {
 	backendFile := filepath.Join(testPath, "backend.tf")
 	assert.FileExists(t, backendFile)
 
-	content, err := files.ReadFileAsString(backendFile)
+	content, err := util.ReadFileAsString(backendFile)
 	require.NoError(t, err)
 
 	opts, err := options.NewTerragruntOptionsForTest(testPath)

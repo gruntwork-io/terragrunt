@@ -24,7 +24,6 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.6.0
 	github.com/gruntwork-io/boilerplate v0.6.0
-	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/terragrunt-engine-go v0.0.8
 	github.com/gruntwork-io/terratest v0.48.2
 	github.com/hashicorp/go-cleanhttp v0.5.2
@@ -83,7 +82,10 @@ require (
 	gopkg.in/ini.v1 v1.67.0
 )
 
-require github.com/aws/aws-sdk-go-v2/service/s3 v1.74.0
+require (
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.74.0
+	github.com/gruntwork-io/go-commons v0.17.2
+)
 
 require (
 	atomicgo.dev/cursor v0.2.0 // indirect
