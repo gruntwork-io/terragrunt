@@ -783,6 +783,8 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return nil, err
 	}
 
+	ctx.TerragruntOptions.Engine = engineOpts
+
 	if isInit {
 		return getTerragruntOutputJSONFromInitFolder(ctx, workingDir, remoteStateTGConfig.GetIAMRoleOptions())
 	}
