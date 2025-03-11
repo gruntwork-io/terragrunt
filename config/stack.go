@@ -231,7 +231,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 				values:    stackCopy.Values,
 			}
 
-			opts.Logger.Infof("Processing stack %s", stackCopy)
+			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
 
 			if err := processItem(ctx, opts, &item); err != nil {
 				return err
