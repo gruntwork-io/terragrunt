@@ -9,8 +9,10 @@ import (
 // Task represents a unit of work that can be executed
 type Task func() error
 
-// WorkerPool manages concurrent task execution
+// WorkerPool manages concurrent task execution with a configurable number of workers
 type WorkerPool struct {
+	maxWorkers  int
+	semaphore   chan struct{} // Semaphore to limit concurrent execution
 	resultChan  chan error
 	wg          sync.WaitGroup
 	errorsSlice []error
@@ -18,9 +20,15 @@ type WorkerPool struct {
 	isRunning   bool
 }
 
-// NewWorkerPool creates a new worker pool
-func NewWorkerPool() *WorkerPool {
+// NewWorkerPool creates a new worker pool with the specified maximum number of concurrent workers
+func NewWorkerPool(maxWorkers int) *WorkerPool {
+	if maxWorkers <= 0 {
+		maxWorkers = 1
+	}
+
 	return &WorkerPool{
+		maxWorkers:  maxWorkers,
+		semaphore:   make(chan struct{}, maxWorkers),
 		resultChan:  make(chan error),
 		isRunning:   false,
 		errorsSlice: make([]error, 0),
@@ -36,8 +44,9 @@ func (wp *WorkerPool) Start() {
 	}
 	wp.isRunning = true
 
-	// Recreate the result channel if it's been closed
+	// Recreate the channels if they've been closed
 	wp.resultChan = make(chan error)
+	wp.semaphore = make(chan struct{}, wp.maxWorkers)
 
 	wp.mu.Unlock()
 
@@ -56,16 +65,18 @@ func (wp *WorkerPool) collectResults() {
 	}
 }
 
-// Submit adds a new task and immediately starts a goroutine to execute it
+// Submit adds a new task and starts a goroutine to execute it when a worker is available
 func (wp *WorkerPool) Submit(task Task) {
 	if !wp.isRunning {
 		wp.Start()
 	}
 	wp.wg.Add(1)
 
-	// Start a new goroutine for each task
+	// Start a new goroutine for each task, but limit concurrency with semaphore
 	go func() {
+		wp.semaphore <- struct{}{}
 		err := task()
+		<-wp.semaphore
 		wp.resultChan <- err
 		wp.wg.Done()
 	}()
@@ -99,4 +110,32 @@ func (wp *WorkerPool) Stop() {
 		close(wp.resultChan)
 		wp.isRunning = false
 	}
+}
+
+// SetMaxWorkers changes the maximum number of concurrent workers
+func (wp *WorkerPool) SetMaxWorkers(maxWorkers int) {
+	if maxWorkers <= 0 {
+		maxWorkers = 1 // Ensure at least one worker
+	}
+
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+
+	wp.maxWorkers = maxWorkers
+
+	// If the pool is running, recreate the semaphore with the new size
+	if wp.isRunning {
+		// Create a new semaphore with the new size
+		newSemaphore := make(chan struct{}, maxWorkers)
+
+		// Replace the old semaphore (this won't affect already acquired slots)
+		wp.semaphore = newSemaphore
+	}
+}
+
+// GetMaxWorkers returns the current maximum number of concurrent workers
+func (wp *WorkerPool) GetMaxWorkers() int {
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+	return wp.maxWorkers
 }

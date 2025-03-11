@@ -58,7 +58,7 @@ type Stack struct {
 // GenerateStacks generates the stack files.
 func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
-	wp := util.NewWorkerPool()
+	wp := util.NewWorkerPool(opts.Parallelism)
 
 	// initial files setting as stack file
 	foundFiles := []string{opts.TerragruntStackConfigPath}
