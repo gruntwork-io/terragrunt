@@ -66,6 +66,7 @@ func (wp *WorkerPool) collectResults() {
 			if !ok {
 				return
 			}
+
 			if err != nil {
 				wp.mu.Lock()
 				wp.errorsSlice = append(wp.errorsSlice, err)
