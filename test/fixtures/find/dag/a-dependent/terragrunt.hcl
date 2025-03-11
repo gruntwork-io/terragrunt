@@ -1,3 +1,3 @@
 dependency "dep" {
-    config_path = "../dependency"
+    config_path = "../b-dependency"
 }

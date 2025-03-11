@@ -64,7 +64,7 @@ type FoundConfig struct {
 }
 
 func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (FoundConfigs, error) {
-	foundCfgs := FoundConfigs{}
+	foundCfgs := make(FoundConfigs, 0, len(configs))
 	errs := []error{}
 
 	for _, config := range configs {
