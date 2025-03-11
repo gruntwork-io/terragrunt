@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -136,4 +137,125 @@ func TestDiscoveredConfigsFilter(t *testing.T) {
 		assert.Equal(t, discovery.ConfigTypeStack, stacks[0].Type)
 		assert.Equal(t, "b", stacks[0].Path)
 	})
+}
+
+func TestDiscoveryWithDependencies(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	internalDir := filepath.Join(tmpDir, "internal")
+	appDir := filepath.Join(internalDir, "app")
+	dbDir := filepath.Join(internalDir, "db")
+	vpcDir := filepath.Join(internalDir, "vpc")
+
+	externalDir := filepath.Join(tmpDir, "external")
+	externalAppDir := filepath.Join(externalDir, "app")
+
+	testDirs := []string{
+		appDir,
+		dbDir,
+		vpcDir,
+		externalAppDir,
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(dir, 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies
+	testFiles := map[string]string{
+		filepath.Join(appDir, "terragrunt.hcl"): `
+		dependency "db" {
+			config_path = "../db"
+		}
+
+		dependency "external" {
+			config_path = "../../external/app"
+		}
+		`,
+		filepath.Join(dbDir, "terragrunt.hcl"): `
+		dependency "vpc" {
+			config_path = "../vpc"
+		}
+		`,
+		filepath.Join(vpcDir, "terragrunt.hcl"):         ``,
+		filepath.Join(externalAppDir, "terragrunt.hcl"): ``,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(path, []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	// Create base options that will be cloned for each test
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = internalDir
+	opts.RootWorkingDir = internalDir
+
+	tests := []struct {
+		name          string
+		discovery     *discovery.Discovery
+		wantDiscovery discovery.DiscoveredConfigs
+		errorExpected bool
+	}{
+		{
+			name:      "discovery without dependencies",
+			discovery: discovery.NewDiscovery(internalDir),
+			wantDiscovery: discovery.DiscoveredConfigs{
+				{Path: appDir, Type: discovery.ConfigTypeUnit},
+				{Path: dbDir, Type: discovery.ConfigTypeUnit},
+				{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+			},
+		},
+		{
+			name:      "discovery with dependencies",
+			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies(),
+			wantDiscovery: discovery.DiscoveredConfigs{
+				{Path: appDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
+					{Path: dbDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
+						{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+					}},
+				}},
+				{Path: dbDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
+					{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+				}},
+				{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+			},
+		},
+		{
+			name:      "discovery with external dependencies",
+			discovery: discovery.NewDiscovery(internalDir).WithDiscoverDependencies().WithDiscoverExternalDependencies(),
+			wantDiscovery: discovery.DiscoveredConfigs{
+				{Path: appDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
+					{Path: dbDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
+						{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+					}},
+					{Path: externalAppDir, Type: discovery.ConfigTypeUnit},
+				}},
+				{Path: dbDir, Type: discovery.ConfigTypeUnit, Dependencies: discovery.DiscoveredConfigs{
+					{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+				}},
+				{Path: vpcDir, Type: discovery.ConfigTypeUnit},
+				{Path: externalAppDir, Type: discovery.ConfigTypeUnit},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			configs, err := tt.discovery.Discover(context.Background(), opts)
+			if tt.errorExpected {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.ElementsMatch(t, tt.wantDiscovery, configs)
+		})
+	}
 }

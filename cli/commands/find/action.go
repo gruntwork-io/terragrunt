@@ -24,11 +24,16 @@ func Run(ctx context.Context, opts *Options) error {
 		return errors.New(err)
 	}
 
+	foundCfgs, err := discoveredToFound(configs, opts)
+	if err != nil {
+		return errors.New(err)
+	}
+
 	switch opts.Format {
 	case FormatText:
-		return outputText(opts, configs)
+		return outputText(opts, foundCfgs)
 	case FormatJSON:
-		return outputJSON(opts, configs)
+		return outputJSON(opts, foundCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -36,8 +41,53 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 }
 
+type FoundConfigs []*FoundConfig
+
+type FoundConfig struct {
+	Type discovery.ConfigType `json:"type"`
+	Path string               `json:"path"`
+
+	Dependencies []string `json:"dependencies,omitempty"`
+}
+
+func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (FoundConfigs, error) {
+	foundCfgs := FoundConfigs{}
+	errs := []error{}
+
+	for _, config := range configs {
+		relPath, err := filepath.Rel(opts.WorkingDir, config.Path)
+		if err != nil {
+			errs = append(errs, errors.New(err))
+
+			continue
+		}
+
+		foundCfg := &FoundConfig{
+			Type: config.Type,
+			Path: relPath,
+		}
+
+		foundCfg.Dependencies = make([]string, len(config.Dependencies))
+
+		for i, dep := range config.Dependencies {
+			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
+			if err != nil {
+				errs = append(errs, errors.New(err))
+
+				continue
+			}
+
+			foundCfg.Dependencies[i] = relDepPath
+		}
+
+		foundCfgs = append(foundCfgs, foundCfg)
+	}
+
+	return foundCfgs, errors.Join(errs...)
+}
+
 // outputJSON outputs the discovered configurations in JSON format.
-func outputJSON(opts *Options, configs discovery.DiscoveredConfigs) error {
+func outputJSON(opts *Options, configs FoundConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return errors.New(err)
@@ -67,7 +117,7 @@ func NewColorizer() *Colorizer {
 	}
 }
 
-func (c *Colorizer) Colorize(config *discovery.DiscoveredConfig) string {
+func (c *Colorizer) Colorize(config *FoundConfig) string {
 	path := config.Path
 
 	// Get the directory and base name using filepath
@@ -99,7 +149,7 @@ func (c *Colorizer) Colorize(config *discovery.DiscoveredConfig) string {
 }
 
 // outputText outputs the discovered configurations in text format.
-func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
+func outputText(opts *Options, configs FoundConfigs) error {
 	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected() {
 		for _, config := range configs {
 			_, err := opts.Writer.Write([]byte(config.Path + "\n"))

@@ -35,20 +35,20 @@ type Sort string
 
 // Exclude is the exclude configuration for a discovered configuration.
 type Exclude struct {
-	If                  string   `json:"if"`
-	Actions             []string `json:"actions"`
-	ExcludeDependencies bool     `json:"exclude_dependencies"`
+	If                  string
+	Actions             []string
+	ExcludeDependencies bool
 }
 
 // DiscoveredConfig represents a discovered Terragrunt configuration.
 type DiscoveredConfig struct {
-	Type ConfigType `json:"type"`
-	Path string     `json:"path"`
+	Type ConfigType
+	Path string
 
-	Dependencies DiscoveredConfigs `json:"dependencies,omitempty"`
-	Exclude      Exclude           `json:"exclude,omitempty"`
+	Dependencies DiscoveredConfigs
+	Exclude      Exclude
 
-	External bool `json:"external,omitempty"`
+	External bool
 }
 
 // DiscoveredConfigs is a list of discovered Terragrunt configurations.
@@ -73,6 +73,9 @@ type Discovery struct {
 
 	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
 	maxDependencyDepth int
+
+	// hiddenDirMemo is a memoization of hidden directories.
+	hiddenDirMemo []string
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -133,7 +136,31 @@ func (d *Discovery) WithDiscoverExternalDependencies() *Discovery {
 
 // String returns a string representation of a DiscoveredConfig.
 func (c *DiscoveredConfig) String() string {
-	return string(c.Type) + ": " + c.Path
+	return c.Path
+}
+
+// isInHiddenDirectory returns true if the path is in a hidden directory.
+func (d *Discovery) isInHiddenDirectory(path string) bool {
+	for _, hiddenDir := range d.hiddenDirMemo {
+		if strings.HasPrefix(path, hiddenDir) {
+			return true
+		}
+	}
+
+	hiddenPath := ""
+
+	parts := strings.Split(path, string(os.PathSeparator))
+	for _, part := range parts {
+		hiddenPath = filepath.Join(hiddenPath, part)
+
+		if strings.HasPrefix(part, ".") {
+			d.hiddenDirMemo = append(d.hiddenDirMemo, hiddenPath)
+
+			return true
+		}
+	}
+
+	return false
 }
 
 // Discover discovers Terragrunt configurations in the WorkingDir.
@@ -149,12 +176,7 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 			return nil
 		}
 
-		path, err = filepath.Rel(d.workingDir, path)
-		if err != nil {
-			return errors.New(err)
-		}
-
-		if !d.hidden && isInHiddenDirectory(path) {
+		if !d.hidden && d.isInHiddenDirectory(path) {
 			return nil
 		}
 
@@ -233,43 +255,47 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 	}
 
 	opts = opts.Clone()
-	opts.TerragruntConfigPath = dCfg.Path
-	opts.WorkingDir = filepath.Dir(dCfg.Path)
+	opts.WorkingDir = dCfg.Path
 
-	parsingCtx := config.NewParsingContext(ctx, opts)
+	if dCfg.Type == ConfigTypeUnit {
+		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, config.DefaultTerragruntConfigPath)
+	}
 
-	cfg, err := config.PartialParseConfigFile(parsingCtx, dCfg.Path, nil)
+	parsingCtx := config.NewParsingContext(ctx, opts).WithDecodeList(
+		config.DependenciesBlock,
+		config.DependencyBlock,
+		config.FeatureFlagsBlock,
+		config.ExcludeBlock,
+	)
+
+	cfg, err := config.PartialParseConfigFile(parsingCtx, opts.TerragruntConfigPath, nil)
 	if err != nil {
 		return errors.New(err)
 	}
 
 	dependencyBlocks := cfg.TerragruntDependencies
 
-	dependencyPaths := make([]string, 0, len(dependencyBlocks))
+	depPaths := make([]string, 0, len(dependencyBlocks))
 
 	errs := []error{}
 
 	for _, dependency := range dependencyBlocks {
-		depPath, err := filepath.Rel(opts.WorkingDir, dependency.ConfigPath.AsString())
-		if err != nil {
-			errs = append(errs, errors.New(err))
+		depPath := dependency.ConfigPath.AsString()
 
-			continue
+		if !filepath.IsAbs(depPath) {
+			depPath = filepath.Join(opts.WorkingDir, depPath)
 		}
 
-		dependencyPaths = append(dependencyPaths, depPath)
+		depPaths = append(depPaths, depPath)
 	}
 
 	if cfg.Dependencies != nil {
 		for _, dependency := range cfg.Dependencies.Paths {
-			depPath, err := filepath.Rel(opts.WorkingDir, dependency)
-			if err != nil {
-				errs = append(errs, errors.New(err))
-
-				continue
+			if !filepath.IsAbs(dependency) {
+				dependency = filepath.Join(opts.WorkingDir, dependency)
 			}
 
-			dependencyPaths = append(dependencyPaths, depPath)
+			depPaths = append(depPaths, dependency)
 		}
 	}
 
@@ -277,27 +303,29 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 		return errors.Join(errs...)
 	}
 
-	deduped := make(map[string]struct{}, len(dependencyPaths))
+	deduped := make(map[string]struct{}, len(depPaths))
 
-	for _, dependencyPath := range dependencyPaths {
-		deduped[dependencyPath] = struct{}{}
+	for _, depPath := range depPaths {
+		deduped[depPath] = struct{}{}
 	}
 
-	for dependencyPath := range deduped {
+	for depPath := range deduped {
 		external := true
 
 		for _, c := range d.cfgs {
-			if c.Path == dependencyPath {
+			if c.Path == depPath {
 				external = false
 
 				dCfg.Dependencies = append(dCfg.Dependencies, c)
+
+				continue
 			}
 		}
 
 		if external {
 			ext := &DiscoveredConfig{
 				Type:     ConfigTypeUnit,
-				Path:     dependencyPath,
+				Path:     depPath,
 				External: true,
 			}
 
@@ -318,55 +346,6 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 
 	return nil
 }
-
-// // DiscoverDependenciesWithDepthRemaining discovers dependencies for the given DiscoveredConfig with a given depth budget remaining.
-// func (c *DiscoveredConfig) DiscoverDependenciesWithDepthRemaining(ctx context.Context, opts *options.TerragruntOptions, discoverExternalDependencies bool, depthRemaining int) (DiscoveredConfigs, error) {
-// 	if depthRemaining <= 0 {
-// 		return nil, errors.New("max dependency depth reached while discovering dependencies for " + c.Path)
-// 	}
-//
-// 	opts = opts.Clone()
-// 	opts.TerragruntConfigPath = c.Path
-// 	opts.WorkingDir = filepath.Dir(c.Path)
-//
-// 	parsingCtx := config.NewParsingContext(ctx, opts)
-//
-// 	cfg, err := config.PartialParseConfigFile(parsingCtx, c.Path, nil)
-// 	if err != nil {
-// 		return nil, errors.New(err)
-// 	}
-//
-// 	dependencyBlocks := cfg.TerragruntDependencies
-//
-// 	dependencyPaths := make([]string, 0, len(dependencyBlocks))
-// 	for _, dependency := range dependencyBlocks {
-// 		dependencyPaths = append(dependencyPaths, dependency.ConfigPath.AsString())
-// 	}
-//
-// 	dependenciesBlock := cfg.Dependencies
-// 	if dependenciesBlock != nil {
-// 		dependencyPaths = append(dependencyPaths, dependenciesBlock.Paths...)
-// 	}
-//
-// 	dependencies := make(DiscoveredConfigs, 0, len(dependencyPaths))
-//
-// 	for _, dependencyPath := range dependencyPaths {
-// 		dependency := &DiscoveredConfig{
-// 			Type: ConfigTypeUnit,
-// 			Path: dependencyPath,
-// 		}
-//
-// 		// Recursively discover dependencies up the dependency tree.
-// 		dependency.Dependencies, err = dependency.DiscoverDependenciesWithDepthRemaining(ctx, opts, depthRemaining-1)
-// 		if err != nil {
-// 			return nil, errors.New(err)
-// 		}
-//
-// 		dependencies = append(dependencies, dependency)
-// 	}
-//
-// 	return dependencies, nil
-// }
 
 // Sort sorts the DiscoveredConfigs by path.
 func (c DiscoveredConfigs) Sort() DiscoveredConfigs {
@@ -411,16 +390,4 @@ func (c DiscoveredConfigs) Paths() []string {
 	}
 
 	return paths
-}
-
-// isInHiddenDirectory returns true if the path is in a hidden directory.
-func isInHiddenDirectory(path string) bool {
-	parts := strings.Split(path, string(os.PathSeparator))
-	for _, part := range parts {
-		if strings.HasPrefix(part, ".") {
-			return true
-		}
-	}
-
-	return false
 }

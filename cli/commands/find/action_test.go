@@ -250,14 +250,14 @@ func TestColorizer(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config *discovery.DiscoveredConfig
+		config *find.FoundConfig
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
 		shouldBeDifferent []discovery.ConfigType
 	}{
 		{
 			name: "unit config",
-			config: &discovery.DiscoveredConfig{
+			config: &find.FoundConfig{
 				Type: discovery.ConfigTypeUnit,
 				Path: "path/to/unit",
 			},
@@ -265,7 +265,7 @@ func TestColorizer(t *testing.T) {
 		},
 		{
 			name: "stack config",
-			config: &discovery.DiscoveredConfig{
+			config: &find.FoundConfig{
 				Type: discovery.ConfigTypeStack,
 				Path: "path/to/stack",
 			},
@@ -282,7 +282,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &discovery.DiscoveredConfig{
+				diffConfig := &find.FoundConfig{
 					Type: diffType,
 					Path: tt.config.Path,
 				}
