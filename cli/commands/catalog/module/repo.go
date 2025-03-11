@@ -3,7 +3,6 @@ package module
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,10 +12,11 @@ import (
 
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/files"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter/v2"
 	"gopkg.in/ini.v1"
 )
 
@@ -27,13 +27,17 @@ const (
 	azuredevHost          = "dev.azure.com"
 	bitbucketHost         = "bitbucket.org"
 	gitlabSelfHostedRegex = `^(gitlab\.(.+))$`
+
+	cloneCompleteSentinel = ".catalog-clone-complete"
 )
 
 var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
-	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z_.]+)[^/]*?(?:\.git)?$`)
+	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z0-9_.]+)[^/]*?(?:\.git)?$`)
 
 	modulesPaths = []string{"modules"}
+
+	includedGitFiles = []string{"HEAD", "config"}
 )
 
 type Repo struct {
@@ -46,17 +50,19 @@ type Repo struct {
 	BranchName string
 
 	walkWithSymlinks bool
+	allowCAS         bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool) (*Repo, error) {
+func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
 	repo := &Repo{
-		logger:           logger,
+		logger:           l,
 		cloneURL:         cloneURL,
-		path:             tempDir,
+		path:             path,
 		walkWithSymlinks: walkWithSymlinks,
+		allowCAS:         allowCAS,
 	}
 
-	if err := repo.clone(ctx); err != nil {
+	if err := repo.clone(ctx, l); err != nil {
 		return nil, err
 	}
 
@@ -163,69 +169,164 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 	return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
 }
 
-// clone clones the repository to a temporary directory if the repoPath is URL
-func (repo *Repo) clone(ctx context.Context) error {
-	if repo.cloneURL == "" {
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return errors.New(err)
-		}
+type CloneOptions struct {
+	SourceURL  string
+	TargetPath string
+	Context    context.Context
+	Logger     log.Logger
+}
 
-		repo.cloneURL = currentDir
+func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
+	cloneURL, err := repo.resolveCloneURL()
+	if err != nil {
+		return err
 	}
 
-	if repoPath := repo.cloneURL; files.IsDir(repoPath) {
-		if !filepath.IsAbs(repoPath) {
-			absRepoPath, err := filepath.Abs(repoPath)
-			if err != nil {
-				return errors.New(err)
-			}
+	// Handle local directory case
+	if files.IsDir(cloneURL) {
+		return repo.handleLocalDir(cloneURL)
+	}
 
-			repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
-		}
+	// Prepare clone options
+	opts := CloneOptions{
+		SourceURL:  cloneURL,
+		TargetPath: repo.path,
+		Context:    ctx,
+		Logger:     repo.logger,
+	}
 
-		repo.path = repoPath
+	if err := repo.prepareCloneDirectory(); err != nil {
+		return err
+	}
+
+	if repo.cloneCompleted() {
+		repo.logger.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
 
 		return nil
 	}
 
+	return repo.performClone(ctx, l, &opts)
+}
+
+func (repo *Repo) resolveCloneURL() (string, error) {
+	if repo.cloneURL == "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return "", errors.New(err)
+		}
+
+		return currentDir, nil
+	}
+
+	return repo.cloneURL, nil
+}
+
+func (repo *Repo) handleLocalDir(repoPath string) error {
+	if !filepath.IsAbs(repoPath) {
+		absRepoPath, err := filepath.Abs(repoPath)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
+		repo.path = absRepoPath
+
+		return nil
+	}
+
+	repo.path = repoPath
+
+	return nil
+}
+
+func (repo *Repo) prepareCloneDirectory() error {
 	if err := os.MkdirAll(repo.path, os.ModePerm); err != nil {
 		return errors.New(err)
 	}
 
-	repoName := "temp"
-	if match := repoNameFromCloneURLReg.FindStringSubmatch(repo.cloneURL); len(match) > 0 && match[1] != "" {
-		repoName = match[1]
-	}
-
+	repoName := repo.extractRepoName()
 	repo.path = filepath.Join(repo.path, repoName)
 
-	// Since we are cloning the repository into a temporary directory, some operating systems such as MacOS have a service for deleting files that have not been accessed for a long time.
-	// For example, in MacOS the service is responsible for deleting unused files deletes only files while leaving the directory structure is untouched, which in turn misleads `go-getter`, which thinks that the repository exists but cannot update it due to the lack of files. In such cases, we simply delete the temporary directory in order to clone the one again.
-	// See https://github.com/gruntwork-io/terragrunt/pull/2888
-	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
-		repo.logger.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
+	// Clean up incomplete clones
+	if repo.shouldCleanupIncompleteClone() {
+		repo.logger.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
 
 		if err := os.RemoveAll(repo.path); err != nil {
 			return errors.New(err)
 		}
 	}
 
-	sourceURL, err := tf.ToSourceURL(repo.cloneURL, "")
+	return nil
+}
+
+func (repo *Repo) extractRepoName() string {
+	repoName := "temp"
+	if match := repoNameFromCloneURLReg.FindStringSubmatch(repo.cloneURL); len(match) > 0 && match[1] != "" {
+		repoName = match[1]
+	}
+
+	return repoName
+}
+
+func (repo *Repo) shouldCleanupIncompleteClone() bool {
+	return files.FileExists(repo.path) && !repo.cloneCompleted()
+}
+
+func (repo *Repo) cloneCompleted() bool {
+	return files.FileExists(filepath.Join(repo.path, cloneCompleteSentinel))
+}
+
+func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOptions) error {
+	client := getter.DefaultClient
+
+	if repo.allowCAS {
+		c, err := cas.New(cas.Options{})
+		if err != nil {
+			return err
+		}
+
+		cloneOpts := cas.CloneOptions{
+			Dir:              repo.path,
+			IncludedGitFiles: includedGitFiles,
+		}
+
+		client.Getters = append([]getter.Getter{cas.NewCASGetter(&l, c, &cloneOpts)}, client.Getters...)
+	}
+
+	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
 	if err != nil {
 		return err
 	}
 
 	repo.cloneURL = sourceURL.String()
+	opts.Logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
-	repo.logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
+	// Check first if the query param ref is already set
+	q := sourceURL.Query()
 
-	// We need to explicitly specify the reference, otherwise we will get an error:
-	// "fatal: The empty string is not a valid pathspec. Use . instead if you wanted to match all paths"
-	// when updating an existing repository.
-	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
+	ref := q.Get("ref")
+	if ref != "" {
+		q.Set("ref", "HEAD")
+	}
 
-	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir)); err != nil {
+	sourceURL.RawQuery = q.Encode()
+
+	_, err = client.Get(ctx, &getter.Request{
+		Src:     sourceURL.String(),
+		Dst:     repo.path,
+		GetMode: getter.ModeDir,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Create the sentinel file to indicate that the clone is complete
+	f, err := os.Create(filepath.Join(repo.path, cloneCompleteSentinel))
+	if err != nil {
+		return errors.New(err)
+	}
+
+	if err := f.Close(); err != nil {
 		return errors.New(err)
 	}
 
@@ -237,7 +338,7 @@ func (repo *Repo) parseRemoteURL() error {
 	gitConfigPath := filepath.Join(repo.path, ".git", "config")
 
 	if !files.FileExists(gitConfigPath) {
-		return errors.Errorf("the specified path %q is not a git repository", repo.path)
+		return errors.Errorf("the specified path %q is not a git repository (no .git/config file found)", repo.path)
 	}
 
 	repo.logger.Debugf("Parsing git config %q", gitConfigPath)
@@ -280,11 +381,12 @@ func (repo *Repo) gitHeadfile() string {
 func (repo *Repo) parseBranchName() error {
 	data, err := files.ReadFileAsString(repo.gitHeadfile())
 	if err != nil {
-		return errors.Errorf("the specified path %q is not a git repository", repo.path)
+		return errors.Errorf("the specified path %q is not a git repository (no .git/HEAD file found)", repo.path)
 	}
 
 	if match := gitHeadBranchNameReg.FindStringSubmatch(data); len(match) > 0 {
 		repo.BranchName = strings.TrimSpace(match[1])
+
 		return nil
 	}
 
