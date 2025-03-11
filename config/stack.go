@@ -191,19 +191,19 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
 func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, units []*Unit) error {
-	for _, u := range units {
+	for _, unit := range units {
+		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
 		pool.Submit(func() error {
-			unit := u
 			item := itemToProcess{
 				sourceDir: sourceDir,
 				targetDir: targetDir,
-				name:      unit.Name,
-				path:      unit.Path,
-				source:    unit.Source,
-				values:    unit.Values,
+				name:      unitCopy.Name,
+				path:      unitCopy.Path,
+				source:    unitCopy.Source,
+				values:    unitCopy.Values,
 			}
 
-			opts.Logger.Infof("Processing unit %s", unit.Name)
+			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
 
 			if err := processItem(ctx, opts, &item); err != nil {
 				return err
@@ -219,19 +219,19 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
 func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, stacks []*Stack) error {
-	for _, s := range stacks {
+	for _, stack := range stacks {
+		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 		pool.Submit(func() error {
-			stack := s
 			item := itemToProcess{
 				sourceDir: sourceDir,
 				targetDir: targetDir,
-				name:      stack.Name,
-				path:      stack.Path,
-				source:    stack.Source,
-				values:    stack.Values,
+				name:      stackCopy.Name,
+				path:      stackCopy.Path,
+				source:    stackCopy.Source,
+				values:    stackCopy.Values,
 			}
 
-			opts.Logger.Infof("Processing stack %s", stack)
+			opts.Logger.Infof("Processing stack %s", stackCopy)
 
 			if err := processItem(ctx, opts, &item); err != nil {
 				return err
