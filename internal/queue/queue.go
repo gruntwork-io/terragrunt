@@ -28,6 +28,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 )
 
+const (
+	notVisited = iota
+	processed
+)
+
 type Queue struct {
 	entries discovery.DiscoveredConfigs
 }
@@ -42,97 +47,81 @@ func (q *Queue) Entries() []*discovery.DiscoveredConfig {
 // Dependencies are guaranteed to come before their dependents.
 // Items with the same dependencies are sorted alphabetically.
 func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
-	// First sort by path to ensure deterministic ordering of independent items
-	sortedConfigs := discovered.Sort()
-	entries := make(discovery.DiscoveredConfigs, 0, len(sortedConfigs))
+	// Create a map for O(1) lookups of configs by path
+	configMap := make(map[string]*discovery.DiscoveredConfig, len(discovered))
+	for _, cfg := range discovered {
+		configMap[cfg.Path] = cfg
+	}
 
-	// Helper to check if all dependencies of a config are in the queue
-	hasDependenciesInQueue := func(cfg *discovery.DiscoveredConfig, upToIndex int) bool {
-		for _, dep := range cfg.Dependencies {
-			found := false
+	// Track processed nodes and their states:
+	// 0 = not visited
+	// 1 = processed
+	visited := make(map[string]int, len(discovered))
 
-			for i := 0; i <= upToIndex; i++ {
-				if entries[i].Path == dep.Path {
-					found = true
+	// Result will store configs in dependency order
+	result := make(discovery.DiscoveredConfigs, 0, len(discovered))
+
+	// Process nodes level by level, with deterministic ordering within each level
+	var processLevel func(configs discovery.DiscoveredConfigs)
+	processLevel = func(configs discovery.DiscoveredConfigs) {
+		// Group configs by their dependency depth
+		type nodeInfo struct {
+			config *discovery.DiscoveredConfig
+			depth  int
+		}
+
+		// Calculate max dependency depth for each config
+		levelNodes := make([]nodeInfo, 0, len(configs))
+
+		for _, cfg := range configs {
+			if visited[cfg.Path] == processed {
+				continue
+			}
+
+			maxDepth := 0
+
+			for _, dep := range cfg.Dependencies {
+				if visited[dep.Path] != processed {
+					// Skip nodes whose dependencies haven't been processed
+					maxDepth = -1
 					break
 				}
 			}
 
-			if !found {
-				return false
+			if maxDepth >= 0 {
+				levelNodes = append(levelNodes, nodeInfo{cfg, maxDepth})
 			}
 		}
 
-		return true
-	}
-
-	// Helper to get the index of the last dependency in the queue
-	getLastDependencyIndex := func(cfg *discovery.DiscoveredConfig) int {
-		lastIndex := -1
-
-		for _, dep := range cfg.Dependencies {
-			for i, entry := range entries {
-				if entry.Path == dep.Path && i > lastIndex {
-					lastIndex = i
-				}
-			}
+		// If no nodes can be processed at this level, we're done
+		if len(levelNodes) == 0 {
+			return
 		}
 
-		return lastIndex
-	}
-
-	// First, add all configs with no dependencies, sorted alphabetically
-	var (
-		noDeps   discovery.DiscoveredConfigs
-		withDeps discovery.DiscoveredConfigs
-	)
-
-	for _, cfg := range sortedConfigs {
-		if len(cfg.Dependencies) == 0 {
-			noDeps = append(noDeps, cfg)
-		} else {
-			withDeps = append(withDeps, cfg)
-		}
-	}
-
-	entries = append(entries, noDeps...)
-
-	// Keep processing configs until all are added
-	remaining := withDeps
-	for len(remaining) > 0 {
-		// Find all configs whose dependencies are satisfied
-		var (
-			nextBatch      discovery.DiscoveredConfigs
-			stillRemaining discovery.DiscoveredConfigs
-		)
-
-		for _, cfg := range remaining {
-			if hasDependenciesInQueue(cfg, len(entries)-1) {
-				nextBatch = append(nextBatch, cfg)
-			} else {
-				stillRemaining = append(stillRemaining, cfg)
-			}
-		}
-
-		// Sort the next batch by:
-		// 1. Last dependency position (primary)
-		// 2. Path (secondary, for items with same dependencies)
-		sort.SliceStable(nextBatch, func(i, j int) bool {
-			iLastDep := getLastDependencyIndex(nextBatch[i])
-			jLastDep := getLastDependencyIndex(nextBatch[j])
-
-			if iLastDep != jLastDep {
-				return iLastDep < jLastDep
+		// Sort nodes by depth (primary) and path (secondary) for deterministic ordering
+		sort.SliceStable(levelNodes, func(i, j int) bool {
+			if levelNodes[i].depth != levelNodes[j].depth {
+				return levelNodes[i].depth < levelNodes[j].depth
 			}
 
-			return nextBatch[i].Path < nextBatch[j].Path
+			return levelNodes[i].config.Path < levelNodes[j].config.Path
 		})
 
-		entries = append(entries, nextBatch...)
-		remaining = stillRemaining
+		// Add all nodes at this level to result
+		for _, node := range levelNodes {
+			visited[node.config.Path] = processed
+
+			result = append(result, node.config)
+		}
+
+		// Process next level
+		processLevel(configs)
 	}
 
+	// Start with all configs
+	processLevel(discovered)
+
 	return &Queue{
-		entries: entries,
+		entries: result,
 	}
 }
