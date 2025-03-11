@@ -68,6 +68,7 @@ The following strict mode controls are available:
 - [symlinks](#symlinks)
 - [stacks](#stacks)
 - [cli-redesign](#cli-redesign)
+- [cas](#cas)
 
 ### `symlinks`
 
