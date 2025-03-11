@@ -129,7 +129,7 @@ func TestRun(t *testing.T) {
 				t.Helper()
 
 				// Verify the output is valid JSON
-				var configs []discovery.DiscoveredConfig
+				var configs find.FoundConfigs
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -503,10 +503,8 @@ dependency "B" {
 	}
 
 	for _, tt := range tests {
-		tt := tt // capture range variable
 		t.Run(tt.name, func(t *testing.T) {
-			// FIXME: Restore.
-			// t.Parallel()
+			t.Parallel()
 
 			// Setup test directory
 			tmpDir := tt.setup(t)

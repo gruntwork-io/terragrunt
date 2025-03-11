@@ -9,7 +9,11 @@ import (
 )
 
 func TestNewQueue(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no dependencies - maintains alphabetical order", func(t *testing.T) {
+		t.Parallel()
+
 		// Create configs with no dependencies - should maintain alphabetical order at front
 		configs := []*discovery.DiscoveredConfig{
 			{Path: "c", Dependencies: []*discovery.DiscoveredConfig{}},
@@ -27,6 +31,8 @@ func TestNewQueue(t *testing.T) {
 	})
 
 	t.Run("dependencies - ordered by dependency level", func(t *testing.T) {
+		t.Parallel()
+
 		// Create configs with dependencies - should order by dependency level
 		configs := []*discovery.DiscoveredConfig{
 			{Path: "c", Dependencies: []*discovery.DiscoveredConfig{{Path: "b"}}},
@@ -46,6 +52,8 @@ func TestNewQueue(t *testing.T) {
 	})
 
 	t.Run("complex dag - ordered by dependency level and alphabetically", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a more complex dependency graph:
 		//   A (no deps)
 		//   B (no deps)
@@ -95,6 +103,8 @@ func TestNewQueue(t *testing.T) {
 	})
 
 	t.Run("deterministic ordering of parallel dependencies", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a graph with parallel dependencies that could be ordered multiple ways:
 		//   A (no deps)
 		//   B -> A
@@ -108,7 +118,7 @@ func TestNewQueue(t *testing.T) {
 		}
 
 		// Run multiple times to verify deterministic ordering
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			q := queue.NewQueue(configs)
 			entries := q.Entries()
 

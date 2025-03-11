@@ -282,6 +282,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 		config.ExcludeBlock,
 	)
 
+	//nolint: contextcheck
 	cfg, err := config.PartialParseConfigFile(parsingCtx, opts.TerragruntConfigPath, nil)
 	if err != nil {
 		return errors.New(err)
