@@ -26,6 +26,8 @@ func TestRun(t *testing.T) {
 		format        string
 		sort          string
 		hidden        bool
+		dependencies  bool
+		external      bool
 		validate      func(t *testing.T, output string, expectedPaths []string)
 	}{
 		{
@@ -68,6 +70,8 @@ func TestRun(t *testing.T) {
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1"},
 			format:        "text",
 			sort:          "alpha",
+			dependencies:  false,
+			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
@@ -125,6 +129,8 @@ func TestRun(t *testing.T) {
 			expectedPaths: []string{"unit1", "unit2", "stack1"},
 			format:        "json",
 			sort:          "alpha",
+			dependencies:  false,
+			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
@@ -192,6 +198,8 @@ func TestRun(t *testing.T) {
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"},
 			format:        "text",
 			hidden:        true,
+			dependencies:  false,
+			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
@@ -249,6 +257,8 @@ dependency "unit2" {
 			expectedPaths: []string{"unit1", "unit2", "unit3"},
 			format:        "text",
 			sort:          "dag",
+			dependencies:  true,
+			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
@@ -303,9 +313,11 @@ dependency "unit3" {
 
 				return tmpDir
 			},
-			expectedPaths: []string{"unit1", "unit2", "unit3"},
+			expectedPaths: []string{"unit3", "unit2", "unit1"},
 			format:        "text",
 			sort:          "dag",
+			dependencies:  true,
+			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
@@ -333,8 +345,8 @@ dependency "unit3" {
 				unit2Index := findIndex("unit2")
 				unit3Index := findIndex("unit3")
 
-				assert.Less(t, unit3Index, unit2Index, "unit3 should come before unit2")
-				assert.Less(t, unit2Index, unit1Index, "unit2 should come before unit1")
+				assert.Less(t, unit3Index, unit2Index, "unit3 (no deps) should come before unit2 (depends on unit3)")
+				assert.Less(t, unit2Index, unit1Index, "unit2 should come before unit1 (depends on unit2)")
 			},
 		},
 		{
@@ -395,6 +407,8 @@ dependency "C" {
 			expectedPaths: []string{"A", "B", "C", "D", "E", "F"},
 			format:        "text",
 			sort:          "dag",
+			dependencies:  true,
+			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
@@ -476,6 +490,8 @@ dependency "B" {
 			expectedPaths: []string{"A", "B", "C"},
 			format:        "json",
 			sort:          "dag",
+			dependencies:  true,
+			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
@@ -517,6 +533,8 @@ dependency "B" {
 			opts.Format = tt.format
 			opts.Hidden = tt.hidden
 			opts.Sort = tt.sort
+			opts.Dependencies = tt.dependencies
+			opts.External = tt.external
 
 			// Create a pipe to capture output
 			r, w, err := os.Pipe()
