@@ -1,6 +1,6 @@
 
-dependency "app" {
-  config_path = "../app"
+dependency "app1" {
+  config_path = "../app1"
 }
 
 inputs = {
