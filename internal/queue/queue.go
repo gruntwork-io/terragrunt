@@ -79,16 +79,21 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 			}
 
 			maxDepth := 0
+			hasUnprocessedDeps := false
 
+			// Only consider dependencies that exist in our discovered configs
 			for _, dep := range cfg.Dependencies {
+				if _, exists := configMap[dep.Path]; !exists {
+					continue // Skip dependencies that don't exist in our discovered configs
+				}
+
 				if visited[dep.Path] != processed {
-					// Skip nodes whose dependencies haven't been processed
-					maxDepth = -1
+					hasUnprocessedDeps = true
 					break
 				}
 			}
 
-			if maxDepth >= 0 {
+			if !hasUnprocessedDeps {
 				levelNodes = append(levelNodes, nodeInfo{cfg, maxDepth})
 			}
 		}
