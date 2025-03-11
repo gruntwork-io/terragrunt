@@ -14,6 +14,7 @@ type WorkerPool struct {
 	maxWorkers  int
 	semaphore   chan struct{} // Semaphore to limit concurrent execution
 	resultChan  chan error
+	doneChan    chan struct{} // Signal to stop the collector goroutine
 	wg          sync.WaitGroup
 	errorsSlice []error
 	mu          sync.Mutex // Mutex to protect errorsSlice
@@ -30,6 +31,7 @@ func NewWorkerPool(maxWorkers int) *WorkerPool {
 		maxWorkers:  maxWorkers,
 		semaphore:   make(chan struct{}, maxWorkers),
 		resultChan:  make(chan error),
+		doneChan:    make(chan struct{}),
 		isRunning:   false,
 		errorsSlice: make([]error, 0),
 	}
@@ -47,6 +49,7 @@ func (wp *WorkerPool) Start() {
 
 	// Recreate the channels if they've been closed
 	wp.resultChan = make(chan error)
+	wp.doneChan = make(chan struct{})
 	wp.semaphore = make(chan struct{}, wp.maxWorkers)
 
 	wp.mu.Unlock()
@@ -57,11 +60,19 @@ func (wp *WorkerPool) Start() {
 
 // collectResults collects the errors from the result channel
 func (wp *WorkerPool) collectResults() {
-	for err := range wp.resultChan {
-		if err != nil {
-			wp.mu.Lock()
-			wp.errorsSlice = append(wp.errorsSlice, err)
-			wp.mu.Unlock()
+	for {
+		select {
+		case err, ok := <-wp.resultChan:
+			if !ok {
+				return
+			}
+			if err != nil {
+				wp.mu.Lock()
+				wp.errorsSlice = append(wp.errorsSlice, err)
+				wp.mu.Unlock()
+			}
+		case <-wp.doneChan:
+			return
 		}
 	}
 }
@@ -113,6 +124,7 @@ func (wp *WorkerPool) Stop() {
 	defer wp.mu.Unlock()
 
 	if wp.isRunning {
+		close(wp.doneChan)
 		close(wp.resultChan)
 		wp.isRunning = false
 	}
