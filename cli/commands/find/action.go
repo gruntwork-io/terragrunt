@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/mgutz/ansi"
 )
 
@@ -19,12 +20,28 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithHidden()
 	}
 
-	configs, err := d.Discover(ctx, opts.TerragruntOptions)
+	if opts.Sort == SortDAG {
+		d = d.WithDiscoverDependencies()
+	}
+
+	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	foundCfgs, err := discoveredToFound(configs, opts)
+	switch opts.Sort {
+	case SortAlpha:
+		cfgs = cfgs.Sort()
+	case SortDAG:
+		// Sort alphabetically first,
+		// just so that the output is deterministic.
+		cfgs = cfgs.Sort()
+
+		q := queue.NewQueue(cfgs)
+		cfgs = q.Entries()
+	}
+
+	foundCfgs, err := discoveredToFound(cfgs, opts)
 	if err != nil {
 		return errors.New(err)
 	}

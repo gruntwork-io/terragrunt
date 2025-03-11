@@ -19,11 +19,6 @@ const (
 	ConfigTypeUnit ConfigType = "unit"
 	// ConfigTypeStack is the type of Terragrunt configuration for a stack.
 	ConfigTypeStack ConfigType = "stack"
-
-	// SortAlpha sorts the discovered configurations in alphabetical order.
-	SortAlpha Sort = "alpha"
-	// SortDAG sorts the discovered configurations in a topological sort order.
-	SortDAG Sort = "dag"
 )
 
 // ConfigType is the type of Terragrunt configuration.
