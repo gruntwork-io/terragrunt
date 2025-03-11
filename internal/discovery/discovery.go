@@ -197,7 +197,7 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 	}
 
 	if err := filepath.WalkDir(d.workingDir, walkFn); err != nil {
-		return nil, errors.New(err)
+		return cfgs, errors.New(err)
 	}
 
 	if d.discoverDependencies {
@@ -205,7 +205,11 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 
 		err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
 		if err != nil {
-			return nil, errors.New(err)
+			return cfgs, errors.New(err)
+		}
+
+		if err := cfgs.CycleCheck(); err != nil {
+			return cfgs, errors.New(err)
 		}
 	}
 
@@ -390,4 +394,45 @@ func (c DiscoveredConfigs) Paths() []string {
 	}
 
 	return paths
+}
+
+// CycleCheck checks for cycles in the dependency graph.
+func (c DiscoveredConfigs) CycleCheck() error {
+	visited := make(map[string]bool)
+	inPath := make(map[string]bool)
+
+	var checkCycle func(cfg *DiscoveredConfig) error
+
+	checkCycle = func(cfg *DiscoveredConfig) error {
+		if inPath[cfg.Path] {
+			return errors.New("cycle detected in dependency graph at path: " + cfg.Path)
+		}
+
+		if visited[cfg.Path] {
+			return nil
+		}
+
+		visited[cfg.Path] = true
+		inPath[cfg.Path] = true
+
+		for _, dep := range cfg.Dependencies {
+			if err := checkCycle(dep); err != nil {
+				return err
+			}
+		}
+
+		inPath[cfg.Path] = false
+
+		return nil
+	}
+
+	for _, cfg := range c {
+		if !visited[cfg.Path] {
+			if err := checkCycle(cfg); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

@@ -259,3 +259,109 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscoveredConfigsCycleCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		configs       discovery.DiscoveredConfigs
+		errorExpected bool
+	}{
+		{
+			name: "no cycles",
+			configs: discovery.DiscoveredConfigs{
+				{
+					Path: "a",
+					Dependencies: discovery.DiscoveredConfigs{
+						{Path: "b"},
+					},
+				},
+				{Path: "b"},
+			},
+			errorExpected: false,
+		},
+		{
+			name: "direct cycle",
+			configs: discovery.DiscoveredConfigs{
+				{
+					Path: "a",
+					Dependencies: discovery.DiscoveredConfigs{
+						{
+							Path: "b",
+							Dependencies: discovery.DiscoveredConfigs{
+								{Path: "a"},
+							},
+						},
+					},
+				},
+				{Path: "b"},
+			},
+			errorExpected: true,
+		},
+		{
+			name: "indirect cycle",
+			configs: discovery.DiscoveredConfigs{
+				{
+					Path: "a",
+					Dependencies: discovery.DiscoveredConfigs{
+						{
+							Path: "b",
+							Dependencies: discovery.DiscoveredConfigs{
+								{
+									Path: "c",
+									Dependencies: discovery.DiscoveredConfigs{
+										{Path: "a"},
+									},
+								},
+							},
+						},
+					},
+				},
+				{Path: "b"},
+				{Path: "c"},
+			},
+			errorExpected: true,
+		},
+		{
+			name: "diamond dependency - no cycle",
+			configs: discovery.DiscoveredConfigs{
+				{
+					Path: "a",
+					Dependencies: discovery.DiscoveredConfigs{
+						{Path: "b"},
+						{Path: "c"},
+					},
+				},
+				{
+					Path: "b",
+					Dependencies: discovery.DiscoveredConfigs{
+						{Path: "d"},
+					},
+				},
+				{
+					Path: "c",
+					Dependencies: discovery.DiscoveredConfigs{
+						{Path: "d"},
+					},
+				},
+				{Path: "d"},
+			},
+			errorExpected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.configs.CycleCheck()
+			if tt.errorExpected {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "cycle detected")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
