@@ -13,7 +13,7 @@ import (
 func TestAllTasksCompleteWithoutErrors(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(5)
+	wp := util.NewWorkerPool()
 	defer wp.Stop()
 
 	var counter int32
@@ -38,7 +38,7 @@ func TestAllTasksCompleteWithoutErrors(t *testing.T) {
 func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(10)
+	wp := util.NewWorkerPool()
 	defer wp.Stop()
 
 	var counter int32
@@ -61,7 +61,7 @@ func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
 func TestSomeTasksReturnErrors(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(3)
+	wp := util.NewWorkerPool()
 	defer wp.Stop()
 
 	var successCount int32
@@ -89,7 +89,7 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 func TestStopAndRestart(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(2)
+	wp := util.NewWorkerPool()
 
 	var counter int32
 
@@ -130,7 +130,7 @@ func TestStopAndRestart(t *testing.T) {
 func TestParallelSubmitsAndWaits(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(4)
+	wp := util.NewWorkerPool()
 	defer wp.Stop()
 
 	var totalCount int32
@@ -160,7 +160,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 
 func TestValidateParallelSubmits(t *testing.T) {
 	t.Parallel()
-	wp := util.NewWorkerPool(1)
+	wp := util.NewWorkerPool()
 	defer wp.Stop()
 
 	var totalCount int32

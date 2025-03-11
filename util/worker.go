@@ -6,36 +6,28 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-// Task represents a unit of work that can be executed by the worker pool
+// Task represents a unit of work that can be executed
 type Task func() error
 
-// WorkerPool manages a pool of workers for concurrent task execution
+// WorkerPool manages concurrent task execution
 type WorkerPool struct {
-	numWorkers  int
-	taskChan    chan Task
 	resultChan  chan error
 	wg          sync.WaitGroup
-	isRunning   bool
 	errorsSlice []error
 	mu          sync.Mutex // Mutex to protect errorsSlice
+	isRunning   bool
 }
 
-// NewWorkerPool creates a new worker pool with the specified number of workers
-func NewWorkerPool(numWorkers int) *WorkerPool {
-	if numWorkers <= 0 {
-		numWorkers = 1 // Ensure at least one worker
-	}
-
+// NewWorkerPool creates a new worker pool
+func NewWorkerPool() *WorkerPool {
 	return &WorkerPool{
-		numWorkers:  numWorkers,
-		taskChan:    make(chan Task),
 		resultChan:  make(chan error),
 		isRunning:   false,
 		errorsSlice: make([]error, 0),
 	}
 }
 
-// Start initializes and starts the worker pool
+// Start initializes the worker pool
 func (wp *WorkerPool) Start() {
 	wp.mu.Lock()
 	if wp.isRunning {
@@ -44,28 +36,13 @@ func (wp *WorkerPool) Start() {
 	}
 	wp.isRunning = true
 
-	// Recreate the channels if they've been closed
-	wp.taskChan = make(chan Task)
+	// Recreate the result channel if it's been closed
 	wp.resultChan = make(chan error)
 
 	wp.mu.Unlock()
 
 	// Start the error collector
 	go wp.collectResults()
-
-	// Start the workers
-	for i := 0; i < wp.numWorkers; i++ {
-		go wp.worker()
-	}
-}
-
-// worker is the goroutine that processes tasks
-func (wp *WorkerPool) worker() {
-	for task := range wp.taskChan {
-		err := task()
-		wp.resultChan <- err
-		wp.wg.Done()
-	}
 }
 
 // collectResults collects the errors from the result channel
@@ -79,13 +56,19 @@ func (wp *WorkerPool) collectResults() {
 	}
 }
 
-// Submit adds a new task to the worker pool
+// Submit adds a new task and immediately starts a goroutine to execute it
 func (wp *WorkerPool) Submit(task Task) {
 	if !wp.isRunning {
 		wp.Start()
 	}
 	wp.wg.Add(1)
-	wp.taskChan <- task
+
+	// Start a new goroutine for each task
+	go func() {
+		err := task()
+		wp.resultChan <- err
+		wp.wg.Done()
+	}()
 }
 
 // Wait blocks until all tasks are completed
@@ -113,7 +96,6 @@ func (wp *WorkerPool) Stop() {
 	defer wp.mu.Unlock()
 
 	if wp.isRunning {
-		close(wp.taskChan)
 		close(wp.resultChan)
 		wp.isRunning = false
 	}
