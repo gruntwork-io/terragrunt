@@ -15,10 +15,12 @@
 // This is to ensure that dependencies are run first for applies, and dependents are run first for destroys.
 package queue
 
-import "github.com/gruntwork-io/terragrunt/internal/discovery"
+import (
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+)
 
 type Queue struct {
-	entries []*discovery.DiscoveredConfig
+	entries discovery.DiscoveredConfigs
 }
 
 // Entries returns the queue entries. Used for testing.
@@ -28,10 +30,14 @@ func (q *Queue) Entries() []*discovery.DiscoveredConfig {
 
 // NewQueue creates a new queue from a list of discovered configurations.
 // The queue is populated with the correct Terragrunt run order.
-func NewQueue(discovered []*discovery.DiscoveredConfig) *Queue {
-	entries := make([]*discovery.DiscoveredConfig, 0, len(discovered))
+func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
+	entries := make(discovery.DiscoveredConfigs, 0, len(discovered))
 
-	for _, cfg := range discovered {
+	// First, sort the discovered configs by path to ensure deterministic ordering
+	// of parallel dependencies
+	sortedConfigs := discovered.Sort()
+
+	for _, cfg := range sortedConfigs {
 		inserted := false
 		// Try to insert the config at each position, starting from the front
 		for i := 0; i < len(entries); i++ {
@@ -39,9 +45,8 @@ func NewQueue(discovered []*discovery.DiscoveredConfig) *Queue {
 			// in its ancestry.
 			if entries[i].ContainsDependencyInAncestry(cfg.Path) {
 				// Insert cfg before the dependent entry
-				entries = append(entries[:i], append([]*discovery.DiscoveredConfig{cfg}, entries[i:]...)...)
+				entries = append(entries[:i], append(discovery.DiscoveredConfigs{cfg}, entries[i:]...)...)
 				inserted = true
-
 				break
 			}
 		}
