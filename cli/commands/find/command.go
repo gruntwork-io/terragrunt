@@ -18,6 +18,8 @@ const (
 	JSONFlagName   = "json"
 	SortFlagName   = "sort"
 	HiddenFlagName = "hidden"
+	Dependencies   = "dependencies"
+	External       = "external"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -28,27 +30,39 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
-			Usage:       "Output format for the find results. Valid values: text, json",
+			Usage:       "Output format for the find results. Valid values: text, json.",
 			DefaultText: FormatText,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
 			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
 			Destination: &opts.JSON,
-			Usage:       "Output in JSON format (equivalent to --format=json)",
+			Usage:       "Output in JSON format (equivalent to --format=json).",
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        SortFlagName,
 			EnvVars:     tgPrefix.EnvVars(SortFlagName),
 			Destination: &opts.Sort,
-			Usage:       "Sort order for the find results. Valid values: alpha", // TODO: add dag
+			Usage:       "Sort order for the find results. Valid values: alpha, dag.",
 			DefaultText: SortAlpha,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        HiddenFlagName,
 			EnvVars:     tgPrefix.EnvVars(HiddenFlagName),
 			Destination: &opts.Hidden,
-			Usage:       "Include hidden directories in the find results.",
+			Usage:       "Include hidden directories in find results.",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        Dependencies,
+			EnvVars:     tgPrefix.EnvVars(Dependencies),
+			Destination: &opts.Dependencies,
+			Usage:       "Include dependencies in the results.",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        External,
+			EnvVars:     tgPrefix.EnvVars(External),
+			Destination: &opts.External,
+			Usage:       "Discover external dependencies from initial results.",
 		}),
 	}
 }

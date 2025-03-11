@@ -20,8 +20,12 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithHidden()
 	}
 
-	if opts.Sort == SortDAG {
+	if opts.Dependencies || opts.External || opts.Sort == SortDAG {
 		d = d.WithDiscoverDependencies()
+	}
+
+	if opts.External {
+		d = d.WithDiscoverExternalDependencies()
 	}
 
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
@@ -68,6 +72,10 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 	errs := []error{}
 
 	for _, config := range configs {
+		if config.External && !opts.External {
+			continue
+		}
+
 		relPath, err := filepath.Rel(opts.WorkingDir, config.Path)
 		if err != nil {
 			errs = append(errs, errors.New(err))
@@ -78,6 +86,12 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 		foundCfg := &FoundConfig{
 			Type: config.Type,
 			Path: relPath,
+		}
+
+		if !opts.Dependencies {
+			foundCfgs = append(foundCfgs, foundCfg)
+
+			continue
 		}
 
 		foundCfg.Dependencies = make([]string, len(config.Dependencies))

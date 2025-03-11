@@ -34,6 +34,12 @@ type Options struct {
 
 	// Hidden determines whether to detect hidden directories.
 	Hidden bool
+
+	// Dependencies determines whether to include dependencies in the output.
+	Dependencies bool
+
+	// External determines whether to include external dependencies in the output.
+	External bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
