@@ -88,7 +88,7 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 			Path: relPath,
 		}
 
-		if !opts.Dependencies {
+		if !opts.Dependencies || len(config.Dependencies) == 0 {
 			foundCfgs = append(foundCfgs, foundCfg)
 
 			continue
