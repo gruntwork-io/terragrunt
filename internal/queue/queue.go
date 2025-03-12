@@ -84,6 +84,20 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 					hasUnprocessedDeps = true
 					break
 				}
+
+				// Calculate depth based on dependencies that have been processed
+				if depConfig, ok := configMap[dep.Path]; ok {
+					// Find this dependency's position in the result slice to determine its depth
+					for pos, resCfg := range result {
+						if resCfg.Path == depConfig.Path {
+							if pos+1 > maxDepth {
+								maxDepth = pos + 1
+							}
+
+							break
+						}
+					}
+				}
 			}
 
 			if !hasUnprocessedDeps {
