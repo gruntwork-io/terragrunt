@@ -692,6 +692,23 @@ func TestStackOutputWithDependency(t *testing.T) {
 	}
 }
 
+func TestStackApplyStrictInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --queue-strict-include --queue-include-dir */app1 --experiment stacks stack run apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	//assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+	//
+	//// check that test
+	//dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
+	//assert.FileExists(t, dataPath)
+}
+
 // check if the stack directory is created and contains files.
 func validateStackDir(t *testing.T, path string) {
 	t.Helper()

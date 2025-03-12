@@ -2,6 +2,8 @@
 package stack
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -30,6 +32,9 @@ func NewFlags(_ *options.TerragruntOptions) cli.Flags {
 
 // NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	runFlags := runall.NewFlags(opts, CommandName, nil).Filter(runall.OutDirFlagName, runall.JSONOutDirFlagName)
+	runFlags = append(runFlags, run.NewFlags(opts, nil)...)
+
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Terragrunt stack commands.",
@@ -40,7 +45,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx *cli.Context) error {
-					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
+					return RunGenerate(ctx.Context, opts)
 
 				},
 			},
@@ -48,8 +53,9 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
 				Action: func(ctx *cli.Context) error {
-					return Run(ctx.Context, opts.OptionsFromContext(ctx))
+					return Run(ctx.Context, opts)
 				},
+				Flags: runFlags.Sort(),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
@@ -59,7 +65,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 					if val := ctx.Args().Get(0); val != "" {
 						index = val
 					}
-					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx), index)
+					return RunOutput(ctx.Context, opts, index)
 				},
 				Flags: outputFlags(opts, nil),
 			},
@@ -67,7 +73,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Name:  cleanCommandName,
 				Usage: "Clean the stack generated from the current directory",
 				Action: func(ctx *cli.Context) error {
-					return RunClean(ctx.Context, opts.OptionsFromContext(ctx))
+					return RunClean(ctx.Context, opts)
 				},
 			},
 		},
