@@ -842,7 +842,7 @@ func ParseConfigString(ctx *ParsingContext, configPath string, configString stri
 
 	config, err := ParseConfig(ctx, file, includeFromChild)
 	if err != nil {
-		return nil, err
+		return config, err
 	}
 
 	return config, nil
@@ -946,14 +946,14 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 
 	config, err := convertToTerragruntConfig(ctx, file.ConfigPath, terragruntConfigFile)
 	if err != nil {
-		return nil, err
+		return config, err
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {
-			return nil, err
+			return config, err
 		}
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		mergedConfig.ProcessedIncludes = ctx.TrackInclude.CurrentMap
@@ -1133,7 +1133,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
-			return nil, err
+			return terragruntConfig, err
 		}
 
 		terragruntConfig.RemoteState = remoteState
@@ -1143,12 +1143,12 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.RemoteStateAttr != nil {
 		remoteStateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
 		if err != nil {
-			return nil, err
+			return terragruntConfig, err
 		}
 
 		var remoteState *remote.RemoteState
 		if err := mapstructure.Decode(remoteStateMap, &remoteState); err != nil {
-			return nil, err
+			return terragruntConfig, err
 		}
 
 		terragruntConfig.RemoteState = remoteState
@@ -1156,7 +1156,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if err := terragruntConfigFromFile.Terraform.ValidateHooks(); err != nil {
-		return nil, err
+		return terragruntConfig, err
 	}
 
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
@@ -1165,7 +1165,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if err := validateDependencies(ctx, terragruntConfigFromFile.Dependencies); err != nil {
-		return nil, err
+		return terragruntConfig, err
 	}
 
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
@@ -1273,28 +1273,36 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.GenerateAttrs != nil {
 		generateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
 		if err != nil {
-			return nil, err
+			return terragruntConfig, err
 		}
+
+		errs := []error{}
 
 		for name, block := range generateMap {
 			var generateBlock terragruntGenerateBlock
 			if err := mapstructure.Decode(block, &generateBlock); err != nil {
-				return nil, err
+				errs = append(errs, err)
+
+				continue
 			}
 
 			generateBlock.Name = name
 			generateBlocks = append(generateBlocks, generateBlock)
 		}
+
+		if len(errs) > 0 {
+			return terragruntConfig, errors.Join(errs...)
+		}
 	}
 
 	if err := validateGenerateBlocks(&generateBlocks); err != nil {
-		return nil, err
+		return terragruntConfig, err
 	}
 
 	for _, block := range generateBlocks {
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
-			return nil, err
+			return terragruntConfig, err
 		}
 
 		if block.IfDisabled == nil {
@@ -1303,7 +1311,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
 		if err != nil {
-			return nil, err
+			return terragruntConfig, err
 		}
 
 		genConfig := codegen.GenerateConfig{
@@ -1339,7 +1347,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.Inputs != nil {
 		inputs, err := ParseCtyValueToMap(*terragruntConfigFromFile.Inputs)
 		if err != nil {
-			return nil, err
+			return terragruntConfig, err
 		}
 
 		terragruntConfig.Inputs = inputs
@@ -1349,7 +1357,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
 		localsParsed, err := ParseCtyValueToMap(*ctx.Locals)
 		if err != nil {
-			return nil, err
+			return terragruntConfig, err
 		}
 
 		terragruntConfig.Locals = localsParsed
