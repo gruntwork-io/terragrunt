@@ -2,6 +2,8 @@
 package stack
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -44,6 +46,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, opts.OptionsFromContext(ctx))
 				},
+				Flags: runFlags(opts).Sort(),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
@@ -96,4 +99,11 @@ func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags
 			},
 		}),
 	}
+}
+
+func runFlags(opts *options.TerragruntOptions) cli.Flags {
+	flags := runall.NewFlags(opts, runCommandName, nil).Filter(runall.OutDirFlagName, runall.JSONOutDirFlagName)
+	flags = append(flags, run.NewFlags(opts, nil)...)
+
+	return flags
 }
