@@ -31,6 +31,7 @@ const (
 	testFixtureNestedStacks        = "fixtures/stacks/nested"
 	testFixtureStackValues         = "fixtures/stacks/stack-values"
 	testFixtureStackDependencies   = "fixtures/stacks/dependencies"
+	testFixtureStackAbsolutePath   = "fixtures/stacks/absolute-path"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -758,6 +759,32 @@ func TestStacksSourceMap(t *testing.T) {
 
 	assert.Contains(t, stderr, "Processing unit app1")
 	assert.Contains(t, stderr, "Processing unit app2")
+}
+
+func TestStacksGenerateAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackAbsolutePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackAbsolutePath)
+	helpers.CreateGitRepo(t, rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-log-level debug  --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+
+	// check that apps directories are generated
+	app3 := util.JoinPath(rootPath, ".terragrunt-stack", "app3")
+	assert.DirExists(t, app3)
+
+	app1 := util.JoinPath(rootPath, "app1")
+	assert.DirExists(t, app1)
+
+	app2 := util.JoinPath(rootPath, "app2")
+	assert.DirExists(t, app2)
+
+	app1 = util.JoinPath(rootPath, ".terragrunt-stack", "app1")
+	assert.NoDirExists(t, app1)
 }
 
 // check if the stack directory is created and contains files.

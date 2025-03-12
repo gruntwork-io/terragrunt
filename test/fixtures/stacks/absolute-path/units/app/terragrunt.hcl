@@ -1,0 +1,4 @@
+
+inputs = {
+  input = values.input
+}
