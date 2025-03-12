@@ -60,7 +60,6 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 		// Group configs by their dependency depth
 		type nodeInfo struct {
 			config *discovery.DiscoveredConfig
-			depth  int
 		}
 
 		// Calculate max dependency depth for each config
@@ -71,7 +70,6 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 				continue
 			}
 
-			maxDepth := 0
 			hasUnprocessedDeps := false
 
 			// Only consider dependencies that exist in our discovered configs
@@ -84,24 +82,10 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 					hasUnprocessedDeps = true
 					break
 				}
-
-				// Calculate depth based on dependencies that have been processed
-				if depConfig, ok := configMap[dep.Path]; ok {
-					// Find this dependency's position in the result slice to determine its depth
-					for pos, resCfg := range result {
-						if resCfg.Path == depConfig.Path {
-							if pos+1 > maxDepth {
-								maxDepth = pos + 1
-							}
-
-							break
-						}
-					}
-				}
 			}
 
 			if !hasUnprocessedDeps {
-				levelNodes = append(levelNodes, nodeInfo{cfg, maxDepth})
+				levelNodes = append(levelNodes, nodeInfo{cfg})
 			}
 		}
 
@@ -110,19 +94,14 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 			return
 		}
 
-		// Sort nodes by depth (primary) and path (secondary) for deterministic ordering
+		// Sort nodes by path for deterministic ordering within each level
 		sort.SliceStable(levelNodes, func(i, j int) bool {
-			if levelNodes[i].depth != levelNodes[j].depth {
-				return levelNodes[i].depth < levelNodes[j].depth
-			}
-
 			return levelNodes[i].config.Path < levelNodes[j].config.Path
 		})
 
 		// Add all nodes at this level to result
 		for _, node := range levelNodes {
 			visited[node.config.Path] = true
-
 			result = append(result, node.config)
 		}
 

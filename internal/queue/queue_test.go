@@ -131,6 +131,53 @@ func TestNewQueue(t *testing.T) {
 			assert.Equal(t, "D", entries[3].Path)
 		}
 	})
+
+	t.Run("depth-based ordering verification", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a graph where depth matters:
+		//   A (no deps, depth 0)
+		//   B (no deps, depth 0)
+		//   C -> A (depth 1)
+		//   D -> B (depth 1)
+		//   E -> C,D (depth 2)
+		configs := []*discovery.DiscoveredConfig{
+			{Path: "E", Dependencies: []*discovery.DiscoveredConfig{{Path: "C"}, {Path: "D"}}},
+			{Path: "D", Dependencies: []*discovery.DiscoveredConfig{{Path: "B"}}},
+			{Path: "C", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}}},
+			{Path: "B", Dependencies: []*discovery.DiscoveredConfig{}},
+			{Path: "A", Dependencies: []*discovery.DiscoveredConfig{}},
+		}
+
+		q := queue.NewQueue(configs)
+		entries := q.Entries()
+
+		// Verify that items are grouped by their depth levels
+		// Level 0: A,B (no deps)
+		// Level 1: C,D (depend on level 0)
+		// Level 2: E (depends on level 1)
+
+		// First verify the basic ordering
+		assert.Equal(t, 5, len(entries), "Should have all 5 entries")
+
+		// Find indices
+		aIndex := findIndex(entries, "A")
+		bIndex := findIndex(entries, "B")
+		cIndex := findIndex(entries, "C")
+		dIndex := findIndex(entries, "D")
+		eIndex := findIndex(entries, "E")
+
+		// Level 0 items should be at the start (indices 0 or 1)
+		assert.True(t, aIndex <= 1, "A should be in first two positions")
+		assert.True(t, bIndex <= 1, "B should be in first two positions")
+
+		// Level 1 items should be in the middle (indices 2 or 3)
+		assert.True(t, cIndex >= 2 && cIndex <= 3, "C should be in middle positions")
+		assert.True(t, dIndex >= 2 && dIndex <= 3, "D should be in middle positions")
+
+		// Level 2 item should be at the end (index 4)
+		assert.Equal(t, 4, eIndex, "E should be in last position")
+	})
 }
 
 // findIndex returns the index of the config with the given path in the slice
