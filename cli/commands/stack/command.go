@@ -23,18 +23,12 @@ const (
 	jsonOutputFormat = "json"
 )
 
-// NewFlags builds the flags for stack.
-func NewFlags(_ *options.TerragruntOptions) cli.Flags {
-	return cli.Flags{}
-}
-
 // NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Terragrunt stack commands.",
 		ErrorOnUndefinedFlag: true,
-		Flags:                NewFlags(opts).Sort(),
 		Subcommands: cli.Commands{
 			&cli.Command{
 				Name:  generateCommandName,

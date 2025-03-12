@@ -692,6 +692,19 @@ func TestStackOutputWithDependency(t *testing.T) {
 	}
 }
 
+func TestStacksGenerateSourceMap(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --source-map units/app-with-dependency=units/app --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
+
 // check if the stack directory is created and contains files.
 func validateStackDir(t *testing.T, path string) {
 	t.Helper()

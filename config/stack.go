@@ -246,6 +246,9 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 	return nil
 }
 
+// itemToProcess represents a unit of work for processing a stack or unit in the Terragrunt configuration.
+// It contains information about the source and target directories, the name and path of the item, the source URL or path,
+// and any associated values that need to be processed.
 type itemToProcess struct {
 	sourceDir string
 	targetDir string
@@ -257,16 +260,21 @@ type itemToProcess struct {
 
 // processItem copies files from the source directory to the target destination and generates a corresponding values file.
 func processItem(ctx context.Context, opts *options.TerragruntOptions, item *itemToProcess) error {
-	destPath := filepath.Join(item.targetDir, item.path)
-	dest, err := filepath.Abs(destPath)
-
+	source := item.source
+	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.OriginalTerragruntConfigPath)
 	if err != nil {
-		return errors.Errorf("failed to get absolute path for destination '%s': %v", dest, err)
+		return errors.Errorf("failed to adjust source %s: %v", item.source, err)
 	}
 
-	opts.Logger.Debugf("Processing: %s (%s) to %s", item.name, item.source, dest)
+	dest := item.path
+	// if destination is an absolute path, use as is
+	if !filepath.IsAbs(item.path) {
+		dest = filepath.Join(item.targetDir, item.path)
+	}
 
-	if err := copyFiles(ctx, opts, item.name, item.sourceDir, item.source, dest); err != nil {
+	opts.Logger.Debugf("Processing: %s (%s) to %s", item.name, source, dest)
+
+	if err := copyFiles(ctx, opts, item.name, item.sourceDir, source, dest); err != nil {
 		return err
 	}
 
