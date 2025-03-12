@@ -32,9 +32,6 @@ func NewFlags(_ *options.TerragruntOptions) cli.Flags {
 
 // NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	runFlags := runall.NewFlags(opts, CommandName, nil).Filter(runall.OutDirFlagName, runall.JSONOutDirFlagName)
-	runFlags = append(runFlags, run.NewFlags(opts, nil)...)
-
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Terragrunt stack commands.",
@@ -45,7 +42,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx *cli.Context) error {
-					return RunGenerate(ctx.Context, opts)
+					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
 
 				},
 			},
@@ -53,9 +50,9 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
 				Action: func(ctx *cli.Context) error {
-					return Run(ctx.Context, opts)
+					return Run(ctx.Context, opts.OptionsFromContext(ctx))
 				},
-				Flags: runFlags.Sort(),
+				Flags: runFlags(opts).Sort(),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
@@ -65,7 +62,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 					if val := ctx.Args().Get(0); val != "" {
 						index = val
 					}
-					return RunOutput(ctx.Context, opts, index)
+					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx), index)
 				},
 				Flags: outputFlags(opts, nil),
 			},
@@ -73,7 +70,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Name:  cleanCommandName,
 				Usage: "Clean the stack generated from the current directory",
 				Action: func(ctx *cli.Context) error {
-					return RunClean(ctx.Context, opts)
+					return RunClean(ctx.Context, opts.OptionsFromContext(ctx))
 				},
 			},
 		},
@@ -108,4 +105,11 @@ func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags
 			},
 		}),
 	}
+}
+
+func runFlags(opts *options.TerragruntOptions) cli.Flags {
+	flags := runall.NewFlags(opts, runCommandName, nil).Filter(runall.OutDirFlagName, runall.JSONOutDirFlagName)
+	flags = append(flags, run.NewFlags(opts, nil)...)
+
+	return flags
 }

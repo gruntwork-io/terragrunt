@@ -699,14 +699,18 @@ func TestStackApplyStrictInclude(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --queue-strict-include --queue-include-dir */app1 --experiment stacks stack run apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment stacks stack run apply --queue-strict-include --queue-include-dir=./.terragrunt-stack/app1 --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	//assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
-	//
-	//// check that test
-	//dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	//assert.FileExists(t, dataPath)
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app1")
+	assert.NotContains(t, stderr, "Module ./.terragrunt-stack/app2")
+	assert.NotContains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+
+	// check that test file wasn't created
+	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
+	assert.True(t, util.FileNotExists(dataPath))
 }
 
 // check if the stack directory is created and contains files.
