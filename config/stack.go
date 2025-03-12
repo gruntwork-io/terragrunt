@@ -195,7 +195,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
 
 		pool.Submit(func() error {
-			item := itemToProcess{
+			item := configurationToProcess{
 				sourceDir: sourceDir,
 				targetDir: targetDir,
 				name:      unitCopy.Name,
@@ -206,7 +206,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
 
-			if err := processItem(ctx, opts, &item); err != nil {
+			if err := processConfiguration(ctx, opts, &item); err != nil {
 				return err
 			}
 
@@ -224,7 +224,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 
 		pool.Submit(func() error {
-			item := itemToProcess{
+			item := configurationToProcess{
 				sourceDir: sourceDir,
 				targetDir: targetDir,
 				name:      stackCopy.Name,
@@ -235,7 +235,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 
 			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
 
-			if err := processItem(ctx, opts, &item); err != nil {
+			if err := processConfiguration(ctx, opts, &item); err != nil {
 				return err
 			}
 
@@ -246,10 +246,10 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 	return nil
 }
 
-// itemToProcess represents a unit of work for processing a stack or unit in the Terragrunt configuration.
+// configurationToProcess represents an item of work for processing a stack or unit.
 // It contains information about the source and target directories, the name and path of the item, the source URL or path,
 // and any associated values that need to be processed.
-type itemToProcess struct {
+type configurationToProcess struct {
 	sourceDir string
 	targetDir string
 	name      string
@@ -258,30 +258,30 @@ type itemToProcess struct {
 	values    *cty.Value
 }
 
-// processItem copies files from the source directory to the target destination and generates a corresponding values file.
-func processItem(ctx context.Context, opts *options.TerragruntOptions, item *itemToProcess) error {
-	source := item.source
+// processConfiguration copies files from the source directory to the target destination and generates a corresponding values file.
+func processConfiguration(ctx context.Context, opts *options.TerragruntOptions, cfg *configurationToProcess) error {
+	source := cfg.source
 	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.TerragruntStackConfigPath)
 
 	if err != nil {
-		return errors.Errorf("failed to adjust source %s: %v", item.source, err)
+		return errors.Errorf("failed to adjust source %s: %v", cfg.source, err)
 	}
 
-	dest := item.path
+	dest := cfg.path
 	// if destination is an absolute path, use as is
-	if !filepath.IsAbs(item.path) {
-		dest = filepath.Join(item.targetDir, item.path)
+	if !filepath.IsAbs(cfg.path) {
+		dest = filepath.Join(cfg.targetDir, cfg.path)
 	}
 
-	opts.Logger.Debugf("Processing: %s (%s) to %s", item.name, source, dest)
+	opts.Logger.Debugf("Processing: %s (%s) to %s", cfg.name, source, dest)
 
-	if err := copyFiles(ctx, opts, item.name, item.sourceDir, source, dest); err != nil {
+	if err := copyFiles(ctx, opts, cfg.name, cfg.sourceDir, source, dest); err != nil {
 		return err
 	}
 
 	// generate values file
-	if err := writeValues(opts, item.values, dest); err != nil {
-		return errors.Errorf("failed to write values %v %v", item.name, err)
+	if err := writeValues(opts, cfg.values, dest); err != nil {
+		return errors.Errorf("failed to write values %v %v", cfg.name, err)
 	}
 
 	return nil
