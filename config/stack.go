@@ -261,6 +261,7 @@ type componentToProcess struct {
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
 func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp *componentToProcess) error {
 	source := cmp.source
+	// Adjust source path using the provided source mapping configuration if available
 	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.TerragruntStackConfigPath)
 
 	if err != nil {
