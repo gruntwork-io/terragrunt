@@ -262,6 +262,7 @@ type itemToProcess struct {
 func processItem(ctx context.Context, opts *options.TerragruntOptions, item *itemToProcess) error {
 	source := item.source
 	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.TerragruntStackConfigPath)
+
 	if err != nil {
 		return errors.Errorf("failed to adjust source %s: %v", item.source, err)
 	}

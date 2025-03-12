@@ -728,10 +728,11 @@ func TestStacksSourceMap(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	err := files.CopyFolderContentsWithFilter(filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, func(path string) bool {
+	if err := files.CopyFolderContentsWithFilter(filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, func(path string) bool {
 		return true
-	})
-	assert.NoError(t, err)
+	}); err != nil {
+		assert.NoError(t, err)
+	}
 
 	// prepare local environment with remote to use source map to replace
 	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
