@@ -115,8 +115,8 @@ To transition the `stacks` feature to a stable release, the following must be ad
 - [x] Add support for `stack output` commands to extend stack-level operations.
 - [x] Add support for stack "values".
 - [x] Add support for recursive stacks.
-- [ ] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
-- [ ] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
+- [x] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
+- [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
 - [ ] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
 
 ### `cli-redesign`
