@@ -28,11 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 )
 
-const (
-	notVisited = iota
-	processed
-)
-
 type Queue struct {
 	entries discovery.DiscoveredConfigs
 }
@@ -53,10 +48,8 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 		configMap[cfg.Path] = cfg
 	}
 
-	// Track processed nodes and their states:
-	// 0 = not visited
-	// 1 = processed
-	visited := make(map[string]int, len(discovered))
+	// Track if a given config has been processed
+	visited := make(map[string]bool, len(discovered))
 
 	// Result will store configs in dependency order
 	result := make(discovery.DiscoveredConfigs, 0, len(discovered))
@@ -74,7 +67,7 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 		levelNodes := make([]nodeInfo, 0, len(configs))
 
 		for _, cfg := range configs {
-			if visited[cfg.Path] == processed {
+			if visited[cfg.Path] {
 				continue
 			}
 
@@ -87,7 +80,7 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 					continue // Skip dependencies that don't exist in our discovered configs
 				}
 
-				if visited[dep.Path] != processed {
+				if !visited[dep.Path] {
 					hasUnprocessedDeps = true
 					break
 				}
@@ -114,7 +107,7 @@ func NewQueue(discovered discovery.DiscoveredConfigs) *Queue {
 
 		// Add all nodes at this level to result
 		for _, node := range levelNodes {
-			visited[node.config.Path] = processed
+			visited[node.config.Path] = true
 
 			result = append(result, node.config)
 		}
