@@ -37,8 +37,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx *cli.Context) error {
 					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
-
 				},
+				Flags: runFlags(opts).Sort(),
 			},
 			&cli.Command{
 				Name:  runCommandName,

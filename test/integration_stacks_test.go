@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terratest/modules/files"
+
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
 	"github.com/stretchr/testify/assert"
@@ -171,9 +173,11 @@ func TestStacksApplyRemote(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
+	assert.Contains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.Contains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
@@ -713,17 +717,46 @@ func TestStackApplyStrictInclude(t *testing.T) {
 	assert.True(t, util.FileNotExists(dataPath))
 }
 
-func TestStacksGenerateSourceMap(t *testing.T) {
+func TestStacksSourceMap(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies)
+	// prepare local path to do override of source url
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	localTmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	localTmpTest := filepath.Join(localTmpEnvPath, "test", "fixtures")
+	if err := os.MkdirAll(localTmpTest, 0755); err != nil {
+		assert.NoError(t, err)
+	}
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --source-map units/app-with-dependency=units/app --terragrunt-working-dir "+rootPath)
+	err := files.CopyFolderContentsWithFilter(filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, func(path string) bool {
+		return true
+	})
+	assert.NoError(t, err)
+
+	// prepare local environment with remote to use source map to replace
+	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
+
+	// generate path with replacement of local source with local path
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "Processing unit app1")
+	assert.Contains(t, stderr, "Processing unit app2")
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// validate that the source map was used to replace the source
+	assert.NotContains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.NotContains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+
+	assert.Contains(t, stderr, "Processing unit app1")
+	assert.Contains(t, stderr, "Processing unit app2")
 }
 
 // check if the stack directory is created and contains files.
