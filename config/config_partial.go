@@ -497,7 +497,11 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 			if err := skipDependenciesInputs.Evaluate(logger); err != nil {
-				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs parse from %v in dependency for better performance", file.ConfigPath)
+				ctx.TerragruntOptions.Logger.Debugf(
+					"Skipping inputs parse from %v in dependency for better performance, due to usage of %s strict control",
+					file.ConfigPath,
+					controls.SkipDependenciesInputs,
+				)
 
 				break
 			}
