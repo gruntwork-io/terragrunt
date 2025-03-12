@@ -58,6 +58,9 @@ type Stack struct {
 // GenerateStacks generates the stack files.
 func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
+	wp := util.NewWorkerPool(opts.Parallelism)
+	// stop worker pool on exit
+	defer wp.Stop()
 	// initial files setting as stack file
 	foundFiles := []string{opts.TerragruntStackConfigPath}
 
@@ -73,9 +76,13 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 			processedNewFiles = true
 			processedFiles[file] = true
 
-			if err := generateStackFile(ctx, opts, file); err != nil {
+			if err := generateStackFile(ctx, opts, wp, file); err != nil {
 				return errors.Errorf("Failed to process stack file %s %v", file, err)
 			}
+		}
+
+		if err := wp.Wait(); err != nil {
+			return err
 		}
 
 		if !processedNewFiles {
@@ -149,7 +156,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
-func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFilePath string) error {
+func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
 	values, err := ReadValues(ctx, opts, stackSourceDir)
@@ -169,11 +176,11 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, sta
 		return errors.Errorf("failed to create base directory: %s %v", stackTargetDir, err)
 	}
 
-	if err := generateUnits(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, opts, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -183,22 +190,28 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, sta
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, opts *options.TerragruntOptions, sourceDir, targetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
-		item := itemToProcess{
-			sourceDir: sourceDir,
-			targetDir: targetDir,
-			name:      unit.Name,
-			path:      unit.Path,
-			source:    unit.Source,
-			values:    unit.Values,
-		}
+		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
 
-		opts.Logger.Infof("Processing unit %s", unit.Name)
+		pool.Submit(func() error {
+			item := itemToProcess{
+				sourceDir: sourceDir,
+				targetDir: targetDir,
+				name:      unitCopy.Name,
+				path:      unitCopy.Path,
+				source:    unitCopy.Source,
+				values:    unitCopy.Values,
+			}
 
-		if err := processItem(ctx, opts, &item); err != nil {
-			return err
-		}
+			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
+
+			if err := processItem(ctx, opts, &item); err != nil {
+				return err
+			}
+
+			return nil
+		})
 	}
 
 	return nil
@@ -206,22 +219,28 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, sourceD
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, sourceDir, targetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
-		item := itemToProcess{
-			sourceDir: sourceDir,
-			targetDir: targetDir,
-			name:      stack.Name,
-			path:      stack.Path,
-			source:    stack.Source,
-			values:    stack.Values,
-		}
+		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 
-		opts.Logger.Infof("Processing stack %s", stack)
+		pool.Submit(func() error {
+			item := itemToProcess{
+				sourceDir: sourceDir,
+				targetDir: targetDir,
+				name:      stackCopy.Name,
+				path:      stackCopy.Path,
+				source:    stackCopy.Source,
+				values:    stackCopy.Values,
+			}
 
-		if err := processItem(ctx, opts, &item); err != nil {
-			return err
-		}
+			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
+
+			if err := processItem(ctx, opts, &item); err != nil {
+				return err
+			}
+
+			return nil
+		})
 	}
 
 	return nil
