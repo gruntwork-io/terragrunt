@@ -4,6 +4,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path"
@@ -127,8 +128,8 @@ type TerragruntConfig struct {
 	IamAssumeRoleDuration       *int64
 	IamAssumeRoleSessionName    string
 	IamWebIdentityToken         string
-	Inputs                      map[string]interface{}
-	Locals                      map[string]interface{}
+	Inputs                      map[string]any
+	Locals                      map[string]any
 	TerragruntDependencies      Dependencies
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	RetryableErrors             []string
@@ -147,7 +148,7 @@ type TerragruntConfig struct {
 	ProcessedIncludes IncludeConfigsMap
 
 	// Map to store fields metadata
-	FieldsMetadata map[string]map[string]interface{}
+	FieldsMetadata map[string]map[string]any
 
 	// List of dependent modules
 	DependentModulesPath []*string
@@ -775,7 +776,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
-	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
+	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]any{
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
@@ -1127,7 +1128,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
 
-	defaultMetadata := map[string]interface{}{FoundInFile: configPath}
+	defaultMetadata := map[string]any{FoundInFile: configPath}
 
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
@@ -1436,33 +1437,31 @@ func configFileHasDependencyBlock(configPath string) (bool, error) {
 
 // SetFieldMetadataWithType set metadata on the given field name grouped by type.
 // Example usage - setting metadata on different dependencies, locals, inputs.
-func (cfg *TerragruntConfig) SetFieldMetadataWithType(fieldType, fieldName string, m map[string]interface{}) {
+func (cfg *TerragruntConfig) SetFieldMetadataWithType(fieldType, fieldName string, m map[string]any) {
 	if cfg.FieldsMetadata == nil {
-		cfg.FieldsMetadata = map[string]map[string]interface{}{}
+		cfg.FieldsMetadata = map[string]map[string]any{}
 	}
 
 	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
 
 	metadata, found := cfg.FieldsMetadata[field]
 	if !found {
-		metadata = make(map[string]interface{})
+		metadata = make(map[string]any)
 	}
 
-	for key, value := range m {
-		metadata[key] = value
-	}
+	maps.Copy(m, metadata)
 
 	cfg.FieldsMetadata[field] = metadata
 }
 
 // SetFieldMetadata set metadata on the given field name.
-func (cfg *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]interface{}) {
+func (cfg *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]any) {
 	cfg.SetFieldMetadataWithType(fieldName, fieldName, m)
 }
 
 // SetFieldMetadataMap set metadata on fields from map keys.
 // Example usage - setting metadata on all variables from inputs.
-func (cfg *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]interface{}, metadata map[string]interface{}) {
+func (cfg *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]any, metadata map[string]any) {
 	for name := range data {
 		cfg.SetFieldMetadataWithType(field, name, metadata)
 	}
@@ -1500,7 +1499,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		return nil, nil
 	}
 	// in case of Meta is null, set empty meta
-	meta := map[string]interface{}{}
+	meta := map[string]any{}
 
 	if cfg.Engine.Meta != nil {
 		parsedMeta, err := ParseCtyValueToMap(*cfg.Engine.Meta)
@@ -1573,7 +1572,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			continue
 		}
 
-		var signals map[string]interface{}
+		var signals map[string]any
 
 		if ignoreBlock.Signals != nil {
 			value, err := convertValuesMapToCtyVal(ignoreBlock.Signals)
