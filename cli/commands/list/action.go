@@ -45,16 +45,16 @@ func Run(ctx context.Context, opts *Options) error {
 		cfgs = q.Entries()
 	}
 
-	foundCfgs, err := discoveredToFound(cfgs, opts)
+	listedCfgs, err := discoveredToListed(cfgs, opts)
 	if err != nil {
 		return errors.New(err)
 	}
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(opts, foundCfgs)
+		return outputText(opts, listedCfgs)
 	case FormatJSON:
-		return outputJSON(opts, foundCfgs)
+		return outputJSON(opts, listedCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -62,17 +62,17 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 }
 
-type FoundConfigs []*FoundConfig
+type ListedConfigs []*ListedConfig
 
-type FoundConfig struct {
+type ListedConfig struct {
 	Type discovery.ConfigType `json:"type"`
 	Path string               `json:"path"`
 
 	Dependencies []string `json:"dependencies,omitempty"`
 }
 
-func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (FoundConfigs, error) {
-	foundCfgs := make(FoundConfigs, 0, len(configs))
+func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (ListedConfigs, error) {
+	listedCfgs := make(ListedConfigs, 0, len(configs))
 	errs := []error{}
 
 	for _, config := range configs {
@@ -87,18 +87,18 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 			continue
 		}
 
-		foundCfg := &FoundConfig{
+		listedCfg := &ListedConfig{
 			Type: config.Type,
 			Path: relPath,
 		}
 
 		if !opts.Dependencies || len(config.Dependencies) == 0 {
-			foundCfgs = append(foundCfgs, foundCfg)
+			listedCfgs = append(listedCfgs, listedCfg)
 
 			continue
 		}
 
-		foundCfg.Dependencies = make([]string, len(config.Dependencies))
+		listedCfg.Dependencies = make([]string, len(config.Dependencies))
 
 		for i, dep := range config.Dependencies {
 			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
@@ -108,17 +108,17 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 				continue
 			}
 
-			foundCfg.Dependencies[i] = relDepPath
+			listedCfg.Dependencies[i] = relDepPath
 		}
 
-		foundCfgs = append(foundCfgs, foundCfg)
+		listedCfgs = append(listedCfgs, listedCfg)
 	}
 
-	return foundCfgs, errors.Join(errs...)
+	return listedCfgs, errors.Join(errs...)
 }
 
 // outputJSON outputs the discovered configurations in JSON format.
-func outputJSON(opts *Options, configs FoundConfigs) error {
+func outputJSON(opts *Options, configs ListedConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return errors.New(err)
@@ -148,7 +148,7 @@ func NewColorizer() *Colorizer {
 	}
 }
 
-func (c *Colorizer) Colorize(config *FoundConfig) string {
+func (c *Colorizer) Colorize(config *ListedConfig) string {
 	path := config.Path
 
 	// Get the directory and base name using filepath
@@ -180,7 +180,7 @@ func (c *Colorizer) Colorize(config *FoundConfig) string {
 }
 
 // outputText outputs the discovered configurations in text format.
-func outputText(opts *Options, configs FoundConfigs) error {
+func outputText(opts *Options, configs ListedConfigs) error {
 	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected() {
 		for _, config := range configs {
 			_, err := opts.Writer.Write([]byte(config.Path + "\n"))

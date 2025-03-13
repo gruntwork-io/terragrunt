@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
@@ -135,7 +135,7 @@ func TestRun(t *testing.T) {
 				t.Helper()
 
 				// Verify the output is valid JSON
-				var configs find.FoundConfigs
+				var configs list.ListedConfigs
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -496,7 +496,7 @@ dependency "B" {
 				t.Helper()
 
 				// Verify the output is valid JSON
-				var configs []find.FoundConfig
+				var configs []list.ListedConfig
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -530,7 +530,7 @@ dependency "B" {
 			tgOpts.Logger.Formatter().SetDisabledColors(true)
 
 			// Create options
-			opts := find.NewOptions(tgOpts)
+			opts := list.NewOptions(tgOpts)
 			opts.Format = tt.format
 			opts.Hidden = tt.hidden
 			opts.Sort = tt.sort
@@ -544,7 +544,7 @@ dependency "B" {
 			// Set the writer in options
 			opts.Writer = w
 
-			err = find.Run(context.Background(), opts)
+			err = list.Run(context.Background(), opts)
 			require.NoError(t, err)
 
 			// Close the write end of the pipe
@@ -563,18 +563,18 @@ dependency "B" {
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
-	colorizer := find.NewColorizer()
+	colorizer := list.NewColorizer()
 
 	tests := []struct {
 		name   string
-		config *find.FoundConfig
+		config *list.ListedConfig
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
 		shouldBeDifferent []discovery.ConfigType
 	}{
 		{
 			name: "unit config",
-			config: &find.FoundConfig{
+			config: &list.ListedConfig{
 				Type: discovery.ConfigTypeUnit,
 				Path: "path/to/unit",
 			},
@@ -582,7 +582,7 @@ func TestColorizer(t *testing.T) {
 		},
 		{
 			name: "stack config",
-			config: &find.FoundConfig{
+			config: &list.ListedConfig{
 				Type: discovery.ConfigTypeStack,
 				Path: "path/to/stack",
 			},
@@ -599,7 +599,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &find.FoundConfig{
+				diffConfig := &list.ListedConfig{
 					Type: diffType,
 					Path: tt.config.Path,
 				}
