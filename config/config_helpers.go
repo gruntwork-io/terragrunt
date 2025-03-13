@@ -3,11 +3,13 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -185,17 +187,10 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	}
 
 	functions := map[string]function.Function{}
-	for k, v := range tfscope.Functions() {
-		functions[k] = v
-	}
 
-	for k, v := range terragruntFunctions {
-		functions[k] = v
-	}
-
-	for k, v := range ctx.PredefinedFunctions {
-		functions[k] = v
-	}
+	maps.Copy(functions, tfscope.Functions())
+	maps.Copy(functions, terragruntFunctions)
+	maps.Copy(functions, ctx.PredefinedFunctions)
 
 	evalCtx := &hcl.EvalContext{
 		Functions: functions,
@@ -355,11 +350,11 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		case "--terragrunt-quiet":
 			suppressOutput = true
 
-			args = append(args[:0], args[1:]...)
+			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-global-cache":
 			cachePath = "_global_"
 
-			args = append(args[:0], args[1:]...)
+			args = slices.Delete(args, 0, 1)
 		default:
 			checkOptions = false
 		}
@@ -473,7 +468,7 @@ func FindInParentFolders(
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
-	for i := 0; i < ctx.TerragruntOptions.MaxFoldersToCheck; i++ {
+	for range ctx.TerragruntOptions.MaxFoldersToCheck {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		if currentDir == previousDir {
 			if numParams == matchedPats {
@@ -674,9 +669,11 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 		return *defaultVal, nil
 	}
 
-	path, err := util.CanonicalPath(targetConfig, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return cty.NilVal, errors.New(err)
+	path := targetConfig
+
+	if !filepath.IsAbs(path) {
+		path = util.JoinPath(ctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Clean(path)
 	}
 
 	ctx.TerragruntOptions.AppendReadFile(
@@ -702,7 +699,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	// serialize the config for consumption.
 	// NOTE: this will not call terragrunt output, since all the values are cached from the ParseConfigFile call
 	// NOTE: we don't use range here because range will copy the slice, thereby undoing the set attribute.
-	for i := 0; i < len(config.TerragruntDependencies); i++ {
+	for i := range len(config.TerragruntDependencies) {
 		err := config.TerragruntDependencies[i].setRenderedOutputs(ctx)
 		if err != nil {
 			return cty.NilVal, errors.New(err)
@@ -858,13 +855,15 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		return "", errors.New(err)
 	}
 
-	canonicalSourceFile, err := util.CanonicalPath(sourceFile, filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
-	if err != nil {
-		return "", errors.New(err)
+	path := sourceFile
+
+	if !filepath.IsAbs(path) {
+		path = util.JoinPath(ctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Clean(path)
 	}
 
 	ctx.TerragruntOptions.AppendReadFile(
-		canonicalSourceFile,
+		path,
 		ctx.TerragruntOptions.WorkingDir,
 	)
 
@@ -889,18 +888,18 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		}
 	}
 
-	if val, ok := sopsCache.Get(ctx, canonicalSourceFile); ok {
+	if val, ok := sopsCache.Get(ctx, path); ok {
 		return val, nil
 	}
 
-	rawData, err := decrypt.File(canonicalSourceFile, format)
+	rawData, err := decrypt.File(path, format)
 	if err != nil {
 		return "", errors.New(extractSopsErrors(err))
 	}
 
 	if utf8.Valid(rawData) {
 		value := string(rawData)
-		sopsCache.Put(ctx, canonicalSourceFile, value)
+		sopsCache.Put(ctx, path, value)
 
 		return value, nil
 	}
@@ -1055,9 +1054,9 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 
 	varFile := args[0]
 
-	varFile, err := util.CanonicalPath(varFile, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return "", errors.New(err)
+	if !filepath.IsAbs(varFile) {
+		varFile = filepath.Join(ctx.TerragruntOptions.WorkingDir, varFile)
+		varFile = filepath.Clean(varFile)
 	}
 
 	if !util.FileExists(varFile) {
@@ -1075,7 +1074,7 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 	}
 
 	if strings.HasSuffix(varFile, "json") {
-		var variables map[string]interface{}
+		var variables map[string]any
 		// just want to be sure that the file is valid json
 		if err := json.Unmarshal(fileContents, &variables); err != nil {
 			return "", errors.New(fmt.Errorf("could not unmarshal json body of tfvar file: %w", err))
@@ -1084,7 +1083,7 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 		return string(fileContents), nil
 	}
 
-	var variables map[string]interface{}
+	var variables map[string]any
 	if err := ParseAndDecodeVarFile(ctx.TerragruntOptions, varFile, fileContents, &variables); err != nil {
 		return "", err
 	}
@@ -1105,9 +1104,14 @@ func markAsRead(ctx *ParsingContext, args []string) (string, error) {
 
 	file := args[0]
 
-	path, err := util.CanonicalPath(file, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return "", errors.New(err)
+	// Copy the file path to avoid modifying the original.
+	// This is necessary so that the HCL function doesn't
+	// return a different value than the original file path.
+	path := file
+
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(ctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Clean(path)
 	}
 
 	ctx.TerragruntOptions.AppendReadFile(
@@ -1126,7 +1130,7 @@ func markAsRead(ctx *ParsingContext, args []string) (string, error) {
 
 // ParseAndDecodeVarFile uses the HCL2 file to parse the given varfile string into an HCL file body, and then decode it
 // into the provided output.
-func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, fileContents []byte, out interface{}) error {
+func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, fileContents []byte, out any) error {
 	parser := hclparse.NewParser(hclparse.WithLogger(opts.Logger))
 
 	file, err := parser.ParseFromBytes(fileContents, varFile)
@@ -1160,7 +1164,7 @@ func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, file
 		return nil
 	}
 
-	typedOut, hasType := out.(*map[string]interface{})
+	typedOut, hasType := out.(*map[string]any)
 	if hasType {
 		genericMap, err := ParseCtyValueToMap(ctyVal)
 		if err != nil {
@@ -1190,7 +1194,7 @@ func extractSopsErrors(err error) *errors.MultiError {
 	if errValue.Type().Name() == "getDataKeyError" {
 		groupResultsField := errValue.FieldByName("GroupResults")
 		if groupResultsField.IsValid() && groupResultsField.Kind() == reflect.Slice {
-			for i := 0; i < groupResultsField.Len(); i++ {
+			for i := range groupResultsField.Len() {
 				groupErr := groupResultsField.Index(i)
 				if groupErr.CanInterface() {
 					if err, ok := groupErr.Interface().(error); ok {

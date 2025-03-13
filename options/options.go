@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -704,10 +706,8 @@ func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 		return
 	}
 
-	for _, u := range units {
-		if u == unit {
-			return
-		}
+	if slices.Contains(units, unit) {
+		return
 	}
 
 	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
@@ -739,13 +739,7 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 		return false
 	}
 
-	for _, u := range units {
-		if u == unit {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(units, unit)
 }
 
 // CloneReadFiles creates a copy of the ReadFiles map.
@@ -777,7 +771,7 @@ type EngineOptions struct {
 	Source  string
 	Version string
 	Type    string
-	Meta    map[string]interface{}
+	Meta    map[string]any
 }
 
 // ErrorsConfig extracted errors handling configuration.
@@ -799,7 +793,7 @@ type IgnoreConfig struct {
 	Name            string
 	IgnorableErrors []*ErrorsPattern
 	Message         string
-	Signals         map[string]interface{}
+	Signals         map[string]any
 }
 
 type ErrorsPattern struct {
@@ -870,7 +864,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 	}
 }
 
-func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{}) error {
+func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]any) error {
 	workingDir := opts.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
@@ -880,11 +874,12 @@ func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{
 	}
 
 	const ownerPerms = 0644
+
+	opts.Logger.Warnf("Writing error signals to %s", signalsFile)
+
 	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
-
-	opts.Logger.Warnf("Written error signals to %s", signalsFile)
 
 	return nil
 }
@@ -894,7 +889,7 @@ type ErrorAction struct {
 	ShouldIgnore   bool
 	ShouldRetry    bool
 	IgnoreMessage  string
-	IgnoreSignals  map[string]interface{}
+	IgnoreSignals  map[string]any
 	RetryMessage   string
 	RetryAttempts  int
 	RetrySleepSecs int
@@ -917,12 +912,10 @@ func (c *ErrorsConfig) ProcessError(opts *TerragruntOptions, err error, currentA
 		if isIgnorable {
 			action.ShouldIgnore = true
 			action.IgnoreMessage = ignoreBlock.Message
-			action.IgnoreSignals = make(map[string]interface{})
+			action.IgnoreSignals = make(map[string]any)
 
 			// Convert cty.Value map to regular map
-			for k, v := range ignoreBlock.Signals {
-				action.IgnoreSignals[k] = v
-			}
+			maps.Copy(action.IgnoreSignals, ignoreBlock.Signals)
 
 			return action, nil
 		}
