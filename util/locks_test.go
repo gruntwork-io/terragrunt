@@ -71,7 +71,7 @@ func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 			defer wg.Done()
 			kl.Lock("shared_key")
 			defer kl.Unlock("shared_key")
-			for j := 0; j < numOperations; j++ {
+			for range numOperations {
 				counter++
 				counter++
 			}

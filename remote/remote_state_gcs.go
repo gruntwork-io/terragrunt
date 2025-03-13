@@ -251,7 +251,7 @@ func (initializer GCSInitializer) GetTerraformInitArgs(config map[string]any) ma
 }
 
 // Parse the given map into a GCS config
-func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error) {
+func parseGCSConfig(config map[string]any) (*RemoteStateConfigGCS, error) {
 	var gcsConfig RemoteStateConfigGCS
 	if err := mapstructure.Decode(config, &gcsConfig); err != nil {
 		return nil, errors.New(err)
@@ -261,7 +261,7 @@ func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error
 }
 
 // ParseExtendedGCSConfig parses the given map into a GCS config.
-func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
+func ParseExtendedGCSConfig(config map[string]any) (*ExtendedRemoteStateConfigGCS, error) {
 	var (
 		gcsConfig      RemoteStateConfigGCS
 		extendedConfig ExtendedRemoteStateConfigGCS
@@ -499,7 +499,7 @@ func WaitUntilGCSBucketExists(gcsClient *storage.Client, config *RemoteStateConf
 
 	bucketHandle := gcsClient.Bucket(config.Bucket)
 
-	for retries := 0; retries < MaxRetriesWaitingForGcsBucket; retries++ {
+	for retries := range MaxRetriesWaitingForGcsBucket {
 		if DoesGCSBucketExist(context.Background(), bucketHandle) {
 			terragruntOptions.Logger.Debugf("GCS bucket %s created.", config.Bucket)
 			return nil

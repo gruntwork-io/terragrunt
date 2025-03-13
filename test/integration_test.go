@@ -1187,9 +1187,9 @@ func validateInputs(t *testing.T, outputs map[string]helpers.TerraformOutput) {
 	assert.Equal(t, []any{"a", "b", "c"}, outputs["list_string"].Value)
 	assert.Equal(t, map[string]any{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
 	assert.Equal(t, map[string]any{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
-	assert.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
+	assert.Equal(t, map[string]any{"foo": "bar"}, outputs["map_string"].Value)
 	assert.InEpsilon(t, 42.0, outputs["number"].Value, 0.0000000001)
-	assert.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
+	assert.Equal(t, map[string]any{"list": []any{1.0, 2.0, 3.0}, "map": map[string]any{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
 	assert.Equal(t, "string", outputs["string"].Value)
 	assert.Equal(t, "default", outputs["from_env"].Value)
 }
@@ -2005,14 +2005,14 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
 	assert.Equal(t, true, outputs["bool"].Value)
-	assert.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
-	assert.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
-	assert.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
-	assert.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
-	assert.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
-	assert.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
+	assert.Equal(t, []any{true, false}, outputs["list_bool"].Value)
+	assert.Equal(t, []any{1.0, 2.0, 3.0}, outputs["list_number"].Value)
+	assert.Equal(t, []any{"a", "b", "c"}, outputs["list_string"].Value)
+	assert.Equal(t, map[string]any{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
+	assert.Equal(t, map[string]any{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
+	assert.Equal(t, map[string]any{"foo": "bar"}, outputs["map_string"].Value)
 	assert.InEpsilon(t, 42.0, outputs["number"].Value.(float64), 0.0000001)
-	assert.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
+	assert.Equal(t, map[string]any{"list": []any{1.0, 2.0, 3.0}, "map": map[string]any{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
 	assert.Equal(t, "string", outputs["string"].Value)
 	assert.Equal(t, "default", outputs["from_env"].Value)
 }
@@ -2041,7 +2041,7 @@ func TestOrderedMapOutputRegressions1102(t *testing.T) {
 
 	// runs terragrunt again. All the outputs must be
 	// equal to the first run.
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		require.NoError(
 			t,
 			helpers.RunTerragruntCommand(t, command, &stdout, &stderr),
@@ -2258,14 +2258,14 @@ func TestReadTerragruntConfigWithDependency(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
 	assert.Equal(t, true, outputs["bool"].Value)
-	assert.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
-	assert.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
-	assert.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
-	assert.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
-	assert.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
-	assert.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
+	assert.Equal(t, []any{true, false}, outputs["list_bool"].Value)
+	assert.Equal(t, []any{1.0, 2.0, 3.0}, outputs["list_number"].Value)
+	assert.Equal(t, []any{"a", "b", "c"}, outputs["list_string"].Value)
+	assert.Equal(t, map[string]any{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
+	assert.Equal(t, map[string]any{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
+	assert.Equal(t, map[string]any{"foo": "bar"}, outputs["map_string"].Value)
 	assert.InEpsilon(t, 42.0, outputs["number"].Value.(float64), 0.0000001)
-	assert.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
+	assert.Equal(t, map[string]any{"list": []any{1.0, 2.0, 3.0}, "map": map[string]any{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
 	assert.Equal(t, "string", outputs["string"].Value)
 	assert.Equal(t, "default", outputs["from_env"].Value)
 }
@@ -2442,30 +2442,30 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	assert.Equal(t, "true", outputs["prevent_destroy"].Value)
 
 	// Simple maps
-	localstgOut := map[string]interface{}{}
+	localstgOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["localstg"].Value.(string)), &localstgOut))
-	assert.Equal(t, map[string]interface{}{"the_answer": float64(42)}, localstgOut)
-	inputsOut := map[string]interface{}{}
+	assert.Equal(t, map[string]any{"the_answer": float64(42)}, localstgOut)
+	inputsOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["inputs"].Value.(string)), &inputsOut))
-	assert.Equal(t, map[string]interface{}{"doc": "Emmett Brown"}, inputsOut)
+	assert.Equal(t, map[string]any{"doc": "Emmett Brown"}, inputsOut)
 
 	// Complex blocks
-	depsOut := map[string]interface{}{}
+	depsOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["dependencies"].Value.(string)), &depsOut))
 	assert.Equal(
 		t,
-		map[string]interface{}{
-			"paths": []interface{}{"../../terragrunt"},
+		map[string]any{
+			"paths": []any{"../../terragrunt"},
 		},
 		depsOut,
 	)
 
-	generateOut := map[string]interface{}{}
+	generateOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["generate"].Value.(string)), &generateOut))
 	assert.Equal(
 		t,
-		map[string]interface{}{
-			"provider": map[string]interface{}{
+		map[string]any{
+			"provider": map[string]any{
 				"path":              "provider.tf",
 				"if_exists":         "overwrite_terragrunt",
 				"hcl_fmt":           nil,
@@ -2481,64 +2481,64 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		},
 		generateOut,
 	)
-	remoteStateOut := map[string]interface{}{}
+	remoteStateOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
 	assert.Equal(
 		t,
-		map[string]interface{}{
+		map[string]any{
 			"backend":                         "local",
 			"disable_init":                    false,
 			"disable_dependency_optimization": false,
-			"generate":                        map[string]interface{}{"path": "backend.tf", "if_exists": "overwrite_terragrunt"},
-			"config":                          map[string]interface{}{"path": "foo.tfstate"},
-			"encryption":                      map[string]interface{}{"key_provider": "foo"},
+			"generate":                        map[string]any{"path": "backend.tf", "if_exists": "overwrite_terragrunt"},
+			"config":                          map[string]any{"path": "foo.tfstate"},
+			"encryption":                      map[string]any{"key_provider": "foo"},
 		},
 		remoteStateOut,
 	)
-	terraformOut := map[string]interface{}{}
+	terraformOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
 	assert.Equal(
 		t,
-		map[string]interface{}{
+		map[string]any{
 			"source":                   "./delorean",
-			"include_in_copy":          []interface{}{"time_machine.*"},
-			"exclude_from_copy":        []interface{}{"excluded_time_machine.*"},
+			"include_in_copy":          []any{"time_machine.*"},
+			"exclude_from_copy":        []any{"excluded_time_machine.*"},
 			"copy_terraform_lock_file": true,
-			"extra_arguments": map[string]interface{}{
-				"var-files": map[string]interface{}{
+			"extra_arguments": map[string]any{
+				"var-files": map[string]any{
 					"name":               "var-files",
-					"commands":           []interface{}{"apply", "plan"},
+					"commands":           []any{"apply", "plan"},
 					"arguments":          nil,
-					"required_var_files": []interface{}{"extra.tfvars"},
-					"optional_var_files": []interface{}{"optional.tfvars"},
-					"env_vars": map[string]interface{}{
+					"required_var_files": []any{"extra.tfvars"},
+					"optional_var_files": []any{"optional.tfvars"},
+					"env_vars": map[string]any{
 						"TF_VAR_custom_var": "I'm set in extra_arguments env_vars",
 					},
 				},
 			},
-			"before_hook": map[string]interface{}{
-				"before_hook_1": map[string]interface{}{
+			"before_hook": map[string]any{
+				"before_hook_1": map[string]any{
 					"name":            "before_hook_1",
-					"commands":        []interface{}{"apply", "plan"},
-					"execute":         []interface{}{"touch", "before.out"},
+					"commands":        []any{"apply", "plan"},
+					"execute":         []any{"touch", "before.out"},
 					"working_dir":     nil,
 					"run_on_error":    true,
 					"if":              nil,
 					"suppress_stdout": nil,
 				},
 			},
-			"after_hook": map[string]interface{}{
-				"after_hook_1": map[string]interface{}{
+			"after_hook": map[string]any{
+				"after_hook_1": map[string]any{
 					"name":            "after_hook_1",
-					"commands":        []interface{}{"apply", "plan"},
-					"execute":         []interface{}{"touch", "after.out"},
+					"commands":        []any{"apply", "plan"},
+					"execute":         []any{"touch", "after.out"},
 					"working_dir":     nil,
 					"run_on_error":    true,
 					"if":              nil,
 					"suppress_stdout": nil,
 				},
 			},
-			"error_hook": map[string]interface{}{},
+			"error_hook": map[string]any{},
 		},
 		terraformOut,
 	)
@@ -3886,7 +3886,7 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, content)
 		// check that produced json is valid and can be unmarshalled
-		var plan map[string]interface{}
+		var plan map[string]any
 		err = json.Unmarshal(content, &plan)
 		require.NoError(t, err)
 		// check that plan is not empty
@@ -3985,7 +3985,7 @@ func TestLogFormatJSONOutput(t *testing.T) {
 			continue
 		}
 
-		var output map[string]interface{}
+		var output map[string]any
 
 		err = json.Unmarshal(jsonBytes, &output)
 		require.NoError(t, err)
@@ -4057,7 +4057,7 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotEmpty(t, content)
 				// check that produced json is valid and can be unmarshalled
-				var plan map[string]interface{}
+				var plan map[string]any
 				err = json.Unmarshal(content, &plan)
 				require.NoError(t, err)
 				// check that plan is not empty
@@ -4102,7 +4102,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 		if len(jsonString) == 0 {
 			continue
 		}
-		var output map[string]interface{}
+		var output map[string]any
 		err = json.Unmarshal([]byte(jsonString), &output)
 		require.NoErrorf(t, err, "Failed to parse json %s", jsonString)
 		assert.NotNil(t, output["level"])

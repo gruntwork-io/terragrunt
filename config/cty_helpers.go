@@ -396,7 +396,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 }
 
 // CtyToStruct converts a cty.Value to a go struct.
-func CtyToStruct(ctyValue cty.Value, target interface{}) error {
+func CtyToStruct(ctyValue cty.Value, target any) error {
 	jsonBytes, err := ctyjson.Marshal(ctyValue, ctyValue.Type())
 	if err != nil {
 		return errors.New(err)

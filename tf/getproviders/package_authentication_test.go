@@ -154,12 +154,10 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		{
 			"testdata/my-package.zip",
 			"my-package.zip",
-			[]byte(
-				fmt.Sprintf(
-					"%s README.txt\n%s my-package.zip",
-					"horses",
-					"chickens",
-				),
+			fmt.Appendf(nil,
+				"%s README.txt\n%s my-package.zip",
+				"horses",
+				"chickens",
 			),
 			[sha256.Size]byte{0xde, 0xca, 0xde},
 			errors.New(`checksum list has invalid SHA256 hash "chickens": encoding/hex: invalid byte: U+0068 'h'`),
@@ -167,12 +165,10 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		{
 			"testdata/my-package.zip",
 			"my-package.zip",
-			[]byte(
-				fmt.Sprintf(
-					"%x README.txt\n%x my-package.zip",
-					[sha256.Size]byte{0xbe, 0xef},
-					[sha256.Size]byte{0xc0, 0xff, 0xee},
-				),
+			fmt.Appendf(nil,
+				"%x README.txt\n%x my-package.zip",
+				[sha256.Size]byte{0xbe, 0xef},
+				[sha256.Size]byte{0xc0, 0xff, 0xee},
 			),
 			[sha256.Size]byte{0xde, 0xca, 0xde},
 			errors.New("checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected decade0000000000000000000000000000000000000000000000000000000000)"),

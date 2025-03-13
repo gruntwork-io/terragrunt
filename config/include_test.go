@@ -208,17 +208,17 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			},
 		},
 	}
-	mergedMap := map[string]interface{}{
+	mergedMap := map[string]any{
 		"simple_string_override": "hello, mock",
 		"original_string":        "original val",
 		"simple_string_append":   "new val",
 		"list_attr":              []string{"hello", "mock"},
-		"map_attr": map[string]interface{}{
+		"map_attr": map[string]any{
 			"simple_string_override": "hello, mock",
 			"original_string":        "original val",
 			"simple_string_append":   "new val",
 			"list_attr":              []string{"hello", "mock"},
-			"map_attr": map[string]interface{}{
+			"map_attr": map[string]any{
 				"simple_string_override": "hello, mock",
 				"original_string":        "original val",
 				"simple_string_append":   "new val",
@@ -359,7 +359,7 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	t.Parallel()
 
 	sourceConfig := &config.TerragruntConfig{
-		FieldsMetadata: map[string]map[string]interface{}{
+		FieldsMetadata: map[string]map[string]any{
 			"field1": {"key1": "value1", "key2": "value2"},
 			"field2": {"key3": "value3", "key4": "value4"},
 		},
@@ -371,7 +371,7 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	numGoroutines := 666
 
 	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			config.CopyFieldsMetadata(sourceConfig, targetConfig)

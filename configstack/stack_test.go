@@ -313,9 +313,9 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			"iam_web_identity_token":        "",
 			"inputs":                        any(nil),
 			"locals":                        cfg.Locals,
-			"retry_max_attempts":            interface{}(nil),
-			"retry_sleep_interval_sec":      interface{}(nil),
-			"retryable_errors":              interface{}(nil),
+			"retry_max_attempts":            any(nil),
+			"retry_sleep_interval_sec":      any(nil),
+			"retryable_errors":              any(nil),
 			"terraform_binary":              "",
 			"terraform_version_constraint":  "",
 			"terragrunt_version_constraint": "",
@@ -333,7 +333,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			},
 			Locals:          localsConfigs,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
-			FieldsMetadata: map[string]map[string]interface{}{
+			FieldsMetadata: map[string]map[string]any{
 				"locals-env_vars": {
 					"found_in_file": canonical(t, "../test/fixtures/modules/module-m/root.hcl"),
 				},

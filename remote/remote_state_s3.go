@@ -492,7 +492,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]any) m
 }
 
 // ParseExtendedS3Config parses the given map into an extended S3 config.
-func ParseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateConfigS3, error) {
+func ParseExtendedS3Config(config map[string]any) (*ExtendedRemoteStateConfigS3, error) {
 	var (
 		s3Config       RemoteStateConfigS3
 		extendedConfig ExtendedRemoteStateConfigS3
@@ -1025,7 +1025,7 @@ func convertTags(tags map[string]string) []*s3.Tag {
 func WaitUntilS3BucketExists(s3Client *s3.S3, config *RemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Waiting for bucket %s to be created", config.Bucket)
 
-	for retries := 0; retries < MaxRetriesWaitingForS3Bucket; retries++ {
+	for retries := range MaxRetriesWaitingForS3Bucket {
 		if DoesS3BucketExist(s3Client, aws.String(config.Bucket)) {
 			terragruntOptions.Logger.Debugf("S3 bucket %s created.", config.Bucket)
 			return nil
@@ -1246,8 +1246,8 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *E
 					"arn:" + partition + ":s3:::" + bucket,
 					"arn:" + partition + ":s3:::" + bucket + "/*",
 				},
-				Condition: &map[string]interface{}{
-					"Bool": map[string]interface{}{
+				Condition: &map[string]any{
+					"Bool": map[string]any{
 						"aws:SecureTransport": "false",
 					},
 				},
@@ -1568,7 +1568,7 @@ func waitUntilBucketHasAccessLoggingACL(s3Client *s3.S3, bucket *string, terragr
 
 	maxRetries := 10
 
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		out, err := s3Client.GetBucketAcl(&s3.GetBucketAclInput{Bucket: bucket})
 		if err != nil {
 			return errors.Errorf("error getting ACL for bucket %s: %w", *bucket, err)

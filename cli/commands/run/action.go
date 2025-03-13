@@ -816,7 +816,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 // ToTerraformEnvVars converts the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
-func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interface{}) (map[string]string, error) {
+func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]any) (map[string]string, error) {
 	if useLegacyNullValues() {
 		opts.Logger.Warnf("⚠️ %s is a temporary workaround to bypass the breaking change in #2663.\nThis flag will be removed in the future.\nDo not rely on it.", useLegacyNullValuesEnvVar)
 	}
@@ -847,7 +847,7 @@ func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interfa
 
 // setTerragruntNullValues - Generate a .auto.tfvars.json file with variables which have null values.
 func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (string, error) {
-	jsonEmptyVars := make(map[string]interface{})
+	jsonEmptyVars := make(map[string]any)
 
 	for varName, varValue := range terragruntConfig.Inputs {
 		if varValue == nil {

@@ -67,7 +67,7 @@ func validateConfigElementsGeneric(elements any, elementType string, getValues f
 			slice[i] = unit
 		}
 	case []*Stack:
-		slice = make([]interface{}, len(v))
+		slice = make([]any, len(v))
 		for i, stack := range v {
 			slice[i] = stack
 		}
