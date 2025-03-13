@@ -3,31 +3,36 @@ package cas
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	// I'm intentionally not using github.com/gruntwork-io/terragrunt/internal/errors
+	// here. I want to construct raw errors so that they can be wrapped later with their
+	// relevant stack traces when returned from locations where they're used.
+	"errors"
 )
 
 // Error types that can be returned by the cas package
-type Error string
-
-func (e Error) Error() string {
-	return string(e)
-}
-
-const (
+var (
 	// ErrTempDir is returned when failing to create or close a temporary directory
-	ErrTempDir Error = "failed to create or manage temporary directory"
+	ErrTempDir = errors.New("failed to create or manage temporary directory")
 	// ErrCreateDir is returned when failing to create a directory
-	ErrCreateDir Error = "failed to create directory"
+	ErrCreateDir = errors.New("failed to create directory")
 	// ErrReadFile is returned when failing to read a file
-	ErrReadFile Error = "failed to read file"
+	ErrReadFile = errors.New("failed to read file")
 	// ErrParseTree is returned when failing to parse git tree output
-	ErrParseTree Error = "failed to parse git tree output"
+	ErrParseTree = errors.New("failed to parse git tree output")
 	// ErrGitClone is returned when the git clone operation fails
-	ErrGitClone Error = "failed to complete git clone"
+	ErrGitClone = errors.New("failed to complete git clone")
 	// ErrCreateTempDir is returned when failing to create a temporary directory
-	ErrCreateTempDir Error = "failed to create temporary directory"
+	ErrCreateTempDir = errors.New("failed to create temporary directory")
 	// ErrCleanupTempDir is returned when failing to clean up a temporary directory
-	ErrCleanupTempDir Error = "failed to clean up temporary directory"
+	ErrCleanupTempDir = errors.New("failed to clean up temporary directory")
+	// ErrCommandSpawn is returned when failing to spawn a git command
+	ErrCommandSpawn = errors.New("failed to spawn git command")
+	// ErrNoMatchingReference is returned when no matching reference is found
+	ErrNoMatchingReference = errors.New("no matching reference")
+	// ErrReadTree is returned when failing to read a git tree
+	ErrReadTree = errors.New("failed to read tree")
+	// ErrNoWorkDir is returned when a working directory is not set
+	ErrNoWorkDir = errors.New("working directory not set")
 )
 
 // WrappedError provides additional context for errors
@@ -49,14 +54,6 @@ func (e *WrappedError) Error() string {
 func (e *WrappedError) Unwrap() error {
 	return e.Err
 }
-
-// Git operation errors
-var (
-	ErrCommandSpawn        = errors.New("failed to spawn git command")
-	ErrNoMatchingReference = errors.New("no matching reference")
-	ErrReadTree            = errors.New("failed to read tree")
-	ErrNoWorkDir           = errors.New("working directory not set")
-)
 
 func wrapError(op, path string, err error) error {
 	return &WrappedError{
