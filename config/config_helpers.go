@@ -670,9 +670,11 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 		return *defaultVal, nil
 	}
 
-	path, err := util.CanonicalPath(targetConfig, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return cty.NilVal, errors.New(err)
+	path := targetConfig
+
+	if !filepath.IsAbs(path) {
+		path = util.JoinPath(ctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Clean(path)
 	}
 
 	ctx.TerragruntOptions.AppendReadFile(
@@ -854,13 +856,15 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		return "", errors.New(err)
 	}
 
-	canonicalSourceFile, err := util.CanonicalPath(sourceFile, filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
-	if err != nil {
-		return "", errors.New(err)
+	path := sourceFile
+
+	if !filepath.IsAbs(path) {
+		path = util.JoinPath(ctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Clean(path)
 	}
 
 	ctx.TerragruntOptions.AppendReadFile(
-		canonicalSourceFile,
+		path,
 		ctx.TerragruntOptions.WorkingDir,
 	)
 
@@ -885,18 +889,18 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		}
 	}
 
-	if val, ok := sopsCache.Get(ctx, canonicalSourceFile); ok {
+	if val, ok := sopsCache.Get(ctx, path); ok {
 		return val, nil
 	}
 
-	rawData, err := decrypt.File(canonicalSourceFile, format)
+	rawData, err := decrypt.File(path, format)
 	if err != nil {
 		return "", errors.New(extractSopsErrors(err))
 	}
 
 	if utf8.Valid(rawData) {
 		value := string(rawData)
-		sopsCache.Put(ctx, canonicalSourceFile, value)
+		sopsCache.Put(ctx, path, value)
 
 		return value, nil
 	}
@@ -1051,9 +1055,9 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 
 	varFile := args[0]
 
-	varFile, err := util.CanonicalPath(varFile, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return "", errors.New(err)
+	if !filepath.IsAbs(varFile) {
+		varFile = filepath.Join(ctx.TerragruntOptions.WorkingDir, varFile)
+		varFile = filepath.Clean(varFile)
 	}
 
 	if !util.FileExists(varFile) {
@@ -1101,9 +1105,14 @@ func markAsRead(ctx *ParsingContext, args []string) (string, error) {
 
 	file := args[0]
 
-	path, err := util.CanonicalPath(file, ctx.TerragruntOptions.WorkingDir)
-	if err != nil {
-		return "", errors.New(err)
+	// Copy the file path to avoid modifying the original.
+	// This is necessary so that the HCL function doesn't
+	// return a different value than the original file path.
+	path := file
+
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(ctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Clean(path)
 	}
 
 	ctx.TerragruntOptions.AppendReadFile(

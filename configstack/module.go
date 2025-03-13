@@ -535,10 +535,12 @@ func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOption
 		return modules, nil
 	}
 
-	for _, readPath := range opts.UnitsReading {
-		path, err := util.CanonicalPath(readPath, opts.WorkingDir)
-		if err != nil {
-			return nil, err
+	errs := []error{}
+
+	for _, path := range opts.UnitsReading {
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(opts.WorkingDir, path)
+			path = filepath.Clean(path)
 		}
 
 		for _, module := range modules {
@@ -546,6 +548,10 @@ func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOption
 				module.FlagExcluded = false
 			}
 		}
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.New(errors.Join(errs...))
 	}
 
 	return modules, nil
