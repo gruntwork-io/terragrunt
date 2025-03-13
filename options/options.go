@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"slices"
-
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
