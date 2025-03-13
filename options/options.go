@@ -739,9 +739,7 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 		return false
 	}
 
-	slices.Contains(units, unit)
-
-	return false
+	return slices.Contains(units, unit)
 }
 
 // CloneReadFiles creates a copy of the ReadFiles map.
