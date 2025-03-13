@@ -140,7 +140,15 @@ type Colorizer struct {
 }
 
 // NewColorizer creates a new Colorizer.
-func NewColorizer() *Colorizer {
+func NewColorizer(shouldColor bool) *Colorizer {
+	if !shouldColor {
+		return &Colorizer{
+			unitColorizer:  func(s string) string { return s },
+			stackColorizer: func(s string) string { return s },
+			pathColorizer:  func(s string) string { return s },
+		}
+	}
+
 	return &Colorizer{
 		unitColorizer:  ansi.ColorFunc("blue+bh"),
 		stackColorizer: ansi.ColorFunc("green+bh"),
@@ -181,18 +189,7 @@ func (c *Colorizer) Colorize(config *FoundConfig) string {
 
 // outputText outputs the discovered configurations in text format.
 func outputText(opts *Options, configs FoundConfigs) error {
-	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected() {
-		for _, config := range configs {
-			_, err := opts.Writer.Write([]byte(config.Path + "\n"))
-			if err != nil {
-				return errors.New(err)
-			}
-		}
-
-		return nil
-	}
-
-	colorizer := NewColorizer()
+	colorizer := NewColorizer(shouldColor(opts))
 
 	for _, config := range configs {
 		_, err := opts.Writer.Write([]byte(colorizer.Colorize(config) + "\n"))
@@ -202,6 +199,11 @@ func outputText(opts *Options, configs FoundConfigs) error {
 	}
 
 	return nil
+}
+
+// shouldColor returns true if the output should be colored.
+func shouldColor(opts *Options) bool {
+	return !(opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected())
 }
 
 // isStdoutRedirected returns true if the stdout is redirected.

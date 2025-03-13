@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -140,7 +141,15 @@ type Colorizer struct {
 }
 
 // NewColorizer creates a new Colorizer.
-func NewColorizer() *Colorizer {
+func NewColorizer(shouldColor bool) *Colorizer {
+	if !shouldColor {
+		return &Colorizer{
+			unitColorizer:  func(s string) string { return s },
+			stackColorizer: func(s string) string { return s },
+			pathColorizer:  func(s string) string { return s },
+		}
+	}
+
 	return &Colorizer{
 		unitColorizer:  ansi.ColorFunc("blue+bh"),
 		stackColorizer: ansi.ColorFunc("green+bh"),
@@ -181,27 +190,97 @@ func (c *Colorizer) Colorize(config *ListedConfig) string {
 
 // outputText outputs the discovered configurations in text format.
 func outputText(opts *Options, configs ListedConfigs) error {
-	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected() {
-		for _, config := range configs {
-			_, err := opts.Writer.Write([]byte(config.Path + "\n"))
+	colorizer := NewColorizer(shouldColor(opts))
+
+	return renderTabular(opts, configs, colorizer)
+}
+
+// shouldColor returns true if the output should be colored.
+func shouldColor(opts *Options) bool {
+	return !(opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected())
+}
+
+// renderTabular renders the configurations in a tabular format.
+func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
+	maxCols, longestPathLen := getMaxCols(configs)
+
+	for i, config := range configs {
+		if i > 0 && i%maxCols == 0 {
+			_, err := opts.Writer.Write([]byte("\n"))
 			if err != nil {
 				return errors.New(err)
 			}
 		}
 
-		return nil
-	}
-
-	colorizer := NewColorizer()
-
-	for _, config := range configs {
-		_, err := opts.Writer.Write([]byte(colorizer.Colorize(config) + "\n"))
+		_, err := opts.Writer.Write([]byte(c.Colorize(config)))
 		if err != nil {
 			return errors.New(err)
 		}
+
+		// Add padding until the length of maxCols
+		for j := 0; j < longestPathLen-len(config.Path); j++ {
+			_, err := opts.Writer.Write([]byte(" "))
+			if err != nil {
+				return errors.New(err)
+			}
+		}
+	}
+
+	_, err := opts.Writer.Write([]byte("\n"))
+	if err != nil {
+		return errors.New(err)
 	}
 
 	return nil
+}
+
+// getMaxCols returns the maximum number of columns
+// that can be displayed in the terminal.
+// It also returns the width of each column.
+// The width is the longest path length + 2 for padding.
+func getMaxCols(configs ListedConfigs) (int, int) {
+	maxCols := 0
+
+	terminalWidth := getTerminalWidth()
+	longestPathLen := getLongestPathLen(configs)
+	colWidth := longestPathLen + 2
+
+	if longestPathLen > 0 {
+		maxCols = terminalWidth / colWidth
+	}
+
+	if maxCols == 0 {
+		maxCols = 1
+	}
+
+	return maxCols, colWidth
+}
+
+// getTerminalWidth returns the width of the terminal.
+func getTerminalWidth() int {
+	// Default to 80 if we can't get the terminal width.
+	width := 80
+
+	w, _, err := term.GetSize(os.Stdout.Fd())
+	if err == nil {
+		width = w
+	}
+
+	return width
+}
+
+// getLongestPathLen returns the length of the
+// longest path in the list of configurations.
+func getLongestPathLen(configs ListedConfigs) int {
+	longest := 0
+
+	for _, config := range configs {
+		if len(config.Path) > longest {
+			longest = len(config.Path)
+		}
+	}
+
+	return longest
 }
 
 // isStdoutRedirected returns true if the stdout is redirected.

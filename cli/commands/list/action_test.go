@@ -75,22 +75,19 @@ func TestRun(t *testing.T) {
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
-				// Split output into lines and trim whitespace
-				lines := strings.Split(strings.TrimSpace(output), "\n")
+				// Split output into fields and trim whitespace
+				fields := strings.Fields(output)
 
 				// Verify we have the expected number of lines
-				assert.Len(t, lines, len(expectedPaths))
+				assert.Len(t, fields, len(expectedPaths))
 
 				// Verify each line is a clean path without any formatting
-				for _, line := range lines {
-					line = strings.TrimSpace(line)
-					assert.NotEmpty(t, line)
-					assert.NotContains(t, line, "\n")
-					assert.NotContains(t, line, "\t")
+				for _, field := range fields {
+					assert.NotEmpty(t, field)
 				}
 
 				// Verify all expected paths are present
-				assert.ElementsMatch(t, expectedPaths, lines)
+				assert.ElementsMatch(t, expectedPaths, fields)
 			},
 		},
 		{
@@ -203,14 +200,14 @@ func TestRun(t *testing.T) {
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
-				// Split output into lines and trim whitespace
-				lines := strings.Split(strings.TrimSpace(output), "\n")
+				// Split output into fields and trim whitespace
+				fields := strings.Fields(output)
 
 				// Verify we have the expected number of lines
-				assert.Len(t, lines, len(expectedPaths))
+				assert.Len(t, fields, len(expectedPaths))
 
 				// Verify all expected paths are present
-				assert.ElementsMatch(t, expectedPaths, lines)
+				assert.ElementsMatch(t, expectedPaths, fields)
 			},
 		},
 		{
@@ -262,14 +259,14 @@ dependency "unit2" {
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
-				// Split output into lines and trim whitespace
-				lines := strings.Split(strings.TrimSpace(output), "\n")
+				// Split output into fields and trim whitespace
+				fields := strings.Fields(output)
 
 				// Verify we have the expected number of lines
-				assert.Len(t, lines, len(expectedPaths))
+				assert.Len(t, fields, len(expectedPaths))
 
 				// For DAG sorting, order matters - verify exact order
-				assert.Equal(t, expectedPaths, lines)
+				assert.Equal(t, expectedPaths, fields)
 			},
 		},
 		{
@@ -321,19 +318,19 @@ dependency "unit3" {
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
-				// Split output into lines and trim whitespace
-				lines := strings.Split(strings.TrimSpace(output), "\n")
+				// Split output into fields and trim whitespace
+				fields := strings.Fields(output)
 
 				// Verify we have the expected number of lines
-				assert.Len(t, lines, len(expectedPaths))
+				assert.Len(t, fields, len(expectedPaths))
 
 				// For DAG sorting, order matters - verify exact order
-				assert.Equal(t, expectedPaths, lines)
+				assert.Equal(t, expectedPaths, fields)
 
 				// Helper to find index of a path
 				findIndex := func(path string) int {
-					for i, line := range lines {
-						if line == path {
+					for i, field := range fields {
+						if field == path {
 							return i
 						}
 					}
@@ -412,19 +409,19 @@ dependency "C" {
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
-				// Split output into lines and trim whitespace
-				lines := strings.Split(strings.TrimSpace(output), "\n")
+				// Split output into fields and trim whitespace
+				fields := strings.Fields(output)
 
 				// Verify we have the expected number of lines
-				assert.Len(t, lines, len(expectedPaths))
+				assert.Len(t, fields, len(expectedPaths))
 
 				// For DAG sorting, order matters - verify exact order
 				// and also verify relative ordering constraints
-				assert.Equal(t, expectedPaths, lines)
+				assert.Equal(t, expectedPaths, fields)
 
 				// Helper to find index of a path
 				findIndex := func(path string) int {
-					for i, line := range lines {
+					for i, line := range fields {
 						if line == path {
 							return i
 						}
@@ -563,7 +560,7 @@ dependency "B" {
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
-	colorizer := list.NewColorizer()
+	colorizer := list.NewColorizer(true)
 
 	tests := []struct {
 		name   string
