@@ -229,7 +229,7 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
 // we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
 // map[string]interface{} using the Go json library.
-func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
+func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 	updatedValue, err := UpdateUnknownCtyValValues(value)
 	if err != nil {
 		return nil, err
@@ -257,8 +257,8 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
 type CtyJSONOutput struct {
-	Value map[string]interface{} `json:"Value"`
-	Type  interface{}            `json:"Type"`
+	Value map[string]any `json:"Value"`
+	Type  any            `json:"Type"`
 }
 
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.

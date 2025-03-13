@@ -315,7 +315,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		return errors.New(err)
 	}
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "check_for_cycles", map[string]interface{}{
+	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "check_for_cycles", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		if err := stack.Modules.CheckForCycles(); err != nil {
@@ -343,7 +343,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var modulesMap TerraformModulesMap
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_modules", map[string]interface{}{
+	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_modules", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		howThesePathsWereFound := "Terragrunt config file found in a subdirectory of " + stack.terragruntOptions.WorkingDir
@@ -364,7 +364,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var externalDependencies TerraformModulesMap
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_external_dependencies_for_modules", map[string]interface{}{
+	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_external_dependencies_for_modules", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		result, err := stack.resolveExternalDependenciesForModules(ctx, modulesMap, TerraformModulesMap{}, 0)
@@ -382,7 +382,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var crossLinkedModules TerraformModules
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "crosslink_dependencies", map[string]interface{}{
+	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "crosslink_dependencies", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		result, err := modulesMap.mergeMaps(externalDependencies).crosslinkDependencies(canonicalTerragruntConfigPaths)

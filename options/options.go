@@ -771,7 +771,7 @@ type EngineOptions struct {
 	Source  string
 	Version string
 	Type    string
-	Meta    map[string]interface{}
+	Meta    map[string]any
 }
 
 // ErrorsConfig extracted errors handling configuration.
@@ -793,7 +793,7 @@ type IgnoreConfig struct {
 	Name            string
 	IgnorableErrors []*ErrorsPattern
 	Message         string
-	Signals         map[string]interface{}
+	Signals         map[string]any
 }
 
 type ErrorsPattern struct {
@@ -864,7 +864,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 	}
 }
 
-func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{}) error {
+func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]any) error {
 	workingDir := opts.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")

@@ -186,22 +186,22 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			"simple_string_override": "hello, mock",
 			"simple_string_append":   "new val",
 			"list_attr":              []string{"mock"},
-			"map_attr": map[string]interface{}{
+			"map_attr": map[string]any{
 				"simple_string_override": "hello, mock",
 				"simple_string_append":   "new val",
 				"list_attr":              []string{"mock"},
 			},
 		},
 	}
-	originalMap := map[string]interface{}{
+	originalMap := map[string]any{
 		"simple_string_override": "hello, world",
 		"original_string":        "original val",
 		"list_attr":              []string{"hello"},
-		"map_attr": map[string]interface{}{
+		"map_attr": map[string]any{
 			"simple_string_override": "hello, world",
 			"original_string":        "original val",
 			"list_attr":              []string{"hello"},
-			"map_attr": map[string]interface{}{
+			"map_attr": map[string]any{
 				"simple_string_override": "hello, world",
 				"original_string":        "original val",
 				"list_attr":              []string{"hello"},

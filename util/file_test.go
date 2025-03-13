@@ -118,9 +118,7 @@ func TestGlobCanonicalPath(t *testing.T) {
 
 			slices.Sort(actual)
 
-			sort.Slice(tt.expected, func(i, j int) bool {
-				return tt.expected[i] < tt.expected[j]
-			})
+			slices.Sort(tt.expected)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, actual, "For path %s and basePath %s", tt.paths, basePath)

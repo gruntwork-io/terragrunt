@@ -242,7 +242,7 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
-	for i := 0; i < terragruntOptions.MaxFoldersToCheck; i++ {
+	for range terragruntOptions.MaxFoldersToCheck {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		terragruntOptions.Logger.Debugf("Finding .tflint.hcl file from %s and going to %s", previousDir, currentDir)
 

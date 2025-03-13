@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"maps"
 )
 
 const maxLevelsOfRecursion = 20
@@ -577,13 +578,9 @@ type TerraformModulesMap map[string]*TerraformModule
 func (modulesMap TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap) TerraformModulesMap {
 	out := TerraformModulesMap{}
 
-	for key, value := range externalDependencies {
-		out[key] = value
-	}
+	maps.Copy(out, externalDependencies)
 
-	for key, value := range modulesMap {
-		out[key] = value
-	}
+	maps.Copy(out, modulesMap)
 
 	return out
 }

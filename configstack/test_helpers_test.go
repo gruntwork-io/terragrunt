@@ -50,7 +50,7 @@ func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformM
 
 // We can't use assert.Equals on TerraformModule because it contains some fields (e.g. TerragruntOptions) that cannot
 // be compared directly
-func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, actual *configstack.TerraformModule, messageAndArgs ...interface{}) {
+func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, actual *configstack.TerraformModule, messageAndArgs ...any) {
 	t.Helper()
 
 	if assert.NotNil(t, actual, messageAndArgs...) {
@@ -75,7 +75,7 @@ func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, act
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*configstack.RunningModule, actualModules map[string]*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
+func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*configstack.RunningModule, actualModules map[string]*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()
 
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
@@ -93,7 +93,7 @@ func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*conf
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.RunningModule, actualModules []*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
+func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.RunningModule, actualModules []*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()
 
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
@@ -104,7 +104,7 @@ func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.
 	sort.Sort(RunningModuleByPath(expectedModules))
 	sort.Sort(RunningModuleByPath(actualModules))
 
-	for i := 0; i < len(expectedModules); i++ {
+	for i := range expectedModules {
 		expected := expectedModules[i]
 		actual := actualModules[i]
 		assertRunningModulesEqual(t, expected, actual, doDeepCheck, messageAndArgs...)

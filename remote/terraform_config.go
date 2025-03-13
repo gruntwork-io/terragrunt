@@ -24,7 +24,7 @@ func formatHclValue(value any) string {
 	case string:
 		escapedValue := strings.ReplaceAll(v, `"`, `\"`)
 		return fmt.Sprintf(`"%s"`, escapedValue)
-	case map[string]interface{}:
+	case map[string]any:
 		return WrapMapToSingleLineHcl(v)
 	default:
 		return fmt.Sprintf(`%v`, v)

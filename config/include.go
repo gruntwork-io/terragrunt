@@ -691,8 +691,8 @@ func mergeExtraArgs(terragruntOptions *options.TerragruntOptions, childExtraArgs
 	*parentExtraArgs = result
 }
 
-func mergeInputs(childInputs map[string]interface{}, parentInputs map[string]interface{}) map[string]interface{} {
-	out := map[string]interface{}{}
+func mergeInputs(childInputs map[string]any, parentInputs map[string]any) map[string]any {
+	out := map[string]any{}
 
 	for key, value := range parentInputs {
 		out[key] = value

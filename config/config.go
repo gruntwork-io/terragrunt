@@ -128,7 +128,7 @@ type TerragruntConfig struct {
 	IamAssumeRoleSessionName    string
 	IamWebIdentityToken         string
 	Inputs                      map[string]any
-	Locals                      map[string]interface{}
+	Locals                      map[string]any
 	TerragruntDependencies      Dependencies
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	RetryableErrors             []string
@@ -147,7 +147,7 @@ type TerragruntConfig struct {
 	ProcessedIncludes IncludeConfigsMap
 
 	// Map to store fields metadata
-	FieldsMetadata map[string]map[string]interface{}
+	FieldsMetadata map[string]map[string]any
 
 	// List of dependent modules
 	DependentModulesPath []*string
@@ -775,7 +775,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
-	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
+	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]any{
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {

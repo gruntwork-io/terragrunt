@@ -247,22 +247,22 @@ func (logger *logger) Debug(args ...any) {
 }
 
 // Print implements the Logger interface method.
-func (logger *logger) Print(args ...interface{}) {
+func (logger *logger) Print(args ...any) {
 	logger.Info(args...)
 }
 
 // Info implements the Logger interface method.
-func (logger *logger) Info(args ...interface{}) {
+func (logger *logger) Info(args ...any) {
 	logger.Log(InfoLevel, args...)
 }
 
 // Warn implements the Logger interface method.
-func (logger *logger) Warn(args ...interface{}) {
+func (logger *logger) Warn(args ...any) {
 	logger.Log(WarnLevel, args...)
 }
 
 // Error implements the Logger interface method.
-func (logger *logger) Error(args ...interface{}) {
+func (logger *logger) Error(args ...any) {
 	logger.Log(ErrorLevel, args...)
 }
 

@@ -699,7 +699,7 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 // Converts arbitrary go types that are json serializable to a cty Value by using json as an intermediary
 // representation. This avoids the strict type nature of cty, where you need to know the output type beforehand to
 // serialize to cty.
-func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
+func convertToCtyWithJSON(val any) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
 		return cty.NilVal, errors.New(err)
@@ -715,7 +715,7 @@ func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
 
 // Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
 // uint, float, cty.Value) to a cty Value
-func goTypeToCty(val interface{}) (cty.Value, error) {
+func goTypeToCty(val any) (cty.Value, error) {
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
 		return cty.NilVal, errors.New(err)

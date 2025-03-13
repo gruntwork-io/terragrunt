@@ -304,14 +304,14 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		localsConfigs[name] = map[string]any{
-			"dependencies":                  interface{}(nil),
+			"dependencies":                  any(nil),
 			"download_dir":                  "",
-			"generate":                      map[string]interface{}{},
-			"iam_assume_role_duration":      interface{}(nil),
+			"generate":                      map[string]any{},
+			"iam_assume_role_duration":      any(nil),
 			"iam_assume_role_session_name":  "",
 			"iam_role":                      "",
 			"iam_web_identity_token":        "",
-			"inputs":                        interface{}(nil),
+			"inputs":                        any(nil),
 			"locals":                        cfg.Locals,
 			"retry_max_attempts":            interface{}(nil),
 			"retry_sleep_interval_sec":      interface{}(nil),

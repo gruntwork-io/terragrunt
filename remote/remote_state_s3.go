@@ -453,8 +453,8 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 	})
 }
 
-func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
-	var filteredConfig = make(map[string]interface{})
+func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]any) map[string]any {
+	var filteredConfig = make(map[string]any)
 
 	const (
 		lockTableKey     = "lock_table"
@@ -479,7 +479,7 @@ func (s3Initializer S3Initializer) GetTerraformInitArgs(config map[string]interf
 		}
 
 		if key == assumeRoleKey {
-			if mapVal, ok := val.(map[string]interface{}); ok {
+			if mapVal, ok := val.(map[string]any); ok {
 				filteredConfig[key] = WrapMapToSingleLineHcl(mapVal)
 				continue
 			}

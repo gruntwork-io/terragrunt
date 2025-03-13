@@ -87,7 +87,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		Inputs: map[string]any{
 			"aws_region": "us-east-1",
 		},
-		Locals: map[string]interface{}{
+		Locals: map[string]any{
 			"quote": "the answer is 42",
 		},
 		DependentModulesPath: dependentModulesPath,
@@ -175,10 +175,10 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 			Path:     "foo",
 			IfExists: "overwrite_terragrunt",
 		},
-		Config: map[string]interface{}{
+		Config: map[string]any{
 			"bar": "baz",
 		},
-		Encryption: map[string]interface{}{
+		Encryption: map[string]any{
 			"bar": "baz",
 		},
 	}

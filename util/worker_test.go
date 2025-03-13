@@ -41,7 +41,7 @@ func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
 	defer wp.Stop()
 
 	var counter int32
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
 			return nil
@@ -66,7 +66,7 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 	var successCount int32
 
 	// Submit tasks, half of which return an error
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		i := i
 		wp.Submit(func() error {
 			if i%2 == 0 {
@@ -93,7 +93,7 @@ func TestStopAndRestart(t *testing.T) {
 	var counter int32
 
 	// Submit some tasks
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
 			return nil

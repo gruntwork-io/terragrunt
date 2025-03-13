@@ -41,7 +41,7 @@ func ExtraInfoNext[T any](previous any) T {
 
 // DiagnosticExtraUnwrapper is an interface implemented by values in the Extra field of Diagnostic when they are wrapping another "Extra" value that was generated downstream.
 type DiagnosticExtraUnwrapper interface {
-	UnwrapDiagnosticExtra() interface{}
+	UnwrapDiagnosticExtra() any
 }
 
 // DiagnosticExtraBecauseUnknown is an interface implemented by values in the Extra field of Diagnostic when the diagnostic is potentially caused by the presence of unknown values in an expression evaluation.

@@ -41,13 +41,13 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 		{
 			description:    "No env vars in opts, one input",
 			envVarsInOpts:  nil,
-			inputsInConfig: map[string]interface{}{"foo": "bar"},
+			inputsInConfig: map[string]any{"foo": "bar"},
 			expected:       map[string]string{"TF_VAR_foo": "bar"},
 		},
 		{
 			description:    "No env vars in opts, a few inputs",
 			envVarsInOpts:  nil,
-			inputsInConfig: map[string]interface{}{"foo": "bar", "list": []int{1, 2, 3}, "map": map[string]interface{}{"a": "b"}},
+			inputsInConfig: map[string]any{"foo": "bar", "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
 			expected:       map[string]string{"TF_VAR_foo": "bar", "TF_VAR_list": "[1,2,3]", "TF_VAR_map": `{"a":"b"}`},
 		},
 		{

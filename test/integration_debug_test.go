@@ -198,7 +198,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	// Make sure all terraform block is visible
 	terraformBlock, hasTerraform := rendered["terraform"]
 	if assert.True(t, hasTerraform) {
-		source, hasSource := terraformBlock.(map[string]interface{})["source"]
+		source, hasSource := terraformBlock.(map[string]any)["source"]
 		assert.True(t, hasSource)
 		assert.Equal(t, "./module", source)
 	}
@@ -208,7 +208,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	if assert.True(t, hasRemoteState) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
+			map[string]any{
 				"backend": "local",
 				"generate": map[string]interface{}{
 					"path":      "backend.tf",

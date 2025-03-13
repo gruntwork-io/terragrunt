@@ -635,7 +635,7 @@ func toStringSlice(t *testing.T, value any) []string {
 		return nil
 	}
 
-	asInterfaceSlice, isInterfaceSlice := value.([]interface{})
+	asInterfaceSlice, isInterfaceSlice := value.([]any)
 	assert.True(t, isInterfaceSlice)
 
 	// TODO: See if this logic is desired
@@ -788,7 +788,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 
 	tc := []struct {
 		input    string
-		expected interface{}
+		expected any
 	}{
 		{
 			"abs(-1)",
@@ -808,7 +808,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		},
 		{
 			`split("|", "one|two|three")`,
-			[]interface{}{"one", "two", "three"},
+			[]any{"one", "two", "three"},
 		},
 		{
 			`!tobool("false")`,
@@ -820,7 +820,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		},
 		{
 			`zipmap(["one", "two", "three"], [1, 2, 3])`,
-			map[string]interface{}{"one": 1., "two": 2., "three": 3.},
+			map[string]any{"one": 1., "two": 2., "three": 3.},
 		},
 	}
 

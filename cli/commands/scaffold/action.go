@@ -334,7 +334,7 @@ func parseModuleURL(ctx context.Context, opts *options.TerragruntOptions, vars m
 
 // rewriteModuleURL rewrites module url to git ssh if required
 // github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
-func rewriteModuleURL(opts *options.TerragruntOptions, vars map[string]interface{}, moduleURL string) (*url.URL, error) {
+func rewriteModuleURL(opts *options.TerragruntOptions, vars map[string]any, moduleURL string) (*url.URL, error) {
 	var updatedModuleURL = moduleURL
 
 	sourceURLType := sourceURLTypeHTTPS
@@ -403,7 +403,7 @@ func rewriteTemplateURL(ctx context.Context, opts *options.TerragruntOptions, pa
 }
 
 // addRefToModuleURL adds ref to module url if is passed through variables or find it from git tags
-func addRefToModuleURL(ctx context.Context, opts *options.TerragruntOptions, parsedModuleURL *url.URL, vars map[string]interface{}) (*url.URL, error) {
+func addRefToModuleURL(ctx context.Context, opts *options.TerragruntOptions, parsedModuleURL *url.URL, vars map[string]any) (*url.URL, error) {
 	var moduleURL = parsedModuleURL
 	// append ref to source url, if is passed through variables or find it from git tags
 	params := moduleURL.Query()

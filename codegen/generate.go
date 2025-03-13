@@ -457,7 +457,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 	return f.Bytes(), nil
 }
 
-func convertValue(v interface{}) (ctyjson.SimpleJSONValue, error) {
+func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {
 		return ctyjson.SimpleJSONValue{}, errors.New(err)

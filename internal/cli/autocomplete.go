@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/posener/complete/cmd/install"
+	"slices"
 )
 
 // defaultAutocompleteInstallFlag and defaultAutocompleteUninstallFlag are the
@@ -139,11 +140,9 @@ func cliArgContains(flagName string) bool {
 		count := min(utf8.RuneCountInString(name), maxDashesInFlag)
 
 		flag := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
-		for _, a := range os.Args {
-			if a == flag {
+		if slices.Contains(os.Args, flag) {
 				return true
 			}
-		}
 	}
 
 	return false

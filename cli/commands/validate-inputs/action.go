@@ -305,7 +305,7 @@ func getVarNamesFromVarFile(opts *options.TerragruntOptions, varFile string) ([]
 		return nil, err
 	}
 
-	var variables map[string]interface{}
+	var variables map[string]any
 	if strings.HasSuffix(varFile, "json") {
 		if err := json.Unmarshal(fileContents, &variables); err != nil {
 			return nil, err

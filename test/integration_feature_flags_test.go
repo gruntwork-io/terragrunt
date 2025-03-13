@@ -135,7 +135,7 @@ func validateOutputs(t *testing.T, rootPath string) {
 	validateOutputsMap(t, rootPath, expectedDefaults())
 }
 
-func validateOutputsMap(t *testing.T, rootPath string, expected map[string]interface{}) {
+func validateOutputsMap(t *testing.T, rootPath string, expected map[string]any) {
 	t.Helper()
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}

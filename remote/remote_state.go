@@ -172,7 +172,7 @@ func terraformStateConfigEqual(existingConfig map[string]any, newConfig map[stri
 }
 
 // Copy the non-nil values from the existingMap to a new map
-func copyExistingNotNullValues(existingMap map[string]any, newMap map[string]interface{}) map[string]interface{} {
+func copyExistingNotNullValues(existingMap map[string]any, newMap map[string]any) map[string]any {
 	existingConfigNonNil := map[string]any{}
 
 	for existingKey, existingValue := range existingMap {

@@ -35,6 +35,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
+	"slices"
 )
 
 const (
@@ -191,9 +192,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 
 	maps.Copy(functions, terragruntFunctions)
 
-	for k, v := range ctx.PredefinedFunctions {
-		functions[k] = v
-	}
+	maps.Copy(functions, ctx.PredefinedFunctions)
 
 	evalCtx := &hcl.EvalContext{
 		Functions: functions,
@@ -353,11 +352,11 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		case "--terragrunt-quiet":
 			suppressOutput = true
 
-			args = append(args[:0], args[1:]...)
+			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-global-cache":
 			cachePath = "_global_"
 
-			args = append(args[:0], args[1:]...)
+			args = slices.Delete(args, 0, 1)
 		default:
 			checkOptions = false
 		}
@@ -471,7 +470,7 @@ func FindInParentFolders(
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
-	for i := 0; i < ctx.TerragruntOptions.MaxFoldersToCheck; i++ {
+	for range ctx.TerragruntOptions.MaxFoldersToCheck {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		if currentDir == previousDir {
 			if numParams == matchedPats {

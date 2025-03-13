@@ -32,6 +32,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"maps"
 )
 
 const (
@@ -298,9 +299,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 
 		terragruntOptions.InsertTerraformCliArgs(args...)
 
-		for k, v := range filterTerraformEnvVarsFromExtraArgs(terragruntOptions, terragruntConfig) {
-			terragruntOptions.Env[k] = v
-		}
+		maps.Copy(terragruntOptions.Env, filterTerraformEnvVarsFromExtraArgs(terragruntOptions, terragruntConfig))
 	}
 
 	if err := SetTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
@@ -475,7 +474,7 @@ func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 
 func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
-	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
+	for range terragruntOptions.RetryMaxAttempts {
 		if out, err := tf.RunCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
 				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
@@ -805,9 +804,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 
 		for _, argcmd := range arg.Commands {
 			if cmd == argcmd {
-				for k, v := range *arg.EnvVars {
-					out[k] = v
-				}
+				maps.Copy(out, *arg.EnvVars)
 			}
 		}
 	}

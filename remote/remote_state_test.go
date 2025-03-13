@@ -29,12 +29,12 @@ func TestToTerraformInitArgs(t *testing.T) {
 				"name":    "Terraform state storage",
 				"service": "Terraform"},
 
-			"dynamodb_table_tags": map[string]interface{}{
+			"dynamodb_table_tags": map[string]any{
 				"team":    "team name",
 				"name":    "Terraform lock table",
 				"service": "Terraform"},
 
-			"accesslogging_bucket_tags": map[string]interface{}{
+			"accesslogging_bucket_tags": map[string]any{
 				"team":    "team name",
 				"name":    "Terraform access log storage",
 				"service": "Terraform"},
@@ -56,13 +56,13 @@ func TestToTerraformInitArgsForGCS(t *testing.T) {
 
 	remoteState := remote.RemoteState{
 		Backend: "gcs",
-		Config: map[string]interface{}{
+		Config: map[string]any{
 			"project":  "my-project-123456",
 			"location": "US",
 			"bucket":   "my-bucket",
 			"prefix":   "terraform.tfstate",
 
-			"gcs_bucket_labels": map[string]interface{}{
+			"gcs_bucket_labels": map[string]any{
 				"team":    "team name",
 				"name":    "Terraform state storage",
 				"service": "Terraform"},

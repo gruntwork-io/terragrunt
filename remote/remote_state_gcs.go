@@ -21,6 +21,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/option"
+	"maps"
 )
 
 /* ExtendedRemoteStateConfigGCS is a struct that contains the GCS specific configuration options.
@@ -157,9 +158,7 @@ func GCSConfigValuesEqual(config map[string]any, existingBackend *TerraformBacke
 
 	// Construct a new map excluding custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
 	comparisonConfig := make(map[string]any)
-	for key, value := range config {
-		comparisonConfig[key] = value
-	}
+	maps.Copy(comparisonConfig, config)
 
 	for _, key := range terragruntGCSOnlyConfigs {
 		delete(comparisonConfig, key)
@@ -236,8 +235,8 @@ func (initializer GCSInitializer) Initialize(ctx context.Context, remoteState *R
 
 // GetTerraformInitArgs returns the subset of the given config that should be passed to terraform init
 // when initializing the remote state.
-func (initializer GCSInitializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
-	var filteredConfig = make(map[string]interface{})
+func (initializer GCSInitializer) GetTerraformInitArgs(config map[string]any) map[string]any {
+	var filteredConfig = make(map[string]any)
 
 	for key, val := range config {
 		if util.ListContainsElement(terragruntGCSOnlyConfigs, key) {

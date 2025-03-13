@@ -87,19 +87,19 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		name       string
 		backend    string
 		config     map[string]any
-		encryption map[string]interface{}
+		encryption map[string]any
 		expected   []byte
 		expectErr  bool
 	}{
 		{
 			"remote-state-config-unsorted-keys",
 			"ordered",
-			map[string]interface{}{
+			map[string]any{
 				"b": 2,
 				"a": 1,
 				"c": 3,
 			},
-			map[string]interface{}{
+			map[string]any{
 				"key_provider": "test",
 				"b":            2,
 				"a":            1,
@@ -111,7 +111,7 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		{
 			"remote-state-config-empty",
 			"empty",
-			map[string]interface{}{},
+			map[string]any{},
 			map[string]interface{}{
 				"key_provider": "test",
 			},

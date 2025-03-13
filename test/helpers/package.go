@@ -160,7 +160,7 @@ func UniqueID() string {
 
 	var out bytes.Buffer
 
-	for i := 0; i < uniqueIDLength; i++ {
+	for range uniqueIDLength {
 		out.WriteByte(base62Chars[mathRand.Intn(len(base62Chars))])
 	}
 
@@ -625,7 +625,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	return serverTLSConf, clientTLSConf
 }
 
-func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
+func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value any) {
 	t.Helper()
 
 	output, hasPlatform := outputs[key]

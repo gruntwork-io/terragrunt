@@ -46,12 +46,12 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
 	var inputs = renderedJSON[config.MetadataInputs]
-	var expectedInputs = map[string]interface{}{
-		"name": map[string]interface{}{
+	var expectedInputs = map[string]any{
+		"name": map[string]any{
 			"metadata": expectedMetadata,
 			"value":    "us-east-1-bucket",
 		},
-		"region": map[string]interface{}{
+		"region": map[string]any{
 			"metadata": expectedMetadata,
 			"value":    "us-east-1",
 		},
@@ -59,7 +59,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 
 	var locals = renderedJSON[config.MetadataLocals]
-	var expectedLocals = map[string]interface{}{
+	var expectedLocals = map[string]any{
 		"aws_region": map[string]interface{}{
 			"metadata": expectedMetadata,
 			"value":    "us-east-1",

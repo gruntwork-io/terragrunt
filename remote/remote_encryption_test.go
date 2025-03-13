@@ -33,7 +33,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "PBKDF2 invalid property",
 			providerType: "pbkdf2",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "pbkdf2",
 				"password":     "password123", // Invalid property
 			},
@@ -42,7 +42,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "PBKDF2 invalid config",
 			providerType: "pbkdf2",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "pbkdf2",
 				"passphrase":   123, // Invalid type
 			},
@@ -51,7 +51,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "AWSKMS full config",
 			providerType: "aws_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "aws_kms",
 				"kms_key_id":   "123456789",
 				"key_spec":     "AES_256",
@@ -60,7 +60,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "AWSKMS invalid property",
 			providerType: "aws_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "aws_kms",
 				"password":     "password123", // Invalid property
 			},
