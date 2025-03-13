@@ -769,7 +769,6 @@ func TestStacksSourceMapModule(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSourceMap)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackSourceMap)
 
-	// generate path with replacement of local source with local path
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+" --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
