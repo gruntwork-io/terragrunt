@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terratest/modules/files"
+
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +31,8 @@ const (
 	testFixtureNestedStacks        = "fixtures/stacks/nested"
 	testFixtureStackValues         = "fixtures/stacks/stack-values"
 	testFixtureStackDependencies   = "fixtures/stacks/dependencies"
+	testFixtureStackAbsolutePath   = "fixtures/stacks/absolute-path"
+	testFixtureStackSourceMap      = "fixtures/stacks/source-map"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -171,9 +175,11 @@ func TestStacksApplyRemote(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
+	assert.Contains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.Contains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
@@ -711,6 +717,96 @@ func TestStackApplyStrictInclude(t *testing.T) {
 	// check that test file wasn't created
 	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
 	assert.True(t, util.FileNotExists(dataPath))
+}
+
+func TestStacksSourceMap(t *testing.T) {
+	t.Parallel()
+
+	// prepare local path to do override of source url
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	localTmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	localTmpTest := filepath.Join(localTmpEnvPath, "test", "fixtures")
+	if err := os.MkdirAll(localTmpTest, 0755); err != nil {
+		assert.NoError(t, err)
+	}
+
+	if err := files.CopyFolderContentsWithFilter(filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, func(path string) bool {
+		return true
+	}); err != nil {
+		assert.NoError(t, err)
+	}
+
+	// prepare local environment with remote to use source map to replace
+	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
+
+	// generate path with replacement of local source with local path
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "Processing unit app1")
+	assert.Contains(t, stderr, "Processing unit app2")
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// validate that the source map was used to replace the source
+	assert.NotContains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+	assert.NotContains(t, stderr, "app2 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
+
+	assert.Contains(t, stderr, "Processing unit app1")
+	assert.Contains(t, stderr, "Processing unit app2")
+}
+
+func TestStacksSourceMapModule(t *testing.T) {
+	t.Parallel()
+	// prepare local environment with remote to use source map to replace
+	helpers.CleanupTerraformFolder(t, testFixtureStackSourceMap)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSourceMap)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackSourceMap)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+" --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app1")
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app2")
+}
+
+func TestStacksGenerateAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackAbsolutePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackAbsolutePath)
+	helpers.CreateGitRepo(t, rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-log-level debug  --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+
+	// check that apps directories are generated
+	app3 := util.JoinPath(rootPath, ".terragrunt-stack", "app3")
+	assert.DirExists(t, app3)
+
+	app1 := util.JoinPath(rootPath, "app1")
+	assert.DirExists(t, app1)
+
+	app2 := util.JoinPath(rootPath, "app2")
+	assert.DirExists(t, app2)
+
+	app1 = util.JoinPath(rootPath, ".terragrunt-stack", "app1")
+	assert.NoDirExists(t, app1)
 }
 
 // check if the stack directory is created and contains files.

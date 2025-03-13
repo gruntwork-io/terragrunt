@@ -25,26 +25,20 @@ const (
 	jsonOutputFormat = "json"
 )
 
-// NewFlags builds the flags for stack.
-func NewFlags(_ *options.TerragruntOptions) cli.Flags {
-	return cli.Flags{}
-}
-
 // NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Terragrunt stack commands.",
 		ErrorOnUndefinedFlag: true,
-		Flags:                NewFlags(opts).Sort(),
 		Subcommands: cli.Commands{
 			&cli.Command{
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx *cli.Context) error {
 					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
-
 				},
+				Flags: defaultFlags(opts).Sort(),
 			},
 			&cli.Command{
 				Name:  runCommandName,
@@ -52,7 +46,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, opts.OptionsFromContext(ctx))
 				},
-				Flags: runFlags(opts).Sort(),
+				Flags: defaultFlags(opts).Sort(),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
@@ -81,7 +75,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	return cli.Flags{
+	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutputFormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(OutputFormatFlagName),
@@ -105,9 +99,11 @@ func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags
 			},
 		}),
 	}
+
+	return append(defaultFlags(opts), flags...)
 }
 
-func runFlags(opts *options.TerragruntOptions) cli.Flags {
+func defaultFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := runall.NewFlags(opts, runCommandName, nil).Filter(runall.OutDirFlagName, runall.JSONOutDirFlagName)
 	flags = append(flags, run.NewFlags(opts, nil)...)
 

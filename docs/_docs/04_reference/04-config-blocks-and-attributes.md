@@ -1653,7 +1653,7 @@ The `unit` block supports the following arguments:
 
 - `name` (label): A unique identifier for the unit. This is used to reference the unit elsewhere in your configuration.
 - `source` (attribute): Specifies where to find the Terragrunt configuration files for this unit. This follows the same syntax as the `source` parameter in the `terraform` block.
-- `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`).
+- `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`). If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory.
 - `values` (attribute, optional): A map of values that will be passed to the unit as inputs.
 
 Example:
@@ -1703,6 +1703,9 @@ inputs = {
 }
 ```
 
+**Note:**  
+The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+
 ### stack
 
 > **Note:**
@@ -1747,6 +1750,9 @@ unit "vpc" {
 In this example, the `services` stack is defined with path `services`, which will be generated at `.terragrunt-stack/services`.
 The stack is also provided with custom values for `project` and `cidr`, which can be used within the stack's configuration files.
 Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
+
+**Note:**  
+The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
 ## Attributes
 
