@@ -100,7 +100,7 @@ func TestIgnoreSignal(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testIgnoreSignalErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testIgnoreSignalErrors)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Ignoring error example1")

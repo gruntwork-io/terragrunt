@@ -878,7 +878,7 @@ func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]any) error
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
 
-	opts.Logger.Warnf("Written error signals to %s", signalsFile)
+	opts.Logger.Warnf("Writing error signals to %s", signalsFile)
 
 	return nil
 }
