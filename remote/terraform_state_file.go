@@ -30,14 +30,14 @@ type TerraformState struct {
 
 // TerraformBackend represents the structure of the "backend" section in the Terraform .tfstate file.
 type TerraformBackend struct {
-	Type   string                 `json:"Type"`
+	Type   string         `json:"Type"`
 	Config map[string]any `json:"Config"`
 }
 
 // TerraformStateModule represents the structure of a "module" section in the Terraform .tfstate file.
 type TerraformStateModule struct {
 	Path      []string               `json:"Path"`
-	Outputs   map[string]any `json:"Outputs"`
+	Outputs   map[string]any         `json:"Outputs"`
 	Resources map[string]interface{} `json:"Resources"`
 }
 

@@ -6,9 +6,10 @@ import (
 	"strings"
 	"unicode"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"slices"
 )
 
 // Constants for parsing options.

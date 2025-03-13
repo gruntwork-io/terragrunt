@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	goerrors "github.com/go-errors/errors"
 	"slices"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 // ErrorStack returns an stack trace if available.

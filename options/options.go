@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -25,7 +27,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/puzpuzpuz/xsync/v3"
-	"slices"
 )
 
 const ContextKey ctxKey = iota
@@ -706,8 +707,8 @@ func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 	}
 
 	if slices.Contains(units, unit) {
-			return
-		}
+		return
+	}
 
 	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
 

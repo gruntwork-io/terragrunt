@@ -5,10 +5,11 @@ import (
 	"os"
 	"strings"
 
+	"maps"
+
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
-	"maps"
 )
 
 // MapFlag implements Flag

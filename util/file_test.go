@@ -11,12 +11,13 @@ import (
 
 	"fmt"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"slices"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {

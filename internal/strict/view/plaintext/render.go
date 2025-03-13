@@ -5,10 +5,11 @@ import (
 	"text/tabwriter"
 	"text/template"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/view"
-	"maps"
 )
 
 const (

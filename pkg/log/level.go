@@ -3,9 +3,10 @@ package log
 import (
 	"strings"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/sirupsen/logrus"
-	"slices"
 )
 
 // These are the different logging levels.

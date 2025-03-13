@@ -14,12 +14,13 @@ import (
 
 	"github.com/google/shlex"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
-	"maps"
 )
 
 const splitCount = 2

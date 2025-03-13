@@ -1,9 +1,10 @@
 package config
 
 import (
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
-	"maps"
 )
 
 // ErrorsConfig represents the top-level errors configuration

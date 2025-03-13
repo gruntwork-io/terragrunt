@@ -7,9 +7,10 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"maps"
 )
 
 // MaxIter is the maximum number of depth we support in recursively evaluating locals.

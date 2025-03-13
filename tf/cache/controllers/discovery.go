@@ -3,9 +3,10 @@ package controllers
 import (
 	"net/http"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/tf/cache/router"
 	"github.com/labstack/echo/v4"
-	"maps"
 )
 
 const (

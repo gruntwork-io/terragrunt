@@ -74,9 +74,9 @@ const (
 )
 
 type TerraformOutput struct {
-	Sensitive bool        `json:"Sensitive"`
-	Type      any `json:"Type"`
-	Value     any `json:"Value"`
+	Sensitive bool `json:"Sensitive"`
+	Type      any  `json:"Type"`
+	Value     any  `json:"Value"`
 }
 
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
