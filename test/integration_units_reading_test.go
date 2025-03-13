@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -31,6 +32,7 @@ func TestUnitsReading(t *testing.T) {
 			name:         "empty",
 			unitsReading: []string{},
 			expectedUnits: []string{
+				"indirect",
 				"reading-from-tf",
 				"reading-hcl",
 				"reading-hcl-and-tfvars",
@@ -121,6 +123,15 @@ func TestUnitsReading(t *testing.T) {
 				"reading-tfvars",
 			},
 		},
+		{
+			name: "indirect",
+			unitsReading: []string{
+				filepath.Join("indirect", "src", "test.txt"),
+			},
+			expectedUnits: []string{
+				"indirect",
+			},
+		},
 	}
 
 	includedLogEntryRegex := regexp.MustCompile(`=> Module ./([^ ]+) \(excluded: false`)
@@ -134,8 +145,8 @@ func TestUnitsReading(t *testing.T) {
 
 			cmd := "terragrunt run-all plan --non-interactive --log-level trace --working-dir " + rootPath
 
-			for _, unit := range tt.unitsReading {
-				cmd = cmd + " --queue-include-units-reading " + unit
+			for _, f := range tt.unitsReading {
+				cmd = cmd + " --queue-include-units-reading " + f
 			}
 
 			for _, unit := range tt.unitsIncluding {
