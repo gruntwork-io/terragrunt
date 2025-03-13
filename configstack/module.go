@@ -529,13 +529,11 @@ func (modules TerraformModules) flagExcludedUnits(opts *options.TerragruntOption
 
 // flagUnitsThatRead iterates over a module slice and flags all modules that read at least one file in the specified
 // file list in the TerragruntOptions UnitsReading attribute.
-func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOptions) (TerraformModules, error) {
+func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOptions) TerraformModules {
 	// If no UnitsThatRead is specified return the modules list instantly
 	if len(opts.UnitsReading) == 0 {
-		return modules, nil
+		return modules
 	}
-
-	errs := []error{}
 
 	for _, path := range opts.UnitsReading {
 		if !filepath.IsAbs(path) {
@@ -550,11 +548,7 @@ func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOption
 		}
 	}
 
-	if len(errs) > 0 {
-		return nil, errors.New(errors.Join(errs...))
-	}
-
-	return modules, nil
+	return modules
 }
 
 // flagExcludedDirs iterates over a module slice and flags all entries as excluded listed in the terragrunt-exclude-dir CLI flag.
