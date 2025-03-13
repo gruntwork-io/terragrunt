@@ -32,6 +32,7 @@ const (
 	testFixtureStackValues         = "fixtures/stacks/stack-values"
 	testFixtureStackDependencies   = "fixtures/stacks/dependencies"
 	testFixtureStackAbsolutePath   = "fixtures/stacks/absolute-path"
+	testFixtureStackSourceMap      = "fixtures/stacks/source-map"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -759,6 +760,28 @@ func TestStacksSourceMap(t *testing.T) {
 
 	assert.Contains(t, stderr, "Processing unit app1")
 	assert.Contains(t, stderr, "Processing unit app2")
+}
+
+func TestStacksSourceMapModule(t *testing.T) {
+	t.Parallel()
+	// prepare local environment with remote to use source map to replace
+	helpers.CleanupTerraformFolder(t, testFixtureStackSourceMap)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSourceMap)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackSourceMap)
+
+	// generate path with replacement of local source with local path
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+" --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app1")
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app2")
 }
 
 func TestStacksGenerateAbsolutePath(t *testing.T) {
