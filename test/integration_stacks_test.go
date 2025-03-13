@@ -33,6 +33,7 @@ const (
 	testFixtureStackDependencies   = "fixtures/stacks/dependencies"
 	testFixtureStackAbsolutePath   = "fixtures/stacks/absolute-path"
 	testFixtureStackSourceMap      = "fixtures/stacks/source-map"
+	testFixtureStackHidden         = "fixtures/stacks/hidden"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -790,7 +791,7 @@ func TestStacksGenerateAbsolutePath(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackAbsolutePath)
 	helpers.CreateGitRepo(t, rootPath)
-	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-log-level debug  --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-log-level debug --experiment stacks --terragrunt-working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -807,6 +808,21 @@ func TestStacksGenerateAbsolutePath(t *testing.T) {
 
 	app1 = util.JoinPath(rootPath, ".terragrunt-stack", "app1")
 	assert.NoDirExists(t, app1)
+}
+
+func TestStacksGenerateHidden(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackHidden)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackHidden)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackHidden)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	config := util.JoinPath(rootPath, "config")
+	assert.DirExists(t, config)
 }
 
 // check if the stack directory is created and contains files.
