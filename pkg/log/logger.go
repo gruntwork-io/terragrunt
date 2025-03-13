@@ -269,64 +269,64 @@ func (logger *logger) Error(args ...any) {
 // Entry Printf family functions.
 
 // Tracef implements the Logger interface method.
-func (logger *logger) Tracef(format string, args ...interface{}) {
+func (logger *logger) Tracef(format string, args ...any) {
 	logger.Logf(TraceLevel, format, args...)
 }
 
 // Debugf implements the Logger interface method.
-func (logger *logger) Debugf(format string, args ...interface{}) {
+func (logger *logger) Debugf(format string, args ...any) {
 	logger.Logf(DebugLevel, format, args...)
 }
 
 // Infof implements the Logger interface method.
-func (logger *logger) Infof(format string, args ...interface{}) {
+func (logger *logger) Infof(format string, args ...any) {
 	logger.Logf(InfoLevel, format, args...)
 }
 
 // Printf implements the Logger interface method.
-func (logger *logger) Printf(format string, args ...interface{}) {
+func (logger *logger) Printf(format string, args ...any) {
 	logger.Infof(format, args...)
 }
 
 // Warnf implements the Logger interface method.
-func (logger *logger) Warnf(format string, args ...interface{}) {
+func (logger *logger) Warnf(format string, args ...any) {
 	logger.Logf(WarnLevel, format, args...)
 }
 
 // Errorf implements the Logger interface method.
-func (logger *logger) Errorf(format string, args ...interface{}) {
+func (logger *logger) Errorf(format string, args ...any) {
 	logger.Logf(ErrorLevel, format, args...)
 }
 
 // Entry Println family functions
 
 // Traceln implements the Logger interface method.
-func (logger *logger) Traceln(args ...interface{}) {
+func (logger *logger) Traceln(args ...any) {
 	logger.Logln(TraceLevel, args...)
 }
 
 // Debugln implements the Logger interface method.
-func (logger *logger) Debugln(args ...interface{}) {
+func (logger *logger) Debugln(args ...any) {
 	logger.Logln(DebugLevel, args...)
 }
 
 // Infoln implements the Logger interface method.
-func (logger *logger) Infoln(args ...interface{}) {
+func (logger *logger) Infoln(args ...any) {
 	logger.Logln(InfoLevel, args...)
 }
 
 // Println implements the Logger interface method.
-func (logger *logger) Println(args ...interface{}) {
+func (logger *logger) Println(args ...any) {
 	logger.Infoln(args...)
 }
 
 // Warnln implements the Logger interface method.
-func (logger *logger) Warnln(args ...interface{}) {
+func (logger *logger) Warnln(args ...any) {
 	logger.Logln(WarnLevel, args...)
 }
 
 // Errorln implements the Logger interface method.
-func (logger *logger) Errorln(args ...interface{}) {
+func (logger *logger) Errorln(args ...any) {
 	logger.Logln(ErrorLevel, args...)
 }
 
