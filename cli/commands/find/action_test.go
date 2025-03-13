@@ -563,7 +563,7 @@ dependency "B" {
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
-	colorizer := find.NewColorizer()
+	colorizer := find.NewColorizer(true)
 
 	tests := []struct {
 		name   string
