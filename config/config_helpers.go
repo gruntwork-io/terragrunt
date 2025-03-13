@@ -350,11 +350,11 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		case "--terragrunt-quiet":
 			suppressOutput = true
 
-			args = slices.Delete(args, 0, 0)
+			args = slices.Delete(args, 0, 1)
 		case "--terragrunt-global-cache":
 			cachePath = "_global_"
 
-			args = slices.Delete(args, 0, 0)
+			args = slices.Delete(args, 0, 1)
 		default:
 			checkOptions = false
 		}
