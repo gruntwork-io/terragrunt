@@ -12,7 +12,7 @@ func TestErrorString(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		err  cas.Error
+		err  error
 		want string
 	}{
 		{

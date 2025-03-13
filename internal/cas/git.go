@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 const (
@@ -35,11 +37,11 @@ func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 // RequiresWorkDir returns an error if no working directory is set
 func (g *GitRunner) RequiresWorkDir() error {
 	if g.WorkDir == "" {
-		return &WrappedError{
+		return errors.New(WrappedError{
 			Op:      "git",
 			Context: "no working directory set",
 			Err:     ErrNoWorkDir,
-		}
+		})
 	}
 
 	return nil
@@ -67,11 +69,11 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, &WrappedError{
+		return nil, errors.New(WrappedError{
 			Op:      "git_ls_remote",
 			Context: stderr.String(),
 			Err:     ErrCommandSpawn,
-		}
+		})
 	}
 
 	var results []LsRemoteResult
@@ -93,11 +95,11 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 	}
 
 	if len(results) == 0 {
-		return nil, &WrappedError{
+		return nil, errors.New(WrappedError{
 			Op:      "git_ls_remote",
 			Context: "no matching references",
 			Err:     ErrNoMatchingReference,
-		}
+		})
 	}
 
 	return results, nil
@@ -131,11 +133,11 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return &WrappedError{
+		return errors.New(WrappedError{
 			Op:      "git_clone",
 			Context: stderr.String(),
 			Err:     ErrGitClone,
-		}
+		})
 	}
 
 	return nil
@@ -145,22 +147,22 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 	tempDir, err := os.MkdirTemp("", "terragrunt-cas-*")
 	if err != nil {
-		return "", nil, &WrappedError{
+		return "", nil, errors.New(WrappedError{
 			Op:      "create_temp_dir",
 			Context: err.Error(),
 			Err:     ErrCreateTempDir,
-		}
+		})
 	}
 
 	g.SetWorkDir(tempDir)
 
 	cleanup := func() error {
 		if err := os.RemoveAll(tempDir); err != nil {
-			return &WrappedError{
+			return errors.New(WrappedError{
 				Op:      "cleanup_temp_dir",
 				Context: err.Error(),
 				Err:     ErrCleanupTempDir,
-			}
+			})
 		}
 
 		return nil
@@ -189,11 +191,11 @@ func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (*Tree, 
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, &WrappedError{
+		return nil, errors.New(WrappedError{
 			Op:      "git_ls_tree",
 			Context: stderr.String(),
 			Err:     ErrReadTree,
-		}
+		})
 	}
 
 	return ParseTree(stdout.String(), path)
@@ -217,11 +219,11 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 	if err != nil {
 		context := stderr.String()
 
-		return &WrappedError{
+		return errors.New(WrappedError{
 			Op:      "git_cat_file",
 			Context: context,
 			Err:     ErrCommandSpawn,
-		}
+		})
 	}
 
 	return nil

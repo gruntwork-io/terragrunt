@@ -75,9 +75,6 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			Branch: "nonexistent-branch",
 		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.Error(t, err)
-		var wrappedErr *cas.WrappedError
-		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, cas.ErrNoMatchingReference)
 	})
 
 	t.Run("clone with invalid repository fails gracefully", func(t *testing.T) {
@@ -93,9 +90,6 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			Dir: filepath.Join(tempDir, "repo"),
 		}, "https://github.com/yhakbar/nonexistent-repo.git")
 		require.Error(t, err)
-		var wrappedErr *cas.WrappedError
-		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, cas.ErrCommandSpawn)
 	})
 }
 

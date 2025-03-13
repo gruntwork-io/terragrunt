@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -51,7 +50,7 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 	for i, url := range cfg.URLs {
 		url := filepath.Join(configDir, url)
 
-		if files.FileExists(url) {
+		if util.FileExists(url) {
 			cfg.URLs[i] = url
 		}
 	}

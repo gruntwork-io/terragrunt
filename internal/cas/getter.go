@@ -86,7 +86,7 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 	for _, detector := range g.Detectors {
 		src, ok, err := detector.Detect(req.Src, req.Pwd)
 		if err != nil {
-			return ok, err
+			return ok, errors.New(err)
 		}
 
 		if ok {

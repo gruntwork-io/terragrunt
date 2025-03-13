@@ -8,14 +8,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/util"
-
 	"github.com/gitsight/go-vcsurl"
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter/v2"
 	"gopkg.in/ini.v1"
 )
@@ -62,7 +60,7 @@ func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithS
 		allowCAS:         allowCAS,
 	}
 
-	if err := repo.clone(ctx, l); err != nil {
+	if err := repo.clone(ctx); err != nil {
 		return nil, err
 	}
 
@@ -91,7 +89,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 	for _, modulesPath := range modulesPaths {
 		modulesPath = filepath.Join(repo.path, modulesPath)
 
-		if !files.FileExists(modulesPath) {
+		if !util.FileExists(modulesPath) {
 			continue
 		}
 
@@ -176,14 +174,14 @@ type CloneOptions struct {
 	Logger     log.Logger
 }
 
-func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
+func (repo *Repo) clone(ctx context.Context) error {
 	cloneURL, err := repo.resolveCloneURL()
 	if err != nil {
 		return err
 	}
 
 	// Handle local directory case
-	if files.IsDir(cloneURL) {
+	if util.IsDir(cloneURL) {
 		return repo.handleLocalDir(cloneURL)
 	}
 
@@ -205,7 +203,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 		return nil
 	}
 
-	return repo.performClone(ctx, l, &opts)
+	return repo.performClone(ctx, &opts)
 }
 
 func (repo *Repo) resolveCloneURL() (string, error) {
@@ -269,14 +267,14 @@ func (repo *Repo) extractRepoName() string {
 }
 
 func (repo *Repo) shouldCleanupIncompleteClone() bool {
-	return files.FileExists(repo.path) && !repo.cloneCompleted()
+	return util.FileExists(repo.path) && !repo.cloneCompleted()
 }
 
 func (repo *Repo) cloneCompleted() bool {
-	return files.FileExists(filepath.Join(repo.path, cloneCompleteSentinel))
+	return util.FileExists(filepath.Join(repo.path, cloneCompleteSentinel))
 }
 
-func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOptions) error {
+func (repo *Repo) performClone(ctx context.Context, opts *CloneOptions) error {
 	client := getter.DefaultClient
 
 	if repo.allowCAS {
@@ -290,7 +288,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 			IncludedGitFiles: includedGitFiles,
 		}
 
-		client.Getters = append([]getter.Getter{cas.NewCASGetter(&l, c, &cloneOpts)}, client.Getters...)
+		client.Getters = append([]getter.Getter{cas.NewCASGetter(&repo.logger, c, &cloneOpts)}, client.Getters...)
 	}
 
 	sourceURL, err := tf.ToSourceURL(opts.SourceURL, "")
@@ -337,7 +335,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 func (repo *Repo) parseRemoteURL() error {
 	gitConfigPath := filepath.Join(repo.path, ".git", "config")
 
-	if !files.FileExists(gitConfigPath) {
+	if !util.FileExists(gitConfigPath) {
 		return errors.Errorf("the specified path %q is not a git repository (no .git/config file found)", repo.path)
 	}
 
@@ -379,7 +377,7 @@ func (repo *Repo) gitHeadfile() string {
 
 // parseBranchName reads `.git/HEAD` file and parses a branch name.
 func (repo *Repo) parseBranchName() error {
-	data, err := files.ReadFileAsString(repo.gitHeadfile())
+	data, err := util.ReadFileAsString(repo.gitHeadfile())
 	if err != nil {
 		return errors.Errorf("the specified path %q is not a git repository (no .git/HEAD file found)", repo.path)
 	}
