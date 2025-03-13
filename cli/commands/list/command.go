@@ -1,6 +1,6 @@
-// Package find provides the ability to find Terragrunt configurations in your codebase
-// via the `terragrunt find` command.
-package find
+// Package list provides the ability to list Terragrunt configurations in your codebase
+// via the `terragrunt list` command.
+package list
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	CommandName  = "find"
-	CommandAlias = "fd"
+	CommandName  = "list"
+	CommandAlias = "ls"
 
 	FormatFlagName = "format"
 	JSONFlagName   = "json"
@@ -30,7 +30,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
-			Usage:       "Output format for find results. Valid values: text, json.",
+			Usage:       "Output format for list results. Valid values: text, json.",
 			DefaultText: FormatText,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
@@ -43,20 +43,20 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        SortFlagName,
 			EnvVars:     tgPrefix.EnvVars(SortFlagName),
 			Destination: &opts.Sort,
-			Usage:       "Sort order for the results. Valid values: alpha, dag.",
+			Usage:       "Sort order for list results. Valid values: alpha, dag.",
 			DefaultText: SortAlpha,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        HiddenFlagName,
 			EnvVars:     tgPrefix.EnvVars(HiddenFlagName),
 			Destination: &opts.Hidden,
-			Usage:       "Include hidden directories in find results.",
+			Usage:       "Include hidden directories in list results.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        Dependencies,
 			EnvVars:     tgPrefix.EnvVars(Dependencies),
 			Destination: &opts.Dependencies,
-			Usage:       "Include dependencies in the results.",
+			Usage:       "Include dependencies in list results.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        External,
@@ -73,7 +73,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                 CommandName,
 		Aliases:              []string{CommandAlias},
-		Usage:                "Find relevant Terragrunt configurations.",
+		Usage:                "List relevant Terragrunt configurations.",
 		ErrorOnUndefinedFlag: true,
 		Flags:                NewFlags(cmdOpts, nil),
 		Before: func(ctx *cli.Context) error {
