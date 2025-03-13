@@ -1,0 +1,27 @@
+---
+name: dependencies
+description: Include dependency information in the output.
+type: bool
+env:
+  - TG_DEPENDENCIES
+---
+
+When enabled, the output will include information about dependencies between configurations. This is particularly useful when combined with JSON output format to understand the dependency relationships in your codebase.
+
+Example:
+
+```bash
+terragrunt find --dependencies --format json
+[
+  {
+    "type": "unit",
+    "path": "unitA",
+    "dependencies": []
+  },
+  {
+    "type": "unit",
+    "path": "unitB",
+    "dependencies": ["../unitA"]
+  }
+]
+```

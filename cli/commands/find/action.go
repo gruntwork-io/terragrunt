@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/mgutz/ansi"
 )
 
@@ -19,16 +20,41 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithHidden()
 	}
 
-	configs, err := d.Discover()
+	if opts.Dependencies || opts.External || opts.Sort == SortDAG {
+		d = d.WithDiscoverDependencies()
+	}
+
+	if opts.External {
+		d = d.WithDiscoverExternalDependencies()
+	}
+
+	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	switch opts.Sort {
+	case SortAlpha:
+		cfgs = cfgs.Sort()
+	case SortDAG:
+		q, err := queue.NewQueue(cfgs)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		cfgs = q.Entries()
+	}
+
+	foundCfgs, err := discoveredToFound(cfgs, opts)
 	if err != nil {
 		return errors.New(err)
 	}
 
 	switch opts.Format {
-	case "text":
-		return outputText(opts, configs)
-	case "json":
-		return outputJSON(opts, configs)
+	case FormatText:
+		return outputText(opts, foundCfgs)
+	case FormatJSON:
+		return outputJSON(opts, foundCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -36,8 +62,63 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 }
 
+type FoundConfigs []*FoundConfig
+
+type FoundConfig struct {
+	Type discovery.ConfigType `json:"type"`
+	Path string               `json:"path"`
+
+	Dependencies []string `json:"dependencies,omitempty"`
+}
+
+func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (FoundConfigs, error) {
+	foundCfgs := make(FoundConfigs, 0, len(configs))
+	errs := []error{}
+
+	for _, config := range configs {
+		if config.External && !opts.External {
+			continue
+		}
+
+		relPath, err := filepath.Rel(opts.WorkingDir, config.Path)
+		if err != nil {
+			errs = append(errs, errors.New(err))
+
+			continue
+		}
+
+		foundCfg := &FoundConfig{
+			Type: config.Type,
+			Path: relPath,
+		}
+
+		if !opts.Dependencies || len(config.Dependencies) == 0 {
+			foundCfgs = append(foundCfgs, foundCfg)
+
+			continue
+		}
+
+		foundCfg.Dependencies = make([]string, len(config.Dependencies))
+
+		for i, dep := range config.Dependencies {
+			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
+			if err != nil {
+				errs = append(errs, errors.New(err))
+
+				continue
+			}
+
+			foundCfg.Dependencies[i] = relDepPath
+		}
+
+		foundCfgs = append(foundCfgs, foundCfg)
+	}
+
+	return foundCfgs, errors.Join(errs...)
+}
+
 // outputJSON outputs the discovered configurations in JSON format.
-func outputJSON(opts *Options, configs discovery.DiscoveredConfigs) error {
+func outputJSON(opts *Options, configs FoundConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return errors.New(err)
@@ -67,7 +148,7 @@ func NewColorizer() *Colorizer {
 	}
 }
 
-func (c *Colorizer) Colorize(config *discovery.DiscoveredConfig) string {
+func (c *Colorizer) Colorize(config *FoundConfig) string {
 	path := config.Path
 
 	// Get the directory and base name using filepath
@@ -99,7 +180,7 @@ func (c *Colorizer) Colorize(config *discovery.DiscoveredConfig) string {
 }
 
 // outputText outputs the discovered configurations in text format.
-func outputText(opts *Options, configs discovery.DiscoveredConfigs) error {
+func outputText(opts *Options, configs FoundConfigs) error {
 	if opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected() {
 		for _, config := range configs {
 			_, err := opts.Writer.Write([]byte(config.Path + "\n"))
