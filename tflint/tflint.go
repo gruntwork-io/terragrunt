@@ -151,7 +151,7 @@ func tflintConfigFilePath(arguments []string) string {
 }
 
 // InputsToTflintVar converts the inputs map to a list of tflint variables.
-func InputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
+func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 	variables := make([]string, 0, len(inputs))
 
 	for key, value := range inputs {

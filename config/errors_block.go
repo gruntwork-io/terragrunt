@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
+	"maps"
 )
 
 // ErrorsConfig represents the top-level errors configuration
@@ -104,9 +105,7 @@ func (c *ErrorsConfig) Merge(other *ErrorsConfig) {
 					existing.Signals = make(map[string]cty.Value)
 				}
 
-				for k, v := range otherBlock.Signals {
-					existing.Signals[k] = v
-				}
+				maps.Copy(existing.Signals, otherBlock.Signals)
 			}
 		} else {
 			// Add new block
@@ -167,9 +166,7 @@ func (i *IgnoreBlock) Clone() *IgnoreBlock {
 	// Deep copy Signals map
 	if i.Signals != nil {
 		clone.Signals = make(map[string]cty.Value, len(i.Signals))
-		for k, v := range i.Signals {
-			clone.Signals[k] = v
-		}
+		maps.Copy(clone.Signals, i.Signals)
 	}
 
 	return clone

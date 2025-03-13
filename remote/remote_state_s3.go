@@ -317,7 +317,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 }
 
 // ConfigValuesEqual returns true if the given config is in any way different than what is configured for the backend
-func ConfigValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func ConfigValuesEqual(config map[string]any, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
 	if existingBackend == nil {
 		return len(config) == 0
 	}
@@ -355,7 +355,7 @@ func ConfigValuesEqual(config map[string]interface{}, existingBackend *Terraform
 
 	// We now construct a version of the config that matches what we expect in the backend by stripping out terragrunt
 	// related configs.
-	terraformConfig := map[string]interface{}{}
+	terraformConfig := map[string]any{}
 
 	for key, val := range config {
 		if !util.ListContainsElement(terragruntOnlyConfigs, key) {

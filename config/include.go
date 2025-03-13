@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"maps"
 )
 
 const bareIncludeKey = ""
@@ -326,9 +327,7 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 		return err
 	}
 
-	for key, val := range sourceConfig.GenerateConfigs {
-		cfg.GenerateConfigs[key] = val
-	}
+	maps.Copy(cfg.GenerateConfigs, sourceConfig.GenerateConfigs)
 
 	if sourceConfig.Inputs != nil {
 		cfg.Inputs = mergeInputs(sourceConfig.Inputs, cfg.Inputs)
@@ -539,9 +538,7 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 		cfg.RemoteState = sourceConfig.RemoteState
 	}
 
-	for key, val := range sourceConfig.GenerateConfigs {
-		cfg.GenerateConfigs[key] = val
-	}
+	maps.Copy(cfg.GenerateConfigs, sourceConfig.GenerateConfigs)
 
 	CopyFieldsMetadata(sourceConfig, cfg)
 

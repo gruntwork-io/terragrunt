@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/puzpuzpuz/xsync/v3"
+	"slices"
 )
 
 const ContextKey ctxKey = iota
@@ -704,11 +705,9 @@ func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 		return
 	}
 
-	for _, u := range units {
-		if u == unit {
+	if slices.Contains(units, unit) {
 			return
 		}
-	}
 
 	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
 
@@ -739,13 +738,7 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 		return false
 	}
 
-	for _, u := range units {
-		if u == unit {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(units, unit)
 }
 
 // CloneReadFiles creates a copy of the ReadFiles map.

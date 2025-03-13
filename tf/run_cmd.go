@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mattn/go-isatty"
+	"slices"
 )
 
 const (
@@ -163,11 +164,9 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 		FlagNameHelpShort,
 	}
 
-	for _, flag := range tfFlags {
-		if args.Normalize(cli.SingleDashFlag).Contains(flag) {
+	if slices.ContainsFunc(tfFlags, args.Normalize(cli.SingleDashFlag).Contains) {
 			return true
 		}
-	}
 
 	return collections.ListContainsElement(tfCommands, args.CommandName())
 }

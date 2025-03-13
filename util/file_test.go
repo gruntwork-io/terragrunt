@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"slices"
 )
 
 func TestGetPathRelativeTo(t *testing.T) {
@@ -114,9 +115,7 @@ func TestGlobCanonicalPath(t *testing.T) {
 
 			actual, err := util.GlobCanonicalPath(basePath, tt.paths...)
 
-			sort.Slice(actual, func(i, j int) bool {
-				return actual[i] < actual[j]
-			})
+			slices.Sort(actual)
 
 			sort.Slice(tt.expected, func(i, j int) bool {
 				return tt.expected[i] < tt.expected[j]

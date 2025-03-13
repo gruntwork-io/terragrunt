@@ -464,7 +464,7 @@ func Shutdown(ctx context.Context, opts *options.TerragruntOptions) error {
 		return errors.New(err)
 	}
 
-	engineClients.Range(func(key, value interface{}) bool {
+	engineClients.Range(func(key, value any) bool {
 		instance := value.(*engineInstance)
 		instance.executionOptions.TerragruntOptions.Logger.Debugf("Shutting down engine for %s", instance.executionOptions.WorkingDir)
 		// invoke shutdown on engine
@@ -781,7 +781,7 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 }
 
 // ConvertMetaToProtobuf converts metadata map to protobuf map
-func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, error) {
+func ConvertMetaToProtobuf(meta map[string]any) (map[string]*anypb.Any, error) {
 	protoMeta := make(map[string]*anypb.Any)
 	if meta == nil {
 		return protoMeta, nil

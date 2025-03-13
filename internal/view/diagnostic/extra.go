@@ -13,7 +13,7 @@ func ExtraInfo[T any](diag *hcl.Diagnostic) T {
 }
 
 // ExtraInfoNext takes a value previously returned by ExtraInfo and attempts to find an implementation of interface T wrapped inside of it. The return value meaning is the same as for ExtraInfo.
-func ExtraInfoNext[T any](previous interface{}) T {
+func ExtraInfoNext[T any](previous any) T {
 	// As long as T is an interface type as documented, zero will always be a nil interface value for us to return in the non-matching case.
 	var zero T
 

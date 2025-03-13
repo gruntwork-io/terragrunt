@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
+	"maps"
 )
 
 // MapFlag implements Flag
@@ -204,9 +205,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 func (flag *mapValue[K, V]) Get() any {
 	var vals = map[K]V{}
 
-	for key, val := range *flag.values {
-		vals[key] = val
-	}
+	maps.Copy(vals, *flag.values)
 
 	return vals
 }

@@ -30,7 +30,7 @@ func TestNewTraceExporter(t *testing.T) {
 	tests := []struct {
 		name             string
 		telemetryOptions *telemetry.TelemetryOptions
-		expectedType     interface{}
+		expectedType     any
 		expectError      bool
 	}{
 		{

@@ -127,7 +127,7 @@ type TerragruntConfig struct {
 	IamAssumeRoleDuration       *int64
 	IamAssumeRoleSessionName    string
 	IamWebIdentityToken         string
-	Inputs                      map[string]interface{}
+	Inputs                      map[string]any
 	Locals                      map[string]interface{}
 	TerragruntDependencies      Dependencies
 	GenerateConfigs             map[string]codegen.GenerateConfig

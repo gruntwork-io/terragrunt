@@ -11,6 +11,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"maps"
 )
 
 // Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
@@ -194,7 +195,7 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 // we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
-	outMap := make(map[string]interface{})
+	outMap := make(map[string]any)
 
 	targetMap, err := ParseCtyValueToMap(target)
 	if err != nil {
@@ -206,9 +207,7 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 		return nil, err
 	}
 
-	for key, val := range targetMap {
-		outMap[key] = val
-	}
+	maps.Copy(outMap, targetMap)
 
 	if err := mergo.Merge(&outMap, sourceMap, append(opts, mergo.WithOverride)...); err != nil {
 		return nil, err

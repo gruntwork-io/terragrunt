@@ -136,7 +136,7 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		{
 			"testdata/my-package.zip",
 			"my-package.zip",
-			[]byte(fmt.Sprintf("%x README.txt\n%x my-package.zip\n", [sha256.Size]byte{0xc0, 0xff, 0xee}, [sha256.Size]byte{0xde, 0xca, 0xde})),
+			fmt.Appendf(nil, "%x README.txt\n%x my-package.zip\n", [sha256.Size]byte{0xc0, 0xff, 0xee}, [sha256.Size]byte{0xde, 0xca, 0xde}),
 			[sha256.Size]byte{0xde, 0xca, 0xde},
 			nil,
 		},
@@ -144,12 +144,12 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		{
 			"testdata/my-package.zip",
 			"my-package.zip",
-			[]byte(
-				fmt.Sprintf(
+			
+				fmt.Appendf(nil, 
 					"%x README.txt",
 					[sha256.Size]byte{0xbe, 0xef},
 				),
-			),
+			,
 			[sha256.Size]byte{0xde, 0xca, 0xde},
 			errors.New(`checksum list has no SHA-256 hash for "my-package.zip"`),
 		},

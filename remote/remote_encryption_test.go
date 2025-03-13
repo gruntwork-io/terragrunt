@@ -14,14 +14,14 @@ func TestUnmarshalConfig(t *testing.T) {
 	tc := []struct {
 		name                          string
 		providerType                  string
-		encryptionConfig              map[string]interface{}
+		encryptionConfig              map[string]any
 		expectedErrorCreatingProvider bool
 		expectedErrorFromProvider     bool
 	}{
 		{
 			name:         "PBKDF2 full config",
 			providerType: "pbkdf2",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider":  "pbkdf2",
 				"passphrase":    "passphrase",
 				"key_length":    32,

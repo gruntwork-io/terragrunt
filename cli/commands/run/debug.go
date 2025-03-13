@@ -74,7 +74,7 @@ func terragruntDebugFileContents(
 		envVars = terragruntOptions.Env
 	}
 
-	jsonValuesByKey := make(map[string]interface{})
+	jsonValuesByKey := make(map[string]any)
 
 	for varName, varValue := range terragruntConfig.Inputs {
 		nameAsEnvVar := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)

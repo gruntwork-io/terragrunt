@@ -44,7 +44,7 @@ type Stack struct {
 func FindStackInSubfolders(ctx context.Context, terragruntOptions *options.TerragruntOptions, opts ...Option) (*Stack, error) {
 	var terragruntConfigFiles []string
 
-	err := telemetry.Telemetry(ctx, terragruntOptions, "find_files_in_path", map[string]interface{}{
+	err := telemetry.Telemetry(ctx, terragruntOptions, "find_files_in_path", map[string]any{
 		"working_dir": terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		result, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir, terragruntOptions)
@@ -295,7 +295,7 @@ func (stack *Stack) GetModuleRunGraph(terraformCommand string) ([]TerraformModul
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
 // modules into a Stack object that can be applied or destroyed in a single command
 func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, terragruntConfigPaths []string) error {
-	err := telemetry.Telemetry(ctx, stack.terragruntOptions, "create_stack_for_terragrunt_config_paths", map[string]interface{}{
+	err := telemetry.Telemetry(ctx, stack.terragruntOptions, "create_stack_for_terragrunt_config_paths", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		if len(terragruntConfigPaths) == 0 {

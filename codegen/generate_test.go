@@ -86,7 +86,7 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 	tc := []struct {
 		name       string
 		backend    string
-		config     map[string]interface{}
+		config     map[string]any
 		encryption map[string]interface{}
 		expected   []byte
 		expectErr  bool

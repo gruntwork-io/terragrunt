@@ -11,12 +11,12 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 
 	tc := []struct {
 		name     string
-		input    map[string]interface{}
+		input    map[string]any
 		expected string
 	}{
 		{
 			name:     "SimpleMap",
-			input:    map[string]interface{}{"key1": "value1", "key2": 46521694, "key3": true},
+			input:    map[string]any{"key1": "value1", "key2": 46521694, "key3": true},
 			expected: `{key1="value1",key2=46521694,key3=true}`,
 		},
 		{

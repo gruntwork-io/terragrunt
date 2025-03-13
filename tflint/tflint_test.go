@@ -13,7 +13,7 @@ func TestInputsToTflintVar(t *testing.T) {
 
 	tc := []struct {
 		name     string
-		inputs   map[string]interface{}
+		inputs   map[string]any
 		expected []string
 	}{
 		{

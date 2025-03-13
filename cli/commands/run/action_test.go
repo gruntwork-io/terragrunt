@@ -23,7 +23,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 	testCases := []struct {
 		description    string
 		envVarsInOpts  map[string]string
-		inputsInConfig map[string]interface{}
+		inputsInConfig map[string]any
 		expected       map[string]string
 	}{
 		{

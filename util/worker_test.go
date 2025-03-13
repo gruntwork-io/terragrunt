@@ -18,7 +18,7 @@ func TestAllTasksCompleteWithoutErrors(t *testing.T) {
 	var counter int32
 
 	// Submit 10 tasks that increment a counter
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
 			return nil

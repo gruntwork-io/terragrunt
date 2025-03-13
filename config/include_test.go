@@ -178,11 +178,11 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 	testFalse := false
 
 	// The following maps are convenience vars for setting up deep merge map tests
-	overrideMap := map[string]interface{}{
+	overrideMap := map[string]any{
 		"simple_string_override": "hello, mock",
 		"simple_string_append":   "new val",
 		"list_attr":              []string{"mock"},
-		"map_attr": map[string]interface{}{
+		"map_attr": map[string]any{
 			"simple_string_override": "hello, mock",
 			"simple_string_append":   "new val",
 			"list_attr":              []string{"mock"},

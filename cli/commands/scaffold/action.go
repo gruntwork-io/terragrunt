@@ -308,7 +308,7 @@ func parseVariables(opts *options.TerragruntOptions, moduleDir string) ([]*confi
 }
 
 // parseModuleURL - parse module url and rewrite it if required
-func parseModuleURL(ctx context.Context, opts *options.TerragruntOptions, vars map[string]interface{}, moduleURL string) (string, error) {
+func parseModuleURL(ctx context.Context, opts *options.TerragruntOptions, vars map[string]any, moduleURL string) (string, error) {
 	parsedModuleURL, err := tf.ToSourceURL(moduleURL, opts.WorkingDir)
 	if err != nil {
 		return "", errors.New(err)

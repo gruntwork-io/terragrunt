@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
+	"slices"
 )
 
 // ErrorStack returns an stack trace if available.
@@ -79,7 +80,7 @@ func UnwrapMultiErrors(err error) []error {
 
 		for {
 			if err, ok := err.(interface{ Unwrap() []error }); ok {
-				errs = append(errs[:index], errs[index+1:]...)
+				errs = slices.Delete(errs, index, index+1)
 				index--
 
 				errs = append(errs, err.Unwrap()...)

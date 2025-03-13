@@ -237,12 +237,12 @@ func (logger *logger) Logln(level Level, args ...any) {
 }
 
 // Trace implements the Logger interface method.
-func (logger *logger) Trace(args ...interface{}) {
+func (logger *logger) Trace(args ...any) {
 	logger.Log(TraceLevel, args...)
 }
 
 // Debug implements the Logger interface method.
-func (logger *logger) Debug(args ...interface{}) {
+func (logger *logger) Debug(args ...any) {
 	logger.Log(DebugLevel, args...)
 }
 

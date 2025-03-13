@@ -15,8 +15,8 @@ type Policy struct {
 type Statement struct {
 	Sid          string                  `json:"Sid"`
 	Effect       string                  `json:"Effect"`
-	Principal    interface{}             `json:"Principal,omitempty"`
-	NotPrincipal interface{}             `json:"NotPrincipal,omitempty"`
+	Principal    any             `json:"Principal,omitempty"`
+	NotPrincipal any             `json:"NotPrincipal,omitempty"`
 	Action       interface{}             `json:"Action"`
 	Resource     interface{}             `json:"Resource"`
 	Condition    *map[string]interface{} `json:"Condition,omitempty"`

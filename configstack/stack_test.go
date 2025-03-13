@@ -293,7 +293,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		"tier_vars": "../test/fixtures/modules/module-m/module-m-child/tier.hcl",
 	}
 
-	localsConfigs := make(map[string]interface{})
+	localsConfigs := make(map[string]any)
 
 	for name, configPath := range localsConfigPaths {
 		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
@@ -303,7 +303,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		cfg, err := config.PartialParseConfigFile(ctx, configPath, nil)
 		require.NoError(t, err)
 
-		localsConfigs[name] = map[string]interface{}{
+		localsConfigs[name] = map[string]any{
 			"dependencies":                  interface{}(nil),
 			"download_dir":                  "",
 			"generate":                      map[string]interface{}{},

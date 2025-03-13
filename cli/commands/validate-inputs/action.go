@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
+	"maps"
 )
 
 const splitCount = 2
@@ -167,9 +168,7 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 			if arg.EnvVars != nil {
-				for key, val := range *arg.EnvVars {
-					envVars[key] = val
-				}
+				maps.Copy(envVars, *arg.EnvVars)
 			}
 		}
 	}

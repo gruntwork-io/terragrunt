@@ -33,6 +33,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
+	"maps"
 )
 
 const (
@@ -185,13 +186,9 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	}
 
 	functions := map[string]function.Function{}
-	for k, v := range tfscope.Functions() {
-		functions[k] = v
-	}
+	maps.Copy(functions, tfscope.Functions())
 
-	for k, v := range terragruntFunctions {
-		functions[k] = v
-	}
+	maps.Copy(functions, terragruntFunctions)
 
 	for k, v := range ctx.PredefinedFunctions {
 		functions[k] = v

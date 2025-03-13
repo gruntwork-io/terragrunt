@@ -73,7 +73,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			Backend:                       "foo",
 			DisableInit:                   true,
 			DisableDependencyOptimization: true,
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"bar": "baz",
 			},
 		},
@@ -84,7 +84,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		PreventDestroy: &testTrue,
 		Skip:           &testTrue,
 		IamRole:        "terragruntRole",
-		Inputs: map[string]interface{}{
+		Inputs: map[string]any{
 			"aws_region": "us-east-1",
 		},
 		Locals: map[string]interface{}{

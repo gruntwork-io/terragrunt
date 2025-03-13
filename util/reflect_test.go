@@ -14,7 +14,7 @@ func TestKindOf(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		value    interface{}
+		value    any
 		expected reflect.Kind
 	}{
 		{1, reflect.Int},

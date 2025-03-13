@@ -124,7 +124,7 @@ func TestPrintJsonOutput(t *testing.T) {
 			require.NoError(t, err)
 
 			// Normalize the JSON for comparison
-			var normalized map[string]interface{}
+			var normalized map[string]any
 
 			err = json.Unmarshal(buf.Bytes(), &normalized)
 

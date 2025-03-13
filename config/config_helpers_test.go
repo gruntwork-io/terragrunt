@@ -628,7 +628,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 	}
 }
 
-func toStringSlice(t *testing.T, value interface{}) []string {
+func toStringSlice(t *testing.T, value any) []string {
 	t.Helper()
 
 	if value == nil {

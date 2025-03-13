@@ -30,7 +30,7 @@ func (byPath RunningModuleByPath) Less(i, j int) bool {
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformModules, actualModules configstack.TerraformModules, messageAndArgs ...interface{}) {
+func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformModules, actualModules configstack.TerraformModules, messageAndArgs ...any) {
 	t.Helper()
 
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
@@ -41,7 +41,7 @@ func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformM
 	sort.Sort(TerraformModuleByPath(expectedModules))
 	sort.Sort(TerraformModuleByPath(actualModules))
 
-	for i := 0; i < len(expectedModules); i++ {
+	for i := range expectedModules {
 		expected := expectedModules[i]
 		actual := actualModules[i]
 		assertModulesEqual(t, expected, actual, messageAndArgs...)

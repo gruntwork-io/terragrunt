@@ -179,7 +179,7 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
 	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
 	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
-	assert.Equal(t, []interface{}{"hello", "mock"}, outputs["list_attr"].Value.([]interface{}))
+	assert.Equal(t, []any{"hello", "mock"}, outputs["list_attr"].Value.([]any))
 	assert.Equal(t, map[string]interface{}{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]interface{}))
 
 	assert.Equal(

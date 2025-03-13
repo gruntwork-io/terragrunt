@@ -69,7 +69,7 @@ func runTFHelp(ctx *cli.Context, opts *options.TerragruntOptions) string {
 	lines := strings.Split(result, "\n")
 
 	// Trim first empty lines or that has prefix "Usage:".
-	for i := 0; i < len(lines); i++ {
+	for i := range lines {
 		if strings.TrimSpace(lines[i]) == "" || strings.HasPrefix(lines[i], "Usage:") {
 			continue
 		}

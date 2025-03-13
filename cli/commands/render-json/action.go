@@ -44,7 +44,7 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 		}
 
 		cfg.DependentModulesPath = dependentModulesPath
-		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]interface{}{config.FoundInFile: opts.TerragruntConfigPath})
+		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]any{config.FoundInFile: opts.TerragruntConfigPath})
 	}
 
 	var terragruntConfigCty cty.Value

@@ -38,8 +38,8 @@ func TestParseTerraformStateLocal(t *testing.T) {
 		Modules: []remote.TerraformStateModule{
 			{
 				Path:      []string{"root"},
-				Outputs:   map[string]interface{}{},
-				Resources: map[string]interface{}{},
+				Outputs:   map[string]any{},
+				Resources: map[string]any{},
 			},
 		},
 	}

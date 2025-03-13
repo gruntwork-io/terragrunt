@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/view"
+	"maps"
 )
 
 const (
@@ -44,9 +45,7 @@ func (render *Render) DetailControl(control strict.Control) (string, error) {
 
 func (render *Render) buildTemplate(templ string, customFuncs map[string]any) (*template.Template, error) {
 	funcMap := template.FuncMap{}
-	for key, value := range customFuncs {
-		funcMap[key] = value
-	}
+	maps.Copy(funcMap, customFuncs)
 
 	t := template.Must(template.New("template").Funcs(funcMap).Parse(templ))
 	templates := map[string]string{

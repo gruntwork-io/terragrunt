@@ -7,7 +7,7 @@ import (
 )
 
 // WrapMapToSingleLineHcl - This is a workaround to convert a map[string]interface{} to a single line HCL string.
-func WrapMapToSingleLineHcl(m map[string]interface{}) string {
+func WrapMapToSingleLineHcl(m map[string]any) string {
 	var attributes = make([]string, 0, len(m))
 	for key, value := range m {
 		attributes = append(attributes, fmt.Sprintf(`%s=%s`, key, formatHclValue(value)))
@@ -19,7 +19,7 @@ func WrapMapToSingleLineHcl(m map[string]interface{}) string {
 }
 
 // formatHclValue - Wrap single line HCL values in quotes.
-func formatHclValue(value interface{}) string {
+func formatHclValue(value any) string {
 	switch v := value.(type) {
 	case string:
 		escapedValue := strings.ReplaceAll(v, `"`, `\"`)

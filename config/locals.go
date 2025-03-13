@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"maps"
 )
 
 // MaxIter is the maximum number of depth we support in recursively evaluating locals.
@@ -122,9 +123,7 @@ func attemptEvaluateLocals(
 	evaluated = false
 
 	newEvaluatedLocals = map[string]cty.Value{}
-	for key, val := range evaluatedLocals {
-		newEvaluatedLocals[key] = val
-	}
+	maps.Copy(newEvaluatedLocals, evaluatedLocals)
 
 	for _, attr := range attrs {
 		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {

@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
+	"slices"
 )
 
 const maxLevelsOfRecursion = 20
@@ -144,13 +145,7 @@ func (module *TerraformModule) getPlanFilePath(opts *options.TerragruntOptions, 
 
 // findModuleInPath returns true if a module is located under one of the target directories
 func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
-	for _, targetDir := range targetDirs {
-		if module.Path == targetDir {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(targetDirs, module.Path)
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
@@ -271,12 +266,9 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, opts *options.Terragrunt
 		deps, found := dependentModules[opts.WorkingDir]
 		if found {
 			for _, module := range stack.Modules {
-				for _, dep := range deps {
-					if dep == module.Path {
+				if slices.Contains(deps, module.Path) {
 						matchedModulesMap[module.Path] = module
-						break
 					}
-				}
 			}
 		}
 	}

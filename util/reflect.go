@@ -6,7 +6,7 @@ import (
 )
 
 // KindOf returns the kind of the type or Invalid if value is nil.
-func KindOf(value interface{}) reflect.Kind {
+func KindOf(value any) reflect.Kind {
 	valueType := reflect.TypeOf(value)
 	if valueType == nil {
 		return reflect.Invalid

@@ -208,7 +208,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 // We can't do a direct comparison between TerragruntOptions objects because we can't compare Logger or RunTerragrunt
 // instances. Therefore, we have to manually check everything else.
-func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual options.TerragruntOptions, msgAndArgs ...interface{}) {
+func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual options.TerragruntOptions, msgAndArgs ...any) {
 	t.Helper()
 
 	assert.NotNil(t, expected.Logger, msgAndArgs...)

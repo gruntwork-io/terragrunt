@@ -37,8 +37,8 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	assert.Equal(t, []interface{}{true, false}, outputs["json_bool_array"].Value)
-	assert.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
+	assert.Equal(t, []any{true, false}, outputs["json_bool_array"].Value)
+	assert.Equal(t, []any{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
 	assert.InEpsilon(t, 1234.56789, outputs["json_number"].Value, 0.0001)
 	assert.Equal(t, "example_value", outputs["json_string"].Value)
 	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["json_hello"].Value)

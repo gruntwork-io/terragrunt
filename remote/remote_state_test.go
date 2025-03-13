@@ -18,13 +18,13 @@ func TestToTerraformInitArgs(t *testing.T) {
 
 	remoteState := remote.RemoteState{
 		Backend: "s3",
-		Config: map[string]interface{}{
+		Config: map[string]any{
 			"encrypt": true,
 			"bucket":  "my-bucket",
 			"key":     "terraform.tfstate",
 			"region":  "us-east-1",
 
-			"s3_bucket_tags": map[string]interface{}{
+			"s3_bucket_tags": map[string]any{
 				"team":    "team name",
 				"name":    "Terraform state storage",
 				"service": "Terraform"},

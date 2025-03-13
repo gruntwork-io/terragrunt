@@ -31,7 +31,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 
 	terragruntHCL := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes", "terragrunt.hcl")
 
-	var expectedMetadata = map[string]interface{}{
+	var expectedMetadata = map[string]any{
 		"found_in_file": terragruntHCL,
 	}
 
@@ -42,7 +42,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJSON = map[string]interface{}{}
+	var renderedJSON = map[string]any{}
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
 	var inputs = renderedJSON[config.MetadataInputs]

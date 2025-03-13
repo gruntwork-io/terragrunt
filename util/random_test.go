@@ -31,7 +31,7 @@ func TestGetRandomTime(t *testing.T) {
 			t.Parallel()
 
 			// Try each test case 100 times to avoid fluke test results
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				t.Run(strconv.Itoa(j), func(t *testing.T) {
 					t.Parallel()
 

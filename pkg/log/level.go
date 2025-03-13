@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/sirupsen/logrus"
+	"slices"
 )
 
 // These are the different logging levels.
@@ -160,13 +161,7 @@ type Levels []Level
 
 // Contains returns true if the `Levels` list contains the given search `Level`.
 func (levels Levels) Contains(search Level) bool {
-	for _, level := range levels {
-		if level == search {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(levels, search)
 }
 
 // ToLogrusLevels converts our `Levels` to `logrus.Levels`.

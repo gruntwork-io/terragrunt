@@ -389,7 +389,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	return convertValuesMapToCtyVal(output)
 }
 
-func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]interface{}, fieldType string, output *map[string]cty.Value) error {
+func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]any, fieldType string, output *map[string]cty.Value) error {
 	var valueWithMetadata = map[string]cty.Value{}
 
 	for key, value := range *data {
@@ -427,7 +427,7 @@ func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]interface
 	return nil
 }
 
-func wrapWithMetadata(config *TerragruntConfig, value interface{}, metadataName string, output *map[string]cty.Value) error {
+func wrapWithMetadata(config *TerragruntConfig, value any, metadataName string, output *map[string]cty.Value) error {
 	if value == nil {
 		return nil
 	}

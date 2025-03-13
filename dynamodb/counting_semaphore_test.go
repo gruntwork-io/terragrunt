@@ -59,7 +59,7 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	}
 
 	// Fire up a whole bunch of goroutines that will all try to acquire the semaphore at the same time
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		waitForAllGoRoutinesToFinish.Add(1)
 		go runGoRoutine()
 	}

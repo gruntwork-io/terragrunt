@@ -73,7 +73,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	// Also make sure the undefined variable is not included in the json file
 	debugJSONContents, err := os.ReadFile(debugFile)
 	require.NoError(t, err)
-	var data map[string]interface{}
+	var data map[string]any
 	require.NoError(t, json.Unmarshal(debugJSONContents, &data))
 	_, isDefined := data["undefined_var"]
 	assert.False(t, isDefined)
@@ -192,7 +192,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var rendered map[string]interface{}
+	var rendered map[string]any
 	require.NoError(t, json.Unmarshal(jsonBytes, &rendered))
 
 	// Make sure all terraform block is visible

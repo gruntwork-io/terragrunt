@@ -57,7 +57,7 @@ func RunCommandWithOutput(
 		commandDir = opts.WorkingDir
 	}
 
-	err := telemetry.Telemetry(ctx, opts, "run_"+command, map[string]interface{}{
+	err := telemetry.Telemetry(ctx, opts, "run_"+command, map[string]any{
 		"command": command,
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,

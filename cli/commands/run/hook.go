@@ -113,7 +113,7 @@ func processHooks(
 
 		allPreviousErrors := previousExecErrors.Append(errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			err := telemetry.Telemetry(ctx, terragruntOptions, "hook_"+curHook.Name, map[string]interface{}{
+			err := telemetry.Telemetry(ctx, terragruntOptions, "hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
 			}, func(childCtx context.Context) error {

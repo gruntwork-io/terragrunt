@@ -276,7 +276,7 @@ func TestStackOutputsJson(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
@@ -295,7 +295,7 @@ func TestStackOutputsJsonIndex(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output project2_app1 --format json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 

@@ -132,7 +132,7 @@ func (initializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, 
 
 // GCSConfigValuesEqual returns true if the given config is in any way different
 // than what is configured for the backend.
-func GCSConfigValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func GCSConfigValuesEqual(config map[string]any, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
 	if existingBackend == nil {
 		return len(config) == 0
 	}
@@ -156,7 +156,7 @@ func GCSConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 	}
 
 	// Construct a new map excluding custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
-	comparisonConfig := make(map[string]interface{})
+	comparisonConfig := make(map[string]any)
 	for key, value := range config {
 		comparisonConfig[key] = value
 	}

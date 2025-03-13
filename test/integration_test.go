@@ -1182,8 +1182,8 @@ func validateInputs(t *testing.T, outputs map[string]helpers.TerraformOutput) {
 	t.Helper()
 
 	assert.Equal(t, true, outputs["bool"].Value)
-	assert.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
-	assert.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
+	assert.Equal(t, []any{true, false}, outputs["list_bool"].Value)
+	assert.Equal(t, []any{1.0, 2.0, 3.0}, outputs["list_number"].Value)
 	assert.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
 	assert.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
 	assert.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)

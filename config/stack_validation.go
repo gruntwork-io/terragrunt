@@ -38,7 +38,7 @@ func ValidateStackConfig(config *StackConfigFile) error {
 
 // validateUnits validates all units in the configuration
 func validateUnits(units []*Unit) error {
-	return validateConfigElementsGeneric(units, "unit", func(element interface{}, i int) (string, string, string) {
+	return validateConfigElementsGeneric(units, "unit", func(element any, i int) (string, string, string) {
 		unit := element.(*Unit)
 		return unit.Name, unit.Path, unit.Source
 	})
@@ -46,7 +46,7 @@ func validateUnits(units []*Unit) error {
 
 // validateStacks validates all stacks in the configuration
 func validateStacks(stacks []*Stack) error {
-	return validateConfigElementsGeneric(stacks, "stack", func(element interface{}, i int) (string, string, string) {
+	return validateConfigElementsGeneric(stacks, "stack", func(element any, i int) (string, string, string) {
 		stack := element.(*Stack)
 		return stack.Name, stack.Path, stack.Source
 	})
