@@ -588,6 +588,8 @@ You can change the working directory used by the command by using the `--working
 terragrunt find --working-dir /path/to/working/dir
 ```
 
+##### Find Output Format
+
 In JSON format, `find` outputs a structured representation of the discovered configurations, including their types and path relative to the working directory.
 
 ```bash
@@ -613,6 +615,70 @@ Note that you can also use the `--json` flag to get the same output.
 ```bash
 terragrunt find --json
 ```
+
+##### Find Sorting
+
+The `find` command supports two sorting modes:
+
+- `--sort=alpha` (default): Sort configurations alphabetically by path
+- `--sort=dag`: Sort configurations based on their dependencies, ensuring dependencies are listed before their dependents
+
+When using DAG sorting, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order.
+
+```bash
+$ terragrunt find --sort=dag
+moduleA           # no dependencies
+moduleB           # no dependencies
+moduleC           # depends on moduleA
+moduleD           # depends on moduleA and moduleB
+```
+
+##### Find Dependencies
+
+You can include dependency information in the output using the `--dependencies` flag. When enabled, the JSON output will include the dependency relationships between configurations:
+
+```bash
+$ terragrunt find --dependencies --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "moduleA",
+    "dependencies": []
+  },
+  {
+    "type": "unit",
+    "path": "moduleB",
+    "dependencies": ["../moduleA"]
+  }
+]
+```
+
+##### Find External Dependencies
+
+By default, external dependencies (those outside the working directory) are excluded. Use the `--external` flag to include them in the output:
+
+```bash
+$ terragrunt find --dependencies --external --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "internal/moduleA",
+    "dependencies": []
+  },
+  {
+    "type": "unit",
+    "path": "internal/moduleB",
+    "dependencies": ["../moduleA", "../../external/moduleC"]
+  },
+  {
+    "type": "unit",
+    "path": "external/moduleC",
+    "dependencies": []
+  }
+]
+```
+
+##### Find Hidden Configurations
 
 By default, hidden directories (those starting with `.`) are excluded from the search. Use `--hidden` to include them.
 
@@ -899,6 +965,11 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [scaffold](#scaffold)
   - [Discovery commands](#discovery-commands)
     - [find](#find)
+      - [Find Output Format](#find-output-format)
+      - [Find Sorting](#find-sorting)
+      - [Find Dependencies](#find-dependencies)
+      - [Find External Dependencies](#find-external-dependencies)
+      - [Find Hidden Configurations](#find-hidden-configurations)
   - [Configuration commands](#configuration-commands)
     - [graph-dependencies](#graph-dependencies)
     - [hclfmt](#hclfmt)
@@ -971,7 +1042,6 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [feature](#feature)
   - [experiment](#experiment)
   - [experiment-mode](#experiment-mode)
-  - [feature](#feature-1)
   - [strict-control](#strict-control)
   - [strict-mode](#strict-mode)
   - [in-download-dir](#in-download-dir)
@@ -2007,57 +2077,6 @@ For more information, see the [Experiments](/docs/reference/experiments) documen
 Enable all experimental features in Terragrunt before they're stable.
 
 For more information, see the [Experiments](/docs/reference/experiments) documentation.
-
-### feature
-
-**CLI Arg**: `--feature`<br/>
-**Environment Variable**: `TERRAGRUNT_FEATURE`<br/>
-
-Feature flags in Terragrunt allow users to dynamically control configuration behavior through CLI arguments or environment variables.
-
-These flags enable a more flexible and controlled deployment process, particularly in monorepo contexts with interdependent infrastructure units.
-
-Example HCL flags definition:
-
-```hcl
-feature "string_feature_flag" {
-  default = "test"
-}
-
-feature "int_feature_flag" {
-  default = 777
-}
-
-feature "bool_feature_flag" {
-  default = false
-}
-
-terraform {
-  before_hook "conditional_command" {
-    commands = ["apply", "plan", "destroy"]
-    execute  = feature.bool_feature_flag.value ? ["sh", "-c", "echo running conditional bool_feature_flag"] : [ "sh", "-c", "exit", "0" ]
-  }
-}
-
-inputs = {
-  string_feature_flag = feature.string_feature_flag.value
-  int_feature_flag = feature.int_feature_flag.value
-}
-
-```
-
-Setting a feature flag through the CLI:
-
-```bash
-terragrunt --feature int_feature_flag=123 --feature bool_feature_flag=true --feature string_feature_flag=app1 apply
-```
-
-Setting feature flags through environment variables:
-
-```bash
-export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true,string_feature_flag=app1
-terragrunt apply
-```
 
 ### strict-control
 
