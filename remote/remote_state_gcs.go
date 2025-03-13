@@ -11,6 +11,8 @@ import (
 
 	"google.golang.org/api/impersonate"
 
+	"maps"
+
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -21,7 +23,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/option"
-	"maps"
 )
 
 /* ExtendedRemoteStateConfigGCS is a struct that contains the GCS specific configuration options.

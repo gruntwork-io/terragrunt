@@ -23,6 +23,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -32,7 +34,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"maps"
 )
 
 const (

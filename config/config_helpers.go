@@ -22,6 +22,8 @@ import (
 
 	"maps"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -35,7 +37,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
-	"slices"
 )
 
 const (

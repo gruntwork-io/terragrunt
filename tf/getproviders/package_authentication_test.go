@@ -144,12 +144,10 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		{
 			"testdata/my-package.zip",
 			"my-package.zip",
-			
-				fmt.Appendf(nil, 
-					"%x README.txt",
-					[sha256.Size]byte{0xbe, 0xef},
-				),
-			,
+			fmt.Appendf(nil,
+				"%x README.txt",
+				[sha256.Size]byte{0xbe, 0xef},
+			),
 			[sha256.Size]byte{0xde, 0xca, 0xde},
 			errors.New(`checksum list has no SHA-256 hash for "my-package.zip"`),
 		},
