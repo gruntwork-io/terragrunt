@@ -874,11 +874,12 @@ func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]any) error
 	}
 
 	const ownerPerms = 0644
+
+	opts.Logger.Warnf("Writing error signals to %s", signalsFile)
+
 	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
-
-	opts.Logger.Warnf("Writing error signals to %s", signalsFile)
 
 	return nil
 }
@@ -914,7 +915,7 @@ func (c *ErrorsConfig) ProcessError(opts *TerragruntOptions, err error, currentA
 			action.IgnoreSignals = make(map[string]any)
 
 			// Convert cty.Value map to regular map
-			maps.Copy(ignoreBlock.Signals, action.IgnoreSignals)
+			maps.Copy(action.IgnoreSignals, ignoreBlock.Signals)
 
 			return action, nil
 		}
