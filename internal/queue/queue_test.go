@@ -169,7 +169,7 @@ func TestNewQueue(t *testing.T) {
 		// Level 2: E (depends on level 1)
 
 		// First verify the basic ordering
-		assert.Equal(t, 5, len(entries), "Should have all 5 entries")
+		assert.Len(t, entries, 5, "Should have all 5 entries")
 
 		// Find indices
 		aIndex := findIndex(entries, "A")
@@ -179,8 +179,8 @@ func TestNewQueue(t *testing.T) {
 		eIndex := findIndex(entries, "E")
 
 		// Level 0 items should be at the start (indices 0 or 1)
-		assert.True(t, aIndex <= 1, "A should be in first two positions")
-		assert.True(t, bIndex <= 1, "B should be in first two positions")
+		assert.LessOrEqual(t, aIndex, 1, "A should be in first two positions")
+		assert.LessOrEqual(t, bIndex, 1, "B should be in first two positions")
 
 		// Level 1 items should be in the middle (indices 2 or 3)
 		assert.True(t, cIndex >= 2 && cIndex <= 3, "C should be in middle positions")
@@ -210,7 +210,7 @@ func TestNewQueue(t *testing.T) {
 
 		q, err := queue.NewQueue([]*discovery.DiscoveredConfig{})
 		require.NoError(t, err)
-		assert.Equal(t, 0, len(q.Entries()))
+		assert.Empty(t, q.Entries())
 	})
 }
 
