@@ -44,6 +44,7 @@ type Unit struct {
 	Name   string     `hcl:",label"`
 	Source string     `hcl:"source,attr"`
 	Path   string     `hcl:"path,attr"`
+	Hidden *bool      `hcl:"hidden,attr"`
 	Values *cty.Value `hcl:"values,attr"`
 }
 
@@ -52,6 +53,7 @@ type Stack struct {
 	Name   string     `hcl:",label"`
 	Source string     `hcl:"source,attr"`
 	Path   string     `hcl:"path,attr"`
+	Hidden *bool      `hcl:"hidden,attr"`
 	Values *cty.Value `hcl:"values,attr"`
 }
 
@@ -201,6 +203,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 				name:      unitCopy.Name,
 				path:      unitCopy.Path,
 				source:    unitCopy.Source,
+				hidden:    unitCopy.Hidden != nil && *unitCopy.Hidden,
 				values:    unitCopy.Values,
 			}
 
@@ -230,6 +233,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 				name:      stackCopy.Name,
 				path:      stackCopy.Path,
 				source:    stackCopy.Source,
+				hidden:    stackCopy.Hidden != nil && *stackCopy.Hidden,
 				values:    stackCopy.Values,
 			}
 
@@ -255,6 +259,7 @@ type componentToProcess struct {
 	name      string
 	path      string
 	source    string
+	hidden    bool
 	values    *cty.Value
 }
 
@@ -269,9 +274,15 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	}
 
 	dest := cmp.path
-	// if destination is an absolute path, use as is
+	// if destination is not an absolute path, join with target directory
 	if !filepath.IsAbs(cmp.path) {
 		dest = filepath.Join(cmp.targetDir, cmp.path)
+	}
+
+	if cmp.hidden {
+		opts.Logger.Debugf("Handling as hidden %s", cmp.name)
+		// for hidden components, we copy the files to the base directory of the target directory
+		dest = filepath.Join(filepath.Base(cmp.targetDir), cmp.path)
 	}
 
 	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
