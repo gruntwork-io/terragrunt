@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewQueue(t *testing.T) {
@@ -21,7 +22,9 @@ func TestNewQueue(t *testing.T) {
 			{Path: "b", Dependencies: []*discovery.DiscoveredConfig{}},
 		}
 
-		q := queue.NewQueue(configs)
+		q, err := queue.NewQueue(configs)
+		require.NoError(t, err)
+
 		entries := q.Entries()
 
 		// Should be sorted alphabetically at front since none have dependencies
@@ -40,7 +43,9 @@ func TestNewQueue(t *testing.T) {
 			{Path: "a", Dependencies: []*discovery.DiscoveredConfig{}},
 		}
 
-		q := queue.NewQueue(configs)
+		q, err := queue.NewQueue(configs)
+		require.NoError(t, err)
+
 		entries := q.Entries()
 
 		// 'a' has no deps so should be at front
@@ -70,7 +75,9 @@ func TestNewQueue(t *testing.T) {
 			{Path: "A", Dependencies: []*discovery.DiscoveredConfig{}},
 		}
 
-		q := queue.NewQueue(configs)
+		q, err := queue.NewQueue(configs)
+		require.NoError(t, err)
+
 		entries := q.Entries()
 
 		// Verify ordering by dependency level and alphabetically within levels:
@@ -119,7 +126,9 @@ func TestNewQueue(t *testing.T) {
 
 		// Run multiple times to verify deterministic ordering
 		for range 5 {
-			q := queue.NewQueue(configs)
+			q, err := queue.NewQueue(configs)
+			require.NoError(t, err)
+
 			entries := q.Entries()
 
 			// A should be first (no deps)
@@ -149,7 +158,9 @@ func TestNewQueue(t *testing.T) {
 			{Path: "A", Dependencies: []*discovery.DiscoveredConfig{}},
 		}
 
-		q := queue.NewQueue(configs)
+		q, err := queue.NewQueue(configs)
+		require.NoError(t, err)
+
 		entries := q.Entries()
 
 		// Verify that items are grouped by their depth levels
@@ -177,6 +188,29 @@ func TestNewQueue(t *testing.T) {
 
 		// Level 2 item should be at the end (index 4)
 		assert.Equal(t, 4, eIndex, "E should be in last position")
+	})
+
+	t.Run("error handling - cycle", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a cycle: A -> B -> C -> A
+		configs := []*discovery.DiscoveredConfig{
+			{Path: "C", Dependencies: []*discovery.DiscoveredConfig{{Path: "B"}}},
+			{Path: "B", Dependencies: []*discovery.DiscoveredConfig{{Path: "A"}}},
+			{Path: "A", Dependencies: []*discovery.DiscoveredConfig{{Path: "C"}}},
+		}
+
+		q, err := queue.NewQueue(configs)
+		require.Error(t, err)
+		assert.NotNil(t, q)
+	})
+
+	t.Run("error handling - empty config list", func(t *testing.T) {
+		t.Parallel()
+
+		q, err := queue.NewQueue([]*discovery.DiscoveredConfig{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, len(q.Entries()))
 	})
 }
 
