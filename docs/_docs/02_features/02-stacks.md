@@ -189,7 +189,7 @@ Note that each `dependency` block results in a relevant status in the Terragrunt
 
 If any of the units failed to deploy, then Terragrunt will not attempt to deploy the units that depend on them.
 
-**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on [Configuration parsing order]({{site.baseurl}}/docs/getting-started/configuration/#configuration-parsing-order) for more information.
+**Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on [Configuration parsing order]({{site.baseurl}}/docs/reference/configuration/#configuration-parsing-order) for more information.
 
 ### Unapplied dependency and mock outputs
 
