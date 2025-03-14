@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBackend_GetTerraformInitArgs(t *testing.T) {
+func TestBackend_GetTFInitArgs(t *testing.T) {
 	t.Parallel()
 
 	remoteBackend := s3backend.NewBackend()
@@ -144,7 +144,7 @@ func TestBackend_GetTerraformInitArgs(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := remoteBackend.GetTerraformInitArgs(testCase.config)
+			actual := remoteBackend.GetTFInitArgs(testCase.config)
 
 			if !testCase.shouldBeEqual {
 				assert.NotEqual(t, testCase.expected, actual)

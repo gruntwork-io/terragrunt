@@ -15,7 +15,7 @@ import (
 
 type Config map[string]any
 
-func (cfg Config) GetTerraformInitArgs() Config {
+func (cfg Config) GetTFInitArgs() Config {
 	var filtered = make(Config)
 
 	for key, val := range cfg {

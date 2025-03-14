@@ -11,7 +11,7 @@ import (
 /**
  * Test for s3, also tests that the terragrunt-specific options are not passed on to terraform
  */
-func TestToTerraformInitArgs(t *testing.T) {
+func TestGetTFInitArgs(t *testing.T) {
 	t.Parallel()
 
 	cfg := &remotestate.Config{
@@ -43,13 +43,13 @@ func TestToTerraformInitArgs(t *testing.T) {
 			"force_path_style":        true,
 		},
 	}
-	args := remotestate.New(cfg).ToTerraformInitArgs()
+	args := remotestate.New(cfg).GetTFInitArgs()
 
 	// must not contain s3_bucket_tags or dynamodb_table_tags or accesslogging_bucket_tags or skip_bucket_versioning
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1 -backend-config=force_path_style=true -backend-config=shared_credentials_file=my-file")
 }
 
-func TestToTerraformInitArgsForGCS(t *testing.T) {
+func TestGetTFInitArgsForGCS(t *testing.T) {
 	t.Parallel()
 
 	cfg := &remotestate.Config{
@@ -71,13 +71,13 @@ func TestToTerraformInitArgsForGCS(t *testing.T) {
 			"access_token": "xxxxxxxx",
 		},
 	}
-	args := remotestate.New(cfg).ToTerraformInitArgs()
+	args := remotestate.New(cfg).GetTFInitArgs()
 
 	// must not contain project, location gcs_bucket_labels or skip_bucket_versioning
 	assertTerraformInitArgsEqual(t, args, "-backend-config=bucket=my-bucket -backend-config=prefix=terraform.tfstate -backend-config=credentials=my-file -backend-config=access_token=xxxxxxxx")
 }
 
-func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
+func TestGetTFInitArgsUnknownBackend(t *testing.T) {
 	t.Parallel()
 
 	cfg := &remotestate.Config{
@@ -88,13 +88,13 @@ func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
 			"key":     "terraform.tfstate",
 			"region":  "us-east-1"},
 	}
-	args := remotestate.New(cfg).ToTerraformInitArgs()
+	args := remotestate.New(cfg).GetTFInitArgs()
 
 	// no Backend initializer available, but command line args should still be passed on
 	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 
-func TestToTerraformInitArgsInitDisabled(t *testing.T) {
+func TestGetTFInitArgsInitDisabled(t *testing.T) {
 	t.Parallel()
 
 	cfg := &remotestate.Config{
@@ -106,12 +106,12 @@ func TestToTerraformInitArgsInitDisabled(t *testing.T) {
 			"key":     "terraform.tfstate",
 			"region":  "us-east-1"},
 	}
-	args := remotestate.New(cfg).ToTerraformInitArgs()
+	args := remotestate.New(cfg).GetTFInitArgs()
 
 	assertTerraformInitArgsEqual(t, args, "-backend=false")
 }
 
-func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
+func TestGetTFInitArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 
 	cfgs := []*remotestate.Config{
@@ -120,7 +120,7 @@ func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	}
 
 	for _, cfg := range cfgs {
-		args := remotestate.New(cfg).ToTerraformInitArgs()
+		args := remotestate.New(cfg).GetTFInitArgs()
 		assert.Empty(t, args)
 	}
 }

@@ -526,7 +526,7 @@ func prepareInitCommand(ctx context.Context, terragruntOptions *options.Terragru
 		}
 
 		// Add backend config arguments to the command
-		terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.ToTerraformInitArgs()...)
+		terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.GetTFInitArgs()...)
 	}
 
 	return nil

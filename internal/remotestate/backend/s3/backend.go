@@ -162,6 +162,6 @@ func (backend *Backend) DeleteBucket(ctx context.Context, backednConfig backend.
 	return nil
 }
 
-func (backend *Backend) GetTerraformInitArgs(config backend.Config) map[string]any {
-	return Config(config).GetTerraformInitArgs()
+func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
+	return Config(config).GetTFInitArgs()
 }

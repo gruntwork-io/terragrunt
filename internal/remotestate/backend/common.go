@@ -50,8 +50,8 @@ func (backend *CommonBackend) DeleteBucket(ctx context.Context, config Config, o
 	return nil
 }
 
-// GetTerraformInitArgs implements `backends.GetTerraformInitArgs` interface.
-func (backend *CommonBackend) GetTerraformInitArgs(config Config) map[string]any {
+// GetTFInitArgs implements `backends.GetTFInitArgs` interface.
+func (backend *CommonBackend) GetTFInitArgs(config Config) map[string]any {
 	return config
 }
 

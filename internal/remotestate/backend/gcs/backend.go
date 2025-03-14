@@ -120,8 +120,8 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 	return nil
 }
 
-// GetTerraformInitArgs returns the subset of the given config that should be passed to terraform init
+// GetTFInitArgs returns the subset of the given config that should be passed to terraform init
 // when initializing the remote state.
-func (backend *Backend) GetTerraformInitArgs(config backend.Config) map[string]any {
-	return Config(config).GetTerraformInitArgs()
+func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
+	return Config(config).GetTFInitArgs()
 }

@@ -32,7 +32,7 @@ type Backend interface {
 	// DeleteBucket deletes the remote state.
 	DeleteBucket(ctx context.Context, config Config, opts *options.TerragruntOptions) error
 
-	// GetTerraformInitArgs returns the config that should be passed on to terraform via -backend-config cmd line param
+	// GetTFInitArgs returns the config that should be passed on to `tofu -backend-config` cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user.
-	GetTerraformInitArgs(config Config) map[string]any
+	GetTFInitArgs(config Config) map[string]any
 }

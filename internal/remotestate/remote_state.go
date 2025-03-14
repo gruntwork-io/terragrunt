@@ -100,8 +100,8 @@ func (remote *RemoteState) NeedsInit(ctx context.Context, opts *options.Terragru
 	return remote.backend.NeedsInit(ctx, remote.BackendConfig, tfState.Backend.Config, opts)
 }
 
-// ToTerraformInitArgs converts the RemoteState config into the format used by the terraform init command.
-func (remote *RemoteState) ToTerraformInitArgs() []string {
+// GetTFInitArgs converts the RemoteState config into the format used by the `tofu init` command.
+func (remote *RemoteState) GetTFInitArgs() []string {
 	if remote.DisableInit {
 		return []string{"-backend=false"}
 	}
@@ -111,7 +111,7 @@ func (remote *RemoteState) ToTerraformInitArgs() []string {
 		return []string{}
 	}
 
-	config := remote.backend.GetTerraformInitArgs(remote.BackendConfig)
+	config := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
 	var backendConfigArgs = make([]string, 0, len(config))
 
@@ -125,7 +125,7 @@ func (remote *RemoteState) ToTerraformInitArgs() []string {
 
 // GenerateTerraformCode generates the terraform code for configuring remote state backend.
 func (remote *RemoteState) GenerateTerraformCode(opts *options.TerragruntOptions) error {
-	backendConfig := remote.backend.GetTerraformInitArgs(remote.BackendConfig)
+	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
 	return remote.Config.GenerateTerraformCode(opts, backendConfig)
 }
