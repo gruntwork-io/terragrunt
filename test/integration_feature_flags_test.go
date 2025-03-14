@@ -122,8 +122,8 @@ func TestFailOnEmptyFeatureFlag(t *testing.T) {
 	assert.Contains(t, message, "feature flag test3 does not have a default value")
 }
 
-func expectedDefaults() map[string]interface{} {
-	return map[string]interface{}{
+func expectedDefaults() map[string]any {
+	return map[string]any{
 		"string_feature_flag": "test",
 		"int_feature_flag":    666,
 		"bool_feature_flag":   false,
@@ -135,7 +135,7 @@ func validateOutputs(t *testing.T, rootPath string) {
 	validateOutputsMap(t, rootPath, expectedDefaults())
 }
 
-func validateOutputsMap(t *testing.T, rootPath string, expected map[string]interface{}) {
+func validateOutputsMap(t *testing.T, rootPath string, expected map[string]any) {
 	t.Helper()
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}

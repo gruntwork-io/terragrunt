@@ -1014,7 +1014,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.Terragr
 	}
 
 	jsonState := string(steateBody)
-	jsonMap := make(map[string]interface{})
+	jsonMap := make(map[string]any)
 
 	err = json.Unmarshal([]byte(jsonState), &jsonMap)
 	if err != nil {

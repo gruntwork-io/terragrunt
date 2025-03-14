@@ -48,6 +48,8 @@ func enableVirtualTerminalProcessing(logger log.Logger, file *os.File) {
 
 // For windows, there is no concept of a pseudoTTY so we run as if there is no pseudoTTY.
 func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) error {
+	logger.Debug("Running command without PTY")
+
 	if err := cmd.Start(); err != nil {
 		return errors.New(err)
 	}

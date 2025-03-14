@@ -219,7 +219,7 @@ func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetr
 // and less than sleepBetweenRetriesMax between tries. This is to avoid an AWS issue where all waiting requests fire at
 // the same time, which continually triggered AWS's "subscriber limit exceeded" API error.
 func WaitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetriesMin time.Duration, sleepBetweenRetriesMax time.Duration, terragruntOptions *options.TerragruntOptions) error {
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		tableReady, err := LockTableExistsAndIsActive(tableName, client)
 		if err != nil {
 			return err
@@ -282,7 +282,7 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Waiting for encryption to be enabled on table %s", tableName)
 
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
 		if err != nil {
 			return errors.New(err)

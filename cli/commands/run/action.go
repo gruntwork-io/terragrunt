@@ -23,6 +23,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -203,7 +205,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	}
 
 	if sourceURL != "" {
-		err = telemetry.Telemetry(ctx, terragruntOptions, "download_terraform_source", map[string]interface{}{
+		err = telemetry.Telemetry(ctx, terragruntOptions, "download_terraform_source", map[string]any{
 			"sourceUrl": sourceURL,
 		}, func(childCtx context.Context) error {
 			updatedTerragruntOptions, err = downloadTerraformSource(ctx, sourceURL, terragruntOptions, terragruntConfig)
@@ -298,9 +300,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 
 		terragruntOptions.InsertTerraformCliArgs(args...)
 
-		for k, v := range filterTerraformEnvVarsFromExtraArgs(terragruntOptions, terragruntConfig) {
-			terragruntOptions.Env[k] = v
-		}
+		maps.Copy(terragruntOptions.Env, filterTerraformEnvVarsFromExtraArgs(terragruntOptions, terragruntConfig))
 	}
 
 	if err := SetTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
@@ -475,7 +475,7 @@ func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 
 func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
-	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
+	for range terragruntOptions.RetryMaxAttempts {
 		if out, err := tf.RunCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
 				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
@@ -805,9 +805,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 
 		for _, argcmd := range arg.Commands {
 			if cmd == argcmd {
-				for k, v := range *arg.EnvVars {
-					out[k] = v
-				}
+				maps.Copy(out, *arg.EnvVars)
 			}
 		}
 	}
@@ -818,7 +816,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 // ToTerraformEnvVars converts the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
-func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interface{}) (map[string]string, error) {
+func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]any) (map[string]string, error) {
 	if useLegacyNullValues() {
 		opts.Logger.Warnf("⚠️ %s is a temporary workaround to bypass the breaking change in #2663.\nThis flag will be removed in the future.\nDo not rely on it.", useLegacyNullValuesEnvVar)
 	}
@@ -849,7 +847,7 @@ func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interfa
 
 // setTerragruntNullValues - Generate a .auto.tfvars.json file with variables which have null values.
 func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (string, error) {
-	jsonEmptyVars := make(map[string]interface{})
+	jsonEmptyVars := make(map[string]any)
 
 	for varName, varValue := range terragruntConfig.Inputs {
 		if varValue == nil {

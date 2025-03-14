@@ -14,14 +14,14 @@ func TestUnmarshalConfig(t *testing.T) {
 	tc := []struct {
 		name                          string
 		providerType                  string
-		encryptionConfig              map[string]interface{}
+		encryptionConfig              map[string]any
 		expectedErrorCreatingProvider bool
 		expectedErrorFromProvider     bool
 	}{
 		{
 			name:         "PBKDF2 full config",
 			providerType: "pbkdf2",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider":  "pbkdf2",
 				"passphrase":    "passphrase",
 				"key_length":    32,
@@ -33,7 +33,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "PBKDF2 invalid property",
 			providerType: "pbkdf2",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "pbkdf2",
 				"password":     "password123", // Invalid property
 			},
@@ -42,7 +42,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "PBKDF2 invalid config",
 			providerType: "pbkdf2",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "pbkdf2",
 				"passphrase":   123, // Invalid type
 			},
@@ -51,7 +51,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "AWSKMS full config",
 			providerType: "aws_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "aws_kms",
 				"kms_key_id":   "123456789",
 				"key_spec":     "AES_256",
@@ -60,7 +60,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "AWSKMS invalid property",
 			providerType: "aws_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "aws_kms",
 				"password":     "password123", // Invalid property
 			},
@@ -69,7 +69,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "AWSKMS invalid config",
 			providerType: "aws_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "aws_kms",
 				"kms_key_id":   123456789, // Invalid type
 				"key_spec":     "AES_256",
@@ -79,7 +79,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "GCPKMS full config",
 			providerType: "gcp_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider":       "gcp_kms",
 				"kms_encryption_key": "projects/123456789/locations/global/keyRings/my-key-ring/cryptoKeys/my-key",
 				"key_length":         32,
@@ -88,7 +88,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "GCPKMS invalid property",
 			providerType: "gcp_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "gcp_kms",
 				"password":     "password123", // Invalid property
 			},
@@ -97,7 +97,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "GCPKMS invalid config",
 			providerType: "gcp_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider":       "gcp_kms",
 				"kms_encryption_key": 123456789, // Invalid type
 				"key_length":         32,
@@ -107,7 +107,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		{
 			name:         "Unknown provider",
 			providerType: "unknown",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "unknown",
 			},
 			expectedErrorCreatingProvider: true,
@@ -144,14 +144,14 @@ func TestToMap(t *testing.T) {
 	tc := []struct {
 		name             string
 		providerType     string
-		encryptionConfig map[string]interface{}
-		expectedMap      map[string]interface{}
+		encryptionConfig map[string]any
+		expectedMap      map[string]any
 		expectedError    bool
 	}{
 		{
 			name:         "PBKDF2 full config",
 			providerType: "pbkdf2",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider":  "pbkdf2",
 				"passphrase":    "passphrase",
 				"key_length":    32,
@@ -159,7 +159,7 @@ func TestToMap(t *testing.T) {
 				"salt_length":   16,
 				"hash_function": "sha256",
 			},
-			expectedMap: map[string]interface{}{
+			expectedMap: map[string]any{
 				"key_provider":  "pbkdf2",
 				"passphrase":    "passphrase",
 				"key_length":    32,
@@ -172,11 +172,11 @@ func TestToMap(t *testing.T) {
 		{
 			name:         "PBKDF2 partial config",
 			providerType: "pbkdf2",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "pbkdf2",
 				"passphrase":   "passphrase",
 			},
-			expectedMap: map[string]interface{}{
+			expectedMap: map[string]any{
 				"key_provider":  "pbkdf2",
 				"passphrase":    "passphrase",
 				"key_length":    0,
@@ -189,13 +189,13 @@ func TestToMap(t *testing.T) {
 		{
 			name:         "AWSKMS full config",
 			providerType: "aws_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider": "aws_kms",
 				"region":       "us-west-1",
 				"kms_key_id":   "123456789",
 				"key_spec":     "AES_256",
 			},
-			expectedMap: map[string]interface{}{
+			expectedMap: map[string]any{
 				"key_provider": "aws_kms",
 				"region":       "us-west-1",
 				"kms_key_id":   "123456789",
@@ -206,12 +206,12 @@ func TestToMap(t *testing.T) {
 		{
 			name:         "GCPKMS full config",
 			providerType: "gcp_kms",
-			encryptionConfig: map[string]interface{}{
+			encryptionConfig: map[string]any{
 				"key_provider":       "gcp_kms",
 				"kms_encryption_key": "projects/123456789/locations/global/keyRings/my-key-ring/cryptoKeys/my-key",
 				"key_length":         32,
 			},
-			expectedMap: map[string]interface{}{
+			expectedMap: map[string]any{
 				"key_provider":       "gcp_kms",
 				"kms_encryption_key": "projects/123456789/locations/global/keyRings/my-key-ring/cryptoKeys/my-key",
 				"key_length":         32,

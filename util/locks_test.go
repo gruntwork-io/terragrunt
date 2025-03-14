@@ -29,7 +29,7 @@ func TestKeyLocksConcurrentAccess(t *testing.T) {
 	var counters [10]int
 	var wg sync.WaitGroup
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(key string, idx int) {
 			defer wg.Done()
@@ -42,7 +42,7 @@ func TestKeyLocksConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		require.Equal(t, 2, counters[i], "Lock/unlock cycle for each key should be completed")
 	}
 }
@@ -65,13 +65,13 @@ func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 	var wg sync.WaitGroup
 	var counter int
 
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			kl.Lock("shared_key")
 			defer kl.Unlock("shared_key")
-			for j := 0; j < numOperations; j++ {
+			for range numOperations {
 				counter++
 				counter++
 			}

@@ -200,7 +200,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opt
 
 		path := filepath.Join(".git", file)
 
-		data = append(data, []byte(fmt.Sprintf("%06o blob %s\t%s\n", stat.Mode().Perm(), hash, path))...)
+		data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), hash, path)...)
 	}
 
 	// Overwrite the root tree with the new data

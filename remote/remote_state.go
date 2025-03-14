@@ -65,7 +65,7 @@ type RemoteStateInitializer interface {
 
 	// Return the config that should be passed on to terraform via -backend-config cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user
-	GetTerraformInitArgs(config map[string]any) map[string]interface{}
+	GetTerraformInitArgs(config map[string]any) map[string]any
 }
 
 // TODO: initialization actions for other remote state backends can be added here
@@ -161,7 +161,7 @@ func (state *RemoteState) DiffersFrom(existingBackend *TerraformBackend, terragr
 // null values in the existing config. This is because Terraform >= 0.12 stores ALL possible keys for a given backend
 // in the .tfstate file, even if the user hasn't configured that key, in which case the value will be null, and cause
 // reflect.DeepEqual to fail.
-func terraformStateConfigEqual(existingConfig map[string]any, newConfig map[string]interface{}) bool {
+func terraformStateConfigEqual(existingConfig map[string]any, newConfig map[string]any) bool {
 	if existingConfig == nil {
 		return newConfig == nil
 	}
@@ -172,7 +172,7 @@ func terraformStateConfigEqual(existingConfig map[string]any, newConfig map[stri
 }
 
 // Copy the non-nil values from the existingMap to a new map
-func copyExistingNotNullValues(existingMap map[string]any, newMap map[string]interface{}) map[string]interface{} {
+func copyExistingNotNullValues(existingMap map[string]any, newMap map[string]any) map[string]any {
 	existingConfigNonNil := map[string]any{}
 
 	for existingKey, existingValue := range existingMap {

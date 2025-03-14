@@ -152,7 +152,7 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 		fmtGeneratedCode = *config.HclFmt
 	}
 
-	contentsToWrite := []byte(fmt.Sprintf("%s%s", prefix, config.Contents))
+	contentsToWrite := fmt.Appendf(nil, "%s%s", prefix, config.Contents)
 	if fmtGeneratedCode {
 		contentsToWrite = hclwrite.Format(contentsToWrite)
 	}
@@ -270,7 +270,7 @@ const (
 )
 
 // RemoteStateConfigToTerraformCode converts the arbitrary map that represents a remote state config into HCL code to configure that remote state.
-func RemoteStateConfigToTerraformCode(backend string, config map[string]any, encryption map[string]interface{}) ([]byte, error) {
+func RemoteStateConfigToTerraformCode(backend string, config map[string]any, encryption map[string]any) ([]byte, error) {
 	f := hclwrite.NewEmptyFile()
 	terraformBlock := f.Body().AppendNewBlock(terraformBlock, nil).Body()
 	backendBlock := terraformBlock.AppendNewBlock(backendBlock, []string{backend})
@@ -457,7 +457,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 	return f.Bytes(), nil
 }
 
-func convertValue(v interface{}) (ctyjson.SimpleJSONValue, error) {
+func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {
 		return ctyjson.SimpleJSONValue{}, errors.New(err)

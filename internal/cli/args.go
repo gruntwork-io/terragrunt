@@ -171,11 +171,5 @@ func (args Args) SubCommandName() string {
 
 // Contains returns true if args contains the given `target` arg.
 func (args Args) Contains(target string) bool {
-	for _, arg := range args {
-		if arg == target {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(args, target)
 }

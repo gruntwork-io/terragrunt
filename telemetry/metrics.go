@@ -37,7 +37,7 @@ var metricNameCleanPattern = regexp.MustCompile(`[^A-Za-z0-9_.-/]`)
 var multipleUnderscoresPattern = regexp.MustCompile(`_+`)
 
 // Time - collect time for function execution
-func Time(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+func Time(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
 	if metricExporter == nil {
 		return fn(ctx)
 	}

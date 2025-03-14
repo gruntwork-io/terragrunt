@@ -18,7 +18,7 @@ func TestAllTasksCompleteWithoutErrors(t *testing.T) {
 	var counter int32
 
 	// Submit 10 tasks that increment a counter
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
 			return nil
@@ -41,7 +41,7 @@ func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
 	defer wp.Stop()
 
 	var counter int32
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
 			return nil
@@ -66,7 +66,7 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 	var successCount int32
 
 	// Submit tasks, half of which return an error
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		i := i
 		wp.Submit(func() error {
 			if i%2 == 0 {
@@ -93,7 +93,7 @@ func TestStopAndRestart(t *testing.T) {
 	var counter int32
 
 	// Submit some tasks
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
 			return nil
@@ -113,7 +113,7 @@ func TestStopAndRestart(t *testing.T) {
 	defer wp.Stop()
 
 	// Submit new tasks
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&counter, 1)
 			return nil
@@ -137,7 +137,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 		localWp := util.NewWorkerPool(4) // Create a new worker pool per subtest
 		defer localWp.Stop()
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			localWp.Submit(func() error {
 				atomic.AddInt32(&totalCount, 1)
 				return nil
@@ -152,7 +152,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 		localWp := util.NewWorkerPool(4) // Create another fresh worker pool
 		defer localWp.Stop()
 
-		for i := 0; i < 15; i++ {
+		for range 15 {
 			localWp.Submit(func() error {
 				atomic.AddInt32(&totalCount, 1)
 				return nil
@@ -171,7 +171,7 @@ func TestValidateParallelSubmits(t *testing.T) {
 	var totalCount int32
 
 	// Submit 5 tasks
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wp.Submit(func() error {
 			atomic.AddInt32(&totalCount, 1)
 			return nil

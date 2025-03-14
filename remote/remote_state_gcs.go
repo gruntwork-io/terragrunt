@@ -11,6 +11,8 @@ import (
 
 	"google.golang.org/api/impersonate"
 
+	"maps"
+
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -132,7 +134,7 @@ func (initializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, 
 
 // GCSConfigValuesEqual returns true if the given config is in any way different
 // than what is configured for the backend.
-func GCSConfigValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func GCSConfigValuesEqual(config map[string]any, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
 	if existingBackend == nil {
 		return len(config) == 0
 	}
@@ -156,10 +158,8 @@ func GCSConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 	}
 
 	// Construct a new map excluding custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
-	comparisonConfig := make(map[string]interface{})
-	for key, value := range config {
-		comparisonConfig[key] = value
-	}
+	comparisonConfig := make(map[string]any)
+	maps.Copy(comparisonConfig, config)
 
 	for _, key := range terragruntGCSOnlyConfigs {
 		delete(comparisonConfig, key)
@@ -236,8 +236,8 @@ func (initializer GCSInitializer) Initialize(ctx context.Context, remoteState *R
 
 // GetTerraformInitArgs returns the subset of the given config that should be passed to terraform init
 // when initializing the remote state.
-func (initializer GCSInitializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
-	var filteredConfig = make(map[string]interface{})
+func (initializer GCSInitializer) GetTerraformInitArgs(config map[string]any) map[string]any {
+	var filteredConfig = make(map[string]any)
 
 	for key, val := range config {
 		if util.ListContainsElement(terragruntGCSOnlyConfigs, key) {
@@ -251,7 +251,7 @@ func (initializer GCSInitializer) GetTerraformInitArgs(config map[string]interfa
 }
 
 // Parse the given map into a GCS config
-func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error) {
+func parseGCSConfig(config map[string]any) (*RemoteStateConfigGCS, error) {
 	var gcsConfig RemoteStateConfigGCS
 	if err := mapstructure.Decode(config, &gcsConfig); err != nil {
 		return nil, errors.New(err)
@@ -261,7 +261,7 @@ func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error
 }
 
 // ParseExtendedGCSConfig parses the given map into a GCS config.
-func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
+func ParseExtendedGCSConfig(config map[string]any) (*ExtendedRemoteStateConfigGCS, error) {
 	var (
 		gcsConfig      RemoteStateConfigGCS
 		extendedConfig ExtendedRemoteStateConfigGCS
@@ -499,7 +499,7 @@ func WaitUntilGCSBucketExists(gcsClient *storage.Client, config *RemoteStateConf
 
 	bucketHandle := gcsClient.Bucket(config.Bucket)
 
-	for retries := 0; retries < MaxRetriesWaitingForGcsBucket; retries++ {
+	for retries := range MaxRetriesWaitingForGcsBucket {
 		if DoesGCSBucketExist(context.Background(), bucketHandle) {
 			terragruntOptions.Logger.Debugf("GCS bucket %s created.", config.Bucket)
 			return nil

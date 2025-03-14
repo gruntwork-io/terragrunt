@@ -351,7 +351,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	return serverTLSConf, clientTLSConf
 }
 
-func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, key string, value interface{}) {
+func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, key string, value any) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
 	assert.Truef(t, hasPlatform, "Expected output %s to be defined", key)
