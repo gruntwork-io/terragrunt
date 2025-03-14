@@ -29,6 +29,10 @@ type Options struct {
 	// Alias for --format=json.
 	JSON bool
 
+	// DAG determines whether to output in DAG format.
+	// Alias for --format=dag.
+	DAG bool
+
 	// Sort determines the sort order of the output.
 	Sort string
 
