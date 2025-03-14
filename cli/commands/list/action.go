@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -56,6 +59,8 @@ func Run(ctx context.Context, opts *Options) error {
 		return outputText(opts, listedCfgs)
 	case FormatJSON:
 		return outputJSON(opts, listedCfgs)
+	case FormatTree:
+		return outputTree(opts, listedCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -70,6 +75,17 @@ type ListedConfig struct {
 	Path string               `json:"path"`
 
 	Dependencies []string `json:"dependencies,omitempty"`
+}
+
+// Contains checks to see if the given path is in the listed configs.
+func (l ListedConfigs) Contains(path string) bool {
+	for _, config := range l {
+		if config.Path == path {
+			return true
+		}
+	}
+
+	return false
 }
 
 func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (ListedConfigs, error) {
@@ -202,7 +218,7 @@ func shouldColor(opts *Options) bool {
 
 // renderTabular renders the configurations in a tabular format.
 func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
-	maxCols, longestPathLen := getMaxCols(configs)
+	maxCols, colWidth := getMaxCols(configs)
 
 	for i, config := range configs {
 		if i > 0 && i%maxCols == 0 {
@@ -218,7 +234,8 @@ func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
 		}
 
 		// Add padding until the length of maxCols
-		for j := 0; j < longestPathLen-len(config.Path); j++ {
+		padding := colWidth - len(config.Path)
+		for range padding {
 			_, err := opts.Writer.Write([]byte(" "))
 			if err != nil {
 				return errors.New(err)
@@ -227,6 +244,138 @@ func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
 	}
 
 	_, err := opts.Writer.Write([]byte("\n"))
+	if err != nil {
+		return errors.New(err)
+	}
+
+	return nil
+}
+
+// outputTree outputs the discovered configurations in tree format.
+func outputTree(opts *Options, configs ListedConfigs) error {
+	s := NewTreeStyler(shouldColor(opts))
+
+	return renderTree(opts, configs, s)
+}
+
+type TreeStyler struct {
+	shouldColor bool
+	entryStyle  lipgloss.Style
+	rootStyle   lipgloss.Style
+	itemStyle   lipgloss.Style
+}
+
+func NewTreeStyler(shouldColor bool) *TreeStyler {
+	return &TreeStyler{
+		shouldColor: shouldColor,
+		entryStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("63")).MarginRight(1),
+		rootStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("35")),
+		itemStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("212")),
+	}
+}
+
+func (s *TreeStyler) Style(t *tree.Tree) *tree.Tree {
+	t = t.
+		Enumerator(tree.RoundedEnumerator)
+
+	if !s.shouldColor {
+		return t
+	}
+
+	return t.
+		EnumeratorStyle(s.entryStyle).
+		RootStyle(s.rootStyle).
+		ItemStyle(s.itemStyle)
+}
+
+// generateTree creates a tree structure from ListedConfigs by recursively processing paths
+func generateTree(configs ListedConfigs) *tree.Tree {
+	root := tree.Root(".")
+
+	// Create root direct children
+	for _, config := range configs {
+		dir := filepath.Dir(config.Path)
+		if dir == "." {
+			root.Child(filepath.Base(config.Path))
+		}
+	}
+
+	// Construct subtree map
+	directSubtrees := make(map[string][]string)
+
+	for _, config := range configs {
+		if filepath.Dir(config.Path) == "." {
+			continue
+		}
+
+		startOfPath := strings.Split(config.Path, string(os.PathSeparator))[0]
+		if _, exists := directSubtrees[startOfPath]; !exists {
+			// Collect all configs that have the same startOfPath
+			for _, config := range configs {
+				if strings.Split(config.Path, string(os.PathSeparator))[0] == startOfPath {
+					pathRemainder := strings.TrimPrefix(config.Path, startOfPath+string(os.PathSeparator))
+
+					directSubtrees[startOfPath] = append(directSubtrees[startOfPath], pathRemainder)
+				}
+			}
+		}
+	}
+
+	// Add a child for each direct subtree
+	for subtreeRoot, subtreeChildren := range directSubtrees {
+		root.Child(generateSubtree(subtreeRoot, subtreeChildren))
+	}
+
+	return root
+}
+
+// generateSubtree generates a subtree for the given directory.
+func generateSubtree(root string, children []string) *tree.Tree {
+	subtree := tree.New().Root(root)
+
+	// Create root direct children
+	for _, child := range children {
+		dir := filepath.Dir(child)
+		if dir == "." {
+			subtree.Child(filepath.Base(child))
+		}
+	}
+
+	// Construct subtree map
+	directSubtrees := make(map[string][]string)
+
+	for _, child := range children {
+		if filepath.Dir(child) == "." {
+			continue
+		}
+
+		startOfPath := strings.Split(child, string(os.PathSeparator))[0]
+		if _, exists := directSubtrees[startOfPath]; !exists {
+			// Collect all configs that have the same startOfPath
+			for _, child := range children {
+				if strings.Split(child, string(os.PathSeparator))[0] == startOfPath {
+					pathRemainder := strings.TrimPrefix(child, startOfPath+string(os.PathSeparator))
+
+					directSubtrees[startOfPath] = append(directSubtrees[startOfPath], pathRemainder)
+				}
+			}
+		}
+	}
+
+	// Add a child for each direct subtree
+	for subtreeRoot, subtreeChildren := range directSubtrees {
+		subtree.Child(generateSubtree(subtreeRoot, subtreeChildren))
+	}
+
+	return subtree
+}
+
+// renderTree renders the configurations in a tree format.
+func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler) error {
+	t := generateTree(configs)
+	t = s.Style(t)
+
+	_, err := opts.Writer.Write([]byte(t.String() + "\n"))
 	if err != nil {
 		return errors.New(err)
 	}

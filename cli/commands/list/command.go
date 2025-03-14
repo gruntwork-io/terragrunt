@@ -14,12 +14,13 @@ const (
 	CommandName  = "list"
 	CommandAlias = "ls"
 
-	FormatFlagName = "format"
-	JSONFlagName   = "json"
-	SortFlagName   = "sort"
-	HiddenFlagName = "hidden"
-	Dependencies   = "dependencies"
-	External       = "external"
+	FormatFlagName       = "format"
+	JSONFlagName         = "json"
+	TreeFlagName         = "tree"
+	SortFlagName         = "sort"
+	HiddenFlagName       = "hidden"
+	DependenciesFlagName = "dependencies"
+	ExternalFlagName     = "external"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -53,16 +54,22 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Include hidden directories in list results.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        Dependencies,
-			EnvVars:     tgPrefix.EnvVars(Dependencies),
+			Name:        DependenciesFlagName,
+			EnvVars:     tgPrefix.EnvVars(DependenciesFlagName),
 			Destination: &opts.Dependencies,
 			Usage:       "Include dependencies in list results.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        External,
-			EnvVars:     tgPrefix.EnvVars(External),
+			Name:        ExternalFlagName,
+			EnvVars:     tgPrefix.EnvVars(ExternalFlagName),
 			Destination: &opts.External,
 			Usage:       "Discover external dependencies from initial results.",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        TreeFlagName,
+			EnvVars:     tgPrefix.EnvVars(TreeFlagName),
+			Destination: &opts.Tree,
+			Usage:       "Output in tree format.",
 		}),
 	}
 }
@@ -83,6 +90,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			if cmdOpts.JSON {
 				cmdOpts.Format = FormatJSON
+			}
+
+			if cmdOpts.Tree {
+				cmdOpts.Format = FormatTree
 			}
 
 			if err := cmdOpts.Validate(); err != nil {

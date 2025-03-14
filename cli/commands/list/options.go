@@ -12,6 +12,9 @@ const (
 	// FormatJSON outputs the discovered configurations in JSON format.
 	FormatJSON = "json"
 
+	// FormatTree outputs the discovered configurations in tree format.
+	FormatTree = "tree"
+
 	// SortAlpha sorts the discovered configurations in alphabetical order.
 	SortAlpha = "alpha"
 
@@ -40,6 +43,9 @@ type Options struct {
 
 	// External determines whether to include external dependencies in the output.
 	External bool
+
+	// Tree determines whether to output in tree format.
+	Tree bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
@@ -74,6 +80,8 @@ func (o *Options) validateFormat() error {
 	case FormatText:
 		return nil
 	case FormatJSON:
+		return nil
+	case FormatTree:
 		return nil
 	default:
 		return errors.New("invalid format: " + o.Format)
