@@ -1,6 +1,6 @@
-unit "unit-config" {
+unit "second-stack-unit-config" {
 	source = "${get_repo_root()}/config"
-	path   = "unit-config"
+	path   = "second-stack-unit-config"
 	hidden = true
 }
 

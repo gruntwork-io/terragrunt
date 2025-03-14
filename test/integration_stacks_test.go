@@ -821,8 +821,45 @@ func TestStacksGenerateHidden(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 
-	config := util.JoinPath(rootPath, "config")
-	assert.DirExists(t, config)
+	validateHiddenDirs(t, rootPath)
+}
+
+func TestStacksApplyHidden(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackHidden)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackHidden)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackHidden)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	validateHiddenDirs(t, rootPath)
+}
+
+// validateHiddenDirs check if the hidden directories are created and contain test files
+func validateHiddenDirs(t *testing.T, rootPath string) {
+	// check that are created hidden directories
+	stackConfig := util.JoinPath(rootPath, "stack-config")
+	assert.DirExists(t, stackConfig)
+
+	unitConfig := util.JoinPath(rootPath, "unit-config")
+	assert.DirExists(t, unitConfig)
+
+	// check that hidden directories contain config.txt
+	configPath := util.JoinPath(stackConfig, "config.txt")
+	assert.FileExists(t, configPath)
+
+	configPath = util.JoinPath(unitConfig, "config.txt")
+	assert.FileExists(t, configPath)
+
+	// check that second stack also generated hidden directories
+	secondStackUnitConfigDir := util.JoinPath(rootPath, ".terragrunt-stack", "dev", "second-stack-unit-config")
+	secondStackUnitConfig := util.JoinPath(secondStackUnitConfigDir, "config.txt")
+
+	assert.DirExists(t, secondStackUnitConfigDir)
+	assert.FileExists(t, secondStackUnitConfig)
 }
 
 // check if the stack directory is created and contains files.

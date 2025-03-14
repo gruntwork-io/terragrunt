@@ -282,7 +282,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	if cmp.hidden {
 		opts.Logger.Debugf("Handling as hidden %s", cmp.name)
 		// for hidden components, we copy the files to the base directory of the target directory
-		dest = filepath.Join(filepath.Base(cmp.targetDir), cmp.path)
+		dest = filepath.Join(filepath.Dir(cmp.targetDir), cmp.path)
 	}
 
 	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
