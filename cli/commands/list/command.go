@@ -17,6 +17,7 @@ const (
 	FormatFlagName       = "format"
 	JSONFlagName         = "json"
 	TreeFlagName         = "tree"
+	TreeFlagAlias        = "T"
 	SortFlagName         = "sort"
 	HiddenFlagName       = "hidden"
 	DependenciesFlagName = "dependencies"
@@ -70,6 +71,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(TreeFlagName),
 			Destination: &opts.Tree,
 			Usage:       "Output in tree format.",
+			Aliases:     []string{TreeFlagAlias},
 		}),
 	}
 }

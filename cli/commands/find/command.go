@@ -16,6 +16,7 @@ const (
 
 	FormatFlagName = "format"
 	JSONFlagName   = "json"
+	DAGFlagName    = "dag"
 	SortFlagName   = "sort"
 	HiddenFlagName = "hidden"
 	Dependencies   = "dependencies"
@@ -45,6 +46,12 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Sort,
 			Usage:       "Sort order for the results. Valid values: alpha, dag.",
 			DefaultText: SortAlpha,
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        DAGFlagName,
+			EnvVars:     tgPrefix.EnvVars(DAGFlagName),
+			Destination: &opts.DAG,
+			Usage:       "Output in DAG format.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        HiddenFlagName,
@@ -83,6 +90,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			if cmdOpts.JSON {
 				cmdOpts.Format = FormatJSON
+			}
+
+			if cmdOpts.DAG {
+				cmdOpts.Sort = SortDAG
 			}
 
 			if err := cmdOpts.Validate(); err != nil {
