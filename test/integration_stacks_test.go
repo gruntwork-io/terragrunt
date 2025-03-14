@@ -840,6 +840,7 @@ func TestStacksApplyHidden(t *testing.T) {
 
 // validateHiddenDirs check if the hidden directories are created and contain test files
 func validateHiddenDirs(t *testing.T, rootPath string) {
+	t.Helper()
 	// check that are created hidden directories
 	stackConfig := util.JoinPath(rootPath, "stack-config")
 	assert.DirExists(t, stackConfig)
