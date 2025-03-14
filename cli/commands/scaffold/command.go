@@ -115,7 +115,7 @@ func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions
 	foldersToCheck := opts.MaxFoldersToCheck
 
 	dir := opts.WorkingDir
-	for dir != "/" && dir != "" && dir != "." {
+	for dir != string(os.PathSeparator) && dir != "" && dir != "." {
 		_, err := os.Stat(filepath.Join(dir, config.RecommendedParentConfigName))
 		if err == nil {
 			return config.RecommendedParentConfigName
