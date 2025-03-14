@@ -154,7 +154,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 	var (
 		terragruntConfig = &TerragruntConfig{}
-		defaultMetadata  = map[string]interface{}{FoundInFile: configPath}
+		defaultMetadata  = map[string]any{FoundInFile: configPath}
 	)
 
 	if terragruntConfigFromFile.Catalog != nil {

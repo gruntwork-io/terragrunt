@@ -151,7 +151,7 @@ func tflintConfigFilePath(arguments []string) string {
 }
 
 // InputsToTflintVar converts the inputs map to a list of tflint variables.
-func InputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
+func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 	variables := make([]string, 0, len(inputs))
 
 	for key, value := range inputs {
@@ -242,7 +242,7 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
-	for i := 0; i < terragruntOptions.MaxFoldersToCheck; i++ {
+	for range terragruntOptions.MaxFoldersToCheck {
 		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
 		terragruntOptions.Logger.Debugf("Finding .tflint.hcl file from %s and going to %s", previousDir, currentDir)
 

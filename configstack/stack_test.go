@@ -293,7 +293,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		"tier_vars": "../test/fixtures/modules/module-m/module-m-child/tier.hcl",
 	}
 
-	localsConfigs := make(map[string]interface{})
+	localsConfigs := make(map[string]any)
 
 	for name, configPath := range localsConfigPaths {
 		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
@@ -303,19 +303,19 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		cfg, err := config.PartialParseConfigFile(ctx, configPath, nil)
 		require.NoError(t, err)
 
-		localsConfigs[name] = map[string]interface{}{
-			"dependencies":                  interface{}(nil),
+		localsConfigs[name] = map[string]any{
+			"dependencies":                  any(nil),
 			"download_dir":                  "",
-			"generate":                      map[string]interface{}{},
-			"iam_assume_role_duration":      interface{}(nil),
+			"generate":                      map[string]any{},
+			"iam_assume_role_duration":      any(nil),
 			"iam_assume_role_session_name":  "",
 			"iam_role":                      "",
 			"iam_web_identity_token":        "",
-			"inputs":                        interface{}(nil),
+			"inputs":                        any(nil),
 			"locals":                        cfg.Locals,
-			"retry_max_attempts":            interface{}(nil),
-			"retry_sleep_interval_sec":      interface{}(nil),
-			"retryable_errors":              interface{}(nil),
+			"retry_max_attempts":            any(nil),
+			"retry_sleep_interval_sec":      any(nil),
+			"retryable_errors":              any(nil),
 			"terraform_binary":              "",
 			"terraform_version_constraint":  "",
 			"terragrunt_version_constraint": "",
@@ -333,7 +333,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			},
 			Locals:          localsConfigs,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
-			FieldsMetadata: map[string]map[string]interface{}{
+			FieldsMetadata: map[string]map[string]any{
 				"locals-env_vars": {
 					"found_in_file": canonical(t, "../test/fixtures/modules/module-m/root.hcl"),
 				},

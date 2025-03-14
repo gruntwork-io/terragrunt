@@ -86,20 +86,20 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 	tc := []struct {
 		name       string
 		backend    string
-		config     map[string]interface{}
-		encryption map[string]interface{}
+		config     map[string]any
+		encryption map[string]any
 		expected   []byte
 		expectErr  bool
 	}{
 		{
 			"remote-state-config-unsorted-keys",
 			"ordered",
-			map[string]interface{}{
+			map[string]any{
 				"b": 2,
 				"a": 1,
 				"c": 3,
 			},
-			map[string]interface{}{
+			map[string]any{
 				"key_provider": "test",
 				"b":            2,
 				"a":            1,
@@ -111,8 +111,8 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		{
 			"remote-state-config-empty",
 			"empty",
-			map[string]interface{}{},
-			map[string]interface{}{
+			map[string]any{},
+			map[string]any{
 				"key_provider": "test",
 			},
 			expectedEmptyConfig,
@@ -121,16 +121,16 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		{
 			"remote-state-encryption-empty",
 			"empty",
-			map[string]interface{}{},
-			map[string]interface{}{},
+			map[string]any{},
+			map[string]any{},
 			expectedEmptyEncryption,
 			false,
 		},
 		{
 			"remote-state-encryption-missing-key-provider",
 			"empty",
-			map[string]interface{}{},
-			map[string]interface{}{
+			map[string]any{},
+			map[string]any{
 				"a": 1,
 			},
 			[]byte(""),
@@ -139,11 +139,11 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		{
 			"s3-backend-with-assume-role",
 			"s3",
-			map[string]interface{}{
+			map[string]any{
 				"bucket":      "mybucket",
 				"assume_role": "{role_arn=\"arn:aws:iam::123456789012:role/MyRole\",tags={key=\"value\"}, duration=\"1h30m\", external_id=\"123456789012\", policy=\"{}\", policy_arns=[\"arn:aws:iam::123456789012:policy/MyPolicy\"], session_name=\"MySession\", source_identity=\"123456789012\", transitive_tag_keys=[\"key\"]}",
 			},
-			map[string]interface{}{},
+			map[string]any{},
 			expectedS3WithAssumeRole,
 			false,
 		},
@@ -168,7 +168,7 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 
 			// runs the function a few of times again. All the outputs must be
 			// equal to the first output.
-			for i := 0; i < 20; i++ {
+			for range 20 {
 				actual, _ := codegen.RemoteStateConfigToTerraformCode(tt.backend, tt.config, tt.encryption)
 				assert.Equal(t, output, actual)
 			}

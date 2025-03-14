@@ -33,7 +33,7 @@ const (
 )
 
 // Trace - collect traces for method execution
-func Trace(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+func Trace(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
 	if spanExporter == nil || traceProvider == nil { // invoke function without tracing
 		return fn(ctx)
 	}
@@ -176,7 +176,7 @@ func NewTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.Spa
 }
 
 // openSpan - create a new span with attributes.
-func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (context.Context, trace.Span) {
+func openSpan(ctx context.Context, name string, attrs map[string]any) (context.Context, trace.Span) {
 	if traceProvider == nil {
 		return ctx, nil
 	}

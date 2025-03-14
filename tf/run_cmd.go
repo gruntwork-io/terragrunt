@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"slices"
+
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -163,10 +165,8 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 		FlagNameHelpShort,
 	}
 
-	for _, flag := range tfFlags {
-		if args.Normalize(cli.SingleDashFlag).Contains(flag) {
-			return true
-		}
+	if slices.ContainsFunc(tfFlags, args.Normalize(cli.SingleDashFlag).Contains) {
+		return true
 	}
 
 	return collections.ListContainsElement(tfCommands, args.CommandName())

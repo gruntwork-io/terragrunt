@@ -48,7 +48,7 @@ func (ee *exitError) ExitCode() int {
 }
 
 // NewExitError calls Exit to create a new ExitCoder.
-func NewExitError(message interface{}, exitCode ExitCode) ExitCoder {
+func NewExitError(message any, exitCode ExitCode) ExitCoder {
 	var err error
 
 	if message != nil {

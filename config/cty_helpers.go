@@ -10,6 +10,8 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -194,7 +196,7 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 // we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
-	outMap := make(map[string]interface{})
+	outMap := make(map[string]any)
 
 	targetMap, err := ParseCtyValueToMap(target)
 	if err != nil {
@@ -206,9 +208,7 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 		return nil, err
 	}
 
-	for key, val := range targetMap {
-		outMap[key] = val
-	}
+	maps.Copy(outMap, targetMap)
 
 	if err := mergo.Merge(&outMap, sourceMap, append(opts, mergo.WithOverride)...); err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
 // we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
 // map[string]interface{} using the Go json library.
-func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
+func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 	updatedValue, err := UpdateUnknownCtyValValues(value)
 	if err != nil {
 		return nil, err
@@ -257,8 +257,8 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
 type CtyJSONOutput struct {
-	Value map[string]interface{} `json:"Value"`
-	Type  interface{}            `json:"Type"`
+	Value map[string]any `json:"Value"`
+	Type  any            `json:"Type"`
 }
 
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
@@ -396,7 +396,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 }
 
 // CtyToStruct converts a cty.Value to a go struct.
-func CtyToStruct(ctyValue cty.Value, target interface{}) error {
+func CtyToStruct(ctyValue cty.Value, target any) error {
 	jsonBytes, err := ctyjson.Marshal(ctyValue, ctyValue.Type())
 	if err != nil {
 		return errors.New(err)

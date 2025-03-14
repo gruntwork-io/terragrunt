@@ -31,7 +31,7 @@ dependencies {
 	assert.NotNil(t, terragruntConfig.Dependencies)
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 	assert.Equal(t, "../app1", terragruntConfig.Dependencies.Paths[0])
-	assert.Equal(t, map[string]interface{}{"app1": "../app1"}, terragruntConfig.Locals)
+	assert.Equal(t, map[string]any{"app1": "../app1"}, terragruntConfig.Locals)
 
 	assert.Nil(t, terragruntConfig.Skip)
 	assert.Nil(t, terragruntConfig.PreventDestroy)

@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/shlex"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -167,9 +169,7 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 			if arg.EnvVars != nil {
-				for key, val := range *arg.EnvVars {
-					envVars[key] = val
-				}
+				maps.Copy(envVars, *arg.EnvVars)
 			}
 		}
 	}
@@ -305,7 +305,7 @@ func getVarNamesFromVarFile(opts *options.TerragruntOptions, varFile string) ([]
 		return nil, err
 	}
 
-	var variables map[string]interface{}
+	var variables map[string]any
 	if strings.HasSuffix(varFile, "json") {
 		if err := json.Unmarshal(fileContents, &variables); err != nil {
 			return nil, err

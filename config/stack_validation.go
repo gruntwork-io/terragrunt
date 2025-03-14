@@ -38,7 +38,7 @@ func ValidateStackConfig(config *StackConfigFile) error {
 
 // validateUnits validates all units in the configuration
 func validateUnits(units []*Unit) error {
-	return validateConfigElementsGeneric(units, "unit", func(element interface{}, i int) (string, string, string) {
+	return validateConfigElementsGeneric(units, "unit", func(element any, i int) (string, string, string) {
 		unit := element.(*Unit)
 		return unit.Name, unit.Path, unit.Source
 	})
@@ -46,7 +46,7 @@ func validateUnits(units []*Unit) error {
 
 // validateStacks validates all stacks in the configuration
 func validateStacks(stacks []*Stack) error {
-	return validateConfigElementsGeneric(stacks, "stack", func(element interface{}, i int) (string, string, string) {
+	return validateConfigElementsGeneric(stacks, "stack", func(element any, i int) (string, string, string) {
 		stack := element.(*Stack)
 		return stack.Name, stack.Path, stack.Source
 	})
@@ -54,20 +54,20 @@ func validateStacks(stacks []*Stack) error {
 
 // validateConfigElementsGeneric is a generic function to validate configuration elements
 // It takes a slice of elements, the element type name, and a function to extract name, path, and source from an element
-func validateConfigElementsGeneric(elements interface{}, elementType string, getValues func(element interface{}, index int) (name, path, source string)) error {
+func validateConfigElementsGeneric(elements any, elementType string, getValues func(element any, index int) (name, path, source string)) error {
 	validationErrors := &errors.MultiError{}
 
-	var slice []interface{}
+	var slice []any
 
 	// Convert the slice to a slice of interface{}
 	switch v := elements.(type) {
 	case []*Unit:
-		slice = make([]interface{}, len(v))
+		slice = make([]any, len(v))
 		for i, unit := range v {
 			slice[i] = unit
 		}
 	case []*Stack:
-		slice = make([]interface{}, len(v))
+		slice = make([]any, len(v))
 		for i, stack := range v {
 			slice[i] = stack
 		}

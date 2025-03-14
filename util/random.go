@@ -58,7 +58,7 @@ const UniqueIDLength = 6 // Should be good for 62^6 = 56+ billion combinations
 func UniqueID() string {
 	var out bytes.Buffer
 
-	for i := 0; i < UniqueIDLength; i++ {
+	for range UniqueIDLength {
 		out.WriteByte(Base62Chars[rand.Intn(len(Base62Chars))])
 	}
 

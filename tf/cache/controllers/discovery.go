@@ -3,6 +3,8 @@ package controllers
 import (
 	"net/http"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/tf/cache/router"
 	"github.com/labstack/echo/v4"
 )
@@ -35,9 +37,7 @@ func (controller *DiscoveryController) terraformAction(ctx echo.Context) error {
 	endpoints := make(map[string]any)
 
 	for _, endpointer := range controller.Endpointers {
-		for name, urlPath := range endpointer.Endpoints() {
-			endpoints[name] = urlPath
-		}
+		maps.Copy(endpoints, endpointer.Endpoints())
 	}
 
 	return ctx.JSON(http.StatusOK, endpoints)

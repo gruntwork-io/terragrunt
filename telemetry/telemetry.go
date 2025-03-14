@@ -74,7 +74,7 @@ func ShutdownTelemetry(ctx context.Context) error {
 }
 
 // Telemetry - collect telemetry from function execution - metrics and traces.
-func Telemetry(ctx context.Context, opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+func Telemetry(ctx context.Context, opts *options.TerragruntOptions, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
 	// wrap telemetry collection with trace and time metric
 	return Trace(ctx, name, attrs, func(ctx context.Context) error {
 		return Time(ctx, name, attrs, fn)
@@ -82,7 +82,7 @@ func Telemetry(ctx context.Context, opts *options.TerragruntOptions, name string
 }
 
 // mapToAttributes - convert map to attributes to pass to span.SetAttributes.
-func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
+func mapToAttributes(data map[string]any) []attribute.KeyValue {
 	var attrs []attribute.KeyValue
 
 	for k, v := range data {

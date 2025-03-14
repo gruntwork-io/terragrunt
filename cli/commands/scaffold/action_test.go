@@ -21,7 +21,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	t.Parallel()
 
 	// set pre-defined variables
-	vars := map[string]interface{}{}
+	vars := map[string]any{}
 	var requiredVariables, optionalVariables []*config.ParsedVariable
 
 	requiredVariables = append(requiredVariables, &config.ParsedVariable{

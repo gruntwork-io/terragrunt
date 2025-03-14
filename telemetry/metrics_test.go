@@ -27,7 +27,7 @@ func TestNewMetricsExporter(t *testing.T) {
 		name         string
 		exporterType string
 		insecure     bool
-		expectedType interface{}
+		expectedType any
 		expectNil    bool
 	}{
 		{

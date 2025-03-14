@@ -13,6 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 
+	"slices"
+
+	"maps"
+
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -144,13 +148,7 @@ func (module *TerraformModule) getPlanFilePath(opts *options.TerragruntOptions, 
 
 // findModuleInPath returns true if a module is located under one of the target directories
 func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
-	for _, targetDir := range targetDirs {
-		if module.Path == targetDir {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(targetDirs, module.Path)
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
@@ -271,11 +269,8 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, opts *options.Terragrunt
 		deps, found := dependentModules[opts.WorkingDir]
 		if found {
 			for _, module := range stack.Modules {
-				for _, dep := range deps {
-					if dep == module.Path {
-						matchedModulesMap[module.Path] = module
-						break
-					}
+				if slices.Contains(deps, module.Path) {
+					matchedModulesMap[module.Path] = module
 				}
 			}
 		}
@@ -584,13 +579,9 @@ type TerraformModulesMap map[string]*TerraformModule
 func (modulesMap TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap) TerraformModulesMap {
 	out := TerraformModulesMap{}
 
-	for key, value := range externalDependencies {
-		out[key] = value
-	}
+	maps.Copy(out, externalDependencies)
 
-	for key, value := range modulesMap {
-		out[key] = value
-	}
+	maps.Copy(out, modulesMap)
 
 	return out
 }

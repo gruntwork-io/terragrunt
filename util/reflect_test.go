@@ -14,7 +14,7 @@ func TestKindOf(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		value    interface{}
+		value    any
 		expected reflect.Kind
 	}{
 		{1, reflect.Int},
@@ -26,7 +26,7 @@ func TestKindOf(t *testing.T) {
 		{"Hello World!", reflect.String},
 		{new(string), reflect.Ptr},
 		{"", reflect.String},
-		{interface{}(false), reflect.Bool},
+		{any(false), reflect.Bool},
 	}
 	for i, tt := range tc {
 		tt := tt
@@ -45,9 +45,9 @@ func TestMustWalkTerraformOutput(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		value    interface{}
+		value    any
 		path     []string
-		expected interface{}
+		expected any
 	}{
 		{
 			value: map[string]map[string]string{

@@ -30,15 +30,15 @@ type TerraformState struct {
 
 // TerraformBackend represents the structure of the "backend" section in the Terraform .tfstate file.
 type TerraformBackend struct {
-	Type   string                 `json:"Type"`
-	Config map[string]interface{} `json:"Config"`
+	Type   string         `json:"Type"`
+	Config map[string]any `json:"Config"`
 }
 
 // TerraformStateModule represents the structure of a "module" section in the Terraform .tfstate file.
 type TerraformStateModule struct {
-	Path      []string               `json:"Path"`
-	Outputs   map[string]interface{} `json:"Outputs"`
-	Resources map[string]interface{} `json:"Resources"`
+	Path      []string       `json:"Path"`
+	Outputs   map[string]any `json:"Outputs"`
+	Resources map[string]any `json:"Resources"`
 }
 
 // IsRemote returns true if this Terraform state is configured for remote state storage.
@@ -50,7 +50,7 @@ func (state *TerraformState) IsRemote() bool {
 // the given path, or return nil if the file is missing. If the backend is not local then parse the Terraform .tfstate
 // file from the location specified by workingDir. If no location is specified, search the current
 // directory. If the file doesn't exist at any of the default locations, return nil.
-func ParseTerraformStateFileFromLocation(backend string, config map[string]interface{},
+func ParseTerraformStateFileFromLocation(backend string, config map[string]any,
 	workingDir, dataDir string) (*TerraformState, error) {
 	stateFile, ok := config["path"].(string)
 

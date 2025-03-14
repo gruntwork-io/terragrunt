@@ -628,14 +628,14 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 	}
 }
 
-func toStringSlice(t *testing.T, value interface{}) []string {
+func toStringSlice(t *testing.T, value any) []string {
 	t.Helper()
 
 	if value == nil {
 		return nil
 	}
 
-	asInterfaceSlice, isInterfaceSlice := value.([]interface{})
+	asInterfaceSlice, isInterfaceSlice := value.([]any)
 	assert.True(t, isInterfaceSlice)
 
 	// TODO: See if this logic is desired
@@ -788,7 +788,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 
 	tc := []struct {
 		input    string
-		expected interface{}
+		expected any
 	}{
 		{
 			"abs(-1)",
@@ -808,7 +808,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		},
 		{
 			`split("|", "one|two|three")`,
-			[]interface{}{"one", "two", "three"},
+			[]any{"one", "two", "three"},
 		},
 		{
 			`!tobool("false")`,
@@ -820,7 +820,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		},
 		{
 			`zipmap(["one", "two", "three"], [1, 2, 3])`,
-			map[string]interface{}{"one": 1., "two": 2., "three": 3.},
+			map[string]any{"one": 1., "two": 2., "three": 3.},
 		},
 	}
 
@@ -926,27 +926,27 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
-	inputsMap := tgConfigMap["inputs"].(map[string]interface{})
+	inputsMap := tgConfigMap["inputs"].(map[string]any)
 
 	assert.Equal(t, "string", inputsMap["string"].(string))
 	assert.InEpsilon(t, float64(42), inputsMap["number"].(float64), 0.0000000001)
 	assert.True(t, inputsMap["bool"].(bool))
-	assert.Equal(t, []interface{}{"a", "b", "c"}, inputsMap["list_string"].([]interface{}))
-	assert.Equal(t, []interface{}{float64(1), float64(2), float64(3)}, inputsMap["list_number"].([]interface{}))
-	assert.Equal(t, []interface{}{true, false}, inputsMap["list_bool"].([]interface{}))
-	assert.Equal(t, map[string]interface{}{"foo": "bar"}, inputsMap["map_string"].(map[string]interface{}))
-	assert.Equal(t, map[string]interface{}{"foo": float64(42), "bar": float64(12345)}, inputsMap["map_number"].(map[string]interface{}))
-	assert.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, inputsMap["map_bool"].(map[string]interface{}))
+	assert.Equal(t, []any{"a", "b", "c"}, inputsMap["list_string"].([]any))
+	assert.Equal(t, []any{float64(1), float64(2), float64(3)}, inputsMap["list_number"].([]any))
+	assert.Equal(t, []any{true, false}, inputsMap["list_bool"].([]any))
+	assert.Equal(t, map[string]any{"foo": "bar"}, inputsMap["map_string"].(map[string]any))
+	assert.Equal(t, map[string]any{"foo": float64(42), "bar": float64(12345)}, inputsMap["map_number"].(map[string]any))
+	assert.Equal(t, map[string]any{"foo": true, "bar": false, "baz": true}, inputsMap["map_bool"].(map[string]any))
 
 	assert.Equal(
 		t,
-		map[string]interface{}{
+		map[string]any{
 			"str":  "string",
 			"num":  float64(42),
-			"list": []interface{}{float64(1), float64(2), float64(3)},
-			"map":  map[string]interface{}{"foo": "bar"},
+			"list": []any{float64(1), float64(2), float64(3)},
+			"map":  map[string]any{"foo": "bar"},
 		},
-		inputsMap["object"].(map[string]interface{}),
+		inputsMap["object"].(map[string]any),
 	)
 
 	assert.Equal(t, "default", inputsMap["from_env"].(string))
@@ -963,25 +963,25 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
-	remoteStateMap := tgConfigMap["remote_state"].(map[string]interface{})
+	remoteStateMap := tgConfigMap["remote_state"].(map[string]any)
 	assert.Equal(t, "s3", remoteStateMap["backend"].(string))
-	configMap := remoteStateMap["config"].(map[string]interface{})
+	configMap := remoteStateMap["config"].(map[string]any)
 	assert.True(t, configMap["encrypt"].(bool))
 	assert.Equal(t, "terraform.tfstate", configMap["key"].(string))
 	assert.Equal(
 		t,
-		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform state storage"},
-		configMap["s3_bucket_tags"].(map[string]interface{}),
+		map[string]any{"owner": "terragrunt integration test", "name": "Terraform state storage"},
+		configMap["s3_bucket_tags"].(map[string]any),
 	)
 	assert.Equal(
 		t,
-		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform lock table"},
-		configMap["dynamodb_table_tags"].(map[string]interface{}),
+		map[string]any{"owner": "terragrunt integration test", "name": "Terraform lock table"},
+		configMap["dynamodb_table_tags"].(map[string]any),
 	)
 	assert.Equal(
 		t,
-		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform access log storage"},
-		configMap["accesslogging_bucket_tags"].(map[string]interface{}),
+		map[string]any{"owner": "terragrunt integration test", "name": "Terraform access log storage"},
+		configMap["accesslogging_bucket_tags"].(map[string]any),
 	)
 }
 
@@ -996,35 +996,35 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
-	terraformMap := tgConfigMap["terraform"].(map[string]interface{})
-	beforeHooksMap := terraformMap["before_hook"].(map[string]interface{})
+	terraformMap := tgConfigMap["terraform"].(map[string]any)
+	beforeHooksMap := terraformMap["before_hook"].(map[string]any)
 	assert.Equal(
 		t,
-		[]interface{}{"touch", "before.out"},
-		beforeHooksMap["before_hook_1"].(map[string]interface{})["execute"].([]interface{}),
+		[]any{"touch", "before.out"},
+		beforeHooksMap["before_hook_1"].(map[string]any)["execute"].([]any),
 	)
 	assert.Equal(
 		t,
-		[]interface{}{"echo", "BEFORE_TERRAGRUNT_READ_CONFIG"},
-		beforeHooksMap["before_hook_2"].(map[string]interface{})["execute"].([]interface{}),
+		[]any{"echo", "BEFORE_TERRAGRUNT_READ_CONFIG"},
+		beforeHooksMap["before_hook_2"].(map[string]any)["execute"].([]any),
 	)
 
-	afterHooksMap := terraformMap["after_hook"].(map[string]interface{})
+	afterHooksMap := terraformMap["after_hook"].(map[string]any)
 	assert.Equal(
 		t,
-		[]interface{}{"touch", "after.out"},
-		afterHooksMap["after_hook_1"].(map[string]interface{})["execute"].([]interface{}),
+		[]any{"touch", "after.out"},
+		afterHooksMap["after_hook_1"].(map[string]any)["execute"].([]any),
 	)
 	assert.Equal(
 		t,
-		[]interface{}{"echo", "AFTER_TERRAGRUNT_READ_CONFIG"},
-		afterHooksMap["after_hook_2"].(map[string]interface{})["execute"].([]interface{}),
+		[]any{"echo", "AFTER_TERRAGRUNT_READ_CONFIG"},
+		afterHooksMap["after_hook_2"].(map[string]any)["execute"].([]any),
 	)
-	errorHooksMap := terraformMap["error_hook"].(map[string]interface{})
+	errorHooksMap := terraformMap["error_hook"].(map[string]any)
 	assert.Equal(
 		t,
-		[]interface{}{"echo", "ON_APPLY_ERROR"},
-		errorHooksMap["error_hook_1"].(map[string]interface{})["execute"].([]interface{}),
+		[]any{"echo", "ON_APPLY_ERROR"},
+		errorHooksMap["error_hook_1"].(map[string]any)["execute"].([]any),
 	)
 }
 
@@ -1039,7 +1039,7 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
-	localsMap := tgConfigMap["locals"].(map[string]interface{})
+	localsMap := tgConfigMap["locals"].(map[string]any)
 	assert.InEpsilon(t, float64(2), localsMap["x"].(float64), 0.0000000001)
 	assert.Equal(t, "Hello world\n", localsMap["file_contents"].(string))
 	assert.InEpsilon(t, float64(42), localsMap["number_expression"].(float64), 0.0000000001)
@@ -1230,12 +1230,12 @@ func TestReadTFVarsFiles(t *testing.T) {
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
-	locals := tgConfigMap["locals"].(map[string]interface{})
+	locals := tgConfigMap["locals"].(map[string]any)
 
 	assert.Equal(t, "string", locals["string_var"].(string))
 	assert.InEpsilon(t, float64(42), locals["number_var"].(float64), 0.0000000001)
 	assert.True(t, locals["bool_var"].(bool))
-	assert.Equal(t, []interface{}{"hello", "world"}, locals["list_var"].([]interface{}))
+	assert.Equal(t, []any{"hello", "world"}, locals["list_var"].([]any))
 
 	assert.InEpsilon(t, float64(24), locals["json_number_var"].(float64), 0.0000000001)
 	assert.Equal(t, "another string", locals["json_string_var"].(string))
