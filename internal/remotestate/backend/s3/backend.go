@@ -1,3 +1,4 @@
+// Package s3 represents AWS S3 backend for interacting with remote state.
 package s3
 
 import (

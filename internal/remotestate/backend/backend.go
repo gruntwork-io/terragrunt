@@ -1,3 +1,4 @@
+// Package backend represents a backend for interacting with remote state.
 package backend
 
 import (

@@ -13,18 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const (
-	lockTableKey                 = "lock_table"
-	dynamoDBTableKey             = "dynamodb_table"
-	encryptKey                   = "encrypt"
-	assumeRoleKey                = "assume_role"
-	accessloggingTargetPrefixKey = "accesslogging_target_prefix"
-
-	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
-
-	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
-)
-
 type Config map[string]any
 
 func (cfg Config) GetTerraformInitArgs() Config {

@@ -144,7 +144,7 @@ func TestBackend_GetTerraformInitArgs(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := remoteBackend.GetTerraformInitArgs(backend.Config(testCase.config))
+			actual := remoteBackend.GetTerraformInitArgs(testCase.config)
 
 			if !testCase.shouldBeEqual {
 				assert.NotEqual(t, testCase.expected, actual)

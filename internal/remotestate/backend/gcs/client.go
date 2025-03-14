@@ -169,7 +169,7 @@ func (client *Client) checkIfGCSVersioningEnabled(bucketName string) error {
 
 // CreateGCSBucketWithVersioning creates the given GCS bucket and enables versioning for it.
 func (client *Client) CreateGCSBucketWithVersioning(ctx context.Context, bucketName string) error {
-	if err := client.CreateGCSBucket(bucketName); err != nil {
+	if err := client.CreateGCSBucket(ctx, bucketName); err != nil {
 		return err
 	}
 
@@ -177,14 +177,14 @@ func (client *Client) CreateGCSBucketWithVersioning(ctx context.Context, bucketN
 		return err
 	}
 
-	if err := client.AddLabelsToGCSBucket(bucketName, client.GCSBucketLabels); err != nil {
+	if err := client.AddLabelsToGCSBucket(ctx, bucketName, client.GCSBucketLabels); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (client *Client) AddLabelsToGCSBucket(bucketName string, labels map[string]string) error {
+func (client *Client) AddLabelsToGCSBucket(ctx context.Context, bucketName string, labels map[string]string) error {
 	if len(labels) == 0 {
 		client.logger.Debugf("No labels specified for bucket %s.", bucketName)
 		return nil
@@ -192,7 +192,6 @@ func (client *Client) AddLabelsToGCSBucket(bucketName string, labels map[string]
 
 	client.logger.Debugf("Adding labels to GCS bucket with %s", labels)
 
-	ctx := context.Background()
 	bucket := client.Bucket(bucketName)
 
 	bucketAttrs := storage.BucketAttrsToUpdate{}
@@ -211,7 +210,7 @@ func (client *Client) AddLabelsToGCSBucket(bucketName string, labels map[string]
 }
 
 // CreateGCSBucket creates the GCS bucket specified in the given config.
-func (client *Client) CreateGCSBucket(bucketName string) error {
+func (client *Client) CreateGCSBucket(ctx context.Context, bucketName string) error {
 	client.logger.Debugf("Creating GCS bucket %s in project %s", bucketName, client.Project)
 
 	// The project ID to which the bucket belongs. This is only used when creating a new bucket during initialization.
@@ -219,7 +218,6 @@ func (client *Client) CreateGCSBucket(bucketName string) error {
 	// operation.
 	projectID := client.Project
 
-	ctx := context.Background()
 	bucket := client.Bucket(bucketName)
 
 	bucketAttrs := &storage.BucketAttrs{}

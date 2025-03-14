@@ -1,3 +1,4 @@
+// Package gcs represents GCS backend for interacting with remote state.
 package gcs
 
 import (

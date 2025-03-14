@@ -46,8 +46,8 @@ func (cfg *Config) String() string {
 }
 
 // Validate validates that the remote state is configured correctly.
-func (config *Config) Validate() error {
-	if config.BackendName == "" {
+func (cfg *Config) Validate() error {
+	if cfg.BackendName == "" {
 		return errors.New(ErrRemoteBackendMissing)
 	}
 
@@ -135,7 +135,7 @@ func (cfgFile *ConfigFile) String() string {
 	)
 }
 
-// Convert the parsed config file remote state struct to the internal representation struct of remote state
+// Config converts the parsed config file remote state struct to the internal representation struct of remote state
 // configurations.
 func (cfgFile *ConfigFile) Config() (*Config, error) {
 	remoteStateConfig, err := ctyhelper.ParseCtyValueToMap(cfgFile.BackendConfig)

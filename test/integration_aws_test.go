@@ -25,7 +25,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
-	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -232,7 +231,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 	require.NoError(t, err)
 	enforceSSE := false
 	for _, statement := range policyInBucket.Statement {
-		if statement.Sid == remotestate.SidEnforcedTLSPolicy {
+		if statement.Sid == s3backend.SidEnforcedTLSPolicy {
 			enforceSSE = true
 		}
 	}
@@ -1057,7 +1056,10 @@ func TestAwsAssumeRole(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 
-	identityARN, err := awshelper.GetAWSIdentityArn(nil, opts)
+	session, err := awshelper.CreateAwsSession(nil, opts)
+	require.NoError(t, err)
+
+	identityARN, err := awshelper.GetAWSIdentityArn(session)
 	require.NoError(t, err)
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
@@ -1163,7 +1165,10 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	t.Parallel()
 
-	identityArn, err := awshelper.GetAWSIdentityArn(nil, &options.TerragruntOptions{})
+	session, err := awshelper.CreateAwsSession(nil, &options.TerragruntOptions{})
+	require.NoError(t, err)
+
+	identityArn, err := awshelper.GetAWSIdentityArn(session)
 	require.NoError(t, err)
 
 	helpers.CleanupTerraformFolder(t, testFixtureReadIamRole)
@@ -1300,22 +1305,22 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 		t.Fatalf("Error creating mockOptions: %v", err)
 	}
 
-	sessionConfig := &awshelper.AwsSessionConfig{
-		Region: awsRegion,
+	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
+		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
+			Region: awsRegion,
+		},
 	}
 
-	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Fatalf("Error creating S3 client: %v", err)
-	}
+	s3Client, err := s3backend.NewClient(extS3Cfg, mockOptions)
+	require.NoError(t, err, "Error creating S3 client")
 
-	assert.True(t, remotestate.DoesS3BucketExist(context.TODO(), s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+	assert.True(t, s3Client.DoesS3BucketExist(context.TODO(), bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
 
 	if expectedTags != nil {
-		assertS3Tags(t, expectedTags, bucketName, s3Client)
+		assertS3Tags(t, expectedTags, bucketName, s3Client.S3)
 	}
 
-	assertS3PublicAccessBlocks(t, s3Client, bucketName)
+	assertS3PublicAccessBlocks(t, s3Client.S3, bucketName)
 }
 
 func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
@@ -1342,15 +1347,14 @@ func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.Ge
 		return nil, err
 	}
 
-	sessionConfig := &awshelper.AwsSessionConfig{
-		Region: awsRegion,
+	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
+		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
+			Region: awsRegion,
+		},
 	}
 
-	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Logf("Error creating S3 client: %v", err)
-		return nil, err
-	}
+	s3Client, err := s3backend.NewClient(extS3Cfg, mockOptions)
+	require.NoError(t, err, "Error creating S3 client")
 
 	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
 	output, err := s3Client.GetBucketEncryption(input)
@@ -1380,15 +1384,14 @@ func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
 		return err
 	}
 
-	sessionConfig := &awshelper.AwsSessionConfig{
-		Region: awsRegion,
+	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
+		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
+			Region: awsRegion,
+		},
 	}
 
-	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Logf("Error creating S3 client: %v", err)
-		return err
-	}
+	s3Client, err := s3backend.NewClient(extS3Cfg, mockOptions)
+	require.NoError(t, err, "Error creating S3 client")
 
 	t.Logf("Creating test s3 bucket %s", bucketName)
 	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
@@ -1436,14 +1439,15 @@ func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBuc
 		return nil, err
 	}
 
-	sessionConfig := &awshelper.AwsSessionConfig{
-		Region: awsRegion,
+	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
+		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
+			Region: awsRegion,
+		},
 	}
 
-	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		return nil, err
-	}
+	s3Client, err := s3backend.NewClient(extS3Cfg, mockOptions)
+	require.NoError(t, err, "Error creating S3 client")
+
 	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
 		Bucket: aws.String(bucketName),
 	})

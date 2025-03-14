@@ -1,3 +1,4 @@
+// Package hclhelper providers helpful tools for working with HCL values.
 package hclhelper
 
 import (

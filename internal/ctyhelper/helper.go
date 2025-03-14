@@ -1,3 +1,5 @@
+// Package ctyhelper providers helpful tools for working with cty values.
+//
 //nolint:dupl
 package ctyhelper
 

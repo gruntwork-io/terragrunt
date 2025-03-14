@@ -107,7 +107,7 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := s3backend.Config(testCase.config).Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := testCase.config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			createdLoggingInput := extS3Cfg.CreateS3LoggingInput()
@@ -148,7 +148,7 @@ func TestConfig_ForcePathStyleClientSession(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := s3backend.Config(testCase.config).Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := testCase.config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			awsSessionConfig := extS3Cfg.GetAwsSessionConfig()
@@ -197,7 +197,7 @@ func TestConfig_CustomStateEndpoints(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := s3backend.Config(testCase.config).Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := testCase.config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			actual := extS3Cfg.GetAwsSessionConfig()
@@ -231,7 +231,7 @@ func TestConfig_GetAwsSessionConfig(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := s3backend.Config(testCase.config).Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := testCase.config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &awshelper.AwsSessionConfig{
@@ -274,7 +274,7 @@ func TestConfig_GetAwsSessionConfigWithAssumeRole(t *testing.T) {
 
 			config := s3backend.Config{"assume_role": testCase.config}
 
-			extS3Cfg, err := s3backend.Config(config).Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &awshelper.AwsSessionConfig{
