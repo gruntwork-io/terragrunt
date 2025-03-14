@@ -203,8 +203,8 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 				name:      unitCopy.Name,
 				path:      unitCopy.Path,
 				source:    unitCopy.Source,
-				hidden:    unitCopy.Hidden != nil && *unitCopy.Hidden,
 				values:    unitCopy.Values,
+				hidden:    unitCopy.Hidden != nil && *unitCopy.Hidden,
 			}
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
