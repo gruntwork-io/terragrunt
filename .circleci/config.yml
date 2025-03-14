@@ -623,6 +623,60 @@ jobs:
           command: |
             GOPROXY=direct build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
 
+  test_signing_windows:
+    machine:
+      image: ubuntu-2204:2024.11.1
+    <<: *env
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Install sign-binary-helpers
+          command: |
+            curl -Ls https://raw.githubusercontent.com/gruntwork-io/gruntwork-installer/v0.0.40/bootstrap-gruntwork-installer.sh | bash /dev/stdin --version "${GRUNTWORK_INSTALLER_VERSION}"
+            gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
+            gruntwork-install --module-name "sign-binary-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
+      - run:
+          name: Sign windows binaries
+          command: |
+            env
+            
+            sudo apt-get update
+            sudo apt-get install -y osslsigncode
+            
+            echo "$WINDOWS_CERT" | base64 -d > certificate.p12
+            
+            osslsigncode sign \
+              -pkcs12 certificate.p12 \
+              -pass "$WINDOWS_KEY" \
+              -n "$WINDOWS_CERT_NAME" \
+              -i "$WINDOWS_CERT_URL" \
+              -ts "http://timestamp.digicert.com" \
+              -h sha256 \
+              -in "bin/terragrunt_windows_amd64.exe" \
+              -out "terragrunt_windows_amd64.exe"
+            
+            osslsigncode sign \
+              -pkcs12 certificate.p12 \
+              -pass "$WINDOWS_KEY" \
+              -n "$WINDOWS_CERT_NAME" \
+              -i "$WINDOWS_CERT_URL" \
+              -ts "http://timestamp.digicert.com" \
+              -h sha256 \
+              -in "bin/terragrunt_windows_386.exe" \
+              -out "terragrunt_windows_386.exe"
+            
+            cp *.exe bin/
+            
+            #sign-binary --os windows --install-windows-sign-dependencies bin/terragrunt_windows_amd64.exe
+            #sign-binary --os windows bin/terragrunt_windows_386.exe
+      - persist_to_workspace:
+          root: .
+          paths: [bin]
+      - store_artifacts:
+          path: bin
+
   test_signing:
     <<: *env
     macos:
@@ -951,6 +1005,17 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
+      - test_signing_windows:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+            - WINDOWS__code-signing
       - test_build_no_proxy:
           filters:
             tags:
