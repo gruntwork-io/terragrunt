@@ -1655,6 +1655,7 @@ The `unit` block supports the following arguments:
 - `source` (attribute): Specifies where to find the Terragrunt configuration files for this unit. This follows the same syntax as the `source` parameter in the `terraform` block.
 - `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`). If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory.
 - `values` (attribute, optional): A map of values that will be passed to the unit as inputs.
+- `hidden` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the unit **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying their existing directory structure.
 
 Example:
 
@@ -1703,6 +1704,47 @@ inputs = {
 }
 ```
 
+Example usage of `hidden` attribute:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-units.git//networking/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-units.git//database/rds?ref=v0.0.1"
+  path   = "rds"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+  }
+  hidden = true
+}
+```
+
+With the above configuration, the resulting directory structure will be:
+
+```tree
+terragrunt.stack.hcl
+.terragrunt-stack
+├── vpc
+│   ├── terragrunt.values.hcl
+│   └── terragrunt.hcl
+rds
+├── terragrunt.values.hcl
+└── terragrunt.hcl
+```
+
+The `vpc` unit is placed inside `.terragrunt-stack`, as expected.
+The `database` (`rds`) unit is generated in the **same directory as `terragrunt.stack.hcl`**, rather than inside `.terragrunt-stack`, due to `hidden = true`.
+
 **Note:**  
 The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
@@ -1723,6 +1765,8 @@ The `stack` block supports the following arguments:
 - `source` (attribute): Specifies where to find the Terragrunt configuration files for this stack. This follows the same syntax as the `source` parameter in the `terraform` block.
 - `path` (attribute): The relative path within `.terragrunt-stack` where this stack should be generated.If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory.
 - `values` (attribute, optional): A map of custom values that can be passed to the stack. These values can be referenced within the stack's configuration files, allowing for customization without modifying the stack source.
+- `hidden` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the stack **will not** be placed inside `.terragrunt-stack` but will instead be generated in the **same directory as `terragrunt.stack.hcl`**.  
+  This enables **soft adoption** of stacks, allowing users to introduce `terragrunt.stack.hcl` above existing directories without restructuring their project layout.
 
 Example:
 
