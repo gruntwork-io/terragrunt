@@ -34,18 +34,18 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		{
 			&config.TerragruntConfig{},
-			&config.TerragruntConfig{RemoteState: &remotestate.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remotestate.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
-			&config.TerragruntConfig{RemoteState: &remotestate.RemoteState{Backend: "foo"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remotestate.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remotestate.RemoteState{Backend: "foo"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "foo"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "foo"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remotestate.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remotestate.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}}}},

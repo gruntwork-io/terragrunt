@@ -33,6 +33,8 @@ import (
 	"github.com/gruntwork-io/terratest/modules/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 )
 
 const (
@@ -278,7 +280,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTarge
 	}
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
-	assert.Equal(t, remotestate.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
+	assert.Equal(t, s3backend.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
 }
 
 func TestAwsRunAllCommand(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -43,6 +44,10 @@ const DynamodbPayPerRequestBillingMode = "PAY_PER_REQUEST"
 
 const sleepBetweenRetries = 20 * time.Second
 const maxRetries = 15
+
+func New(session *session.Session) *dynamodb.DynamoDB {
+	return dynamodb.New(session)
+}
 
 // CreateDynamoDBClient creates an authenticated client for DynamoDB.
 func CreateDynamoDBClient(config *awshelper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {

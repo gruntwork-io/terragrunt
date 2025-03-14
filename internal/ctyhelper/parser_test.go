@@ -1,10 +1,10 @@
-package config_test
+package ctyhelper_test
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -51,7 +51,7 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actualValue, err := config.UpdateUnknownCtyValValues(testCase.value)
+			actualValue, err := ctyhelper.UpdateUnknownCtyValValues(testCase.value)
 			require.NoError(t, err)
 
 			assert.Equal(t, testCase.expectedValue, actualValue)

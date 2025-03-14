@@ -1,4 +1,4 @@
-package remotestate
+package hclhelper
 
 import (
 	"fmt"

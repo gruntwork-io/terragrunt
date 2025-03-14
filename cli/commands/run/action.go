@@ -280,7 +280,7 @@ func GenerateConfig(opts *options.TerragruntOptions, cfg *config.TerragruntConfi
 	} else if cfg.RemoteState != nil {
 		// We use else if here because we don't need to check the backend configuration is defined when the remote state
 		// block has a `generate` attribute configured.
-		if err := checkTerraformCodeDefinesBackend(opts, cfg.RemoteState.Backend); err != nil {
+		if err := checkTerraformCodeDefinesBackend(opts, cfg.RemoteState.BackendName); err != nil {
 			return err
 		}
 	}
@@ -520,7 +520,7 @@ func prepareInitCommand(ctx context.Context, terragruntOptions *options.Terragru
 		}
 
 		if remoteStateNeedsInit {
-			if err := terragruntConfig.RemoteState.Initialize(ctx, terragruntOptions); err != nil {
+			if err := terragruntConfig.RemoteState.Init(ctx, terragruntOptions); err != nil {
 				return err
 			}
 		}

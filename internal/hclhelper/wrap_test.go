@@ -1,15 +1,15 @@
-package remotestate_test
+package hclhelper_test
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 )
 
 func TestWrapMapToSingleLineHcl(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		name     string
 		input    map[string]interface{}
 		expected string
@@ -26,15 +26,13 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := remotestate.WrapMapToSingleLineHcl(tt.input)
-			if result != tt.expected {
-				t.Errorf("Expected %s, but got %s", tt.expected, result)
+			result := hclhelper.WrapMapToSingleLineHcl(testCase.input)
+			if result != testCase.expected {
+				t.Errorf("Expected %s, but got %s", testCase.expected, result)
 			}
 		})
 	}

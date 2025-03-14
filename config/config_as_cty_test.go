@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
@@ -69,14 +70,14 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		TerraformBinary:             "terraform",
 		TerraformVersionConstraint:  "= 0.12.20",
 		TerragruntVersionConstraint: "= 0.23.18",
-		RemoteState: &remotestate.RemoteState{
-			Backend:                       "foo",
+		RemoteState: remotestate.New(&remotestate.Config{
+			BackendName:                   "foo",
 			DisableInit:                   true,
 			DisableDependencyOptimization: true,
-			Config: map[string]interface{}{
+			BackendConfig: map[string]interface{}{
 				"bar": "baz",
 			},
-		},
+		}),
 		Dependencies: &config.ModuleDependencies{
 			Paths: []string{"foo"},
 		},
@@ -142,7 +143,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	ctyVal, err := config.TerragruntConfigAsCty(&testConfig)
 	require.NoError(t, err)
 
-	ctyMap, err := config.ParseCtyValueToMap(ctyVal)
+	ctyMap, err := ctyhelper.ParseCtyValueToMap(ctyVal)
 	require.NoError(t, err)
 
 	// Test the root properties
@@ -167,15 +168,15 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 func TestRemoteStateAsCtyDrift(t *testing.T) {
 	t.Parallel()
 
-	testConfig := remotestate.RemoteState{
-		Backend:                       "foo",
+	testConfig := remotestate.Config{
+		BackendName:                   "foo",
 		DisableInit:                   true,
 		DisableDependencyOptimization: true,
-		Generate: &remotestate.RemoteStateGenerate{
+		Generate: &remotestate.ConfigGenerate{
 			Path:     "foo",
 			IfExists: "overwrite_terragrunt",
 		},
-		Config: map[string]interface{}{
+		BackendConfig: map[string]interface{}{
 			"bar": "baz",
 		},
 		Encryption: map[string]interface{}{
@@ -183,10 +184,10 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 		},
 	}
 
-	ctyVal, err := config.RemoteStateAsCty(&testConfig)
+	ctyVal, err := config.RemoteStateAsCty(remotestate.New(&testConfig))
 	require.NoError(t, err)
 
-	ctyMap, err := config.ParseCtyValueToMap(ctyVal)
+	ctyMap, err := ctyhelper.ParseCtyValueToMap(ctyVal)
 	require.NoError(t, err)
 
 	// Test the root properties

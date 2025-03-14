@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -196,8 +197,8 @@ type terragruntConfigFile struct {
 	//   backend = "s3"
 	//   config  = { ... }
 	// }
-	RemoteState     *remoteStateConfigFile `hcl:"remote_state,block"`
-	RemoteStateAttr *cty.Value             `hcl:"remote_state,optional"`
+	RemoteState     *remotestate.ConfigFile `hcl:"remote_state,block"`
+	RemoteStateAttr *cty.Value              `hcl:"remote_state,optional"`
 
 	Dependencies             *ModuleDependencies `hcl:"dependencies,block"`
 	DownloadDir              *string             `hcl:"download_dir,attr"`
@@ -252,74 +253,6 @@ type terragruntLocal struct {
 type terragruntIncludeIgnore struct {
 	Name   string   `hcl:"name,label"`
 	Remain hcl.Body `hcl:",remain"`
-}
-
-// Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
-type remoteStateConfigFile struct {
-	Backend                       string                     `hcl:"backend,attr"`
-	DisableInit                   *bool                      `hcl:"disable_init,attr"`
-	DisableDependencyOptimization *bool                      `hcl:"disable_dependency_optimization,attr"`
-	Generate                      *remoteStateConfigGenerate `hcl:"generate,attr"`
-	Config                        cty.Value                  `hcl:"config,attr"`
-	Encryption                    *cty.Value                 `hcl:"encryption,attr"`
-}
-
-func (remoteState *remoteStateConfigFile) String() string {
-	return fmt.Sprintf("remoteStateConfigFile{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
-}
-
-// Convert the parsed config file remote state struct to the internal representation struct of remote state
-// configurations.
-func (remoteState *remoteStateConfigFile) toConfig() (*remotestate.RemoteState, error) {
-	remoteStateConfig, err := ParseCtyValueToMap(remoteState.Config)
-	if err != nil {
-		return nil, err
-	}
-
-	config := &remotestate.RemoteState{}
-
-	config.Backend = remoteState.Backend
-	if remoteState.Generate != nil {
-		config.Generate = &remotestate.RemoteStateGenerate{
-			Path:     remoteState.Generate.Path,
-			IfExists: remoteState.Generate.IfExists,
-		}
-	}
-
-	config.Config = remoteStateConfig
-
-	if remoteState.Encryption != nil && !remoteState.Encryption.IsNull() {
-		remoteStateEncryption, err := ParseCtyValueToMap(*remoteState.Encryption)
-		if err != nil {
-			return nil, err
-		}
-
-		config.Encryption = remoteStateEncryption
-	} else {
-		config.Encryption = nil
-	}
-
-	if remoteState.DisableInit != nil {
-		config.DisableInit = *remoteState.DisableInit
-	}
-
-	if remoteState.DisableDependencyOptimization != nil {
-		config.DisableDependencyOptimization = *remoteState.DisableDependencyOptimization
-	}
-
-	config.FillDefaults()
-
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-
-	return config, err
-}
-
-type remoteStateConfigGenerate struct {
-	// We use cty instead of hcl, since we are using this type to convert an attr and not a block.
-	Path     string `cty:"path"`
-	IfExists string `cty:"if_exists"`
 }
 
 // Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
@@ -1056,7 +989,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	}
 
 	if terragruntConfig.Inputs != nil {
-		inputs, err := UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
+		inputs, err := ctyhelper.UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
 		}
@@ -1130,27 +1063,27 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	defaultMetadata := map[string]interface{}{FoundInFile: configPath}
 
 	if terragruntConfigFromFile.RemoteState != nil {
-		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
+		config, err := terragruntConfigFromFile.RemoteState.Config()
 		if err != nil {
 			return nil, err
 		}
 
-		terragruntConfig.RemoteState = remoteState
+		terragruntConfig.RemoteState = remotestate.New(config)
 		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RemoteStateAttr != nil {
-		remoteStateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
+		remoteStateMap, err := ctyhelper.ParseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
 		if err != nil {
 			return nil, err
 		}
 
-		var remoteState *remotestate.RemoteState
-		if err := mapstructure.Decode(remoteStateMap, &remoteState); err != nil {
+		var config *remotestate.Config
+		if err := mapstructure.Decode(remoteStateMap, &config); err != nil {
 			return nil, err
 		}
 
-		terragruntConfig.RemoteState = remoteState
+		terragruntConfig.RemoteState = remotestate.New(config)
 		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
 
@@ -1270,7 +1203,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
 	if terragruntConfigFromFile.GenerateAttrs != nil {
-		generateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
+		generateMap, err := ctyhelper.ParseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
 		if err != nil {
 			return nil, err
 		}
@@ -1336,7 +1269,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {
-		inputs, err := ParseCtyValueToMap(*terragruntConfigFromFile.Inputs)
+		inputs, err := ctyhelper.ParseCtyValueToMap(*terragruntConfigFromFile.Inputs)
 		if err != nil {
 			return nil, err
 		}
@@ -1346,7 +1279,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
-		localsParsed, err := ParseCtyValueToMap(*ctx.Locals)
+		localsParsed, err := ctyhelper.ParseCtyValueToMap(*ctx.Locals)
 		if err != nil {
 			return nil, err
 		}
@@ -1503,7 +1436,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	meta := map[string]interface{}{}
 
 	if cfg.Engine.Meta != nil {
-		parsedMeta, err := ParseCtyValueToMap(*cfg.Engine.Meta)
+		parsedMeta, err := ctyhelper.ParseCtyValueToMap(*cfg.Engine.Meta)
 		if err != nil {
 			return nil, err
 		}
@@ -1581,7 +1514,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 				return nil, err
 			}
 
-			signals, err = ParseCtyValueToMap(value)
+			signals, err = ctyhelper.ParseCtyValueToMap(value)
 			if err != nil {
 				return nil, err
 			}

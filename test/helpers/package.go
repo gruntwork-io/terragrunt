@@ -40,7 +40,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -188,7 +187,7 @@ func DeleteS3BucketE(t *testing.T, awsRegion string, bucketName string, opts ...
 		Region: awsRegion,
 	}
 
-	s3Client, err := remotestate.CreateS3Client(sessionConfig, mockOptions)
+	s3Client, err := awshelper.CreateS3Client(sessionConfig, mockOptions)
 	if err != nil {
 		t.Logf("Error creating S3 client: %v", err)
 		return err

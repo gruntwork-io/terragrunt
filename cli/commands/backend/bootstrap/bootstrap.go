@@ -47,7 +47,7 @@ func initRemoteState(ctx context.Context, opts *options.TerragruntOptions, remot
 		return err
 	}
 
-	if err := remoteState.Initialize(ctx, opts); err != nil {
+	if err := remoteState.Init(ctx, opts); err != nil {
 		return err
 	}
 
