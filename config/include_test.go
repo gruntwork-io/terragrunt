@@ -167,7 +167,7 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 
 		err := testCase.includedConfig.Merge(testCase.config, mockOptionsForTest(t))
 		require.NoError(t, err)
-		assert.Equal(t, testCase.expected, testCase.includedConfig)
+		assert.EqualExportedValues(t, testCase.expected, testCase.includedConfig)
 	}
 }
 

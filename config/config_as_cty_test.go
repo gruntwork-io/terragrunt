@@ -295,7 +295,7 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 	t.Helper()
 
 	switch fieldName {
-	case "Backend":
+	case "BackendName":
 		return "backend", true
 	case "DisableInit":
 		return "disable_init", true
@@ -303,7 +303,7 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 		return "disable_dependency_optimization", true
 	case "Generate":
 		return "generate", true
-	case "Config":
+	case "BackendConfig":
 		return "config", true
 	case "Encryption":
 		return "encryption", true
