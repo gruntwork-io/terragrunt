@@ -20,6 +20,7 @@ const (
 	testScaffoldTemplateModule         = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template"
 	testScaffoldExternalTemplateModule = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template"
 	testScaffoldLocalModulePath        = "fixtures/scaffold/scaffold-module"
+	testScaffoldWithRootHCL            = "fixtures/scaffold/root-hcl"
 	testScaffold3rdPartyModulePath     = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
 )
 
@@ -200,4 +201,27 @@ func TestScaffoldOutputFolderFlag(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Scaffolding completed")
 	assert.FileExists(t, outputFolder+"/terragrunt.hcl")
+}
+
+func TestScaffoldWithRootHCL(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithRootHCL)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testScaffoldWithRootHCL)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
+		"terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s",
+		filepath.Join(testPath, "unit"),
+		testScaffoldModuleURL,
+	))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+
+	assert.FileExists(t, filepath.Join(testPath, "unit", "terragrunt.hcl"))
+
+	// Read the file
+	content, err := util.ReadFileAsString(filepath.Join(testPath, "unit", "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, content, `path = find_in_parent_folders("root.hcl")`)
 }
