@@ -288,86 +288,54 @@ func (s *TreeStyler) Style(t *tree.Tree) *tree.Tree {
 		ItemStyle(s.itemStyle)
 }
 
-// generateTree creates a tree structure from ListedConfigs by recursively processing paths
+// generateTree creates a tree structure from ListedConfigs
 func generateTree(configs ListedConfigs) *tree.Tree {
 	root := tree.Root(".")
-
-	// Create root direct children
-	for _, config := range configs {
-		dir := filepath.Dir(config.Path)
-		if dir == "." {
-			root.Child(filepath.Base(config.Path))
-		}
-	}
-
-	// Construct subtree map
-	directSubtrees := make(map[string][]string)
+	nodes := make(map[string]*tree.Tree)
 
 	for _, config := range configs {
-		if filepath.Dir(config.Path) == "." {
+		parts := preProcessPath(config.Path)
+		if len(parts.segments) == 0 || (len(parts.segments) == 1 && parts.segments[0] == ".") {
 			continue
 		}
 
-		startOfPath := strings.Split(config.Path, string(os.PathSeparator))[0]
-		if _, exists := directSubtrees[startOfPath]; !exists {
-			// Collect all configs that have the same startOfPath
-			for _, config := range configs {
-				if strings.Split(config.Path, string(os.PathSeparator))[0] == startOfPath {
-					pathRemainder := strings.TrimPrefix(config.Path, startOfPath+string(os.PathSeparator))
+		currentPath := "."
+		currentNode := root
 
-					directSubtrees[startOfPath] = append(directSubtrees[startOfPath], pathRemainder)
-				}
+		for _, segment := range parts.segments {
+			nextPath := filepath.Join(currentPath, segment)
+			if _, exists := nodes[nextPath]; !exists {
+				newNode := tree.New().Root(segment)
+				nodes[nextPath] = newNode
+				currentNode.Child(newNode)
 			}
-		}
-	}
 
-	// Add a child for each direct subtree
-	for subtreeRoot, subtreeChildren := range directSubtrees {
-		root.Child(generateSubtree(subtreeRoot, subtreeChildren))
+			currentNode = nodes[nextPath]
+			currentPath = nextPath
+		}
 	}
 
 	return root
 }
 
-// generateSubtree generates a subtree for the given directory.
-func generateSubtree(root string, children []string) *tree.Tree {
-	subtree := tree.New().Root(root)
+// pathParts holds the pre-processed parts of a config path.
+type pathParts struct {
+	dir      string
+	base     string
+	segments []string
+}
 
-	// Create root direct children
-	for _, child := range children {
-		dir := filepath.Dir(child)
-		if dir == "." {
-			subtree.Child(filepath.Base(child))
-		}
+// preProcessPath splits a path into its components.
+func preProcessPath(path string) pathParts {
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	segments := strings.Split(path, string(os.PathSeparator)) // Split once
+
+	return pathParts{
+		dir:      dir,
+		base:     base,
+		segments: segments,
 	}
-
-	// Construct subtree map
-	directSubtrees := make(map[string][]string)
-
-	for _, child := range children {
-		if filepath.Dir(child) == "." {
-			continue
-		}
-
-		startOfPath := strings.Split(child, string(os.PathSeparator))[0]
-		if _, exists := directSubtrees[startOfPath]; !exists {
-			// Collect all configs that have the same startOfPath
-			for _, child := range children {
-				if strings.Split(child, string(os.PathSeparator))[0] == startOfPath {
-					pathRemainder := strings.TrimPrefix(child, startOfPath+string(os.PathSeparator))
-
-					directSubtrees[startOfPath] = append(directSubtrees[startOfPath], pathRemainder)
-				}
-			}
-		}
-	}
-
-	// Add a child for each direct subtree
-	for subtreeRoot, subtreeChildren := range directSubtrees {
-		subtree.Child(generateSubtree(subtreeRoot, subtreeChildren))
-	}
-
-	return subtree
 }
 
 // renderTree renders the configurations in a tree format.
