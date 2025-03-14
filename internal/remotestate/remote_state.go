@@ -78,7 +78,7 @@ func (remote *RemoteState) NeedsInit(ctx context.Context, opts *options.Terragru
 	}
 
 	// Remote state not configured.
-	if tfState == nil {
+	if tfState == nil || tfState.Backend == nil {
 		return true, nil
 	}
 
