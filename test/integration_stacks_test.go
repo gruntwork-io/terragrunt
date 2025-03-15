@@ -838,24 +838,21 @@ func TestStacksApplyNoStack(t *testing.T) {
 	validateNoStackDirs(t, rootPath)
 }
 
-// validateNoStackDirs check if the hidden directories are created and contain test files
+// validateNoStackDirs check if the directories outside of stack are created and contain test files
 func validateNoStackDirs(t *testing.T, rootPath string) {
 	t.Helper()
-	// check that are created hidden directories
 	stackConfig := util.JoinPath(rootPath, "stack-config")
 	assert.DirExists(t, stackConfig)
 
 	unitConfig := util.JoinPath(rootPath, "unit-config")
 	assert.DirExists(t, unitConfig)
 
-	// check that hidden directories contain config.txt
 	configPath := util.JoinPath(stackConfig, "config.txt")
 	assert.FileExists(t, configPath)
 
 	configPath = util.JoinPath(unitConfig, "config.txt")
 	assert.FileExists(t, configPath)
 
-	// check that second stack also generated hidden directories
 	secondStackUnitConfigDir := util.JoinPath(rootPath, ".terragrunt-stack", "dev", "second-stack-unit-config")
 	secondStackUnitConfig := util.JoinPath(secondStackUnitConfigDir, "config.txt")
 
