@@ -44,18 +44,18 @@ func (backend *Backend) NeedsInit(ctx context.Context, backednConfig backend.Con
 		bucketName = gcsCfg.Bucket
 	)
 
-	gcsClient, err := NewClient(ctx, extGCSCfg, opts.Logger)
+	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
 	if err != nil {
 		return false, err
 	}
 
 	defer func() {
-		if err := gcsClient.Close(); err != nil {
+		if err := client.Close(); err != nil {
 			opts.Logger.Warnf("Error closing GCS client: %v", err)
 		}
 	}()
 
-	if !gcsClient.DoesGCSBucketExist(ctx, bucketName) {
+	if !client.DoesGCSBucketExist(ctx, bucketName) {
 		return true, nil
 	}
 
@@ -70,7 +70,18 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 		return err
 	}
 
-	if err := extGCSCfg.Validate(ctx); err != nil {
+	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := client.Close(); err != nil {
+			opts.Logger.Warnf("Error closing GCS client: %v", err)
+		}
+	}()
+
+	if err := extGCSCfg.Validate(ctx, client); err != nil {
 		return err
 	}
 
@@ -90,27 +101,16 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 		return nil
 	}
 
-	gcsClient, err := NewClient(ctx, extGCSCfg, opts.Logger)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := gcsClient.Close(); err != nil {
-			opts.Logger.Warnf("Error closing GCS client: %v", err)
-		}
-	}()
-
 	// If bucket is specified and skip_bucket_creation is false then check if Bucket needs to be created
 	if !extGCSCfg.SkipBucketCreation && bucketName != "" {
-		if err := gcsClient.createGCSBucketIfNecessary(ctx, bucketName, opts); err != nil {
+		if err := client.createGCSBucketIfNecessary(ctx, bucketName, opts); err != nil {
 			return err
 		}
 	}
 	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
 	if !extGCSCfg.SkipBucketVersioning && bucketName != "" {
 		// TODO: Remove lint suppression
-		if err := gcsClient.checkIfGCSVersioningEnabled(bucketName); err != nil { //nolint:contextcheck
+		if err := client.checkIfGCSVersioningEnabled(bucketName); err != nil { //nolint:contextcheck
 			return err
 		}
 	}

@@ -35,14 +35,24 @@ type ExtendedRemoteStateConfigGCS struct {
 }
 
 // Validate validates the configuration for GCS remote state.
-func (cfg *ExtendedRemoteStateConfigGCS) Validate(ctx context.Context) error {
-	config := cfg.RemoteStateConfigGCS
+func (cfg *ExtendedRemoteStateConfigGCS) Validate(ctx context.Context, client *Client) error {
+	var bucketName = cfg.RemoteStateConfigGCS.Bucket
 
 	// Bucket is always a required configuration parameter when not skipping bucket creation
 	// so we check it here to make sure we have handle to the bucket
 	// before we start validating the rest of the configuration.
-	if config.Bucket == "" {
+	if bucketName == "" {
 		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
+	}
+
+	// If both project and location are provided, the configuration is valid
+	if cfg.Project != "" && cfg.Location != "" {
+		return nil
+	}
+
+	// Check if the bucket exists
+	if exists := client.DoesGCSBucketExist(ctx, bucketName); exists {
+		return nil
 	}
 
 	// At this point, the bucket doesn't exist and we need both project and location

@@ -16,7 +16,7 @@ func (cfg Config) IsEqual(comparableCfg Config, backendName string, logger log.L
 
 	existingConfigNonNil := copyExistingNotNullValues(comparableCfg, cfg)
 
-	if reflect.DeepEqual(existingConfigNonNil, cfg) {
+	if reflect.DeepEqual(existingConfigNonNil, map[string]any(cfg)) {
 		logger.Debugf("Backend %s has not changed.", backendName)
 
 		return true
@@ -28,12 +28,12 @@ func (cfg Config) IsEqual(comparableCfg Config, backendName string, logger log.L
 }
 
 // copyExistingNotNullValues copies the non-nil values from the existingMap to a new map
-func copyExistingNotNullValues(existingMap, newMap Config) Config {
+func copyExistingNotNullValues(existingMap, newMap map[string]any) map[string]any {
 	if existingMap == nil {
 		return nil
 	}
 
-	existingConfigNonNil := Config{}
+	existingConfigNonNil := map[string]any{}
 
 	for existingKey, existingValue := range existingMap {
 		newValue, newValueIsSet := newMap[existingKey]

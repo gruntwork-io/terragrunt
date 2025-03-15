@@ -270,7 +270,7 @@ const (
 )
 
 // RemoteStateConfigToTerraformCode converts the arbitrary map that represents a remote state config into HCL code to configure that remote state.
-func RemoteStateConfigToTerraformCode(backend string, config map[string]any, encryption map[string]interface{}) ([]byte, error) {
+func RemoteStateConfigToTerraformCode(backend string, config map[string]any, encryption map[string]any) ([]byte, error) {
 	f := hclwrite.NewEmptyFile()
 	terraformBlock := f.Body().AppendNewBlock(terraformBlock, nil).Body()
 	backendBlock := terraformBlock.AppendNewBlock(backendBlock, []string{backend})
