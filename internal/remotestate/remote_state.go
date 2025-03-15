@@ -77,18 +77,7 @@ func (remote *RemoteState) NeedsInit(ctx context.Context, opts *options.Terragru
 		return false, err
 	}
 
-	// Remote state not configured.
-	if tfState == nil || tfState.Backend == nil {
-		return true, nil
-	}
-
-	if len(tfState.Backend.Config) == 0 && len(remote.Config.BackendConfig) != 0 {
-		return true, nil
-	}
-
-	if tfState.Backend.Type != remote.backend.Name() {
-		opts.Logger.Debugf("Backend type has changed from %s to %s", remote.backend.Name(), tfState.Backend.Type)
-
+	if remote.Config.NeedsInit(tfState, opts.Logger) {
 		return true, nil
 	}
 

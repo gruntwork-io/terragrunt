@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -52,6 +53,24 @@ func (cfg *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (cfg *Config) NeedsInit(tfState *TerraformState, logger log.Logger) bool {
+	if tfState == nil || tfState.Backend == nil {
+		return true
+	}
+
+	if len(tfState.Backend.Config) == 0 && len(cfg.BackendConfig) != 0 {
+		return true
+	}
+
+	if tfState.Backend.Type != cfg.BackendName {
+		logger.Debugf("Backend type has changed from %s to %s", cfg.BackendName, tfState.Backend.Type)
+
+		return true
+	}
+
+	return false
 }
 
 // GenerateTerraformCode generates the terraform code for configuring remote state backend.

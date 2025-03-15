@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -27,31 +26,6 @@ type TerraformState struct {
 	Serial  int                    `json:"Serial"`
 	Backend *TerraformBackend      `json:"Backend"`
 	Modules []TerraformStateModule `json:"Modules"`
-}
-
-func (state *TerraformState) NeedInit(config Config, backendName string, logger log.Logger) bool {
-	if state == nil || state.Backend == nil {
-		return true
-	}
-
-	if state.Backend.Config == nil && len(config.BackendConfig) != 0 {
-		return true
-	}
-
-	if state.Backend.Type != backendName {
-		logger.Debugf("Backend type has changed from %s to %s", backendName, state.Backend.Type)
-		return true
-	}
-
-	if len(config.BackendConfig) == 0 && len(state.Backend.Config) == 0 {
-		return false
-	}
-
-	if !state.IsRemote() {
-		return false
-	}
-
-	return false
 }
 
 // TerraformBackend represents the structure of the "backend" section in the Terraform .tfstate file.
