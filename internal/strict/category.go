@@ -21,7 +21,7 @@ func (categories Categories) FilterByNames(names ...string) Categories {
 	return filtered
 }
 
-// FilterNotHidden filters `categories` by the `Hidden:false` field.
+// FilterNotHidden filters `categories` by the `NoStack:false` field.
 func (categories Categories) FilterNotHidden() Categories {
 	var filtered Categories
 

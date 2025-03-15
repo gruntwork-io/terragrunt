@@ -72,7 +72,7 @@ func (commands Commands) SkipRunning() Commands {
 	return commands
 }
 
-// VisibleCommands returns a slice of the Commands with Hidden=false.
+// VisibleCommands returns a slice of the Commands with NoStack=false.
 // Used by `urfave/cli` package to generate help.
 func (commands Commands) VisibleCommands() Commands {
 	var visible = make(Commands, 0, len(commands))

@@ -89,7 +89,7 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	return discovery
 }
 
-// WithHidden sets the Hidden flag to true.
+// WithHidden sets the NoStack flag to true.
 func (d *Discovery) WithHidden() *Discovery {
 	d.hidden = true
 

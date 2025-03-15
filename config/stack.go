@@ -41,20 +41,20 @@ type StackConfigFile struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
-	Name   string     `hcl:",label"`
-	Source string     `hcl:"source,attr"`
-	Path   string     `hcl:"path,attr"`
-	Hidden *bool      `hcl:"hidden,attr"`
-	Values *cty.Value `hcl:"values,attr"`
+	Name    string     `hcl:",label"`
+	Source  string     `hcl:"source,attr"`
+	Path    string     `hcl:"path,attr"`
+	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	Values  *cty.Value `hcl:"values,attr"`
 }
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
-	Name   string     `hcl:",label"`
-	Source string     `hcl:"source,attr"`
-	Path   string     `hcl:"path,attr"`
-	Hidden *bool      `hcl:"hidden,attr"`
-	Values *cty.Value `hcl:"values,attr"`
+	Name    string     `hcl:",label"`
+	Source  string     `hcl:"source,attr"`
+	Path    string     `hcl:"path,attr"`
+	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	Values  *cty.Value `hcl:"values,attr"`
 }
 
 // GenerateStacks generates the stack files.
@@ -204,7 +204,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 				path:      unitCopy.Path,
 				source:    unitCopy.Source,
 				values:    unitCopy.Values,
-				hidden:    unitCopy.Hidden != nil && *unitCopy.Hidden,
+				noStack:   unitCopy.NoStack != nil && *unitCopy.NoStack,
 			}
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
@@ -233,7 +233,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 				name:      stackCopy.Name,
 				path:      stackCopy.Path,
 				source:    stackCopy.Source,
-				hidden:    stackCopy.Hidden != nil && *stackCopy.Hidden,
+				noStack:   stackCopy.NoStack != nil && *stackCopy.NoStack,
 				values:    stackCopy.Values,
 			}
 
@@ -259,7 +259,7 @@ type componentToProcess struct {
 	name      string
 	path      string
 	source    string
-	hidden    bool
+	noStack   bool
 	values    *cty.Value
 }
 
@@ -279,9 +279,8 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		dest = filepath.Join(cmp.targetDir, cmp.path)
 	}
 
-	if cmp.hidden {
-		opts.Logger.Debugf("Handling as hidden %s", cmp.name)
-		// for hidden components, we copy the files to the base directory of the target directory
+	if cmp.noStack {
+		// for noStack components, we copy the files to the base directory of the target directory
 		dest = filepath.Join(filepath.Dir(cmp.targetDir), cmp.path)
 	}
 

@@ -33,7 +33,7 @@ const (
 	testFixtureStackDependencies   = "fixtures/stacks/dependencies"
 	testFixtureStackAbsolutePath   = "fixtures/stacks/absolute-path"
 	testFixtureStackSourceMap      = "fixtures/stacks/source-map"
-	testFixtureStackHidden         = "fixtures/stacks/hidden"
+	testFixtureNoStack             = "fixtures/stacks/no-stack"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -810,36 +810,36 @@ func TestStacksGenerateAbsolutePath(t *testing.T) {
 	assert.NoDirExists(t, app1)
 }
 
-func TestStacksGenerateHidden(t *testing.T) {
+func TestStacksGenerateNoStack(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackHidden)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackHidden)
-	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackHidden)
+	helpers.CleanupTerraformFolder(t, testFixtureNoStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNoStack)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "project")
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 
-	validateHiddenDirs(t, rootPath)
+	validateNoStackDirs(t, rootPath)
 }
 
-func TestStacksApplyHidden(t *testing.T) {
+func TestStacksApplyNoStack(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackHidden)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackHidden)
-	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackHidden)
+	helpers.CleanupTerraformFolder(t, testFixtureNoStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNoStack)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "project")
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
-	validateHiddenDirs(t, rootPath)
+	validateNoStackDirs(t, rootPath)
 }
 
-// validateHiddenDirs check if the hidden directories are created and contain test files
-func validateHiddenDirs(t *testing.T, rootPath string) {
+// validateNoStackDirs check if the hidden directories are created and contain test files
+func validateNoStackDirs(t *testing.T, rootPath string) {
 	t.Helper()
 	// check that are created hidden directories
 	stackConfig := util.JoinPath(rootPath, "stack-config")
