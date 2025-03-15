@@ -8,47 +8,47 @@ import (
 
 type Config map[string]any
 
-// IsEqual returns true if the given comparableCfg is in any way different than what is configured for the backend.
-func (cfg Config) IsEqual(comparableCfg Config, backendName string, logger log.Logger) bool {
-	if len(cfg) == 0 && len(comparableCfg) == 0 {
+// IsEqual returns true if the given `targetCfg` config is in any way different than what is configured for the backend.
+func (cfg Config) IsEqual(targetCfg Config, backendName string, logger log.Logger) bool {
+	if len(cfg) == 0 && len(targetCfg) == 0 {
 		return true
 	}
 
-	existingConfigNonNil := copyExistingNotNullValues(comparableCfg, cfg)
+	targetCfgNonNil := cfg.CopyNotNullValues(targetCfg)
 
-	if reflect.DeepEqual(existingConfigNonNil, map[string]any(cfg)) {
+	if reflect.DeepEqual(targetCfgNonNil, map[string]any(cfg)) {
 		logger.Debugf("Backend %s has not changed.", backendName)
 
 		return true
 	}
 
-	logger.Debugf("Backend config %s has changed from %s to %s", backendName, existingConfigNonNil, cfg)
+	logger.Debugf("Backend config %s has changed from %s to %s", backendName, targetCfgNonNil, cfg)
 
 	return false
 }
 
-// copyExistingNotNullValues copies the non-nil values from the existingMap to a new map
-func copyExistingNotNullValues(existingMap, newMap map[string]any) map[string]any {
-	if existingMap == nil {
+// CopyNotNullValues copies the non-nil values from the `targetCfg` whose keys also exist in the `cfg` to the new map.
+func (cfg Config) CopyNotNullValues(targetCfg map[string]any) map[string]any {
+	if targetCfg == nil {
 		return nil
 	}
 
-	existingConfigNonNil := map[string]any{}
+	targetCfgNonNil := map[string]any{}
 
-	for existingKey, existingValue := range existingMap {
-		newValue, newValueIsSet := newMap[existingKey]
+	for existingKey, existingValue := range targetCfg {
+		newValue, newValueIsSet := cfg[existingKey]
 		if existingValue == nil && !newValueIsSet {
 			continue
 		}
 		// if newValue and existingValue are both maps, we need to recursively copy the non-nil values
 		if existingValueMap, existingValueIsMap := existingValue.(map[string]any); existingValueIsMap {
 			if newValueMap, newValueIsMap := newValue.(map[string]any); newValueIsMap {
-				existingValue = copyExistingNotNullValues(existingValueMap, newValueMap)
+				existingValue = Config(newValueMap).CopyNotNullValues(existingValueMap)
 			}
 		}
 
-		existingConfigNonNil[existingKey] = existingValue
+		targetCfgNonNil[existingKey] = existingValue
 	}
 
-	return existingConfigNonNil
+	return targetCfgNonNil
 }
