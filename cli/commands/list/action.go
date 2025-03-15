@@ -60,7 +60,7 @@ func Run(ctx context.Context, opts *Options) error {
 	case FormatJSON:
 		return outputJSON(opts, listedCfgs)
 	case FormatTree:
-		return outputTree(opts, listedCfgs)
+		return outputTree(opts, listedCfgs, opts.Sort)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -109,7 +109,7 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 			Path: relPath,
 		}
 
-		if !opts.Dependencies || len(config.Dependencies) == 0 {
+		if len(config.Dependencies) == 0 {
 			listedCfgs = append(listedCfgs, listedCfg)
 
 			continue
@@ -252,10 +252,10 @@ func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
 }
 
 // outputTree outputs the discovered configurations in tree format.
-func outputTree(opts *Options, configs ListedConfigs) error {
+func outputTree(opts *Options, configs ListedConfigs, sort string) error {
 	s := NewTreeStyler(shouldColor(opts))
 
-	return renderTree(opts, configs, s)
+	return renderTree(opts, configs, s, sort)
 }
 
 type TreeStyler struct {
@@ -318,6 +318,62 @@ func generateTree(configs ListedConfigs) *tree.Tree {
 	return root
 }
 
+// generateDAGTree creates a tree structure from ListedConfigs.
+// It assumes that the configs are already sorted in DAG order.
+// As such, it will first construct root nodes for each config
+// without a dependency in the listed configs. Then, it will
+// connect the remaining nodes to their dependencies, which
+// should be doable in a single pass through the configs.
+// There may be duplicate entries for dependency nodes, as
+// a node may be a dependency for multiple configs.
+// That's OK.
+func generateDAGTree(configs ListedConfigs) *tree.Tree {
+	root := tree.Root(".")
+
+	rootNodes := make(map[string]*tree.Tree)
+	dependencyNodes := make(map[string]*tree.Tree)
+
+	for _, config := range configs {
+		// We can assume that the configs are already sorted in DAG order,
+		// so we can assume that it's fine to start working on dependencies
+		// immediately after adding the root nodes.
+		if len(config.Dependencies) == 0 || !configs.Contains(config.Path) {
+			rootNodes[config.Path] = tree.New().Root(config.Path)
+
+			continue
+		}
+
+		// If the config has dependencies, we need to add them to the correct tree.
+		// So that we don't lose track of sub-dependencies, we also
+		// need to add non-root dependency nodes to the dependencyNodes map.
+		for _, dependency := range config.Dependencies {
+			if _, exists := rootNodes[dependency]; exists {
+				dependencyNode := tree.New().Root(config.Path)
+				rootNodes[dependency].Child(dependencyNode)
+				dependencyNodes[config.Path] = dependencyNode
+
+				continue
+			}
+
+			// Theoretically, this should always be true, because we've already
+			// added the dependency when we added the root node.
+			if _, exists := dependencyNodes[dependency]; exists {
+				newDependencyNode := tree.New().Root(config.Path)
+				dependencyNodes[dependency].Child(newDependencyNode)
+				dependencyNodes[config.Path] = newDependencyNode
+
+				continue
+			}
+		}
+	}
+
+	for _, node := range rootNodes {
+		root.Child(node)
+	}
+
+	return root
+}
+
 // pathParts holds the pre-processed parts of a config path.
 type pathParts struct {
 	dir      string
@@ -339,8 +395,15 @@ func preProcessPath(path string) pathParts {
 }
 
 // renderTree renders the configurations in a tree format.
-func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler) error {
-	t := generateTree(configs)
+func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, sort string) error {
+	var t *tree.Tree
+
+	if sort == SortDAG {
+		t = generateDAGTree(configs)
+	} else {
+		t = generateTree(configs)
+	}
+
 	t = s.Style(t)
 
 	_, err := opts.Writer.Write([]byte(t.String() + "\n"))
