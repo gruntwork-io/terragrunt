@@ -329,7 +329,7 @@ type pathParts struct {
 func preProcessPath(path string) pathParts {
 	dir := filepath.Dir(path)
 	base := filepath.Base(path)
-	segments := strings.Split(path, string(os.PathSeparator)) // Split once
+	segments := strings.Split(path, string(os.PathSeparator))
 
 	return pathParts{
 		dir:      dir,
@@ -360,7 +360,10 @@ func getMaxCols(configs ListedConfigs) (int, int) {
 
 	terminalWidth := getTerminalWidth()
 	longestPathLen := getLongestPathLen(configs)
-	colWidth := longestPathLen + 2
+
+	const padding = 2
+
+	colWidth := longestPathLen + padding
 
 	if longestPathLen > 0 {
 		maxCols = terminalWidth / colWidth
