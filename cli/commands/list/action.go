@@ -209,6 +209,7 @@ func buildJSONTree(configs ListedConfigs, opts *Options) []*JSONTree {
 
 			// Find if child already exists
 			var childNode *JSONTree
+
 			for _, child := range currentNode.Children {
 				if child.Path == segment {
 					childNode = child
@@ -468,7 +469,7 @@ func renderLong(opts *Options, configs ListedConfigs, c *Colorizer) error {
 			return errors.New(err)
 		}
 
-		if len(config.Dependencies) > 0 {
+		if opts.Dependencies && len(config.Dependencies) > 0 {
 			colorizedDeps := []string{}
 
 			for _, dep := range config.Dependencies {
@@ -520,7 +521,14 @@ func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
 		}
 	}
 
-	_, err = opts.Writer.Write([]byte(c.ColorizeHeading("Dependencies\n")))
+	if opts.Dependencies {
+		_, err = opts.Writer.Write([]byte(c.ColorizeHeading("Dependencies")))
+		if err != nil {
+			return errors.New(err)
+		}
+	}
+
+	_, err = opts.Writer.Write([]byte("\n"))
 	if err != nil {
 		return errors.New(err)
 	}
