@@ -174,10 +174,6 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 
 	stackTargetDir := filepath.Join(stackSourceDir, stackDir)
 
-	if err := os.MkdirAll(stackTargetDir, os.ModePerm); err != nil {
-		return errors.Errorf("failed to create base directory: %s %v", stackTargetDir, err)
-	}
-
 	if err := generateUnits(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err
 	}
