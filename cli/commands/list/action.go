@@ -145,9 +145,64 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 	return listedCfgs, errors.Join(errs...)
 }
 
+// JSONTree represents a node in the JSON tree structure
+type JSONTree struct {
+	Path     string               `json:"path"`
+	Type     discovery.ConfigType `json:"type,omitempty"`
+	Children []*JSONTree          `json:"children,omitempty"`
+}
+
+// buildJSONTree creates a tree structure from ListedConfigs
+func buildJSONTree(configs ListedConfigs) *JSONTree {
+	root := &JSONTree{
+		Path:     ".",
+		Children: make([]*JSONTree, 0),
+	}
+
+	for _, config := range configs {
+		parts := preProcessPath(config.Path)
+		if len(parts.segments) == 0 || (len(parts.segments) == 1 && parts.segments[0] == ".") {
+			continue
+		}
+
+		currentPath := "."
+		currentNode := root
+
+		for _, segment := range parts.segments {
+			nextPath := filepath.Join(currentPath, segment)
+
+			// Find if child already exists
+			var childNode *JSONTree
+
+			for _, child := range currentNode.Children {
+				if child.Path == segment {
+					childNode = child
+					break
+				}
+			}
+
+			if childNode == nil {
+				childNode = &JSONTree{
+					Path:     segment,
+					Type:     config.Type,
+					Children: make([]*JSONTree, 0),
+				}
+				currentNode.Children = append(currentNode.Children, childNode)
+			}
+
+			currentNode = childNode
+			currentPath = nextPath
+		}
+	}
+
+	return root
+}
+
 // outputJSON outputs the discovered configurations in JSON format.
 func outputJSON(opts *Options, configs ListedConfigs) error {
-	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
+	tree := buildJSONTree(configs)
+
+	jsonBytes, err := json.MarshalIndent(tree, "", "  ")
 	if err != nil {
 		return errors.New(err)
 	}
