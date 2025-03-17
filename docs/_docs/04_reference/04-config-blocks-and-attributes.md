@@ -1767,7 +1767,7 @@ The `stack` block supports the following arguments:
 - `values` (attribute, optional): A map of custom values that can be passed to the stack. These values can be referenced within the stack's configuration files, allowing for customization without modifying the stack source.
 - `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the stack **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
 
-- Example:
+Example:
 
 ```hcl
 # terragrunt.stack.hcl
