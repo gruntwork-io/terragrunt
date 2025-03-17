@@ -46,6 +46,9 @@ type Options struct {
 
 	// Tree determines whether to output in tree format.
 	Tree bool
+
+	// Long determines whether the output should be in long format.
+	Long bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {

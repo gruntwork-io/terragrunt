@@ -24,7 +24,7 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithHidden()
 	}
 
-	if opts.Dependencies || opts.External || opts.Sort == SortDAG {
+	if opts.Dependencies || opts.External || opts.Sort == SortDAG || opts.Long {
 		d = d.WithDiscoverDependencies()
 	}
 
@@ -86,6 +86,17 @@ func (l ListedConfigs) Contains(path string) bool {
 	}
 
 	return false
+}
+
+// Get returns the config with the given path.
+func (l ListedConfigs) Get(path string) *ListedConfig {
+	for _, config := range l {
+		if config.Path == path {
+			return config
+		}
+	}
+
+	return nil
 }
 
 func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (ListedConfigs, error) {
@@ -151,25 +162,28 @@ func outputJSON(opts *Options, configs ListedConfigs) error {
 
 // Colorizer is a colorizer for the discovered configurations.
 type Colorizer struct {
-	unitColorizer  func(string) string
-	stackColorizer func(string) string
-	pathColorizer  func(string) string
+	unitColorizer    func(string) string
+	stackColorizer   func(string) string
+	headingColorizer func(string) string
+	pathColorizer    func(string) string
 }
 
 // NewColorizer creates a new Colorizer.
 func NewColorizer(shouldColor bool) *Colorizer {
 	if !shouldColor {
 		return &Colorizer{
-			unitColorizer:  func(s string) string { return s },
-			stackColorizer: func(s string) string { return s },
-			pathColorizer:  func(s string) string { return s },
+			unitColorizer:    func(s string) string { return s },
+			stackColorizer:   func(s string) string { return s },
+			headingColorizer: func(s string) string { return s },
+			pathColorizer:    func(s string) string { return s },
 		}
 	}
 
 	return &Colorizer{
-		unitColorizer:  ansi.ColorFunc("blue+bh"),
-		stackColorizer: ansi.ColorFunc("green+bh"),
-		pathColorizer:  ansi.ColorFunc("white+d"),
+		unitColorizer:    ansi.ColorFunc("blue+bh"),
+		stackColorizer:   ansi.ColorFunc("green+bh"),
+		headingColorizer: ansi.ColorFunc("yellow+bh"),
+		pathColorizer:    ansi.ColorFunc("white+d"),
 	}
 }
 
@@ -204,9 +218,30 @@ func (c *Colorizer) Colorize(config *ListedConfig) string {
 	}
 }
 
+func (c *Colorizer) ColorizeType(t discovery.ConfigType) string {
+	switch t {
+	case discovery.ConfigTypeUnit:
+		// This extra space is to keep unit and stack
+		// output equally spaced.
+		return c.unitColorizer("unit ")
+	case discovery.ConfigTypeStack:
+		return c.stackColorizer("stack")
+	default:
+		return string(t)
+	}
+}
+
+func (c *Colorizer) ColorizeHeading(dep string) string {
+	return c.headingColorizer(dep)
+}
+
 // outputText outputs the discovered configurations in text format.
 func outputText(opts *Options, configs ListedConfigs) error {
 	colorizer := NewColorizer(shouldColor(opts))
+
+	if opts.Long {
+		return renderLong(opts, configs, colorizer)
+	}
 
 	return renderTabular(opts, configs, colorizer)
 }
@@ -214,6 +249,86 @@ func outputText(opts *Options, configs ListedConfigs) error {
 // shouldColor returns true if the output should be colored.
 func shouldColor(opts *Options) bool {
 	return !(opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected())
+}
+
+// renderLong renders the configurations in a long format.
+func renderLong(opts *Options, configs ListedConfigs, c *Colorizer) error {
+	longestPathLen := getLongestPathLen(configs)
+
+	err := renderLongHeadings(opts, c, longestPathLen)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	for _, config := range configs {
+		_, err := opts.Writer.Write([]byte(c.ColorizeType(config.Type)))
+		if err != nil {
+			return errors.New(err)
+		}
+
+		_, err = opts.Writer.Write([]byte(" " + c.Colorize(config)))
+		if err != nil {
+			return errors.New(err)
+		}
+
+		if len(config.Dependencies) > 0 {
+			colorizedDeps := []string{}
+
+			for _, dep := range config.Dependencies {
+				depCfg := configs.Get(dep)
+				if depCfg != nil {
+					colorizedDeps = append(colorizedDeps, c.Colorize(depCfg))
+				}
+			}
+
+			const extraDependenciesPadding = 2
+
+			dependenciesPadding := (longestPathLen - len(config.Path)) + extraDependenciesPadding
+			for range dependenciesPadding {
+				_, err := opts.Writer.Write([]byte(" "))
+				if err != nil {
+					return errors.New(err)
+				}
+			}
+
+			_, err = opts.Writer.Write([]byte(strings.Join(colorizedDeps, ", ")))
+			if err != nil {
+				return errors.New(err)
+			}
+		}
+
+		_, err = opts.Writer.Write([]byte("\n"))
+		if err != nil {
+			return errors.New(err)
+		}
+	}
+
+	return nil
+}
+
+// renderLongHeadings renders the headings for the long format.
+func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
+	_, err := opts.Writer.Write([]byte(c.ColorizeHeading("Type  Path")))
+	if err != nil {
+		return errors.New(err)
+	}
+
+	const extraDependenciesPadding = 2
+
+	dependenciesPadding := (longestPathLen - len("Path")) + extraDependenciesPadding
+	for range dependenciesPadding {
+		_, err := opts.Writer.Write([]byte(" "))
+		if err != nil {
+			return errors.New(err)
+		}
+	}
+
+	_, err = opts.Writer.Write([]byte(c.ColorizeHeading("Dependencies\n")))
+	if err != nil {
+		return errors.New(err)
+	}
+
+	return nil
 }
 
 // renderTabular renders the configurations in a tabular format.

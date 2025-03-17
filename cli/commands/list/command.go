@@ -22,6 +22,8 @@ const (
 	HiddenFlagName       = "hidden"
 	DependenciesFlagName = "dependencies"
 	ExternalFlagName     = "external"
+	LongFlagName         = "long"
+	LongFlagAlias        = "l"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -72,6 +74,13 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Tree,
 			Usage:       "Output in tree format.",
 			Aliases:     []string{TreeFlagAlias},
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        LongFlagName,
+			EnvVars:     tgPrefix.EnvVars(LongFlagName),
+			Destination: &opts.Long,
+			Usage:       "Output in long format.",
+			Aliases:     []string{LongFlagAlias},
 		}),
 	}
 }
