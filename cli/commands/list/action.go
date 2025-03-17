@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -645,20 +646,25 @@ func generateDAGTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 	rootNodes := make(map[string]*tree.Tree)
 	dependencyNodes := make(map[string]*tree.Tree)
 
+	// First pass: create all root nodes
 	for _, config := range configs {
-		// We can assume that the configs are already sorted in DAG order,
-		// so we can assume that it's fine to start working on dependencies
-		// immediately after adding the root nodes.
 		if len(config.Dependencies) == 0 || !configs.Contains(config.Path) {
 			rootNodes[config.Path] = tree.New().Root(s.colorizer.Colorize(config))
+		}
+	}
 
+	// Second pass: connect dependencies
+	for _, config := range configs {
+		if len(config.Dependencies) == 0 {
 			continue
 		}
 
-		// If the config has dependencies, we need to add them to the correct tree.
-		// So that we don't lose track of sub-dependencies, we also
-		// need to add non-root dependency nodes to the dependencyNodes map.
-		for _, dependency := range config.Dependencies {
+		// Sort dependencies to ensure deterministic order
+		sortedDeps := make([]string, len(config.Dependencies))
+		copy(sortedDeps, config.Dependencies)
+		sort.Strings(sortedDeps)
+
+		for _, dependency := range sortedDeps {
 			if _, exists := rootNodes[dependency]; exists {
 				dependencyNode := tree.New().Root(s.colorizer.Colorize(config))
 				rootNodes[dependency].Child(dependencyNode)
@@ -667,9 +673,6 @@ func generateDAGTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 				continue
 			}
 
-			// Theoretically, this should always be true, because we've already
-			// added the dependency when we added the root node.
-			// We check anyways to avoid a panic.
 			if _, exists := dependencyNodes[dependency]; exists {
 				newDependencyNode := tree.New().Root(s.colorizer.Colorize(config))
 				dependencyNodes[dependency].Child(newDependencyNode)
@@ -678,8 +681,17 @@ func generateDAGTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 		}
 	}
 
-	for _, node := range rootNodes {
-		root.Child(node)
+	// Sort root nodes to ensure deterministic order
+	sortedRootPaths := make([]string, 0, len(rootNodes))
+	for path := range rootNodes {
+		sortedRootPaths = append(sortedRootPaths, path)
+	}
+
+	sort.Strings(sortedRootPaths)
+
+	// Add root nodes in sorted order
+	for _, path := range sortedRootPaths {
+		root.Child(rootNodes[path])
 	}
 
 	return root
