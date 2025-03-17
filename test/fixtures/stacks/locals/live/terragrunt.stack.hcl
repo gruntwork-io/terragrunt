@@ -1,5 +1,5 @@
 locals {
-	chicken = "units/chicken"
+	chicken = "../units/chicken"
 	chick = "units/chick"
 	repo_path = "${get_repo_root()}"
 }
@@ -15,7 +15,7 @@ unit "father" {
 }
 
 unit "chick_1" {
-	source = "${local.chick}"
+	source = "../${local.chick}"
 	path   = "chicks/chick-1"
 }
 

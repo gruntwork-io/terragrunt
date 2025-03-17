@@ -3,17 +3,17 @@
 # to verify the validation logic.
 
 unit "app1_empty_path" {
-	source = "units/app"
+	source = "../units/app"
 	path   = ""
 }
 
 unit "app2_empty_path" {
-	source = "units/app"
+	source = "../units/app"
 	path   = ""
 }
 
 unit "app3_not_empty_path" {
-	source = "units/app"
+	source = "../units/app"
 	path   = "app3"
 }
 

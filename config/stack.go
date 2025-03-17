@@ -174,10 +174,6 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 
 	stackTargetDir := filepath.Join(stackSourceDir, stackDir)
 
-	if err := os.MkdirAll(stackTargetDir, os.ModePerm); err != nil {
-		return errors.Errorf("failed to create base directory: %s %v", stackTargetDir, err)
-	}
-
 	if err := generateUnits(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err
 	}
@@ -287,7 +283,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
 
 	if err := copyFiles(ctx, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
-		return err
+		return errors.Errorf("Failed to copy %s to %s %w", source, dest, err)
 	}
 
 	// generate values file
@@ -333,7 +329,7 @@ func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier,
 		}
 
 		if _, err := getter.GetAny(ctx, dest, src); err != nil {
-			return errors.Errorf("Failed to fetch %s %v", identifier, err)
+			return errors.Errorf("Failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
 	}
 
@@ -600,12 +596,7 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 		relPath, _ := filepath.Rel(dir, path)
 		depth := len(strings.Split(relPath, string(os.PathSeparator)))
 		if depth > generationMaxDepth {
-			if info.IsDir() {
-				opts.Logger.Warnf("Skipping directory %s: max depth of %d exceeded", path, generationMaxDepth)
-			} else {
-				opts.Logger.Warnf("Skipping file %s: max depth of %d exceeded", path, generationMaxDepth)
-			}
-			return nil
+			return errors.Errorf("Cycle detected: max depth of %d exceeded at %s", generationMaxDepth, path)
 		}
 
 		if strings.HasSuffix(path, defaultStackFile) {
