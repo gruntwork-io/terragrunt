@@ -147,17 +147,18 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 
 // JSONTree represents a node in the JSON tree structure
 type JSONTree struct {
-	Path     string               `json:"path"`
-	Type     discovery.ConfigType `json:"type,omitempty"`
-	Children []*JSONTree          `json:"children,omitempty"`
+	Path         string               `json:"path"`
+	Type         discovery.ConfigType `json:"type,omitempty"`
+	Children     []*JSONTree          `json:"children,omitempty"`
+	Dependencies []*JSONTree          `json:"dependencies,omitempty"`
 }
 
 // buildJSONTree creates a tree structure from ListedConfigs
-func buildJSONTree(configs ListedConfigs) *JSONTree {
-	root := &JSONTree{
-		Path:     ".",
-		Children: make([]*JSONTree, 0),
-	}
+func buildJSONTree(configs ListedConfigs) []*JSONTree {
+	// Create a map to track nodes by their path
+	nodes := make(map[string]*JSONTree)
+
+	var topLevelNodes []*JSONTree
 
 	for _, config := range configs {
 		parts := preProcessPath(config.Path)
@@ -165,10 +166,34 @@ func buildJSONTree(configs ListedConfigs) *JSONTree {
 			continue
 		}
 
-		currentPath := "."
-		currentNode := root
+		// Handle top-level node
+		if len(parts.segments) == 1 {
+			node := &JSONTree{
+				Path:     parts.segments[0],
+				Type:     config.Type,
+				Children: make([]*JSONTree, 0),
+			}
+			nodes[parts.segments[0]] = node
+			topLevelNodes = append(topLevelNodes, node)
 
-		for _, segment := range parts.segments {
+			continue
+		}
+
+		// Handle nested nodes
+		currentPath := parts.segments[0]
+		currentNode := nodes[currentPath]
+
+		if currentNode == nil {
+			currentNode = &JSONTree{
+				Path:     currentPath,
+				Children: make([]*JSONTree, 0),
+			}
+			nodes[currentPath] = currentNode
+			topLevelNodes = append(topLevelNodes, currentNode)
+		}
+
+		for i := 1; i < len(parts.segments); i++ {
+			segment := parts.segments[i]
 			nextPath := filepath.Join(currentPath, segment)
 
 			// Find if child already exists
@@ -195,14 +220,118 @@ func buildJSONTree(configs ListedConfigs) *JSONTree {
 		}
 	}
 
-	return root
+	return topLevelNodes
+}
+
+// buildJSONDAGTree creates a tree structure from ListedConfigs based on DAG relationships
+func buildJSONDAGTree(configs ListedConfigs) []*JSONTree {
+	// Create a map to track all nodes by their full path
+	nodes := make(map[string]*JSONTree)
+
+	var topLevelNodes []*JSONTree
+
+	// First pass: create all nodes
+	for _, config := range configs {
+		parts := preProcessPath(config.Path)
+		if len(parts.segments) == 0 || (len(parts.segments) == 1 && parts.segments[0] == ".") {
+			continue
+		}
+
+		// Handle top-level node
+		if len(parts.segments) == 1 {
+			node := &JSONTree{
+				Path:         parts.segments[0],
+				Type:         config.Type,
+				Dependencies: make([]*JSONTree, 0),
+			}
+			nodes[parts.segments[0]] = node
+			topLevelNodes = append(topLevelNodes, node)
+
+			continue
+		}
+
+		// Handle nested nodes
+		currentPath := parts.segments[0]
+		currentNode := nodes[currentPath]
+
+		if currentNode == nil {
+			currentNode = &JSONTree{
+				Path:         currentPath,
+				Dependencies: make([]*JSONTree, 0),
+			}
+			nodes[currentPath] = currentNode
+			topLevelNodes = append(topLevelNodes, currentNode)
+		}
+
+		for i := 1; i < len(parts.segments); i++ {
+			segment := parts.segments[i]
+			nextPath := filepath.Join(currentPath, segment)
+
+			// Check if node already exists
+			if existingNode, exists := nodes[nextPath]; exists {
+				currentNode = existingNode
+			} else {
+				newNode := &JSONTree{
+					Path:         segment,
+					Type:         config.Type,
+					Dependencies: make([]*JSONTree, 0),
+				}
+				currentNode.Dependencies = append(currentNode.Dependencies, newNode)
+				currentNode = newNode
+				nodes[nextPath] = newNode
+			}
+
+			currentPath = nextPath
+		}
+	}
+
+	// Second pass: connect dependencies
+	for _, config := range configs {
+		if len(config.Dependencies) == 0 {
+			continue
+		}
+
+		// Get the node for this config
+		configNode, exists := nodes[config.Path]
+		if !exists {
+			continue
+		}
+
+		// Add each dependency as a child
+		for _, depPath := range config.Dependencies {
+			depNode, exists := nodes[depPath]
+			if !exists {
+				continue
+			}
+
+			// Check if dependency is already a child
+			isChild := false
+			for _, child := range configNode.Dependencies {
+				if child == depNode {
+					isChild = true
+					break
+				}
+			}
+
+			if !isChild {
+				configNode.Dependencies = append(configNode.Dependencies, depNode)
+			}
+		}
+	}
+
+	return topLevelNodes
 }
 
 // outputJSON outputs the discovered configurations in JSON format.
 func outputJSON(opts *Options, configs ListedConfigs) error {
-	tree := buildJSONTree(configs)
+	var result interface{}
+	if opts.Sort == SortDAG {
+		result = buildJSONDAGTree(configs)
+	} else {
+		result = buildJSONTree(configs)
+	}
 
-	jsonBytes, err := json.MarshalIndent(tree, "", "  ")
+	jsonBytes, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return errors.New(err)
 	}
