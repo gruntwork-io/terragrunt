@@ -33,6 +33,7 @@ const (
 	testFixtureStackDependencies   = "fixtures/stacks/dependencies"
 	testFixtureStackAbsolutePath   = "fixtures/stacks/absolute-path"
 	testFixtureStackSourceMap      = "fixtures/stacks/source-map"
+	testFixtureNoStack             = "fixtures/stacks/no-stack"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -790,7 +791,7 @@ func TestStacksGenerateAbsolutePath(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackAbsolutePath)
 	helpers.CreateGitRepo(t, rootPath)
-	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-log-level debug  --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-log-level debug --experiment stacks --terragrunt-working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -807,6 +808,56 @@ func TestStacksGenerateAbsolutePath(t *testing.T) {
 
 	app1 = util.JoinPath(rootPath, ".terragrunt-stack", "app1")
 	assert.NoDirExists(t, app1)
+}
+
+func TestStacksGenerateNoStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNoStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNoStack)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	validateNoStackDirs(t, rootPath)
+}
+
+func TestStacksApplyNoStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNoStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNoStack)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "project")
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	validateNoStackDirs(t, rootPath)
+}
+
+// validateNoStackDirs check if the directories outside of stack are created and contain test files
+func validateNoStackDirs(t *testing.T, rootPath string) {
+	t.Helper()
+	stackConfig := util.JoinPath(rootPath, "stack-config")
+	assert.DirExists(t, stackConfig)
+
+	unitConfig := util.JoinPath(rootPath, "unit-config")
+	assert.DirExists(t, unitConfig)
+
+	configPath := util.JoinPath(stackConfig, "config.txt")
+	assert.FileExists(t, configPath)
+
+	configPath = util.JoinPath(unitConfig, "config.txt")
+	assert.FileExists(t, configPath)
+
+	secondStackUnitConfigDir := util.JoinPath(rootPath, ".terragrunt-stack", "dev", "second-stack-unit-config")
+	secondStackUnitConfig := util.JoinPath(secondStackUnitConfigDir, "config.txt")
+
+	assert.DirExists(t, secondStackUnitConfigDir)
+	assert.FileExists(t, secondStackUnitConfig)
 }
 
 // check if the stack directory is created and contains files.
