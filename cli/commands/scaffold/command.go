@@ -3,6 +3,8 @@ package scaffold
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -106,6 +108,31 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions) string {
 	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).Evaluate(ctx); err != nil {
 		return config.RecommendedParentConfigName
+	}
+
+	// Check to see if you can find the recommended parent config name first,
+	// if a user has it defined, go ahead and use it.
+	foldersToCheck := opts.MaxFoldersToCheck
+
+	dir := opts.WorkingDir
+	for dir != string(os.PathSeparator) && dir != "" && dir != "." {
+		_, err := os.Stat(filepath.Join(dir, config.RecommendedParentConfigName))
+		if err == nil {
+			return config.RecommendedParentConfigName
+		}
+
+		dir = filepath.Dir(dir)
+
+		foldersToCheck--
+
+		if foldersToCheck <= 0 {
+			opts.Logger.Warnf(
+				"Reached the maximum number of folders to check for %s, using the default value instead.",
+				config.RecommendedParentConfigName,
+			)
+
+			break
+		}
 	}
 
 	return config.DefaultTerragruntConfigPath
