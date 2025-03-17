@@ -377,15 +377,17 @@ type TreeStyler struct {
 	shouldColor bool
 	entryStyle  lipgloss.Style
 	rootStyle   lipgloss.Style
-	itemStyle   lipgloss.Style
+	colorizer   *Colorizer
 }
 
 func NewTreeStyler(shouldColor bool) *TreeStyler {
+	colorizer := NewColorizer(shouldColor)
+
 	return &TreeStyler{
 		shouldColor: shouldColor,
 		entryStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("63")).MarginRight(1),
 		rootStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("35")),
-		itemStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("212")),
+		colorizer:   colorizer,
 	}
 }
 
@@ -399,12 +401,11 @@ func (s *TreeStyler) Style(t *tree.Tree) *tree.Tree {
 
 	return t.
 		EnumeratorStyle(s.entryStyle).
-		RootStyle(s.rootStyle).
-		ItemStyle(s.itemStyle)
+		RootStyle(s.rootStyle)
 }
 
 // generateTree creates a tree structure from ListedConfigs
-func generateTree(configs ListedConfigs) *tree.Tree {
+func generateTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 	root := tree.Root(".")
 	nodes := make(map[string]*tree.Tree)
 
@@ -420,7 +421,12 @@ func generateTree(configs ListedConfigs) *tree.Tree {
 		for _, segment := range parts.segments {
 			nextPath := filepath.Join(currentPath, segment)
 			if _, exists := nodes[nextPath]; !exists {
-				newNode := tree.New().Root(segment)
+				tmpCfg := &ListedConfig{
+					Type: config.Type,
+					Path: segment,
+				}
+
+				newNode := tree.New().Root(s.colorizer.Colorize(tmpCfg))
 				nodes[nextPath] = newNode
 				currentNode.Child(newNode)
 			}
@@ -442,7 +448,7 @@ func generateTree(configs ListedConfigs) *tree.Tree {
 // There may be duplicate entries for dependency nodes, as
 // a node may be a dependency for multiple configs.
 // That's OK.
-func generateDAGTree(configs ListedConfigs) *tree.Tree {
+func generateDAGTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 	root := tree.Root(".")
 
 	rootNodes := make(map[string]*tree.Tree)
@@ -453,7 +459,7 @@ func generateDAGTree(configs ListedConfigs) *tree.Tree {
 		// so we can assume that it's fine to start working on dependencies
 		// immediately after adding the root nodes.
 		if len(config.Dependencies) == 0 || !configs.Contains(config.Path) {
-			rootNodes[config.Path] = tree.New().Root(config.Path)
+			rootNodes[config.Path] = tree.New().Root(s.colorizer.Colorize(config))
 
 			continue
 		}
@@ -463,7 +469,7 @@ func generateDAGTree(configs ListedConfigs) *tree.Tree {
 		// need to add non-root dependency nodes to the dependencyNodes map.
 		for _, dependency := range config.Dependencies {
 			if _, exists := rootNodes[dependency]; exists {
-				dependencyNode := tree.New().Root(config.Path)
+				dependencyNode := tree.New().Root(s.colorizer.Colorize(config))
 				rootNodes[dependency].Child(dependencyNode)
 				dependencyNodes[config.Path] = dependencyNode
 
@@ -472,12 +478,11 @@ func generateDAGTree(configs ListedConfigs) *tree.Tree {
 
 			// Theoretically, this should always be true, because we've already
 			// added the dependency when we added the root node.
+			// We check anyways to avoid a panic.
 			if _, exists := dependencyNodes[dependency]; exists {
-				newDependencyNode := tree.New().Root(config.Path)
+				newDependencyNode := tree.New().Root(s.colorizer.Colorize(config))
 				dependencyNodes[dependency].Child(newDependencyNode)
 				dependencyNodes[config.Path] = newDependencyNode
-
-				continue
 			}
 		}
 	}
@@ -514,9 +519,9 @@ func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, sort string
 	var t *tree.Tree
 
 	if sort == SortDAG {
-		t = generateDAGTree(configs)
+		t = generateDAGTree(configs, s)
 	} else {
-		t = generateTree(configs)
+		t = generateTree(configs, s)
 	}
 
 	t = s.Style(t)
