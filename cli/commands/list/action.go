@@ -154,7 +154,7 @@ type JSONTree struct {
 }
 
 // buildJSONTree creates a tree structure from ListedConfigs
-func buildJSONTree(configs ListedConfigs) []*JSONTree {
+func buildJSONTree(configs ListedConfigs, opts *Options) []*JSONTree {
 	// Create a map to track nodes by their path
 	nodes := make(map[string]*JSONTree)
 
@@ -173,6 +173,10 @@ func buildJSONTree(configs ListedConfigs) []*JSONTree {
 				Type:     config.Type,
 				Children: make([]*JSONTree, 0),
 			}
+			if opts.Dependencies {
+				node.Dependencies = make([]*JSONTree, 0)
+			}
+
 			nodes[parts.segments[0]] = node
 			topLevelNodes = append(topLevelNodes, node)
 
@@ -188,6 +192,10 @@ func buildJSONTree(configs ListedConfigs) []*JSONTree {
 				Path:     currentPath,
 				Children: make([]*JSONTree, 0),
 			}
+			if opts.Dependencies {
+				currentNode.Dependencies = make([]*JSONTree, 0)
+			}
+
 			nodes[currentPath] = currentNode
 			topLevelNodes = append(topLevelNodes, currentNode)
 		}
@@ -198,7 +206,6 @@ func buildJSONTree(configs ListedConfigs) []*JSONTree {
 
 			// Find if child already exists
 			var childNode *JSONTree
-
 			for _, child := range currentNode.Children {
 				if child.Path == segment {
 					childNode = child
@@ -212,11 +219,51 @@ func buildJSONTree(configs ListedConfigs) []*JSONTree {
 					Type:     config.Type,
 					Children: make([]*JSONTree, 0),
 				}
+				if opts.Dependencies {
+					childNode.Dependencies = make([]*JSONTree, 0)
+				}
+
 				currentNode.Children = append(currentNode.Children, childNode)
 			}
 
 			currentNode = childNode
 			currentPath = nextPath
+		}
+	}
+
+	// If dependencies are requested, connect them
+	if opts.Dependencies {
+		for _, config := range configs {
+			if len(config.Dependencies) == 0 {
+				continue
+			}
+
+			// Get the node for this config
+			configNode, exists := nodes[config.Path]
+			if !exists {
+				continue
+			}
+
+			// Add each dependency as a child
+			for _, depPath := range config.Dependencies {
+				depNode, exists := nodes[depPath]
+				if !exists {
+					continue
+				}
+
+				// Check if dependency is already a child
+				isChild := false
+				for _, child := range configNode.Dependencies {
+					if child == depNode {
+						isChild = true
+						break
+					}
+				}
+
+				if !isChild {
+					configNode.Dependencies = append(configNode.Dependencies, depNode)
+				}
+			}
 		}
 	}
 
@@ -328,7 +375,7 @@ func outputJSON(opts *Options, configs ListedConfigs) error {
 	if opts.Sort == SortDAG {
 		result = buildJSONDAGTree(configs)
 	} else {
-		result = buildJSONTree(configs)
+		result = buildJSONTree(configs, opts)
 	}
 
 	jsonBytes, err := json.MarshalIndent(result, "", "  ")
