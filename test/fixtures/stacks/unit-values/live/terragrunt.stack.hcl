@@ -3,7 +3,7 @@ locals {
 }
 
 unit "app1" {
-	source = "units/app"
+	source = "../units/app"
 	path   = "app1"
 
 	values = {
@@ -13,7 +13,7 @@ unit "app1" {
 }
 
 unit "app2" {
-	source = "units/app"
+	source = "../units/app"
 	path   = "app2"
 
 	values = {

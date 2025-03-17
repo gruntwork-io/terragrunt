@@ -283,7 +283,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
 
 	if err := copyFiles(ctx, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
-		return err
+		return errors.Errorf("Failed to copy %s to %s %w", source, dest, err)
 	}
 
 	// generate values file
@@ -329,7 +329,7 @@ func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier,
 		}
 
 		if _, err := getter.GetAny(ctx, dest, src); err != nil {
-			return errors.Errorf("Failed to fetch %s %v", identifier, err)
+			return errors.Errorf("Failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
 	}
 
