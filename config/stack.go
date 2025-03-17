@@ -596,12 +596,7 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 		relPath, _ := filepath.Rel(dir, path)
 		depth := len(strings.Split(relPath, string(os.PathSeparator)))
 		if depth > generationMaxDepth {
-			if info.IsDir() {
-				opts.Logger.Warnf("Skipping directory %s: max depth of %d exceeded", path, generationMaxDepth)
-			} else {
-				opts.Logger.Warnf("Skipping file %s: max depth of %d exceeded", path, generationMaxDepth)
-			}
-			return nil
+			return errors.Errorf("Cycle detected: max depth of %d exceeded at %s", generationMaxDepth, path)
 		}
 
 		if strings.HasSuffix(path, defaultStackFile) {
