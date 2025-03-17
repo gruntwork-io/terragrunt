@@ -257,6 +257,7 @@ func buildJSONTree(configs ListedConfigs, opts *Options) []*JSONTree {
 
 				// Check if dependency is already a child
 				isChild := false
+
 				for _, child := range configNode.Dependencies {
 					if child == depNode {
 						isChild = true
@@ -317,6 +318,7 @@ func buildJSONDAGTree(configs ListedConfigs) []*JSONTree {
 
 			// Check if dependency is already a child
 			isChild := false
+
 			for _, child := range configNode.Dependencies {
 				if child == depNode {
 					isChild = true
