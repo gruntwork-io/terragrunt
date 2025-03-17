@@ -275,61 +275,21 @@ func buildJSONDAGTree(configs ListedConfigs) []*JSONTree {
 	// Create a map to track all nodes by their full path
 	nodes := make(map[string]*JSONTree)
 
-	var topLevelNodes []*JSONTree
+	topLevelNodes := make([]*JSONTree, 0, len(configs))
 
 	// First pass: create all nodes
 	for _, config := range configs {
-		parts := preProcessPath(config.Path)
-		if len(parts.segments) == 0 || (len(parts.segments) == 1 && parts.segments[0] == ".") {
+		if config.Path == "." {
 			continue
 		}
 
-		// Handle top-level node
-		if len(parts.segments) == 1 {
-			node := &JSONTree{
-				Path:         parts.segments[0],
-				Type:         config.Type,
-				Dependencies: make([]*JSONTree, 0),
-			}
-			nodes[parts.segments[0]] = node
-			topLevelNodes = append(topLevelNodes, node)
-
-			continue
+		node := &JSONTree{
+			Path:         config.Path,
+			Type:         config.Type,
+			Dependencies: make([]*JSONTree, 0),
 		}
-
-		// Handle nested nodes
-		currentPath := parts.segments[0]
-		currentNode := nodes[currentPath]
-
-		if currentNode == nil {
-			currentNode = &JSONTree{
-				Path:         currentPath,
-				Dependencies: make([]*JSONTree, 0),
-			}
-			nodes[currentPath] = currentNode
-			topLevelNodes = append(topLevelNodes, currentNode)
-		}
-
-		for i := 1; i < len(parts.segments); i++ {
-			segment := parts.segments[i]
-			nextPath := filepath.Join(currentPath, segment)
-
-			// Check if node already exists
-			if existingNode, exists := nodes[nextPath]; exists {
-				currentNode = existingNode
-			} else {
-				newNode := &JSONTree{
-					Path:         segment,
-					Type:         config.Type,
-					Dependencies: make([]*JSONTree, 0),
-				}
-				currentNode.Dependencies = append(currentNode.Dependencies, newNode)
-				currentNode = newNode
-				nodes[nextPath] = newNode
-			}
-
-			currentPath = nextPath
-		}
+		nodes[config.Path] = node
+		topLevelNodes = append(topLevelNodes, node)
 	}
 
 	// Second pass: connect dependencies
