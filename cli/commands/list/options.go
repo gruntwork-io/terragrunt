@@ -15,6 +15,9 @@ const (
 	// FormatTree outputs the discovered configurations in tree format.
 	FormatTree = "tree"
 
+	// FormatLong outputs the discovered configurations in long format.
+	FormatLong = "long"
+
 	// SortAlpha sorts the discovered configurations in alphabetical order.
 	SortAlpha = "alpha"
 
@@ -85,6 +88,8 @@ func (o *Options) validateFormat() error {
 	case FormatJSON:
 		return nil
 	case FormatTree:
+		return nil
+	case FormatLong:
 		return nil
 	default:
 		return errors.New("invalid format: " + o.Format)

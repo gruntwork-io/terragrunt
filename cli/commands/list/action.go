@@ -62,6 +62,8 @@ func Run(ctx context.Context, opts *Options) error {
 		return outputJSON(opts, listedCfgs)
 	case FormatTree:
 		return outputTree(opts, listedCfgs, opts.Sort)
+	case FormatLong:
+		return outputLong(opts, listedCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -431,11 +433,14 @@ func (c *Colorizer) ColorizeHeading(dep string) string {
 func outputText(opts *Options, configs ListedConfigs) error {
 	colorizer := NewColorizer(shouldColor(opts))
 
-	if opts.Long {
-		return renderLong(opts, configs, colorizer)
-	}
-
 	return renderTabular(opts, configs, colorizer)
+}
+
+// outputLong outputs the discovered configurations in long format.
+func outputLong(opts *Options, configs ListedConfigs) error {
+	colorizer := NewColorizer(shouldColor(opts))
+
+	return renderLong(opts, configs, colorizer)
 }
 
 // shouldColor returns true if the output should be colored.

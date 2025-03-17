@@ -107,6 +107,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				cmdOpts.Format = FormatTree
 			}
 
+			if cmdOpts.Long {
+				cmdOpts.Format = FormatLong
+			}
+
 			if err := cmdOpts.Validate(); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
