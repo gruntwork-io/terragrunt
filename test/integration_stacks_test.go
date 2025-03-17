@@ -35,6 +35,7 @@ const (
 	testFixtureStackSourceMap      = "fixtures/stacks/source-map"
 	testFixtureNoStack             = "fixtures/stacks/no-stack"
 	testFixtureStackCycles         = "fixtures/stacks/errors/cycles"
+	testFixtureNoStackNoDir        = "fixtures/stacks/no-stack-dir"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -850,6 +851,20 @@ func TestStacksCyclesErrors(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+gitPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Cycle detected")
+}
+
+func TestStacksNoStackDirNoTerragruntStackDirectoryCreated(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNoStackNoDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStackNoDir)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureNoStackNoDir)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	// validate that the stack directory is not created
+	assert.NoDirExists(t, path)
 }
 
 // validateNoStackDirs check if the directories outside of stack are created and contain test files
