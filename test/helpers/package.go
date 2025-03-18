@@ -35,6 +35,7 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/cli"
@@ -166,14 +167,12 @@ func UniqueID() string {
 	return out.String()
 }
 
-// CreateS3ClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
+// CreateS3ClientForTest creates a S3 client we can use at test time. If there are any errors creating the client, fail the test.
 func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
 	t.Helper()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("aws_test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	mockOptions, err := options.NewTerragruntOptionsForTest("aws_s3_test")
+	require.NoError(t, err, "Error creating mockOptions")
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
@@ -181,6 +180,25 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
 	require.NoError(t, err, "Error creating S3 client")
 
 	return s3.New(session)
+}
+
+// CreateDynamoDBClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
+func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn string) *dynamodb.DynamoDB {
+	t.Helper()
+
+	mockOptions, err := options.NewTerragruntOptionsForTest("aws_dynamodb_test")
+	require.NoError(t, err, "Error creating mockOptions")
+
+	sessionConfig := &awshelper.AwsSessionConfig{
+		Region:  awsRegion,
+		Profile: awsProfile,
+		RoleArn: iamRoleArn,
+	}
+
+	session, err := awshelper.CreateAwsSession(sessionConfig, mockOptions)
+	require.NoError(t, err, "Error creating DynamoDB client")
+
+	return dynamodb.New(session)
 }
 
 // DeleteS3Bucket deletes the specified S3 bucket potentially with error to clean up after a test.

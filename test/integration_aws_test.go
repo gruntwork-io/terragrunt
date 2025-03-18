@@ -4,7 +4,6 @@ package test_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -1268,7 +1267,7 @@ func assertS3Tags(t *testing.T, expectedTags map[string]string, bucketName strin
 func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string) {
 	t.Helper()
 
-	client := createDynamoDBClientForTest(t, awsRegion)
+	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 
 	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 
@@ -1299,16 +1298,14 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
-	exists, err := client.DoesS3BucketExist(context.Background(), bucketName)
-	require.NoError(t, err)
-
-	assert.True(t, exists, "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+	_, err := client.HeadBucket(&s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	require.NoError(t, err, "Terragrunt failed to create remote state S3 bucket %s", bucketName)
 
 	if expectedTags != nil {
-		assertS3Tags(t, expectedTags, bucketName, client.S3)
+		assertS3Tags(t, expectedTags, bucketName, client)
 	}
 
-	assertS3PublicAccessBlocks(t, client.S3, bucketName)
+	assertS3PublicAccessBlocks(t, client, bucketName)
 }
 
 func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
@@ -1356,31 +1353,10 @@ func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 	t.Helper()
 
-	client := helpers.CreateS3ClientForTest(t, awsRegion)
+	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 
-	err := client.DeleteTable(context.Background(), tableName)
+	_, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
 	require.NoError(t, err)
-}
-
-// Create an authenticated client for DynamoDB
-func createDynamoDBClient(awsRegion, awsProfile string, iamRoleArn string) (*dynamodb.DynamoDB, error) {
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		return nil, err
-	}
-
-	sessionConfig := &awshelper.AwsSessionConfig{
-		Region:  awsRegion,
-		Profile: awsProfile,
-		RoleArn: iamRoleArn,
-	}
-
-	session, err := awshelper.CreateAwsSession(sessionConfig, mockOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	return dynamodb.New(session), nil
 }
 
 func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
@@ -1397,21 +1373,11 @@ func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBuc
 	return policyOutput, nil
 }
 
-func createDynamoDBClientForTest(t *testing.T, awsRegion string) *dynamodb.DynamoDB {
-	t.Helper()
-
-	client, err := createDynamoDBClient(awsRegion, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return client
-}
-
 // createDynamoDBTableE creates a test DynamoDB table, and returns an error if the table creation fails.
 func createDynamoDBTableE(t *testing.T, awsRegion string, tableName string) error {
 	t.Helper()
 
-	client := createDynamoDBClientForTest(t, awsRegion)
+	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 	_, err := client.CreateTable(&dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
 			{

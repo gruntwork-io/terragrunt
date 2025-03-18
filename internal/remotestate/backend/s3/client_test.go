@@ -28,9 +28,7 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "Error creating mockOptions")
 
 	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
 		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
