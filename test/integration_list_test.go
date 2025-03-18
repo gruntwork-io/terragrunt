@@ -174,45 +174,6 @@ func TestListCommandWithDependencies(t *testing.T) {
             "type": "unit"
           }
         ]
-      },
-      {
-        "path": "stage",
-        "children": [
-          {
-            "path": "live/stage/db",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "live/stage/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "live/stage/ec2",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "live/stage/db",
-                "type": "unit",
-                "dependencies": [
-                  {
-                    "path": "live/stage/vpc",
-                    "type": "unit"
-                  }
-                ]
-              },
-              {
-                "path": "live/stage/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "live/stage/vpc",
-            "type": "unit"
-          }
-        ]
       }
     ]
   }
@@ -228,30 +189,23 @@ func TestListCommandWithDependencies(t *testing.T) {
 │   ├── live/dev/db
 │   │   ╰── live/dev/ec2
 │   ╰── live/dev/ec2
-├── live/prod/vpc
-│   ├── live/prod/db
-│   │   ╰── live/prod/ec2
-│   ╰── live/prod/ec2
-╰── live/stage/vpc
-    ├── live/stage/db
-    │   ╰── live/stage/ec2
-    ╰── live/stage/ec2
+╰── live/prod/vpc
+    ├── live/prod/db
+    │   ╰── live/prod/ec2
+    ╰── live/prod/ec2
 `,
 		},
 		{
 			name:       "List with dependencies in long format",
 			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--long", "--dependencies"},
-			expected: `Type  Path            Dependencies
-unit  live/dev/db     live/dev/vpc
-unit  live/dev/ec2    live/dev/db, live/dev/vpc
+			expected: `Type  Path           Dependencies
+unit  live/dev/db    live/dev/vpc
+unit  live/dev/ec2   live/dev/db, live/dev/vpc
 unit  live/dev/vpc
-unit  live/prod/db    live/prod/vpc
-unit  live/prod/ec2   live/prod/db, live/prod/vpc
+unit  live/prod/db   live/prod/vpc
+unit  live/prod/ec2  live/prod/db, live/prod/vpc
 unit  live/prod/vpc
-unit  live/stage/db   live/stage/vpc
-unit  live/stage/ec2  live/stage/db, live/stage/vpc
-unit  live/stage/vpc
 `,
 		},
 		{
@@ -281,18 +235,6 @@ unit  live/stage/vpc
   },
   {
     "path": "live/prod/vpc",
-    "type": "unit"
-  },
-  {
-    "path": "live/stage/db",
-    "type": "unit"
-  },
-  {
-    "path": "live/stage/ec2",
-    "type": "unit"
-  },
-  {
-    "path": "live/stage/vpc",
     "type": "unit"
   }
 ]
