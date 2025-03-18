@@ -57,7 +57,7 @@ func TestBasicDiscovery(t *testing.T) {
 
 	// Create options
 	opts := list.NewOptions(tgOpts)
-	opts.Format = "text"
+	opts.Format = "text" //nolint: goconst
 	opts.Sort = "alpha"
 	opts.Dependencies = false
 	opts.External = false
@@ -162,7 +162,7 @@ func TestJSONOutputFormat(t *testing.T) {
 	assert.Len(t, configs, len(expectedPaths))
 
 	// Extract paths from configs
-	var paths []string
+	paths := make([]string, 0, len(configs))
 	for _, config := range configs {
 		paths = append(paths, config.Path)
 	}
@@ -296,7 +296,7 @@ dependency "unit2" {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text"
-	opts.Sort = "dag"
+	opts.Sort = "dag" //nolint: goconst
 	opts.Dependencies = true
 	opts.External = false
 
@@ -621,7 +621,7 @@ dependency "B" {
 	assert.Len(t, configs, len(expectedPaths))
 
 	// Extract paths and verify order
-	var paths []string
+	paths := make([]string, 0, len(configs))
 	for _, config := range configs {
 		paths = append(paths, config.Path)
 	}
@@ -712,7 +712,7 @@ dependency "B" {
 	assert.Len(t, configs, len(expectedPaths))
 
 	// Extract paths and verify order
-	var paths []string
+	paths := make([]string, 0, len(configs))
 	for _, config := range configs {
 		paths = append(paths, config.Path)
 	}
