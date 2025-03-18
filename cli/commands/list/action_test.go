@@ -25,6 +25,7 @@ func TestRun(t *testing.T) {
 		expectedPaths []string
 		format        string
 		sort          string
+		groupBy       string
 		hidden        bool
 		dependencies  bool
 		external      bool
@@ -487,13 +488,21 @@ dependency "B" {
 			expectedPaths: []string{"A", "B", "C"},
 			format:        "json",
 			sort:          "dag",
+			groupBy:       "fs",
 			dependencies:  true,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 
 				// Verify the output is valid JSON
-				var configs []list.ListedConfig
+				var configs []struct {
+					Path         string `json:"path"`
+					Type         string `json:"type"`
+					Dependencies []struct {
+						Path string `json:"path"`
+						Type string `json:"type"`
+					} `json:"dependencies"`
+				}
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -509,8 +518,103 @@ dependency "B" {
 
 				// Verify dependencies are correctly represented in JSON
 				assert.Empty(t, configs[0].Dependencies, "A should have no dependencies")
-				assert.Equal(t, []string{"A"}, configs[1].Dependencies, "B should depend on A")
-				assert.Equal(t, []string{"B"}, configs[2].Dependencies, "C should depend on B")
+				assert.Equal(t, []struct {
+					Path string `json:"path"`
+					Type string `json:"type"`
+				}{{Path: "A", Type: "unit"}}, configs[1].Dependencies, "B should depend on A")
+				assert.Equal(t, []struct {
+					Path string `json:"path"`
+					Type string `json:"type"`
+				}{{Path: "B", Type: "unit"}}, configs[2].Dependencies, "C should depend on B")
+			},
+		},
+		{
+			name: "dag grouping - json output",
+			setup: func(t *testing.T) string {
+				t.Helper()
+
+				tmpDir := t.TempDir()
+
+				// Create test directory structure with dependencies
+				testDirs := []string{
+					"A", "B", "C",
+				}
+
+				for _, dir := range testDirs {
+					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+					require.NoError(t, err)
+				}
+
+				// Create test files with dependencies
+				testFiles := map[string]string{
+					"A/terragrunt.hcl": "",
+					"B/terragrunt.hcl": `
+dependency "A" {
+  config_path = "../A"
+}`,
+					"C/terragrunt.hcl": `
+dependency "B" {
+  config_path = "../B"
+}`,
+				}
+
+				for path, content := range testFiles {
+					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+					require.NoError(t, err)
+				}
+
+				return tmpDir
+			},
+			expectedPaths: []string{"A", "B", "C"},
+			format:        "json",
+			sort:          "dag",
+			groupBy:       "dag",
+			dependencies:  true,
+			external:      false,
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+
+				// Verify the output is valid JSON
+				var configs []*list.JSONTree
+				err := json.Unmarshal([]byte(output), &configs)
+				require.NoError(t, err)
+
+				// Verify we have the expected number of configs
+				assert.Len(t, configs, len(expectedPaths))
+
+				// Extract paths and verify order
+				var paths []string
+				for _, config := range configs {
+					paths = append(paths, config.Path)
+				}
+				assert.Equal(t, expectedPaths, paths)
+
+				// Verify dependencies are correctly represented in JSON
+				assert.Empty(t, configs[0].Dependencies, "A should have no dependencies")
+
+				// Create expected B dependencies
+				expectedBDeps := []*list.JSONTree{
+					{
+						Path: "A",
+						Type: "unit",
+					},
+				}
+				assert.Equal(t, expectedBDeps, configs[1].Dependencies, "B should depend on A")
+
+				// Create expected C dependencies
+				expectedCDeps := []*list.JSONTree{
+					{
+						Path: "B",
+						Type: "unit",
+						Dependencies: []*list.JSONTree{
+							{
+								Path: "A",
+								Type: "unit",
+							},
+						},
+					},
+				}
+				assert.Equal(t, expectedCDeps, configs[2].Dependencies, "C should depend on B")
 			},
 		},
 	}
@@ -531,6 +635,7 @@ dependency "B" {
 			opts.Format = tt.format
 			opts.Hidden = tt.hidden
 			opts.Sort = tt.sort
+			opts.GroupBy = tt.groupBy
 			opts.Dependencies = tt.dependencies
 			opts.External = tt.external
 

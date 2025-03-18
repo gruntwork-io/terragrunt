@@ -25,7 +25,7 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithHidden()
 	}
 
-	if opts.Dependencies || opts.External || opts.Sort == SortDAG || opts.Long {
+	if shouldDiscoverDependencies(opts) {
 		d = d.WithDiscoverDependencies()
 	}
 
@@ -69,6 +69,27 @@ func Run(ctx context.Context, opts *Options) error {
 		// If it happens, we want to throw so we can fix the validation.
 		return errors.New("invalid format: " + opts.Format)
 	}
+}
+
+// shouldDiscoverDependencies returns true if we should discover dependencies.
+func shouldDiscoverDependencies(opts *Options) bool {
+	if opts.Dependencies {
+		return true
+	}
+
+	if opts.External {
+		return true
+	}
+
+	if opts.Sort == SortDAG {
+		return true
+	}
+
+	if opts.GroupBy == GroupByDAG {
+		return true
+	}
+
+	return false
 }
 
 type ListedConfigs []*ListedConfig
@@ -294,6 +315,7 @@ func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 		if opts.Dependencies {
 			node.Dependencies = make([]*JSONTree, 0)
 		}
+
 		nodes[config.Path] = node
 		topLevelNodes = append(topLevelNodes, node)
 	}
@@ -340,7 +362,7 @@ func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 // outputJSON outputs the discovered configurations in JSON format.
 func outputJSON(opts *Options, configs ListedConfigs) error {
 	var result interface{}
-	if opts.Sort == SortDAG {
+	if opts.GroupBy == GroupByDAG {
 		result = buildJSONDAGTree(opts, configs)
 	} else {
 		result = buildJSONTree(opts, configs)
@@ -515,17 +537,17 @@ func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
 		return errors.New(err)
 	}
 
-	const extraDependenciesPadding = 2
-
-	dependenciesPadding := (longestPathLen - len("Path")) + extraDependenciesPadding
-	for range dependenciesPadding {
-		_, err := opts.Writer.Write([]byte(" "))
-		if err != nil {
-			return errors.New(err)
-		}
-	}
-
 	if opts.Dependencies {
+		const extraDependenciesPadding = 2
+
+		dependenciesPadding := (longestPathLen - len("Path")) + extraDependenciesPadding
+		for range dependenciesPadding {
+			_, err := opts.Writer.Write([]byte(" "))
+			if err != nil {
+				return errors.New(err)
+			}
+		}
+
 		_, err = opts.Writer.Write([]byte(c.ColorizeHeading("Dependencies")))
 		if err != nil {
 			return errors.New(err)
@@ -738,7 +760,7 @@ func preProcessPath(path string) pathParts {
 func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, sort string) error {
 	var t *tree.Tree
 
-	if sort == SortDAG {
+	if opts.GroupBy == GroupByDAG {
 		t = generateDAGTree(configs, s)
 	} else {
 		t = generateTree(configs, s)

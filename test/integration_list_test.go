@@ -28,7 +28,7 @@ func TestListCommand(t *testing.T) {
 			name:       "List with long format",
 			workingDir: "fixtures/list/basic",
 			args:       []string{"list", "--long"},
-			expectedOutput: `Type  Path    Dependencies
+			expectedOutput: `Type  Path
 unit  a-unit
 unit  b-unit
 `,
@@ -160,7 +160,7 @@ func TestListCommandWithDependencies(t *testing.T) {
 		{
 			name:       "List with dependencies in tree format",
 			workingDir: "fixtures/list",
-			args:       []string{"list", "--tree", "--sort=dag"},
+			args:       []string{"list", "--tree", "--dag"},
 			expected: `.
 ├── basic/a-unit
 ├── basic/b-unit

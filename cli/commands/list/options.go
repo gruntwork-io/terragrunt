@@ -23,6 +23,12 @@ const (
 
 	// SortDAG sorts the discovered configurations in a topological sort order.
 	SortDAG = "dag"
+
+	// GroupByFS groups the discovered configurations by filesystem structure.
+	GroupByFS = "fs"
+
+	// GroupByDAG groups the discovered configurations by DAG relationships.
+	GroupByDAG = "dag"
 )
 
 type Options struct {
@@ -38,6 +44,9 @@ type Options struct {
 	// Sort determines the sort order of the output.
 	Sort string
 
+	// GroupBy determines how to group the configurations in the output.
+	GroupBy string
+
 	// Hidden determines whether to detect hidden directories.
 	Hidden bool
 
@@ -52,6 +61,9 @@ type Options struct {
 
 	// Long determines whether the output should be in long format.
 	Long bool
+
+	// DAG determines whether to output in DAG format.
+	DAG bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
@@ -59,6 +71,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		TerragruntOptions: opts,
 		Format:            FormatText,
 		Sort:              SortAlpha,
+		GroupBy:           GroupByFS,
 		Hidden:            false,
 	}
 }
@@ -71,6 +84,10 @@ func (o *Options) Validate() error {
 	}
 
 	if err := o.validateSort(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := o.validateGroupBy(); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -104,5 +121,16 @@ func (o *Options) validateSort() error {
 		return nil
 	default:
 		return errors.New("invalid sort: " + o.Sort)
+	}
+}
+
+func (o *Options) validateGroupBy() error {
+	switch o.GroupBy {
+	case GroupByFS:
+		return nil
+	case GroupByDAG:
+		return nil
+	default:
+		return errors.New("invalid group-by: " + o.GroupBy)
 	}
 }

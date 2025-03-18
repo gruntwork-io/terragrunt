@@ -24,6 +24,8 @@ const (
 	ExternalFlagName     = "external"
 	LongFlagName         = "long"
 	LongFlagAlias        = "l"
+	GroupByFlagName      = "group-by"
+	DAGFlagName          = "dag"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -49,6 +51,13 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Sort,
 			Usage:       "Sort order for list results. Valid values: alpha, dag.",
 			DefaultText: SortAlpha,
+		}),
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        GroupByFlagName,
+			EnvVars:     tgPrefix.EnvVars(GroupByFlagName),
+			Destination: &opts.GroupBy,
+			Usage:       "Group results by filesystem or DAG relationships. Valid values: fs, dag.",
+			DefaultText: GroupByFS,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        HiddenFlagName,
@@ -82,6 +91,12 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Output in long format.",
 			Aliases:     []string{LongFlagAlias},
 		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        DAGFlagName,
+			EnvVars:     tgPrefix.EnvVars(DAGFlagName),
+			Destination: &opts.DAG,
+			Usage:       "Output in DAG format.",
+		}),
 	}
 }
 
@@ -109,6 +124,11 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			if cmdOpts.Long {
 				cmdOpts.Format = FormatLong
+			}
+
+			if cmdOpts.DAG {
+				cmdOpts.Sort = SortDAG
+				cmdOpts.GroupBy = GroupByDAG
 			}
 
 			if err := cmdOpts.Validate(); err != nil {
