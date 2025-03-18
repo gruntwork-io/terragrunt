@@ -6,9 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/terragrunt/awshelper"
-	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded
@@ -156,39 +154,6 @@ func (cfg *ExtendedRemoteStateConfigS3) Validate() error {
 	return nil
 }
 
-// CreateLockTableIfNecessary creates a table for locks in DynamoDB if the user has configured a lock table and the table doesn't already exist
-func (cfg *ExtendedRemoteStateConfigS3) CreateLockTableIfNecessary(tags map[string]string, opts *options.TerragruntOptions) error {
-	if cfg.RemoteStateConfigS3.GetLockTableName() == "" {
-		return nil
-	}
-
-	dynamodbClient, err := dynamodb.CreateDynamoDBClient(cfg.GetAwsSessionConfig(), opts)
-	if err != nil {
-		return err
-	}
-
-	return dynamodb.CreateLockTableIfNecessary(cfg.RemoteStateConfigS3.GetLockTableName(), tags, dynamodbClient, opts)
-}
-
-// UpdateLockTableSetSSEncryptionOnIfNecessary updates a table for locks in DynamoDB
-// if the user has configured a lock table and the table's server-side encryption isn't turned on.
-func (cfg *ExtendedRemoteStateConfigS3) UpdateLockTableSetSSEncryptionOnIfNecessary(opts *options.TerragruntOptions) error {
-	if !cfg.EnableLockTableSSEncryption {
-		return nil
-	}
-
-	if cfg.RemoteStateConfigS3.GetLockTableName() == "" {
-		return nil
-	}
-
-	dynamodbClient, err := dynamodb.CreateDynamoDBClient(cfg.GetAwsSessionConfig(), opts)
-	if err != nil {
-		return err
-	}
-
-	return dynamodb.UpdateLockTableSetSSEncryptionOnIfNecessary(cfg.RemoteStateConfigS3.GetLockTableName(), dynamodbClient, opts)
-}
-
 type RemoteStateConfigS3AssumeRole struct {
 	RoleArn           string            `mapstructure:"role_arn"`
 	Duration          string            `mapstructure:"duration"`
@@ -227,7 +192,7 @@ type RemoteStateConfigS3 struct {
 	AssumeRole       RemoteStateConfigS3AssumeRole `mapstructure:"assume_role"`
 }
 
-// CacheKey returns a unique key for the given S3 config that can be used to cache the initialization.
+// CacheKey returns a unique key for the given S3 config that can be used to cache the initialization
 func (cfg *RemoteStateConfigS3) CacheKey() string {
 	return fmt.Sprintf(
 		"%s-%s-%s-%s",

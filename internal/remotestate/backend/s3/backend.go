@@ -3,10 +3,8 @@ package s3
 
 import (
 	"context"
+	"path"
 
-	"github.com/gruntwork-io/terragrunt/awshelper"
-	"github.com/gruntwork-io/terragrunt/dynamodb"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -38,39 +36,28 @@ func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Con
 		return true, nil
 	}
 
-	extS3Cfg, err := cfg.ParseExtendedS3Config()
+	extS3Cfg, err := cfg.ExtendedS3Config(opts.Logger)
 	if err != nil {
 		return false, err
 	}
-
-	s3Cfg := extS3Cfg.RemoteStateConfigS3
 
 	client, err := NewClient(extS3Cfg, opts)
 	if err != nil {
 		return false, err
 	}
 
-	// Validate current AWS session before checking S3
-	if !extS3Cfg.SkipCredentialsValidation {
-		if err = awshelper.ValidateAwsSession(client.session); err != nil {
-			return false, err
-		}
+	var (
+		bucketName = extS3Cfg.RemoteStateConfigS3.Bucket
+		tableName  = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
+	)
+
+	if exists, err := client.DoesS3BucketExist(ctx, bucketName); err != nil || !exists {
+		return true, err
 	}
 
-	if !client.DoesS3BucketExist(ctx, s3Cfg.Bucket) {
-		return true, nil
-	}
-
-	if s3Cfg.GetLockTableName() != "" {
-		dynamodbClient := dynamodb.New(client.session)
-
-		tableExists, err := dynamodb.LockTableExistsAndIsActive(s3Cfg.GetLockTableName(), dynamodbClient)
-		if err != nil {
-			return false, err
-		}
-
-		if !tableExists {
-			return true, nil
+	if tableName != "" {
+		if exists, err := client.DoesLockTableExistAndIsActive(ctx, tableName); err != nil || !exists {
+			return true, err
 		}
 	}
 
@@ -79,14 +66,10 @@ func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Con
 
 // Init the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (backend *Backend) Init(ctx context.Context, backedConfig backend.Config, opts *options.TerragruntOptions) error {
-	extS3Cfg, err := Config(backedConfig).Normalize(opts.Logger).ParseExtendedS3Config()
+func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
 	if err != nil {
-		return errors.New(err)
-	}
-
-	if err := extS3Cfg.Validate(); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	var (
@@ -126,12 +109,14 @@ func (backend *Backend) Init(ctx context.Context, backedConfig backend.Config, o
 		}
 	}
 
-	if err := extS3Cfg.CreateLockTableIfNecessary(extS3Cfg.DynamotableTags, opts); err != nil {
-		return err
-	}
+	if tableName := extS3Cfg.RemoteStateConfigS3.GetLockTableName(); tableName != "" {
+		if err := client.CreateLockTableIfNecessary(ctx, tableName, extS3Cfg.DynamotableTags); err != nil {
+			return err
+		}
 
-	if err := extS3Cfg.UpdateLockTableSetSSEncryptionOnIfNecessary(opts); err != nil {
-		return err
+		if err := client.UpdateLockTableSetSSEncryptionOnIfNecessary(ctx, tableName); err != nil {
+			return err
+		}
 	}
 
 	backend.MarkConfigInited(s3Cfg)
@@ -139,14 +124,10 @@ func (backend *Backend) Init(ctx context.Context, backedConfig backend.Config, o
 	return nil
 }
 
-// DeleteBucket deletes the remote state S3 bucket specified in the given config.
-func (backend *Backend) DeleteBucket(ctx context.Context, backednConfig backend.Config, opts *options.TerragruntOptions) error {
-	extS3Cfg, err := Config(backednConfig).Normalize(opts.Logger).ParseExtendedS3Config()
+// Delete deletes the remote state specified in the given config.
+func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
 	if err != nil {
-		return err
-	}
-
-	if err := extS3Cfg.Validate(); err != nil {
 		return err
 	}
 
@@ -155,11 +136,47 @@ func (backend *Backend) DeleteBucket(ctx context.Context, backednConfig backend.
 		return err
 	}
 
-	if err := client.DeleteS3BucketIfNecessary(ctx, extS3Cfg.RemoteStateConfigS3.Bucket); err != nil {
+	var (
+		bucketName = extS3Cfg.RemoteStateConfigS3.Bucket
+		bucketKey  = extS3Cfg.RemoteStateConfigS3.Key
+		tableName  = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
+	)
+
+	if tableName != "" {
+		tableKey := path.Join(bucketName, bucketKey+stateIDSuffix)
+
+		if err := client.DeleteTalbeItemIfNecessary(ctx, tableName, tableKey); err != nil {
+			return err
+		}
+	}
+
+	return client.DeleteObjectIfNecessary(ctx, bucketName, bucketKey)
+}
+
+// DeleteBucket deletes the entire bucket specified in the given config.
+func (backend *Backend) DeleteBucket(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	client, err := NewClient(extS3Cfg, opts)
+	if err != nil {
+		return err
+	}
+
+	var (
+		bucketName = extS3Cfg.RemoteStateConfigS3.Bucket
+		tableName  = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
+	)
+
+	if tableName != "" {
+		if err := client.DeleteTableIfNecessary(ctx, tableName); err != nil {
+			return err
+		}
+	}
+
+	return client.DeleteS3BucketIfNecessary(ctx, bucketName)
 }
 
 func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {

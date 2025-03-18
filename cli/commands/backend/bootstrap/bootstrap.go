@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
@@ -38,18 +37,5 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		opts.WorkingDir = tfSource.WorkingDir
 	}
 
-	return initRemoteState(ctx, opts, cfg.RemoteState)
-}
-
-func initRemoteState(ctx context.Context, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) error {
-	remoteStateNeedsInit, err := remoteState.NeedsInit(ctx, opts)
-	if err != nil || !remoteStateNeedsInit {
-		return err
-	}
-
-	if err := remoteState.Init(ctx, opts); err != nil {
-		return err
-	}
-
-	return nil
+	return cfg.RemoteState.Init(ctx, opts)
 }

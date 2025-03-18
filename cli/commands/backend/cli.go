@@ -5,7 +5,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/bootstrap"
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/delete"
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -17,14 +16,12 @@ const (
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	prefix := flags.Prefix{CommandName}
-
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Interact with OpenTofu/Terraform backend infrastructure.",
 		Subcommands: cli.Commands{
 			bootstrap.NewCommand(opts),
-			delete.NewCommand(opts, prefix),
+			delete.NewCommand(opts),
 			migrate.NewCommand(opts),
 		},
 		ErrorOnUndefinedFlag: true,

@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	lockTableKey                 = "lock_table"
-	dynamoDBTableKey             = "dynamodb_table"
-	encryptKey                   = "encrypt"
-	assumeRoleKey                = "assume_role"
-	accessloggingTargetPrefixKey = "accesslogging_target_prefix"
+	configLockTableKey                 = "lock_table"
+	configDynamoDBTableKey             = "dynamodb_table"
+	configEncryptKey                   = "encrypt"
+	configKeyKey                       = "key"
+	configAssumeRoleKey                = "assume_role"
+	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
 
 	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 
@@ -42,12 +43,12 @@ func (cfg Config) GetTFInitArgs() Config {
 		// Remove the deprecated "lock_table" attribute so that it
 		// will not be passed either when generating a backend block
 		// or as a command-line argument.
-		if key == lockTableKey {
-			filtered[dynamoDBTableKey] = val
+		if key == configLockTableKey {
+			filtered[configDynamoDBTableKey] = val
 			continue
 		}
 
-		if key == assumeRoleKey {
+		if key == configAssumeRoleKey {
 			if mapVal, ok := val.(map[string]any); ok {
 				filtered[key] = hclhelper.WrapMapToSingleLineHcl(mapVal)
 
@@ -73,34 +74,34 @@ func (cfg Config) Normalize(logger log.Logger) Config {
 	// "lock_table" attribute is either set to NULL in the state file or missing
 	// from it altogether. Display a deprecation warning when the "lock_table"
 	// attribute is being used.
-	if util.KindOf(normalized[lockTableKey]) == reflect.String && normalized[lockTableKey] != "" {
+	if util.KindOf(normalized[configLockTableKey]) == reflect.String && normalized[configLockTableKey] != "" {
 		logger.Warnf("%s\n", lockTableDeprecationMessage)
 
-		normalized[dynamoDBTableKey] = normalized[lockTableKey]
-		delete(normalized, lockTableKey)
+		normalized[configDynamoDBTableKey] = normalized[configLockTableKey]
+		delete(normalized, configLockTableKey)
 	}
 
 	return normalized
 }
-func (cfg Config) IsEqual(comparableCfg Config, logger log.Logger) bool {
+func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// Terraform's `backend` configuration uses a boolean for the `encrypt` parameter. However, perhaps for backwards compatibility reasons,
 	// Terraform stores that parameter as a string in the `terraform.tfstate` file. Therefore, we have to convert it accordingly, or `DeepEqual`
 	// will fail.
-	if util.KindOf(comparableCfg[encryptKey]) == reflect.String && util.KindOf(cfg[encryptKey]) == reflect.Bool {
+	if util.KindOf(targetCfg[configEncryptKey]) == reflect.String && util.KindOf(cfg[configEncryptKey]) == reflect.Bool {
 		// If encrypt in remoteState is a bool and a string in existingBackend, DeepEqual will consider the maps to be different.
 		// So we convert the value from string to bool to make them equivalent.
-		if value, err := strconv.ParseBool(comparableCfg[encryptKey].(string)); err == nil {
-			comparableCfg[encryptKey] = value
+		if value, err := strconv.ParseBool(targetCfg[configEncryptKey].(string)); err == nil {
+			targetCfg[configEncryptKey] = value
 		} else {
-			logger.Warnf("Remote state configuration encrypt contains invalid value %v, should be boolean.", comparableCfg["encrypt"])
+			logger.Warnf("Remote state configuration encrypt contains invalid value %v, should be boolean.", targetCfg["encrypt"])
 		}
 	}
 
 	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
-	for key, value := range comparableCfg {
-		if util.KindOf(comparableCfg[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
+	for key, value := range targetCfg {
+		if util.KindOf(targetCfg[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
 			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {
-				comparableCfg[key] = convertedValue
+				targetCfg[key] = convertedValue
 			}
 		}
 	}
@@ -115,7 +116,7 @@ func (cfg Config) IsEqual(comparableCfg Config, logger log.Logger) bool {
 		}
 	}
 
-	return newConfig.IsEqual(backend.Config(comparableCfg), BackendName, logger)
+	return newConfig.IsEqual(backend.Config(targetCfg), BackendName, logger)
 }
 
 // ParseExtendedS3Config parses the given map into an extended S3 config.
@@ -133,7 +134,7 @@ func (cfg Config) ParseExtendedS3Config() (*ExtendedRemoteStateConfigS3, error) 
 		return nil, errors.New(err)
 	}
 
-	_, targetPrefixExists := cfg[accessloggingTargetPrefixKey]
+	_, targetPrefixExists := cfg[configAccessloggingTargetPrefixKey]
 	if !targetPrefixExists {
 		extendedConfig.AccessLoggingTargetPrefix = DefaultS3BucketAccessLoggingTargetPrefix
 	}
@@ -141,4 +142,14 @@ func (cfg Config) ParseExtendedS3Config() (*ExtendedRemoteStateConfigS3, error) 
 	extendedConfig.RemoteStateConfigS3 = s3Config
 
 	return &extendedConfig, nil
+}
+
+// ExtendedS3Config parses the given map into an extended S3 config and validates this config.
+func (cfg Config) ExtendedS3Config(logger log.Logger) (*ExtendedRemoteStateConfigS3, error) {
+	extS3Cfg, err := cfg.Normalize(logger).ParseExtendedS3Config()
+	if err != nil {
+		return nil, err
+	}
+
+	return extS3Cfg, extS3Cfg.Validate()
 }

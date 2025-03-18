@@ -33,3 +33,30 @@ type InvalidAccessLoggingBucketEncryption struct {
 func (err InvalidAccessLoggingBucketEncryption) Error() string {
 	return fmt.Sprintf("Encryption algorithm %s is not supported for access logging bucket. Please use AES256", err.BucketSSEAlgorithm)
 }
+
+type TableActiveRetriesExceeded struct {
+	TableName string
+	Retries   int
+}
+
+func (err TableActiveRetriesExceeded) Error() string {
+	return fmt.Sprintf("Table %s is still not in active state after %d retries.", err.TableName, err.Retries)
+}
+
+type TableDoesNotExist struct {
+	TableName  string
+	Underlying error
+}
+
+func (err TableDoesNotExist) Error() string {
+	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
+}
+
+type TableEncryptedRetriesExceeded struct {
+	TableName string
+	Retries   int
+}
+
+func (err TableEncryptedRetriesExceeded) Error() string {
+	return fmt.Sprintf("Table %s still does not have encryption enabled after %d retries.", err.TableName, err.Retries)
+}

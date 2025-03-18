@@ -33,10 +33,7 @@ import (
 	"testing"
 
 	"github.com/NYTimes/gziphandler"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/version"
-	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -164,68 +161,6 @@ func UniqueID() string {
 	}
 
 	return out.String()
-}
-
-// DeleteS3Bucket deletes the specified S3 bucket to clean up after a test, and fails the test if there was an error.
-func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) {
-	t.Helper()
-
-	require.NoError(t, DeleteS3BucketE(t, awsRegion, bucketName, opts...))
-}
-
-// DeleteS3BucketE deletes the specified S3 bucket potentially with error to clean up after a test.
-func DeleteS3BucketE(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
-	t.Helper()
-
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test", opts...)
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return err
-	}
-
-	sessionConfig := &awshelper.AwsSessionConfig{
-		Region: awsRegion,
-	}
-
-	s3Client, err := awshelper.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Logf("Error creating S3 client: %v", err)
-		return err
-	}
-
-	t.Logf("Deleting test s3 bucket %s", bucketName)
-
-	out, err := s3Client.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)})
-	if err != nil {
-		t.Logf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
-		return err
-	}
-
-	objectIdentifiers := []*s3.ObjectIdentifier{}
-	for _, version := range out.Versions {
-		objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
-			Key:       version.Key,
-			VersionId: version.VersionId,
-		})
-	}
-
-	if len(objectIdentifiers) > 0 {
-		deleteInput := &s3.DeleteObjectsInput{
-			Bucket: aws.String(bucketName),
-			Delete: &s3.Delete{Objects: objectIdentifiers},
-		}
-		if _, err := s3Client.DeleteObjects(deleteInput); err != nil {
-			t.Logf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
-			return err
-		}
-	}
-
-	if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
-		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
-		return err
-	}
-
-	return nil
 }
 
 func FileIsInFolder(t *testing.T, name string, path string) bool {

@@ -29,14 +29,13 @@ func NewFlags(cmdOpts *Options, prefix flags.Prefix) cli.Flags {
 	return append(flags, run.NewFlags(cmdOpts.TerragruntOptions, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
 }
 
-func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
-	prefix = prefix.Append(CommandName)
 
 	cmd := &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Delete OpenTofu/Terraform state.",
-		Flags:                NewFlags(cmdOpts, prefix),
+		Flags:                NewFlags(cmdOpts, nil),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, cmdOpts.OptionsFromContext(ctx))

@@ -1,4 +1,4 @@
-package dynamodb
+package s3
 
 type empty struct{}
 type CountingSemaphore chan empty

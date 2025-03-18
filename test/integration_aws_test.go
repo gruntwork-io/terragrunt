@@ -24,7 +24,6 @@ import (
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config"
-	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -320,9 +319,9 @@ func TestAwsOutputAllCommand(t *testing.T) {
 	helpers.RunTerragruntRedirectOutput(t, "terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 
-	assert.True(t, strings.Contains(output, "app1 output"))
-	assert.True(t, strings.Contains(output, "app2 output"))
-	assert.True(t, strings.Contains(output, "app3 output"))
+	assert.Contains(t, output, "app1 output")
+	assert.Contains(t, output, "app2 output")
+	assert.Contains(t, output, "app3 output")
 
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
@@ -397,7 +396,7 @@ func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T)
 	helpers.LogBufferContentsLineByLine(t, stderr, "output-all stderr")
 
 	// Without --terragrunt-ignore-dependency-errors, app2 never runs because its dependencies have "errors" since they don't have the output "app2_text".
-	assert.True(t, strings.Contains(output, "app2 output"))
+	assert.Contains(t, output, "app2 output")
 }
 
 func TestAwsStackCommands(t *testing.T) { //nolint paralleltest
@@ -969,10 +968,10 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	helpers.RunTerragruntRedirectOutput(t, "terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 
-	assert.True(t, strings.Contains(output, "app1 output"))
-	assert.True(t, strings.Contains(output, "app2 output"))
-	assert.True(t, strings.Contains(output, "app3 output"))
-	assert.False(t, strings.Contains(stderr.String(), "terraform output -json"))
+	assert.Contains(t, output, "app1 output")
+	assert.Contains(t, output, "app2 output")
+	assert.Contains(t, output, "app3 output")
+	assert.NotContains(t, stderr.String(), "terraform output -json")
 
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
@@ -1009,10 +1008,8 @@ func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 func TestAwsParallelStateInit(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		require.NoError(t, err)
-	}
+	tmpEnvPath := t.TempDir()
+
 	for i := 0; i < 20; i++ {
 		err := util.CopyFolderContents(createLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)
@@ -1300,27 +1297,18 @@ func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tabl
 func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
 	t.Helper()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Fatalf("Error creating mockOptions: %v", err)
-	}
+	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
-	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
-		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
-			Region: awsRegion,
-		},
-	}
+	exists, err := client.DoesS3BucketExist(context.Background(), bucketName)
+	require.NoError(t, err)
 
-	s3Client, err := s3backend.NewClient(extS3Cfg, mockOptions)
-	require.NoError(t, err, "Error creating S3 client")
-
-	assert.True(t, s3Client.DoesS3BucketExist(context.TODO(), bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+	assert.True(t, exists, "Terragrunt failed to create remote state S3 bucket %s", bucketName)
 
 	if expectedTags != nil {
-		assertS3Tags(t, expectedTags, bucketName, s3Client.S3)
+		assertS3Tags(t, expectedTags, bucketName, client.S3)
 	}
 
-	assertS3PublicAccessBlocks(t, s3Client.S3, bucketName)
+	assertS3PublicAccessBlocks(t, client.S3, bucketName)
 }
 
 func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
@@ -1341,23 +1329,10 @@ func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) 
 func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
 	t.Helper()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return nil, err
-	}
-
-	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
-		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
-			Region: awsRegion,
-		},
-	}
-
-	s3Client, err := s3backend.NewClient(extS3Cfg, mockOptions)
-	require.NoError(t, err, "Error creating S3 client")
+	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
 	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
-	output, err := s3Client.GetBucketEncryption(input)
+	output, err := client.GetBucketEncryption(input)
 	if err != nil {
 		// TODO: Remove this lint suppression
 		return nil, nil //nolint:nilerr
@@ -1366,46 +1341,24 @@ func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.Ge
 	return output, nil
 }
 
-// createS3Bucket creates a test S3 bucket for state.
+// createS3Bucket create test S3 bucket.
 func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 	t.Helper()
 
-	err := createS3BucketE(t, awsRegion, bucketName)
-	require.NoError(t, err)
-}
-
-// createS3BucketE create test S3 bucket.
-func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
-	t.Helper()
-
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return err
-	}
-
-	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
-		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
-			Region: awsRegion,
-		},
-	}
-
-	s3Client, err := s3backend.NewClient(extS3Cfg, mockOptions)
-	require.NoError(t, err, "Error creating S3 client")
+	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
 	t.Logf("Creating test s3 bucket %s", bucketName)
-	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
-		t.Logf("Failed to create S3 bucket %s: %v", bucketName, err)
-		return err
-	}
-	return nil
+
+	_, err := client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)})
+	require.NoError(t, err, "Failed to create S3 bucket")
 }
 
 func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 	t.Helper()
 
-	client := createDynamoDBClientForTest(t, awsRegion)
-	err := terragruntDynamoDb.DeleteTable(tableName, client)
+	client := helpers.CreateS3ClientForTest(t, awsRegion)
+
+	err := client.DeleteTable(context.Background(), tableName)
 	require.NoError(t, err)
 }
 
@@ -1433,22 +1386,9 @@ func createDynamoDBClient(awsRegion, awsProfile string, iamRoleArn string) (*dyn
 func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
 	t.Helper()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return nil, err
-	}
+	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
-	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
-		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
-			Region: awsRegion,
-		},
-	}
-
-	s3Client, err := s3backend.NewClient(extS3Cfg, mockOptions)
-	require.NoError(t, err, "Error creating S3 client")
-
-	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
+	policyOutput, err := client.GetBucketPolicy(&s3.GetBucketPolicyInput{
 		Bucket: aws.String(bucketName),
 	})
 	if err != nil {

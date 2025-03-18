@@ -29,7 +29,10 @@ type Backend interface {
 	// Init initializes the remote state.
 	Init(ctx context.Context, config Config, opts *options.TerragruntOptions) error
 
-	// DeleteBucket deletes the remote state.
+	// Delete deletes the remote state.
+	Delete(ctx context.Context, config Config, opts *options.TerragruntOptions) error
+
+	// DeleteBucket deletes the entire bucket.
 	DeleteBucket(ctx context.Context, config Config, opts *options.TerragruntOptions) error
 
 	// GetTFInitArgs returns the config that should be passed on to `tofu -backend-config` cmd line param

@@ -29,12 +29,12 @@ func (cfg Config) GetTFInitArgs() Config {
 	return filtered
 }
 
-func (cfg Config) IsEqual(comparableCfg Config, logger log.Logger) bool {
+func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
-	for key, value := range comparableCfg {
-		if util.KindOf(comparableCfg[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
+	for key, value := range targetCfg {
+		if util.KindOf(targetCfg[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
 			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {
-				comparableCfg[key] = convertedValue
+				targetCfg[key] = convertedValue
 			}
 		}
 	}
@@ -48,7 +48,7 @@ func (cfg Config) IsEqual(comparableCfg Config, logger log.Logger) bool {
 		}
 	}
 
-	return newConfig.IsEqual(backend.Config(comparableCfg), BackendName, logger)
+	return newConfig.IsEqual(backend.Config(targetCfg), BackendName, logger)
 }
 
 // ParseExtendedGCSConfig parses the given map into a GCS config.

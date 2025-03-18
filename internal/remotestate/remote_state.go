@@ -41,9 +41,16 @@ func (remote *RemoteState) String() string {
 	return remote.Config.String()
 }
 
-// DeleteBucket deletes the remote state.
-func (remote *RemoteState) DeleteBucket(ctx context.Context, opts *options.TerragruntOptions) error {
+// Delete deletes the remote state.
+func (remote *RemoteState) Delete(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.Debugf("Deleting remote state for the %s backend", remote.BackendName)
+
+	return remote.backend.Delete(ctx, remote.BackendConfig, opts)
+}
+
+// DeleteBucket deletes the entire bucket.
+func (remote *RemoteState) DeleteBucket(ctx context.Context, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Deleting the entire bucket for the %s backend", remote.BackendName)
 
 	return remote.backend.DeleteBucket(ctx, remote.BackendConfig, opts)
 }

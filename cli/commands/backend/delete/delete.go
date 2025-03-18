@@ -42,5 +42,5 @@ func Run(ctx context.Context, cmdOpts *Options) error {
 		return cfg.RemoteState.DeleteBucket(ctx, opts)
 	}
 
-	return nil
+	return cfg.RemoteState.Delete(ctx, opts)
 }

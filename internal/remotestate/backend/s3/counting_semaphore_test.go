@@ -1,5 +1,5 @@
 //nolint:govet
-package dynamodb_test
+package s3_test
 
 import (
 	"math/rand"
@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/dynamodb"
+	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 )
 
 func TestAwsCountingSemaphoreHappyPath(t *testing.T) {
 	t.Parallel()
 
-	semaphore := dynamodb.NewCountingSemaphore(1)
+	semaphore := s3backend.NewCountingSemaphore(1)
 	semaphore.Acquire()
 	semaphore.Release()
 }
@@ -28,7 +28,7 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 
 	permits := 10
 	goroutines := 100
-	semaphore := dynamodb.NewCountingSemaphore(permits)
+	semaphore := s3backend.NewCountingSemaphore(permits)
 
 	var goRoutinesExecutingSimultaneously uint32
 	var waitForAllGoRoutinesToFinish sync.WaitGroup

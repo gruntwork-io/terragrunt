@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	awsclient "github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -34,12 +37,43 @@ const (
 	// which is represented by the following URI. For more info, see:
 	// https://docs.aws.amazon.com/AmazonS3/latest/dev/enable-logging-programming.html
 	s3LogDeliveryGranteeURI = "http://acs.amazonaws.com/groups/s3/LogDelivery"
+
+	// DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
+	// running many automated tests in parallel, we use a counting semaphore
+	dynamoParallelOperations = 10
+
+	// AttrLockID is the name of the primary key for the lock table in DynamoDB.
+	// OpenTofu/Terraform requires the DynamoDB table to have a primary key with this name
+	AttrLockID = "LockID"
+
+	// stateIDSuffix is last saved serial in tablestore with this suffix for consistency checks.
+	stateIDSuffix = "-md5"
+
+	// MaxRetriesWaitingForTableToBeActive is the maximum number of times we
+	// will retry waiting for a table to be active.
+	//
+	// Default is to retry for up to 5 minutes
+	MaxRetriesWaitingForTableToBeActive = 30
+
+	// SleepBetweenTableStatusChecks is the amount of time we will sleep between
+	// checks to see if a table is active.
+	SleepBetweenTableStatusChecks = 10 * time.Second
+
+	// DynamodbPayPerRequestBillingMode is the billing mode for DynamoDB tables that allows for pay-per-request billing
+	// instead of provisioned capacity.
+	DynamodbPayPerRequestBillingMode = "PAY_PER_REQUEST"
+
+	sleepBetweenRetriesWaitingForEncryption = 20 * time.Second
+	maxRetriesWaitingForEncryption          = 15
 )
+
+var tableCreateDeleteSemaphore = NewCountingSemaphore(dynamoParallelOperations)
 
 type Client struct {
 	*ExtendedRemoteStateConfigS3
 
 	*s3.S3
+	*dynamodb.DynamoDB
 	session *session.Session
 
 	logger                       log.Logger
@@ -54,9 +88,16 @@ func NewClient(config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOpti
 		return nil, errors.New(err)
 	}
 
+	if !config.SkipCredentialsValidation {
+		if err = awshelper.ValidateAwsSession(session); err != nil {
+			return nil, err
+		}
+	}
+
 	client := &Client{
 		ExtendedRemoteStateConfigS3:  config,
 		S3:                           s3.New(session),
+		DynamoDB:                     dynamodb.New(session),
 		session:                      session,
 		failIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		logger:                       opts.Logger,
@@ -70,8 +111,8 @@ func NewClient(config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOpti
 func (client *Client) createS3BucketIfNecessary(ctx context.Context, bucketName string, opts *options.TerragruntOptions) error {
 	cfg := &client.RemoteStateConfigS3
 
-	if client.DoesS3BucketExist(ctx, cfg.Bucket) {
-		return nil
+	if exists, err := client.DoesS3BucketExistWithLogging(ctx, cfg.Bucket); err != nil || exists {
+		return err
 	}
 
 	if opts.FailIfBucketCreationRequired {
@@ -112,12 +153,10 @@ func (client *Client) createS3BucketIfNecessary(ctx context.Context, bucketName 
 }
 
 func (client *Client) updateS3BucketIfNecessary(ctx context.Context, bucketName string, opts *options.TerragruntOptions) error {
-	if !client.DoesS3BucketExist(ctx, bucketName) {
-		if opts.FailIfBucketCreationRequired {
-			return backend.BucketCreationNotAllowed(bucketName)
-		}
-
-		return errors.New(fmt.Errorf("remote state S3 bucket %s does not exist or you don't have permissions to access it", bucketName))
+	if exists, err := client.DoesS3BucketExistWithLogging(ctx, bucketName); err != nil {
+		return err
+	} else if !exists && opts.FailIfBucketCreationRequired {
+		return backend.BucketCreationNotAllowed(bucketName)
 	}
 
 	needsUpdate, bucketUpdatesRequired, err := client.checkIfS3BucketNeedsUpdate(ctx, bucketName)
@@ -130,7 +169,7 @@ func (client *Client) updateS3BucketIfNecessary(ctx context.Context, bucketName 
 		return nil
 	}
 
-	prompt := fmt.Sprintf("Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?", bucketName)
+	prompt := fmt.Sprintf("Remote state S3 bucket %s is res of date. Would you like Terragrunt to update it?", bucketName)
 
 	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, prompt, opts)
 	if err != nil {
@@ -369,14 +408,14 @@ func (client *Client) checkIfS3BucketNeedsUpdate(ctx context.Context, bucketName
 func (client *Client) checkIfVersioningEnabled(ctx context.Context, bucketName string) (bool, error) {
 	client.logger.Debugf("Verifying AWS S3 Bucket Versioning %s", bucketName)
 
-	out, err := client.GetBucketVersioningWithContext(ctx, &s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)})
+	res, err := client.GetBucketVersioningWithContext(ctx, &s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)})
 	if err != nil {
 		return false, errors.New(err)
 	}
 
-	// NOTE: There must be a bug in the AWS SDK since out == nil when versioning is not enabled. In the future,
-	// check the AWS SDK for updates to see if we can remove "out == nil ||".
-	if out == nil || out.Status == nil || *out.Status != s3.BucketVersioningStatusEnabled {
+	// NOTE: There must be a bug in the AWS SDK since res == nil when versioning is not enabled. In the future,
+	// check the AWS SDK for updates to see if we can remove "res == nil ||".
+	if res == nil || res.Status == nil || *res.Status != s3.BucketVersioningStatusEnabled {
 		client.logger.Warnf("Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", bucketName)
 		return false, nil
 	}
@@ -464,8 +503,8 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 }
 
 func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, logsBucketName string, opts *options.TerragruntOptions) error {
-	if client.DoesS3BucketExist(ctx, logsBucketName) {
-		return nil
+	if exists, err := client.DoesS3BucketExistWithLogging(ctx, logsBucketName); err != nil || exists {
+		return err
 	}
 
 	if client.failIfBucketCreationRequired {
@@ -568,7 +607,9 @@ func (client *Client) WaitUntilS3BucketExists(ctx context.Context) error {
 	client.logger.Debugf("Waiting for bucket %s to be created", cfg.Bucket)
 
 	for retries := 0; retries < maxRetriesWaitingForS3Bucket; retries++ {
-		if client.DoesS3BucketExist(ctx, cfg.Bucket) {
+		if exists, err := client.DoesS3BucketExistWithLogging(ctx, cfg.Bucket); err != nil {
+			return err
+		} else if exists {
 			client.logger.Debugf("S3 bucket %s created.", cfg.Bucket)
 
 			return nil
@@ -709,10 +750,8 @@ func (client *Client) checkIfBucketRootAccess(bucketName string) (bool, error) {
 	if err != nil {
 		// NoSuchBucketPolicy error is considered as no policy.
 		var awsErr awserr.Error
-		if ok := errors.As(err, &awsErr); ok {
-			if awsErr.Code() == "NoSuchBucketPolicy" {
-				return false, nil
-			}
+		if ok := errors.As(err, &awsErr); ok && awsErr.Code() == "NoSuchBucketPolicy" {
+			return false, nil
 		}
 
 		client.logger.Debugf("Could not get policy for bucket %s", bucketName)
@@ -746,9 +785,29 @@ func (client *Client) checkIfBucketRootAccess(bucketName string) (bool, error) {
 //
 // Returns true if the S3 bucket specified in the given config exists and the current user has the ability to access
 // it.
-func (client *Client) DoesS3BucketExist(ctx context.Context, bucket string) bool {
-	_, err := client.HeadBucketWithContext(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucket)})
-	return err == nil
+func (client *Client) DoesS3BucketExist(ctx context.Context, bucketName string) (bool, error) {
+	input := &s3.HeadBucketInput{Bucket: aws.String(bucketName)}
+
+	if _, err := client.HeadBucketWithContext(ctx, input); err != nil {
+		var awsErr awserr.Error
+		if ok := errors.As(err, &awsErr); ok && awsErr.Code() == "NotFound" {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (client *Client) DoesS3BucketExistWithLogging(ctx context.Context, bucketName string) (bool, error) {
+	if exists, err := client.DoesS3BucketExist(ctx, bucketName); err != nil || exists {
+		return exists, err
+	}
+
+	client.logger.Debugf("Remote state S3 bucket %s does not exist or you don't have permissions to access it.", bucketName)
+
+	return false, nil
 }
 
 func (client *Client) checkIfBucketEnforcedTLS(bucketName string) (bool, error) {
@@ -1090,7 +1149,7 @@ func (client *Client) waitUntilBucketHasAccessLoggingACL(bucketName string) erro
 	maxRetries := 10
 
 	for i := 0; i < maxRetries; i++ {
-		out, err := client.GetBucketAcl(&s3.GetBucketAclInput{Bucket: aws.String(bucketName)})
+		res, err := client.GetBucketAcl(&s3.GetBucketAclInput{Bucket: aws.String(bucketName)})
 		if err != nil {
 			return errors.Errorf("error getting ACL for bucket %s: %w", bucketName, err)
 		}
@@ -1098,7 +1157,7 @@ func (client *Client) waitUntilBucketHasAccessLoggingACL(bucketName string) erro
 		hasReadAcp := false
 		hasWrite := false
 
-		for _, grant := range out.Grants {
+		for _, grant := range res.Grants {
 			if aws.StringValue(grant.Grantee.URI) == s3LogDeliveryGranteeURI {
 				if aws.StringValue(grant.Permission) == s3.PermissionReadAcp {
 					hasReadAcp = true
@@ -1144,13 +1203,11 @@ func (client *Client) checkBucketAccess(bucket, key string) error {
 }
 
 func (client *Client) DeleteS3BucketIfNecessary(ctx context.Context, bucketName string) error {
-	if notExist := !client.DoesS3BucketExist(ctx, bucketName); notExist {
-		client.logger.Warnf("Remote state S3 bucket %s does not exist or you don't have permissions to access it.", bucketName)
-
-		return nil
+	if exists, err := client.DoesS3BucketExistWithLogging(ctx, bucketName); err != nil || !exists {
+		return err
 	}
 
-	description := "Delete S3 bucket with retry " + bucketName
+	description := fmt.Sprintf("Delete S3 bucket %s with retry", bucketName)
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
 		err := client.DeleteS3BucketWithAllObjects(ctx, bucketName)
@@ -1177,12 +1234,16 @@ func (client *Client) DeleteS3BucketWithAllObjects(ctx context.Context, bucketNa
 	return client.DeleteS3Bucket(ctx, bucketName)
 }
 
-func (client *Client) DeleteS3BucketObject(ctx context.Context, bucketName string, key, versionID *string) error {
-	client.logger.Debugf("Deleting S3 bucket %s object %s/%s", bucketName, key, versionID)
+func (client *Client) DeleteS3BucketObject(ctx context.Context, bucketName, key string, versionID *string) error {
+	if versionID != nil {
+		client.logger.Debugf("Deleting S3 bucket %s object %s version %s", bucketName, key, *versionID)
+	} else {
+		client.logger.Debugf("Deleting S3 bucket %s object %s", bucketName, key)
+	}
 
 	objectInput := &s3.DeleteObjectInput{
 		Bucket:    aws.String(bucketName),
-		Key:       key,
+		Key:       aws.String(key),
 		VersionId: versionID,
 	}
 
@@ -1194,9 +1255,7 @@ func (client *Client) DeleteS3BucketObject(ctx context.Context, bucketName strin
 }
 
 func (client *Client) DeleteS3BucketV2Objects(ctx context.Context, bucketName string) error {
-	var (
-		v2Input = &s3.ListObjectsV2Input{Bucket: aws.String(bucketName)}
-	)
+	var v2Input = &s3.ListObjectsV2Input{Bucket: aws.String(bucketName)}
 
 	for {
 		select {
@@ -1205,31 +1264,29 @@ func (client *Client) DeleteS3BucketV2Objects(ctx context.Context, bucketName st
 		default:
 		}
 
-		out, err := client.ListObjectsV2WithContext(ctx, v2Input)
+		res, err := client.ListObjectsV2WithContext(ctx, v2Input)
 		if err != nil {
 			return errors.Errorf("failed to list objects: %w", err)
 		}
 
-		for _, item := range out.Contents {
-			if err := client.DeleteS3BucketObject(ctx, bucketName, item.Key, nil); err != nil {
+		for _, item := range res.Contents {
+			if err := client.DeleteS3BucketObject(ctx, bucketName, aws.StringValue(item.Key), nil); err != nil {
 				return err
 			}
 		}
 
-		if aws.BoolValue(out.IsTruncated) {
-			v2Input.ContinuationToken = out.ContinuationToken
-		} else {
+		if !aws.BoolValue(res.IsTruncated) {
 			break
 		}
+
+		v2Input.ContinuationToken = res.ContinuationToken
 	}
 
 	return nil
 }
 
-func (client *Client) DeleteS3BucketVersionObjects(ctx context.Context, bucketName string) error {
-	var (
-		versionsInput = &s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)}
-	)
+func (client *Client) DeleteS3BucketVersionObjects(ctx context.Context, bucketName string, keys ...string) error {
+	var versionsInput = &s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)}
 
 	for {
 		select {
@@ -1238,29 +1295,37 @@ func (client *Client) DeleteS3BucketVersionObjects(ctx context.Context, bucketNa
 		default:
 		}
 
-		out, err := client.ListObjectVersionsWithContext(ctx, versionsInput)
+		res, err := client.ListObjectVersionsWithContext(ctx, versionsInput)
 		if err != nil {
 			return errors.Errorf("failed to list version objects: %w", err)
 		}
 
-		for _, item := range out.DeleteMarkers {
-			if err := client.DeleteS3BucketObject(ctx, bucketName, item.Key, item.VersionId); err != nil {
+		for _, item := range res.DeleteMarkers {
+			if len(keys) != 0 && !slices.Contains(keys, aws.StringValue(item.Key)) {
+				continue
+			}
+
+			if err := client.DeleteS3BucketObject(ctx, bucketName, aws.StringValue(item.Key), item.VersionId); err != nil {
 				return err
 			}
 		}
 
-		for _, item := range out.Versions {
-			if err := client.DeleteS3BucketObject(ctx, bucketName, item.Key, item.VersionId); err != nil {
+		for _, item := range res.Versions {
+			if len(keys) != 0 && !slices.Contains(keys, aws.StringValue(item.Key)) {
+				continue
+			}
+
+			if err := client.DeleteS3BucketObject(ctx, bucketName, aws.StringValue(item.Key), item.VersionId); err != nil {
 				return err
 			}
 		}
 
-		if aws.BoolValue(out.IsTruncated) {
-			versionsInput.VersionIdMarker = out.NextVersionIdMarker
-			versionsInput.KeyMarker = out.NextKeyMarker
-		} else {
+		if !aws.BoolValue(res.IsTruncated) {
 			break
 		}
+
+		versionsInput.VersionIdMarker = res.NextVersionIdMarker
+		versionsInput.KeyMarker = res.NextKeyMarker
 	}
 
 	return nil
@@ -1309,7 +1374,9 @@ func (client *Client) WaitUntilS3BucketDeleted(ctx context.Context, bucketName s
 		default:
 		}
 
-		if notExist := !client.DoesS3BucketExist(ctx, bucketName); notExist {
+		if exists, err := client.DoesS3BucketExist(ctx, bucketName); err != nil {
+			return err
+		} else if !exists {
 			client.logger.Debugf("S3 bucket %s deleted.", bucketName)
 			return nil
 		} else if retries < maxRetriesWaitingForS3Bucket-1 {
@@ -1319,4 +1386,382 @@ func (client *Client) WaitUntilS3BucketDeleted(ctx context.Context, bucketName s
 	}
 
 	return errors.New(MaxRetriesWaitingForS3BucketExceeded(bucketName))
+}
+
+func (client *Client) DeleteObjectIfNecessary(ctx context.Context, bucketName, key string) error {
+	if exists, err := client.DoesS3BucketExistWithLogging(ctx, bucketName); err != nil || !exists {
+		return err
+	}
+
+	if exists, err := client.DoesS3ObjectExist(ctx, bucketName, key); err != nil || !exists {
+		return err
+	}
+
+	description := fmt.Sprintf("Delete S3 bucket %s object %s with retry", bucketName, key)
+
+	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
+		if err := client.DeleteS3BucketObject(ctx, bucketName, key, nil); err != nil {
+			if isBucketErrorRetriable(err) {
+				return err
+			}
+			// return FatalError so that retry loop will not continue
+			return util.FatalError{Underlying: err}
+		}
+
+		if err := client.DeleteS3BucketVersionObjects(ctx, bucketName, key); err != nil {
+			if isBucketErrorRetriable(err) {
+				return err
+			}
+			// return FatalError so that retry loop will not continue
+			return util.FatalError{Underlying: err}
+		}
+
+		return nil
+	})
+}
+
+func (client *Client) DoesS3ObjectExist(ctx context.Context, bucketName, key string) (bool, error) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(key),
+	}
+
+	if _, err := client.HeadObjectWithContext(ctx, input); err != nil {
+		var awsErr awserr.Error
+		if ok := errors.As(err, &awsErr); ok {
+			if awsErr.Code() == "NotFound" {
+				return false, nil
+			}
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
+// CreateLockTableIfNecessary creates the lock table in DynamoDB if it doesn't already exist.
+func (client *Client) CreateLockTableIfNecessary(ctx context.Context, tableName string, tags map[string]string) error {
+	tableExists, err := client.DoesLockTableExistAndIsActive(ctx, tableName)
+	if err != nil {
+		return err
+	}
+
+	if !tableExists {
+		client.logger.Debugf("Lock table %s does not exist in DynamoDB. Will need to create it just this first time.", tableName)
+		return client.CreateLockTable(ctx, tableName, tags)
+	}
+
+	return nil
+}
+
+func (client *Client) DeleteTableIfNecessary(ctx context.Context, tableName string) error {
+	if exists, err := client.DoesLockTableExist(ctx, tableName); err != nil || !exists {
+		return err
+	}
+
+	return client.DeleteTable(ctx, tableName)
+}
+
+// DoesLockTableExistAndIsActive returns true if the lock table exists in DynamoDB and is in "active" state.
+func (client *Client) DoesLockTableExistAndIsActive(ctx context.Context, tableName string) (bool, error) {
+	input := &dynamodb.DescribeTableInput{
+		TableName: aws.String(tableName),
+	}
+
+	output, err := client.DescribeTableWithContext(ctx, input)
+	if err != nil {
+		var awsErr awserr.Error
+		if ok := errors.As(err, &awsErr); ok && awsErr.Code() == "ResourceNotFoundException" {
+			return false, nil
+		} else {
+			return false, errors.New(err)
+		}
+	}
+
+	return *output.Table.TableStatus == dynamodb.TableStatusActive, nil
+}
+
+// DoesLockTableExist returns true if the lock table exists.
+func (client *Client) DoesLockTableExist(ctx context.Context, tableName string) (bool, error) {
+	input := &dynamodb.DescribeTableInput{
+		TableName: aws.String(tableName),
+	}
+
+	_, err := client.DescribeTableWithContext(ctx, input)
+	if err != nil {
+		var awsErr awserr.Error
+		if ok := errors.As(err, &awsErr); ok && awsErr.Code() == "ResourceNotFoundException" {
+			return false, nil
+		} else {
+			return false, errors.New(err)
+		}
+	}
+
+	return true, nil
+}
+
+// LockTableCheckSSEncryptionIsOn returns true if the lock table's SSEncryption is turned on
+func (client *Client) LockTableCheckSSEncryptionIsOn(ctx context.Context, tableName string) (bool, error) {
+	input := &dynamodb.DescribeTableInput{
+		TableName: aws.String(tableName),
+	}
+
+	output, err := client.DescribeTableWithContext(ctx, input)
+	if err != nil {
+		return false, errors.New(err)
+	}
+
+	return output.Table.SSEDescription != nil && aws.StringValue(output.Table.SSEDescription.Status) == dynamodb.SSEStatusEnabled, nil
+}
+
+// CreateLockTable creates a lock table in DynamoDB and wait until it is in "active" state.
+// If the table already exists, merely wait until it is in "active" state.
+func (client *Client) CreateLockTable(ctx context.Context, tableName string, tags map[string]string) error {
+	tableCreateDeleteSemaphore.Acquire()
+	defer tableCreateDeleteSemaphore.Release()
+
+	client.logger.Debugf("Creating table %s in DynamoDB", tableName)
+
+	attributeDefinitions := []*dynamodb.AttributeDefinition{
+		{AttributeName: aws.String(AttrLockID), AttributeType: aws.String(dynamodb.ScalarAttributeTypeS)},
+	}
+
+	keySchema := []*dynamodb.KeySchemaElement{
+		{AttributeName: aws.String(AttrLockID), KeyType: aws.String(dynamodb.KeyTypeHash)},
+	}
+
+	input := &dynamodb.CreateTableInput{
+		TableName:            aws.String(tableName),
+		BillingMode:          aws.String(DynamodbPayPerRequestBillingMode),
+		AttributeDefinitions: attributeDefinitions,
+		KeySchema:            keySchema,
+	}
+
+	createTableOutput, err := client.CreateTableWithContext(ctx, input)
+
+	if err != nil {
+		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
+			client.logger.Debugf("Looks like someone created table %s at the same time. Will wait for it to be in active state.", tableName)
+		} else {
+			return errors.New(err)
+		}
+	}
+
+	err = client.waitForTableToBeActive(ctx, tableName, MaxRetriesWaitingForTableToBeActive, SleepBetweenTableStatusChecks)
+
+	if err != nil {
+		return err
+	}
+
+	if createTableOutput != nil && createTableOutput.TableDescription != nil && createTableOutput.TableDescription.TableArn != nil {
+		// Do not tag in case somebody else had created the table
+		err = client.tagTableIfTagsGiven(ctx, tags, createTableOutput.TableDescription.TableArn)
+
+		if err != nil {
+			return errors.New(err)
+		}
+	}
+
+	return nil
+}
+
+func (client *Client) tagTableIfTagsGiven(ctx context.Context, tags map[string]string, tableArn *string) error {
+	if len(tags) == 0 {
+		client.logger.Debugf("No tags for lock table given.")
+		return nil
+	}
+
+	// we were able to create the table successfully, now add tags
+	client.logger.Debugf("Adding tags to lock table: %s", tags)
+
+	var tagsConverted = make([]*dynamodb.Tag, 0, len(tags))
+
+	for k, v := range tags {
+		tagsConverted = append(tagsConverted, &dynamodb.Tag{Key: aws.String(k), Value: aws.String(v)})
+	}
+
+	var input = dynamodb.TagResourceInput{
+		ResourceArn: tableArn,
+		Tags:        tagsConverted}
+
+	_, err := client.TagResourceWithContext(ctx, &input)
+
+	return err
+}
+
+// DeleteTable deletes the given table in DynamoDB.
+func (client *Client) DeleteTable(ctx context.Context, tableName string) error {
+	const (
+		maxRetries    = 5
+		minRetryDelay = time.Second
+	)
+
+	tableCreateDeleteSemaphore.Acquire()
+	defer tableCreateDeleteSemaphore.Release()
+
+	client.logger.Debugf("Deleting DynamoD table %s", tableName)
+
+	req, _ := client.DeleteTableRequest(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
+	req.SetContext(ctx)
+
+	// It is not always able to delete a table the first attempt, error: `StatusCode: 400, Attempt to change a resource which is still in use: Table tags are being updated: terragrunt_test_*`
+	req.Retryer = &Retryer{DefaultRetryer: awsclient.DefaultRetryer{
+		NumMaxRetries: maxRetries,
+		MinRetryDelay: minRetryDelay,
+	}}
+
+	return req.Send()
+}
+
+// Return true if the given error is the error message returned by AWS when the resource already exists and is being
+// updated by someone else
+func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
+	var awsErr awserr.Error
+	ok := errors.As(err, &awsErr)
+
+	return ok && awsErr.Code() == "ResourceInUseException"
+}
+
+// Wait for the given DynamoDB table to be in the "active" state. If it's not in "active" state, sleep for the
+// specified amount of time, and try again, up to a maximum of maxRetries retries.
+func (client *Client) waitForTableToBeActive(ctx context.Context, tableName string, maxRetries int, sleepBetweenRetries time.Duration) error {
+	return client.WaitForTableToBeActiveWithRandomSleep(ctx, tableName, maxRetries, sleepBetweenRetries, sleepBetweenRetries)
+}
+
+// WaitForTableToBeActiveWithRandomSleep waits for the given table as described above,
+// but sleeps a random amount of time greater than sleepBetweenRetriesMin
+// and less than sleepBetweenRetriesMax between tries. This is to avoid an AWS issue where all waiting requests fire at
+// the same time, which continually triggered AWS's "subscriber limit exceeded" API error.
+func (client *Client) WaitForTableToBeActiveWithRandomSleep(ctx context.Context, tableName string, maxRetries int, sleepBetweenRetriesMin time.Duration, sleepBetweenRetriesMax time.Duration) error {
+	for i := 0; i < maxRetries; i++ {
+		tableReady, err := client.DoesLockTableExistAndIsActive(ctx, tableName)
+		if err != nil {
+			return err
+		}
+
+		if tableReady {
+			client.logger.Debugf("Success! Table %s is now in active state.", tableName)
+			return nil
+		}
+
+		sleepBetweenRetries := util.GetRandomTime(sleepBetweenRetriesMin, sleepBetweenRetriesMax)
+		client.logger.Debugf("Table %s is not yet in active state. Will check again after %s.", tableName, sleepBetweenRetries)
+		time.Sleep(sleepBetweenRetries)
+	}
+
+	return errors.New(TableActiveRetriesExceeded{TableName: tableName, Retries: maxRetries})
+}
+
+// UpdateLockTableSetSSEncryptionOnIfNecessary encrypts the TFState Lock table - If Necessary
+func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(ctx context.Context, tableName string) error {
+	tableSSEncrypted, err := client.LockTableCheckSSEncryptionIsOn(ctx, tableName)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	if tableSSEncrypted {
+		client.logger.Debugf("Table %s already has encryption enabled", tableName)
+		return nil
+	}
+
+	tableCreateDeleteSemaphore.Acquire()
+	defer tableCreateDeleteSemaphore.Release()
+
+	client.logger.Debugf("Enabling server-side encryption on table %s in AWS DynamoDB", tableName)
+
+	input := &dynamodb.UpdateTableInput{
+		SSESpecification: &dynamodb.SSESpecification{
+			Enabled: aws.Bool(true),
+			SSEType: aws.String("KMS"),
+		},
+		TableName: aws.String(tableName),
+	}
+
+	if _, err := client.UpdateTableWithContext(ctx, input); err != nil {
+		if isTableAlreadyBeingCreatedOrUpdatedError(err) {
+			client.logger.Debugf("Looks like someone is already updating table %s at the same time. Will wait for that update to complete.", tableName)
+		} else {
+			return errors.New(err)
+		}
+	}
+
+	if err := client.waitForEncryptionToBeEnabled(ctx, tableName); err != nil {
+		return errors.New(err)
+	}
+
+	return client.waitForTableToBeActive(ctx, tableName, MaxRetriesWaitingForTableToBeActive, SleepBetweenTableStatusChecks)
+}
+
+// Wait until encryption is enabled for the given table
+func (client *Client) waitForEncryptionToBeEnabled(ctx context.Context, tableName string) error {
+	client.logger.Debugf("Waiting for encryption to be enabled on table %s", tableName)
+
+	for i := 0; i < maxRetriesWaitingForEncryption; i++ {
+		tableSSEncrypted, err := client.LockTableCheckSSEncryptionIsOn(ctx, tableName)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		if tableSSEncrypted {
+			client.logger.Debugf("Encryption is now enabled for table %s!", tableName)
+			return nil
+		}
+
+		client.logger.Debugf("Encryption is still not enabled for table %s. Will sleep for %v and try again.", tableName, sleepBetweenRetriesWaitingForEncryption)
+		time.Sleep(sleepBetweenRetriesWaitingForEncryption)
+	}
+
+	return errors.New(TableEncryptedRetriesExceeded{TableName: tableName, Retries: maxRetriesWaitingForEncryption})
+}
+
+func (client *Client) DeleteTalbeItemIfNecessary(ctx context.Context, tableName, key string) error {
+	if exists, err := client.DoesTalbeItemExist(ctx, tableName, key); err != nil || !exists {
+		return err
+	}
+
+	client.logger.Debugf("Deleting DynamoDB table %s item %s", tableName, key)
+
+	return client.DeleteTalbeItem(ctx, tableName, key)
+}
+
+func (client *Client) DeleteTalbeItem(ctx context.Context, tableName, key string) error {
+	input := &dynamodb.DeleteItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]*dynamodb.AttributeValue{
+			AttrLockID: {
+				S: aws.String(key),
+			},
+		},
+	}
+
+	if _, err := client.DeleteItemWithContext(ctx, input); err != nil {
+		return errors.Errorf("failed to remove item by key %s of table %s: %w", key, tableName, err)
+	}
+
+	return nil
+}
+
+func (client *Client) DoesTalbeItemExist(ctx context.Context, tableName, key string) (bool, error) {
+	if exists, err := client.DoesLockTableExist(ctx, tableName); err != nil || !exists {
+		return false, err
+	}
+
+	input := &dynamodb.GetItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]*dynamodb.AttributeValue{
+			AttrLockID: {
+				S: aws.String(key),
+			},
+		},
+	}
+
+	res, err := client.GetItemWithContext(ctx, input)
+	if err != nil {
+		return false, errors.Errorf("failed to get item by key %s of table %s: %w", key, tableName, err)
+	}
+
+	exists := len(res.Item) != 0
+
+	return exists, nil
 }

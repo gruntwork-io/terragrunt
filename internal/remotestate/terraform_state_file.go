@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -50,10 +51,8 @@ func (state *TerraformState) IsRemote() bool {
 // the given path, or return nil if the file is missing. If the backend is not local then parse the Terraform .tfstate
 // file from the location specified by workingDir. If no location is specified, search the current
 // directory. If the file doesn't exist at any of the default locations, return nil.
-func ParseTerraformStateFileFromLocation(backend string, config map[string]any, workingDir, dataDir string) (*TerraformState, error) {
-	stateFile, ok := config["path"].(string)
-
-	if backend == "local" && ok && util.FileExists(stateFile) {
+func ParseTerraformStateFileFromLocation(backend string, config backend.Config, workingDir, dataDir string) (*TerraformState, error) {
+	if stateFile := config.Path(); backend == "local" && stateFile != "" && util.FileExists(stateFile) {
 		return ParseTerraformStateFile(stateFile)
 	}
 

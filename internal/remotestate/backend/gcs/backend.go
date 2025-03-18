@@ -29,12 +29,12 @@ func NewBackend() *Backend {
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
-func (backend *Backend) NeedsInit(ctx context.Context, backednConfig backend.Config, backendExistingConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
-	if Config(backednConfig).IsEqual(Config(backendExistingConfig), opts.Logger) {
+func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Config, backendExistingConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+	if Config(backendConfig).IsEqual(Config(backendExistingConfig), opts.Logger) {
 		return true, nil
 	}
 
-	extGCSCfg, err := Config(backednConfig).ParseExtendedGCSConfig()
+	extGCSCfg, err := Config(backendConfig).ParseExtendedGCSConfig()
 	if err != nil {
 		return false, err
 	}

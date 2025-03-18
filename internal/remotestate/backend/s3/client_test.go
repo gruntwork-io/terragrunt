@@ -1,8 +1,9 @@
 //go:build aws
 
-package dynamodb_test
+package s3_test
 
 import (
+	"context"
 	"reflect"
 	"strconv"
 	"sync"
@@ -11,9 +12,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	awsDynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,23 +22,20 @@ import (
 func TestAwsCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
 	t.Parallel()
 
-	withLockTable(t, func(tableName string, client *awsDynamodb.DynamoDB) {
-		assertCanWriteToTable(t, tableName, client)
+	client := helpers.CreateS3ClientForTest(t, helpers.DefaultTestRegion)
+
+	helpers.WithLockTable(t, client, func(tableName string, client *s3backend.Client) {
+		helpers.AssertCanWriteToTable(t, tableName, client)
 	})
 }
 
 func TestAwsCreateLockTableConcurrency(t *testing.T) {
 	t.Parallel()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
-	if err != nil {
-		t.Fatal(err)
-	}
+	client := helpers.CreateS3ClientForTest(t, helpers.DefaultTestRegion)
+	tableName := helpers.UniqueTableNameForTest()
 
-	client := createDynamoDBClientForTest(t)
-	tableName := uniqueTableNameForTest()
-
-	defer cleanupTableForTest(t, tableName, client)
+	defer helpers.CleanupTableForTest(t, tableName, client)
 
 	// Use a WaitGroup to ensure the test doesn't exit before all goroutines finish.
 	var waitGroup sync.WaitGroup
@@ -49,7 +47,7 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			err := dynamodb.CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
+			err := client.CreateLockTableIfNecessary(context.Background(), tableName, nil)
 			assert.NoError(t, err, "Unexpected error: %v", err)
 		}()
 	}
@@ -60,34 +58,27 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	t.Parallel()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	client := createDynamoDBClientForTest(t)
+	client := helpers.CreateS3ClientForTest(t, helpers.DefaultTestRegion)
 	tableName := "terragrunt-table-does-not-exist"
 	retries := 5
 
-	err = dynamodb.WaitForTableToBeActiveWithRandomSleep(tableName, client, retries, 1*time.Millisecond, 500*time.Millisecond, mockOptions)
+	err := client.WaitForTableToBeActiveWithRandomSleep(context.Background(), tableName, retries, 1*time.Millisecond, 500*time.Millisecond)
 
-	assert.True(t, errors.IsError(err, dynamodb.TableActiveRetriesExceeded{TableName: tableName, Retries: retries}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
+	errorMatchs := errors.IsError(err, s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries})
+	assert.True(t, errorMatchs, "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
 func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	t.Parallel()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
-	if err != nil {
-		t.Fatal(err)
-	}
+	client := helpers.CreateS3ClientForTest(t, helpers.DefaultTestRegion)
 
 	// Create the table the first time
-	withLockTable(t, func(tableName string, client *awsDynamodb.DynamoDB) {
-		assertCanWriteToTable(t, tableName, client)
+	helpers.WithLockTable(t, client, func(tableName string, client *s3backend.Client) {
+		helpers.AssertCanWriteToTable(t, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
-		err = dynamodb.CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
+		err := client.CreateLockTableIfNecessary(context.Background(), tableName, nil)
 		require.NoError(t, err, "Unexpected error: %v", err)
 	})
 }
@@ -95,26 +86,22 @@ func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 func TestAwsTableTagging(t *testing.T) {
 	t.Parallel()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	client := helpers.CreateS3ClientForTest(t, helpers.DefaultTestRegion)
 	tags := map[string]string{"team": "team A"}
 
 	// Create the table the first time
-	withLockTableTagged(t, tags, func(tableName string, client *awsDynamodb.DynamoDB) {
-		assertCanWriteToTable(t, tableName, client)
+	helpers.WithLockTableTagged(t, tags, client, func(tableName string, client *s3backend.Client) {
+		helpers.AssertCanWriteToTable(t, tableName, client)
 
 		assertTags(t, tags, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
-		err = dynamodb.CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
+		err := client.CreateLockTableIfNecessary(context.Background(), tableName, nil)
 		require.NoError(t, err, "Unexpected error: %v", err)
 	})
 }
 
-func assertTags(t *testing.T, expectedTags map[string]string, tableName string, client *awsDynamodb.DynamoDB) {
+func assertTags(t *testing.T, expectedTags map[string]string, tableName string, client *s3backend.Client) {
 	t.Helper()
 
 	var description, err = client.DescribeTable(&awsDynamodb.DescribeTableInput{TableName: aws.String(tableName)})
@@ -134,7 +121,7 @@ func assertTags(t *testing.T, expectedTags map[string]string, tableName string, 
 	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
 }
 
-func listTagsOfResourceWithRetry(t *testing.T, client *awsDynamodb.DynamoDB, resourceArn *string) *awsDynamodb.ListTagsOfResourceOutput {
+func listTagsOfResourceWithRetry(t *testing.T, client *s3backend.Client, resourceArn *string) *awsDynamodb.ListTagsOfResourceOutput {
 	t.Helper()
 
 	const (
