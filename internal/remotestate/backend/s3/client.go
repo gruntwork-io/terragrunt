@@ -794,7 +794,7 @@ func (client *Client) DoesS3BucketExist(ctx context.Context, bucketName string) 
 			return false, nil
 		}
 
-		return false, err
+		return false, errors.Errorf("error checking access to S3 bucket %s: %w", bucketName, err)
 	}
 
 	return true, nil
