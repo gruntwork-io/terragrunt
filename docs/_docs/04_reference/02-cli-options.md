@@ -753,64 +753,207 @@ The `list` command supports different sorting and grouping options to help you o
 
 By default, configurations are sorted alphabetically:
 
-![list-sort-alpha](/assets/img/screenshots/list-sort-alpha.png)
+```bash
+$ terragrunt list --sort=alpha
+a-dependent b-dependency
+```
 
 ###### DAG-based Sorting
 
 You can sort configurations based on their dependency relationships using the `--sort=dag` option:
 
-![list-sort-dag](/assets/img/screenshots/list-sort-dag.png)
+```bash
+$ terragrunt list --sort=dag
+b-dependency a-dependent
+```
 
 ###### Dependency Grouping
 
 The `--group-by` flag controls how dependencies are represented in the output:
 
-- `fs` (default): Shows dependencies as a flat list from a filesystem perspective
+- `fs` (default): Shows dependencies as nested lists with entries as children of parent directories
 - `dag`: Shows dependencies in a tree structure from a DAG perspective
 
 For example, when using `--group-by=fs` with JSON format:
 
-```json
+```bash
+$ terragrunt list --json --group-by=fs --sort=dag --dependencies
 [
   {
-    "path": "A",
-    "type": "unit",
-    "dependencies": []
-  },
-  {
-    "path": "B",
-    "type": "unit",
-    "dependencies": [{"path": "A", "type": "unit"}]
-  }
-]
-```
-
-When using `--group-by=dag` with JSON format:
-
-```json
-[
-  {
-    "path": "A",
-    "type": "unit",
-    "dependencies": []
-  },
-  {
-    "path": "B",
-    "type": "unit",
-    "dependencies": [
+    "path": "live",
+    "children": [
       {
-        "path": "A",
-        "type": "unit",
-        "dependencies": []
+        "path": "dev",
+        "children": [
+          {
+            "path": "live/dev/vpc",
+            "type": "unit"
+          },
+          {
+            "path": "live/dev/db",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/dev/vpc",
+                "type": "unit"
+              }
+            ]
+          },
+          {
+            "path": "live/dev/ec2",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/dev/db",
+                "type": "unit",
+                "dependencies": [
+                  {
+                    "path": "live/dev/vpc",
+                    "type": "unit"
+                  }
+                ]
+              },
+              {
+                "path": "live/dev/vpc",
+                "type": "unit"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "path": "prod",
+        "children": [
+          {
+            "path": "live/prod/vpc",
+            "type": "unit"
+          },
+          {
+            "path": "live/prod/db",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/prod/vpc",
+                "type": "unit"
+              }
+            ]
+          },
+          {
+            "path": "live/prod/ec2",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/prod/db",
+                "type": "unit",
+                "dependencies": [
+                  {
+                    "path": "live/prod/vpc",
+                    "type": "unit"
+                  }
+                ]
+              },
+              {
+                "path": "live/prod/vpc",
+                "type": "unit"
+              }
+            ]
+          }
+        ]
       }
     ]
   }
 ]
 ```
 
-The `fs` grouping is optimized for filesystem-based views, while the `dag` grouping is better for understanding the complete dependency tree of each configuration.
+When using `--group-by=dag` with JSON format:
 
-Note: The `--dag` flag is a shorthand that sets both `--sort=dag` and `--group-by=dag`.
+```bash
+$ terragrunt list --json --group-by=dag --sort=dag --dependencies
+[
+  {
+    "path": "live/dev/vpc",
+    "type": "unit"
+  },
+  {
+    "path": "live/prod/vpc",
+    "type": "unit"
+  },
+  {
+    "path": "live/dev/db",
+    "dependencies": [
+      {
+        "path": "live/dev/vpc",
+        "type": "unit"
+      }
+    ]
+  },
+  {
+    "path": "live/prod/db",
+    "dependencies": [
+      {
+        "path": "live/prod/vpc",
+        "type": "unit"
+      }
+    ]
+  },
+  {
+    "path": "live/dev/ec2",
+    "dependencies": [
+      {
+        "path": "live/dev/db",
+        "dependencies": [
+          {
+            "path": "live/dev/vpc",
+            "type": "unit"
+          }
+        ]
+      },
+      {
+        "path": "live/dev/vpc",
+        "type": "unit"
+      }
+    ]
+  },
+  {
+    "path": "live/prod/ec2",
+    "dependencies": [
+      {
+        "path": "live/prod/db",
+        "dependencies": [
+          {
+            "path": "live/prod/vpc",
+            "type": "unit"
+          }
+        ]
+      },
+      {
+        "path": "live/prod/vpc",
+        "type": "unit"
+      }
+    ]
+  }
+]
+```
+
+The `fs` grouping is optimized for filesystem-based views, while the `dag` grouping is better for understanding the complete dependency tree of your configuration.
+
+**Tip**: The `--dag` flag is a shorthand that sets both `--sort=dag` and `--group-by=dag`.
+
+Similarly, the `tree` format also supports an alternate view when using the `--group-by=dag` flag:
+
+```bash
+$ terragrunt list --tree --dag
+.
+├── live/dev/vpc
+│   ├── live/dev/db
+│   │   ╰── live/dev/ec2
+│   ╰── live/dev/ec2
+╰── live/prod/vpc
+    ├── live/prod/db
+    │   ╰── live/prod/ec2
+    ╰── live/prod/ec2
+
+```
 
 ### Configuration commands
 
