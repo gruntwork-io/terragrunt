@@ -805,6 +805,9 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
 	}
 
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
 	// These tests need to be run without the static key + secret
 	// used by most AWS tests here.
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
@@ -828,7 +831,12 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	tokenFile := t.TempDir() + "/oidc-token"
 	require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0400))
 
-	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(role), options.WithIAMWebIdentityToken(token))
+	defer func() {
+		t.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
+		t.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey)
+
+		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(role), options.WithIAMWebIdentityToken(token))
+	}()
 
 	helpers.CopyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":              s3BucketName,
