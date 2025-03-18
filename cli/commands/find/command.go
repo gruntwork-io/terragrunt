@@ -15,9 +15,14 @@ const (
 	CommandAlias = "fd"
 
 	FormatFlagName = "format"
-	JSONFlagName   = "json"
-	DAGFlagName    = "dag"
-	SortFlagName   = "sort"
+
+	JSONFlagName  = "json"
+	JSONFlagAlias = "j"
+
+	SortFlagName = "sort"
+
+	DAGFlagName = "dag"
+
 	HiddenFlagName = "hidden"
 	Dependencies   = "dependencies"
 	External       = "external"
@@ -37,6 +42,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
 			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
+			Aliases:     []string{JSONFlagAlias},
 			Destination: &opts.JSON,
 			Usage:       "Output in JSON format (equivalent to --format=json).",
 		}),

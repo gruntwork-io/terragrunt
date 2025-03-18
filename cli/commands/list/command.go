@@ -14,18 +14,25 @@ const (
 	CommandName  = "list"
 	CommandAlias = "ls"
 
-	FormatFlagName       = "format"
-	JSONFlagName         = "json"
-	TreeFlagName         = "tree"
-	TreeFlagAlias        = "T"
-	SortFlagName         = "sort"
+	FormatFlagName = "format"
+
+	JSONFlagName  = "json"
+	JSONFlagAlias = "j"
+
+	TreeFlagName  = "tree"
+	TreeFlagAlias = "T"
+
+	LongFlagName  = "long"
+	LongFlagAlias = "l"
+
 	HiddenFlagName       = "hidden"
 	DependenciesFlagName = "dependencies"
 	ExternalFlagName     = "external"
-	LongFlagName         = "long"
-	LongFlagAlias        = "l"
-	GroupByFlagName      = "group-by"
-	DAGFlagName          = "dag"
+
+	SortFlagName    = "sort"
+	GroupByFlagName = "group-by"
+
+	DAGFlagName = "dag"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -44,6 +51,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
 			Destination: &opts.JSON,
 			Usage:       "Output in JSON format (equivalent to --format=json).",
+			Aliases:     []string{JSONFlagAlias},
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        SortFlagName,
