@@ -98,29 +98,29 @@ func TestListCommandWithDependencies(t *testing.T) {
     "path": "live",
     "children": [
       {
-        "path": "db",
+        "path": "live/db",
         "type": "unit",
         "dependencies": [
           {
-            "path": "../vpc",
+            "path": "live/vpc",
             "type": "unit"
           }
         ]
       },
       {
-        "path": "ec2",
+        "path": "live/ec2",
         "type": "unit",
         "dependencies": [
           {
-            "path": "../vpc",
+            "path": "live/vpc",
             "type": "unit"
           },
           {
-            "path": "db",
+            "path": "live/db",
             "type": "unit",
             "dependencies": [
               {
-                "path": "../vpc",
+                "path": "live/vpc",
                 "type": "unit"
               }
             ]
@@ -128,7 +128,7 @@ func TestListCommandWithDependencies(t *testing.T) {
         ]
       },
       {
-        "path": "vpc",
+        "path": "live/vpc",
         "type": "unit"
       }
     ]

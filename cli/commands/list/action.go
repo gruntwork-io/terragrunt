@@ -194,7 +194,7 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 		// Handle top-level node
 		if len(parts.segments) == 1 {
 			node := &JSONTree{
-				Path:     parts.segments[0],
+				Path:     config.Path,
 				Type:     config.Type,
 				Children: make([]*JSONTree, 0),
 			}
@@ -241,8 +241,16 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 			}
 
 			if childNode == nil {
+				// For leaf nodes (last segment), use the full original path
+				isLeafNode := i == len(parts.segments)-1
+				nodePath := segment
+
+				if isLeafNode {
+					nodePath = config.Path
+				}
+
 				childNode = &JSONTree{
-					Path:     segment,
+					Path:     nodePath,
 					Type:     config.Type,
 					Children: make([]*JSONTree, 0),
 				}
@@ -279,20 +287,26 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 					continue
 				}
 
-				// Create a copy of the dependency node to avoid circular references
+				// Create a copy of the dependency node using the full path
 				depCopy := &JSONTree{
-					Path: depNode.Path,
+					Path: depPath,
 					Type: depNode.Type,
 				}
 
 				// If the dependency has its own dependencies, copy those too
 				if len(depNode.Dependencies) > 0 {
 					depCopy.Dependencies = make([]*JSONTree, len(depNode.Dependencies))
-					copy(depCopy.Dependencies, depNode.Dependencies)
+					for i, dep := range depNode.Dependencies {
+						depCopy.Dependencies[i] = &JSONTree{
+							Path: dep.Path,
+							Type: dep.Type,
+						}
+					}
 				}
 
 				// Check if dependency is already a child
 				isChild := false
+
 				for _, child := range configNode.Dependencies {
 					if child.Path == depCopy.Path {
 						isChild = true
