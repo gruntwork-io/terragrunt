@@ -256,125 +256,44 @@ unit  live/stage/vpc
 		},
 		{
 			name:       "List with DAG dependencies in JSON format",
-			workingDir: "fixtures/list/dag/live",
-			args:       []string{"list", "--json", "--dependencies"},
+			workingDir: "fixtures/list/dag",
+			args:       []string{"list", "--json", "--group-by=dag"},
 			expected: `[
   {
-    "path": "dev",
-    "children": [
-      {
-        "path": "dev/db",
-        "type": "unit",
-        "dependencies": [
-          {
-            "path": "dev/vpc",
-            "type": "unit"
-          }
-        ]
-      },
-      {
-        "path": "dev/ec2",
-        "type": "unit",
-        "dependencies": [
-          {
-            "path": "dev/db",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "dev/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "dev/vpc",
-            "type": "unit"
-          }
-        ]
-      },
-      {
-        "path": "dev/vpc",
-        "type": "unit"
-      }
-    ]
+    "path": "live/dev/db",
+    "type": "unit"
   },
   {
-    "path": "prod",
-    "children": [
-      {
-        "path": "prod/db",
-        "type": "unit",
-        "dependencies": [
-          {
-            "path": "prod/vpc",
-            "type": "unit"
-          }
-        ]
-      },
-      {
-        "path": "prod/ec2",
-        "type": "unit",
-        "dependencies": [
-          {
-            "path": "prod/db",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "prod/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "prod/vpc",
-            "type": "unit"
-          }
-        ]
-      },
-      {
-        "path": "prod/vpc",
-        "type": "unit"
-      }
-    ]
+    "path": "live/dev/ec2",
+    "type": "unit"
   },
   {
-    "path": "stage",
-    "children": [
-      {
-        "path": "stage/db",
-        "type": "unit",
-        "dependencies": [
-          {
-            "path": "stage/vpc",
-            "type": "unit"
-          }
-        ]
-      },
-      {
-        "path": "stage/ec2",
-        "type": "unit",
-        "dependencies": [
-          {
-            "path": "stage/db",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "stage/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "stage/vpc",
-            "type": "unit"
-          }
-        ]
-      },
-      {
-        "path": "stage/vpc",
-        "type": "unit"
-      }
-    ]
+    "path": "live/dev/vpc",
+    "type": "unit"
+  },
+  {
+    "path": "live/prod/db",
+    "type": "unit"
+  },
+  {
+    "path": "live/prod/ec2",
+    "type": "unit"
+  },
+  {
+    "path": "live/prod/vpc",
+    "type": "unit"
+  },
+  {
+    "path": "live/stage/db",
+    "type": "unit"
+  },
+  {
+    "path": "live/stage/ec2",
+    "type": "unit"
+  },
+  {
+    "path": "live/stage/vpc",
+    "type": "unit"
   }
 ]
 `,

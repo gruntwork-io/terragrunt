@@ -358,11 +358,7 @@ func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 
 		node := &JSONTree{
 			Path: config.Path,
-		}
-
-		// Only set Type for leaf nodes (those without dependencies)
-		if len(config.Dependencies) == 0 {
-			node.Type = config.Type
+			Type: config.Type, // Always set the Type field
 		}
 
 		if opts.Dependencies {
