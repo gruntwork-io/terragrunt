@@ -116,10 +116,6 @@ func TestListCommandWithDependencies(t *testing.T) {
             "type": "unit",
             "dependencies": [
               {
-                "path": "live/dev/vpc",
-                "type": "unit"
-              },
-              {
                 "path": "live/dev/db",
                 "type": "unit",
                 "dependencies": [
@@ -128,6 +124,10 @@ func TestListCommandWithDependencies(t *testing.T) {
                     "type": "unit"
                   }
                 ]
+              },
+              {
+                "path": "live/dev/vpc",
+                "type": "unit"
               }
             ]
           },
@@ -156,10 +156,6 @@ func TestListCommandWithDependencies(t *testing.T) {
             "type": "unit",
             "dependencies": [
               {
-                "path": "live/prod/vpc",
-                "type": "unit"
-              },
-              {
                 "path": "live/prod/db",
                 "type": "unit",
                 "dependencies": [
@@ -168,6 +164,10 @@ func TestListCommandWithDependencies(t *testing.T) {
                     "type": "unit"
                   }
                 ]
+              },
+              {
+                "path": "live/prod/vpc",
+                "type": "unit"
               }
             ]
           },
@@ -196,10 +196,6 @@ func TestListCommandWithDependencies(t *testing.T) {
             "type": "unit",
             "dependencies": [
               {
-                "path": "live/stage/vpc",
-                "type": "unit"
-              },
-              {
                 "path": "live/stage/db",
                 "type": "unit",
                 "dependencies": [
@@ -208,6 +204,10 @@ func TestListCommandWithDependencies(t *testing.T) {
                     "type": "unit"
                   }
                 ]
+              },
+              {
+                "path": "live/stage/vpc",
+                "type": "unit"
               }
             ]
           },
@@ -247,13 +247,13 @@ func TestListCommandWithDependencies(t *testing.T) {
 			args:       []string{"list", "--long", "--dependencies"},
 			expected: `Type  Path            Dependencies
 unit  live/dev/db     live/dev/vpc
-unit  live/dev/ec2    live/dev/vpc, live/dev/db
+unit  live/dev/ec2    live/dev/db, live/dev/vpc
 unit  live/dev/vpc
 unit  live/prod/db    live/prod/vpc
-unit  live/prod/ec2   live/prod/vpc, live/prod/db
+unit  live/prod/ec2   live/prod/db, live/prod/vpc
 unit  live/prod/vpc
 unit  live/stage/db   live/stage/vpc
-unit  live/stage/ec2  live/stage/vpc, live/stage/db
+unit  live/stage/ec2  live/stage/db, live/stage/vpc
 unit  live/stage/vpc
 `,
 		},
@@ -280,10 +280,6 @@ unit  live/stage/vpc
         "type": "unit",
         "dependencies": [
           {
-            "path": "dev/vpc",
-            "type": "unit"
-          },
-          {
             "path": "dev/db",
             "type": "unit",
             "dependencies": [
@@ -292,6 +288,10 @@ unit  live/stage/vpc
                 "type": "unit"
               }
             ]
+          },
+          {
+            "path": "dev/vpc",
+            "type": "unit"
           }
         ]
       },
@@ -319,10 +319,6 @@ unit  live/stage/vpc
         "type": "unit",
         "dependencies": [
           {
-            "path": "prod/vpc",
-            "type": "unit"
-          },
-          {
             "path": "prod/db",
             "type": "unit",
             "dependencies": [
@@ -331,6 +327,10 @@ unit  live/stage/vpc
                 "type": "unit"
               }
             ]
+          },
+          {
+            "path": "prod/vpc",
+            "type": "unit"
           }
         ]
       },
@@ -358,10 +358,6 @@ unit  live/stage/vpc
         "type": "unit",
         "dependencies": [
           {
-            "path": "stage/vpc",
-            "type": "unit"
-          },
-          {
             "path": "stage/db",
             "type": "unit",
             "dependencies": [
@@ -370,6 +366,10 @@ unit  live/stage/vpc
                 "type": "unit"
               }
             ]
+          },
+          {
+            "path": "stage/vpc",
+            "type": "unit"
           }
         ]
       },

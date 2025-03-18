@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -163,6 +164,8 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 			listedCfg.Dependencies[i] = relDepPath
 		}
 
+		slices.Sort(listedCfg.Dependencies)
+
 		listedCfgs = append(listedCfgs, listedCfg)
 	}
 
@@ -195,7 +198,6 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 		if len(parts.segments) == 1 {
 			node := &JSONTree{
 				Path:     config.Path,
-				Type:     config.Type,
 				Children: make([]*JSONTree, 0),
 			}
 			if opts.Dependencies {
