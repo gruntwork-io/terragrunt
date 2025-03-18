@@ -45,8 +45,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 )
 
 const (
@@ -181,12 +179,6 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
 
 	session, err := awshelper.CreateAwsSession(awsConfig, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
-
-	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
-		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
-			Region: awsRegion,
-		},
-	}
 
 	return s3.New(session)
 }
