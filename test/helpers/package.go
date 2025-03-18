@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"os"
@@ -33,6 +34,8 @@ import (
 	"testing"
 
 	"github.com/NYTimes/gziphandler"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -42,6 +45,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 )
 
 const (
@@ -161,6 +166,70 @@ func UniqueID() string {
 	}
 
 	return out.String()
+}
+
+// CreateS3ClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
+func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
+	t.Helper()
+
+	mockOptions, err := options.NewTerragruntOptionsForTest("aws_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
+
+	session, err := awshelper.CreateAwsSession(awsConfig, mockOptions)
+	require.NoError(t, err, "Error creating S3 client")
+
+	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
+		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
+			Region: awsRegion,
+		},
+	}
+
+	return s3.New(session)
+}
+
+// DeleteS3Bucket deletes the specified S3 bucket potentially with error to clean up after a test.
+func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
+	t.Helper()
+
+	client := CreateS3ClientForTest(t, awsRegion)
+
+	t.Logf("Deleting test s3 bucket %s", bucketName)
+
+	out, err := client.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)})
+	if err != nil {
+		t.Logf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
+		return err
+	}
+
+	objectIdentifiers := []*s3.ObjectIdentifier{}
+	for _, version := range out.Versions {
+		objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
+			Key:       version.Key,
+			VersionId: version.VersionId,
+		})
+	}
+
+	if len(objectIdentifiers) > 0 {
+		deleteInput := &s3.DeleteObjectsInput{
+			Bucket: aws.String(bucketName),
+			Delete: &s3.Delete{Objects: objectIdentifiers},
+		}
+		if _, err := client.DeleteObjects(deleteInput); err != nil {
+			t.Logf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
+			return err
+		}
+	}
+
+	if _, err := client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
+		return err
+	}
+
+	return nil
 }
 
 func FileIsInFolder(t *testing.T, name string, path string) bool {
