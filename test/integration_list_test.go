@@ -91,65 +91,22 @@ func TestListCommandWithDependencies(t *testing.T) {
 	}{
 		{
 			name:       "List with dependencies in JSON format",
-			workingDir: "fixtures/list",
+			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--json", "--dependencies"},
 			expected: `[
   {
-    "path": "basic",
+    "path": "live",
     "children": [
       {
-        "path": "a-unit",
+        "path": "db",
         "type": "unit"
       },
       {
-        "path": "b-unit",
-        "type": "unit"
-      }
-    ]
-  },
-  {
-    "path": "tree",
-    "children": [
-      {
-        "path": "L1",
-        "type": "unit",
-        "children": [
-          {
-            "path": "L2",
-            "type": "unit",
-            "children": [
-              {
-                "path": "L3",
-                "type": "unit"
-              },
-              {
-                "path": "L3-a",
-                "type": "unit",
-                "children": [
-                  {
-                    "path": "L4",
-                    "type": "unit"
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "path": "child1",
+        "path": "ec2",
         "type": "unit"
       },
       {
-        "path": "child2",
-        "type": "unit"
-      },
-      {
-        "path": "grandchild1",
-        "type": "unit"
-      },
-      {
-        "path": "grandchild2",
+        "path": "vpc",
         "type": "unit"
       }
     ]
@@ -159,32 +116,65 @@ func TestListCommandWithDependencies(t *testing.T) {
 		},
 		{
 			name:       "List with dependencies in tree format",
-			workingDir: "fixtures/list",
+			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--tree", "--dag"},
 			expected: `.
-├── basic/a-unit
-├── basic/b-unit
-├── tree/L1/L2/L3
-├── tree/L1/L2/L3-a/L4
-├── tree/grandchild1
-│   ╰── tree/child1
-╰── tree/grandchild2
-    ╰── tree/child2
+╰── live/vpc
+    ├── live/db
+    │   ╰── live/ec2
+    ╰── live/ec2
 `,
 		},
 		{
 			name:       "List with dependencies in long format",
-			workingDir: "fixtures/list",
+			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--long", "--dependencies"},
-			expected: `Type  Path                Dependencies
-unit  basic/a-unit
-unit  basic/b-unit
-unit  tree/L1/L2/L3
-unit  tree/L1/L2/L3-a/L4
-unit  tree/child1         tree/grandchild1
-unit  tree/child2         tree/grandchild2
-unit  tree/grandchild1
-unit  tree/grandchild2
+			expected: `Type  Path      Dependencies
+unit  live/db   live/vpc
+unit  live/ec2  live/vpc, live/db
+unit  live/vpc
+`,
+		},
+		{
+			name:       "List with DAG dependencies in JSON format",
+			workingDir: "fixtures/list/dag/live",
+			args:       []string{"list", "--json", "--dependencies"},
+			expected: `[
+  {
+    "path": "db",
+    "type": "unit",
+    "dependencies": [
+      {
+        "path": "vpc",
+        "type": "unit"
+      }
+    ]
+  },
+  {
+    "path": "ec2",
+    "type": "unit",
+    "dependencies": [
+      {
+        "path": "vpc",
+        "type": "unit"
+      },
+      {
+        "path": "db",
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "vpc",
+            "type": "unit"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "vpc",
+    "type": "unit"
+  }
+]
 `,
 		},
 	}
