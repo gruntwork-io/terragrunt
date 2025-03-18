@@ -390,14 +390,7 @@ func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 				}
 
 				// Check if dependency is already a child
-				isChild := false
-
-				for _, child := range configNode.Dependencies {
-					if child == depNode {
-						isChild = true
-						break
-					}
-				}
+				isChild := slices.Contains(configNode.Dependencies, depNode)
 
 				if !isChild {
 					configNode.Dependencies = append(configNode.Dependencies, depNode)
@@ -418,7 +411,7 @@ func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 
 // outputJSON outputs the discovered configurations in JSON format.
 func outputJSON(opts *Options, configs ListedConfigs) error {
-	var result interface{}
+	var result any
 	if opts.GroupBy == GroupByDAG {
 		result = buildJSONDAGTree(opts, configs)
 	} else {
@@ -814,7 +807,7 @@ func preProcessPath(path string) pathParts {
 }
 
 // renderTree renders the configurations in a tree format.
-func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, sort string) error {
+func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, _ string) error {
 	var t *tree.Tree
 
 	if opts.GroupBy == GroupByDAG {
