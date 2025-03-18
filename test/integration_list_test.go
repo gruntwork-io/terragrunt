@@ -99,7 +99,6 @@ func TestListCommandWithDependencies(t *testing.T) {
     "children": [
       {
         "path": "dev",
-        "type": "unit",
         "children": [
           {
             "path": "live/dev/db",
@@ -139,7 +138,6 @@ func TestListCommandWithDependencies(t *testing.T) {
       },
       {
         "path": "prod",
-        "type": "unit",
         "children": [
           {
             "path": "live/prod/db",
@@ -179,7 +177,6 @@ func TestListCommandWithDependencies(t *testing.T) {
       },
       {
         "path": "stage",
-        "type": "unit",
         "children": [
           {
             "path": "live/stage/db",

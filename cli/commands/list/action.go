@@ -253,11 +253,15 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 
 				childNode = &JSONTree{
 					Path:     nodePath,
-					Type:     config.Type,
 					Children: make([]*JSONTree, 0),
 				}
 				if opts.Dependencies {
 					childNode.Dependencies = make([]*JSONTree, 0)
+				}
+
+				// Only set Type for leaf nodes
+				if isLeafNode {
+					childNode.Type = config.Type
 				}
 
 				currentNode.Children = append(currentNode.Children, childNode)
@@ -320,6 +324,19 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 					configNode.Dependencies = append(configNode.Dependencies, depCopy)
 				}
 			}
+
+			// Sort dependencies by path for consistent ordering
+			if len(configNode.Dependencies) > 0 {
+				sort.SliceStable(configNode.Dependencies, func(i, j int) bool {
+					return configNode.Dependencies[i].Path < configNode.Dependencies[j].Path
+				})
+			}
+		}
+	}
+
+	for _, node := range topLevelNodes {
+		if len(node.Children) == 0 {
+			node.Type = configs.Get(node.Path).Type
 		}
 	}
 
@@ -341,8 +358,13 @@ func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 
 		node := &JSONTree{
 			Path: config.Path,
-			Type: config.Type,
 		}
+
+		// Only set Type for leaf nodes (those without dependencies)
+		if len(config.Dependencies) == 0 {
+			node.Type = config.Type
+		}
+
 		if opts.Dependencies {
 			node.Dependencies = make([]*JSONTree, 0)
 		}
@@ -384,6 +406,13 @@ func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 				if !isChild {
 					configNode.Dependencies = append(configNode.Dependencies, depNode)
 				}
+			}
+
+			// Sort dependencies by path for consistent ordering
+			if len(configNode.Dependencies) > 0 {
+				sort.SliceStable(configNode.Dependencies, func(i, j int) bool {
+					return configNode.Dependencies[i].Path < configNode.Dependencies[j].Path
+				})
 			}
 		}
 	}
