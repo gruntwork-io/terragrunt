@@ -40,6 +40,7 @@ The commands relevant to discovering Terragrunt configurations are:
 
 - [Discovery commands](#discovery-commands)
   - [find](#find)
+  - [list](#list)
 
 The commands used for managing Terragrunt configuration itself are:
 
@@ -557,15 +558,21 @@ More details in [scaffold section](https://terragrunt.gruntwork.io/docs/features
 
 Find Terragrunt configurations in your codebase.
 
-The `find` command helps you discover Terragrunt configurations in your codebase. It recursively searches for `terragrunt.hcl` and `terragrunt.stack.hcl` files and displays them in formatted output.
-
 ```bash
 terragrunt find [options]
 ```
 
+The `find` command helps you discover Terragrunt configurations in your codebase. It recursively searches for `terragrunt.hcl` and `terragrunt.stack.hcl` files and displays them in formatted output.
+
+The `find` command is very similar to the [`list` command](/docs/reference/cli-options/#list). It uses the same discovery backend for configuration discovery. It also supports very similar flags and configuration options.
+
+For example, you can use the `--format` and `--sort` flags to adjust the format of output, and the sorting of results, respectively. The `find` command also supports the `--dependencies` flag to include dependency information in the output, the `--external` flag to include external dependencies, and the `--hidden` flag to include hidden configurations.
+
+It differs from the `list` command in that it is optimized for displaying configurations in a format that is easy for a computer to read and understand, so there are less configuration options, and the output is simpler. All output from the `find` command is structured such that results are in a flat list, making it easy to parse and process programmatically. Use the `list` command when you want to display configurations in a format that is easy for a human to read and understand.
+
 When used without any flags, all units and stacks discovered in the current working directory are displayed in colorful text format.
 
-[![find](/assets/img/screenshots/find.png)](/assets/img/screenshots/find.png)
+![find](/assets/img/screenshots/find.png)
 
 Discovered configurations are color coded to help you identify them at a glance:
 
@@ -580,7 +587,7 @@ terragrunt find --no-color
 
 When stdout is redirected, color output is disabled automatically to prevent undesired interference with other tools.
 
-[![find-no-color](/assets/img/screenshots/find-no-color.png)](/assets/img/screenshots/find-no-color.png)
+![find-no-color](/assets/img/screenshots/find-no-color.png)
 
 You can change the working directory used by the command by using the `--working-dir` flag.
 
@@ -685,6 +692,125 @@ By default, hidden directories (those starting with `.`) are excluded from the s
 ```bash
 terragrunt find --hidden
 ```
+
+#### list
+
+**[NOTE] The `list` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
+
+List Terragrunt configurations in your codebase.
+
+```bash
+terragrunt list [options]
+```
+
+The `list` command helps you discover and display Terragrunt configurations in your codebase. It provides various output formats and options to help you understand the structure and dependencies of your Terragrunt configurations.
+
+The `list` command is very similar to the [`find` command](/docs/reference/cli-options/#find). It uses the same backend logic for configuration discovery. It also supports very similar flags and configuration options.
+
+For example, you can use the `--format` and `--sort` flags to adjust the format of output, and the sorting of results, respectively. The `list` command also supports the `--dependencies` flag to include dependency information in output when available, the `--external` flag to include external dependencies, and the `--hidden` flag to include hidden configurations.
+
+It also uses global flags, such as `--working-dir` and `--no-color` to control behavior, and will avoid emitting color output when stdout is redirected. To save space here, common behavior between the `find` and `list` commands may be omitted from the `list` documentation. This documentation will focus on the differentiating features of the `list` command.
+
+Generally, the `list` command is optimized for displaying configurations in a format that is easy for a human to read and understand, so there are more configuration options, and the output is more verbose. Output from the `list` command can vary significantly depending on the flags used, and the output structure is more variable than that of the `find` command.
+
+##### List Output Format
+
+The `list` command supports multiple output formats to help you visualize your Terragrunt configurations in different ways.
+
+###### Text Format (Default)
+
+The default text format provides a simple, space-separated list of configurations:
+
+![list](/assets/img/screenshots/list.png)
+
+The list command will display as many configurations as it can on a given line, wrapping around to the next line if necessary based on terminal width.
+
+![list-narrow](/assets/img/screenshots/list-narrow.png)
+
+###### Long Format
+
+The long format provides additional details about each configuration, including its type:
+
+![list-long](/assets/img/screenshots/list-long.png)
+
+###### Tree Format
+
+The tree format provides a hierarchical view of your configurations as a tree:
+
+![list-tree](/assets/img/screenshots/list-tree.png)
+
+###### JSON Format
+
+The JSON format is useful for programmatic processing of the output:
+
+![list-json](/assets/img/screenshots/list-json.png)
+
+##### List Sorting and Grouping
+
+The `list` command supports different sorting and grouping options to help you organize output:
+
+###### Alphabetical Sorting (Default)
+
+By default, configurations are sorted alphabetically:
+
+![list-sort-alpha](/assets/img/screenshots/list-sort-alpha.png)
+
+###### DAG-based Sorting
+
+You can sort configurations based on their dependency relationships using the `--sort=dag` option:
+
+![list-sort-dag](/assets/img/screenshots/list-sort-dag.png)
+
+###### Dependency Grouping
+
+The `--group-by` flag controls how dependencies are represented in the output:
+
+- `fs` (default): Shows dependencies as a flat list from a filesystem perspective
+- `dag`: Shows dependencies in a tree structure from a DAG perspective
+
+For example, when using `--group-by=fs` with JSON format:
+
+```json
+[
+  {
+    "path": "A",
+    "type": "unit",
+    "dependencies": []
+  },
+  {
+    "path": "B",
+    "type": "unit",
+    "dependencies": [{"path": "A", "type": "unit"}]
+  }
+]
+```
+
+When using `--group-by=dag` with JSON format:
+
+```json
+[
+  {
+    "path": "A",
+    "type": "unit",
+    "dependencies": []
+  },
+  {
+    "path": "B",
+    "type": "unit",
+    "dependencies": [
+      {
+        "path": "A",
+        "type": "unit",
+        "dependencies": []
+      }
+    ]
+  }
+]
+```
+
+The `fs` grouping is optimized for filesystem-based views, while the `dag` grouping is better for understanding the complete dependency tree of each configuration.
+
+Note: The `--dag` flag is a shorthand that sets both `--sort=dag` and `--group-by=dag`.
 
 ### Configuration commands
 
@@ -970,6 +1096,16 @@ This command will exit with an error if terragrunt detects any unused inputs or 
       - [Find Dependencies](#find-dependencies)
       - [Find External Dependencies](#find-external-dependencies)
       - [Find Hidden Configurations](#find-hidden-configurations)
+    - [list](#list)
+      - [List Output Format](#list-output-format)
+        - [Text Format (Default)](#text-format-default)
+        - [Long Format](#long-format)
+        - [Tree Format](#tree-format)
+        - [JSON Format](#json-format)
+      - [List Sorting and Grouping](#list-sorting-and-grouping)
+        - [Alphabetical Sorting (Default)](#alphabetical-sorting-default)
+        - [DAG-based Sorting](#dag-based-sorting)
+        - [Dependency Grouping](#dependency-grouping)
   - [Configuration commands](#configuration-commands)
     - [graph-dependencies](#graph-dependencies)
     - [hclfmt](#hclfmt)
