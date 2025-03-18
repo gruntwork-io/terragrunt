@@ -157,7 +157,7 @@ type JSONTree struct {
 }
 
 // buildJSONTree creates a tree structure from ListedConfigs
-func buildJSONTree(configs ListedConfigs, opts *Options) []*JSONTree {
+func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 	// Create a map to track nodes by their path
 	nodes := make(map[string]*JSONTree)
 
@@ -275,7 +275,7 @@ func buildJSONTree(configs ListedConfigs, opts *Options) []*JSONTree {
 }
 
 // buildJSONDAGTree creates a tree structure from ListedConfigs based on DAG relationships
-func buildJSONDAGTree(configs ListedConfigs) []*JSONTree {
+func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 	// Create a map to track all nodes by their full path
 	nodes := make(map[string]*JSONTree)
 
@@ -288,44 +288,48 @@ func buildJSONDAGTree(configs ListedConfigs) []*JSONTree {
 		}
 
 		node := &JSONTree{
-			Path:         config.Path,
-			Type:         config.Type,
-			Dependencies: make([]*JSONTree, 0),
+			Path: config.Path,
+			Type: config.Type,
+		}
+		if opts.Dependencies {
+			node.Dependencies = make([]*JSONTree, 0)
 		}
 		nodes[config.Path] = node
 		topLevelNodes = append(topLevelNodes, node)
 	}
 
 	// Second pass: connect dependencies
-	for _, config := range configs {
-		if len(config.Dependencies) == 0 {
-			continue
-		}
+	if opts.Dependencies {
+		for _, config := range configs {
+			if len(config.Dependencies) == 0 {
+				continue
+			}
 
-		// Get the node for this config
-		configNode, exists := nodes[config.Path]
-		if !exists {
-			continue
-		}
-
-		// Add each dependency as a child
-		for _, depPath := range config.Dependencies {
-			depNode, exists := nodes[depPath]
+			// Get the node for this config
+			configNode, exists := nodes[config.Path]
 			if !exists {
 				continue
 			}
 
-			// Check if dependency is already a child
-			isChild := false
-			for _, child := range configNode.Dependencies {
-				if child == depNode {
-					isChild = true
-					break
+			// Add each dependency as a child
+			for _, depPath := range config.Dependencies {
+				depNode, exists := nodes[depPath]
+				if !exists {
+					continue
 				}
-			}
 
-			if !isChild {
-				configNode.Dependencies = append(configNode.Dependencies, depNode)
+				// Check if dependency is already a child
+				isChild := false
+				for _, child := range configNode.Dependencies {
+					if child == depNode {
+						isChild = true
+						break
+					}
+				}
+
+				if !isChild {
+					configNode.Dependencies = append(configNode.Dependencies, depNode)
+				}
 			}
 		}
 	}
@@ -337,9 +341,9 @@ func buildJSONDAGTree(configs ListedConfigs) []*JSONTree {
 func outputJSON(opts *Options, configs ListedConfigs) error {
 	var result interface{}
 	if opts.Sort == SortDAG {
-		result = buildJSONDAGTree(configs)
+		result = buildJSONDAGTree(opts, configs)
 	} else {
-		result = buildJSONTree(configs, opts)
+		result = buildJSONTree(opts, configs)
 	}
 
 	jsonBytes, err := json.MarshalIndent(result, "", "  ")
