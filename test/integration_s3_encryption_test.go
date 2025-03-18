@@ -161,7 +161,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
 
-	require.NoError(t, createS3BucketE(t, helpers.TerraformRemoteStateS3Region, s3BucketName))
+	createS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
