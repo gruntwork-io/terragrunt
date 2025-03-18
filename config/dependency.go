@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -691,9 +692,25 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, targetConfig
 	}
 
 	targetParsingContext := ctx.WithTerragruntOptions(targetOptions)
+
+	// When the skipDependenciesInputs control is enabled, we can skip parsing the dependency block
+	// of dependencies, as we don't need to worry about recursive dependencies presenting problems.
+	allControls := ctx.TerragruntOptions.StrictControls
+
+	skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
+	if skipDependenciesInputs == nil {
+		return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
+	}
+
+	skipDependenciesInputs.SuppressWarning()
+
+	if err := skipDependenciesInputs.Evaluate(ctx); err == nil {
+		targetParsingContext = targetParsingContext.WithDecodeList(DependencyBlock)
+	}
+
 	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
 	partialTerragruntConfig, err := PartialParseConfigFile(
-		targetParsingContext.WithDecodeList(DependencyBlock),
+		targetParsingContext,
 		targetConfig,
 		nil,
 	)
