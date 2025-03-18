@@ -1082,7 +1082,7 @@ Make sure to read about the [stacks feature](/docs/features/stacks) for context.
 Example:
 
 ```bash
-terragrunt run-all apply
+terragrunt run --all apply
 ```
 
 This will recursively search the current working directory for any folders that contain Terragrunt units and run
@@ -1090,26 +1090,26 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] Do not set [TF_PLUGIN_CACHE_DIR](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) when using `run-all`**
+**[WARNING] Do not set [TF_PLUGIN_CACHE_DIR](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) when using `run --all`**
 
 Instead take advantage of the built-in [Provider Cache Server](/docs/features/provider-cache-server/) that
 mitigates some of the limitations of using the OpenTofu/Terraform Provider Plugin Cache directly.
 
 We are [working with the OpenTofu team to improve this behavior](https://github.com/opentofu/opentofu/issues/1483) so that you don't have to worry about this in the future.
 
-**[NOTE] Use `run-all` with care if you have unapplied dependencies**.
+**[NOTE] Use `run --all` with care if you have unapplied dependencies**.
 
 If you have a stack of Terragrunt units with dependencies between them via `dependency` blocks
-and you've never deployed them, then commands like `run-all plan` will fail,
+and you've never deployed them, then commands like `run --all plan` will fail,
 as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
 
 The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
 
-**[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
+**[NOTE]** Using `run --all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
 arguments passed to OpenTofu/Terraform due to issues with shared `stdin` making individual approvals impossible.
 
 **[NOTE]** Using the OpenTofu/Terraform [-detailed-exitcode](https://opentofu.org/docs/cli/commands/plan/#other-options)
-flag with the `run-all` command results in an aggregate exit code being returned, rather than the exit code of any particular unit.
+flag with the `run --all` command results in an aggregate exit code being returned, rather than the exit code of any particular unit.
 
 The algorithm for determining the aggregate exit code is as follows:
 
@@ -1135,7 +1135,7 @@ Example:
 Having below dependencies:
 [![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
 
-Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
+Running `terragrunt run --graph apply` in `eks` module will lead to the following execution order:
 
 ```text
 Group 1
@@ -1163,7 +1163,7 @@ Notes:
 - `lambda` units aren't included in the graph, because they are not dependent on `eks` unit.
 - execution is from bottom up based on dependencies
 
-Running `terragrunt graph destroy` in `eks` unit will lead to the following execution order:
+Running `terragrunt run --graph destroy` in `eks` unit will lead to the following execution order:
 
 ```text
 Group 1
@@ -1191,7 +1191,7 @@ Notes:
 - execution is in reverse order, first are destroyed "top" units and in the end `eks`
 - `lambda` units aren't affected at all
 
-Running `terragrunt graph apply` in `services/eks-service-3`:
+Running `terragrunt run --graph apply` in `services/eks-service-3`:
 
 ```text
 Group 1
@@ -1210,7 +1210,7 @@ Notes:
 
 - in execution are included only services dependent from `eks-service-3`
 
-Running `terragrunt graph destroy` in `services/eks-service-3`:
+Running `terragrunt run --graph destroy` in `services/eks-service-3`:
 
 ```text
 Group 1
