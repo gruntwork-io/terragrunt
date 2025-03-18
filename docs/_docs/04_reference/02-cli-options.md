@@ -980,6 +980,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [validate-inputs](#validate-inputs)
 - [Flags](#flags)
   - [all](#all)
+  - [graph](#graph-1)
   - [auth-provider-cmd](#auth-provider-cmd)
   - [config](#config)
   - [tf-path](#tf-path)
@@ -1067,9 +1068,165 @@ This command will exit with an error if terragrunt detects any unused inputs or 
 **CLI Arg**: `--all`<br/>
 **Environment Variable**: `TG_ALL` (set to `true`)<br/>
 
-Run the provided OpenTofu/Terraform command against all units in the current stack. This is equivalent to the deprecated `run-all` command.
+This is equivalent to the soon to be deprecated `run-all` command.
 
-See [Stacks](/docs/features/stacks/) for more information.
+**[NOTE] The `all` flag is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
+
+Runs the provided OpenTofu/Terraform command against a [stack](/docs/getting-started/terminology/#stack).
+The command will recursively find terragrunt [units](/docs/getting-started/terminology/#unit) in the current directory
+tree and run the OpenTofu/Terraform command in dependency order (unless the command is destroy,
+in which case the command is run in reverse dependency order).
+
+Make sure to read about the [stacks feature](/docs/features/stacks) for context.
+
+Example:
+
+```bash
+terragrunt run-all apply
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt units and run
+`apply` in each one, concurrently, while respecting ordering defined via
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+**[WARNING] Do not set [TF_PLUGIN_CACHE_DIR](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) when using `run-all`**
+
+Instead take advantage of the built-in [Provider Cache Server](/docs/features/provider-cache-server/) that
+mitigates some of the limitations of using the OpenTofu/Terraform Provider Plugin Cache directly.
+
+We are [working with the OpenTofu team to improve this behavior](https://github.com/opentofu/opentofu/issues/1483) so that you don't have to worry about this in the future.
+
+**[NOTE] Use `run-all` with care if you have unapplied dependencies**.
+
+If you have a stack of Terragrunt units with dependencies between them via `dependency` blocks
+and you've never deployed them, then commands like `run-all plan` will fail,
+as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
+
+The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
+
+**[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
+arguments passed to OpenTofu/Terraform due to issues with shared `stdin` making individual approvals impossible.
+
+**[NOTE]** Using the OpenTofu/Terraform [-detailed-exitcode](https://opentofu.org/docs/cli/commands/plan/#other-options)
+flag with the `run-all` command results in an aggregate exit code being returned, rather than the exit code of any particular unit.
+
+The algorithm for determining the aggregate exit code is as follows:
+
+- If any unit throws a 1, Terragrunt will throw a 1.
+- If any unit throws a 2, but nothing throws a 1, Terragrunt will throw a 2.
+- If nothing throws a non-zero, Terragrunt will throw a 0.
+
+<!-- markdownlint-disable MD024 -->
+### graph
+
+**CLI Arg**: `--graph`<br/>
+**Environment Variable**: `TG_GRAPH`<br/>
+
+This is equivalent to the soon to be deprecated `graph` command.
+
+**[NOTE] The `graph` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
+
+Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory. The graph consists of all units that depend on the unit in the current working directory via a `dependency` or `dependencies` blocks, plus all the units that depend on those units, and all the units that depend on those units, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
+
+The Command will be executed following the order of dependencies: so it'll run on the unit in the current working directory first, then on units that depend on it directly, then on the units that depend on those units, and so on. Note that if the command is `destroy`, it will run in the opposite order (the final dependents, then their dependencies, etc. up to the unit you ran the command in).
+
+Example:
+Having below dependencies:
+[![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
+
+Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
+
+```text
+Group 1
+- Module project/eks
+
+Group 2
+- Module project/services/eks-service-1
+- Module project/services/eks-service-2
+
+Group 3
+- Module project/services/eks-service-2-v2
+- Module project/services/eks-service-3
+- Module project/services/eks-service-5
+
+Group 4
+- Module project/services/eks-service-3-v2
+- Module project/services/eks-service-4
+
+Group 5
+- Module project/services/eks-service-3-v3
+```
+
+Notes:
+
+- `lambda` units aren't included in the graph, because they are not dependent on `eks` unit.
+- execution is from bottom up based on dependencies
+
+Running `terragrunt graph destroy` in `eks` unit will lead to the following execution order:
+
+```text
+Group 1
+- Module project/services/eks-service-2-v2
+- Module project/services/eks-service-3-v3
+- Module project/services/eks-service-4
+- Module project/services/eks-service-5
+
+Group 2
+- Module project/services/eks-service-3-v2
+
+Group 3
+- Module project/services/eks-service-3
+
+Group 4
+- Module project/services/eks-service-1
+- Module project/services/eks-service-2
+
+Group 5
+- Module project/eks
+```
+
+Notes:
+
+- execution is in reverse order, first are destroyed "top" units and in the end `eks`
+- `lambda` units aren't affected at all
+
+Running `terragrunt graph apply` in `services/eks-service-3`:
+
+```text
+Group 1
+- Module project/services/eks-service-3
+
+Group 2
+- Module project/services/eks-service-3-v2
+- Module project/services/eks-service-4
+
+Group 3
+- Module project/services/eks-service-3-v3
+
+```
+
+Notes:
+
+- in execution are included only services dependent from `eks-service-3`
+
+Running `terragrunt graph destroy` in `services/eks-service-3`:
+
+```text
+Group 1
+- Module project/services/eks-service-3-v3
+- Module project/services/eks-service-4
+
+Group 2
+- Module project/services/eks-service-3-v2
+
+Group 3
+- Module project/services/eks-service-3
+```
+
+Notes:
+
+- destroy will be executed only on subset of services dependent from `eks-service-3`
 
 ### auth-provider-cmd
 
