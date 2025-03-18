@@ -149,8 +149,8 @@ func generateDefaultValue(variableType string) string {
 }
 
 type ctyJSONValue struct {
-	Value interface{} `json:"Value"`
-	Type  interface{} `json:"Type"`
+	Value any `json:"Value"`
+	Type  any `json:"Type"`
 }
 
 // readBlockAttribute - hcl block attribute.

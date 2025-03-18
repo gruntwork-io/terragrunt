@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/hashicorp/go-getter"
@@ -462,7 +464,7 @@ func Shutdown(ctx context.Context, opts *options.TerragruntOptions) error {
 		return errors.New(err)
 	}
 
-	engineClients.Range(func(key, value interface{}) bool {
+	engineClients.Range(func(key, value any) bool {
 		instance := value.(*engineInstance)
 		instance.executionOptions.TerragruntOptions.Logger.Debugf("Shutting down engine for %s", instance.executionOptions.WorkingDir)
 		// invoke shutdown on engine
@@ -504,7 +506,11 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	engineLogLevel := terragruntOptions.EngineLogLevel
 	if len(engineLogLevel) == 0 {
-		engineLogLevel = terragruntOptions.Logger.Level().String()
+		engineLogLevel = hclog.Warn.String()
+		// update log level if it is different from info
+		if terragruntOptions.Logger.Level() != log.InfoLevel {
+			engineLogLevel = terragruntOptions.Logger.Level().String()
+		}
 		// turn off log formatting if disabled for Terragrunt
 		if terragruntOptions.Logger.Formatter().DisabledOutput() {
 			engineLogLevel = hclog.Off.String()
@@ -775,7 +781,7 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 }
 
 // ConvertMetaToProtobuf converts metadata map to protobuf map
-func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, error) {
+func ConvertMetaToProtobuf(meta map[string]any) (map[string]*anypb.Any, error) {
 	protoMeta := make(map[string]*anypb.Any)
 	if meta == nil {
 		return protoMeta, nil

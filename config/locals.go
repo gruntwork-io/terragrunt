@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
@@ -122,9 +124,7 @@ func attemptEvaluateLocals(
 	evaluated = false
 
 	newEvaluatedLocals = map[string]cty.Value{}
-	for key, val := range evaluatedLocals {
-		newEvaluatedLocals[key] = val
-	}
+	maps.Copy(newEvaluatedLocals, evaluatedLocals)
 
 	for _, attr := range attrs {
 		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {

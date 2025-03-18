@@ -38,8 +38,8 @@ func TestParseTerraformStateLocal(t *testing.T) {
 		Modules: []remotestate.TerraformStateModule{
 			{
 				Path:      []string{"root"},
-				Outputs:   map[string]interface{}{},
-				Resources: map[string]interface{}{},
+				Outputs:   map[string]any{},
+				Resources: map[string]any{},
 			},
 		},
 	}
@@ -85,7 +85,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 		Serial:  12,
 		Backend: &remotestate.TerraformBackend{
 			Type: "s3",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"bucket":  "bucket",
 				"encrypt": true,
 				"key":     "experiment-1.tfstate",
@@ -95,8 +95,8 @@ func TestParseTerraformStateRemote(t *testing.T) {
 		Modules: []remotestate.TerraformStateModule{
 			{
 				Path:      []string{"root"},
-				Outputs:   map[string]interface{}{},
-				Resources: map[string]interface{}{},
+				Outputs:   map[string]any{},
+				Resources: map[string]any{},
 			},
 		},
 	}
@@ -215,7 +215,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 		Serial:  51,
 		Backend: &remotestate.TerraformBackend{
 			Type: "s3",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"bucket":  "bucket",
 				"encrypt": true,
 				"key":     "terraform.tfstate",
@@ -225,31 +225,31 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 		Modules: []remotestate.TerraformStateModule{
 			{
 				Path: []string{"root"},
-				Outputs: map[string]interface{}{
+				Outputs: map[string]any{
 					"key1": "value1",
 					"key2": "value2",
 					"key3": "value3",
 				},
-				Resources: map[string]interface{}{},
+				Resources: map[string]any{},
 			},
 			{
 				Path: []string{"root", "module_with_outputs_no_resources"},
-				Outputs: map[string]interface{}{
+				Outputs: map[string]any{
 					"key1": "",
 					"key2": "",
 				},
-				Resources: map[string]interface{}{},
+				Resources: map[string]any{},
 			},
 			{
 				Path:    []string{"root", "module_with_resources_no_outputs"},
-				Outputs: map[string]interface{}{},
-				Resources: map[string]interface{}{
-					"aws_eip.nat.0": map[string]interface{}{
+				Outputs: map[string]any{},
+				Resources: map[string]any{
+					"aws_eip.nat.0": map[string]any{
 						"type":       "aws_eip",
-						"depends_on": []interface{}{"aws_internet_gateway.main"},
-						"primary": map[string]interface{}{
+						"depends_on": []any{"aws_internet_gateway.main"},
+						"primary": map[string]any{
 							"id": "eipalloc-b421becd",
-							"attributes": map[string]interface{}{
+							"attributes": map[string]any{
 								"association_id":    "",
 								"domain":            "vpc",
 								"id":                "eipalloc-b421becd",
@@ -261,12 +261,12 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 							},
 						},
 					},
-					"aws_eip.nat.1": map[string]interface{}{
+					"aws_eip.nat.1": map[string]any{
 						"type":       "aws_eip",
-						"depends_on": []interface{}{"aws_internet_gateway.main"},
-						"primary": map[string]interface{}{
+						"depends_on": []any{"aws_internet_gateway.main"},
+						"primary": map[string]any{
 							"id": "eipalloc-95d846ec",
-							"attributes": map[string]interface{}{
+							"attributes": map[string]any{
 								"association_id":    "",
 								"domain":            "vpc",
 								"id":                "eipalloc-95d846ec",
@@ -282,8 +282,8 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 			},
 			{
 				Path:      []string{"root", "module_level_1", "module_level_2"},
-				Outputs:   map[string]interface{}{},
-				Resources: map[string]interface{}{},
+				Outputs:   map[string]any{},
+				Resources: map[string]any{},
 			},
 		},
 	}

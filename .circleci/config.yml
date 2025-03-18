@@ -60,16 +60,6 @@ install_tflint: &install_tflint
     popd
     tflint --version
 
-install_tofu_engine: &install_tofu_engine
-  name: Install OpenTofu Engine
-  command: |
-    # Download the OpenTofu Engine binary
-    set -x
-    export REPO="gruntwork-io/terragrunt-engine-opentofu"
-    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_${TOFU_ENGINE_VERSION}_linux_amd64.zip"
-    wget -O "engine.zip" "https://github.com/${REPO}/releases/download/${TOFU_ENGINE_VERSION}/${ASSET_NAME}"
-    unzip -o "engine.zip"
-
 setup_test_environment: &setup_test_environment
   name: Setup integration tests environment
   command: |
@@ -395,8 +385,6 @@ jobs:
       - checkout
       - run:
           <<: *install_tofu
-      - run:
-          <<: *install_tofu_engine
       - run:
           <<: *setup_test_environment
       - run:

@@ -26,7 +26,10 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	return generateStack(ctx, opts)
+	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
+	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
+
+	return config.GenerateStacks(ctx, opts)
 }
 
 // Run execute stack command.

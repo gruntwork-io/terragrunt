@@ -759,7 +759,8 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 	// we need to suspend logging diagnostic errors on this attempt
 	parseOptions := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
 
-	remoteStateTGConfig, err := PartialParseConfigFile(ctx.WithParseOption(parseOptions).WithDecodeList(RemoteStateBlock, TerragruntFlags), targetConfig, nil)
+	remoteStateTGConfig, err := PartialParseConfigFile(ctx.WithParseOption(parseOptions).WithDecodeList(
+		RemoteStateBlock, TerragruntFlags, EngineBlock), targetConfig, nil)
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
 		targetOpts, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
 		if err != nil {
@@ -779,11 +780,24 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return nil, err
 	}
 
+	// Fetch engine options so they can be passed to the dependency functions
+	engineOpts, err := remoteStateTGConfig.EngineOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TerragruntOptions.Engine = engineOpts
+
 	if isInit {
 		return getTerragruntOutputJSONFromInitFolder(ctx, workingDir, remoteStateTGConfig.GetIAMRoleOptions())
 	}
 
-	return getTerragruntOutputJSONFromRemoteState(ctx, targetConfig, remoteStateTGConfig.RemoteState, remoteStateTGConfig.GetIAMRoleOptions())
+	return getTerragruntOutputJSONFromRemoteState(
+		ctx,
+		targetConfig,
+		remoteStateTGConfig.RemoteState,
+		remoteStateTGConfig.GetIAMRoleOptions(),
+	)
 }
 
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
@@ -1003,7 +1017,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.Terragr
 	}
 
 	jsonState := string(steateBody)
-	jsonMap := make(map[string]interface{})
+	jsonMap := make(map[string]any)
 
 	err = json.Unmarshal([]byte(jsonState), &jsonMap)
 	if err != nil {
@@ -1032,6 +1046,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 
 	targetTGOptions.WorkingDir = workingDir
 	targetTGOptions.Writer = io.Discard
+	targetTGOptions.Engine = ctx.TerragruntOptions.Engine
 
 	// If the target config has an IAM role directive and it was not set on the command line, set it to
 	// the one we retrieved from the config.

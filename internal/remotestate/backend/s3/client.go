@@ -606,7 +606,7 @@ func (client *Client) WaitUntilS3BucketExists(ctx context.Context) error {
 
 	client.logger.Debugf("Waiting for bucket %s to be created", cfg.Bucket)
 
-	for retries := 0; retries < maxRetriesWaitingForS3Bucket; retries++ {
+	for retries := range maxRetriesWaitingForS3Bucket {
 		if exists, err := client.DoesS3BucketExistWithLogging(ctx, cfg.Bucket); err != nil {
 			return err
 		} else if exists {
@@ -1148,7 +1148,7 @@ func (client *Client) waitUntilBucketHasAccessLoggingACL(bucketName string) erro
 
 	maxRetries := 10
 
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		res, err := client.GetBucketAcl(&s3.GetBucketAclInput{Bucket: aws.String(bucketName)})
 		if err != nil {
 			return errors.Errorf("error getting ACL for bucket %s: %w", bucketName, err)
@@ -1634,7 +1634,7 @@ func (client *Client) waitForTableToBeActive(ctx context.Context, tableName stri
 // and less than sleepBetweenRetriesMax between tries. This is to avoid an AWS issue where all waiting requests fire at
 // the same time, which continually triggered AWS's "subscriber limit exceeded" API error.
 func (client *Client) WaitForTableToBeActiveWithRandomSleep(ctx context.Context, tableName string, maxRetries int, sleepBetweenRetriesMin time.Duration, sleepBetweenRetriesMax time.Duration) error {
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		tableReady, err := client.DoesLockTableExistAndIsActive(ctx, tableName)
 		if err != nil {
 			return err
@@ -1697,7 +1697,7 @@ func (client *Client) UpdateLockTableSetSSEncryptionOnIfNecessary(ctx context.Co
 func (client *Client) waitForEncryptionToBeEnabled(ctx context.Context, tableName string) error {
 	client.logger.Debugf("Waiting for encryption to be enabled on table %s", tableName)
 
-	for i := 0; i < maxRetriesWaitingForEncryption; i++ {
+	for range maxRetriesWaitingForEncryption {
 		tableSSEncrypted, err := client.LockTableCheckSSEncryptionIsOn(ctx, tableName)
 		if err != nil {
 			return errors.New(err)

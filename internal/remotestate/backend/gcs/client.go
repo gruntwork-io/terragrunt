@@ -255,7 +255,7 @@ func (client *Client) CreateGCSBucket(ctx context.Context, bucketName string) er
 func (client *Client) WaitUntilGCSBucketExists(ctx context.Context, bucketName string) error {
 	client.logger.Debugf("Waiting for bucket %s to be created", bucketName)
 
-	for retries := 0; retries < maxRetriesWaitingForGcsBucket; retries++ {
+	for retries := range maxRetriesWaitingForGcsBucket {
 		if client.DoesGCSBucketExist(ctx, bucketName) {
 			client.logger.Debugf("GCS bucket %s created.", bucketName)
 			return nil

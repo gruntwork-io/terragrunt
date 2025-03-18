@@ -28,7 +28,7 @@ func (severity DiagnosticSeverity) String() string {
 }
 
 func (severity DiagnosticSeverity) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf(`"%s"`, severity.String())), nil
+	return fmt.Appendf(nil, `"%s"`, severity.String()), nil
 }
 
 func (severity *DiagnosticSeverity) UnmarshalJSON(val []byte) error {

@@ -62,7 +62,7 @@ func newRunningModule(module *TerraformModule) *RunningModule {
 
 // Run a module once all of its dependencies have finished executing.
 func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, semaphore chan struct{}) {
-	err := telemetry.Telemetry(ctx, opts, "wait_for_module_ready", map[string]interface{}{
+	err := telemetry.Telemetry(ctx, opts, "wait_for_module_ready", map[string]any{
 		"path":             module.Module.Path,
 		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 	}, func(childCtx context.Context) error {
@@ -75,7 +75,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 	}()
 
 	if err == nil {
-		err = telemetry.Telemetry(ctx, opts, "run_module", map[string]interface{}{
+		err = telemetry.Telemetry(ctx, opts, "run_module", map[string]any{
 			"path":             module.Module.Path,
 			"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 		}, func(childCtx context.Context) error {

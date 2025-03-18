@@ -7,7 +7,7 @@ import (
 
 type PanicWhileParsingConfigError struct {
 	ConfigFile     string
-	RecoveredValue interface{}
+	RecoveredValue any
 }
 
 func (err PanicWhileParsingConfigError) Error() string {

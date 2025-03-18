@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -78,7 +80,7 @@ func (opts Options) Merge(withOpts ...Option) Options {
 		for t := range withOpts {
 			if reflect.TypeOf(opts[i]) == reflect.TypeOf(withOpts[t]) {
 				opts[i] = withOpts[t]
-				withOpts = append(withOpts[:t], withOpts[t+1:]...)
+				withOpts = slices.Delete(withOpts, t, t+1)
 
 				break
 			}

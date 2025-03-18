@@ -99,7 +99,7 @@ func Errorf(format string, args ...any) {
 }
 
 // WithField allocates a new entry and adds a field to it.
-func WithField(key string, value interface{}) Logger {
+func WithField(key string, value any) Logger {
 	return std.WithField(key, value)
 }
 

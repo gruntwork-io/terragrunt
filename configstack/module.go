@@ -13,6 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 
+	"slices"
+
+	"maps"
+
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -144,13 +148,7 @@ func (module *TerraformModule) getPlanFilePath(opts *options.TerragruntOptions, 
 
 // findModuleInPath returns true if a module is located under one of the target directories
 func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
-	for _, targetDir := range targetDirs {
-		if module.Path == targetDir {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(targetDirs, module.Path)
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
@@ -271,11 +269,8 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, opts *options.Terragrunt
 		deps, found := dependentModules[opts.WorkingDir]
 		if found {
 			for _, module := range stack.Modules {
-				for _, dep := range deps {
-					if dep == module.Path {
-						matchedModulesMap[module.Path] = module
-						break
-					}
+				if slices.Contains(deps, module.Path) {
+					matchedModulesMap[module.Path] = module
 				}
 			}
 		}
@@ -529,16 +524,16 @@ func (modules TerraformModules) flagExcludedUnits(opts *options.TerragruntOption
 
 // flagUnitsThatRead iterates over a module slice and flags all modules that read at least one file in the specified
 // file list in the TerragruntOptions UnitsReading attribute.
-func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOptions) (TerraformModules, error) {
+func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOptions) TerraformModules {
 	// If no UnitsThatRead is specified return the modules list instantly
 	if len(opts.UnitsReading) == 0 {
-		return modules, nil
+		return modules
 	}
 
-	for _, readPath := range opts.UnitsReading {
-		path, err := util.CanonicalPath(readPath, opts.WorkingDir)
-		if err != nil {
-			return nil, err
+	for _, path := range opts.UnitsReading {
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(opts.WorkingDir, path)
+			path = filepath.Clean(path)
 		}
 
 		for _, module := range modules {
@@ -548,7 +543,7 @@ func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOption
 		}
 	}
 
-	return modules, nil
+	return modules
 }
 
 // flagExcludedDirs iterates over a module slice and flags all entries as excluded listed in the terragrunt-exclude-dir CLI flag.
@@ -584,13 +579,9 @@ type TerraformModulesMap map[string]*TerraformModule
 func (modulesMap TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap) TerraformModulesMap {
 	out := TerraformModulesMap{}
 
-	for key, value := range externalDependencies {
-		out[key] = value
-	}
+	maps.Copy(out, externalDependencies)
 
-	for key, value := range modulesMap {
-		out[key] = value
-	}
+	maps.Copy(out, modulesMap)
 
 	return out
 }

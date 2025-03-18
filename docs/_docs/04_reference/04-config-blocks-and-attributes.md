@@ -1653,8 +1653,9 @@ The `unit` block supports the following arguments:
 
 - `name` (label): A unique identifier for the unit. This is used to reference the unit elsewhere in your configuration.
 - `source` (attribute): Specifies where to find the Terragrunt configuration files for this unit. This follows the same syntax as the `source` parameter in the `terraform` block.
-- `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`).
+- `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`). If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory. Also take note of the `no_dot_terragrunt_stack` attribute below, which can impact this.
 - `values` (attribute, optional): A map of values that will be passed to the unit as inputs.
+- `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the unit **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
 
 Example:
 
@@ -1703,6 +1704,50 @@ inputs = {
 }
 ```
 
+Example usage of `no_dot_terragrunt_stack` attribute:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-units.git//networking/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "rds" {
+  source = "git::git@github.com:acme/infrastructure-units.git//database/rds?ref=v0.0.1"
+  path   = "rds"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+  }
+  no_dot_terragrunt_stack = true
+}
+```
+
+With the above configuration, the resulting directory structure will be:
+
+```tree
+terragrunt.stack.hcl
+.terragrunt-stack
+├── vpc
+│   ├── terragrunt.values.hcl
+│   └── terragrunt.hcl
+rds
+├── terragrunt.values.hcl
+└── terragrunt.hcl
+```
+
+The `vpc` unit is placed inside `.terragrunt-stack`, as expected.
+The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**, rather than inside `.terragrunt-stack`, due to `no_dot_terragrunt_stack = true`.
+
+**Note:**  
+The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+
 ### stack
 
 > **Note:**
@@ -1718,8 +1763,9 @@ The `stack` block supports the following arguments:
 
 - `name` (label): A unique identifier for the stack. This is used to reference the stack elsewhere in your configuration.
 - `source` (attribute): Specifies where to find the Terragrunt configuration files for this stack. This follows the same syntax as the `source` parameter in the `terraform` block.
-- `path` (attribute): The relative path within `.terragrunt-stack` where this stack should be generated.If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory.
+- `path` (attribute): The relative path within `.terragrunt-stack` where this stack should be generated.If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory. Also take note of the `no_dot_terragrunt_stack` attribute below, which can impact this.
 - `values` (attribute, optional): A map of custom values that can be passed to the stack. These values can be referenced within the stack's configuration files, allowing for customization without modifying the stack source.
+- `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the stack **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
 
 Example:
 
@@ -1733,7 +1779,9 @@ stack "services" {
         cidr    = "10.0.0.0/16"
     }
 }
+```
 
+```hcl
 # github.com/gruntwork-io/terragrunt-stacks//stacks/mock/services/terragrunt.stack.hcl
 # ...
 unit "vpc" {
@@ -1747,6 +1795,9 @@ unit "vpc" {
 In this example, the `services` stack is defined with path `services`, which will be generated at `.terragrunt-stack/services`.
 The stack is also provided with custom values for `project` and `cidr`, which can be used within the stack's configuration files.
 Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
+
+**Note:**  
+The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
 ## Attributes
 

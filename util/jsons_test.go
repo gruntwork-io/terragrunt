@@ -13,7 +13,7 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		value    interface{}
+		value    any
 		expected string
 	}{
 		{"aws_region", "aws_region"},

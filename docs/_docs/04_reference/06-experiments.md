@@ -68,6 +68,7 @@ The following strict mode controls are available:
 - [symlinks](#symlinks)
 - [stacks](#stacks)
 - [cli-redesign](#cli-redesign)
+- [cas](#cas)
 
 ### `symlinks`
 
@@ -114,8 +115,8 @@ To transition the `stacks` feature to a stable release, the following must be ad
 - [x] Add support for `stack output` commands to extend stack-level operations.
 - [x] Add support for stack "values".
 - [x] Add support for recursive stacks.
-- [ ] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
-- [ ] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
+- [x] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
+- [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
 - [ ] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
 
 ### `cli-redesign`
@@ -162,7 +163,34 @@ To transition `cli-redesign` features to a stable release, the following must be
   - [x] Add support for `find` with stdout redirection detection.
   - [x] Add support for `find` with `--hidden` flag.
   - [x] Add support for `find` with `--sort=alpha` flag.
-  - [ ] Add support for `find` with `--sort=dag` flag.
+  - [x] Add support for `find` with `--sort=dag` flag.
   - [ ] Add support for `find` with the `exclude` block used to exclude units from the search.
   - [ ] Add integration with `symlinks` experiment to support finding units/stacks via symlinks.
+  - [ ] Add integration test for `find` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
 - [ ] Add support for the `list` command.
+
+### `cas`
+
+Support for Terragrunt Content Addressable Storage (CAS).
+
+#### `cas` - What it does
+
+Allow Terragrunt to store and retrieve state files from a Content Addressable Storage (CAS) system.
+
+At the moment, the CAS is only used to speed up catalog cloning, but in the future, it can be used to store more content.
+
+#### `cas` - How to provide feedback
+
+Share your experience with this feature in the [CAS](https://github.com/gruntwork-io/terragrunt/discussions/3939) Feedback GitHub Discussion.
+Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
+
+- Any bugs or issues encountered (including logs or stack traces if possible).
+- Suggestions for additional improvements or enhancements.
+
+#### `cas` - Criteria for stabilization
+
+To transition the `cas` feature to a stable release, the following must be addressed:
+
+- [x] Add support for storing and retrieving catalog repositories from the CAS.
+- [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
+- [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.

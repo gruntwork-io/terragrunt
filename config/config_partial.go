@@ -37,6 +37,7 @@ const (
 	TerragruntVersionConstraints
 	RemoteStateBlock
 	FeatureFlagsBlock
+	EngineBlock
 	ExcludeBlock
 	ErrorsBlock
 )
@@ -118,6 +119,12 @@ type terragruntRemoteState struct {
 type terragruntInputs struct {
 	Inputs *cty.Value `hcl:"inputs,attr"`
 	Remain hcl.Body   `hcl:",remain"`
+}
+
+// terragruntEngine is a struct that can only be used to decode the engine block.
+type terragruntEngine struct {
+	Engine *EngineConfig `hcl:"engine,block"`
+	Remain hcl.Body      `hcl:",remain"`
 }
 
 // DecodeBaseBlocks takes in a parsed HCL2 file and decodes the base blocks. Base blocks are blocks that should always
@@ -331,6 +338,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 //     the config.
 //   - RemoteStateBlock: Parses the `remote_state` block in the config
 //   - FeatureFlagsBlock: Parses the `feature` block in the config
+//   - EngineBlock: Parses the `engine` block in the config
 //   - ExcludeBlock : Parses the `exclude` block in the config
 //
 // Note that the following blocks are always decoded:
@@ -446,6 +454,16 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.Dependencies = dependencies
 			}
 
+		case EngineBlock:
+			decoded := terragruntEngine{}
+
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+
+			output.Engine = decoded.Engine
+
 		case TerragruntFlags:
 			decoded := terragruntFlags{}
 
@@ -481,7 +499,11 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 			if err := skipDependenciesInputs.Evaluate(logger); err != nil {
-				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs parse from %v in dependency for better performance", file.ConfigPath)
+				ctx.TerragruntOptions.Logger.Debugf(
+					"Skipping inputs parse from %v in dependency for better performance, due to usage of %s strict control",
+					file.ConfigPath,
+					controls.SkipDependenciesInputs,
+				)
 
 				break
 			}

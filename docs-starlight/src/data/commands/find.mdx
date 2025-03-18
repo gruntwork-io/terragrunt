@@ -33,15 +33,25 @@ examples:
       Find all configurations and output them in JSON format (alias for --format=json).
     code: |
       terragrunt find --json
-  # - description: |
-  #     Find all units and sort them in the order they would be run in the Directed Acyclic Graph (DAG).
-  #   code: |
-  #     terragrunt find --sort 'dag'
+  - description: |
+      Sort configurations based on their dependencies (DAG order).
+    code: |
+      terragrunt find --sort 'dag'
+  - description: |
+      Include dependency information in the output.
+    code: |
+      terragrunt find --dependencies --format 'json'
+  - description: |
+      Include external dependencies in the output.
+    code: |
+      terragrunt find --dependencies --external --format 'json'
 flags:
   - find-format
   - find-json
-  # - find-sort
+  - find-sort
   - find-hidden
+  - find-dependencies
+  - find-external
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -74,7 +84,7 @@ The default text format displays each configuration on a new line, with color co
 You can output the results in JSON format using either:
 
 ```bash
-terragrunt find --format json
+terragrunt find --format=json
 ```
 
 or the shorter alias:
@@ -84,6 +94,68 @@ terragrunt find --json
 ```
 
 The JSON output includes additional metadata about each configuration, such as its type (unit or stack) and path.
+
+## Sorting
+
+The `find` command supports two sorting modes:
+
+- `alpha` (default): Sort configurations alphabetically by path
+- `dag`: Sort configurations based on their dependencies, ensuring dependencies are listed before their dependents
+
+When using DAG sorting, configurations with no dependencies appear first, followed by configurations that depend on them:
+
+```bash
+terragrunt find --sort=dag
+unitA           # no dependencies
+unitB           # no dependencies
+unitC           # depends on unitA
+unitD           # depends on unitA and unitB
+```
+
+If multiple configurations share common dependencies, they will be sorted in lexical order.
+
+## Dependencies
+
+You can include dependency information in the output using the `--dependencies` flag. When enabled, the JSON output will include the dependency relationships between configurations:
+
+```bash
+terragrunt find --dependencies --format=json
+[
+  {
+    "type": "unit",
+    "path": "unitA",
+    "dependencies": []
+  },
+  {
+    "type": "unit",
+    "path": "unitB",
+    "dependencies": ["../unitA", "../../external/unitC"]
+  }
+]
+```
+
+By default, external dependencies (those outside the working directory) are not part of the overall results (although, they will be mentioned in the dependency section of the JSON output). Use the `--external` flag to include them as top-level results:
+
+```bash
+terragrunt find --dependencies --external --format=json
+[
+  {
+    "type": "unit",
+    "path": "internal/unitA",
+    "dependencies": []
+  },
+  {
+    "type": "unit",
+    "path": "internal/unitB",
+    "dependencies": ["../unitA", "../../external/unitC"]
+  },
+  {
+    "type": "unit",
+    "path": "external/unitC",
+    "dependencies": []
+  }
+]
+```
 
 ## Disabling Color Output
 
@@ -102,5 +174,5 @@ When stdout is redirected, color output is disabled automatically to prevent und
 You can change the working directory for `find` by using the global `--working-dir` flag:
 
 ```bash
-terragrunt find --working-dir /path/to/working/dir
+terragrunt find --working-dir=/path/to/working/dir
 ```

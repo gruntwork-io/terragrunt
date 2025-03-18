@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -326,9 +328,7 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 		return err
 	}
 
-	for key, val := range sourceConfig.GenerateConfigs {
-		cfg.GenerateConfigs[key] = val
-	}
+	maps.Copy(cfg.GenerateConfigs, sourceConfig.GenerateConfigs)
 
 	if sourceConfig.Inputs != nil {
 		cfg.Inputs = mergeInputs(sourceConfig.Inputs, cfg.Inputs)
@@ -539,9 +539,7 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 		cfg.RemoteState = sourceConfig.RemoteState
 	}
 
-	for key, val := range sourceConfig.GenerateConfigs {
-		cfg.GenerateConfigs[key] = val
-	}
+	maps.Copy(cfg.GenerateConfigs, sourceConfig.GenerateConfigs)
 
 	CopyFieldsMetadata(sourceConfig, cfg)
 
@@ -693,25 +691,19 @@ func mergeExtraArgs(terragruntOptions *options.TerragruntOptions, childExtraArgs
 	*parentExtraArgs = result
 }
 
-func mergeInputs(childInputs map[string]interface{}, parentInputs map[string]interface{}) map[string]interface{} {
-	out := map[string]interface{}{}
+func mergeInputs(childInputs map[string]any, parentInputs map[string]any) map[string]any {
+	out := map[string]any{}
 
-	for key, value := range parentInputs {
-		out[key] = value
-	}
+	maps.Copy(out, parentInputs)
 
-	for key, value := range childInputs {
-		out[key] = value
-	}
+	maps.Copy(out, childInputs)
 
 	return out
 }
 
-func deepMergeInputs(childInputs map[string]interface{}, parentInputs map[string]interface{}) (map[string]interface{}, error) {
-	out := map[string]interface{}{}
-	for key, value := range parentInputs {
-		out[key] = value
-	}
+func deepMergeInputs(childInputs map[string]any, parentInputs map[string]any) (map[string]any, error) {
+	out := map[string]any{}
+	maps.Copy(out, parentInputs)
 
 	err := mergo.Merge(&out, childInputs, mergo.WithAppendSlice, mergo.WithOverride)
 
@@ -903,7 +895,7 @@ func updateBareIncludeBlock(file *hclparse.File) error {
 // If the multiple include blocks are encoded in this way in the json configuration, nothing needs to be done by this
 // function.
 func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	if err := json.Unmarshal(fileBytes, &parsed); err != nil {
 		return nil, false, errors.New(err)
 	}
@@ -915,7 +907,7 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 	}
 
 	switch typed := includeBlock.(type) {
-	case []interface{}:
+	case []any:
 		if len(typed) == 0 {
 			// No include block, so don't do anything
 			return nil, false, nil
@@ -934,7 +926,7 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 		}
 
 		return nil, false, nil
-	case map[string]interface{}:
+	case map[string]any:
 		if len(typed) == 0 {
 			// No include block, so don't do anything
 			return nil, false, nil
@@ -955,8 +947,8 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 // updateSingleBareIncludeInParsedJSON replaces the include attribute into a block with the label "" in the json. Note that we
 // can directly assign to the map with the single "" key without worrying about the possibility of other include blocks
 // since we will only call this function if there is only one include block, and that is a bare block with no labels.
-func updateSingleBareIncludeInParsedJSON(parsed map[string]interface{}, newVal interface{}) ([]byte, bool, error) {
-	parsed[MetadataInclude] = map[string]interface{}{bareIncludeKey: newVal}
+func updateSingleBareIncludeInParsedJSON(parsed map[string]any, newVal any) ([]byte, bool, error) {
+	parsed[MetadataInclude] = map[string]any{bareIncludeKey: newVal}
 	updatedBytes, err := json.Marshal(parsed)
 
 	return updatedBytes, true, errors.New(err)
@@ -967,8 +959,8 @@ func updateSingleBareIncludeInParsedJSON(parsed map[string]interface{}, newVal i
 // - It is an object
 // - Has the 'path' attribute
 // - The 'path' attribute is a string
-func jsonIsIncludeBlock(jsonData interface{}) bool {
-	typed, isMap := jsonData.(map[string]interface{})
+func jsonIsIncludeBlock(jsonData any) bool {
+	typed, isMap := jsonData.(map[string]any)
 	if isMap {
 		pathAttr, hasPath := typed["path"]
 		if hasPath {
@@ -987,12 +979,10 @@ func CopyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *Terragrunt
 
 	if sourceConfig.FieldsMetadata != nil {
 		if targetConfig.FieldsMetadata == nil {
-			targetConfig.FieldsMetadata = map[string]map[string]interface{}{}
+			targetConfig.FieldsMetadata = map[string]map[string]any{}
 		}
 
-		for k, v := range sourceConfig.FieldsMetadata {
-			targetConfig.FieldsMetadata[k] = v
-		}
+		maps.Copy(targetConfig.FieldsMetadata, sourceConfig.FieldsMetadata)
 	}
 }
 
@@ -1022,7 +1012,7 @@ func (err MultipleBareIncludeBlocksErr) Error() string {
 }
 
 type IncludeIsNotABlockErr struct {
-	parsed interface{}
+	parsed any
 }
 
 func (err IncludeIsNotABlockErr) Error() string {

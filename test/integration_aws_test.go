@@ -399,7 +399,7 @@ func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T)
 }
 
 func TestAwsStackCommands(t *testing.T) { //nolint paralleltest
-	// It seems that disabling parallel test execution helps avoid the CircleCi error: “NoSuchBucket Policy: The bucket policy does not exist.”
+	// It seems that disabling parallel test execution helps avoid the CircleCi error: "NoSuchBucket Policy: The bucket policy does not exist."
 	// t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -1008,7 +1008,6 @@ func TestAwsParallelStateInit(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := t.TempDir()
-
 	for i := 0; i < 20; i++ {
 		err := util.CopyFolderContents(createLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)

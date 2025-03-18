@@ -13,14 +13,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-// ParseCtyValueToMap converts a cty.Value to a map[string]interface{}.
+// ParseCtyValueToMap converts a cty.Value to a map[string]any.
 //
-// This is a hacky workaround to convert a cty Value to a Go map[string]interface{}. cty does not support this directly
+// This is a hacky workaround to convert a cty Value to a Go map[string]any. cty does not support this directly
 // (https://github.com/hashicorp/hcl2/issues/108) and doing it with gocty.FromCtyValue is nearly impossible, as cty
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
 // we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
-// map[string]interface{} using the Go json library.
-func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
+// map[string]any using the Go json library.
+func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 	updatedValue, err := UpdateUnknownCtyValValues(value)
 	if err != nil {
 		return nil, err
@@ -48,8 +48,8 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
 type CtyJSONOutput struct {
-	Value map[string]interface{} `json:"Value"`
-	Type  interface{}            `json:"Type"`
+	Value map[string]any `json:"Value"`
+	Type  interface{}    `json:"Type"`
 }
 
 // UpdateUnknownCtyValValues deeply updates unknown values with default value

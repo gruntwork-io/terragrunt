@@ -6,7 +6,7 @@ import (
 )
 
 // KindOf returns the kind of the type or Invalid if value is nil.
-func KindOf(value interface{}) reflect.Kind {
+func KindOf(value any) reflect.Kind {
 	valueType := reflect.TypeOf(value)
 	if valueType == nil {
 		return reflect.Invalid
@@ -33,7 +33,7 @@ func KindOf(value interface{}) reflect.Kind {
 //	path ["a", "b", "c"] will return "foo"
 //	path ["a", "d", "1"] will return 2
 //	path ["a", "foo"] will return nil
-func MustWalkTerraformOutput(value interface{}, path ...string) interface{} {
+func MustWalkTerraformOutput(value any, path ...string) any {
 	if value == nil {
 		return nil
 	}

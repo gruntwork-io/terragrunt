@@ -389,7 +389,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	return convertValuesMapToCtyVal(output)
 }
 
-func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]interface{}, fieldType string, output *map[string]cty.Value) error {
+func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]any, fieldType string, output *map[string]cty.Value) error {
 	var valueWithMetadata = map[string]cty.Value{}
 
 	for key, value := range *data {
@@ -427,7 +427,7 @@ func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]interface
 	return nil
 }
 
-func wrapWithMetadata(config *TerragruntConfig, value interface{}, metadataName string, output *map[string]cty.Value) error {
+func wrapWithMetadata(config *TerragruntConfig, value any, metadataName string, output *map[string]cty.Value) error {
 	if value == nil {
 		return nil
 	}
@@ -701,7 +701,7 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 // Converts arbitrary go types that are json serializable to a cty Value by using json as an intermediary
 // representation. This avoids the strict type nature of cty, where you need to know the output type beforehand to
 // serialize to cty.
-func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
+func convertToCtyWithJSON(val any) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
 		return cty.NilVal, errors.New(err)
@@ -717,7 +717,7 @@ func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
 
 // Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
 // uint, float, cty.Value) to a cty Value
-func goTypeToCty(val interface{}) (cty.Value, error) {
+func goTypeToCty(val any) (cty.Value, error) {
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
 		return cty.NilVal, errors.New(err)

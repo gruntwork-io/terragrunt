@@ -1,11 +1,22 @@
 package find
 
 import (
-	"io"
-	"os"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+)
+
+const (
+	// FormatText outputs the discovered configurations in text format.
+	FormatText = "text"
+
+	// FormatJSON outputs the discovered configurations in JSON format.
+	FormatJSON = "json"
+
+	// SortAlpha sorts the discovered configurations in alphabetical order.
+	SortAlpha = "alpha"
+
+	// SortDAG sorts the discovered configurations in a topological sort order.
+	SortDAG = "dag"
 )
 
 type Options struct {
@@ -24,19 +35,19 @@ type Options struct {
 	// Hidden determines whether to detect hidden directories.
 	Hidden bool
 
-	// Writer is the writer to write the output to.
-	// If not set, the output will be written to stdout.
-	// Useful for testing.
-	Writer io.Writer
+	// Dependencies determines whether to include dependencies in the output.
+	Dependencies bool
+
+	// External determines whether to include external dependencies in the output.
+	External bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
-		Format:            "text",
-		Sort:              "alpha",
+		Format:            FormatText,
+		Sort:              SortAlpha,
 		Hidden:            false,
-		Writer:            os.Stdout,
 	}
 }
 
@@ -60,9 +71,9 @@ func (o *Options) Validate() error {
 
 func (o *Options) validateFormat() error {
 	switch o.Format {
-	case "text":
+	case FormatText:
 		return nil
-	case "json":
+	case FormatJSON:
 		return nil
 	default:
 		return errors.New("invalid format: " + o.Format)
@@ -71,7 +82,9 @@ func (o *Options) validateFormat() error {
 
 func (o *Options) validateSort() error {
 	switch o.Sort {
-	case "alpha":
+	case SortAlpha:
+		return nil
+	case SortDAG:
 		return nil
 	default:
 		return errors.New("invalid sort: " + o.Sort)
