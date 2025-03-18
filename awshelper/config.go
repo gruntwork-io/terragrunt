@@ -189,6 +189,15 @@ func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Creden
 	return credentials.NewStaticCredentials(accessKeyID, secretAccessKey, sessionToken)
 }
 
+func CreateS3Client(config *AwsSessionConfig, opts *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := CreateAwsSession(config, opts)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	return s3.New(session), nil
+}
+
 // CreateAwsSession returns an AWS session object. The session is configured by either:
 //   - The provided AwsSessionConfig struct, which specifies region (required), profile name (optional), and IAM role to
 //     assume (optional).
