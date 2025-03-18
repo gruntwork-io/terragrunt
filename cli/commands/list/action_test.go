@@ -177,6 +177,124 @@ func TestJSONOutputFormat(t *testing.T) {
 	}
 }
 
+func TestJSONOutputFormatWithDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"dependency",
+		"dependent",
+		"dependent-of-dependent",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies:
+	// dependency -> dependent
+	// dependent -> dependent-of-dependent
+	testFiles := map[string]string{
+		"dependency/terragrunt.hcl": "",
+		"dependent/terragrunt.hcl": `
+dependency "dependency" {
+  config_path = "../dependency"
+}`,
+		"dependent-of-dependent/terragrunt.hcl": `
+dependency "dependent" {
+  config_path = "../dependent"
+}`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	expectedPaths := []string{"dependency", "dependent", "dependent-of-dependent"}
+
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
+
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "json"
+	opts.Sort = "alpha"
+	opts.Dependencies = true
+	opts.External = false
+
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	// Set the writer in options
+	opts.Writer = w
+
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	// Close the write end of the pipe
+	w.Close()
+
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	// Verify the output is valid JSON
+	var configs []*list.JSONTree
+	err = json.Unmarshal(output, &configs)
+	require.NoError(t, err)
+
+	// Verify we have the expected number of configs
+	assert.Len(t, configs, len(expectedPaths))
+
+	// Extract paths from configs
+	paths := make([]string, 0, len(configs))
+	for _, config := range configs {
+		paths = append(paths, config.Path)
+	}
+
+	// Verify all expected paths are present
+	assert.ElementsMatch(t, expectedPaths, paths)
+
+	// Verify each config has a valid type and correct dependencies
+	for _, config := range configs {
+		assert.NotEmpty(t, config.Type)
+		assert.True(t, config.Type == discovery.ConfigTypeUnit || config.Type == discovery.ConfigTypeStack)
+
+		switch config.Path {
+		case "dependency":
+			assert.Empty(t, config.Dependencies, "dependency should have no dependencies")
+		case "dependent":
+			assert.Len(t, config.Dependencies, 1, "dependent should have one dependency")
+			assert.Equal(t, []*list.JSONTree{
+				{
+					Path: "dependency",
+					Type: "unit",
+				},
+			}, config.Dependencies, "dependent should depend on dependency")
+		case "dependent-of-dependent":
+			assert.Len(t, config.Dependencies, 1, "dependent-of-dependent should have one dependency")
+			assert.Equal(t, []*list.JSONTree{
+				{
+					Path: "dependent",
+					Type: "unit",
+					Dependencies: []*list.JSONTree{
+						{
+							Path: "dependency",
+							Type: "unit",
+						},
+					},
+				},
+			}, config.Dependencies, "dependent-of-dependent should depend on dependent")
+		}
+	}
+}
+
 func TestHiddenDiscovery(t *testing.T) {
 	t.Parallel()
 
@@ -606,14 +724,7 @@ dependency "B" {
 	require.NoError(t, err)
 
 	// Verify the output is valid JSON
-	var configs []struct {
-		Path         string `json:"path"`
-		Type         string `json:"type"`
-		Dependencies []struct {
-			Path string `json:"path"`
-			Type string `json:"type"`
-		} `json:"dependencies"`
-	}
+	var configs []*list.JSONTree
 	err = json.Unmarshal(output, &configs)
 	require.NoError(t, err)
 
@@ -629,14 +740,24 @@ dependency "B" {
 
 	// Verify dependencies are correctly represented in JSON
 	assert.Empty(t, configs[0].Dependencies, "A should have no dependencies")
-	assert.Equal(t, []struct {
-		Path string `json:"path"`
-		Type string `json:"type"`
-	}{{Path: "A", Type: "unit"}}, configs[1].Dependencies, "B should depend on A")
-	assert.Equal(t, []struct {
-		Path string `json:"path"`
-		Type string `json:"type"`
-	}{{Path: "B", Type: "unit"}}, configs[2].Dependencies, "C should depend on B")
+	assert.Equal(t, []*list.JSONTree{
+		{
+			Path: "A",
+			Type: "unit",
+		},
+	}, configs[1].Dependencies, "B should depend on A")
+	assert.Equal(t, []*list.JSONTree{
+		{
+			Path: "B",
+			Type: "unit",
+			Dependencies: []*list.JSONTree{
+				{
+					Path: "A",
+					Type: "unit",
+				},
+			},
+		},
+	}, configs[2].Dependencies, "C should depend on B")
 }
 
 func TestDAGGroupingJSONOutput(t *testing.T) {
