@@ -1,4 +1,3 @@
-// Package common provides common code that are used by many commands.
 package common
 
 var _ error = new(AllGraphFlagsError)
