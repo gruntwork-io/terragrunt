@@ -37,11 +37,12 @@ var (
 )
 
 type CatalogConfig struct {
-	URLs []string `hcl:"urls,attr" cty:"urls"`
+	URLs            []string `hcl:"urls,attr" cty:"urls"`
+	DefaultTemplate string   `hcl:"default_template,attr" cty:"default_template"`
 }
 
 func (cfg *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v}", cfg.URLs)
+	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v}", cfg.URLs, cfg.DefaultTemplate)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {
