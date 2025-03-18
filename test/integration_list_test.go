@@ -98,38 +98,124 @@ func TestListCommandWithDependencies(t *testing.T) {
     "path": "live",
     "children": [
       {
-        "path": "live/db",
+        "path": "dev",
         "type": "unit",
-        "dependencies": [
+        "children": [
           {
-            "path": "live/vpc",
-            "type": "unit"
-          }
-        ]
-      },
-      {
-        "path": "live/ec2",
-        "type": "unit",
-        "dependencies": [
-          {
-            "path": "live/vpc",
-            "type": "unit"
-          },
-          {
-            "path": "live/db",
+            "path": "live/dev/db",
             "type": "unit",
             "dependencies": [
               {
-                "path": "live/vpc",
+                "path": "live/dev/vpc",
                 "type": "unit"
               }
             ]
+          },
+          {
+            "path": "live/dev/ec2",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/dev/vpc",
+                "type": "unit"
+              },
+              {
+                "path": "live/dev/db",
+                "type": "unit",
+                "dependencies": [
+                  {
+                    "path": "live/dev/vpc",
+                    "type": "unit"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "path": "live/dev/vpc",
+            "type": "unit"
           }
         ]
       },
       {
-        "path": "live/vpc",
-        "type": "unit"
+        "path": "prod",
+        "type": "unit",
+        "children": [
+          {
+            "path": "live/prod/db",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/prod/vpc",
+                "type": "unit"
+              }
+            ]
+          },
+          {
+            "path": "live/prod/ec2",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/prod/vpc",
+                "type": "unit"
+              },
+              {
+                "path": "live/prod/db",
+                "type": "unit",
+                "dependencies": [
+                  {
+                    "path": "live/prod/vpc",
+                    "type": "unit"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "path": "live/prod/vpc",
+            "type": "unit"
+          }
+        ]
+      },
+      {
+        "path": "stage",
+        "type": "unit",
+        "children": [
+          {
+            "path": "live/stage/db",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/stage/vpc",
+                "type": "unit"
+              }
+            ]
+          },
+          {
+            "path": "live/stage/ec2",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "live/stage/vpc",
+                "type": "unit"
+              },
+              {
+                "path": "live/stage/db",
+                "type": "unit",
+                "dependencies": [
+                  {
+                    "path": "live/stage/vpc",
+                    "type": "unit"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "path": "live/stage/vpc",
+            "type": "unit"
+          }
+        ]
       }
     ]
   }
@@ -141,20 +227,34 @@ func TestListCommandWithDependencies(t *testing.T) {
 			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--tree", "--dag"},
 			expected: `.
-╰── live/vpc
-    ├── live/db
-    │   ╰── live/ec2
-    ╰── live/ec2
+├── live/dev/vpc
+│   ├── live/dev/db
+│   │   ╰── live/dev/ec2
+│   ╰── live/dev/ec2
+├── live/prod/vpc
+│   ├── live/prod/db
+│   │   ╰── live/prod/ec2
+│   ╰── live/prod/ec2
+╰── live/stage/vpc
+    ├── live/stage/db
+    │   ╰── live/stage/ec2
+    ╰── live/stage/ec2
 `,
 		},
 		{
 			name:       "List with dependencies in long format",
 			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--long", "--dependencies"},
-			expected: `Type  Path      Dependencies
-unit  live/db   live/vpc
-unit  live/ec2  live/vpc, live/db
-unit  live/vpc
+			expected: `Type  Path            Dependencies
+unit  live/dev/db     live/dev/vpc
+unit  live/dev/ec2    live/dev/vpc, live/dev/db
+unit  live/dev/vpc
+unit  live/prod/db    live/prod/vpc
+unit  live/prod/ec2   live/prod/vpc, live/prod/db
+unit  live/prod/vpc
+unit  live/stage/db   live/stage/vpc
+unit  live/stage/ec2  live/stage/vpc, live/stage/db
+unit  live/stage/vpc
 `,
 		},
 		{
@@ -163,38 +263,121 @@ unit  live/vpc
 			args:       []string{"list", "--json", "--dependencies"},
 			expected: `[
   {
-    "path": "db",
-    "type": "unit",
-    "dependencies": [
+    "path": "dev",
+    "children": [
       {
-        "path": "vpc",
-        "type": "unit"
-      }
-    ]
-  },
-  {
-    "path": "ec2",
-    "type": "unit",
-    "dependencies": [
-      {
-        "path": "vpc",
-        "type": "unit"
-      },
-      {
-        "path": "db",
+        "path": "dev/db",
         "type": "unit",
         "dependencies": [
           {
-            "path": "vpc",
+            "path": "dev/vpc",
             "type": "unit"
           }
         ]
+      },
+      {
+        "path": "dev/ec2",
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "dev/vpc",
+            "type": "unit"
+          },
+          {
+            "path": "dev/db",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "dev/vpc",
+                "type": "unit"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "path": "dev/vpc",
+        "type": "unit"
       }
     ]
   },
   {
-    "path": "vpc",
-    "type": "unit"
+    "path": "prod",
+    "children": [
+      {
+        "path": "prod/db",
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "prod/vpc",
+            "type": "unit"
+          }
+        ]
+      },
+      {
+        "path": "prod/ec2",
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "prod/vpc",
+            "type": "unit"
+          },
+          {
+            "path": "prod/db",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "prod/vpc",
+                "type": "unit"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "path": "prod/vpc",
+        "type": "unit"
+      }
+    ]
+  },
+  {
+    "path": "stage",
+    "children": [
+      {
+        "path": "stage/db",
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "stage/vpc",
+            "type": "unit"
+          }
+        ]
+      },
+      {
+        "path": "stage/ec2",
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "stage/vpc",
+            "type": "unit"
+          },
+          {
+            "path": "stage/db",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "stage/vpc",
+                "type": "unit"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "path": "stage/vpc",
+        "type": "unit"
+      }
+    ]
   }
 ]
 `,
