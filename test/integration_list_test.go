@@ -99,11 +99,33 @@ func TestListCommandWithDependencies(t *testing.T) {
     "children": [
       {
         "path": "db",
-        "type": "unit"
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "../vpc",
+            "type": "unit"
+          }
+        ]
       },
       {
         "path": "ec2",
-        "type": "unit"
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "../vpc",
+            "type": "unit"
+          },
+          {
+            "path": "db",
+            "type": "unit",
+            "dependencies": [
+              {
+                "path": "../vpc",
+                "type": "unit"
+              }
+            ]
+          }
+        ]
       },
       {
         "path": "vpc",

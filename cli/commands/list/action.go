@@ -179,8 +179,9 @@ type JSONTree struct {
 
 // buildJSONTree creates a tree structure from ListedConfigs
 func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
-	// Create a map to track nodes by their path
+	// Create a map to track nodes by their full path
 	nodes := make(map[string]*JSONTree)
+	fullPathToNode := make(map[string]*JSONTree)
 
 	var topLevelNodes []*JSONTree
 
@@ -202,6 +203,7 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 			}
 
 			nodes[parts.segments[0]] = node
+			fullPathToNode[config.Path] = node
 			topLevelNodes = append(topLevelNodes, node)
 
 			continue
@@ -253,6 +255,7 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 
 			currentNode = childNode
 			currentPath = nextPath
+			fullPathToNode[nextPath] = childNode
 		}
 	}
 
@@ -264,30 +267,41 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 			}
 
 			// Get the node for this config
-			configNode, exists := nodes[config.Path]
+			configNode, exists := fullPathToNode[config.Path]
 			if !exists {
 				continue
 			}
 
 			// Add each dependency as a child
 			for _, depPath := range config.Dependencies {
-				depNode, exists := nodes[depPath]
+				depNode, exists := fullPathToNode[depPath]
 				if !exists {
 					continue
 				}
 
+				// Create a copy of the dependency node to avoid circular references
+				depCopy := &JSONTree{
+					Path: depNode.Path,
+					Type: depNode.Type,
+				}
+
+				// If the dependency has its own dependencies, copy those too
+				if len(depNode.Dependencies) > 0 {
+					depCopy.Dependencies = make([]*JSONTree, len(depNode.Dependencies))
+					copy(depCopy.Dependencies, depNode.Dependencies)
+				}
+
 				// Check if dependency is already a child
 				isChild := false
-
 				for _, child := range configNode.Dependencies {
-					if child == depNode {
+					if child.Path == depCopy.Path {
 						isChild = true
 						break
 					}
 				}
 
 				if !isChild {
-					configNode.Dependencies = append(configNode.Dependencies, depNode)
+					configNode.Dependencies = append(configNode.Dependencies, depCopy)
 				}
 			}
 		}
