@@ -16,650 +16,734 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRun(t *testing.T) {
+func TestBasicDiscovery(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name          string
-		setup         func(t *testing.T) string
-		expectedPaths []string
-		format        string
-		sort          string
-		groupBy       string
-		hidden        bool
-		dependencies  bool
-		external      bool
-		validate      func(t *testing.T, output string, expectedPaths []string)
-	}{
-		{
-			name: "basic discovery",
-			setup: func(t *testing.T) string {
-				t.Helper()
+	tmpDir := t.TempDir()
 
-				tmpDir := t.TempDir()
+	// Create test directory structure
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"stack1",
+		".hidden/unit3",
+		"nested/unit4",
+	}
 
-				// Create test directory structure
-				testDirs := []string{
-					"unit1",
-					"unit2",
-					"stack1",
-					".hidden/unit3",
-					"nested/unit4",
-				}
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
 
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
+	// Create test files
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl":         "",
+		"unit2/terragrunt.hcl":         "",
+		"stack1/terragrunt.stack.hcl":  "",
+		".hidden/unit3/terragrunt.hcl": "",
+		"nested/unit4/terragrunt.hcl":  "",
+	}
 
-				// Create test files
-				testFiles := map[string]string{
-					"unit1/terragrunt.hcl":         "",
-					"unit2/terragrunt.hcl":         "",
-					"stack1/terragrunt.stack.hcl":  "",
-					".hidden/unit3/terragrunt.hcl": "",
-					"nested/unit4/terragrunt.hcl":  "",
-				}
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
 
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
+	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1"}
 
-				return tmpDir
-			},
-			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1"},
-			format:        "text",
-			sort:          "alpha",
-			dependencies:  false,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
 
-				// Split output into fields and trim whitespace
-				fields := strings.Fields(output)
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "text"
+	opts.Sort = "alpha"
+	opts.Dependencies = false
+	opts.External = false
 
-				// Verify we have the expected number of lines
-				assert.Len(t, fields, len(expectedPaths))
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 
-				// Verify each line is a clean path without any formatting
-				for _, field := range fields {
-					assert.NotEmpty(t, field)
-				}
+	// Set the writer in options
+	opts.Writer = w
 
-				// Verify all expected paths are present
-				assert.ElementsMatch(t, expectedPaths, fields)
-			},
-		},
-		{
-			name: "json output format",
-			setup: func(t *testing.T) string {
-				t.Helper()
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
 
-				tmpDir := t.TempDir()
+	// Close the write end of the pipe
+	w.Close()
 
-				// Create test directory structure
-				testDirs := []string{
-					"unit1",
-					"unit2",
-					"stack1",
-				}
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
 
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
+	// Split output into fields and trim whitespace
+	fields := strings.Fields(string(output))
 
-				// Create test files
-				testFiles := map[string]string{
-					"unit1/terragrunt.hcl":        "",
-					"unit2/terragrunt.hcl":        "",
-					"stack1/terragrunt.stack.hcl": "",
-				}
+	// Verify we have the expected number of lines
+	assert.Len(t, fields, len(expectedPaths))
 
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
+	// Verify each line is a clean path without any formatting
+	for _, field := range fields {
+		assert.NotEmpty(t, field)
+	}
 
-				return tmpDir
-			},
-			expectedPaths: []string{"unit1", "unit2", "stack1"},
-			format:        "json",
-			sort:          "alpha",
-			dependencies:  false,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
+	// Verify all expected paths are present
+	assert.ElementsMatch(t, expectedPaths, fields)
+}
 
-				// Verify the output is valid JSON
-				var configs list.ListedConfigs
-				err := json.Unmarshal([]byte(output), &configs)
-				require.NoError(t, err)
+func TestJSONOutputFormat(t *testing.T) {
+	t.Parallel()
 
-				// Verify we have the expected number of configs
-				assert.Len(t, configs, len(expectedPaths))
+	tmpDir := t.TempDir()
 
-				// Extract paths from configs
-				var paths []string
-				for _, config := range configs {
-					paths = append(paths, config.Path)
-				}
+	// Create test directory structure
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"stack1",
+	}
 
-				// Verify all expected paths are present
-				assert.ElementsMatch(t, expectedPaths, paths)
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
 
-				// Verify each config has a valid type
-				for _, config := range configs {
-					assert.NotEmpty(t, config.Type)
-					assert.True(t, config.Type == discovery.ConfigTypeUnit || config.Type == discovery.ConfigTypeStack)
-				}
-			},
-		},
-		{
-			name: "hidden discovery",
-			setup: func(t *testing.T) string {
-				t.Helper()
+	// Create test files
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl":        "",
+		"unit2/terragrunt.hcl":        "",
+		"stack1/terragrunt.stack.hcl": "",
+	}
 
-				tmpDir := t.TempDir()
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
 
-				// Create test directory structure
-				testDirs := []string{
-					"unit1",
-					"unit2",
-					"stack1",
-					".hidden/unit3",
-					"nested/unit4",
-				}
+	expectedPaths := []string{"unit1", "unit2", "stack1"}
 
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
 
-				// Create test files
-				testFiles := map[string]string{
-					"unit1/terragrunt.hcl":         "",
-					"unit2/terragrunt.hcl":         "",
-					"stack1/terragrunt.stack.hcl":  "",
-					".hidden/unit3/terragrunt.hcl": "",
-					"nested/unit4/terragrunt.hcl":  "",
-				}
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "json"
+	opts.Sort = "alpha"
+	opts.Dependencies = false
+	opts.External = false
 
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 
-				return tmpDir
-			},
-			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"},
-			format:        "text",
-			hidden:        true,
-			dependencies:  false,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
+	// Set the writer in options
+	opts.Writer = w
 
-				// Split output into fields and trim whitespace
-				fields := strings.Fields(output)
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
 
-				// Verify we have the expected number of lines
-				assert.Len(t, fields, len(expectedPaths))
+	// Close the write end of the pipe
+	w.Close()
 
-				// Verify all expected paths are present
-				assert.ElementsMatch(t, expectedPaths, fields)
-			},
-		},
-		{
-			name: "dag sorting - simple dependencies",
-			setup: func(t *testing.T) string {
-				t.Helper()
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
 
-				tmpDir := t.TempDir()
+	// Verify the output is valid JSON
+	var configs list.ListedConfigs
+	err = json.Unmarshal(output, &configs)
+	require.NoError(t, err)
 
-				// Create test directory structure with dependencies:
-				// unit2 -> unit1
-				// unit3 -> unit2
-				testDirs := []string{
-					"unit1",
-					"unit2",
-					"unit3",
-				}
+	// Verify we have the expected number of configs
+	assert.Len(t, configs, len(expectedPaths))
 
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
+	// Extract paths from configs
+	var paths []string
+	for _, config := range configs {
+		paths = append(paths, config.Path)
+	}
 
-				// Create test files with dependencies
-				testFiles := map[string]string{
-					"unit1/terragrunt.hcl": "",
-					"unit2/terragrunt.hcl": `
+	// Verify all expected paths are present
+	assert.ElementsMatch(t, expectedPaths, paths)
+
+	// Verify each config has a valid type
+	for _, config := range configs {
+		assert.NotEmpty(t, config.Type)
+		assert.True(t, config.Type == discovery.ConfigTypeUnit || config.Type == discovery.ConfigTypeStack)
+	}
+}
+
+func TestHiddenDiscovery(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"stack1",
+		".hidden/unit3",
+		"nested/unit4",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl":         "",
+		"unit2/terragrunt.hcl":         "",
+		"stack1/terragrunt.stack.hcl":  "",
+		".hidden/unit3/terragrunt.hcl": "",
+		"nested/unit4/terragrunt.hcl":  "",
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"}
+
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
+
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "text"
+	opts.Hidden = true
+	opts.Dependencies = false
+	opts.External = false
+
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	// Set the writer in options
+	opts.Writer = w
+
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	// Close the write end of the pipe
+	w.Close()
+
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	// Split output into fields and trim whitespace
+	fields := strings.Fields(string(output))
+
+	// Verify we have the expected number of lines
+	assert.Len(t, fields, len(expectedPaths))
+
+	// Verify all expected paths are present
+	assert.ElementsMatch(t, expectedPaths, fields)
+}
+
+func TestDAGSortingSimpleDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test directory structure with dependencies:
+	// unit2 -> unit1
+	// unit3 -> unit2
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": "",
+		"unit2/terragrunt.hcl": `
 dependency "unit1" {
   config_path = "../unit1"
 }`,
-					"unit3/terragrunt.hcl": `
+		"unit3/terragrunt.hcl": `
 dependency "unit2" {
   config_path = "../unit2"
 }`,
-				}
+	}
 
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
 
-				return tmpDir
-			},
-			expectedPaths: []string{"unit1", "unit2", "unit3"},
-			format:        "text",
-			sort:          "dag",
-			dependencies:  true,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
+	expectedPaths := []string{"unit1", "unit2", "unit3"}
 
-				// Split output into fields and trim whitespace
-				fields := strings.Fields(output)
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
 
-				// Verify we have the expected number of lines
-				assert.Len(t, fields, len(expectedPaths))
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "text"
+	opts.Sort = "dag"
+	opts.Dependencies = true
+	opts.External = false
 
-				// For DAG sorting, order matters - verify exact order
-				assert.Equal(t, expectedPaths, fields)
-			},
-		},
-		{
-			name: "dag sorting - reversed dependencies",
-			setup: func(t *testing.T) string {
-				t.Helper()
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 
-				tmpDir := t.TempDir()
+	// Set the writer in options
+	opts.Writer = w
 
-				// Create test directory structure with dependencies:
-				// unit3 -> unit2
-				// unit2 -> unit1
-				testDirs := []string{
-					"unit1",
-					"unit2",
-					"unit3",
-				}
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
 
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
+	// Close the write end of the pipe
+	w.Close()
 
-				// Create test files with dependencies
-				testFiles := map[string]string{
-					"unit1/terragrunt.hcl": `
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	// Split output into fields and trim whitespace
+	fields := strings.Fields(string(output))
+
+	// Verify we have the expected number of lines
+	assert.Len(t, fields, len(expectedPaths))
+
+	// For DAG sorting, order matters - verify exact order
+	assert.Equal(t, expectedPaths, fields)
+}
+
+func TestDAGSortingReversedDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test directory structure with dependencies:
+	// unit3 -> unit2
+	// unit2 -> unit1
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": `
 dependency "unit2" {
   config_path = "../unit2"
 }`,
-					"unit2/terragrunt.hcl": `
+		"unit2/terragrunt.hcl": `
 dependency "unit3" {
   config_path = "../unit3"
 }`,
-					"unit3/terragrunt.hcl": "",
-				}
+		"unit3/terragrunt.hcl": "",
+	}
 
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
 
-				return tmpDir
-			},
-			expectedPaths: []string{"unit3", "unit2", "unit1"},
-			format:        "text",
-			sort:          "dag",
-			dependencies:  true,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
+	expectedPaths := []string{"unit3", "unit2", "unit1"}
 
-				// Split output into fields and trim whitespace
-				fields := strings.Fields(output)
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
 
-				// Verify we have the expected number of lines
-				assert.Len(t, fields, len(expectedPaths))
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "text"
+	opts.Sort = "dag"
+	opts.Dependencies = true
+	opts.External = false
 
-				// For DAG sorting, order matters - verify exact order
-				assert.Equal(t, expectedPaths, fields)
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 
-				// Helper to find index of a path
-				findIndex := func(path string) int {
-					for i, field := range fields {
-						if field == path {
-							return i
-						}
-					}
-					return -1
-				}
+	// Set the writer in options
+	opts.Writer = w
 
-				// Verify dependency ordering
-				unit1Index := findIndex("unit1")
-				unit2Index := findIndex("unit2")
-				unit3Index := findIndex("unit3")
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
 
-				assert.Less(t, unit3Index, unit2Index, "unit3 (no deps) should come before unit2 (depends on unit3)")
-				assert.Less(t, unit2Index, unit1Index, "unit2 should come before unit1 (depends on unit2)")
-			},
-		},
-		{
-			name: "dag sorting - complex dependencies",
-			setup: func(t *testing.T) string {
-				t.Helper()
+	// Close the write end of the pipe
+	w.Close()
 
-				tmpDir := t.TempDir()
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
 
-				// Create test directory structure with complex dependencies:
-				// A (no deps)
-				// B (no deps)
-				// C -> A
-				// D -> A,B
-				// E -> C
-				// F -> C
-				testDirs := []string{
-					"A", "B", "C", "D", "E", "F",
-				}
+	// Split output into fields and trim whitespace
+	fields := strings.Fields(string(output))
 
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
+	// Verify we have the expected number of lines
+	assert.Len(t, fields, len(expectedPaths))
 
-				// Create test files with dependencies
-				testFiles := map[string]string{
-					"A/terragrunt.hcl": "",
-					"B/terragrunt.hcl": "",
-					"C/terragrunt.hcl": `
+	// For DAG sorting, order matters - verify exact order
+	assert.Equal(t, expectedPaths, fields)
+
+	// Helper to find index of a path
+	findIndex := func(path string) int {
+		for i, field := range fields {
+			if field == path {
+				return i
+			}
+		}
+		return -1
+	}
+
+	// Verify dependency ordering
+	unit1Index := findIndex("unit1")
+	unit2Index := findIndex("unit2")
+	unit3Index := findIndex("unit3")
+
+	assert.Less(t, unit3Index, unit2Index, "unit3 (no deps) should come before unit2 (depends on unit3)")
+	assert.Less(t, unit2Index, unit1Index, "unit2 should come before unit1 (depends on unit2)")
+}
+
+func TestDAGSortingComplexDependencies(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test directory structure with complex dependencies:
+	// A (no deps)
+	// B (no deps)
+	// C -> A
+	// D -> A,B
+	// E -> C
+	// F -> C
+	testDirs := []string{
+		"A", "B", "C", "D", "E", "F",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies
+	testFiles := map[string]string{
+		"A/terragrunt.hcl": "",
+		"B/terragrunt.hcl": "",
+		"C/terragrunt.hcl": `
 dependency "A" {
   config_path = "../A"
 }`,
-					"D/terragrunt.hcl": `
+		"D/terragrunt.hcl": `
 dependency "A" {
   config_path = "../A"
 }
 dependency "B" {
   config_path = "../B"
 }`,
-					"E/terragrunt.hcl": `
+		"E/terragrunt.hcl": `
 dependency "C" {
   config_path = "../C"
 }`,
-					"F/terragrunt.hcl": `
+		"F/terragrunt.hcl": `
 dependency "C" {
   config_path = "../C"
 }`,
-				}
+	}
 
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
 
-				return tmpDir
-			},
-			expectedPaths: []string{"A", "B", "C", "D", "E", "F"},
-			format:        "text",
-			sort:          "dag",
-			dependencies:  true,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
+	expectedPaths := []string{"A", "B", "C", "D", "E", "F"}
 
-				// Split output into fields and trim whitespace
-				fields := strings.Fields(output)
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
 
-				// Verify we have the expected number of lines
-				assert.Len(t, fields, len(expectedPaths))
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "text"
+	opts.Sort = "dag"
+	opts.Dependencies = true
+	opts.External = false
 
-				// For DAG sorting, order matters - verify exact order
-				// and also verify relative ordering constraints
-				assert.Equal(t, expectedPaths, fields)
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 
-				// Helper to find index of a path
-				findIndex := func(path string) int {
-					for i, line := range fields {
-						if line == path {
-							return i
-						}
-					}
-					return -1
-				}
+	// Set the writer in options
+	opts.Writer = w
 
-				// Verify dependency ordering
-				aIndex := findIndex("A")
-				bIndex := findIndex("B")
-				cIndex := findIndex("C")
-				dIndex := findIndex("D")
-				eIndex := findIndex("E")
-				fIndex := findIndex("F")
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
 
-				// Level 0 items should be before their dependents
-				assert.Less(t, aIndex, cIndex, "A should come before C")
-				assert.Less(t, aIndex, dIndex, "A should come before D")
-				assert.Less(t, bIndex, dIndex, "B should come before D")
+	// Close the write end of the pipe
+	w.Close()
 
-				// Level 1 items should be before their dependents
-				assert.Less(t, cIndex, eIndex, "C should come before E")
-				assert.Less(t, cIndex, fIndex, "C should come before F")
-			},
-		},
-		{
-			name: "dag sorting - json output",
-			setup: func(t *testing.T) string {
-				t.Helper()
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
 
-				tmpDir := t.TempDir()
+	// Split output into fields and trim whitespace
+	fields := strings.Fields(string(output))
 
-				// Create test directory structure with dependencies
-				testDirs := []string{
-					"A", "B", "C",
-				}
+	// Verify we have the expected number of lines
+	assert.Len(t, fields, len(expectedPaths))
 
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
+	// For DAG sorting, order matters - verify exact order
+	// and also verify relative ordering constraints
+	assert.Equal(t, expectedPaths, fields)
 
-				// Create test files with dependencies
-				testFiles := map[string]string{
-					"A/terragrunt.hcl": "",
-					"B/terragrunt.hcl": `
+	// Helper to find index of a path
+	findIndex := func(path string) int {
+		for i, line := range fields {
+			if line == path {
+				return i
+			}
+		}
+		return -1
+	}
+
+	// Verify dependency ordering
+	aIndex := findIndex("A")
+	bIndex := findIndex("B")
+	cIndex := findIndex("C")
+	dIndex := findIndex("D")
+	eIndex := findIndex("E")
+	fIndex := findIndex("F")
+
+	// Level 0 items should be before their dependents
+	assert.Less(t, aIndex, cIndex, "A should come before C")
+	assert.Less(t, aIndex, dIndex, "A should come before D")
+	assert.Less(t, bIndex, dIndex, "B should come before D")
+
+	// Level 1 items should be before their dependents
+	assert.Less(t, cIndex, eIndex, "C should come before E")
+	assert.Less(t, cIndex, fIndex, "C should come before F")
+}
+
+func TestDAGSortingJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test directory structure with dependencies
+	testDirs := []string{
+		"A", "B", "C",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies
+	testFiles := map[string]string{
+		"A/terragrunt.hcl": "",
+		"B/terragrunt.hcl": `
 dependency "A" {
   config_path = "../A"
 }`,
-					"C/terragrunt.hcl": `
+		"C/terragrunt.hcl": `
 dependency "B" {
   config_path = "../B"
 }`,
-				}
+	}
 
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
 
-				return tmpDir
-			},
-			expectedPaths: []string{"A", "B", "C"},
-			format:        "json",
-			sort:          "dag",
-			groupBy:       "fs",
-			dependencies:  true,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
+	expectedPaths := []string{"A", "B", "C"}
 
-				// Verify the output is valid JSON
-				var configs []struct {
-					Path         string `json:"path"`
-					Type         string `json:"type"`
-					Dependencies []struct {
-						Path string `json:"path"`
-						Type string `json:"type"`
-					} `json:"dependencies"`
-				}
-				err := json.Unmarshal([]byte(output), &configs)
-				require.NoError(t, err)
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
 
-				// Verify we have the expected number of configs
-				assert.Len(t, configs, len(expectedPaths))
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "json"
+	opts.Sort = "dag"
+	opts.GroupBy = "fs"
+	opts.Dependencies = true
+	opts.External = false
 
-				// Extract paths and verify order
-				var paths []string
-				for _, config := range configs {
-					paths = append(paths, config.Path)
-				}
-				assert.Equal(t, expectedPaths, paths)
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 
-				// Verify dependencies are correctly represented in JSON
-				assert.Empty(t, configs[0].Dependencies, "A should have no dependencies")
-				assert.Equal(t, []struct {
-					Path string `json:"path"`
-					Type string `json:"type"`
-				}{{Path: "A", Type: "unit"}}, configs[1].Dependencies, "B should depend on A")
-				assert.Equal(t, []struct {
-					Path string `json:"path"`
-					Type string `json:"type"`
-				}{{Path: "B", Type: "unit"}}, configs[2].Dependencies, "C should depend on B")
-			},
-		},
-		{
-			name: "dag grouping - json output",
-			setup: func(t *testing.T) string {
-				t.Helper()
+	// Set the writer in options
+	opts.Writer = w
 
-				tmpDir := t.TempDir()
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
 
-				// Create test directory structure with dependencies
-				testDirs := []string{
-					"A", "B", "C",
-				}
+	// Close the write end of the pipe
+	w.Close()
 
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
 
-				// Create test files with dependencies
-				testFiles := map[string]string{
-					"A/terragrunt.hcl": "",
-					"B/terragrunt.hcl": `
+	// Verify the output is valid JSON
+	var configs []struct {
+		Path         string `json:"path"`
+		Type         string `json:"type"`
+		Dependencies []struct {
+			Path string `json:"path"`
+			Type string `json:"type"`
+		} `json:"dependencies"`
+	}
+	err = json.Unmarshal(output, &configs)
+	require.NoError(t, err)
+
+	// Verify we have the expected number of configs
+	assert.Len(t, configs, len(expectedPaths))
+
+	// Extract paths and verify order
+	var paths []string
+	for _, config := range configs {
+		paths = append(paths, config.Path)
+	}
+	assert.Equal(t, expectedPaths, paths)
+
+	// Verify dependencies are correctly represented in JSON
+	assert.Empty(t, configs[0].Dependencies, "A should have no dependencies")
+	assert.Equal(t, []struct {
+		Path string `json:"path"`
+		Type string `json:"type"`
+	}{{Path: "A", Type: "unit"}}, configs[1].Dependencies, "B should depend on A")
+	assert.Equal(t, []struct {
+		Path string `json:"path"`
+		Type string `json:"type"`
+	}{{Path: "B", Type: "unit"}}, configs[2].Dependencies, "C should depend on B")
+}
+
+func TestDAGGroupingJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test directory structure with dependencies
+	testDirs := []string{
+		"A", "B", "C",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with dependencies
+	testFiles := map[string]string{
+		"A/terragrunt.hcl": "",
+		"B/terragrunt.hcl": `
 dependency "A" {
   config_path = "../A"
 }`,
-					"C/terragrunt.hcl": `
+		"C/terragrunt.hcl": `
 dependency "B" {
   config_path = "../B"
 }`,
-				}
+	}
 
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
 
-				return tmpDir
-			},
-			expectedPaths: []string{"A", "B", "C"},
-			format:        "json",
-			sort:          "dag",
-			groupBy:       "dag",
-			dependencies:  true,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
+	expectedPaths := []string{"A", "B", "C"}
 
-				// Verify the output is valid JSON
-				var configs []*list.JSONTree
-				err := json.Unmarshal([]byte(output), &configs)
-				require.NoError(t, err)
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
 
-				// Verify we have the expected number of configs
-				assert.Len(t, configs, len(expectedPaths))
+	// Create options
+	opts := list.NewOptions(tgOpts)
+	opts.Format = "json"
+	opts.Sort = "dag"
+	opts.GroupBy = "dag"
+	opts.Dependencies = true
+	opts.External = false
 
-				// Extract paths and verify order
-				var paths []string
-				for _, config := range configs {
-					paths = append(paths, config.Path)
-				}
-				assert.Equal(t, expectedPaths, paths)
+	// Create a pipe to capture output
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 
-				// Verify dependencies are correctly represented in JSON
-				assert.Empty(t, configs[0].Dependencies, "A should have no dependencies")
+	// Set the writer in options
+	opts.Writer = w
 
-				// Create expected B dependencies
-				expectedBDeps := []*list.JSONTree{
-					{
-						Path: "A",
-						Type: "unit",
-					},
-				}
-				assert.Equal(t, expectedBDeps, configs[1].Dependencies, "B should depend on A")
+	err = list.Run(context.Background(), opts)
+	require.NoError(t, err)
 
-				// Create expected C dependencies
-				expectedCDeps := []*list.JSONTree{
-					{
-						Path: "B",
-						Type: "unit",
-						Dependencies: []*list.JSONTree{
-							{
-								Path: "A",
-								Type: "unit",
-							},
-						},
-					},
-				}
-				assert.Equal(t, expectedCDeps, configs[2].Dependencies, "C should depend on B")
+	// Close the write end of the pipe
+	w.Close()
+
+	// Read all output
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	// Verify the output is valid JSON
+	var configs []*list.JSONTree
+	err = json.Unmarshal(output, &configs)
+	require.NoError(t, err)
+
+	// Verify we have the expected number of configs
+	assert.Len(t, configs, len(expectedPaths))
+
+	// Extract paths and verify order
+	var paths []string
+	for _, config := range configs {
+		paths = append(paths, config.Path)
+	}
+	assert.Equal(t, expectedPaths, paths)
+
+	// Verify dependencies are correctly represented in JSON
+	assert.Empty(t, configs[0].Dependencies, "A should have no dependencies")
+
+	// Create expected B dependencies
+	expectedBDeps := []*list.JSONTree{
+		{
+			Path: "A",
+			Type: "unit",
+		},
+	}
+	assert.Equal(t, expectedBDeps, configs[1].Dependencies, "B should depend on A")
+
+	// Create expected C dependencies
+	expectedCDeps := []*list.JSONTree{
+		{
+			Path: "B",
+			Type: "unit",
+			Dependencies: []*list.JSONTree{
+				{
+					Path: "A",
+					Type: "unit",
+				},
 			},
 		},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Setup test directory
-			tmpDir := tt.setup(t)
-
-			tgOpts := options.NewTerragruntOptions()
-			tgOpts.WorkingDir = tmpDir
-			tgOpts.Logger.Formatter().SetDisabledColors(true)
-
-			// Create options
-			opts := list.NewOptions(tgOpts)
-			opts.Format = tt.format
-			opts.Hidden = tt.hidden
-			opts.Sort = tt.sort
-			opts.GroupBy = tt.groupBy
-			opts.Dependencies = tt.dependencies
-			opts.External = tt.external
-
-			// Create a pipe to capture output
-			r, w, err := os.Pipe()
-			require.NoError(t, err)
-
-			// Set the writer in options
-			opts.Writer = w
-
-			err = list.Run(context.Background(), opts)
-			require.NoError(t, err)
-
-			// Close the write end of the pipe
-			w.Close()
-
-			// Read all output
-			output, err := io.ReadAll(r)
-			require.NoError(t, err)
-
-			// Validate the output
-			tt.validate(t, string(output), tt.expectedPaths)
-		})
-	}
+	assert.Equal(t, expectedCDeps, configs[2].Dependencies, "C should depend on B")
 }
 
 func TestColorizer(t *testing.T) {
