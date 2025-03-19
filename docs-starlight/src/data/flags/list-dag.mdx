@@ -1,0 +1,75 @@
+---
+name: dag
+description: |
+  Output in DAG format.
+type: boolean
+env:
+  - TG_DAG
+---
+
+A convenience flag that combines `--sort=dag` and `--group-by=dag`. This flag organizes the output to show the Directed Acyclic Graph (DAG) of your infrastructure dependencies, making it easy to understand the deployment order and relationships between components.
+
+Example:
+
+```bash
+# Basic DAG view
+$ terragrunt list --dag
+live/dev/vpc
+├── live/dev/db
+│   └── live/dev/ec2
+└── live/dev/ec2
+```
+
+When combined with the long format:
+
+```bash
+# DAG view in long format
+$ terragrunt list --dag -l
+Type  Path           Dependencies
+unit  live/dev/vpc
+unit  live/dev/db    live/dev/vpc
+unit  live/dev/ec2   live/dev/db, live/dev/vpc
+```
+
+When combined with JSON format:
+
+```bash
+# DAG view in JSON format
+$ terragrunt list --dag -j
+[
+  {
+    "path": "live/dev/vpc",
+    "type": "unit"
+  },
+  {
+    "path": "live/dev/db",
+    "type": "unit",
+    "dependencies": [
+      {
+        "path": "live/dev/vpc",
+        "type": "unit"
+      }
+    ]
+  },
+  {
+    "path": "live/dev/ec2",
+    "type": "unit",
+    "dependencies": [
+      {
+        "path": "live/dev/db",
+        "type": "unit",
+        "dependencies": [
+          {
+            "path": "live/dev/vpc",
+            "type": "unit"
+          }
+        ]
+      },
+      {
+        "path": "live/dev/vpc",
+        "type": "unit"
+      }
+    ]
+  }
+]
+```

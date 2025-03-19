@@ -69,6 +69,13 @@ flags:
   - list-format
   - list-sort
   - list-group-by
+  - list-hidden
+  - list-dependencies
+  - list-external
+  - list-tree
+  - list-long
+  - list-dag
+  - list-json
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -125,9 +132,19 @@ The `--group-by` flag controls how dependencies are represented in the output:
   The `--dag` flag is a shorthand that sets both `--sort=dag` and `--group-by=dag`.
 </Aside>
 
-## Dependencies
+## Dependencies and Discovery
 
-You can include dependency information in the output using the `--dependencies` flag. When combined with different grouping options, this provides powerful ways to visualize your infrastructure's dependency structure.
+### Dependencies
+
+Include dependency information in the output using the `--dependencies` flag. When combined with different grouping options, this provides powerful ways to visualize your infrastructure's dependency structure.
+
+### External Dependencies
+
+Use the `--external` flag to discover and include dependencies that exist outside your current working directory. This is particularly useful when working with shared modules or cross-repository dependencies.
+
+### Hidden Configurations
+
+By default, Terragrunt excludes configurations in hidden directories (those starting with a dot). Use the `--hidden` flag to include these configurations in the output.
 
 ## Working Directory
 
