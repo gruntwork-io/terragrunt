@@ -370,6 +370,7 @@ terragrunt stack run destroy
 ```
 
 **Flags:**
+
 - `--no-stack-generate` : Disable automatic stack regeneration before running the command.
   By default, `stack run` will regenerate the stack based on the `terragrunt.stack.hcl` configuration before executing the requested operation.  
   Using this flag prevents automatic regeneration and executes the command using the existing `.terragrunt-stack` directory.
@@ -427,6 +428,7 @@ project1_app1.custom_value1 = "value1"
 ```
 
 **Flags:**
+
 - `--no-stack-generate` : Disable automatic stack regeneration before retrieving outputs.
   By default, `stack output` will regenerate the stack before fetching outputs.  
   Using this flag prevents automatic regeneration and retrieves outputs using the existing `.terragrunt-stack` directory.
