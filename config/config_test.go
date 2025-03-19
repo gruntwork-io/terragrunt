@@ -1425,7 +1425,7 @@ func TestBestEffortParseConfigString(t *testing.T) {
 				GenerateConfigs:   map[string]codegen.GenerateConfig{},
 				ProcessedIncludes: config.IncludeConfigsMap{},
 				FieldsMetadata: map[string]map[string]interface{}{
-					"locals-simple": map[string]interface{}{
+					"locals-simple": {
 						"found_in_file": "terragrunt.hcl",
 					},
 				},
@@ -1447,10 +1447,10 @@ func TestBestEffortParseConfigString(t *testing.T) {
 				GenerateConfigs:   map[string]codegen.GenerateConfig{},
 				ProcessedIncludes: config.IncludeConfigsMap{},
 				FieldsMetadata: map[string]map[string]interface{}{
-					"locals-reference": map[string]interface{}{
+					"locals-reference": {
 						"found_in_file": "terragrunt.hcl",
 					},
-					"locals-simple": map[string]interface{}{
+					"locals-simple": {
 						"found_in_file": "terragrunt.hcl",
 					},
 				},
