@@ -437,11 +437,11 @@ project1_app1.custom_value1 = "value1"
   **Specify the output format.**  
   Terragrunt provides multiple output formats for easier parsing and integration with other tools:
 
-  | Format    | Description                                                                                                                                               | CLI Flag Usage     |
-  |-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
-  | `default` | Returns outputs in HCL format.                                                                                                                            | `--format=default` |
-  | `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.                                                         | `--format=json`    |
-  | `raw`     | Outputs key-value pairs in a compact, JSON-like format. When accessing lists or complex structures, data must be retrieved using an index-based approach. | `--format=raw`     |
+| Format    | Description                                                                                                                                               | CLI Flag Usage     |
+|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| `default` | Returns outputs in HCL format.                                                                                                                            | `--format=default` |
+| `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.                                                         | `--format=json`    |
+| `raw`     | Outputs key-value pairs in a compact, JSON-like format. When accessing lists or complex structures, data must be retrieved using an index-based approach. | `--format=raw`     |
 
 To retrieve outputs in structured JSON format:
 
