@@ -841,12 +841,7 @@ func ParseConfigString(ctx *ParsingContext, configPath string, configString stri
 		return nil, err
 	}
 
-	config, err := ParseConfig(ctx, file, includeFromChild)
-	if err != nil {
-		return nil, err
-	}
-
-	return config, nil
+	return ParseConfig(ctx, file, includeFromChild)
 }
 
 // ParseConfig parses the Terragrunt config contained in the given hcl file and merge it with the given include config (if any). Note
@@ -876,17 +871,19 @@ func ParseConfigString(ctx *ParsingContext, configPath string, configString stri
 //  5. Merge the included config with the parsed config. Note that all the config data is mergeable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
 func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+	errs := []error{}
+
 	if detectInputsCtyUsage(file) {
 		allControls := ctx.TerragruntOptions.StrictControls
 
 		skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
 		if skipDependenciesInputs == nil {
-			return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
+			errs = append(errs, errors.New("failed to find control "+controls.SkipDependenciesInputs))
 		}
 
 		evalCtx := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
 		if err := skipDependenciesInputs.Evaluate(evalCtx); err != nil {
-			return nil, err
+			errs = append(errs, err)
 		}
 	}
 
@@ -895,14 +892,14 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
 	if err := setIAMRole(ctx, file, includeFromChild); err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	// read unit files and add to context
 	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.Stacks) {
 		unitValues, err := ReadValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
 		}
 
 		ctx = ctx.WithValues(unitValues)
@@ -911,7 +908,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
@@ -923,7 +920,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		// process.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, file)
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
 		}
 
 		ctx.DecodedDependencies = retrievedOutputs
@@ -931,30 +928,30 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 
 	evalContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate
 	terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx, file, evalContext)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	if terragruntConfigFile == nil {
-		return nil, errors.New(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
+		errs = append(errs, errors.New(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)))
 	}
 
 	config, err := convertToTerragruntConfig(ctx, file.ConfigPath, terragruntConfigFile)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
 		}
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		mergedConfig.ProcessedIncludes = ctx.TrackInclude.CurrentMap
@@ -966,10 +963,10 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		mergedConfig.Locals = config.Locals
 		mergedConfig.Exclude = config.Exclude
 
-		return mergedConfig, nil
+		return mergedConfig, errors.Join(errs...)
 	}
 
-	return config, nil
+	return config, errors.Join(errs...)
 }
 
 // detectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.

@@ -132,9 +132,12 @@ type terragruntEngine struct {
 // - features
 // - include
 func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
+
+	errs := []error{}
+
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	// Decode just the `include` and `import` blocks, and verify that it's allowed here
@@ -143,19 +146,19 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		evalParsingContext,
 	)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	trackInclude, err := getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	// set feature flags
 	tgFlags := terragruntFeatureFlags{}
 	// load default feature flags
 	if err := file.Decode(&tgFlags, evalParsingContext); err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 	// validate flags to have default value, collect errors
 	flagErrs := &errors.MultiError{}
@@ -168,31 +171,31 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	}
 
 	if flagErrs.ErrorOrNil() != nil {
-		return nil, flagErrs
+		errs = append(errs, flagErrs)
 	}
 
 	flagsAsCtyVal, err := flagsAsCty(ctx, tgFlags.FeatureFlags)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation ctx.
 	locals, err := EvaluateLocalsBlock(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	localsAsCtyVal, err := convertValuesMapToCtyVal(locals)
 	if err != nil {
-		return nil, err
+		errs = append(errs, err)
 	}
 
 	return &DecodedBaseBlocks{
 		TrackInclude: trackInclude,
 		Locals:       &localsAsCtyVal,
 		FeatureFlags: &flagsAsCtyVal,
-	}, nil
+	}, errors.Join(errs...)
 }
 
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {

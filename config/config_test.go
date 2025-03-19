@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -1403,16 +1404,71 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 func TestBestEffortParseConfigString(t *testing.T) {
 	t.Parallel()
 
-	cfg := `locals {
+	tc := []struct {
+		name           string
+		cfg            string
+		expectError    bool
+		expectedConfig *config.TerragruntConfig
+	}{
+		{
+			name: "Simple",
+			cfg: `locals {
 	simple        = "value"
 	requires_auth = get_aws_account_id()
 }
-`
+`,
+			expectError: true,
+			expectedConfig: &config.TerragruntConfig{
+				Locals: map[string]any{
+					"simple": "value",
+				},
+				GenerateConfigs:   map[string]codegen.GenerateConfig{},
+				ProcessedIncludes: config.IncludeConfigsMap{},
+				FieldsMetadata: map[string]map[string]interface{}{
+					"locals-simple": map[string]interface{}{
+						"found_in_file": "terragrunt.hcl",
+					},
+				},
+			},
+		},
+		{
+			name: "Locals referencing each other",
+			cfg: `locals {
+	reference = local.simple
+	simple    = "value"
+}
+`,
+			expectError: false,
+			expectedConfig: &config.TerragruntConfig{
+				Locals: map[string]any{
+					"reference": "value",
+					"simple":    "value",
+				},
+				GenerateConfigs:   map[string]codegen.GenerateConfig{},
+				ProcessedIncludes: config.IncludeConfigsMap{},
+				FieldsMetadata: map[string]map[string]interface{}{
+					"locals-reference": map[string]interface{}{
+						"found_in_file": "terragrunt.hcl",
+					},
+					"locals-simple": map[string]interface{}{
+						"found_in_file": "terragrunt.hcl",
+					},
+				},
+			},
+		},
+	}
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
-	require.Error(t, err)
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+			terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, tt.cfg, nil)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 
-	assert.Nil(t, terragruntConfig)
-	assert.Equal(t, "value", terragruntConfig.Locals["simple"])
+			assert.Equal(t, tt.expectedConfig, terragruntConfig)
+		})
+	}
 }
