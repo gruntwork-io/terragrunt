@@ -60,13 +60,13 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        Dependencies,
 			EnvVars:     tgPrefix.EnvVars(Dependencies),
 			Destination: &opts.Dependencies,
-			Usage:       "Include dependencies in the results.",
+			Usage:       "Include dependencies in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        External,
 			EnvVars:     tgPrefix.EnvVars(External),
 			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results.",
+			Usage:       "Discover external dependencies from initial results, and add them to top-level results.",
 		}),
 	}
 }
