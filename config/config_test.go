@@ -1460,6 +1460,8 @@ func TestBestEffortParseConfigString(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
 			terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, tt.cfg, nil)
 			if tt.expectError {

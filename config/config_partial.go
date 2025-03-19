@@ -132,7 +132,6 @@ type terragruntEngine struct {
 // - features
 // - include
 func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
-
 	errs := []error{}
 
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
