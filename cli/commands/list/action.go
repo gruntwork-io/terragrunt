@@ -434,11 +434,17 @@ func generateTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 		currentPath := "."
 		currentNode := root
 
-		for _, segment := range parts.segments {
+		for i, segment := range parts.segments {
 			nextPath := filepath.Join(currentPath, segment)
 			if _, exists := nodes[nextPath]; !exists {
+				configType := discovery.ConfigTypeStack
+
+				if config.Type == discovery.ConfigTypeUnit && i == len(parts.segments)-1 {
+					configType = discovery.ConfigTypeUnit
+				}
+
 				tmpCfg := &ListedConfig{
-					Type: config.Type,
+					Type: configType,
 					Path: segment,
 				}
 
