@@ -130,6 +130,30 @@ func TestStacksBasic(t *testing.T) {
 	assert.Len(t, txtFiles, 4)
 }
 
+func TestStacksNoGenerate(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+
+	// clean .terragrunt-stack contents
+	entries, err := os.ReadDir(path)
+	require.NoError(t, err)
+	for _, entry := range entries {
+		err := os.RemoveAll(filepath.Join(path, entry.Name()))
+		require.NoError(t, err)
+	}
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment stacks stack run apply --no-stack-generate --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+}
+
 func TestStacksInputs(t *testing.T) {
 	t.Parallel()
 
