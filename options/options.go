@@ -405,9 +405,6 @@ type TerragruntOptions struct {
 	// NoStackGenerate disable stack generation.
 	NoStackGenerate bool
 
-	// StackDir is the directory where the stack is generated.
-	StackDir string
-
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 

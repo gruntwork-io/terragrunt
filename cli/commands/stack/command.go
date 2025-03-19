@@ -15,6 +15,7 @@ const (
 	OutputFormatFlagName = "format"
 	JSONFormatFlagName   = "json"
 	RawFormatFlagName    = "raw"
+	NoStackGenerate      = "no-stack-generate"
 
 	generateCommandName = "generate"
 	runCommandName      = "run"
@@ -38,7 +39,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Action: func(ctx *cli.Context) error {
 					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(opts).Sort(),
+				Flags: defaultFlags(opts, nil).Sort(),
 			},
 			&cli.Command{
 				Name:  runCommandName,
@@ -46,7 +47,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(opts).Sort(),
+				Flags: defaultFlags(opts, nil).Sort(),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
@@ -100,12 +101,24 @@ func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags
 		}),
 	}
 
-	return append(defaultFlags(opts), flags...)
+	return append(defaultFlags(opts, prefix), flags...)
 }
 
-func defaultFlags(opts *options.TerragruntOptions) cli.Flags {
+func defaultFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	generateFlags := cli.Flags{
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoStackGenerate,
+			EnvVars:     tgPrefix.EnvVars(NoStackGenerate),
+			Destination: &opts.NoStackGenerate,
+			Usage:       "Disable automatic stack regeneration before running the command.",
+		}),
+	}
+
 	flags := runall.NewFlags(opts, runCommandName, nil).Filter(runall.OutDirFlagName, runall.JSONOutDirFlagName)
 	flags = append(flags, run.NewFlags(opts, nil)...)
+	flags = append(flags, generateFlags...)
 
 	return flags
 }
