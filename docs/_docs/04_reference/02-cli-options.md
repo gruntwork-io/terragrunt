@@ -539,9 +539,11 @@ The `find` command helps you discover Terragrunt configurations in your codebase
 
 The `find` command is very similar to the [`list` command](/docs/reference/cli-options/#list). It uses the same discovery backend for configuration discovery. It also supports very similar flags and configuration options.
 
-For example, you can use the `--format` and `--sort` flags to adjust the format of output, and the sorting of results, respectively. The `find` command also supports the `--dependencies` flag to include dependency information in the output, the `--external` flag to include external dependencies, and the `--hidden` flag to include hidden configurations.
+For example, you can use the `--format` flag to adjust the format of output. The `find` command also supports the `--dependencies` flag to include dependency information in the output, the `--external` flag to include external dependencies, and the `--hidden` flag to include hidden configurations.
 
 It differs from the `list` command in that it is optimized for displaying configurations in a format that is easy for a computer to read and understand, so there are less configuration options, and the output is simpler. All output from the `find` command is structured such that results are in a flat list, making it easy to parse and process programmatically. Use the `list` command when you want to display configurations in a format that is easy for a human to read and understand.
+
+Use the `find` command when you want to programmatically search for configurations in your codebase. Use the `list` command when you want to display configurations in a format that is easy for a human to read and understand.
 
 When used without any flags, all units and stacks discovered in the current working directory are displayed in colorful text format.
 
@@ -596,21 +598,20 @@ Note that you can also use the `--json` flag to get the same output.
 terragrunt find --json
 ```
 
-##### Find Sorting
+##### Find DAG Mode
 
-The `find` command supports two sorting modes:
+The `find` command supports DAG mode to sort output based on dependencies.
 
-- `--sort=alpha` (default): Sort configurations alphabetically by path
-- `--sort=dag`: Sort configurations based on their dependencies, ensuring dependencies are listed before their dependents
+- `--dag`: Use DAG mode to sort output using the dependency graph.
 
-When using DAG sorting, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order.
+When using DAG mode, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order.
 
 ```bash
-$ terragrunt find --sort=dag
-moduleA           # no dependencies
-moduleB           # no dependencies
-moduleC           # depends on moduleA
-moduleD           # depends on moduleA and moduleB
+$ terragrunt find --dag
+unitA # no dependencies
+unitB # no dependencies
+unitC # depends on unitA
+unitD # depends on unitC
 ```
 
 ##### Find Dependencies
@@ -680,11 +681,13 @@ The `list` command helps you discover and display Terragrunt configurations in y
 
 The `list` command is very similar to the [`find` command](/docs/reference/cli-options/#find). It uses the same backend logic for configuration discovery. It also supports very similar flags and configuration options.
 
-For example, you can use the `--format` and `--sort` flags to adjust the format of output, and the sorting of results, respectively. The `list` command also supports the `--dependencies` flag to include dependency information in output when available, the `--external` flag to include external dependencies, and the `--hidden` flag to include hidden configurations.
+For example, you can use the `--format` flags to adjust the format of output. The `list` command also supports the `--dependencies` flag to include dependency information in output when available, the `--external` flag to include external dependencies, and the `--hidden` flag to include hidden configurations.
 
 It also uses global flags, such as `--working-dir` and `--no-color` to control behavior, and will avoid emitting color output when stdout is redirected. To save space here, common behavior between the `find` and `list` commands may be omitted from the `list` documentation. This documentation will focus on the differentiating features of the `list` command.
 
 Generally, the `list` command is optimized for displaying configurations in a format that is easy for a human to read and understand, so there are more configuration options, and the output is more verbose. Output from the `list` command can vary significantly depending on the flags used, and the output structure is more variable than that of the `find` command.
+
+Use the `list` command when you want to visualize your Terragrunt configurations in a human-readable format. Use the `find` command when you want to programmatically search for configurations in your codebase.
 
 ##### List Output Format
 
@@ -712,11 +715,13 @@ The tree format provides a hierarchical view of your configurations as a tree:
 
 ![list-tree](/assets/img/screenshots/list-tree.png)
 
-##### List Sorting and Grouping
+##### DAG Mode
 
-The `list` command supports different sorting and grouping options to help you organize output:
+The `list` command supports DAG mode to sort and group output based on dependencies.
 
-###### Alphabetical Sorting (Default)
+- `--dag`: Use DAG mode to sort and group output using the dependency graph.
+
+When using DAG mode, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order.
 
 By default, configurations are sorted alphabetically:
 
@@ -725,41 +730,30 @@ $ terragrunt list --sort=alpha
 a-dependent b-dependency
 ```
 
-###### DAG-based Sorting
-
-You can sort configurations based on their dependency relationships using the `--sort=dag` option:
+You can sort configurations based on their dependency relationships using the `--dag` option:
 
 ```bash
-$ terragrunt list --sort=dag
+$ terragrunt list --dag
 b-dependency a-dependent
 ```
 
-###### Dependency Grouping
-
-The `--group-by` flag controls how dependencies are represented in the output:
-
-- `fs` (default): Shows dependencies as nested lists with entries as children of parent directories
-- `dag`: Shows dependencies in a tree structure from a DAG perspective
-
-For example, when using `--group-by=fs` with tree format:
+Normally, the tree format will display configurations ordered by name, and grouped by directory:
 
 ```bash
-$ terragrunt list --tree --group-by=fs --sort=dag
+$ terragrunt list --tree
 .
 ╰── live
     ├── dev
-    │   ├── vpc
     │   ├── db
-    │   ╰── ec2
+    │   ├── ec2
+    │   ╰── vpc
     ╰── prod
-        ├── vpc
         ├── db
-        ╰── ec2
+        ├── ec2
+        ╰── vpc
 ```
 
-**Tip**: The `--dag` flag is a shorthand that sets both `--sort=dag` and `--group-by=dag`.
-
-When using `--group-by=dag` with tree format:
+When using `--dag` with the tree format, configurations are sorted by dependency order, and grouped by relationship in the dependency graph:
 
 ```bash
 $ terragrunt list --tree --dag
@@ -775,13 +769,11 @@ $ terragrunt list --tree --dag
 
 ```
 
-The `fs` grouping is optimized for filesystem-based views, while the `dag` grouping is better for understanding the complete dependency tree of your configuration.
-
 ### Configuration commands
 
 #### graph-dependencies
 
-Prints the terragrunt dependency graph, in DOT format, to `stdout`. You can generate charts from DOT format using tools
+Prints the Terragrunt dependency graph, in DOT format, to `stdout`. You can generate charts from DOT format using tools
 such as [GraphViz](http://www.graphviz.org/).
 
 Example:
@@ -1080,7 +1072,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [Discovery commands](#discovery-commands)
     - [find](#find)
       - [Find Output Format](#find-output-format)
-      - [Find Sorting](#find-sorting)
+      - [Find DAG Mode](#find-dag-mode)
       - [Find Dependencies](#find-dependencies)
       - [Find External Dependencies](#find-external-dependencies)
       - [Find Hidden Configurations](#find-hidden-configurations)
@@ -1089,10 +1081,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
         - [Text Format (Default)](#text-format-default)
         - [Long Format](#long-format)
         - [Tree Format](#tree-format)
-      - [List Sorting and Grouping](#list-sorting-and-grouping)
-        - [Alphabetical Sorting (Default)](#alphabetical-sorting-default)
-        - [DAG-based Sorting](#dag-based-sorting)
-        - [Dependency Grouping](#dependency-grouping)
+      - [DAG Mode](#dag-mode)
   - [Configuration commands](#configuration-commands)
     - [graph-dependencies](#graph-dependencies)
     - [hclfmt](#hclfmt)
