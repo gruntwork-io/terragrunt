@@ -78,27 +78,31 @@ func TestListCommandWithDependencies(t *testing.T) {
 			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--tree", "--dag"},
 			expected: `.
-├── live/dev/vpc
-│   ├── live/dev/db
-│   │   ╰── live/dev/ec2
-│   ╰── live/dev/ec2
-╰── live/prod/vpc
-    ├── live/prod/db
-    │   ╰── live/prod/ec2
-    ╰── live/prod/ec2
+├── stacks/live/dev
+├── stacks/live/prod
+├── units/live/dev/vpc
+│   ├── units/live/dev/db
+│   │   ╰── units/live/dev/ec2
+│   ╰── units/live/dev/ec2
+╰── units/live/prod/vpc
+    ├── units/live/prod/db
+    │   ╰── units/live/prod/ec2
+    ╰── units/live/prod/ec2
 `,
 		},
 		{
 			name:       "List with dependencies in long format",
 			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--long", "--dependencies"},
-			expected: `Type  Path           Dependencies
-unit  live/dev/db    live/dev/vpc
-unit  live/dev/ec2   live/dev/db, live/dev/vpc
-unit  live/dev/vpc
-unit  live/prod/db   live/prod/vpc
-unit  live/prod/ec2  live/prod/db, live/prod/vpc
-unit  live/prod/vpc
+			expected: `Type  Path                 Dependencies
+stack stacks/live/dev
+stack stacks/live/prod
+unit  units/live/dev/db    units/live/dev/vpc
+unit  units/live/dev/ec2   units/live/dev/db, units/live/dev/vpc
+unit  units/live/dev/vpc
+unit  units/live/prod/db   units/live/prod/vpc
+unit  units/live/prod/ec2  units/live/prod/db, units/live/prod/vpc
+unit  units/live/prod/vpc
 `,
 		},
 	}
