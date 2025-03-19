@@ -21,12 +21,11 @@ var _ = strict.Control(new(DeprecatedFlagName))
 
 // DeprecatedFlagName is strict control for deprecated flag names.
 type DeprecatedFlagName struct {
+	deprecatedFlag cli.Flag
+	newFlag        cli.Flag
 	*Control
 	ErrorFmt   string
 	WarningFmt string
-
-	deprecatedFlag cli.Flag
-	newFlag        cli.Flag
 }
 
 func NewDeprecatedMovedFlagName(deprecatedFlag, newFlag cli.Flag, commandName string) *DeprecatedFlagName {

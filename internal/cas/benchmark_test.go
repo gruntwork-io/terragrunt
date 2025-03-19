@@ -137,10 +137,10 @@ func BenchmarkGitOperations(b *testing.B) {
 	}
 
 	b.Run("ls-remote", func(b *testing.B) {
-		git := cas.NewGitRunner() // No workDir needed for ls-remote
+		remoteGit := cas.NewGitRunner() // No workDir needed for ls-remote
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+			_, err := remoteGit.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 			if err != nil {
 				b.Fatal(err)
 			}
