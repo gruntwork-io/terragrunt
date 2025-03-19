@@ -157,8 +157,7 @@ func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
 		}
 	}
 
-	// Convert map back to slice
-	return mapToSlice(retryMap)
+	return util.MapToSlice(retryMap)
 }
 
 // Merges two slices of IgnoreBlock, prioritizing the second slice
@@ -192,15 +191,5 @@ func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
 	}
 
 	// Convert map back to slice
-	return mapToSlice(ignoreMap)
-}
-
-// Converts a map of labeled blocks back into a slice
-func mapToSlice[T any](m map[string]*T) []*T {
-	result := make([]*T, 0, len(m))
-	for _, block := range m {
-		result = append(result, block)
-	}
-
-	return result
+	return util.MapToSlice(ignoreMap)
 }
