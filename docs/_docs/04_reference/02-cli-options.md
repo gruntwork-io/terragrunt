@@ -623,13 +623,13 @@ $ terragrunt find --dependencies --format=json | jq
 [
   {
     "type": "unit",
-    "path": "moduleA",
+    "path": "unitA",
     "dependencies": []
   },
   {
     "type": "unit",
-    "path": "moduleB",
-    "dependencies": ["../moduleA"]
+    "path": "unitB",
+    "dependencies": ["../unitA"]
   }
 ]
 ```
@@ -643,17 +643,17 @@ $ terragrunt find --dependencies --external --format=json | jq
 [
   {
     "type": "unit",
-    "path": "internal/moduleA",
+    "path": "internal/unitA",
     "dependencies": []
   },
   {
     "type": "unit",
-    "path": "internal/moduleB",
-    "dependencies": ["../moduleA", "../../external/moduleC"]
+    "path": "internal/unitB",
+    "dependencies": ["../unitA", "../../external/unitC"]
   },
   {
     "type": "unit",
-    "path": "external/moduleC",
+    "path": "external/unitC",
     "dependencies": []
   }
 ]
