@@ -26,9 +26,6 @@ const (
 	DependenciesFlagName = "dependencies"
 	ExternalFlagName     = "external"
 
-	SortFlagName    = "sort"
-	GroupByFlagName = "group-by"
-
 	DAGFlagName = "dag"
 )
 
@@ -42,20 +39,6 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Format,
 			Usage:       "Output format for list results. Valid values: text, json.",
 			DefaultText: FormatText,
-		}),
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        SortFlagName,
-			EnvVars:     tgPrefix.EnvVars(SortFlagName),
-			Destination: &opts.Sort,
-			Usage:       "Sort order for list results. Valid values: alpha, dag.",
-			DefaultText: SortAlpha,
-		}),
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        GroupByFlagName,
-			EnvVars:     tgPrefix.EnvVars(GroupByFlagName),
-			Destination: &opts.GroupBy,
-			Usage:       "Group results by filesystem or DAG relationships. Valid values: fs, dag.",
-			DefaultText: GroupByFS,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        HiddenFlagName,
@@ -93,7 +76,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        DAGFlagName,
 			EnvVars:     tgPrefix.EnvVars(DAGFlagName),
 			Destination: &opts.DAG,
-			Usage:       "Output in DAG format.",
+			Usage:       "Use DAG mode to sort and group output.",
 		}),
 	}
 }
@@ -121,8 +104,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if cmdOpts.DAG {
-				cmdOpts.Sort = SortDAG
-				cmdOpts.GroupBy = GroupByDAG
+				cmdOpts.Mode = ModeDAG
 			}
 
 			if err := cmdOpts.Validate(); err != nil {

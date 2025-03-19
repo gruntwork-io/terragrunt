@@ -24,7 +24,7 @@ func TestRun(t *testing.T) {
 		setup         func(t *testing.T) string
 		expectedPaths []string
 		format        string
-		sort          string
+		mode          string
 		hidden        bool
 		dependencies  bool
 		external      bool
@@ -69,7 +69,7 @@ func TestRun(t *testing.T) {
 			},
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1"},
 			format:        "text",
-			sort:          "alpha",
+			mode:          "normal",
 			dependencies:  false,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -132,7 +132,7 @@ func TestRun(t *testing.T) {
 			},
 			expectedPaths: []string{"unit1", "unit2", "stack1"},
 			format:        "json",
-			sort:          "alpha",
+			mode:          "normal",
 			dependencies:  false,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -278,7 +278,7 @@ dependency "unit2" {
 			},
 			expectedPaths: []string{"unit1", "unit2", "unit3"},
 			format:        "text",
-			sort:          "dag",
+			mode:          "dag",
 			dependencies:  true,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -345,7 +345,7 @@ dependency "B" {
 			},
 			expectedPaths: []string{"A", "B", "C"},
 			format:        "json",
-			sort:          "dag",
+			mode:          "dag",
 			dependencies:  true,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -399,7 +399,7 @@ dependency "B" {
 
 				return t.TempDir()
 			},
-			sort: "invalid",
+			mode: "invalid",
 			validate: func(t *testing.T, output string, expectedPaths []string) {
 				t.Helper()
 				assert.Empty(t, output)
@@ -422,7 +422,7 @@ dependency "B" {
 			opts := find.NewOptions(tgOpts)
 			opts.Format = tt.format
 			opts.Hidden = tt.hidden
-			opts.Sort = tt.sort
+			opts.Mode = tt.mode
 			opts.Dependencies = tt.dependencies
 			opts.External = tt.external
 
@@ -434,7 +434,7 @@ dependency "B" {
 			opts.Writer = w
 
 			err = find.Run(context.Background(), opts)
-			if tt.format == "invalid" || tt.sort == "invalid" {
+			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return
 			}

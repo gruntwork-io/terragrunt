@@ -37,10 +37,10 @@ func Run(ctx context.Context, opts *Options) error {
 		return errors.New(err)
 	}
 
-	switch opts.Sort {
-	case SortAlpha:
+	switch opts.Mode {
+	case ModeNormal:
 		cfgs = cfgs.Sort()
-	case SortDAG:
+	case ModeDAG:
 		q, err := queue.NewQueue(cfgs)
 		if err != nil {
 			return errors.New(err)
@@ -58,7 +58,7 @@ func Run(ctx context.Context, opts *Options) error {
 	case FormatText:
 		return outputText(opts, listedCfgs)
 	case FormatTree:
-		return outputTree(opts, listedCfgs, opts.Sort)
+		return outputTree(opts, listedCfgs, opts.Mode)
 	case FormatLong:
 		return outputLong(opts, listedCfgs)
 	default:
@@ -78,11 +78,7 @@ func shouldDiscoverDependencies(opts *Options) bool {
 		return true
 	}
 
-	if opts.Sort == SortDAG {
-		return true
-	}
-
-	if opts.GroupBy == GroupByDAG {
+	if opts.Mode == ModeDAG {
 		return true
 	}
 
@@ -552,7 +548,7 @@ func preProcessPath(path string) pathParts {
 func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, _ string) error {
 	var t *tree.Tree
 
-	if opts.GroupBy == GroupByDAG {
+	if opts.Mode == ModeDAG {
 		t = generateDAGTree(configs, s)
 	} else {
 		t = generateTree(configs, s)

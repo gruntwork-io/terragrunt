@@ -17,6 +17,12 @@ const (
 
 	// SortDAG sorts the discovered configurations in a topological sort order.
 	SortDAG = "dag"
+
+	// ModeNormal is the default mode for the find command.
+	ModeNormal = "normal"
+
+	// ModeDAG is the mode for the find command that sorts and groups output in DAG order.
+	ModeDAG = "dag"
 )
 
 type Options struct {
@@ -33,8 +39,8 @@ type Options struct {
 	// Alias for --sort=dag.
 	DAG bool
 
-	// Sort determines the sort order of the output.
-	Sort string
+	// Mode determines the mode of the find command.
+	Mode string
 
 	// Hidden determines whether to detect hidden directories.
 	Hidden bool
@@ -50,7 +56,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
 		Format:            FormatText,
-		Sort:              SortAlpha,
+		Mode:              ModeNormal,
 		Hidden:            false,
 	}
 }
@@ -62,7 +68,7 @@ func (o *Options) Validate() error {
 		errs = append(errs, err)
 	}
 
-	if err := o.validateSort(); err != nil {
+	if err := o.validateMode(); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -84,13 +90,13 @@ func (o *Options) validateFormat() error {
 	}
 }
 
-func (o *Options) validateSort() error {
-	switch o.Sort {
-	case SortAlpha:
+func (o *Options) validateMode() error {
+	switch o.Mode {
+	case ModeNormal:
 		return nil
-	case SortDAG:
+	case ModeDAG:
 		return nil
 	default:
-		return errors.New("invalid sort: " + o.Sort)
+		return errors.New("invalid mode: " + o.Mode)
 	}
 }

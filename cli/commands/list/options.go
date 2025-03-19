@@ -21,11 +21,11 @@ const (
 	// SortDAG sorts the discovered configurations in a topological sort order.
 	SortDAG = "dag"
 
-	// GroupByFS groups the discovered configurations by filesystem structure.
-	GroupByFS = "fs"
+	// ModeNormal is the default mode for the list command.
+	ModeNormal = "normal"
 
-	// GroupByDAG groups the discovered configurations by DAG relationships.
-	GroupByDAG = "dag"
+	// ModeDAG is the mode for the list command that sorts and groups output in DAG order.
+	ModeDAG = "dag"
 )
 
 type Options struct {
@@ -34,11 +34,8 @@ type Options struct {
 	// Format determines the format of the output.
 	Format string
 
-	// Sort determines the sort order of the output.
-	Sort string
-
-	// GroupBy determines how to group the configurations in the output.
-	GroupBy string
+	// Mode determines the mode of the list command.
+	Mode string
 
 	// Hidden determines whether to detect hidden directories.
 	Hidden bool
@@ -63,8 +60,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
 		Format:            FormatText,
-		Sort:              SortAlpha,
-		GroupBy:           GroupByFS,
+		Mode:              ModeNormal,
 		Hidden:            false,
 	}
 }
@@ -76,11 +72,7 @@ func (o *Options) Validate() error {
 		errs = append(errs, err)
 	}
 
-	if err := o.validateSort(); err != nil {
-		errs = append(errs, err)
-	}
-
-	if err := o.validateGroupBy(); err != nil {
+	if err := o.validateMode(); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -104,24 +96,13 @@ func (o *Options) validateFormat() error {
 	}
 }
 
-func (o *Options) validateSort() error {
-	switch o.Sort {
-	case SortAlpha:
+func (o *Options) validateMode() error {
+	switch o.Mode {
+	case ModeNormal:
 		return nil
 	case SortDAG:
 		return nil
 	default:
-		return errors.New("invalid sort: " + o.Sort)
-	}
-}
-
-func (o *Options) validateGroupBy() error {
-	switch o.GroupBy {
-	case GroupByFS:
-		return nil
-	case GroupByDAG:
-		return nil
-	default:
-		return errors.New("invalid group-by: " + o.GroupBy)
+		return errors.New("invalid mode: " + o.Mode)
 	}
 }

@@ -57,7 +57,7 @@ func TestBasicDiscovery(t *testing.T) {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text" //nolint: goconst
-	opts.Sort = "alpha"
+	opts.Mode = "normal"
 	opts.Dependencies = false
 	opts.External = false
 
@@ -212,7 +212,7 @@ dependency "unit2" {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text"
-	opts.Sort = "dag" //nolint: goconst
+	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
 	opts.External = false
 
@@ -289,7 +289,7 @@ dependency "unit3" {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text"
-	opts.Sort = "dag"
+	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
 	opts.External = false
 
@@ -398,7 +398,7 @@ dependency "C" {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text"
-	opts.Sort = "dag"
+	opts.Mode = "dag" //nolint: goconst
 	opts.Dependencies = true
 	opts.External = false
 

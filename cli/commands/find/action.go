@@ -20,7 +20,7 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithHidden()
 	}
 
-	if opts.Dependencies || opts.External || opts.Sort == SortDAG {
+	if opts.Dependencies || opts.External || opts.Mode == ModeDAG {
 		d = d.WithDiscoverDependencies()
 	}
 
@@ -33,10 +33,10 @@ func Run(ctx context.Context, opts *Options) error {
 		return errors.New(err)
 	}
 
-	switch opts.Sort {
-	case SortAlpha:
+	switch opts.Mode {
+	case ModeNormal:
 		cfgs = cfgs.Sort()
-	case SortDAG:
+	case ModeDAG:
 		q, err := queue.NewQueue(cfgs)
 		if err != nil {
 			return errors.New(err)
