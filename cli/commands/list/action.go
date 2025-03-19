@@ -299,6 +299,8 @@ func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
 					Type: depNode.Type,
 				}
 
+				depCopy.Type = configs.Get(depPath).Type
+
 				// If the dependency has its own dependencies, copy those too
 				if len(depNode.Dependencies) > 0 {
 					depCopy.Dependencies = make([]*JSONTree, len(depNode.Dependencies))
@@ -411,7 +413,7 @@ func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
 
 // outputJSON outputs the discovered configurations in JSON format.
 func outputJSON(opts *Options, configs ListedConfigs) error {
-	var result any
+	var result []*JSONTree
 	if opts.GroupBy == GroupByDAG {
 		result = buildJSONDAGTree(opts, configs)
 	} else {
