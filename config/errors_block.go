@@ -89,6 +89,7 @@ func cloneRetryBlocks(blocks []*RetryBlock) []*RetryBlock {
 	for i, block := range blocks {
 		cloned[i] = block.Clone()
 	}
+
 	return cloned
 }
 
@@ -102,6 +103,7 @@ func cloneIgnoreBlocks(blocks []*IgnoreBlock) []*IgnoreBlock {
 	for i, block := range blocks {
 		cloned[i] = block.Clone()
 	}
+
 	return cloned
 }
 
@@ -113,6 +115,7 @@ func cloneStringSlice(slice []string) []string {
 
 	cloned := make([]string, len(slice))
 	copy(cloned, slice)
+
 	return cloned
 }
 
@@ -124,6 +127,7 @@ func cloneSignalsMap(signals map[string]cty.Value) map[string]cty.Value {
 
 	cloned := make(map[string]cty.Value, len(signals))
 	maps.Copy(cloned, signals)
+
 	return cloned
 }
 
@@ -144,6 +148,7 @@ func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
 			if otherBlock.MaxAttempts > 0 {
 				existingBlock.MaxAttempts = otherBlock.MaxAttempts
 			}
+
 			if otherBlock.SleepIntervalSec > 0 {
 				existingBlock.SleepIntervalSec = otherBlock.SleepIntervalSec
 			}
@@ -178,6 +183,7 @@ func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
 				if existingBlock.Signals == nil {
 					existingBlock.Signals = make(map[string]cty.Value, len(otherBlock.Signals))
 				}
+
 				maps.Copy(existingBlock.Signals, otherBlock.Signals)
 			}
 		} else {
@@ -195,5 +201,6 @@ func mapToSlice[T any](m map[string]*T) []*T {
 	for _, block := range m {
 		result = append(result, block)
 	}
+
 	return result
 }
