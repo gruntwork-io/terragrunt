@@ -16,9 +16,6 @@ const (
 
 	FormatFlagName = "format"
 
-	JSONFlagName  = "json"
-	JSONFlagAlias = "j"
-
 	TreeFlagName  = "tree"
 	TreeFlagAlias = "T"
 
@@ -45,13 +42,6 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Format,
 			Usage:       "Output format for list results. Valid values: text, json.",
 			DefaultText: FormatText,
-		}),
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        JSONFlagName,
-			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
-			Destination: &opts.JSON,
-			Usage:       "Output in JSON format (equivalent to --format=json).",
-			Aliases:     []string{JSONFlagAlias},
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        SortFlagName,
@@ -120,10 +110,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Before: func(ctx *cli.Context) error {
 			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
-			}
-
-			if cmdOpts.JSON {
-				cmdOpts.Format = FormatJSON
 			}
 
 			if cmdOpts.Tree {

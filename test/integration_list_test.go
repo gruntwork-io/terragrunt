@@ -34,22 +34,6 @@ unit  b-unit
 `,
 		},
 		{
-			name:       "List with JSON format",
-			workingDir: "fixtures/list/basic",
-			args:       []string{"list", "--json"},
-			expectedOutput: `[
-  {
-    "path": "a-unit",
-    "type": "unit"
-  },
-  {
-    "path": "b-unit",
-    "type": "unit"
-  }
-]
-`,
-		},
-		{
 			name:       "List with tree format",
 			workingDir: "fixtures/list/basic",
 			args:       []string{"list", "--tree"},
@@ -90,97 +74,6 @@ func TestListCommandWithDependencies(t *testing.T) {
 		expected   string
 	}{
 		{
-			name:       "List with dependencies in JSON format",
-			workingDir: "fixtures/list/dag",
-			args:       []string{"list", "--json", "--dependencies"},
-			expected: `[
-  {
-    "path": "live",
-    "children": [
-      {
-        "path": "dev",
-        "children": [
-          {
-            "path": "live/dev/db",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "live/dev/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "live/dev/ec2",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "live/dev/db",
-                "type": "unit",
-                "dependencies": [
-                  {
-                    "path": "live/dev/vpc",
-                    "type": "unit"
-                  }
-                ]
-              },
-              {
-                "path": "live/dev/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "live/dev/vpc",
-            "type": "unit"
-          }
-        ]
-      },
-      {
-        "path": "prod",
-        "children": [
-          {
-            "path": "live/prod/db",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "live/prod/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "live/prod/ec2",
-            "type": "unit",
-            "dependencies": [
-              {
-                "path": "live/prod/db",
-                "type": "unit",
-                "dependencies": [
-                  {
-                    "path": "live/prod/vpc",
-                    "type": "unit"
-                  }
-                ]
-              },
-              {
-                "path": "live/prod/vpc",
-                "type": "unit"
-              }
-            ]
-          },
-          {
-            "path": "live/prod/vpc",
-            "type": "unit"
-          }
-        ]
-      }
-    ]
-  }
-]
-`,
-		},
-		{
 			name:       "List with dependencies in tree format",
 			workingDir: "fixtures/list/dag",
 			args:       []string{"list", "--tree", "--dag"},
@@ -206,38 +99,6 @@ unit  live/dev/vpc
 unit  live/prod/db   live/prod/vpc
 unit  live/prod/ec2  live/prod/db, live/prod/vpc
 unit  live/prod/vpc
-`,
-		},
-		{
-			name:       "List with DAG dependencies in JSON format",
-			workingDir: "fixtures/list/dag",
-			args:       []string{"list", "--json", "--group-by=dag"},
-			expected: `[
-  {
-    "path": "live/dev/db",
-    "type": "unit"
-  },
-  {
-    "path": "live/dev/ec2",
-    "type": "unit"
-  },
-  {
-    "path": "live/dev/vpc",
-    "type": "unit"
-  },
-  {
-    "path": "live/prod/db",
-    "type": "unit"
-  },
-  {
-    "path": "live/prod/ec2",
-    "type": "unit"
-  },
-  {
-    "path": "live/prod/vpc",
-    "type": "unit"
-  }
-]
 `,
 		},
 	}

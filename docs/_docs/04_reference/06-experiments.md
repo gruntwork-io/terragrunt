@@ -172,7 +172,6 @@ To transition `cli-redesign` features to a stable release, the following must be
   - [x] Add support for `list` without flags.
   - [x] Add support for `list` with colorful output.
   - [x] Add support for `list` with `--format=tree` flag.
-  - [x] Add support for `list` with `--format=json` flag.
   - [x] Add support for `list` with `--format=long` flag.
   - [x] Add support for `list` with stdout redirection detection.
   - [x] Add support for `list` with `--hidden` flag.

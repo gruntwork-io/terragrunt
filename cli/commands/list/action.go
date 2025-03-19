@@ -2,10 +2,8 @@ package list
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 
@@ -59,8 +57,6 @@ func Run(ctx context.Context, opts *Options) error {
 	switch opts.Format {
 	case FormatText:
 		return outputText(opts, listedCfgs)
-	case FormatJSON:
-		return outputJSON(opts, listedCfgs)
 	case FormatTree:
 		return outputTree(opts, listedCfgs, opts.Sort)
 	case FormatLong:
@@ -96,10 +92,10 @@ func shouldDiscoverDependencies(opts *Options) bool {
 type ListedConfigs []*ListedConfig
 
 type ListedConfig struct {
-	Type discovery.ConfigType `json:"type"`
-	Path string               `json:"path"`
+	Type discovery.ConfigType
+	Path string
 
-	Dependencies []string `json:"dependencies,omitempty"`
+	Dependencies []*ListedConfig
 }
 
 // Contains checks to see if the given path is in the listed configs.
@@ -151,7 +147,7 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 			continue
 		}
 
-		listedCfg.Dependencies = make([]string, len(config.Dependencies))
+		listedCfg.Dependencies = make([]*ListedConfig, len(config.Dependencies))
 
 		for i, dep := range config.Dependencies {
 			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
@@ -161,276 +157,20 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 				continue
 			}
 
-			listedCfg.Dependencies[i] = relDepPath
+			listedCfg.Dependencies[i] = &ListedConfig{
+				Type: dep.Type,
+				Path: relDepPath,
+			}
 		}
 
-		slices.Sort(listedCfg.Dependencies)
+		sort.SliceStable(listedCfg.Dependencies, func(i, j int) bool {
+			return listedCfg.Dependencies[i].Path < listedCfg.Dependencies[j].Path
+		})
 
 		listedCfgs = append(listedCfgs, listedCfg)
 	}
 
 	return listedCfgs, errors.Join(errs...)
-}
-
-// JSONTree represents a node in the JSON tree structure
-type JSONTree struct {
-	Path         string               `json:"path"`
-	Type         discovery.ConfigType `json:"type,omitempty"`
-	Children     []*JSONTree          `json:"children,omitempty"`
-	Dependencies []*JSONTree          `json:"dependencies,omitempty"`
-}
-
-// buildJSONTree creates a tree structure from ListedConfigs
-func buildJSONTree(opts *Options, configs ListedConfigs) []*JSONTree {
-	// Create a map to track nodes by their full path
-	nodes := make(map[string]*JSONTree)
-	fullPathToNode := make(map[string]*JSONTree)
-
-	var topLevelNodes []*JSONTree
-
-	for _, config := range configs {
-		parts := preProcessPath(config.Path)
-		if len(parts.segments) == 0 || (len(parts.segments) == 1 && parts.segments[0] == ".") {
-			continue
-		}
-
-		// Handle top-level node
-		if len(parts.segments) == 1 {
-			node := &JSONTree{
-				Path:     config.Path,
-				Children: make([]*JSONTree, 0),
-			}
-			if opts.Dependencies {
-				node.Dependencies = make([]*JSONTree, 0)
-			}
-
-			nodes[parts.segments[0]] = node
-			fullPathToNode[config.Path] = node
-			topLevelNodes = append(topLevelNodes, node)
-
-			continue
-		}
-
-		// Handle nested nodes
-		currentPath := parts.segments[0]
-		currentNode := nodes[currentPath]
-
-		if currentNode == nil {
-			currentNode = &JSONTree{
-				Path:     currentPath,
-				Children: make([]*JSONTree, 0),
-			}
-			if opts.Dependencies {
-				currentNode.Dependencies = make([]*JSONTree, 0)
-			}
-
-			nodes[currentPath] = currentNode
-			topLevelNodes = append(topLevelNodes, currentNode)
-		}
-
-		for i := 1; i < len(parts.segments); i++ {
-			segment := parts.segments[i]
-			nextPath := filepath.Join(currentPath, segment)
-
-			// Find if child already exists
-			var childNode *JSONTree
-
-			for _, child := range currentNode.Children {
-				if child.Path == segment {
-					childNode = child
-					break
-				}
-			}
-
-			if childNode == nil {
-				// For leaf nodes (last segment), use the full original path
-				isLeafNode := i == len(parts.segments)-1
-				nodePath := segment
-
-				if isLeafNode {
-					nodePath = config.Path
-				}
-
-				childNode = &JSONTree{
-					Path:     nodePath,
-					Children: make([]*JSONTree, 0),
-				}
-				if opts.Dependencies {
-					childNode.Dependencies = make([]*JSONTree, 0)
-				}
-
-				// Only set Type for leaf nodes
-				if isLeafNode {
-					childNode.Type = config.Type
-				}
-
-				currentNode.Children = append(currentNode.Children, childNode)
-			}
-
-			currentNode = childNode
-			currentPath = nextPath
-			fullPathToNode[nextPath] = childNode
-		}
-	}
-
-	// If dependencies are requested, connect them
-	if opts.Dependencies {
-		for _, config := range configs {
-			if len(config.Dependencies) == 0 {
-				continue
-			}
-
-			// Get the node for this config
-			configNode, exists := fullPathToNode[config.Path]
-			if !exists {
-				continue
-			}
-
-			// Add each dependency as a child
-			for _, depPath := range config.Dependencies {
-				depNode, exists := fullPathToNode[depPath]
-				if !exists {
-					continue
-				}
-
-				// Create a copy of the dependency node using the full path
-				depCopy := &JSONTree{
-					Path: depPath,
-					Type: depNode.Type,
-				}
-
-				depCopy.Type = configs.Get(depPath).Type
-
-				// If the dependency has its own dependencies, copy those too
-				if len(depNode.Dependencies) > 0 {
-					depCopy.Dependencies = make([]*JSONTree, len(depNode.Dependencies))
-					for i, dep := range depNode.Dependencies {
-						depCopy.Dependencies[i] = &JSONTree{
-							Path: dep.Path,
-							Type: dep.Type,
-						}
-					}
-				}
-
-				// Check if dependency is already a child
-				isChild := false
-
-				for _, child := range configNode.Dependencies {
-					if child.Path == depCopy.Path {
-						isChild = true
-						break
-					}
-				}
-
-				if !isChild {
-					configNode.Dependencies = append(configNode.Dependencies, depCopy)
-				}
-			}
-
-			// Sort dependencies by path for consistent ordering
-			if len(configNode.Dependencies) > 0 {
-				sort.SliceStable(configNode.Dependencies, func(i, j int) bool {
-					return configNode.Dependencies[i].Path < configNode.Dependencies[j].Path
-				})
-			}
-		}
-	}
-
-	for _, node := range topLevelNodes {
-		if len(node.Children) == 0 {
-			node.Type = configs.Get(node.Path).Type
-		}
-	}
-
-	return topLevelNodes
-}
-
-// buildJSONDAGTree creates a tree structure from ListedConfigs based on DAG relationships
-func buildJSONDAGTree(opts *Options, configs ListedConfigs) []*JSONTree {
-	// Create a map to track all nodes by their full path
-	nodes := make(map[string]*JSONTree)
-
-	topLevelNodes := make([]*JSONTree, 0, len(configs))
-
-	// First pass: create all nodes
-	for _, config := range configs {
-		if config.Path == "." {
-			continue
-		}
-
-		node := &JSONTree{
-			Path: config.Path,
-			Type: config.Type, // Always set the Type field
-		}
-
-		if opts.Dependencies {
-			node.Dependencies = make([]*JSONTree, 0)
-		}
-
-		nodes[config.Path] = node
-		topLevelNodes = append(topLevelNodes, node)
-	}
-
-	// Second pass: connect dependencies
-	if opts.Dependencies {
-		for _, config := range configs {
-			if len(config.Dependencies) == 0 {
-				continue
-			}
-
-			// Get the node for this config
-			configNode, exists := nodes[config.Path]
-			if !exists {
-				continue
-			}
-
-			// Add each dependency as a child
-			for _, depPath := range config.Dependencies {
-				depNode, exists := nodes[depPath]
-				if !exists {
-					continue
-				}
-
-				// Check if dependency is already a child
-				isChild := slices.Contains(configNode.Dependencies, depNode)
-
-				if !isChild {
-					configNode.Dependencies = append(configNode.Dependencies, depNode)
-				}
-			}
-
-			// Sort dependencies by path for consistent ordering
-			if len(configNode.Dependencies) > 0 {
-				sort.SliceStable(configNode.Dependencies, func(i, j int) bool {
-					return configNode.Dependencies[i].Path < configNode.Dependencies[j].Path
-				})
-			}
-		}
-	}
-
-	return topLevelNodes
-}
-
-// outputJSON outputs the discovered configurations in JSON format.
-func outputJSON(opts *Options, configs ListedConfigs) error {
-	var result []*JSONTree
-	if opts.GroupBy == GroupByDAG {
-		result = buildJSONDAGTree(opts, configs)
-	} else {
-		result = buildJSONTree(opts, configs)
-	}
-
-	jsonBytes, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return errors.New(err)
-	}
-
-	_, err = opts.Writer.Write(append(jsonBytes, []byte("\n")...))
-	if err != nil {
-		return errors.New(err)
-	}
-
-	return nil
 }
 
 // Colorizer is a colorizer for the discovered configurations.
@@ -551,10 +291,7 @@ func renderLong(opts *Options, configs ListedConfigs, c *Colorizer) error {
 			colorizedDeps := []string{}
 
 			for _, dep := range config.Dependencies {
-				depCfg := configs.Get(dep)
-				if depCfg != nil {
-					colorizedDeps = append(colorizedDeps, c.Colorize(depCfg))
-				}
+				colorizedDeps = append(colorizedDeps, c.Colorize(dep))
 			}
 
 			const extraDependenciesPadding = 2
@@ -752,7 +489,10 @@ func generateDAGTree(configs ListedConfigs, s *TreeStyler) *tree.Tree {
 
 		// Sort dependencies to ensure deterministic order
 		sortedDeps := make([]string, len(config.Dependencies))
-		copy(sortedDeps, config.Dependencies)
+		for i, dep := range config.Dependencies {
+			sortedDeps[i] = dep.Path
+		}
+
 		sort.Strings(sortedDeps)
 
 		for _, dependency := range sortedDeps {

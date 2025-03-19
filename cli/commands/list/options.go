@@ -9,9 +9,6 @@ const (
 	// FormatText outputs the discovered configurations in text format.
 	FormatText = "text"
 
-	// FormatJSON outputs the discovered configurations in JSON format.
-	FormatJSON = "json"
-
 	// FormatTree outputs the discovered configurations in tree format.
 	FormatTree = "tree"
 
@@ -36,10 +33,6 @@ type Options struct {
 
 	// Format determines the format of the output.
 	Format string
-
-	// JSON determines whether to output in JSON format.
-	// Alias for --format=json.
-	JSON bool
 
 	// Sort determines the sort order of the output.
 	Sort string
@@ -101,8 +94,6 @@ func (o *Options) Validate() error {
 func (o *Options) validateFormat() error {
 	switch o.Format {
 	case FormatText:
-		return nil
-	case FormatJSON:
 		return nil
 	case FormatTree:
 		return nil
