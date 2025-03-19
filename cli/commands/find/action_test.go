@@ -207,6 +207,7 @@ func TestRun(t *testing.T) {
 			},
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"},
 			format:        "text",
+			mode:          "normal",
 			hidden:        true,
 			dependencies:  false,
 			external:      false,
