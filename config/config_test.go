@@ -1399,3 +1399,20 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 		})
 	}
 }
+
+func TestBestEffortParseConfigString(t *testing.T) {
+	t.Parallel()
+
+	cfg := `locals {
+	simple        = "value"
+	requires_auth = get_aws_account_id()
+}
+`
+
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+
+	assert.Nil(t, terragruntConfig)
+	assert.Equal(t, "value", terragruntConfig.Locals["simple"])
+}
