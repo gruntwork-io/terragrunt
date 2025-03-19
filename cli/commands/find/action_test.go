@@ -382,6 +382,8 @@ dependency "B" {
 		{
 			name: "invalid format",
 			setup: func(t *testing.T) string {
+				t.Helper()
+
 				return t.TempDir()
 			},
 			format: "invalid",
@@ -393,6 +395,8 @@ dependency "B" {
 		{
 			name: "invalid sort",
 			setup: func(t *testing.T) string {
+				t.Helper()
+
 				return t.TempDir()
 			},
 			sort: "invalid",
