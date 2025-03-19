@@ -30,13 +30,13 @@ func NewBackend() *Backend {
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
 func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Config, backendExistingConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
-	if Config(backendConfig).IsEqual(Config(backendExistingConfig), opts.Logger) {
-		return true, nil
-	}
-
-	extGCSCfg, err := Config(backendConfig).ParseExtendedGCSConfig()
+	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return false, err
+	}
+
+	if Config(backendConfig).IsEqual(Config(backendExistingConfig), opts.Logger) {
+		return true, nil
 	}
 
 	var (
@@ -65,7 +65,7 @@ func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Con
 // Init the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
 func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
-	extGCSCfg, err := Config(backendConfig).ParseExtendedGCSConfig()
+	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return err
 	}
@@ -80,10 +80,6 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 			opts.Logger.Warnf("Error closing GCS client: %v", err)
 		}
 	}()
-
-	if err := extGCSCfg.Validate(ctx, client); err != nil {
-		return err
-	}
 
 	var (
 		gcsCfg     = &extGCSCfg.RemoteStateConfigGCS
@@ -103,14 +99,14 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 
 	// If bucket is specified and skip_bucket_creation is false then check if Bucket needs to be created
 	if !extGCSCfg.SkipBucketCreation && bucketName != "" {
-		if err := client.createGCSBucketIfNecessary(ctx, bucketName, opts); err != nil {
+		if err := client.CreateGCSBucketIfNecessary(ctx, bucketName, opts); err != nil {
 			return err
 		}
 	}
 	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
 	if !extGCSCfg.SkipBucketVersioning && bucketName != "" {
 		// TODO: Remove lint suppression
-		if err := client.checkIfGCSVersioningEnabled(bucketName); err != nil { //nolint:contextcheck
+		if err := client.CheckIfGCSVersioningEnabled(bucketName); err != nil { //nolint:contextcheck
 			return err
 		}
 	}
@@ -118,6 +114,43 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 	backend.MarkConfigInited(gcsCfg)
 
 	return nil
+}
+
+// Delete deletes the remote state specified in the given config.
+func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
+	if err != nil {
+		return err
+	}
+
+	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
+	if err != nil {
+		return err
+	}
+
+	var (
+		bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
+		prefix     = extGCSCfg.RemoteStateConfigGCS.Prefix
+	)
+
+	return client.DeleteGCSObjectIfNecessary(ctx, bucketName, prefix)
+}
+
+// DeleteBucket deletes the entire bucket specified in the given config.
+func (backend *Backend) DeleteBucket(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
+	if err != nil {
+		return err
+	}
+
+	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
+	if err != nil {
+		return err
+	}
+
+	var bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
+
+	return client.DeleteGCSBucketIfNecessary(ctx, bucketName)
 }
 
 // GetTFInitArgs returns the subset of the given config that should be passed to terraform init

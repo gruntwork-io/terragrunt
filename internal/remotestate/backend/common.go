@@ -38,21 +38,21 @@ func (backend *CommonBackend) NeedsInit(ctx context.Context, config Config, exis
 
 // Init implements `backends.Init` interface.
 func (backend *CommonBackend) Init(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Debug("Initialization of remote state for %s backend not implemented", backend.Name())
+	opts.Logger.Warnf("Initialization of remote state for %s backend not implemented", backend.Name())
 
 	return nil
 }
 
 // Delete implements `backends.Delete` interface.
 func (backend *CommonBackend) Delete(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Debug("Deleting remote state for %s backend not implemented", backend.Name())
+	opts.Logger.Warnf("Deleting remote state for %s backend not implemented", backend.Name())
 
 	return nil
 }
 
 // DeleteBucket implements `backends.DeleteBucket` interface.
 func (backend *CommonBackend) DeleteBucket(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Debug("Deleting entire bucket for %s backend not implemented", backend.Name())
+	opts.Logger.Warnf("Deleting entire bucket for %s backend not implemented", backend.Name())
 
 	return nil
 }

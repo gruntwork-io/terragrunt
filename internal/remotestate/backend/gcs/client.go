@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/impersonate"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -52,21 +53,27 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 		})
 		opts = append(opts, option.WithTokenSource(tokenSource))
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
-		var account accountFile
+		var account = struct {
+			PrivateKeyID string `json:"private_key_id"`
+			PrivateKey   string `json:"private_key"`
+			ClientEmail  string `json:"client_email"`
+			ClientID     string `json:"client_id"`
+		}{}
+
 		// to mirror how Terraform works, we have to accept either the file path or the contents
 		creds := os.Getenv("GOOGLE_CREDENTIALS")
 
 		contents, err := util.FileOrData(creds)
 		if err != nil {
-			return nil, fmt.Errorf("Error loading credentials: %w", err)
+			return nil, errors.Errorf("Error loading credentials: %w", err)
 		}
 
 		if err := json.Unmarshal([]byte(contents), &account); err != nil {
-			return nil, fmt.Errorf("Error parsing credentials '%s': %w", contents, err)
+			return nil, errors.Errorf("Error parsing credentials '%s': %w", contents, err)
 		}
 
 		if err := json.Unmarshal([]byte(contents), &account); err != nil {
-			return nil, fmt.Errorf("Error parsing credentials '%s': %w", contents, err)
+			return nil, errors.Errorf("Error parsing credentials '%s': %w", contents, err)
 		}
 
 		conf := jwt.Config{
@@ -107,11 +114,20 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 	return client, nil
 }
 
-// If the bucket specified in the given config doesn't already exist, prompt the user to create it, and if the user
-// confirms, create the bucket and enable versioning for it.
-func (client *Client) createGCSBucketIfNecessary(ctx context.Context, bucketName string, opts *options.TerragruntOptions) error {
+// CreateGCSBucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
+// confirms, creates the bucket and enables versioning for it.
+func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, bucketName string, opts *options.TerragruntOptions) error {
 	if client.DoesGCSBucketExist(ctx, bucketName) {
 		return nil
+	}
+
+	// At this point, the bucket doesn't exist and we need both project and location
+	if client.Project == "" {
+		return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
+	}
+
+	if client.Location == "" {
+		return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
 	}
 
 	client.logger.Debugf("Remote state GCS bucket %s does not exist. Attempting to create it", bucketName)
@@ -149,8 +165,8 @@ func (client *Client) createGCSBucketIfNecessary(ctx context.Context, bucketName
 	return nil
 }
 
-// Check if versioning is enabled for the GCS bucket specified in the given config and warn the user if it is not
-func (client *Client) checkIfGCSVersioningEnabled(bucketName string) error {
+// CheckIfGCSVersioningEnabled checks if versioning is enabled for the GCS bucket specified in the given config and warn the user if it is not
+func (client *Client) CheckIfGCSVersioningEnabled(bucketName string) error {
 	ctx := context.Background()
 	bucket := client.Bucket(bucketName)
 
@@ -242,7 +258,7 @@ func (client *Client) CreateGCSBucket(ctx context.Context, bucketName string) er
 	}
 
 	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
-		return fmt.Errorf("error creating GCS bucket %s: %w", bucketName, err)
+		return errors.Errorf("error creating GCS bucket %s: %w", bucketName, err)
 	}
 
 	return nil
@@ -290,10 +306,89 @@ func (client *Client) DoesGCSBucketExist(ctx context.Context, bucketName string)
 	return true
 }
 
-// accountFile represents the structure of the Google account file JSON file.
-type accountFile struct {
-	PrivateKeyID string `json:"private_key_id"`
-	PrivateKey   string `json:"private_key"`
-	ClientEmail  string `json:"client_email"`
-	ClientID     string `json:"client_id"`
+func (client *Client) DeleteGCSBucketIfNecessary(ctx context.Context, bucketName string) error {
+	if !client.DoesGCSBucketExist(ctx, bucketName) {
+		return nil
+	}
+
+	description := fmt.Sprintf("Delete GCS bucket %s with retry", bucketName)
+
+	return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
+		if err := client.DeleteGCSObjects(ctx, bucketName, ""); err != nil {
+			return err
+		}
+
+		return client.DeleteGCSBucket(ctx, bucketName)
+	})
+}
+
+func (client *Client) DeleteGCSBucket(ctx context.Context, bucketName string) error {
+	bucket := client.Bucket(bucketName)
+
+	client.logger.Debugf("Deleting GCS bucket %s", bucketName)
+
+	if err := bucket.Delete(ctx); err != nil {
+		return errors.Errorf("error deleting GCS bucket %s: %w", bucketName, err)
+	}
+
+	client.logger.Debugf("Deleted GCS bucket %s", bucketName)
+
+	return client.WaitUntilGCSBucketDeleted(ctx, bucketName)
+}
+
+// WaitUntilGCSBucketDeleted waits for the GCS bucket specified in the given config to be deleted.
+func (client *Client) WaitUntilGCSBucketDeleted(ctx context.Context, bucketName string) error {
+	client.logger.Debugf("Waiting for bucket %s to be deleted", bucketName)
+
+	for retries := range maxRetriesWaitingForGcsBucket {
+		if !client.DoesGCSBucketExist(ctx, bucketName) {
+			client.logger.Debugf("GCS bucket %s deleted.", bucketName)
+			return nil
+		} else if retries < maxRetriesWaitingForGcsBucket-1 {
+			client.logger.Debugf("GCS bucket %s has not been deleted yet. Sleeping for %s and will check again.", bucketName, sleepBetweenRetriesWaitingForGcsBucket)
+			time.Sleep(sleepBetweenRetriesWaitingForGcsBucket)
+		}
+	}
+
+	return errors.New(MaxRetriesWaitingForGCSBucketExceeded(bucketName))
+}
+
+func (client *Client) DeleteGCSObjectIfNecessary(ctx context.Context, bucketName, prefix string) error {
+	if !client.DoesGCSBucketExist(ctx, bucketName) {
+		return nil
+	}
+
+	description := fmt.Sprintf("Delete GCS objects with prefix %s in bucket %s with retry", prefix, bucketName)
+
+	return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
+		return client.DeleteGCSObjects(ctx, bucketName, prefix)
+	})
+}
+
+func (client *Client) DeleteGCSObjects(ctx context.Context, bucketName, prefix string) error {
+	bucket := client.Bucket(bucketName)
+
+	it := bucket.Objects(ctx, &storage.Query{
+		Prefix:   prefix,
+		Versions: true,
+	})
+
+	for {
+		attrs, err := it.Next()
+		if err != nil {
+			if errors.Is(err, iterator.Done) {
+				break
+			}
+
+			return errors.Errorf("failed to get GCS object attrs: %w", err)
+		}
+
+		client.logger.Debugf("Deleting GCS object %s with generation %d in bucket %s", attrs.Name, attrs.Generation, bucketName)
+
+		if err := bucket.Object(attrs.Name).Generation(attrs.Generation).Delete(ctx); err != nil {
+			return errors.Errorf("failed to delete object %s with generation %d in bucket %s: %w", attrs.Name, attrs.Generation, bucketName, err)
+		}
+	}
+
+	return nil
 }

@@ -1,8 +1,6 @@
 package gcs
 
 import (
-	"context"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -35,7 +33,7 @@ type ExtendedRemoteStateConfigGCS struct {
 }
 
 // Validate validates the configuration for GCS remote state.
-func (cfg *ExtendedRemoteStateConfigGCS) Validate(ctx context.Context, client *Client) error {
+func (cfg *ExtendedRemoteStateConfigGCS) Validate() error {
 	var bucketName = cfg.RemoteStateConfigGCS.Bucket
 
 	// Bucket is always a required configuration parameter when not skipping bucket creation
@@ -43,25 +41,6 @@ func (cfg *ExtendedRemoteStateConfigGCS) Validate(ctx context.Context, client *C
 	// before we start validating the rest of the configuration.
 	if bucketName == "" {
 		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
-	}
-
-	// If both project and location are provided, the configuration is valid
-	if cfg.Project != "" && cfg.Location != "" {
-		return nil
-	}
-
-	// Check if the bucket exists
-	if exists := client.DoesGCSBucketExist(ctx, bucketName); exists {
-		return nil
-	}
-
-	// At this point, the bucket doesn't exist and we need both project and location
-	if cfg.Project == "" {
-		return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
-	}
-
-	if cfg.Location == "" {
-		return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
 	}
 
 	return nil

@@ -93,18 +93,18 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 		return err
 	}
 
-	if err := client.createS3BucketIfNecessary(ctx, bucketName, opts); err != nil {
+	if err := client.CreateS3BucketIfNecessary(ctx, bucketName, opts); err != nil {
 		return err
 	}
 
 	if !extS3Cfg.DisableBucketUpdate {
-		if err := client.updateS3BucketIfNecessary(ctx, bucketName, opts); err != nil {
+		if err := client.UpdateS3BucketIfNecessary(ctx, bucketName, opts); err != nil {
 			return err
 		}
 	}
 
 	if !extS3Cfg.SkipBucketVersioning {
-		if _, err := client.checkIfVersioningEnabled(ctx, bucketName); err != nil {
+		if _, err := client.CheckIfVersioningEnabled(ctx, bucketName); err != nil {
 			return err
 		}
 	}
@@ -150,7 +150,7 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 		}
 	}
 
-	return client.DeleteObjectIfNecessary(ctx, bucketName, bucketKey)
+	return client.DeleteS3ObjectIfNecessary(ctx, bucketName, bucketKey)
 }
 
 // DeleteBucket deletes the entire bucket specified in the given config.

@@ -70,3 +70,13 @@ func (cfg Config) ParseExtendedGCSConfig() (*ExtendedRemoteStateConfigGCS, error
 
 	return &extendedConfig, nil
 }
+
+// ExtendedGCSConfig parses the given map into an extended GCS config and validates this config.
+func (cfg Config) ExtendedGCSConfig() (*ExtendedRemoteStateConfigGCS, error) {
+	extGCSCfg, err := cfg.ParseExtendedGCSConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return extGCSCfg, extGCSCfg.Validate()
+}

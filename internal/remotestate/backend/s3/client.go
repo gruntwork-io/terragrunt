@@ -106,9 +106,9 @@ func NewClient(config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOpti
 	return client, nil
 }
 
-// If the bucket specified in the given config doesn't already exist, prompt the user to create it, and if the user
-// confirms, create the bucket and enable versioning for it.
-func (client *Client) createS3BucketIfNecessary(ctx context.Context, bucketName string, opts *options.TerragruntOptions) error {
+// CreateS3BucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
+// confirms, creates the bucket and enables versioning for it.
+func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, bucketName string, opts *options.TerragruntOptions) error {
 	cfg := &client.RemoteStateConfigS3
 
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, cfg.Bucket); err != nil || exists {
@@ -152,7 +152,7 @@ func (client *Client) createS3BucketIfNecessary(ctx context.Context, bucketName 
 	return nil
 }
 
-func (client *Client) updateS3BucketIfNecessary(ctx context.Context, bucketName string, opts *options.TerragruntOptions) error {
+func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, bucketName string, opts *options.TerragruntOptions) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, bucketName); err != nil {
 		return err
 	} else if !exists && opts.FailIfBucketCreationRequired {
@@ -313,7 +313,7 @@ func (client *Client) checkIfS3BucketNeedsUpdate(ctx context.Context, bucketName
 	)
 
 	if !client.SkipBucketVersioning {
-		enabled, err := client.checkIfVersioningEnabled(ctx, bucketName)
+		enabled, err := client.CheckIfVersioningEnabled(ctx, bucketName)
 		if err != nil {
 			return false, toUpdate, err
 		}
@@ -404,8 +404,8 @@ func (client *Client) checkIfS3BucketNeedsUpdate(ctx context.Context, bucketName
 	return false, toUpdate, nil
 }
 
-// Check if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
-func (client *Client) checkIfVersioningEnabled(ctx context.Context, bucketName string) (bool, error) {
+// CheckIfVersioningEnabled checks if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
+func (client *Client) CheckIfVersioningEnabled(ctx context.Context, bucketName string) (bool, error) {
 	client.logger.Debugf("Verifying AWS S3 Bucket Versioning %s", bucketName)
 
 	res, err := client.GetBucketVersioningWithContext(ctx, &s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)})
@@ -1388,7 +1388,7 @@ func (client *Client) WaitUntilS3BucketDeleted(ctx context.Context, bucketName s
 	return errors.New(MaxRetriesWaitingForS3BucketExceeded(bucketName))
 }
 
-func (client *Client) DeleteObjectIfNecessary(ctx context.Context, bucketName, key string) error {
+func (client *Client) DeleteS3ObjectIfNecessary(ctx context.Context, bucketName, key string) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, bucketName); err != nil || !exists {
 		return err
 	}
@@ -1397,7 +1397,7 @@ func (client *Client) DeleteObjectIfNecessary(ctx context.Context, bucketName, k
 		return err
 	}
 
-	description := fmt.Sprintf("Delete S3 bucket %s object %s with retry", bucketName, key)
+	description := fmt.Sprintf("Delete S3 object %s in bucket %s with retry", key, bucketName)
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
 		if err := client.DeleteS3BucketObject(ctx, bucketName, key, nil); err != nil {
