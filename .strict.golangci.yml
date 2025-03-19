@@ -53,6 +53,8 @@ linters-settings:
       - performance
     disabled-tags:
       - experimental
+  govet:
+    enable-all: true
 
 linters:
   enable:
