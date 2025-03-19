@@ -43,6 +43,10 @@ func Run(ctx context.Context, opts *Options) error {
 		}
 
 		cfgs = q.Entries()
+	default:
+		// This should never happen, because of validation in the command.
+		// If it happens, we want to throw so we can fix the validation.
+		return errors.New("invalid mode: " + opts.Mode)
 	}
 
 	foundCfgs, err := discoveredToFound(cfgs, opts)
