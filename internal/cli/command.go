@@ -91,7 +91,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	subCmd := cmd.Subcommand(subCmdName)
 
 	if ctx.shellComplete {
-		if cmd := ctx.Command.Subcommand(args.CommandName()); cmd == nil {
+		if subCommand := ctx.Command.Subcommand(args.CommandName()); subCommand == nil {
 			return ShowCompletions(ctx)
 		}
 
@@ -100,7 +100,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 		}
 	}
 
-	if err := cmd.Flags.RunActions(ctx); err != nil {
+	if err = cmd.Flags.RunActions(ctx); err != nil {
 		return ctx.App.handleExitCoder(ctx, err)
 	}
 
@@ -112,7 +112,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	}()
 
 	if cmd.Before != nil {
-		if err := cmd.Before(ctx); err != nil {
+		if err = cmd.Before(ctx); err != nil {
 			return ctx.App.handleExitCoder(ctx, err)
 		}
 	}
