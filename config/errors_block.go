@@ -55,54 +55,61 @@ func (c *ErrorsConfig) Clone() *ErrorsConfig {
 
 // Merge combines the current ErrorsConfig with another one, with the other config taking precedence
 func (c *ErrorsConfig) Merge(other *ErrorsConfig) {
-	if other == nil || c == nil {
+	if other == nil {
 		return
 	}
 
-	retryMap := make(map[string]*RetryBlock, len(c.Retry)+len(other.Retry))
-	ignoreMap := make(map[string]*IgnoreBlock, len(c.Ignore)+len(other.Ignore))
+	if c == nil {
+		*c = *other
+		return
+	}
 
-	// Populate retryMap with existing entries
+	retryMap := make(map[string]*RetryBlock)
 	for _, block := range c.Retry {
 		retryMap[block.Label] = block
+	}
+
+	ignoreMap := make(map[string]*IgnoreBlock)
+	for _, block := range c.Ignore {
+		ignoreMap[block.Label] = block
 	}
 
 	// Merge retry blocks
 	for _, otherBlock := range other.Retry {
 		if existing, exists := retryMap[otherBlock.Label]; exists {
 			existing.RetryableErrors = util.MergeStringSlices(existing.RetryableErrors, otherBlock.RetryableErrors)
+
 			if otherBlock.MaxAttempts > 0 {
 				existing.MaxAttempts = otherBlock.MaxAttempts
 			}
+
 			if otherBlock.SleepIntervalSec > 0 {
 				existing.SleepIntervalSec = otherBlock.SleepIntervalSec
 			}
 		} else {
+			// Add new block
 			retryMap[otherBlock.Label] = otherBlock
 		}
-	}
-
-	// Populate ignoreMap with existing entries
-	for _, block := range c.Ignore {
-		ignoreMap[block.Label] = block
 	}
 
 	// Merge ignore blocks
 	for _, otherBlock := range other.Ignore {
 		if existing, exists := ignoreMap[otherBlock.Label]; exists {
 			existing.IgnorableErrors = util.MergeStringSlices(existing.IgnorableErrors, otherBlock.IgnorableErrors)
+
 			if otherBlock.Message != "" {
 				existing.Message = otherBlock.Message
 			}
+
 			if otherBlock.Signals != nil {
 				if existing.Signals == nil {
-					existing.Signals = make(map[string]cty.Value, len(otherBlock.Signals))
+					existing.Signals = make(map[string]cty.Value)
 				}
-				for k, v := range otherBlock.Signals {
-					existing.Signals[k] = v
-				}
+
+				maps.Copy(existing.Signals, otherBlock.Signals)
 			}
 		} else {
+			// Add new block
 			ignoreMap[otherBlock.Label] = otherBlock
 		}
 	}
