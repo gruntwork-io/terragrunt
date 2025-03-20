@@ -343,7 +343,7 @@ Will create the following directory structure:
   ```bash
   terragrunt stack generate --parallelism 4
   ```
-- Automatic Discovery: The command automatically detects all `terragrunt.stack.hcl` files within the directory structure and processes them in parallel.
+- Automatic Discovery: The command automatically discovers all `terragrunt.stack.hcl` files within the directory structure and generates them in parallel.
 
 #### stack run
 
