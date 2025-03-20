@@ -22,14 +22,11 @@ const (
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	flags := graph.NewFlags(opts, CommandName, nil).Filter(graph.GraphRootFlagName)
-	flags = append(flags, run.NewFlags(opts, nil)...)
-
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
 		ErrorOnUndefinedFlag: true,
-		Flags:                flags.Sort(),
+		Flags:                run.NewFlags(opts, nil),
 		Subcommands:          subCommands(opts).SkipRunning(),
 		Action:               action(opts),
 	}

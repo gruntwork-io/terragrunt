@@ -59,7 +59,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       append(run.NewFlags(opts, nil), NewFlags(opts, prefix)...).Sort(),
+		Flags:       append(run.NewFlags(opts, nil), NewFlags(opts, prefix)...),
 		Action:      func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 

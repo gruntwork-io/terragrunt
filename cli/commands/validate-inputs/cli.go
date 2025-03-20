@@ -39,7 +39,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:   CommandName,
 		Usage:  "Checks if the terragrunt configured inputs align with the terraform defined variables.",
-		Flags:  append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
+		Flags:  append(run.NewFlags(opts, nil), NewFlags(opts, nil)...),
 		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 

@@ -12,20 +12,17 @@ import (
 )
 
 const (
-	GraphFlagName     = "graph"
-	GraphRootFlagName = "graph-root"
-
-	DeprecatedGraphRootFlagName = "graph-root"
+	GraphFlagName  = "graph"
+	GraphFlagAlias = "dag"
 )
 
 func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, commandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        GraphFlagName,
+			Aliases:     []string{GraphFlagAlias},
 			EnvVars:     tgPrefix.EnvVars(GraphFlagName),
 			Destination: &opts.Graph,
 			Usage:       "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
@@ -37,14 +34,6 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.
 				return nil
 			},
 		}),
-
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        GraphRootFlagName,
-			EnvVars:     tgPrefix.EnvVars(GraphRootFlagName),
-			Destination: &opts.GraphRoot,
-			Usage:       "Root directory from where to build graph dependencies.",
-		},
-			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedGraphRootFlagName), terragruntPrefixControl)),
 	}
 }
 

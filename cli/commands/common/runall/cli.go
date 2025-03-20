@@ -13,25 +13,20 @@ import (
 )
 
 const (
-	AllFlagName        = "all"
-	OutDirFlagName     = "out-dir"
-	JSONOutDirFlagName = "json-out-dir"
-
-	DeprecatedOutDirFlagName     = "out-dir"
-	DeprecatedJSONOutDirFlagName = "json-out-dir"
+	AllFlagName  = "all"
+	AllFlagAlias = "a"
 )
 
 func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, commandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        AllFlagName,
+			Aliases:     []string{AllFlagAlias},
 			EnvVars:     tgPrefix.EnvVars(AllFlagName),
 			Destination: &opts.RunAll,
-			Usage:       `Run the specified OpenTofu/Terraform command on the stack of units in the current directory.`,
+			Usage:       `Run the specified command on the stack of units in the current directory.`,
 			Action: func(_ *cli.Context, _ bool) error {
 				if opts.Graph {
 					return errors.New(new(common.AllGraphFlagsError))
@@ -40,22 +35,6 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.
 				return nil
 			},
 		}),
-
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        OutDirFlagName,
-			EnvVars:     tgPrefix.EnvVars(OutDirFlagName),
-			Destination: &opts.OutputFolder,
-			Usage:       "Directory to store plan files.",
-		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedOutDirFlagName), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        JSONOutDirFlagName,
-			EnvVars:     tgPrefix.EnvVars(JSONOutDirFlagName),
-			Destination: &opts.JSONOutputFolder,
-			Usage:       "Directory to store json plan files.",
-		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedJSONOutDirFlagName), terragruntPrefixControl)),
 	}
 }
 
