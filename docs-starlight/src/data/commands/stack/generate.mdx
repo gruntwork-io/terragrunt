@@ -16,7 +16,7 @@ examples:
       terragrunt stack generate
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { Aside, FileTree } from '@astrojs/starlight/components';
 
 ## Generating a stack
 
@@ -68,9 +68,12 @@ Generates the following stack:
 
 </FileTree>
 
-**Notes**:
-- Parallel Execution: Stack generation runs concurrently to improve performance. The number of parallel tasks is determined by the `GOMAXPROCS` environment variable and can be explicitly controlled using the `--parallelism` flag:
+<Aside type="note">
+Parallel Execution: Stack generation runs concurrently to improve performance. The number of parallel tasks is determined by the `GOMAXPROCS` environment variable and can be explicitly controlled using the `--parallelism` flag:
+
 ```bash
 terragrunt stack generate --parallelism 4
-  ```
-- Automatic Discovery: The command automatically detects all `terragrunt.stack.hcl` files within the directory structure and processes them in parallel.
+```
+
+Automatic Discovery: The command automatically detects all `terragrunt.stack.hcl` files within the directory structure and processes them in parallel.
+</Aside>
