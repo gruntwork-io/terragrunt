@@ -76,4 +76,6 @@ terragrunt stack generate --parallelism 4
 ```
 
 Automatic Discovery: The command automatically discovers all `terragrunt.stack.hcl` files within the directory structure and generates them in parallel.
+
+Path Restrictions: If an absolute path is provided as an argument, the command will throw an error. Only relative paths within the working directory are supported.
 </Aside>
