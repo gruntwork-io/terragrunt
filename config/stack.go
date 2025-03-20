@@ -64,7 +64,11 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 	// stop worker pool on exit
 	defer wp.Stop()
 	// initial files setting as stack file
-	foundFiles := []string{opts.TerragruntStackConfigPath}
+
+	foundFiles, err := listStackFiles(opts, opts.WorkingDir)
+	if err != nil {
+		return errors.Errorf("Failed to list stack files in %s %v", opts.WorkingDir, err)
+	}
 
 	for {
 		// check if we have already processed the files
