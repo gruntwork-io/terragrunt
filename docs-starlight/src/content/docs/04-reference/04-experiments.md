@@ -156,18 +156,22 @@ To transition `cli-redesign` features to a stable release, the following must be
 - [ ] Add support for the `render` command.
 - [ ] Add support for the `info` command.
 - [ ] Add support for the `dag` command.
-- [ ] Add support for the `find` command.
-  - [x] Add support for `find` without flags.
-  - [x] Add support for `find` with colorful output.
-  - [x] Add support for `find` with `--format=json` flag.
-  - [x] Add support for `find` with stdout redirection detection.
-  - [x] Add support for `find` with `--hidden` flag.
-  - [x] Add support for `find` with `--sort=alpha` flag.
-  - [x] Add support for `find` with `--sort=dag` flag.
-  - [ ] Add support for `find` with the `exclude` block used to exclude units from the search.
-  - [ ] Add integration with `symlinks` experiment to support finding units/stacks via symlinks.
-  - [ ] Add integration test for `find` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
+ith `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
 - [ ] Add support for the `list` command.
+  - [x] Add support for `list` without flags.
+  - [x] Add support for `list` with colorful output.
+  - [x] Add support for `list` with `--format=tree` flag.
+  - [x] Add support for `list` with `--format=long` flag.
+  - [x] Add support for `list` with stdout redirection detection.
+  - [x] Add support for `list` with `--hidden` flag.
+  - [x] Add support for `list` with `--sort=alpha` flag.
+  - [x] Add support for `list` with `--sort=dag` flag.
+  - [x] Add support for `list` with `--group-by=fs` flag.
+  - [x] Add support for `list` with `--group-by=dag` flag.
+  - [ ] Add support for `list` with the `exclude` block used to exclude units from the search.
+  - [ ] Add integration with `symlinks` experiment to support listing units/stacks via symlinks.
+  - [ ] Add handling of broken configurations or configurations requiring authentication.
+  - [ ] Add integration test for `list` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
 
 ### `cas`
 

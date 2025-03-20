@@ -98,7 +98,13 @@ func TestFindDAG(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --sort="+tt.sort+" --no-color --working-dir "+testFixtureFindDAG)
+			cmd := "terragrunt find --experiment cli-redesign --no-color --working-dir " + testFixtureFindDAG
+
+			if tt.sort == "dag" {
+				cmd += " --dag"
+			}
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)

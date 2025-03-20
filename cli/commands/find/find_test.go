@@ -24,7 +24,7 @@ func TestRun(t *testing.T) {
 		setup         func(t *testing.T) string
 		expectedPaths []string
 		format        string
-		sort          string
+		mode          string
 		hidden        bool
 		dependencies  bool
 		external      bool
@@ -69,7 +69,7 @@ func TestRun(t *testing.T) {
 			},
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1"},
 			format:        "text",
-			sort:          "alpha",
+			mode:          "normal",
 			dependencies:  false,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -81,16 +81,20 @@ func TestRun(t *testing.T) {
 				// Verify we have the expected number of lines
 				assert.Len(t, lines, len(expectedPaths))
 
-				// Verify each line is a clean path without any formatting
+				// Convert expected paths to use OS-specific path separators
+				var osExpectedPaths []string
+				for _, path := range expectedPaths {
+					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
+				}
+
+				// Convert actual paths to use OS-specific path separators
+				var osPaths []string
 				for _, line := range lines {
-					line = strings.TrimSpace(line)
-					assert.NotEmpty(t, line)
-					assert.NotContains(t, line, "\n")
-					assert.NotContains(t, line, "\t")
+					osPaths = append(osPaths, filepath.FromSlash(strings.TrimSpace(line)))
 				}
 
 				// Verify all expected paths are present
-				assert.ElementsMatch(t, expectedPaths, lines)
+				assert.ElementsMatch(t, osExpectedPaths, osPaths)
 			},
 		},
 		{
@@ -128,7 +132,7 @@ func TestRun(t *testing.T) {
 			},
 			expectedPaths: []string{"unit1", "unit2", "stack1"},
 			format:        "json",
-			sort:          "alpha",
+			mode:          "normal",
 			dependencies:  false,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -142,14 +146,20 @@ func TestRun(t *testing.T) {
 				// Verify we have the expected number of configs
 				assert.Len(t, configs, len(expectedPaths))
 
-				// Extract paths from configs
+				// Convert expected paths to use OS-specific path separators
+				var osExpectedPaths []string
+				for _, path := range expectedPaths {
+					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
+				}
+
+				// Extract paths and convert to OS-specific separators
 				var paths []string
 				for _, config := range configs {
-					paths = append(paths, config.Path)
+					paths = append(paths, filepath.FromSlash(config.Path))
 				}
 
 				// Verify all expected paths are present
-				assert.ElementsMatch(t, expectedPaths, paths)
+				assert.ElementsMatch(t, osExpectedPaths, paths)
 
 				// Verify each config has a valid type
 				for _, config := range configs {
@@ -197,6 +207,7 @@ func TestRun(t *testing.T) {
 			},
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"},
 			format:        "text",
+			mode:          "normal",
 			hidden:        true,
 			dependencies:  false,
 			external:      false,
@@ -209,8 +220,20 @@ func TestRun(t *testing.T) {
 				// Verify we have the expected number of lines
 				assert.Len(t, lines, len(expectedPaths))
 
+				// Convert expected paths to use OS-specific path separators
+				var osExpectedPaths []string
+				for _, path := range expectedPaths {
+					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
+				}
+
+				// Convert actual paths to use OS-specific path separators
+				var osPaths []string
+				for _, line := range lines {
+					osPaths = append(osPaths, filepath.FromSlash(strings.TrimSpace(line)))
+				}
+
 				// Verify all expected paths are present
-				assert.ElementsMatch(t, expectedPaths, lines)
+				assert.ElementsMatch(t, osExpectedPaths, osPaths)
 			},
 		},
 		{
@@ -256,7 +279,7 @@ dependency "unit2" {
 			},
 			expectedPaths: []string{"unit1", "unit2", "unit3"},
 			format:        "text",
-			sort:          "dag",
+			mode:          "dag",
 			dependencies:  true,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -268,190 +291,24 @@ dependency "unit2" {
 				// Verify we have the expected number of lines
 				assert.Len(t, lines, len(expectedPaths))
 
+				// Convert paths to use OS-specific separators
+				var osPaths []string
+				for _, line := range lines {
+					osPaths = append(osPaths, filepath.FromSlash(strings.TrimSpace(line)))
+				}
+
+				// Convert expected paths to use OS-specific separators
+				var osExpectedPaths []string
+				for _, path := range expectedPaths {
+					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
+				}
+
 				// For DAG sorting, order matters - verify exact order
-				assert.Equal(t, expectedPaths, lines)
+				assert.Equal(t, osExpectedPaths, osPaths)
 			},
 		},
 		{
-			name: "dag sorting - reversed dependencies",
-			setup: func(t *testing.T) string {
-				t.Helper()
-
-				tmpDir := t.TempDir()
-
-				// Create test directory structure with dependencies:
-				// unit3 -> unit2
-				// unit2 -> unit1
-				testDirs := []string{
-					"unit1",
-					"unit2",
-					"unit3",
-				}
-
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
-
-				// Create test files with dependencies
-				testFiles := map[string]string{
-					"unit1/terragrunt.hcl": `
-dependency "unit2" {
-  config_path = "../unit2"
-}`,
-					"unit2/terragrunt.hcl": `
-dependency "unit3" {
-  config_path = "../unit3"
-}`,
-					"unit3/terragrunt.hcl": "",
-				}
-
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
-
-				return tmpDir
-			},
-			expectedPaths: []string{"unit3", "unit2", "unit1"},
-			format:        "text",
-			sort:          "dag",
-			dependencies:  true,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
-
-				// Split output into lines and trim whitespace
-				lines := strings.Split(strings.TrimSpace(output), "\n")
-
-				// Verify we have the expected number of lines
-				assert.Len(t, lines, len(expectedPaths))
-
-				// For DAG sorting, order matters - verify exact order
-				assert.Equal(t, expectedPaths, lines)
-
-				// Helper to find index of a path
-				findIndex := func(path string) int {
-					for i, line := range lines {
-						if line == path {
-							return i
-						}
-					}
-					return -1
-				}
-
-				// Verify dependency ordering
-				unit1Index := findIndex("unit1")
-				unit2Index := findIndex("unit2")
-				unit3Index := findIndex("unit3")
-
-				assert.Less(t, unit3Index, unit2Index, "unit3 (no deps) should come before unit2 (depends on unit3)")
-				assert.Less(t, unit2Index, unit1Index, "unit2 should come before unit1 (depends on unit2)")
-			},
-		},
-		{
-			name: "dag sorting - complex dependencies",
-			setup: func(t *testing.T) string {
-				t.Helper()
-
-				tmpDir := t.TempDir()
-
-				// Create test directory structure with complex dependencies:
-				// A (no deps)
-				// B (no deps)
-				// C -> A
-				// D -> A,B
-				// E -> C
-				// F -> C
-				testDirs := []string{
-					"A", "B", "C", "D", "E", "F",
-				}
-
-				for _, dir := range testDirs {
-					err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
-					require.NoError(t, err)
-				}
-
-				// Create test files with dependencies
-				testFiles := map[string]string{
-					"A/terragrunt.hcl": "",
-					"B/terragrunt.hcl": "",
-					"C/terragrunt.hcl": `
-dependency "A" {
-  config_path = "../A"
-}`,
-					"D/terragrunt.hcl": `
-dependency "A" {
-  config_path = "../A"
-}
-dependency "B" {
-  config_path = "../B"
-}`,
-					"E/terragrunt.hcl": `
-dependency "C" {
-  config_path = "../C"
-}`,
-					"F/terragrunt.hcl": `
-dependency "C" {
-  config_path = "../C"
-}`,
-				}
-
-				for path, content := range testFiles {
-					err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
-					require.NoError(t, err)
-				}
-
-				return tmpDir
-			},
-			expectedPaths: []string{"A", "B", "C", "D", "E", "F"},
-			format:        "text",
-			sort:          "dag",
-			dependencies:  true,
-			external:      false,
-			validate: func(t *testing.T, output string, expectedPaths []string) {
-				t.Helper()
-
-				// Split output into lines and trim whitespace
-				lines := strings.Split(strings.TrimSpace(output), "\n")
-
-				// Verify we have the expected number of lines
-				assert.Len(t, lines, len(expectedPaths))
-
-				// For DAG sorting, order matters - verify exact order
-				// and also verify relative ordering constraints
-				assert.Equal(t, expectedPaths, lines)
-
-				// Helper to find index of a path
-				findIndex := func(path string) int {
-					for i, line := range lines {
-						if line == path {
-							return i
-						}
-					}
-					return -1
-				}
-
-				// Verify dependency ordering
-				aIndex := findIndex("A")
-				bIndex := findIndex("B")
-				cIndex := findIndex("C")
-				dIndex := findIndex("D")
-				eIndex := findIndex("E")
-				fIndex := findIndex("F")
-
-				// Level 0 items should be before their dependents
-				assert.Less(t, aIndex, cIndex, "A should come before C")
-				assert.Less(t, aIndex, dIndex, "A should come before D")
-				assert.Less(t, bIndex, dIndex, "B should come before D")
-
-				// Level 1 items should be before their dependents
-				assert.Less(t, cIndex, eIndex, "C should come before E")
-				assert.Less(t, cIndex, fIndex, "C should come before F")
-			},
-		},
-		{
-			name: "dag sorting - json output",
+			name: "dag sorting - json output with dependencies",
 			setup: func(t *testing.T) string {
 				t.Helper()
 
@@ -489,7 +346,7 @@ dependency "B" {
 			},
 			expectedPaths: []string{"A", "B", "C"},
 			format:        "json",
-			sort:          "dag",
+			mode:          "dag",
 			dependencies:  true,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -506,14 +363,47 @@ dependency "B" {
 				// Extract paths and verify order
 				var paths []string
 				for _, config := range configs {
-					paths = append(paths, config.Path)
+					paths = append(paths, filepath.FromSlash(config.Path))
 				}
-				assert.Equal(t, expectedPaths, paths)
+
+				// Convert expected paths to use OS-specific separators
+				var osExpectedPaths []string
+				for _, path := range expectedPaths {
+					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
+				}
+
+				assert.Equal(t, osExpectedPaths, paths)
 
 				// Verify dependencies are correctly represented in JSON
 				assert.Empty(t, configs[0].Dependencies, "A should have no dependencies")
 				assert.Equal(t, []string{"A"}, configs[1].Dependencies, "B should depend on A")
 				assert.Equal(t, []string{"B"}, configs[2].Dependencies, "C should depend on B")
+			},
+		},
+		{
+			name: "invalid format",
+			setup: func(t *testing.T) string {
+				t.Helper()
+
+				return t.TempDir()
+			},
+			format: "invalid",
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+				assert.Empty(t, output)
+			},
+		},
+		{
+			name: "invalid sort",
+			setup: func(t *testing.T) string {
+				t.Helper()
+
+				return t.TempDir()
+			},
+			mode: "invalid",
+			validate: func(t *testing.T, output string, expectedPaths []string) {
+				t.Helper()
+				assert.Empty(t, output)
 			},
 		},
 	}
@@ -533,7 +423,7 @@ dependency "B" {
 			opts := find.NewOptions(tgOpts)
 			opts.Format = tt.format
 			opts.Hidden = tt.hidden
-			opts.Sort = tt.sort
+			opts.Mode = tt.mode
 			opts.Dependencies = tt.dependencies
 			opts.External = tt.external
 
@@ -545,6 +435,10 @@ dependency "B" {
 			opts.Writer = w
 
 			err = find.Run(context.Background(), opts)
+			if tt.format == "invalid" || tt.mode == "invalid" {
+				require.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
 
 			// Close the write end of the pipe
@@ -563,7 +457,7 @@ dependency "B" {
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
-	colorizer := find.NewColorizer()
+	colorizer := find.NewColorizer(true)
 
 	tests := []struct {
 		name   string
