@@ -111,7 +111,8 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	_, err = config.EvaluateLocalsBlock(ctx, file)
 	require.Error(t, err)
 
-	multiError := err.(*errors.MultiError)
+	var multiError *errors.MultiError
+	require.True(t, errors.As(err, &multiError))
 
 	err = multiError.WrappedErrors()[0]
 
