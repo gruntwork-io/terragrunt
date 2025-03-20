@@ -11,10 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-const (
-	GraphFlagName  = "graph"
-	GraphFlagAlias = "dag"
-)
+const GraphFlagName = "graph"
 
 func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
@@ -22,7 +19,6 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.
 	return cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        GraphFlagName,
-			Aliases:     []string{GraphFlagAlias},
 			EnvVars:     tgPrefix.EnvVars(GraphFlagName),
 			Destination: &opts.Graph,
 			Usage:       "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",

@@ -405,6 +405,9 @@ type TerragruntOptions struct {
 	// StackOutputFormat format how the stack output is rendered.
 	StackOutputFormat string
 
+	// NoStackGenerate disable stack generation.
+	NoStackGenerate bool
+
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 

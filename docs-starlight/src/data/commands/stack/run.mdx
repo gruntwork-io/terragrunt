@@ -23,6 +23,8 @@ examples:
       Destroy all units.
     code: |
       terragrunt stack run destroy
+flags:
+  - no-stack-generate
 ---
 
 The `stack run *` command allows users to execute IaC commands across all units defined in a `terragrunt.stack.hcl` file.
