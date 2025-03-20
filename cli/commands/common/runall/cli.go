@@ -1,5 +1,6 @@
-// Package graph provides the `graph` feature for Terragrunt.
-package graph
+// Package runall provides the feature that runs a terraform command
+// against a 'stack' by running the specified command in each subfolder.
+package runall
 
 import (
 	"context"
@@ -12,46 +13,35 @@ import (
 )
 
 const (
-	GraphFlagName     = "graph"
-	GraphRootFlagName = "graph-root"
-
-	DeprecatedGraphRootFlagName = "graph-root"
+	AllFlagName  = "all"
+	AllFlagAlias = "a"
 )
 
 func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, commandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        GraphFlagName,
-			EnvVars:     tgPrefix.EnvVars(GraphFlagName),
-			Destination: &opts.Graph,
-			Usage:       "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
+			Name:        AllFlagName,
+			Aliases:     []string{AllFlagAlias},
+			EnvVars:     tgPrefix.EnvVars(AllFlagName),
+			Destination: &opts.RunAll,
+			Usage:       `Run the specified command on the stack of units in the current directory.`,
 			Action: func(_ *cli.Context, _ bool) error {
-				if opts.RunAll {
+				if opts.Graph {
 					return errors.New(new(common.AllGraphFlagsError))
 				}
 
 				return nil
 			},
 		}),
-
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        GraphRootFlagName,
-			EnvVars:     tgPrefix.EnvVars(GraphRootFlagName),
-			Destination: &opts.GraphRoot,
-			Usage:       "Root directory from where to build graph dependencies.",
-		},
-			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedGraphRootFlagName), terragruntPrefixControl)),
 	}
 }
 
 // WrapCommand appends flags to the given `cmd` and wraps its action.
 func WrapCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
 	cmd = cmd.WrapAction(func(cliCtx *cli.Context, action cli.ActionFunc) error {
-		if !opts.Graph {
+		if !opts.RunAll {
 			return action(cliCtx)
 		}
 

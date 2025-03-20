@@ -79,7 +79,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Recursively find hcl files and rewrite them into a canonical format.",
-		Flags:                NewFlags(opts, prefix).Sort(),
+		Flags:                NewFlags(opts, prefix),
 		ErrorOnUndefinedFlag: true,
 		Action:               func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}

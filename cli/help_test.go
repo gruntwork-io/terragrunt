@@ -53,6 +53,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 		Flags: cli.Flags{
 			&cli.BoolFlag{
 				Name:    "all",
+				Aliases: []string{"a"},
 				EnvVars: tgPrefix.EnvVars("all"),
 				Usage:   `Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory.`,
 			},
@@ -96,12 +97,12 @@ Commands:
    validate   Find all hcl files from the config stack and validate them.
 
 Options:
-   --all    Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory. [$TG_ALL]
-   --graph  Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies. [$TG_GRAPH]
+   --all, -a  Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory. [$TG_ALL]
+   --graph    Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies. [$TG_GRAPH]
 
 Global Options:
-   --working-dir value  The path to the directory of Terragrunt configurations. Default is current directory. [$TG_WORKING_DIR]
    --log-disable        Disable logging. [$TG_LOG_DISABLE]
+   --working-dir value  The path to the directory of Terragrunt configurations. Default is current directory. [$TG_WORKING_DIR]
 
 `
 

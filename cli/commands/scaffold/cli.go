@@ -84,7 +84,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:                 CommandName,
 		Usage:                "Scaffold a new Terragrunt module.",
 		ErrorOnUndefinedFlag: true,
-		Flags:                NewFlags(opts, nil).Sort(),
+		Flags:                NewFlags(opts, nil),
 		Action: func(ctx *cli.Context) error {
 			var moduleURL, templateURL string
 
