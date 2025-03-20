@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/hashicorp/go-getter/v2"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/util"
@@ -41,10 +42,11 @@ type StackConfigFile struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
-	Name   string     `hcl:",label"`
-	Source string     `hcl:"source,attr"`
-	Path   string     `hcl:"path,attr"`
-	Values *cty.Value `hcl:"values,attr"`
+	Name      string            `hcl:",label"`
+	Source    string            `hcl:"source,attr"`
+	Path      string            `hcl:"path,attr"`
+	Values    *cty.Value        `hcl:"values,attr"`
+	RawValues map[string]string // Store raw expressions for values
 }
 
 // Stack represents the stack block in the configuration.
@@ -53,6 +55,12 @@ type Stack struct {
 	Source string     `hcl:"source,attr"`
 	Path   string     `hcl:"path,attr"`
 	Values *cty.Value `hcl:"values,attr"`
+}
+
+// UnitReference represents a reference to another unit's output
+type UnitReference struct {
+	UnitName   string
+	OutputName string
 }
 
 // GenerateStacks generates the stack files.
@@ -189,7 +197,6 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
-// It logs the processing progress and returns any errors encountered during the operation.
 func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
@@ -206,7 +213,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
 
-			if err := processComponent(ctx, opts, &item); err != nil {
+			if err := processComponent(ctx, opts, &item, units); err != nil {
 				return err
 			}
 
@@ -218,8 +225,18 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 }
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
-// It logs each operation and returns early if any error is encountered.
 func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, stacks []*Stack) error {
+	// Convert stacks to units for dependency resolution
+	var units []*Unit
+	for _, stack := range stacks {
+		units = append(units, &Unit{
+			Name:   stack.Name,
+			Source: stack.Source,
+			Path:   stack.Path,
+			Values: stack.Values,
+		})
+	}
+
 	for _, stack := range stacks {
 		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 
@@ -235,7 +252,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 
 			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
 
-			if err := processComponent(ctx, opts, &item); err != nil {
+			if err := processComponent(ctx, opts, &item, units); err != nil {
 				return err
 			}
 
@@ -247,8 +264,6 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 }
 
 // componentToProcess represents an item of work for processing a stack or unit.
-// It contains information about the source and target directories, the name and path of the item, the source URL or path,
-// and any associated values that need to be processed.
 type componentToProcess struct {
 	sourceDir string
 	targetDir string
@@ -256,10 +271,10 @@ type componentToProcess struct {
 	path      string
 	source    string
 	values    *cty.Value
+	units     []*Unit // Add units field for dependency resolution
 }
 
-// processComponent copies files from the source directory to the target destination and generates a corresponding values file.
-func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp *componentToProcess) error {
+func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp *componentToProcess, allUnits []*Unit) error {
 	source := cmp.source
 	// Adjust source path using the provided source mapping configuration if available
 	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.TerragruntStackConfigPath)
@@ -281,7 +296,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	}
 
 	// generate values file
-	if err := writeValues(opts, cmp.values, dest); err != nil {
+	if err := writeValues(opts, cmp.name, cmp.values, dest, allUnits); err != nil {
 		return errors.Errorf("failed to write values %v %v", cmp.name, err)
 	}
 
@@ -371,20 +386,132 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions,
 	opts.Logger.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
 
 	parserCtx := NewParsingContext(ctx, opts)
-
-	jsonBytes, err := getOutputJSONWithCaching(parserCtx, configPath) //nolint: contextcheck
-
+	jsonBytes, err := getOutputJSONWithCaching(parserCtx, configPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
 	outputMap, err := TerraformOutputJSONToCtyValueMap(configPath, jsonBytes)
-
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
 	return outputMap, nil
+}
+
+// ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
+func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory string) (*cty.Value, error) {
+	if directory == "" {
+		return nil, errors.New("ReadValues: directory path cannot be empty")
+	}
+
+	filePath := filepath.Join(directory, valuesFile)
+
+	if util.FileNotExists(filePath) {
+		return nil, nil
+	}
+
+	opts.Logger.Debugf("Reading Terragrunt stack values file at %s", filePath)
+	parser := NewParsingContext(ctx, opts)
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
+
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	// First, decode any dependency blocks to get their outputs
+	dependencies := map[string]cty.Value{}
+	dependencyBlocks, err := file.Blocks("dependency", false)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	for _, depBlock := range dependencyBlocks {
+		depName := depBlock.Labels[0]
+		attrs, err := depBlock.JustAttributes()
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		var configPathAttr *hclparse.Attribute
+		for _, attr := range attrs {
+			if attr.Name == "config_path" {
+				configPathAttr = attr
+				break
+			}
+		}
+
+		if configPathAttr == nil {
+			return nil, errors.Errorf("dependency %s missing required attribute 'config_path'", depName)
+		}
+
+		configPathVal, err := configPathAttr.Value(nil)
+		if err != nil {
+			return nil, errors.Errorf("failed to evaluate config_path for dependency %s: %w", depName, err)
+		}
+
+		if !configPathVal.Type().Equals(cty.String) {
+			return nil, errors.Errorf("config_path for dependency %s must be a string", depName)
+		}
+
+		configPath := configPathVal.AsString()
+		fullConfigPath := filepath.Join(directory, configPath, DefaultTerragruntConfigPath)
+
+		// Get outputs from the dependency using the parser context
+		jsonBytes, err := getOutputJSONWithCaching(parser, fullConfigPath)
+		if err != nil {
+			return nil, errors.Errorf("failed to get outputs from dependency %s: %w", depName, err)
+		}
+
+		outputMap, err := TerraformOutputJSONToCtyValueMap(fullConfigPath, jsonBytes)
+		if err != nil {
+			return nil, errors.Errorf("failed to parse outputs from dependency %s: %w", depName, err)
+		}
+
+		dependencies[depName] = cty.ObjectVal(outputMap)
+	}
+
+	// Create evaluation context with dependencies
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"dependency": cty.ObjectVal(dependencies),
+		},
+	}
+
+	//nolint:contextcheck
+	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	// Merge the dependency context with the regular eval context
+	evalParsingContext.Variables["dependency"] = evalCtx.Variables["dependency"]
+
+	// Now decode the values block with the complete context
+	values := map[string]cty.Value{}
+	valuesBlocks, err := file.Blocks("values", false)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	if len(valuesBlocks) > 0 {
+		attrs, err := valuesBlocks[0].JustAttributes()
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		// Iterate over the attributes using the string name
+		for _, attr := range attrs {
+			val, err := attr.Value(evalParsingContext)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+			values[attr.Name] = val
+		}
+	}
+
+	result := cty.ObjectVal(values)
+	return &result, nil
 }
 
 // ReadStackConfigFile reads and parses a Terragrunt stack configuration file from the given path.
@@ -405,18 +532,83 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	}
 
 	//nolint:contextcheck
-	if err := processLocals(parser, opts, file); err != nil {
+	if err := processLocals(parser, opts, file, map[string]cty.Value{}); err != nil {
 		return nil, errors.New(err)
 	}
+
 	//nolint:contextcheck
 	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
+	// Create a special evaluation context that allows unknown values
+	evalParsingContext.Variables["unit"] = cty.DynamicVal
+
 	config := &StackConfigFile{}
 	if err := file.Decode(config, evalParsingContext); err != nil {
+		// Check if this is a value evaluation error, which we want to ignore
+		if diagErr, ok := err.(hcl.Diagnostics); ok {
+			// Filter out evaluation errors, which are expected for unit references
+			var filteredDiags hcl.Diagnostics
+			for _, diag := range diagErr {
+				if !strings.Contains(diag.Summary, "Invalid value for") &&
+					!strings.Contains(diag.Summary, "Missing value for") {
+					filteredDiags = append(filteredDiags, diag)
+				}
+			}
+			if len(filteredDiags) > 0 {
+				return nil, errors.New(filteredDiags)
+			}
+		} else {
+			return nil, errors.New(err)
+		}
+	}
+
+	// Extract raw expressions for unit values
+	unitBlocks, err := file.Blocks("unit", true)
+	if err != nil {
 		return nil, errors.New(err)
+	}
+
+	src := []byte(file.Content())
+	for _, unitBlock := range unitBlocks {
+		attrs, err := unitBlock.JustAttributes()
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		// Find the matching unit in config
+		var unit *Unit
+		for _, u := range config.Units {
+			if u.Name == unitBlock.Labels[0] {
+				unit = u
+				break
+			}
+		}
+
+		if unit != nil {
+			unit.RawValues = make(map[string]string)
+			for _, attr := range attrs {
+				if attr.Name == "values" {
+					// Get the raw expression from the attribute
+					if expr, ok := attr.Expr.(*hclsyntax.ObjectConsExpr); ok {
+						for _, item := range expr.Items {
+							keyVal, diags := item.KeyExpr.Value(nil)
+							if diags.HasErrors() {
+								return nil, errors.New(diags)
+							}
+							keyStr := keyVal.AsString()
+
+							valueRange := item.ValueExpr.Range()
+							valueStr := string(src[valueRange.Start.Byte:valueRange.End.Byte])
+							unit.RawValues[keyStr] = valueStr
+							opts.Logger.Debugf("Unit Block %s, %s: %s", unit.Name, keyStr, valueStr)
+						}
+					}
+				}
+			}
+		}
 	}
 
 	if err := ValidateStackConfig(config); err != nil {
@@ -426,8 +618,28 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	return config, nil
 }
 
+// calculateRelativePath calculates the relative path from one directory to another
+func calculateRelativePath(from, to string) (string, error) {
+	fromAbs, err := filepath.Abs(from)
+	if err != nil {
+		return "", err
+	}
+
+	toAbs, err := filepath.Abs(to)
+	if err != nil {
+		return "", err
+	}
+
+	relPath, err := filepath.Rel(fromAbs, toAbs)
+	if err != nil {
+		return "", err
+	}
+
+	return relPath, nil
+}
+
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
-func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory string) error {
+func writeValues(opts *options.TerragruntOptions, name string, values *cty.Value, directory string, units []*Unit) error {
 	if values == nil {
 		opts.Logger.Debugf("No values to write in %s", directory)
 		return nil
@@ -453,8 +665,83 @@ func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory s
 		},
 	})
 
+	// Track dependencies we need to add
+	dependencies := make(map[string]string)
+
+	// Create a values block
+	valuesBlock := body.AppendNewBlock("values", nil)
+	blockBody := valuesBlock.Body()
+
+	// Write each value into the block body, processing unit references
 	for key, val := range values.AsValueMap() {
-		body.SetAttributeValue(key, val)
+		opts.Logger.Debugf("Processing value for key %s: %s (Type: %s, Known: %v, Null: %v)",
+			key, val.GoString(), val.Type().FriendlyName(), val.IsKnown(), val.IsNull())
+
+		// First try to handle it as a unit reference expression
+		if val.Type().Equals(cty.DynamicPseudoType) {
+			// Find the referenced unit
+			var referencedUnit *Unit
+			for _, unit := range units {
+				if unit.Name == name {
+					referencedUnit = unit
+					break
+				}
+			}
+
+			if referencedUnit == nil {
+				return errors.Errorf("unit %s not found", key)
+			}
+
+			// Use the raw expression from RawValues if available
+			if rawExpr, ok := referencedUnit.RawValues[key]; ok {
+				rawExprList := strings.Split(rawExpr, ".")
+				if strings.HasPrefix(rawExpr, "unit") && len(rawExprList) == 3 {
+					expr := fmt.Sprintf("dependency.%s.outputs.%s", rawExprList[1], rawExprList[2])
+					tokens := hclwrite.Tokens{
+						{Type: hclsyntax.TokenIdent, Bytes: []byte(expr)},
+					}
+					blockBody.SetAttributeRaw(key, tokens)
+					opts.Logger.Debugf("Added unit reference for %s: %s", key, expr)
+
+					// Calculate relative path between units
+					var u *Unit
+					for _, unit := range units {
+						if unit.Name == rawExprList[1] {
+							u = unit
+							break
+						}
+					}
+					relPath, err := calculateRelativePath(directory, filepath.Join(filepath.Dir(directory), u.Path))
+					if err != nil {
+						return errors.Errorf("failed to calculate relative path: %w", err)
+					}
+					dependencies[rawExprList[1]] = relPath
+				} else {
+					tokens := hclwrite.Tokens{
+						{Type: hclsyntax.TokenIdent, Bytes: []byte(rawExpr)},
+					}
+					blockBody.SetAttributeRaw(key, tokens)
+					opts.Logger.Debugf("Added unit reference for %s using raw expression: %s", key, rawExpr)
+				}
+				continue
+			}
+			// panic?
+			continue
+		}
+
+		// For known values that aren't unit references, write them directly
+		if val.IsKnown() && !val.IsNull() {
+			blockBody.SetAttributeValue(key, val)
+			opts.Logger.Debugf("Added direct value for %s", key)
+		}
+	}
+
+	// Add dependency blocks for each referenced unit
+	for depName, configPath := range dependencies {
+		depBlock := body.AppendNewBlock("dependency", []string{depName})
+		depBody := depBlock.Body()
+		depBody.SetAttributeValue("config_path", cty.StringVal(configPath))
+		opts.Logger.Debugf("Added dependency block for unit %s with path %s", depName, configPath)
 	}
 
 	if err := os.WriteFile(filePath, file.Bytes(), valueFilePerm); err != nil {
@@ -464,45 +751,8 @@ func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory s
 	return nil
 }
 
-// ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
-func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory string) (*cty.Value, error) {
-	if directory == "" {
-		return nil, errors.New("ReadValues: directory path cannot be empty")
-	}
-
-	filePath := filepath.Join(directory, valuesFile)
-
-	if util.FileNotExists(filePath) {
-		return nil, nil
-	}
-
-	opts.Logger.Debugf("Reading Terragrunt stack values file at %s", filePath)
-	parser := NewParsingContext(ctx, opts)
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
-
-	if err != nil {
-		return nil, errors.New(err)
-	}
-	//nolint:contextcheck
-	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
-
-	if err != nil {
-		return nil, errors.New(err)
-	}
-
-	values := map[string]cty.Value{}
-
-	if err := file.Decode(&values, evalParsingContext); err != nil {
-		return nil, errors.New(err)
-	}
-
-	result := cty.ObjectVal(values)
-
-	return &result, nil
-}
-
 // processLocals processes the locals block in the stack file.
-func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
+func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File, _ map[string]cty.Value) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 
 	if err != nil {

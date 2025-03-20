@@ -77,7 +77,10 @@ func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) {
 	catalogSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
-			{Type: name},
+			{
+				Type:       name,
+				LabelNames: []string{"name"},
+			},
 		},
 	}
 	// We use PartialContent here, because we are only interested in parsing out the catalog block.
@@ -98,13 +101,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	}
 
 	if len(extractedBlocks) > 1 && !isMultipleAllowed {
-		return nil, errors.New(
-			&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  fmt.Sprintf("Multiple %s block", name),
-				Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
-			},
-		)
+		return nil, errors.New(fmt.Sprintf(multipleBlockDetailFmt, name))
 	}
 
 	return extractedBlocks, nil
