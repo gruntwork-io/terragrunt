@@ -15,8 +15,12 @@ const (
 	CommandAlias = "fd"
 
 	FormatFlagName = "format"
-	JSONFlagName   = "json"
-	SortFlagName   = "sort"
+
+	JSONFlagName  = "json"
+	JSONFlagAlias = "j"
+
+	DAGFlagName = "dag"
+
 	HiddenFlagName = "hidden"
 	Dependencies   = "dependencies"
 	External       = "external"
@@ -30,21 +34,21 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
 			Destination: &opts.Format,
-			Usage:       "Output format for the find results. Valid values: text, json.",
+			Usage:       "Output format for find results. Valid values: text, json.",
 			DefaultText: FormatText,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
 			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
+			Aliases:     []string{JSONFlagAlias},
 			Destination: &opts.JSON,
 			Usage:       "Output in JSON format (equivalent to --format=json).",
 		}),
-		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        SortFlagName,
-			EnvVars:     tgPrefix.EnvVars(SortFlagName),
-			Destination: &opts.Sort,
-			Usage:       "Sort order for the find results. Valid values: alpha, dag.",
-			DefaultText: SortAlpha,
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        DAGFlagName,
+			EnvVars:     tgPrefix.EnvVars(DAGFlagName),
+			Destination: &opts.DAG,
+			Usage:       "Use DAG mode to sort and group output.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        HiddenFlagName,
@@ -56,13 +60,13 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        Dependencies,
 			EnvVars:     tgPrefix.EnvVars(Dependencies),
 			Destination: &opts.Dependencies,
-			Usage:       "Include dependencies in the results.",
+			Usage:       "Include dependencies in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        External,
 			EnvVars:     tgPrefix.EnvVars(External),
 			Destination: &opts.External,
-			Usage:       "Discover external dependencies from initial results.",
+			Usage:       "Discover external dependencies from initial results, and add them to top-level results.",
 		}),
 	}
 }
@@ -83,6 +87,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			if cmdOpts.JSON {
 				cmdOpts.Format = FormatJSON
+			}
+
+			if cmdOpts.DAG {
+				cmdOpts.Mode = ModeDAG
 			}
 
 			if err := cmdOpts.Validate(); err != nil {

@@ -1,0 +1,87 @@
+---
+name: dag
+description: |
+  Output in DAG mode.
+type: boolean
+env:
+  - TG_DAG
+---
+
+Outputs configurations in DAG mode, which sorts configurations by dependency order and groups them by relationship in the dependency graph.
+
+Examples:
+
+By default, configurations are sorted alphabetically:
+
+```bash
+$ terragrunt list
+live/dev/db    live/dev/ec2   live/dev/vpc
+live/prod/db   live/prod/ec2  live/prod/vpc
+```
+
+When the `--dag` flag is used, configurations are sorted by dependency order (dependencies before their dependents):
+
+```bash
+$ terragrunt list --dag
+live/dev/vpc   live/prod/vpc  live/dev/db
+live/prod/db   live/dev/ec2   live/prod/ec2
+```
+
+When not used in the long format:
+
+```bash
+$ terragrunt list -l --dependencies
+Type  Path           Dependencies
+unit  live/dev/db    live/dev/vpc
+unit  live/dev/ec2   live/dev/db, live/dev/vpc
+unit  live/dev/vpc
+unit  live/prod/db   live/prod/vpc
+unit  live/prod/ec2  live/prod/db, live/prod/vpc
+unit  live/prod/vpc
+```
+
+Results are sorted by name.
+
+When combined with the long format:
+
+```bash
+$ terragrunt list -l --dependencies --dag
+Type  Path           Dependencies
+unit  live/dev/vpc
+unit  live/prod/vpc
+unit  live/dev/db    live/dev/vpc
+unit  live/prod/db   live/prod/vpc
+unit  live/dev/ec2   live/dev/db, live/dev/vpc
+unit  live/prod/ec2  live/prod/db, live/prod/vpc
+```
+
+When not used in the tree format:
+
+```bash
+$ terragrunt list -T
+.
+╰── live
+    ├── dev
+    │   ├── db
+    │   ├── ec2
+    │   ╰── vpc
+    ╰── prod
+        ├── db
+        ├── ec2
+        ╰── vpc
+```
+
+When combined with the tree format:
+
+```bash
+$ terragrunt list -T --dag
+.
+├── live/dev/vpc
+│   ├── live/dev/db
+│   │   ╰── live/dev/ec2
+│   ╰── live/dev/ec2
+╰── live/prod/vpc
+    ├── live/prod/db
+    │   ╰── live/prod/ec2
+    ╰── live/prod/ec2
+```
