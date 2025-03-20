@@ -187,26 +187,28 @@ var outputLocks = sync.Map{}
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Value, error) {
+	var val cty.Value
+
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
-		return nil, err
+		return &val, err
 	}
 
 	decodedDependency := TerragruntDependency{}
 	if err := file.Decode(&decodedDependency, evalParsingContext); err != nil {
-		return nil, err
+		return &val, err
 	}
 
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
 	if err := checkForDependencyBlockCycles(ctx, file.ConfigPath, decodedDependency); err != nil {
-		return nil, err
+		return &val, err
 	}
 
 	updatedDependencies, err := decodeDependencies(ctx, decodedDependency)
 	if err != nil {
-		return nil, err
+		return &val, err
 	}
 
 	decodedDependency = *updatedDependencies
@@ -215,7 +217,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	if ctx.TrackInclude != nil {
 		mergedDecodedDependency, err := handleIncludeForDependency(ctx, decodedDependency)
 		if err != nil {
-			return nil, err
+			return &val, err
 		}
 
 		decodedDependency = *mergedDecodedDependency
@@ -394,6 +396,8 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, configPath str
 //
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
 func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Dependency) (*cty.Value, error) {
+	var val cty.Value
+
 	paths := []string{}
 
 	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
@@ -447,7 +451,7 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 	}
 
 	if err := dependencyErrGroup.Wait(); err != nil {
-		return nil, err
+		return &val, err
 	}
 
 	// We need to convert the value map to a single cty.Value at the end so that it can be used in the execution ctx
@@ -465,6 +469,8 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 //     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
 //   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
 func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, dependencyConfig Dependency) (*cty.Value, error) {
+	var val cty.Value
+
 	if dependencyConfig.isDisabled() {
 		ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dependencyConfig.Name)
 		return dependencyConfig.MockOutputs, nil
@@ -473,7 +479,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 	if dependencyConfig.shouldGetOutputs(ctx) {
 		outputVal, isEmpty, err := getTerragruntOutput(ctx, dependencyConfig)
 		if err != nil {
-			return nil, err
+			return &val, err
 		}
 
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(ctx) && dependencyConfig.MockOutputs != nil {
@@ -519,7 +525,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 		currentConfig: ctx.TerragruntOptions.TerragruntConfigPath,
 	}
 
-	return nil, err
+	return &val, err
 }
 
 // We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
