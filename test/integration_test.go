@@ -3836,7 +3836,7 @@ func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 		{"run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test --terragrunt-json-out-dir json"},
 		{"run --all plan --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
 		{"run plan --all --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
-		{"run plan --a --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
+		{"run plan -a --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
 		{"run --all --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json -- plan"},
 	}
 
