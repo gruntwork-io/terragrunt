@@ -800,7 +800,9 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
-			errs = errs.Append(errors.Errorf("failed to get file info: %w", err))
+			// We refuse to continue if we can't actually
+			// read the file.
+			return errors.Errorf("failed to get file info: %w", err)
 		}
 
 		var (

@@ -277,7 +277,9 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		errs = append(errs, err)
+		// We refuse to continue if we can't actually
+		// read the file.
+		return &TerragruntConfig{}, errors.New(err)
 	}
 
 	var (
