@@ -331,7 +331,7 @@ terragrunt stack generate
 Will create the following directory structure:
 
 ```tree
-.stack/
+.terragrunt-stack/
 ├── app1/
 │   └── terragrunt.hcl
 └── app2/
