@@ -1050,7 +1050,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
 		if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
-			return nil, err
+			return &terragruntConfig, err
 		}
 
 		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
@@ -1059,7 +1059,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	if terragruntConfig.Inputs != nil {
 		inputs, err := UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
 		if err != nil {
-			return nil, err
+			return &terragruntConfig, err
 		}
 
 		terragruntConfig.Inputs = &inputs
