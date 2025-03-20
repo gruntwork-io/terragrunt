@@ -269,11 +269,13 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		return errors.Errorf("failed to adjust source %s: %v", cmp.source, err)
 	}
 
-	dest := cmp.path
-	// if destination is not an absolute path, join with target directory
-	if !filepath.IsAbs(cmp.path) {
-		dest = filepath.Join(cmp.targetDir, cmp.path)
+	if filepath.IsAbs(cmp.path) {
+		return errors.Errorf("path %s must be relative", cmp.path)
 	}
+
+	// building destination path based on target directory
+	dest := cmp.path
+	dest = filepath.Join(cmp.targetDir, cmp.path)
 
 	if cmp.noStack {
 		// for noStack components, we copy the files to the base directory of the target directory
