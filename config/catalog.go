@@ -49,10 +49,10 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 
 	// transform relative paths to absolute ones
 	for i, url := range cfg.URLs {
-		url := filepath.Join(configDir, url)
+		absURL := filepath.Join(configDir, url)
 
-		if files.FileExists(url) {
-			cfg.URLs[i] = url
+		if files.FileExists(absURL) {
+			cfg.URLs[i] = absURL
 		}
 	}
 }
@@ -65,7 +65,7 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 // as some `terragrunt.hcl` files are meant to be used from an `include` and/or they might use
 // `find_in_parent_folders` and they only work from certain child folders, it parses this file to see if the
 // config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration.
-// If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
+// If it finds `terragrunt.hcl` that already has `include`, then read the config as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
 // Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
 func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOptions) (*CatalogConfig, error) {

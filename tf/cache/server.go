@@ -104,10 +104,10 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		<-ctx.Done()
 		server.logger.Infof("Shutting down Terragrunt Cache server...")
 
-		ctx, cancel := context.WithTimeout(ctx, server.shutdownTimeout)
+		shutdownCtx, cancel := context.WithTimeout(ctx, server.shutdownTimeout)
 		defer cancel()
 
-		if err := server.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			return errors.New(err)
 		}
 

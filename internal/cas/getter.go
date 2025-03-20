@@ -15,10 +15,10 @@ var _ getter.Getter = &CASGetter{}
 
 // CASGetter is a go-getter Getter implementation.
 type CASGetter struct {
-	Detectors []getter.Detector
 	CAS       *CAS
 	Logger    *log.Logger
 	Opts      *CloneOptions
+	Detectors []getter.Detector
 }
 
 func NewCASGetter(l *log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {

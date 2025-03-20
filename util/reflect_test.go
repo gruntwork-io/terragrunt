@@ -46,8 +46,8 @@ func TestMustWalkTerraformOutput(t *testing.T) {
 
 	tc := []struct {
 		value    any
-		path     []string
 		expected any
+		path     []string
 	}{
 		{
 			value: map[string]map[string]string{

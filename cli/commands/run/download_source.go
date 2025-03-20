@@ -42,8 +42,8 @@ func downloadTerraformSource(ctx context.Context, source string, opts *options.T
 		return nil, err
 	}
 
-	if err := DownloadTerraformSourceIfNecessary(ctx, terraformSource, opts, terragruntConfig); err != nil {
-		return nil, err
+	if downloadErr := DownloadTerraformSourceIfNecessary(ctx, terraformSource, opts, terragruntConfig); downloadErr != nil {
+		return nil, downloadErr
 	}
 
 	opts.Logger.Debugf("Copying files from %s into %s", opts.WorkingDir, terraformSource.WorkingDir)
@@ -100,7 +100,8 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *tf
 	}
 
 	if alreadyLatest {
-		if err := ValidateWorkingDir(terraformSource); err != nil {
+		err = ValidateWorkingDir(terraformSource)
+		if err != nil {
 			return err
 		}
 
@@ -136,12 +137,12 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *tf
 		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
 
-	if err := terraformSource.WriteVersionFile(); err != nil {
-		return err
+	if writeErr := terraformSource.WriteVersionFile(); writeErr != nil {
+		return writeErr
 	}
 
-	if err := ValidateWorkingDir(terraformSource); err != nil {
-		return err
+	if validateErr := ValidateWorkingDir(terraformSource); validateErr != nil {
+		return validateErr
 	}
 
 	currentVersion, err := terraformSource.EncodeSourceVersion()

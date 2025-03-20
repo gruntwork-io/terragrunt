@@ -6,8 +6,8 @@ import (
 )
 
 type PanicWhileParsingConfigError struct {
-	ConfigFile     string
 	RecoveredValue any
+	ConfigFile     string
 }
 
 func (err PanicWhileParsingConfigError) Error() string {

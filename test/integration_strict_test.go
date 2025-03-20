@@ -18,11 +18,11 @@ func TestStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureEmptyState)
 
 	tc := []struct {
+		expectedError  error
 		name           string
+		expectedStderr string
 		controls       []string
 		strictMode     bool
-		expectedStderr string
-		expectedError  error
 	}{
 		{
 			name:           "plan-all",
@@ -83,11 +83,11 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureFindParentWithDeprecatedRoot)
 
 	tc := []struct {
+		expectedError  error
 		name           string
+		expectedStderr string
 		controls       []string
 		strictMode     bool
-		expectedStderr string
-		expectedError  error
 	}{
 		{
 			name:           "root terragrunt.hcl",

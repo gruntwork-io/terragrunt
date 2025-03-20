@@ -250,8 +250,8 @@ func TestHCLFmtFile(t *testing.T) {
 		t.Run(tgOptions.HclFile, func(t *testing.T) {
 			t.Parallel()
 			tgHclPath := filepath.Join(tmpPath, tgOptions.HclFile)
-			formatted, err := os.ReadFile(tgHclPath)
-			require.NoError(t, err)
+			formatted, readErr := os.ReadFile(tgHclPath)
+			require.NoError(t, readErr)
 			assert.Equal(t, expected, formatted)
 		})
 	})

@@ -620,13 +620,13 @@ func TestTerragruntProviderCache(t *testing.T) {
 				var (
 					actualProviderSymlinks   int
 					expectedProviderSymlinks = 1
-					provider                 = path.Join(registryName, provider)
+					providerPath             = path.Join(registryName, provider)
 				)
 
-				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(providerPath)})
 				assert.NotNil(t, providerBlock)
 
-				providerPath := filepath.Join(appPath, ".terraform/providers", provider)
+				providerPath = filepath.Join(appPath, ".terraform/providers", providerPath)
 				assert.True(t, util.FileExists(providerPath))
 
 				entries, err := os.ReadDir(providerPath)
@@ -641,7 +641,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 					actualPath, err := os.Readlink(symlinkPath)
 					require.NoError(t, err)
 
-					expectedPath := filepath.Join(providerCacheDir, provider, entry.Name())
+					expectedPath := filepath.Join(providerCacheDir, providerPath, entry.Name())
 					assert.Contains(t, actualPath, expectedPath)
 				}
 				assert.Equal(t, expectedProviderSymlinks, actualProviderSymlinks)

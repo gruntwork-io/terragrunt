@@ -21,58 +21,23 @@ import (
 // `--terragrunt-non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
 // ctx.Args().Slice()
 type App struct {
+	AutocompleteInstaller AutocompleteInstaller
+	FlagErrHandler        FlagErrHandlerFunc
+	ExitErrHandler        ExitErrHandlerFunc
 	*cli.App
-	// Examples is list of examples of using the App in the help.
-	Examples []string
-	// List of commands to execute
-	Commands Commands
-	// List of flags to parse
-	Flags Flags
-	// CustomAppVersionTemplate text template for app version topic.
-	CustomAppVersionTemplate string
-	// Contributor
-	Author string
-	// The function to call when checking for command completions
-	Complete CompleteFunc
-	// An action to execute before any subcommands are run, but after the context is ready
-	// If a non-nil error is returned, no subcommands are run
-	Before ActionFunc
-	// An action to execute after any subcommands are run, but after the subcommand has finished
-	After ActionFunc
-	// The action to execute when no subcommands are specified
-	Action ActionFunc
-	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
-	OsExiter func(code int)
-
-	// ExitErrHandler processes any error encountered while running an App before
-	// it is returned to the caller. If no function is provided, HandleExitCoder
-	// is used as the default behavior.
-	ExitErrHandler ExitErrHandlerFunc
-
-	// FlagErrHandler processes any error encountered while parsing flags.
-	FlagErrHandler FlagErrHandlerFunc
-
-	// Autocomplete enables or disables subcommand auto-completion support.
-	// This is enabled by default when NewApp is called. Otherwise, this
-	// must enabled explicitly.
-	//
-	// Autocomplete requires the "Name" option to be set on CLI. This name
-	// should be set exactly to the binary name that is autocompleted.
-	Autocomplete bool
-
-	// AutocompleteInstallFlag and AutocompleteUninstallFlag are the global flag
-	// names for installing and uninstalling the autocompletion handlers
-	// for the user's shell. The flag should omit the hyphen(s) in front of
-	// the value. Both single and double hyphens will automatically be supported
-	// for the flag name. These default to `autocomplete-install` and
-	// `autocomplete-uninstall` respectively.
+	Before                    ActionFunc
+	After                     ActionFunc
+	Complete                  CompleteFunc
+	Action                    ActionFunc
+	OsExiter                  func(code int)
+	Author                    string
+	CustomAppVersionTemplate  string
 	AutocompleteInstallFlag   string
 	AutocompleteUninstallFlag string
-
-	// Autocompletion is supported via the github.com/posener/complete
-	// library. This library supports bash, zsh and fish. To add support
-	// for other shells, please see that library.
-	AutocompleteInstaller AutocompleteInstaller
+	Commands                  Commands
+	Flags                     Flags
+	Examples                  []string
+	Autocomplete              bool
 }
 
 // NewApp returns app new App instance.

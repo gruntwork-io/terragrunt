@@ -18,26 +18,15 @@ type GenericType interface {
 
 type GenericFlag[T GenericType] struct {
 	flag
-
-	// The name of the flag.
-	Name string
-	// The default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
-	DefaultText string
-	// A short usage description to display in help.
-	Usage string
-	// Aliases are usually used for the short flag name, like `-h`.
-	Aliases []string
-	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
-	EnvVars []string
-	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
-	Action FlagActionFunc[T]
-	// Setter allows to set a value to any type by calling its `func(bool) error` function.
-	Setter FlagSetterFunc[T]
-	// Destination is a pointer to which the value of the flag or env var is assigned.
-	// It also uses as the default value displayed in the help.
+	Action      FlagActionFunc[T]
+	Setter      FlagSetterFunc[T]
 	Destination *T
-	// Hidden hides the flag from the help, if set to true.
-	Hidden bool
+	Name        string
+	DefaultText string
+	Usage       string
+	Aliases     []string
+	EnvVars     []string
+	Hidden      bool
 }
 
 // Apply applies Flag settings to the given flag set.

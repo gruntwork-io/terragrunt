@@ -18,19 +18,18 @@ func TestMatchesAny(t *testing.T) {
 	}
 
 	tc := []struct {
-		list     []string
 		element  string
+		list     []string
 		expected bool
 	}{
-		{nil, "", false},
-		{[]string{}, "", false},
-		{[]string{}, "foo", false},
-		{[]string{"foo"}, "kafoot", true},
-		{[]string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, "Failed to load backend: Error...:...  TLS handshake timeout", true},
-		{[]string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, "Failed to load backend: Error...:...  TLxS handshake timeout", false},
-		{[]string{"(?s).*Failed to load state.*dial tcp.*timeout.*"}, realWorldErrorMessages[0], true},
-		{[]string{"(?s).*Creating metric alarm failed.*request to update this alarm is in progress.*"}, realWorldErrorMessages[1], true},
-		{[]string{"(?s).*Error configuring the backend.*TLS handshake timeout.*"}, realWorldErrorMessages[2], true},
+		{list: nil, element: "", expected: false},
+		{list: []string{}, element: "", expected: false},
+		{list: []string{"foo"}, element: "kafoot", expected: true},
+		{list: []string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, element: "Failed to load backend: Error...:...  TLS handshake timeout", expected: true},
+		{list: []string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, element: "Failed to load backend: Error...:...  TLxS handshake timeout", expected: false},
+		{list: []string{"(?s).*Failed to load state.*dial tcp.*timeout.*"}, element: realWorldErrorMessages[0], expected: true},
+		{list: []string{"(?s).*Creating metric alarm failed.*request to update this alarm is in progress.*"}, element: realWorldErrorMessages[1], expected: true},
+		{list: []string{"(?s).*Error configuring the backend.*TLS handshake timeout.*"}, element: realWorldErrorMessages[2], expected: true},
 	}
 
 	for i, tt := range tc {
@@ -49,16 +48,15 @@ func TestListContainsElement(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		list     []string
 		element  string
+		list     []string
 		expected bool
 	}{
-		{[]string{}, "", false},
-		{[]string{}, "foo", false},
-		{[]string{"foo"}, "foo", true},
-		{[]string{"bar", "foo", "baz"}, "foo", true},
-		{[]string{"bar", "foo", "baz"}, "nope", false},
-		{[]string{"bar", "foo", "baz"}, "", false},
+		{list: []string{}, element: "", expected: false},
+		{list: []string{"foo"}, element: "foo", expected: true},
+		{list: []string{"bar", "foo", "baz"}, element: "foo", expected: true},
+		{list: []string{"bar", "foo", "baz"}, element: "nope", expected: false},
+		{list: []string{"bar", "foo", "baz"}, element: "", expected: false},
 	}
 
 	for i, tt := range tc {
@@ -245,12 +243,12 @@ func TestCommaSeparatedStrings(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		list     []string
 		expected string
+		list     []string
 	}{
-		{[]string{}, ``},
-		{[]string{"foo"}, `"foo"`},
-		{[]string{"foo", "bar"}, `"foo", "bar"`},
+		{list: []string{}, expected: ``},
+		{list: []string{"foo"}, expected: `"foo"`},
+		{list: []string{"foo", "bar"}, expected: `"foo", "bar"`},
 	}
 
 	for i, tt := range tc {
@@ -269,15 +267,15 @@ func TestStringListInsert(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		list     []string
 		element  string
-		index    int
+		list     []string
 		expected []string
+		index    int
 	}{
-		{[]string{}, "foo", 0, []string{"foo"}},
-		{[]string{"a", "c", "d"}, "b", 1, []string{"a", "b", "c", "d"}},
-		{[]string{"b", "c", "d"}, "a", 0, []string{"a", "b", "c", "d"}},
-		{[]string{"a", "b", "d"}, "c", 2, []string{"a", "b", "c", "d"}},
+		{list: []string{}, element: "foo", index: 0, expected: []string{"foo"}},
+		{list: []string{"a", "c", "d"}, element: "b", index: 1, expected: []string{"a", "b", "c", "d"}},
+		{list: []string{"b", "c", "d"}, element: "a", index: 0, expected: []string{"a", "b", "c", "d"}},
+		{list: []string{"a", "b", "d"}, element: "c", index: 2, expected: []string{"a", "b", "c", "d"}},
 	}
 
 	for i, tt := range tc {

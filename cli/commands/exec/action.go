@@ -27,9 +27,9 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, cmdOpts *Options,
 func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {
 	return func(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 		var (
-			command = args.CommandName()
-			args    = args.Tail()
-			dir     = opts.WorkingDir
+			command  = args.CommandName()
+			tailArgs = args.Tail()
+			dir      = opts.WorkingDir
 		)
 
 		if !cmdOpts.InDownloadDir {
@@ -37,7 +37,7 @@ func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {
 		}
 
 		return run.RunActionWithHooks(ctx, command, opts, cfg, func(ctx context.Context) error {
-			_, err := shell.RunCommandWithOutput(ctx, opts, dir, false, false, command, args...)
+			_, err := shell.RunCommandWithOutput(ctx, opts, dir, false, false, command, tailArgs...)
 			if err != nil {
 				return errors.Errorf("failed to run command in directory %s: %w", dir, err)
 			}

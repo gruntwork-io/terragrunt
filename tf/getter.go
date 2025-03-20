@@ -188,9 +188,9 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 		return err
 	}
 	defer func(tempdirCloser io.Closer) {
-		err := tempdirCloser.Close()
-		if err != nil {
-			tfrGetter.TerragruntOptions.Logger.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
+		closeErr := tempdirCloser.Close()
+		if closeErr != nil {
+			tfrGetter.TerragruntOptions.Logger.Warnf("Error closing temporary directory %s: %v", tempdirPath, closeErr)
 		}
 	}(tempdirCloser)
 
@@ -199,7 +199,8 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 		opts = tfrGetter.client.Options
 	}
 	// Download that into the given directory
-	if err := getter.Get(tempdirPath, sourceURL, opts...); err != nil {
+	err = getter.Get(tempdirPath, sourceURL, opts...)
+	if err != nil {
 		return errors.New(err)
 	}
 
@@ -346,9 +347,9 @@ func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.UR
 	}
 
 	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			logger.Warnf("Error closing response body: %v", err)
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			logger.Warnf("Error closing response body: %v", closeErr)
 		}
 	}()
 

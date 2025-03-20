@@ -13,37 +13,16 @@ var _ = strict.Control(new(Control))
 
 // Control is the simplest implementation of the `strict.Control` interface.
 type Control struct {
-	// Name is the name of the control.
-	Name string
-
-	// Description is the description of the control.
+	Error       error
+	Category    *strict.Category
+	Name        string
 	Description string
-
-	// Status of the strict Control.
-	Status strict.Status
-
-	// Enabled indicates whether the control is enabled.
-	Enabled bool
-
-	// Category is the category of the control.
-	// It is used to group controls by some name, like the command name
-	Category *strict.Category
-
-	// Subcontrols are child controls.
-	// Child elements inherit parent behavior such as status and enabled state
+	Warning     string
 	Subcontrols strict.Controls
-
-	// Error is the Error that will be returned when the Control is Enabled.
-	Error error
-
-	// Warning is a Warning that will be logged when the Control is not Enabled.
-	Warning string
-
-	// OnceWarn is used to prevent the warning message from being displayed multiple times.
-	OnceWarn sync.Once
-
-	// Suppress suppresses the warning message from being displayed.
-	Suppress bool
+	OnceWarn    sync.Once
+	Status      strict.Status
+	Enabled     bool
+	Suppress    bool
 }
 
 // String implements `fmt.Stringer` interface.

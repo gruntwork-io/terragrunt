@@ -59,8 +59,8 @@ func runTerragruntInfo(ctx context.Context, opts *options.TerragruntOptions, cfg
 func runErrorTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig, err error) error {
 	opts.Logger.Debugf("Fetching terragrunt-info: %v", err)
 
-	if err := printTerragruntInfo(opts); err != nil {
-		opts.Logger.Errorf("Error printing terragrunt-info: %v", err)
+	if printErr := printTerragruntInfo(opts); printErr != nil {
+		opts.Logger.Errorf("Error printing terragrunt-info: %v", printErr)
 	}
 
 	return err

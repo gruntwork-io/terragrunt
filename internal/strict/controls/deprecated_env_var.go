@@ -21,12 +21,11 @@ var _ = strict.Control(new(DeprecatedEnvVar))
 
 // DeprecatedEnvVar is strict control for deprecated environment variables.
 type DeprecatedEnvVar struct {
+	deprecatedFlag cli.Flag
+	newFlag        cli.Flag
 	*Control
 	ErrorFmt   string
 	WarningFmt string
-
-	deprecatedFlag cli.Flag
-	newFlag        cli.Flag
 }
 
 // NewDeprecatedEnvVar returns a new `DeprecatedEnvVar` instance.

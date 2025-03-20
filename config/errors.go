@@ -107,8 +107,8 @@ func (err ParentFileNotFoundError) Error() string {
 }
 
 type InvalidGetEnvParamsError struct {
-	ActualNumParams int
 	Example         string
+	ActualNumParams int
 }
 
 func (err InvalidGetEnvParamsError) Error() string {
@@ -199,8 +199,8 @@ func (err DependencyConfigNotFound) Error() string {
 }
 
 type TerragruntOutputParsingError struct {
-	Path string
 	Err  error
+	Path string
 }
 
 func (err TerragruntOutputParsingError) Error() string {
@@ -208,8 +208,8 @@ func (err TerragruntOutputParsingError) Error() string {
 }
 
 type TerragruntOutputEncodingError struct {
-	Path string
 	Err  error
+	Path string
 }
 
 func (err TerragruntOutputEncodingError) Error() string {
@@ -217,8 +217,8 @@ func (err TerragruntOutputEncodingError) Error() string {
 }
 
 type TerragruntOutputListEncodingError struct {
-	Paths []string
 	Err   error
+	Paths []string
 }
 
 func (err TerragruntOutputListEncodingError) Error() string {

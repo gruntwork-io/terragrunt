@@ -127,17 +127,9 @@ type EnvVar struct {
 // TrackInclude is used to differentiate between an included config in the current parsing ctx, and an included
 // config that was passed through from a previous parsing ctx.
 type TrackInclude struct {
-	// CurrentList is used to track the list of configs that should be imported and merged before the final
-	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
-	// merge the included config in the right order.
+	CurrentMap  map[string]IncludeConfig
+	Original    *IncludeConfig
 	CurrentList IncludeConfigs
-
-	// CurrentMap is the map version of CurrentList that maps the block labels to the included config.
-	CurrentMap map[string]IncludeConfig
-
-	// Original is used to track the original included config, and is used for resolving the include related
-	// functions.
-	Original *IncludeConfig
 }
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this ctx that the HCL2 parser
@@ -1075,8 +1067,10 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 
 	if strings.HasSuffix(varFile, "json") {
 		var variables map[string]any
+
 		// just want to be sure that the file is valid json
-		if err := json.Unmarshal(fileContents, &variables); err != nil {
+		err = json.Unmarshal(fileContents, &variables)
+		if err != nil {
 			return "", errors.New(fmt.Errorf("could not unmarshal json body of tfvar file: %w", err))
 		}
 
@@ -1084,7 +1078,9 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 	}
 
 	var variables map[string]any
-	if err := ParseAndDecodeVarFile(ctx.TerragruntOptions, varFile, fileContents, &variables); err != nil {
+
+	err = ParseAndDecodeVarFile(ctx.TerragruntOptions, varFile, fileContents, &variables)
+	if err != nil {
 		return "", err
 	}
 
@@ -1146,9 +1142,9 @@ func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, file
 	valMap := map[string]cty.Value{}
 
 	for _, attr := range attrs {
-		val, err := attr.Value(nil) // nil because no function calls or variable references are allowed here
-		if err != nil {
-			return err
+		val, valErr := attr.Value(nil) // nil because no function calls or variable references are allowed here
+		if valErr != nil {
+			return valErr
 		}
 
 		valMap[attr.Name] = val
@@ -1197,8 +1193,8 @@ func extractSopsErrors(err error) *errors.MultiError {
 			for i := range groupResultsField.Len() {
 				groupErr := groupResultsField.Index(i)
 				if groupErr.CanInterface() {
-					if err, ok := groupErr.Interface().(error); ok {
-						errs = errs.Append(err)
+					if castErr, ok := groupErr.Interface().(error); ok {
+						errs = errs.Append(castErr)
 					}
 				}
 			}

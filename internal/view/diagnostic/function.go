@@ -12,14 +12,10 @@ import (
 
 // FunctionParam represents a single parameter to a function, as represented by type Function.
 type FunctionParam struct {
-	// Name is a name for the function which is used primarily for documentation purposes.
-	Name string `json:"name"`
-
-	// Type is a type constraint which is a static approximation of the possibly-dynamic type of the parameter
-	Type json.RawMessage `json:"type"`
-
-	Description     string `json:"description,omitempty"`
-	DescriptionKind string `json:"description_kind,omitempty"`
+	Name            string          `json:"name"`
+	Description     string          `json:"description,omitempty"`
+	DescriptionKind string          `json:"description_kind,omitempty"`
+	Type            json.RawMessage `json:"type"`
 }
 
 func DescribeFunctionParam(p *function.Parameter) FunctionParam {
@@ -39,17 +35,12 @@ func DescribeFunctionParam(p *function.Parameter) FunctionParam {
 
 // Function is a description of the JSON representation of the signature of a function callable from the Terraform language.
 type Function struct {
-	// Name is the leaf name of the function, without any namespace prefix.
-	Name string `json:"name"`
-
-	Params        []FunctionParam `json:"params"`
-	VariadicParam *FunctionParam  `json:"variadic_param,omitempty"`
-
-	// ReturnType is type constraint which is a static approximation of the possibly-dynamic return type of the function.
-	ReturnType json.RawMessage `json:"return_type"`
-
-	Description     string `json:"description,omitempty"`
-	DescriptionKind string `json:"description_kind,omitempty"`
+	VariadicParam   *FunctionParam  `json:"variadic_param,omitempty"`
+	Name            string          `json:"name"`
+	Description     string          `json:"description,omitempty"`
+	DescriptionKind string          `json:"description_kind,omitempty"`
+	Params          []FunctionParam `json:"params"`
+	ReturnType      json.RawMessage `json:"return_type"`
 }
 
 // DescribeFunction returns a description of the signature of the given cty function, as a pointer to this package's serializable type Function.
@@ -91,11 +82,8 @@ func DescribeFunction(name string, f function.Function) *Function {
 
 // FunctionCall represents a function call whose information is being included as part of a diagnostic snippet.
 type FunctionCall struct {
-	// CalledAs is the full name that was used to call this function, potentially including namespace prefixes if the function does not belong to the default function namespace.
-	CalledAs string `json:"called_as"`
-
-	// Signature is a description of the signature of the function that was/ called, if any.
 	Signature *Function `json:"signature,omitempty"`
+	CalledAs  string    `json:"called_as"`
 }
 
 func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *FunctionCall {

@@ -230,9 +230,9 @@ func WaitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.Dy
 			return nil
 		}
 
-		sleepBetweenRetries := util.GetRandomTime(sleepBetweenRetriesMin, sleepBetweenRetriesMax)
-		terragruntOptions.Logger.Debugf("Table %s is not yet in active state. Will check again after %s.", tableName, sleepBetweenRetries)
-		time.Sleep(sleepBetweenRetries)
+		randomTime := util.GetRandomTime(sleepBetweenRetriesMin, sleepBetweenRetriesMax)
+		terragruntOptions.Logger.Debugf("Table %s is not yet in active state. Will check again after %s.", tableName, randomTime)
+		time.Sleep(randomTime)
 	}
 
 	return errors.New(TableActiveRetriesExceeded{TableName: tableName, Retries: maxRetries})

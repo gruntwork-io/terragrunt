@@ -44,10 +44,10 @@ type CloneOptions struct {
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
+	cloneStart time.Time
 	store      *Store
 	git        *GitRunner
 	opts       Options
-	cloneStart time.Time
 }
 
 // New creates a new CAS instance with the given options
@@ -101,7 +101,7 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts *CloneOptions, url 
 	}
 
 	if c.store.NeedsWrite(hash, c.cloneStart) {
-		if err := c.cloneAndStoreContent(ctx, l, opts, url, hash); err != nil {
+		if err = c.cloneAndStoreContent(ctx, l, opts, url, hash); err != nil {
 			return err
 		}
 	}
@@ -187,12 +187,10 @@ func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opt
 
 		workDirPath := filepath.Join(c.git.WorkDir, file)
 
-		hash, err := hashFile(workDirPath)
+		hash, err = hashFile(workDirPath)
 		if err != nil {
 			return err
 		}
-
-		content := NewContent(c.store)
 
 		if err := content.EnsureCopy(l, hash, workDirPath); err != nil {
 			return err

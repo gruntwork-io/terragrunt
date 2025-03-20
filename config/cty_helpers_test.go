@@ -18,13 +18,13 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 		expectedValue cty.Value
 	}{
 		{
-			cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+			value: cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
 				"items": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
 					"firstname": cty.StringVal("foo"),
 					"lastname":  cty.UnknownVal(cty.String),
 				})}),
 			})}),
-			cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+			expectedValue: cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
 				"items": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
 					"firstname": cty.StringVal("foo"),
 					"lastname":  cty.StringVal(""),
@@ -32,16 +32,16 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 			})}),
 		},
 		{
-			cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{})}),
-			cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{})}),
+			value:         cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{})}),
+			expectedValue: cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{})}),
 		},
 		{
-			cty.ObjectVal(map[string]cty.Value{}),
-			cty.ObjectVal(map[string]cty.Value{}),
+			value:         cty.ObjectVal(map[string]cty.Value{}),
+			expectedValue: cty.ObjectVal(map[string]cty.Value{}),
 		},
 		{
-			cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.String)}),
-			cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
+			value:         cty.ObjectVal(map[string]cty.Value{"key": cty.UnknownVal(cty.String)}),
+			expectedValue: cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("")}),
 		},
 	}
 

@@ -28,9 +28,9 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, err := shell.GitTopLevelDir(ctx, opts, opts.WorkingDir)
-		if err != nil {
-			return err
+		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, opts, opts.WorkingDir)
+		if gitRootErr != nil {
+			return gitRootErr
 		}
 
 		rootDir = gitRoot

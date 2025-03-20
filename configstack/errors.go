@@ -35,8 +35,8 @@ func (err ProcessingModuleError) Unwrap() error {
 }
 
 type InfiniteRecursionError struct {
-	RecursionLevel int
 	Modules        map[string]*TerraformModule
+	RecursionLevel int
 }
 
 func (err InfiniteRecursionError) Error() string {

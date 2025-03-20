@@ -37,9 +37,9 @@ func Run(ctx context.Context, opts *Options) error {
 	case SortAlpha:
 		cfgs = cfgs.Sort()
 	case SortDAG:
-		q, err := queue.NewQueue(cfgs)
-		if err != nil {
-			return errors.New(err)
+		q, queueErr := queue.NewQueue(cfgs)
+		if queueErr != nil {
+			return errors.New(queueErr)
 		}
 
 		cfgs = q.Entries()

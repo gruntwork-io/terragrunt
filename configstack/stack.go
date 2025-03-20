@@ -318,8 +318,8 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "check_for_cycles", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		if err := stack.Modules.CheckForCycles(); err != nil {
-			return errors.New(err)
+		if cyclesErr := stack.Modules.CheckForCycles(); cyclesErr != nil {
+			return errors.New(cyclesErr)
 		}
 
 		return nil
@@ -348,9 +348,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	}, func(childCtx context.Context) error {
 		howThesePathsWereFound := "Terragrunt config file found in a subdirectory of " + stack.terragruntOptions.WorkingDir
 
-		result, err := stack.resolveModules(ctx, canonicalTerragruntConfigPaths, howThesePathsWereFound)
-		if err != nil {
-			return err
+		result, resolveErr := stack.resolveModules(ctx, canonicalTerragruntConfigPaths, howThesePathsWereFound)
+		if resolveErr != nil {
+			return resolveErr
 		}
 
 		modulesMap = result
@@ -367,9 +367,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_external_dependencies_for_modules", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		result, err := stack.resolveExternalDependenciesForModules(ctx, modulesMap, TerraformModulesMap{}, 0)
-		if err != nil {
-			return err
+		result, resolveErr := stack.resolveExternalDependenciesForModules(ctx, modulesMap, TerraformModulesMap{}, 0)
+		if resolveErr != nil {
+			return resolveErr
 		}
 
 		externalDependencies = result
@@ -385,9 +385,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "crosslink_dependencies", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		result, err := modulesMap.mergeMaps(externalDependencies).crosslinkDependencies(canonicalTerragruntConfigPaths)
-		if err != nil {
-			return err
+		result, crosslinkErr := modulesMap.mergeMaps(externalDependencies).crosslinkDependencies(canonicalTerragruntConfigPaths)
+		if crosslinkErr != nil {
+			return crosslinkErr
 		}
 
 		crossLinkedModules = result
@@ -417,9 +417,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_units_that_are_included", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		result, err := withUnitsIncluded.flagUnitsThatAreIncluded(stack.terragruntOptions)
-		if err != nil {
-			return err
+		result, flagErr := withUnitsIncluded.flagUnitsThatAreIncluded(stack.terragruntOptions)
+		if flagErr != nil {
+			return flagErr
 		}
 
 		withUnitsThatAreIncludedByOthers = result
@@ -594,7 +594,9 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	// Credentials have to be acquired before the config is parsed, as the config may contain interpolation functions
 	// that require credentials to be available.
 	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, opts, externalcmd.NewProvider(opts)); err != nil {
+
+	err = credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, opts, externalcmd.NewProvider(opts))
+	if err != nil {
 		return nil, err
 	}
 
@@ -634,9 +636,9 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	// If we're using the default download directory, put it into the same folder as the Terragrunt configuration file.
 	// If we're not using the default, then the user has specified a custom download directory, and we leave it as-is.
 	if stack.terragruntOptions.DownloadDir == defaultDownloadDir {
-		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
-		if err != nil {
-			return nil, err
+		_, downloadDir, downloadDirErr := options.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
+		if downloadDirErr != nil {
+			return nil, downloadDirErr
 		}
 
 		opts.Logger.Debugf("Setting download directory for module %s to %s", filepath.Dir(opts.TerragruntConfigPath), downloadDir)

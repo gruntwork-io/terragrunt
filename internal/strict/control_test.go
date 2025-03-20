@@ -124,69 +124,69 @@ func TestEnableControl(t *testing.T) {
 	t.Parallel()
 
 	type testEnableControl struct {
-		controlName string
 		expectedErr error
+		controlName string
 	}
 
 	testCases := []struct {
+		expectedCompletedMsg    string
 		enableControls          []testEnableControl
 		expectedEnabledControls []string
-		expectedCompletedMsg    string
 	}{
 		{
-			[]testEnableControl{
+			enableControls: []testEnableControl{
 				{
-					testOngoingAName,
-					nil,
+					controlName: testOngoingAName,
+					expectedErr: nil,
 				},
 				{
-					testOngoingCName,
-					nil,
+					controlName: testOngoingCName,
+					expectedErr: nil,
 				},
 				{
-					testCompletedAName,
-					nil,
+					controlName: testCompletedAName,
+					expectedErr: nil,
 				},
 				{
-					testCompletedCName,
-					nil,
+					controlName: testCompletedCName,
+					expectedErr: nil,
 				},
 				{
-					"invalid",
-					strict.NewInvalidControlNameError([]string{testOngoingAName, testOngoingBName, testOngoingCName, testParentAName}),
-				},
-			},
-			[]string{testOngoingAName, testOngoingSubAName, testOngoingCName, testCompletedAName, testCompletedCName},
-			fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedAName, testCompletedCName})),
-		},
-		{
-			[]testEnableControl{
-				{
-					testOngoingBName,
-					nil,
-				},
-				{
-					testCompletedBName,
-					nil,
+					controlName: "invalid",
+					expectedErr: strict.NewInvalidControlNameError([]string{testOngoingAName, testOngoingBName, testOngoingCName, testParentAName}),
 				},
 			},
-			[]string{testOngoingBName, testCompletedBName},
-			fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedBName})),
+			expectedEnabledControls: []string{testOngoingAName, testOngoingSubAName, testOngoingCName, testCompletedAName, testCompletedCName},
+			expectedCompletedMsg:    fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedAName, testCompletedCName})),
 		},
 		{
-			[]testEnableControl{},
-			[]string{},
-			"",
-		},
-		{
-			[]testEnableControl{
+			enableControls: []testEnableControl{
 				{
-					testParentAName,
-					nil,
+					controlName: testOngoingBName,
+					expectedErr: nil,
+				},
+				{
+					controlName: testCompletedBName,
+					expectedErr: nil,
 				},
 			},
-			[]string{testParentAName, testOngoingSubAName},
-			"",
+			expectedEnabledControls: []string{testOngoingBName, testCompletedBName},
+			expectedCompletedMsg:    fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedBName})),
+		},
+		{
+			enableControls:          []testEnableControl{},
+			expectedEnabledControls: []string{},
+			expectedCompletedMsg:    "",
+		},
+		{
+			enableControls: []testEnableControl{
+				{
+					controlName: testParentAName,
+					expectedErr: nil,
+				},
+			},
+			expectedEnabledControls: []string{testParentAName, testOngoingSubAName},
+			expectedCompletedMsg:    "",
 		},
 	}
 
@@ -244,16 +244,16 @@ func TestEnableStrictMode(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		enableStrictMode        bool
 		expectedEnabledControls []string
+		enableStrictMode        bool
 	}{
 		{
-			true,
-			[]string{testParentAName, testOngoingSubAName, testOngoingAName, testOngoingSubAName, testOngoingBName, testOngoingCName},
+			enableStrictMode:        true,
+			expectedEnabledControls: []string{testParentAName, testOngoingSubAName, testOngoingAName, testOngoingSubAName, testOngoingBName, testOngoingCName},
 		},
 		{
-			false,
-			[]string{},
+			enableStrictMode:        false,
+			expectedEnabledControls: []string{},
 		},
 	}
 
@@ -294,8 +294,8 @@ func TestEvaluateControl(t *testing.T) {
 	t.Parallel()
 
 	type testEvaluateControl struct {
-		name        string
 		expectedErr error
+		name        string
 	}
 
 	testCases := []struct {
@@ -304,59 +304,59 @@ func TestEvaluateControl(t *testing.T) {
 		expectedWarns    []string
 	}{
 		{
-			[]string{testOngoingAName, testOngoingBName},
-			[]testEvaluateControl{
+			enableControls: []string{testOngoingAName, testOngoingBName},
+			evaluateControls: []testEvaluateControl{
 				{
-					testOngoingAName,
-					testOngoingA().Error,
+					name:        testOngoingAName,
+					expectedErr: testOngoingA().Error,
 				},
 			},
-			[]string{""},
+			expectedWarns: []string{""},
 		},
 		{
-			[]string{testOngoingBName},
-			[]testEvaluateControl{
+			enableControls: []string{testOngoingBName},
+			evaluateControls: []testEvaluateControl{
 				{
-					testOngoingBName,
-					testOngoingB().Error,
+					name:        testOngoingBName,
+					expectedErr: testOngoingB().Error,
 				},
 			},
-			[]string{""},
+			expectedWarns: []string{""},
 		},
 		{
 			// Testing output warning message once.
-			[]string{testOngoingBName},
-			[]testEvaluateControl{
+			enableControls: []string{testOngoingBName},
+			evaluateControls: []testEvaluateControl{
 				{
-					testOngoingAName,
-					nil,
+					name:        testOngoingAName,
+					expectedErr: nil,
 				},
 				{
-					testOngoingAName,
-					nil,
+					name:        testOngoingAName,
+					expectedErr: nil,
 				},
 			},
-			[]string{testOngoingA().Warning, testOngoingSubA().Warning},
+			expectedWarns: []string{testOngoingA().Warning, testOngoingSubA().Warning},
 		},
 		{
-			[]string{testCompletedAName},
-			[]testEvaluateControl{
+			enableControls: []string{testCompletedAName},
+			evaluateControls: []testEvaluateControl{
 				{
-					testOngoingAName,
-					nil,
+					name:        testOngoingAName,
+					expectedErr: nil,
 				},
 			},
-			[]string{testOngoingA().Warning, testOngoingSubA().Warning},
+			expectedWarns: []string{testOngoingA().Warning, testOngoingSubA().Warning},
 		},
 		{
-			[]string{testCompletedAName},
-			[]testEvaluateControl{
+			enableControls: []string{testCompletedAName},
+			evaluateControls: []testEvaluateControl{
 				{
-					testCompletedAName,
-					nil,
+					name:        testCompletedAName,
+					expectedErr: nil,
 				},
 			},
-			[]string{""},
+			expectedWarns: []string{""},
 		},
 	}
 

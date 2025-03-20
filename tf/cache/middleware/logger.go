@@ -14,13 +14,13 @@ func Logger(logger log.Logger) echo.MiddlewareFunc {
 		LogError:    true,
 		HandleError: true, // forwards error to the global error handler, so it can decide appropriate status code
 		LogValuesFunc: func(_ echo.Context, req middleware.RequestLoggerValues) error {
-			logger := logger.
+			l := logger.
 				WithField(placeholders.CacheServerURLKeyName, req.URI).
 				WithField(placeholders.CacheServerStatusKeyName, req.Status)
 			if req.Error != nil {
-				logger.Errorf("Cache server was unable to process the received request, %s", req.Error.Error())
+				l.Errorf("Cache server was unable to process the received request, %s", req.Error.Error())
 			} else {
-				logger.Tracef("Cache server received request")
+				l.Tracef("Cache server received request")
 			}
 			return nil
 		},

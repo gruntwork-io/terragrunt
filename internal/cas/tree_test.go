@@ -88,8 +88,8 @@ func TestParseTree(t *testing.T) {
 		name     string
 		input    string
 		path     string
-		wantLen  int
 		wantPath string
+		wantLen  int
 		wantErr  bool
 	}{
 		{
@@ -141,9 +141,9 @@ func TestLinkTree(t *testing.T) {
 		treeData   string
 		wantFiles  []struct {
 			path    string
+			hash    string
 			content []byte
 			isDir   bool
-			hash    string
 		}
 		wantErr bool
 	}{
@@ -175,9 +175,9 @@ func TestLinkTree(t *testing.T) {
 040000 tree i9j0k1l2 src`,
 			wantFiles: []struct {
 				path    string
+				hash    string
 				content []byte
 				isDir   bool
-				hash    string
 			}{
 				{
 					path:    "README.md",
@@ -215,9 +215,9 @@ func TestLinkTree(t *testing.T) {
 			treeData: "",
 			wantFiles: []struct {
 				path    string
+				hash    string
 				content []byte
 				isDir   bool
-				hash    string
 			}{},
 		},
 		{

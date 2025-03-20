@@ -587,8 +587,8 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 // OptionsFromContext tries to retrieve options from context, otherwise, returns its own instance.
 func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *TerragruntOptions {
 	if val := ctx.Value(ContextKey); val != nil {
-		if opts, ok := val.(*TerragruntOptions); ok {
-			return opts
+		if optsFromContext, ok := val.(*TerragruntOptions); ok {
+			return optsFromContext
 		}
 	}
 
@@ -833,7 +833,8 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 
 			// Handle ignore signals if any are configured
 			if len(action.IgnoreSignals) > 0 {
-				if err := opts.handleIgnoreSignals(action.IgnoreSignals); err != nil {
+				err = opts.handleIgnoreSignals(action.IgnoreSignals)
+				if err != nil {
 					return err
 				}
 			}

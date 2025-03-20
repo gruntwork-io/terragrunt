@@ -16,46 +16,46 @@ func TestSliceFlagStringApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.SliceFlag[string]
-		args          []string
-		envs          map[string]string
-		expectedValue []string
 		expectedErr   error
+		envs          map[string]string
+		args          []string
+		expectedValue []string
+		flag          cli.SliceFlag[string]
 	}{
 		{
-			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
-			map[string]string{"FOO": "env-value"},
-			[]string{"arg-value1", "arg-value2"},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "arg-value1", "--foo", "arg-value2"},
+			envs:          map[string]string{"FOO": "env-value"},
+			expectedValue: []string{"arg-value1", "arg-value2"},
 		},
 		{
-			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			map[string]string{"FOO": "env-value1,env-value2"},
-			[]string{"env-value1", "env-value2"},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          nil,
+			envs:          map[string]string{"FOO": "env-value1,env-value2"},
+			expectedValue: []string{"env-value1", "env-value2"},
 		},
 		{
-			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			nil,
-			nil,
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          nil,
+			envs:          nil,
+			expectedValue: nil,
 		},
 		{
-			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue([]string{"default-value1", "default-value2"})},
-			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
-			map[string]string{"FOO": "env-value1,env-value2"},
-			[]string{"arg-value1", "arg-value2"},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			args:          []string{"--foo", "arg-value1", "--foo", "arg-value2"},
+			envs:          map[string]string{"FOO": "env-value1,env-value2"},
+			expectedValue: []string{"arg-value1", "arg-value2"},
 		},
 		{
-			cli.SliceFlag[string]{Name: "foo", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
-			nil,
-			nil,
-			[]string{"default-value1", "default-value2"},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[string]{Name: "foo", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			args:          nil,
+			envs:          nil,
+			expectedValue: []string{"default-value1", "default-value2"},
 		},
 	}
 
@@ -74,32 +74,32 @@ func TestSliceFlagIntApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.SliceFlag[int]
-		args          []string
-		envs          map[string]string
-		expectedValue []int
 		expectedErr   error
+		envs          map[string]string
+		args          []string
+		expectedValue []int
+		flag          cli.SliceFlag[int]
 	}{
 		{
-			cli.SliceFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "10", "--foo", "11"},
-			map[string]string{"FOO": "20,21"},
-			[]int{10, 11},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "10", "--foo", "11"},
+			envs:          map[string]string{"FOO": "20,21"},
+			expectedValue: []int{10, 11},
 		},
 		{
-			cli.SliceFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{},
-			map[string]string{"FOO": "20,21"},
-			[]int{20, 21},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{},
+			envs:          map[string]string{"FOO": "20,21"},
+			expectedValue: []int{20, 21},
 		},
 		{
-			cli.SliceFlag[int]{Name: "foo", Destination: mockDestValue([]int{50, 51})},
-			nil,
-			nil,
-			[]int{50, 51},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[int]{Name: "foo", Destination: mockDestValue([]int{50, 51})},
+			args:          nil,
+			envs:          nil,
+			expectedValue: []int{50, 51},
 		},
 	}
 
@@ -118,32 +118,32 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.SliceFlag[int64]
-		args          []string
-		envs          map[string]string
-		expectedValue []int64
 		expectedErr   error
+		envs          map[string]string
+		args          []string
+		expectedValue []int64
+		flag          cli.SliceFlag[int64]
 	}{
 		{
-			cli.SliceFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "10", "--foo", "11"},
-			map[string]string{"FOO": "20,21"},
-			[]int64{10, 11},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "10", "--foo", "11"},
+			envs:          map[string]string{"FOO": "20,21"},
+			expectedValue: []int64{10, 11},
 		},
 		{
-			cli.SliceFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{},
-			map[string]string{"FOO": "20,21"},
-			[]int64{20, 21},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{},
+			envs:          map[string]string{"FOO": "20,21"},
+			expectedValue: []int64{20, 21},
 		},
 		{
-			cli.SliceFlag[int64]{Name: "foo", Destination: mockDestValue([]int64{50, 51})},
-			nil,
-			nil,
-			[]int64{50, 51},
-			nil,
+			expectedErr:   nil,
+			flag:          cli.SliceFlag[int64]{Name: "foo", Destination: mockDestValue([]int64{50, 51})},
+			args:          nil,
+			envs:          nil,
+			expectedValue: []int64{50, 51},
 		},
 	}
 

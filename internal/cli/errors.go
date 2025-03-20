@@ -27,8 +27,8 @@ func (err InvalidKeyValueError) Error() string {
 }
 
 type exitError struct {
-	exitCode ExitCode
 	err      error
+	exitCode ExitCode
 }
 
 func (ee *exitError) Unwrap() error {

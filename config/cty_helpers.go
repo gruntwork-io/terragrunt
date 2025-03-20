@@ -210,7 +210,8 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 
 	maps.Copy(outMap, targetMap)
 
-	if err := mergo.Merge(&outMap, sourceMap, append(opts, mergo.WithOverride)...); err != nil {
+	err = mergo.Merge(&outMap, sourceMap, append(opts, mergo.WithOverride)...)
+	if err != nil {
 		return nil, err
 	}
 
@@ -355,12 +356,12 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	case value.Type().IsMapType(), value.Type().IsObjectType():
 		mapVals := value.AsValueMap()
 		for key, val := range mapVals {
-			val, err := UpdateUnknownCtyValValues(val)
+			mapVal, err := UpdateUnknownCtyValValues(val)
 			if err != nil {
 				return cty.NilVal, err
 			}
 
-			mapVals[key] = val
+			mapVals[key] = mapVal
 		}
 
 		if len(mapVals) > 0 {
@@ -370,12 +371,12 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	case value.Type().IsTupleType(), value.Type().IsListType():
 		sliceVals := value.AsValueSlice()
 		for key, val := range sliceVals {
-			val, err := UpdateUnknownCtyValValues(val)
+			sliceVal, err := UpdateUnknownCtyValValues(val)
 			if err != nil {
 				return cty.NilVal, err
 			}
 
-			sliceVals[key] = val
+			sliceVals[key] = sliceVal
 		}
 
 		if len(sliceVals) > 0 {

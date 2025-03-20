@@ -23,10 +23,10 @@ type RetryBlock struct {
 
 // IgnoreBlock represents a labeled ignore block
 type IgnoreBlock struct {
-	Label           string               `cty:"name" hcl:"name,label"`
-	IgnorableErrors []string             `cty:"ignorable_errors" hcl:"ignorable_errors"`
-	Message         string               `cty:"message" hcl:"message,optional"`
 	Signals         map[string]cty.Value `cty:"signals" hcl:"signals,optional"`
+	Label           string               `cty:"name" hcl:"name,label"`
+	Message         string               `cty:"message" hcl:"message,optional"`
+	IgnorableErrors []string             `cty:"ignorable_errors" hcl:"ignorable_errors"`
 }
 
 // Clone creates a deep copy of ErrorsConfig

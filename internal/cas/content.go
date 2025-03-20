@@ -139,8 +139,8 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	if _, err := buf.Write(data); err != nil {
 		f.Close()
 
-		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removalErr := os.Remove(tempPath); removalErr != nil {
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, removalErr)
 		}
 
 		return wrapError("write_to_store", tempPath, err)
@@ -149,16 +149,16 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	if err := buf.Flush(); err != nil {
 		f.Close()
 
-		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removalErr := os.Remove(tempPath); removalErr != nil {
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, removalErr)
 		}
 
 		return wrapError("flush_buffer", tempPath, err)
 	}
 
 	if err := f.Close(); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removalErr := os.Remove(tempPath); removalErr != nil {
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, removalErr)
 		}
 
 		return wrapError("close_file", tempPath, err)
@@ -166,8 +166,8 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 
 	// Set read-only permissions on the temporary file
 	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removalErr := os.Remove(tempPath); removalErr != nil {
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, removalErr)
 		}
 
 		return wrapError("chmod_temp_file", tempPath, err)
@@ -175,8 +175,8 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removalErr := os.Remove(tempPath); removalErr != nil {
+			(*l).Warnf("failed to remove temp file %s: %v", tempPath, removalErr)
 		}
 
 		return wrapError("finalize_store", path, err)
