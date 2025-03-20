@@ -339,10 +339,13 @@ Will create the following directory structure:
 ```
 
 **Notes**:
+
 - Parallel Execution: Stack generation runs concurrently to improve performance. The number of parallel tasks is determined by the `GOMAXPROCS` environment variable and can be explicitly controlled using the `--parallelism` flag:
-  ```bash
+
+```bash
   terragrunt stack generate --parallelism 4
-  ```
+```
+s
 - Automatic Discovery: The command automatically discovers all `terragrunt.stack.hcl` files within the directory structure and generates them in parallel.
 
 #### stack run
