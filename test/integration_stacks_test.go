@@ -46,7 +46,7 @@ func TestStacksGenerateBasic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -60,7 +60,7 @@ func TestNestedStacksGenerate(t *testing.T) {
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -74,7 +74,7 @@ func TestStacksGenerateLocals(t *testing.T) {
 	helpers.CreateGitRepo(t, tmpEnvPath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocals, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 }
 
 func TestStacksGenerateLocalsError(t *testing.T) {
@@ -84,7 +84,7 @@ func TestStacksGenerateLocalsError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocalsError)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocalsError)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 	require.Error(t, err)
 }
 
@@ -95,7 +95,7 @@ func TestStacksGenerateRemote(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -108,7 +108,7 @@ func TestStacksBasic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply --non-interactive --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -138,7 +138,7 @@ func TestStacksNoGenerate(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -151,7 +151,7 @@ func TestStacksNoGenerate(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment stacks stack run apply --no-stack-generate --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment stacks stack run apply --no-stack-generate --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
 }
 
@@ -162,7 +162,7 @@ func TestStacksInputs(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run plan --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run plan --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -175,7 +175,7 @@ func TestStacksPlan(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs, "live")
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy")
@@ -189,7 +189,7 @@ func TestStacksApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs, "live")
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
@@ -203,7 +203,7 @@ func TestStacksApplyRemote(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "app1 (git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=main&depth=1)")
@@ -221,12 +221,12 @@ func TestStacksApplyClean(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	// check that path exists
 	assert.DirExists(t, path)
 
-	helpers.RunTerragrunt(t, "terragrunt stack clean --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack clean --experiment stacks --working-dir "+rootPath)
 	// check that path don't exist
 	assert.NoDirExists(t, path)
 }
@@ -238,9 +238,9 @@ func TestStacksDestroy(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "Plan: 0 to add, 0 to change, 1 to destroy")
@@ -254,9 +254,9 @@ func TestStackOutputs(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "custom_value2 = \"value2\"")
@@ -277,9 +277,9 @@ func TestStackOutputsIndex(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output project2_app2 --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output project2_app2 --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.NotContains(t, stdout, "filtered_app1 = {")
@@ -299,9 +299,9 @@ func TestStackOutputsJson(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -318,9 +318,9 @@ func TestStackOutputsJsonIndex(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output project2_app1 --format json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output project2_app1 --format json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -338,9 +338,9 @@ func TestStackOutputsRawError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
 }
 
@@ -351,9 +351,9 @@ func TestStackOutputsRawIndex(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1.custom_value1 --format raw --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1.custom_value1 --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "value1")
@@ -368,9 +368,9 @@ func TestStackOutputsRawFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -raw filtered_app2.data --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -raw filtered_app2.data --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "app2")
@@ -385,9 +385,9 @@ func TestStackOutputsJsonFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -404,7 +404,7 @@ func TestStacksUnitValues(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitValues, "live")
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "deployment = \"app1\"")
@@ -421,11 +421,11 @@ func TestStacksUnitValuesRunInApp1(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitValues, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	// run apply in generated app1 directory
 	app1Path := util.JoinPath(rootPath, ".terragrunt-stack", "app1")
-	helpers.RunTerragrunt(t, "terragrunt apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+app1Path)
+	helpers.RunTerragrunt(t, "terragrunt apply --experiment stacks --non-interactive --working-dir "+app1Path)
 
 	// Verify the expected outcomes
 	valuesPath := filepath.Join(app1Path, "terragrunt.values.hcl")
@@ -444,9 +444,9 @@ func TestStacksUnitValuesOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitValues, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -466,7 +466,7 @@ func TestStacksUnitEmptyPathError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitEmptyPath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitEmptyPath, "live")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 	require.Error(t, err)
 
 	message := err.Error()
@@ -483,7 +483,7 @@ func TestStackStackEmptyPathError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksEmptyPath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksEmptyPath)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 	require.Error(t, err)
 
 	message := err.Error()
@@ -498,9 +498,9 @@ func TestNestedStackOutput(t *testing.T) {
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -527,7 +527,7 @@ func TestNestedStacksApply(t *testing.T) {
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "data = \"web dev-web 1.0.0\"")
@@ -547,7 +547,7 @@ func TestStackValuesGeneration(t *testing.T) {
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValues)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -565,7 +565,7 @@ func TestStackValuesApply(t *testing.T) {
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValues)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "project = \"dev-project\"")
@@ -594,9 +594,9 @@ func TestStackValuesOutput(t *testing.T) {
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValues)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -619,7 +619,7 @@ func TestStacksGenerateParallelism(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --parallelism 10 --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --parallelism 10 --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -632,7 +632,7 @@ func TestStackApplyWithDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
@@ -649,7 +649,7 @@ func TestStackApplyWithDependencyParallelism(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 10 --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 10 --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
@@ -666,7 +666,7 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 1 --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 1 --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
@@ -683,9 +683,9 @@ func TestStackApplyDestroyWithDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
 
@@ -701,9 +701,9 @@ func TestStackOutputWithDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -733,9 +733,9 @@ func TestStackApplyStrictInclude(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment stacks stack run apply --queue-strict-include --queue-include-dir=./.terragrunt-stack/app1 --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment stacks stack run apply --queue-strict-include --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app1")
@@ -770,7 +770,7 @@ func TestStacksSourceMap(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
 
 	// generate path with replacement of local source with local path
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Processing unit app1")
@@ -779,7 +779,7 @@ func TestStacksSourceMap(t *testing.T) {
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --experiment stacks --source-map git::https://github.com/gruntwork-io/terragrunt.git="+localTmpEnvPath+" --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	// validate that the source map was used to replace the source
@@ -797,13 +797,13 @@ func TestStacksSourceMapModule(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSourceMap)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackSourceMap, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+" --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+" --log-level debug --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --experiment stacks --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
@@ -811,30 +811,16 @@ func TestStacksSourceMapModule(t *testing.T) {
 	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app2")
 }
 
-func TestStacksGenerateAbsolutePath(t *testing.T) {
+func TestStacksGenerateAbsolutePathError(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackAbsolutePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackAbsolutePath, "live")
 	helpers.CreateGitRepo(t, rootPath)
-	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-log-level debug --experiment stacks --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --log-level debug --experiment stacks --working-dir "+rootPath)
 
-	path := util.JoinPath(rootPath, ".terragrunt-stack")
-	validateStackDir(t, path)
-
-	// check that apps directories are generated
-	app3 := util.JoinPath(rootPath, ".terragrunt-stack", "app3")
-	assert.DirExists(t, app3)
-
-	app1 := util.JoinPath(rootPath, "app1")
-	assert.DirExists(t, app1)
-
-	app2 := util.JoinPath(rootPath, "app2")
-	assert.DirExists(t, app2)
-
-	app1 = util.JoinPath(rootPath, ".terragrunt-stack", "app1")
-	assert.NoDirExists(t, app1)
+	require.Error(t, err)
 }
 
 func TestStacksGenerateNoStack(t *testing.T) {
@@ -846,7 +832,7 @@ func TestStacksGenerateNoStack(t *testing.T) {
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 
 	validateNoStackDirs(t, rootPath)
 }
@@ -860,7 +846,7 @@ func TestStacksApplyNoStack(t *testing.T) {
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --terragrunt-log-level debug --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --log-level debug --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	validateNoStackDirs(t, rootPath)
 }
@@ -874,7 +860,7 @@ func TestStacksCyclesErrors(t *testing.T) {
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Cycle detected")
 }
@@ -886,7 +872,7 @@ func TestStacksNoStackDirNoTerragruntStackDirectoryCreated(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStackNoDir)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureNoStackNoDir, "live")
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	// validate that the stack directory is not created
@@ -900,7 +886,7 @@ func TestStacksGenerateMultipleStacks(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMultipleStacks)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureMultipleStacks)
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 
 	devStack := util.JoinPath(rootPath, "dev", ".terragrunt-stack")
 	validateStackDir(t, devStack)
