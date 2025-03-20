@@ -67,3 +67,10 @@ Generates the following stack:
       - terragrunt.hcl
 
 </FileTree>
+
+**Notes**:
+- Parallel Execution: Stack generation runs concurrently to improve performance. The number of parallel tasks is determined by the `GOMAXPROCS` environment variable and can be explicitly controlled using the `--parallelism` flag:
+```bash
+terragrunt stack generate --parallelism 4
+  ```
+- Automatic Discovery: The command automatically detects all `terragrunt.stack.hcl` files within the directory structure and processes them in parallel.
