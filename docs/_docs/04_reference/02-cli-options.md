@@ -338,12 +338,15 @@ Will create the following directory structure:
     └── terragrunt.hcl
 ```
 
-**Note**: Stack generation is executed in parallel. By default, the number of parallel tasks is limited by the `GOMAXPROCS` environment variable.
-You can override this limit using the `--parallelism` CLI flag:
+**Notes**:
+
+- Parallel Execution: Stack generation runs concurrently to improve performance. The number of parallel tasks is determined by the `GOMAXPROCS` environment variable and can be explicitly controlled using the `--parallelism` flag:
 
 ```bash
-terragrunt stack generate --parallelism 4
+  terragrunt stack generate --parallelism 4
 ```
+
+- Automatic Discovery: The command automatically discovers all `terragrunt.stack.hcl` files within the directory structure and generates them in parallel.
 
 #### stack run
 
