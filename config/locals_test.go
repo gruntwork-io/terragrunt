@@ -111,6 +111,10 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	_, err = config.EvaluateLocalsBlock(ctx, file)
 	require.Error(t, err)
 
+	multiError := err.(*errors.MultiError)
+
+	err = multiError.WrappedErrors()[0]
+
 	switch errors.Unwrap(err).(type) { //nolint:errorlint
 	case config.CouldNotEvaluateAllLocalsError:
 	default:
