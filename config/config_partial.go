@@ -211,6 +211,10 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
+			if flag.Default == nil {
+				return cty.NilVal, fmt.Errorf("feature flag '%s' has no default value", flag.Name)
+			}
+
 			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
 
 			if err != nil {
