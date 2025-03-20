@@ -421,7 +421,7 @@ func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory 
 
 	// First, decode any dependency blocks to get their outputs
 	dependencies := map[string]cty.Value{}
-	dependencyBlocks, err := file.Blocks("dependency", false)
+	dependencyBlocks, err := file.Blocks("dependency", true)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -468,7 +468,9 @@ func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory 
 			return nil, errors.Errorf("failed to parse outputs from dependency %s: %w", depName, err)
 		}
 
-		dependencies[depName] = cty.ObjectVal(outputMap)
+		dependencies[depName] = cty.ObjectVal(map[string]cty.Value{
+			"outputs": cty.ObjectVal(outputMap),
+		})
 	}
 
 	// Create evaluation context with dependencies

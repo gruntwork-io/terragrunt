@@ -75,11 +75,22 @@ func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 
 // Blocks takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
 func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) {
+	var labelNames []string
+	switch name {
+	case "dependency":
+		labelNames = []string{"name"}
+	case "values":
+		// values block doesn't have labels
+		labelNames = []string{}
+	default:
+		labelNames = []string{"name"}
+	}
+
 	catalogSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
 			{
 				Type:       name,
-				LabelNames: []string{"name"},
+				LabelNames: labelNames,
 			},
 		},
 	}
