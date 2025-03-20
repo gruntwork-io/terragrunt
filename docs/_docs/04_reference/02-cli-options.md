@@ -373,7 +373,7 @@ terragrunt stack run destroy
 **Flags:**
 
 - `--no-stack-generate` : Disable automatic stack regeneration before running the command.
-  By default, `stack run` will regenerate the stack based on the `terragrunt.stack.hcl` configuration before executing the requested operation.  
+  By default, `stack run` will regenerate the stack based on the `terragrunt.stack.hcl` configuration before executing the requested operation.
   Using this flag prevents automatic regeneration and executes the command using the existing `.terragrunt-stack` directory.
 
 #### stack output
@@ -431,7 +431,7 @@ project1_app1.custom_value1 = "value1"
 **Flags:**
 
 - `--no-stack-generate` : Disable automatic stack regeneration before retrieving outputs.
-  By default, `stack output` will regenerate the stack before fetching outputs.  
+  By default, `stack output` will regenerate the stack before fetching outputs.
   Using this flag prevents automatic regeneration and retrieves outputs using the existing `.terragrunt-stack` directory.
 
 - `--format=<format>` : Specify the output format.
@@ -1185,6 +1185,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
 <!-- markdownlint-disable MD033 -->
 
 **CLI Arg**: `--all`<br/>
+**CLI Alias**: `-a`<br/>
 **Environment Variable**: `TG_ALL` (set to `true`)<br/>
 
 This is equivalent to the soon to be deprecated `run-all` command.
