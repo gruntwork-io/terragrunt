@@ -39,8 +39,8 @@ func action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(cliCtx *cli.Context) error {
 		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
 			if cmd := cliCtx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
-				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
-				return cmd.Action(cliCtx)
+				cliCtxWithValue := cliCtx.WithValue(options.ContextKey, opts)
+				return cmd.Action(cliCtxWithValue)
 			}
 
 			return run.Run(ctx, opts)

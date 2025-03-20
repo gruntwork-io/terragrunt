@@ -158,9 +158,10 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		terragruntOptions.OriginalIAMRoleOptions,
 	)
 
-	if err := terragruntOptions.RunWithErrorHandling(ctx, func() error {
+	err = terragruntOptions.RunWithErrorHandling(ctx, func() error {
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, amazonsts.NewProvider(terragruntOptions))
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 

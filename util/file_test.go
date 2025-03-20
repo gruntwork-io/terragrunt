@@ -92,9 +92,9 @@ func TestGlobCanonicalPath(t *testing.T) {
 	basePath := "testdata/fixture-glob-canonical"
 
 	expectedHelper := func(path string) string {
-		basePath, err := filepath.Abs(basePath)
+		absBasePath, err := filepath.Abs(basePath)
 		require.NoError(t, err)
-		return filepath.ToSlash(filepath.Join(basePath, path))
+		return filepath.ToSlash(filepath.Join(absBasePath, path))
 	}
 
 	tc := []struct {

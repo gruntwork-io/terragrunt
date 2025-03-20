@@ -72,8 +72,8 @@ func PackageHashV1(path string) (Hash, error) {
 		return "", err
 	}
 
-	if fileInfo, err := os.Stat(packageDir); err != nil {
-		return "", errors.New(err)
+	if fileInfo, statErr := os.Stat(packageDir); statErr != nil {
+		return "", errors.New(statErr)
 	} else if !fileInfo.IsDir() {
 		return "", errors.Errorf("packageDir is not a directory %q", packageDir)
 	}

@@ -227,9 +227,9 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 			if arg.Arguments != nil {
-				vars, rawVarFiles, err := GetVarFlagsFromArgList(*arg.Arguments)
-				if err != nil {
-					return inputNames, err
+				vars, rawVarFiles, getVarFlagsErr := GetVarFlagsFromArgList(*arg.Arguments)
+				if getVarFlagsErr != nil {
+					return inputNames, getVarFlagsErr
 				}
 
 				inputNames = append(inputNames, vars...)

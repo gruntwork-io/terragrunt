@@ -355,10 +355,10 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	}
 	expected := configstack.TerraformModules{moduleM}
 
-	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	mockOptions.OriginalTerragruntConfigPath = childConfigPath
+	tmpOpts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	tmpOpts.OriginalTerragruntConfigPath = childConfigPath
 
-	stack := configstack.NewStack(mockOptions, configstack.WithChildTerragruntConfig(childTerragruntConfig))
+	stack := configstack.NewStack(tmpOpts, configstack.WithChildTerragruntConfig(childTerragruntConfig))
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)

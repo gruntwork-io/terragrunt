@@ -86,11 +86,11 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		bb, cmd := m.buttonBar.Update(msg)
+		bb, updateCmd := m.buttonBar.Update(msg)
 		m.buttonBar = bb.(*buttonbar.ButtonBar)
 
-		if cmd != nil {
-			cmds = append(cmds, cmd)
+		if updateCmd != nil {
+			cmds = append(cmds, updateCmd)
 		}
 
 		switch {

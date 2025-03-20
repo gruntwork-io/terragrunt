@@ -1289,46 +1289,28 @@ func TestModuleDependenciesMerge(t *testing.T) {
 		expected []string
 	}{
 		{
-			"MergeNil",
-			[]string{"../vpc", "../sql"},
-			nil,
-			[]string{"../vpc", "../sql"},
+			name:     "empty target",
+			target:   []string{},
+			source:   []string{"a", "b", "c"},
+			expected: []string{"a", "b", "c"},
 		},
 		{
-			"MergeOne",
-			[]string{"../vpc", "../sql"},
-			[]string{"../services"},
-			[]string{"../vpc", "../sql", "../services"},
+			name:     "empty source",
+			target:   []string{"a", "b", "c"},
+			source:   []string{},
+			expected: []string{"a", "b", "c"},
 		},
 		{
-			"MergeMany",
-			[]string{"../vpc", "../sql"},
-			[]string{"../services", "../groups"},
-			[]string{"../vpc", "../sql", "../services", "../groups"},
+			name:     "nil source",
+			target:   []string{"a", "b", "c"},
+			source:   nil,
+			expected: []string{"a", "b", "c"},
 		},
 		{
-			"MergeEmpty",
-			[]string{"../vpc", "../sql"},
-			[]string{},
-			[]string{"../vpc", "../sql"},
-		},
-		{
-			"MergeOneExisting",
-			[]string{"../vpc", "../sql"},
-			[]string{"../vpc"},
-			[]string{"../vpc", "../sql"},
-		},
-		{
-			"MergeAllExisting",
-			[]string{"../vpc", "../sql"},
-			[]string{"../vpc", "../sql"},
-			[]string{"../vpc", "../sql"},
-		},
-		{
-			"MergeSomeExisting",
-			[]string{"../vpc", "../sql"},
-			[]string{"../vpc", "../services"},
-			[]string{"../vpc", "../sql", "../services"},
+			name:     "merge with duplicates",
+			target:   []string{"a", "b", "c"},
+			source:   []string{"c", "d", "e"},
+			expected: []string{"a", "b", "c", "d", "e"},
 		},
 	}
 

@@ -42,8 +42,8 @@ const (
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
 type terragruntIncludeMultiple struct {
-	Include IncludeConfigs `hcl:"include,block"`
 	Remain  hcl.Body       `hcl:",remain"`
+	Include IncludeConfigs `hcl:"include,block"`
 }
 
 // terragruntDependencies is a struct that can be used to only decode the dependencies block.
@@ -54,8 +54,8 @@ type terragruntDependencies struct {
 
 // terragruntFeatureFlags is a struct that can be used to store decoded feature flags.
 type terragruntFeatureFlags struct {
-	FeatureFlags FeatureFlags `hcl:"feature,block"`
 	Remain       hcl.Body     `hcl:",remain"`
+	FeatureFlags FeatureFlags `hcl:"feature,block"`
 }
 
 // terragruntErrors struct to decode errors block
@@ -103,8 +103,8 @@ type terragruntVersionConstraints struct {
 
 // TerragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
 type TerragruntDependency struct {
-	Dependencies Dependencies `hcl:"dependency,block"`
 	Remain       hcl.Body     `hcl:",remain"`
+	Dependencies Dependencies `hcl:"dependency,block"`
 }
 
 // terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config
@@ -154,7 +154,8 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	// set feature flags
 	tgFlags := terragruntFeatureFlags{}
 	// load default feature flags
-	if err := file.Decode(&tgFlags, evalParsingContext); err != nil {
+	err = file.Decode(&tgFlags, evalParsingContext)
+	if err != nil {
 		return nil, err
 	}
 	// validate flags to have default value, collect errors
@@ -209,10 +210,9 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
-			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
-
-			if err != nil {
-				return cty.NilVal, err
+			contextFlag, convertErr := flagToCtyValue(flag.Name, *flag.Default)
+			if convertErr != nil {
+				return cty.NilVal, convertErr
 			}
 
 			evaluatedFlags[flag.Name] = contextFlag

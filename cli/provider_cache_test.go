@@ -151,8 +151,8 @@ func TestProviderCache(t *testing.T) {
 			assert.Equal(t, testCase.expectedStatusCode, resp.StatusCode)
 
 			if testCase.expectedBodyReg != nil {
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
+				body, readErr := io.ReadAll(resp.Body)
+				require.NoError(t, readErr)
 				assert.Regexp(t, testCase.expectedBodyReg, string(body))
 			}
 

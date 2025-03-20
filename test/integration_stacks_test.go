@@ -146,8 +146,8 @@ func TestStacksNoGenerate(t *testing.T) {
 	entries, err := os.ReadDir(path)
 	require.NoError(t, err)
 	for _, entry := range entries {
-		err := os.RemoveAll(filepath.Join(path, entry.Name()))
-		require.NoError(t, err)
+		removeErr := os.RemoveAll(filepath.Join(path, entry.Name()))
+		require.NoError(t, removeErr)
 	}
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --experiment stacks stack run apply --no-stack-generate --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)

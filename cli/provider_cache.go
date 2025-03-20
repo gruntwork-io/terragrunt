@@ -332,8 +332,8 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 		return new(util.CmdOutput), nil
 	}
 
-	if err := errWriter.Flush(); err != nil {
-		return nil, err
+	if flushErr := errWriter.Flush(); flushErr != nil {
+		return nil, flushErr
 	}
 
 	return output, err

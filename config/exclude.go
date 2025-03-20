@@ -20,9 +20,9 @@ var boolFlagValues = []string{"if", "exclude_dependencies"}
 
 // ExcludeConfig configurations for hcl files.
 type ExcludeConfig struct {
-	If                  bool     `cty:"if" hcl:"if,attr" json:"if"`
-	Actions             []string `cty:"actions" hcl:"actions,attr" json:"actions"`
 	ExcludeDependencies *bool    `cty:"exclude_dependencies" hcl:"exclude_dependencies,attr" json:"exclude_dependencies"`
+	Actions             []string `cty:"actions" hcl:"actions,attr" json:"actions"`
+	If                  bool     `cty:"if" hcl:"if,attr" json:"if"`
 }
 
 // IsActionListed checks if the action is listed in the exclude block.
@@ -99,11 +99,11 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 	evaluatedAttrs := map[string]cty.Value{}
 
 	for _, attr := range attrs {
-		value, err := attr.Value(evalCtx)
-		if err != nil {
+		value, evalErr := attr.Value(evalCtx)
+		if evalErr != nil {
 			ctx.TerragruntOptions.Logger.Debugf("Encountered error while evaluating exclude block in file %s", file.ConfigPath)
 
-			return nil, err
+			return nil, evalErr
 		}
 
 		evaluatedAttrs[attr.Name] = value
@@ -112,9 +112,9 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 	for _, boolFlag := range boolFlagValues {
 		if value, ok := evaluatedAttrs[boolFlag]; ok {
 			if value.Type() == cty.String { // handle bool flag value
-				val, err := strconv.ParseBool(value.AsString())
-				if err != nil {
-					return nil, errors.New(err)
+				val, parseErr := strconv.ParseBool(value.AsString())
+				if parseErr != nil {
+					return nil, errors.New(parseErr)
 				}
 
 				evaluatedAttrs[boolFlag] = cty.BoolVal(val)

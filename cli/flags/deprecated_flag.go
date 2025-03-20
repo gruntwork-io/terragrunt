@@ -17,12 +17,11 @@ type DeprecatedFlags []*DeprecatedFlag
 // DeprecatedFlag represents a deprecated flag that is not shown in the CLI help, but its names, envVars, are registered.
 type DeprecatedFlag struct {
 	cli.Flag
-	controls strict.Controls
-
-	allowedSubcommandScope bool
+	newValueFn             NewValueFunc
+	controls               strict.Controls
 	names                  []string
 	envVars                []string
-	newValueFn             NewValueFunc
+	allowedSubcommandScope bool
 }
 
 // GetHidden implements `cli.Flag` interface.

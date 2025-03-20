@@ -41,20 +41,20 @@ type StackConfigFile struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
+	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	Values  *cty.Value `hcl:"values,attr"`
 	Name    string     `hcl:",label"`
 	Source  string     `hcl:"source,attr"`
 	Path    string     `hcl:"path,attr"`
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
 }
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
+	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	Values  *cty.Value `hcl:"values,attr"`
 	Name    string     `hcl:",label"`
 	Source  string     `hcl:"source,attr"`
 	Path    string     `hcl:"path,attr"`
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
 }
 
 // GenerateStacks generates the stack files.
@@ -250,13 +250,13 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 // It contains information about the source and target directories, the name and path of the item, the source URL or path,
 // and any associated values that need to be processed.
 type componentToProcess struct {
+	values    *cty.Value
 	sourceDir string
 	targetDir string
 	name      string
 	path      string
 	source    string
 	noStack   bool
-	values    *cty.Value
 }
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
@@ -411,7 +411,8 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	}
 
 	//nolint:contextcheck
-	if err := processLocals(parser, opts, file); err != nil {
+	err = processLocals(parser, opts, file)
+	if err != nil {
 		return nil, errors.New(err)
 	}
 	//nolint:contextcheck
@@ -539,18 +540,18 @@ func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file
 			return errors.New(MaxIterError{})
 		}
 
-		var err error
-		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
+		var localsErr error
+		attrs, evaluatedLocals, evaluated, localsErr = attemptEvaluateLocals(
 			parser,
 			file,
 			attrs,
 			evaluatedLocals,
 		)
 
-		if err != nil {
+		if localsErr != nil {
 			opts.Logger.Debugf("Encountered error while evaluating locals in file %s", opts.TerragruntStackConfigPath)
 
-			return errors.New(err)
+			return errors.New(localsErr)
 		}
 	}
 

@@ -286,7 +286,8 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.RootWorkingDir = filepath.ToSlash(workingDir)
 
-	if err := opts.Logger.Formatter().SetBaseDir(opts.RootWorkingDir); err != nil {
+	err = opts.Logger.Formatter().SetBaseDir(opts.RootWorkingDir)
+	if err != nil {
 		return err
 	}
 

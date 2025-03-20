@@ -199,9 +199,9 @@ func NewSource(source string, downloadDir string, workingDir string, logger log.
 		// Always use canonical file paths for local source folders, rather than relative paths, to ensure
 		// that the same local folder always maps to the same download folder, no matter how the local folder
 		// path is specified
-		canonicalFilePath, err := util.CanonicalPath(rootSourceURL.Path, "")
-		if err != nil {
-			return nil, err
+		canonicalFilePath, canonicalErr := util.CanonicalPath(rootSourceURL.Path, "")
+		if canonicalErr != nil {
+			return nil, canonicalErr
 		}
 
 		rootSourceURL.Path = canonicalFilePath

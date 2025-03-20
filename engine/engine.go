@@ -93,9 +93,9 @@ func Run(
 			return nil, errors.New(err)
 		}
 
-		terragruntEngine, client, err := createEngine(runOptions.TerragruntOptions)
-		if err != nil {
-			return nil, errors.New(err)
+		terragruntEngine, client, createEngineErr := createEngine(runOptions.TerragruntOptions)
+		if createEngineErr != nil {
+			return nil, errors.New(createEngineErr)
 		}
 
 		engineClients.Store(workingDir, &engineInstance{
@@ -591,27 +591,31 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 	)
 
 	for {
-		runResp, err := response.Recv()
-		if err != nil || runResp == nil {
+		runResp, recvErr := response.Recv()
+		if recvErr != nil || runResp == nil {
 			break
 		}
 
-		if err := processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
+		err = processStream(runResp.GetStdout(), &stdoutLineBuf, stdout)
+		if err != nil {
 			return nil, errors.New(err)
 		}
 
-		if err := processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
+		err = processStream(runResp.GetStderr(), &stderrLineBuf, stderr)
+		if err != nil {
 			return nil, errors.New(err)
 		}
 
 		resultCode = int(runResp.GetResultCode())
 	}
 
-	if err := flushBuffer(&stdoutLineBuf, stdout); err != nil {
+	err = flushBuffer(&stdoutLineBuf, stdout)
+	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := flushBuffer(&stderrLineBuf, stderr); err != nil {
+	err = flushBuffer(&stderrLineBuf, stderr)
+	if err != nil {
 		return nil, errors.New(err)
 	}
 
@@ -823,7 +827,9 @@ func extract(opts *options.TerragruntOptions, zipFile, destDir string) error {
 	}()
 
 	const dirPerm = 0755
-	if err := os.MkdirAll(destDir, dirPerm); err != nil {
+
+	err = os.MkdirAll(destDir, dirPerm)
+	if err != nil {
 		return errors.New(err)
 	}
 

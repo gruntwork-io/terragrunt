@@ -99,7 +99,9 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 							}
 
 							var ctyJSONOutput ctyJSONValue
-							if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
+
+							err = json.Unmarshal(jsonBytes, &ctyJSONOutput)
+							if err != nil {
 								return nil, errors.New(err)
 							}
 

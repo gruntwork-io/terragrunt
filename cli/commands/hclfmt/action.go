@@ -216,12 +216,12 @@ func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]b
 	}
 
 	defer func() {
-		if err := f1.Close(); err != nil {
-			opts.Logger.Warnf("Failed to close file %s %v", f1.Name(), err)
+		if closeErr := f1.Close(); closeErr != nil {
+			opts.Logger.Warnf("Failed to close file %s %v", f1.Name(), closeErr)
 		}
 
-		if err := os.Remove(f1.Name()); err != nil {
-			opts.Logger.Warnf("Failed to remove file %s %v", f1.Name(), err)
+		if removeErr := os.Remove(f1.Name()); removeErr != nil {
+			opts.Logger.Warnf("Failed to remove file %s %v", f1.Name(), removeErr)
 		}
 	}()
 
@@ -231,21 +231,21 @@ func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]b
 	}
 
 	defer func() {
-		if err := f2.Close(); err != nil {
-			opts.Logger.Warnf("Failed to close file %s %v", f2.Name(), err)
+		if closeErr := f2.Close(); closeErr != nil {
+			opts.Logger.Warnf("Failed to close file %s %v", f2.Name(), closeErr)
 		}
 
-		if err := os.Remove(f2.Name()); err != nil {
-			opts.Logger.Warnf("Failed to remove file %s %v", f2.Name(), err)
+		if removeErr := os.Remove(f2.Name()); removeErr != nil {
+			opts.Logger.Warnf("Failed to remove file %s %v", f2.Name(), removeErr)
 		}
 	}()
 
-	if _, err := f1.Write(b1); err != nil {
-		return nil, err
+	if _, f1WriteErr := f1.Write(b1); f1WriteErr != nil {
+		return nil, f1WriteErr
 	}
 
-	if _, err := f2.Write(b2); err != nil {
-		return nil, err
+	if _, f2WriteErr := f2.Write(b2); f2WriteErr != nil {
+		return nil, f2WriteErr
 	}
 
 	data, err := exec.Command("diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()

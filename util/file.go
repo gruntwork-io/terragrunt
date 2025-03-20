@@ -116,8 +116,8 @@ func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
 			globPath = filepath.Join(basePath, globPath)
 		}
 
-		matches, err := zglob.Glob(globPath)
-		if err == nil {
+		matches, globErr := zglob.Glob(globPath)
+		if globErr == nil {
 			paths = append(paths, matches...)
 		}
 	}
@@ -547,11 +547,11 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // we have to track all the files we touch in a manifest. This way we know exactly which files we need to clean on
 // subsequent runs.
 type fileManifest struct {
-	ManifestFolder string // this is a folder that has the manifest in it
-	ManifestFile   string // this is the manifest file name
+	logger         log.Logger
 	encoder        *gob.Encoder
 	fileHandle     *os.File
-	logger         log.Logger
+	ManifestFolder string
+	ManifestFile   string
 }
 
 // fileManifestEntry represents an entry in the fileManifest.
@@ -581,11 +581,11 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 	// cleaning manifest file
 	defer func(name string) {
-		if err := file.Close(); err != nil {
+		if err = file.Close(); err != nil {
 			manifest.logger.Warnf("Error closing file %s: %v", name, err)
 		}
 
-		if err := os.Remove(name); err != nil {
+		if err = os.Remove(name); err != nil {
 			manifest.logger.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
@@ -767,7 +767,7 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 
 	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
 	for _, dir := range lines {
-		if dir := strings.TrimSpace(dir); dir == "" || strings.HasPrefix(dir, "#") {
+		if trimmed := strings.TrimSpace(dir); trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
 

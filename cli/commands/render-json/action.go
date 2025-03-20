@@ -101,8 +101,8 @@ func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	}
 
 	var ctyJSONOutput config.CtyJSONOutput
-	if err := json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
-		return nil, errors.New(err)
+	if unmarshalErr := json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); unmarshalErr != nil {
+		return nil, errors.New(unmarshalErr)
 	}
 
 	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)

@@ -156,8 +156,8 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 
 	opts.Logger.Infof("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
 
-	if _, err := getter.GetAny(ctx, tempDir, moduleURL); err != nil {
-		return errors.New(err)
+	if _, getErr := getter.GetAny(ctx, tempDir, moduleURL); getErr != nil {
+		return errors.New(getErr)
 	}
 
 	// extract variables from downloaded module
@@ -347,9 +347,9 @@ func rewriteModuleURL(opts *options.TerragruntOptions, vars map[string]any, modu
 	if err != nil {
 		opts.Logger.Warnf("Failed to parse module url %s", moduleURL)
 
-		parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
-		if err != nil {
-			return nil, errors.New(err)
+		parsedModuleURL, parseURLErr := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
+		if parseURLErr != nil {
+			return nil, errors.New(parseURLErr)
 		}
 
 		return parsedModuleURL, nil
