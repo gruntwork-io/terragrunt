@@ -733,7 +733,7 @@ When using DAG mode, configurations with no dependencies appear first, followed 
 By default, configurations are sorted alphabetically:
 
 ```bash
-$ terragrunt list --sort=alpha
+$ terragrunt list
 a-dependent b-dependency
 ```
 
