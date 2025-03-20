@@ -1414,7 +1414,7 @@ func TestBestEffortParseConfigString(t *testing.T) {
 			name: "Simple",
 			cfg: `locals {
 	simple        = "value"
-	requires_auth = get_aws_account_id()
+	requires_auth = run_cmd("exit", "1") // intentional error
 }
 `,
 			expectError: true,
