@@ -29,8 +29,8 @@ func TestFindModules(t *testing.T) {
 		expectedData []moduleData
 	}{
 		{
-			"testdata/find_modules",
-			[]moduleData{
+			repoPath: "testdata/find_modules",
+			expectedData: []moduleData{
 				{
 					title:       "ALB Ingress Controller Module",
 					description: "This Terraform Module installs and configures the AWS ALB Ingress Controller on an EKS cluster, so that you can configure an ALB using Ingress resources.",
@@ -49,7 +49,6 @@ func TestFindModules(t *testing.T) {
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-aws-auth-merger",
 					moduleDir:   "modules/eks-aws-auth-merger",
 				}},
-			nil,
 		},
 	}
 

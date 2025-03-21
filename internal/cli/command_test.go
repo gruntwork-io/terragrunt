@@ -198,19 +198,18 @@ func TestCommandHasName(t *testing.T) {
 		expected bool
 	}{
 		{
-			cli.Command{Name: "foo"},
-			"bar",
-			false,
+			command: cli.Command{Name: "foo"},
+			hasName: "bar",
 		},
 		{
-			cli.Command{Name: "foo", Aliases: []string{"bar"}},
-			"bar",
-			true,
+			command:  cli.Command{Name: "foo", Aliases: []string{"bar"}},
+			hasName:  "bar",
+			expected: true,
 		},
 		{
-			cli.Command{Name: "bar"},
-			"bar",
-			true,
+			command:  cli.Command{Name: "bar"},
+			hasName:  "bar",
+			expected: true,
 		},
 	}
 
@@ -234,12 +233,12 @@ func TestCommandNames(t *testing.T) {
 		command  cli.Command
 	}{
 		{
-			cli.Command{Name: "foo"},
-			[]string{"foo"},
+			command:  cli.Command{Name: "foo"},
+			expected: []string{"foo"},
 		},
 		{
-			cli.Command{Name: "foo", Aliases: []string{"bar", "baz"}},
-			[]string{"foo", "bar", "baz"},
+			command:  cli.Command{Name: "foo", Aliases: []string{"bar", "baz"}},
+			expected: []string{"foo", "bar", "baz"},
 		},
 	}
 
@@ -295,12 +294,12 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 		command  cli.Command
 	}{
 		{
-			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz", HelpName: "helpBaz"}}},
-			cli.Commands{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
+			command:  cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz", HelpName: "helpBaz"}}},
+			expected: cli.Commands{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
 		},
 		{
-			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar", Hidden: true}, &cli.Command{Name: "baz"}}},
-			cli.Commands{{Name: "baz", HelpName: "baz"}},
+			command:  cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar", Hidden: true}, &cli.Command{Name: "baz"}}},
+			expected: cli.Commands{{Name: "baz", HelpName: "baz"}},
 		},
 	}
 
