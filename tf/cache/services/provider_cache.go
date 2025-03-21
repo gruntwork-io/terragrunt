@@ -75,21 +75,19 @@ func (caches ProviderCaches) removeArchive() error {
 }
 
 type ProviderCache struct {
-	*ProviderService
+	err error
 	*models.Provider
-	requestIDs []string
-
+	*ProviderService
 	started            chan struct{}
-	documentSHA256Sums []byte
+	userProviderDir    string
+	packageDir         string
+	lockfilePath       string
+	archivePath        string
 	signature          []byte
+	documentSHA256Sums []byte
+	requestIDs         []string
 	archiveCached      bool
 	ready              bool
-	err                error
-
-	userProviderDir string
-	packageDir      string
-	lockfilePath    string
-	archivePath     string
 }
 
 func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, error) {
@@ -300,24 +298,15 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 }
 
 type ProviderService struct {
-	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
-	cacheDir string
-
-	// The path to a predictable temporary directory for provider archives and lock files.
-	tempDir string
-
-	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
-	userCacheDir string
-
-	providerCaches        ProviderCaches
+	logger                log.Logger
 	providerCacheWarmUpCh chan *ProviderCache
-
-	cacheMu      sync.RWMutex
-	cacheReadyMu sync.RWMutex
-
-	credsSource *cliconfig.CredentialsSource
-
-	logger log.Logger
+	credsSource           *cliconfig.CredentialsSource
+	cacheDir              string
+	tempDir               string
+	userCacheDir          string
+	providerCaches        ProviderCaches
+	cacheMu               sync.RWMutex
+	cacheReadyMu          sync.RWMutex
 }
 
 func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger log.Logger) *ProviderService {

@@ -12,15 +12,15 @@ type Task func() error
 
 // WorkerPool manages concurrent task execution with a configurable number of workers
 type WorkerPool struct {
-	maxWorkers  int
-	semaphore   chan struct{} // Semaphore to limit concurrent execution
+	semaphore   chan struct{}
 	resultChan  chan error
-	doneChan    chan struct{} // Signal to stop the collector goroutine
-	wg          sync.WaitGroup
+	doneChan    chan struct{}
 	errorsSlice []error
-	mu          sync.Mutex // Mutex to protect errorsSlice
+	wg          sync.WaitGroup
+	maxWorkers  int
+	mu          sync.Mutex
+	isStopping  atomic.Bool
 	isRunning   bool
-	isStopping  atomic.Bool // Atomic flag to indicate the pool is stopping
 }
 
 // NewWorkerPool creates a new worker pool with the specified maximum number of concurrent workers

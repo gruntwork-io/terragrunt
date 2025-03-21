@@ -184,16 +184,16 @@ func TestElement(t *testing.T) {
 	testCases := []struct {
 		content              string
 		fileExt              string
-		maxDescriptionLength int
 		expectedTitle        string
 		expectedDescription  string
+		maxDescriptionLength int
 	}{
 		{
-			testH1EksK8sArgocd,
-			".md",
-			200,
-			"EKS K8s GitOps Module",
-			"This module deploys Argo CD to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the Argo CD for more details.",
+			content:              testH1EksK8sArgocd,
+			fileExt:              "md",
+			maxDescriptionLength: 200,
+			expectedTitle:        "EKS K8s Argo CD",
+			expectedDescription:  "This module deploys Argo CD to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the Argo CD for more details.",
 		},
 		{
 			testH1EksCloudwatchAgent,

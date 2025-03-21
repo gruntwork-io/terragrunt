@@ -22,10 +22,10 @@ func TestConfig(t *testing.T) {
 	tempCacheDir := t.TempDir()
 
 	testCases := []struct {
-		providerInstallationMethods []cliconfig.ProviderInstallationMethod
-		hosts                       []cliconfig.ConfigHost
 		config                      cliconfig.Config
 		expectedHCL                 string
+		providerInstallationMethods []cliconfig.ProviderInstallationMethod
+		hosts                       []cliconfig.ConfigHost
 	}{
 		{
 			providerInstallationMethods: []cliconfig.ProviderInstallationMethod{

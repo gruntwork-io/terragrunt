@@ -37,12 +37,12 @@ type DependencyOrder int
 // RunningModule represents a module we are trying to "run" (i.e. apply or destroy)
 // as part of the apply-all or destroy-all command.
 type RunningModule struct {
-	Module         *TerraformModule
-	Status         ModuleStatus
 	Err            error
+	Module         *TerraformModule
 	DependencyDone chan *RunningModule
 	Dependencies   map[string]*RunningModule
 	NotifyWhenDone []*RunningModule
+	Status         ModuleStatus
 	FlagExcluded   bool
 }
 

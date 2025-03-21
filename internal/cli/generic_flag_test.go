@@ -16,11 +16,11 @@ func TestGenericFlagStringApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.GenericFlag[string]
-		args          []string
-		envs          map[string]string
-		expectedValue string
 		expectedErr   error
+		envs          map[string]string
+		flag          cli.GenericFlag[string]
+		expectedValue string
+		args          []string
 	}{
 		{
 			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
@@ -81,11 +81,11 @@ func TestGenericFlagIntApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr   error
+		envs          map[string]string
 		flag          cli.GenericFlag[int]
 		args          []string
-		envs          map[string]string
 		expectedValue int
-		expectedErr   error
 	}{
 		{
 			cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
@@ -132,11 +132,11 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr   error
+		envs          map[string]string
 		flag          cli.GenericFlag[int64]
 		args          []string
-		envs          map[string]string
 		expectedValue int64
-		expectedErr   error
 	}{
 		{
 			cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},

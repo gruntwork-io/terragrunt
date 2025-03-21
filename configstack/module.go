@@ -32,10 +32,10 @@ const existingModulesCacheName = "existingModules"
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
 	*Stack
-	Path                 string
-	Dependencies         TerraformModules
-	Config               config.TerragruntConfig
 	TerragruntOptions    *options.TerragruntOptions
+	Path                 string
+	Config               config.TerragruntConfig
+	Dependencies         TerraformModules
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
 }

@@ -16,8 +16,8 @@ func TestPrefixWriter(t *testing.T) {
 
 	tc := []struct {
 		prefix   string
-		values   []string
 		expected string
+		values   []string
 	}{
 		{"p1 ", []string{"a", "b"}, "p1 ab"},
 		{"p2 ", []string{"a", "b"}, "p2 ab"},
@@ -71,8 +71,8 @@ func TestPrefixWriterFail(t *testing.T) {
 
 	tc := []struct {
 		prefix   string
-		values   []string
 		expected string
+		values   []string
 	}{
 		{"p1 ", []string{"a", "b"}, "p1 ab"},
 	}

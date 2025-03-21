@@ -185,13 +185,13 @@ func TestFmtGeneratedFile(t *testing.T) {
 	bFalse := false
 
 	tc := []struct {
-		name     string
-		disabled bool
 		fmt      *bool
+		name     string
 		path     string
 		contents string
 		expected string
 		ifExists codegen.GenerateConfigExists
+		disabled bool
 	}{
 		{
 			name:     "fmt-simple-hcl-file",
@@ -258,10 +258,10 @@ func TestGenerateDisabling(t *testing.T) {
 
 	tc := []struct {
 		name     string
-		disabled bool
 		path     string
 		contents string
 		ifExists codegen.GenerateConfigExists
+		disabled bool
 	}{
 		{
 			"generate-disabled-true",

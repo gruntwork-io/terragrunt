@@ -159,8 +159,8 @@ func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string
 	t.Helper()
 
 	type VersionProvider struct {
-		Hashes []string `json:"hashes"`
 		URL    string   `json:"url"`
+		Hashes []string `json:"hashes"`
 	}
 	type Version struct {
 		Archives map[string]VersionProvider `json:"archives"`

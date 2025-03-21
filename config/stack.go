@@ -41,20 +41,20 @@ type StackConfigFile struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
+	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	Values  *cty.Value `hcl:"values,attr"`
 	Name    string     `hcl:",label"`
 	Source  string     `hcl:"source,attr"`
 	Path    string     `hcl:"path,attr"`
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
 }
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
+	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	Values  *cty.Value `hcl:"values,attr"`
 	Name    string     `hcl:",label"`
 	Source  string     `hcl:"source,attr"`
 	Path    string     `hcl:"path,attr"`
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
 }
 
 // GenerateStacks generates the stack files.
@@ -254,13 +254,13 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 // It contains information about the source and target directories, the name and path of the item, the source URL or path,
 // and any associated values that need to be processed.
 type componentToProcess struct {
+	values    *cty.Value
 	sourceDir string
 	targetDir string
 	name      string
 	path      string
 	source    string
 	noStack   bool
-	values    *cty.Value
 }
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.

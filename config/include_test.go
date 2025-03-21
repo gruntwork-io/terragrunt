@@ -228,10 +228,10 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 	}
 
 	tc := []struct {
-		name     string
 		source   *config.TerragruntConfig
 		target   *config.TerragruntConfig
 		expected *config.TerragruntConfig
+		name     string
 	}{
 		// Base case: empty config
 		{

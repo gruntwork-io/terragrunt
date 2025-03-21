@@ -16,11 +16,11 @@ func TestMapFlagStringStringApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.MapFlag[string, string]
-		args          []string
+		expectedErr   error
 		envs          map[string]string
 		expectedValue map[string]string
-		expectedErr   error
+		flag          cli.MapFlag[string, string]
+		args          []string
 	}{
 		{
 			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
@@ -74,11 +74,11 @@ func TestMapFlagStringIntApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.MapFlag[string, int]
-		args          []string
+		expectedErr   error
 		envs          map[string]string
 		expectedValue map[string]int
-		expectedErr   error
+		flag          cli.MapFlag[string, int]
+		args          []string
 	}{
 		{
 			cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}},

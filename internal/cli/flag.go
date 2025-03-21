@@ -143,11 +143,11 @@ type Value interface {
 // flag is a common flag related to parsing flags in cli.
 type flagValue struct {
 	value            Value
-	multipleSet      bool
 	name             string
+	initialTextValue string
+	multipleSet      bool
 	hasBeenSet       bool
 	envHasBeenSet    bool
-	initialTextValue string
 	negative         bool
 }
 

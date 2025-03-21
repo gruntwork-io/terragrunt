@@ -58,14 +58,14 @@ type engineClientsKey byte
 type engineLocksKey byte
 
 type ExecutionOptions struct {
-	TerragruntOptions *options.TerragruntOptions
 	CmdStdout         io.Writer
 	CmdStderr         io.Writer
+	TerragruntOptions *options.TerragruntOptions
 	WorkingDir        string
-	SuppressStdout    bool
-	AllocatePseudoTty bool
 	Command           string
 	Args              []string
+	SuppressStdout    bool
+	AllocatePseudoTty bool
 }
 
 type engineInstance struct {

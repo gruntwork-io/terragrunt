@@ -134,9 +134,9 @@ func TestDiffersFrom(t *testing.T) {
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
-		name            string
-		existingBackend remote.TerraformBackend
 		stateFromConfig remote.RemoteState
+		existingBackend remote.TerraformBackend
+		name            string
 		shouldOverride  bool
 	}{
 		{"both empty", remote.TerraformBackend{}, remote.RemoteState{}, false},

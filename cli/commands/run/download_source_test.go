@@ -325,42 +325,24 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 		sourceURL string
 		comp      assert.Comparison
 	}{
-		{
-			"test-stale-file-exists", "../../../test/fixtures/manifest/version-1",
-			func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
-			},
-		},
-		{
-			"test-stale-file-doesnt-exist-after-source-update", "../../../test/fixtures/manifest/version-2",
-			func() bool {
-				return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
-			},
-		},
-		{
-			"test-tffile-exists-in-subfolder", "../../../test/fixtures/manifest/version-3-subfolder",
-			func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
-			},
-		},
-		{
-			"test-tffile-doesnt-exist-in-subfolder", "../../../test/fixtures/manifest/version-4-subfolder-empty",
-			func() bool {
-				return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
-			},
-		},
-		{
-			"test-empty-folder-gets-copied", testDir,
-			func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub2"))
-			},
-		},
-		{
-			"test-empty-folder-gets-populated", "../../../test/fixtures/manifest/version-5-not-empty-subfolder",
-			func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
-			},
-		},
+		{name: "test-stale-file-exists", sourceURL: "../../../test/fixtures/manifest/version-1", comp: func() bool {
+			return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+		}},
+		{name: "test-stale-file-doesnt-exist-after-source-update", sourceURL: "../../../test/fixtures/manifest/version-2", comp: func() bool {
+			return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+		}},
+		{name: "test-tffile-exists-in-subfolder", sourceURL: "../../../test/fixtures/manifest/version-3-subfolder", comp: func() bool {
+			return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+		}},
+		{name: "test-tffile-doesnt-exist-in-subfolder", sourceURL: "../../../test/fixtures/manifest/version-4-subfolder-empty", comp: func() bool {
+			return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+		}},
+		{name: "test-empty-folder-gets-copied", sourceURL: testDir, comp: func() bool {
+			return util.FileExists(filepath.Join(downloadDir, "sub2"))
+		}},
+		{name: "test-empty-folder-gets-populated", sourceURL: "../../../test/fixtures/manifest/version-5-not-empty-subfolder", comp: func() bool {
+			return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
+		}},
 	}
 
 	// The test cases are run sequentially because they depend on each other.
@@ -372,9 +354,7 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 			copyFolder(t, testCase.sourceURL, downloadDir)
 			assert.Condition(t, testCase.comp)
 		})
-
 	}
-
 }
 
 func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {

@@ -92,11 +92,11 @@ func TestModuleURL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name        string
+		expectedErr error
 		repo        *module.Repo
+		name        string
 		moduleDir   string
 		expectedURL string
-		expectedErr error
 	}{
 		{
 			"github",

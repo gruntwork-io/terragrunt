@@ -42,9 +42,9 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	workingDir = filepath.ToSlash(workingDir)
 
 	testCases := []struct {
-		args            []string
-		expectedOptions *options.TerragruntOptions
 		expectedErr     error
+		expectedOptions *options.TerragruntOptions
+		args            []string
 	}{
 		{
 			[]string{"plan"},
@@ -328,10 +328,10 @@ func TestParseMultiStringArg(t *testing.T) {
 	flagName := doubleDashed(run.UnitsThatIncludeFlagName)
 
 	testCases := []struct {
+		expectedErr  error
 		args         []string
 		defaultValue []string
 		expectedVals []string
-		expectedErr  error
 	}{
 		{[]string{commands.CommandNameApplyAll, flagName, "bar"}, []string{"default_bar"}, []string{"bar"}, nil},
 		{[]string{commands.CommandNameApplyAll, "--test", "bar"}, []string{"default_bar"}, []string{"default_bar"}, nil},
@@ -365,10 +365,10 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 	flagName := doubleDashed(terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName))
 
 	testCases := []struct {
-		args         []string
+		expectedErr  error
 		defaultValue map[string]string
 		expectedVals map[string]string
-		expectedErr  error
+		args         []string
 	}{
 		{[]string{awsproviderpatch.CommandName}, nil, nil, nil},
 		{[]string{awsproviderpatch.CommandName}, map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
@@ -427,9 +427,9 @@ func TestTerragruntHelp(t *testing.T) {
 	app := cli.NewApp(opts)
 
 	testCases := []struct {
-		args        []string
 		expected    string
 		notExpected string
+		args        []string
 	}{
 		{[]string{"terragrunt", "--help"}, app.UsageText, terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName)},
 		{[]string{"terragrunt", "-help"}, app.UsageText, terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName)},
@@ -460,8 +460,8 @@ func TestTerraformHelp(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		args     []string
 		expected string
+		args     []string
 	}{
 		{[]string{"terragrunt", tf.CommandNamePlan, "--help"}, "(?s)Usage: terragrunt \\[global options\\] plan.*-detailed-exitcode"},
 		{[]string{"terragrunt", tf.CommandNameApply, "-help"}, "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy"},

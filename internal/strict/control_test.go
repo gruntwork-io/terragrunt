@@ -124,14 +124,14 @@ func TestEnableControl(t *testing.T) {
 	t.Parallel()
 
 	type testEnableControl struct {
-		controlName string
 		expectedErr error
+		controlName string
 	}
 
 	testCases := []struct {
+		expectedCompletedMsg    string
 		enableControls          []testEnableControl
 		expectedEnabledControls []string
-		expectedCompletedMsg    string
 	}{
 		{
 			[]testEnableControl{
@@ -244,8 +244,8 @@ func TestEnableStrictMode(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		enableStrictMode        bool
 		expectedEnabledControls []string
+		enableStrictMode        bool
 	}{
 		{
 			true,
@@ -294,8 +294,8 @@ func TestEvaluateControl(t *testing.T) {
 	t.Parallel()
 
 	type testEvaluateControl struct {
-		name        string
 		expectedErr error
+		name        string
 	}
 
 	testCases := []struct {

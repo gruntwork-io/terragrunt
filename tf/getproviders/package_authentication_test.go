@@ -56,10 +56,10 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr    error
+		expectedResult *getproviders.PackageAuthenticationResult
 		path           string
 		wantSHA256Sum  [sha256.Size]byte
-		expectedResult *getproviders.PackageAuthenticationResult
-		expectedErr    error
 	}{
 		{
 			"testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
@@ -127,11 +127,11 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr   error
 		path          string
 		filename      string
 		document      []byte
 		wantSHA256Sum [sha256.Size]byte
-		expectedErr   error
 	}{
 		{
 			"testdata/my-package.zip",
@@ -251,12 +251,12 @@ func TestSignatureAuthenticate(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		path           string
-		document       []byte
-		signature      string
+		expectedErr    error
 		keys           map[string]string
 		expectedResult *getproviders.PackageAuthenticationResult
-		expectedErr    error
+		path           string
+		signature      string
+		document       []byte
 	}{
 		{
 			"testdata/my-package.zip",

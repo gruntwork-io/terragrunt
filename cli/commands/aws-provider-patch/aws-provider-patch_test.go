@@ -287,13 +287,13 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		attributesToOverride   map[string]string
 		testName               string
 		originalTerraformCode  string
-		attributesToOverride   map[string]string
-		expectedCodeWasUpdated bool
 		expectedTerraformCode  []string
+		expectedCodeWasUpdated bool
 	}{
-		{"empty", "", nil, false, []string{""}},
+		{testName: "empty", originalTerraformCode: "", attributesToOverride: nil, expectedCodeWasUpdated: false, expectedTerraformCode: []string{""}},
 		{"empty with attributes", "", map[string]string{"region": `"eu-west-1"`}, false, []string{""}},
 		{"no provider", terraformCodeExampleOutputOnly, map[string]string{"region": `"eu-west-1"`}, false, []string{terraformCodeExampleOutputOnly}},
 		{"no aws provider", terraformCodeExampleGcpProvider, map[string]string{"region": `"eu-west-1"`}, false, []string{terraformCodeExampleGcpProvider}},

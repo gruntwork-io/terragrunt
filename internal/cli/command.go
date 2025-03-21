@@ -7,51 +7,27 @@ import (
 )
 
 type Command struct {
-	// Name is the command name.
-	Name string
-	// Aliases is a list of aliases for the command.
-	Aliases []string
-	// Usage is a short description of the usage of the command.
-	Usage string
-	// UsageText is custom text to show on the `Usage` section of help.
-	UsageText string
-	// Description is a longer explanation of how the command works.
-	Description string
-	// Examples is list of examples of using the command in the help.
-	Examples []string
-	// Category is the category the command belongs to.
-	Category *Category
-	// Flags is list of flags to parse.
-	Flags Flags
-	// ErrorOnUndefinedFlag causes the application to exit and return an error on any undefined flag.
+	Category             *Category
+	Before               ActionFunc
+	CustomHelp           HelpFunc
+	After                ActionFunc
+	Complete             CompleteFunc
+	Action               ActionFunc
+	Description          string
+	HelpName             string
+	Name                 string
+	UsageText            string
+	CustomHelpTemplate   string
+	Usage                string
+	Flags                Flags
+	Examples             []string
+	Subcommands          Commands
+	Aliases              []string
+	IsRoot               bool
+	SkipRunning          bool
+	SkipFlagParsing      bool
+	Hidden               bool
 	ErrorOnUndefinedFlag bool
-	// Full name of cmd for help, defaults to full cmd name, including parent commands.
-	HelpName string
-	// if this is a root "special" cmd
-	IsRoot bool
-	// Boolean to hide this cmd from help
-	Hidden bool
-	// CustomHelpTemplate the text template for the cmd help topic.
-	// cli.go uses text/template to render templates. You can
-	// render custom help text by setting this variable.
-	CustomHelpTemplate string
-	// CustomHelp is a func that is executed when help for a command needs to be displayed.
-	CustomHelp HelpFunc
-	// List of child commands
-	Subcommands Commands
-	// Treat all flags as normal arguments if true
-	SkipFlagParsing bool
-	// Boolean to disable the parsing command, but it will still be shown in the help.
-	SkipRunning bool
-	// The function to call when checking for command completions
-	Complete CompleteFunc
-	// An action to execute before any subcommands are run, but after the context is ready
-	// If a non-nil error is returned, no subcommands are run
-	Before ActionFunc
-	// An action to execute after any subcommands are run, but after the subcommand has finished
-	After ActionFunc
-	// The action to execute when no subcommands are specified
-	Action ActionFunc
 }
 
 // Names returns the names including short names and aliases.

@@ -394,10 +394,10 @@ func outputTree(opts *Options, configs ListedConfigs, sort string) error {
 }
 
 type TreeStyler struct {
-	shouldColor bool
 	entryStyle  lipgloss.Style
 	rootStyle   lipgloss.Style
 	colorizer   *Colorizer
+	shouldColor bool
 }
 
 func NewTreeStyler(shouldColor bool) *TreeStyler {

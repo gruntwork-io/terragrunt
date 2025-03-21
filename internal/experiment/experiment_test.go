@@ -31,11 +31,11 @@ func TestValidateExperiments(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedError   error
 		name            string
+		expectedWarning string
 		experiments     experiment.Experiments
 		experimentNames []string
-		expectedWarning string
-		expectedError   error
 	}{
 		{
 			name: "no experiments",

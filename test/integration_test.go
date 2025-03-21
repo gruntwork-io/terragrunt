@@ -124,8 +124,8 @@ func TestCLIFlagHints(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		args          string
 		expectedError error
+		args          string
 	}{
 		{
 			"-raw init",
@@ -156,9 +156,9 @@ func TestExecCommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		args       []string
 		scriptPath string
 		runInDir   string
+		args       []string
 	}{
 		{
 			nil,
@@ -283,10 +283,10 @@ func TestLogCustomFormatOutput(t *testing.T) {
 	)
 
 	testCases := []struct {
+		expectedErr        error
 		logCustomFormat    string
 		expectedStdOutRegs []*regexp.Regexp
 		expectedStdErrRegs []*regexp.Regexp
-		expectedErr        error
 	}{
 		{
 			"%time %level %prefix %msg",
@@ -469,8 +469,8 @@ func TestLogWithRelPath(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogRelPaths)
 
 	testCases := []struct {
-		workingDir string
 		assertFn   func(t *testing.T, stdout, stderr string)
+		workingDir string
 	}{
 		{
 			workingDir: "duplicate-dir-names/workspace/one/two/aaa", // dir `workspace` duplicated twice in path
@@ -1074,9 +1074,9 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command     []string
-		expected    string
 		expectedErr error
+		expected    string
+		command     []string
 	}{
 		{
 			[]string{"--", "version"},
@@ -1140,8 +1140,8 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  []string
 		expected string
+		command  []string
 	}{
 		{
 			[]string{"force-unlock"},

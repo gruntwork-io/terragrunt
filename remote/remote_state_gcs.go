@@ -32,14 +32,13 @@ import (
  * has to create them.
  */
 type ExtendedRemoteStateConfigGCS struct {
-	remoteStateConfigGCS RemoteStateConfigGCS
-
+	GCSBucketLabels        map[string]string `mapstructure:"gcs_bucket_labels"`
 	Project                string            `mapstructure:"project"`
 	Location               string            `mapstructure:"location"`
-	GCSBucketLabels        map[string]string `mapstructure:"gcs_bucket_labels"`
-	SkipBucketVersioning   bool              `mapstructure:"skip_bucket_versioning"`
-	SkipBucketCreation     bool              `mapstructure:"skip_bucket_creation"`
-	EnableBucketPolicyOnly bool              `mapstructure:"enable_bucket_policy_only"`
+	remoteStateConfigGCS   RemoteStateConfigGCS
+	SkipBucketVersioning   bool `mapstructure:"skip_bucket_versioning"`
+	SkipBucketCreation     bool `mapstructure:"skip_bucket_creation"`
+	EnableBucketPolicyOnly bool `mapstructure:"enable_bucket_policy_only"`
 }
 
 // These are settings that can appear in the remote_state config that are ONLY used by Terragrunt and NOT forwarded

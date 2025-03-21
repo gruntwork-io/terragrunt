@@ -19,9 +19,9 @@ func TestCommandRun(t *testing.T) {
 	type TestActionFunc func(expectedOrder int, expectedArgs []string) cli.ActionFunc
 
 	type TestCase struct {
-		args        []string
 		command     cli.Command
 		expectedErr error
+		args        []string
 	}
 
 	testCaseFuncs := []func(action TestActionFunc, skip cli.ActionFunc) TestCase{
@@ -265,8 +265,8 @@ func TestCommandSubcommand(t *testing.T) {
 
 	testCases := []struct {
 		command       cli.Command
-		searchCmdName string
 		expected      *cli.Command
+		searchCmdName string
 	}{
 		{
 			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},

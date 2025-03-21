@@ -22,9 +22,9 @@ func TestCatalogParseConfigFile(t *testing.T) {
 	basePath := filepath.Join(curDir, "../test/fixtures/catalog")
 
 	testCases := []struct {
-		configPath     string
-		expectedConfig *config.CatalogConfig
 		expectedErr    error
+		expectedConfig *config.CatalogConfig
+		configPath     string
 	}{
 		{
 			filepath.Join(basePath, "config1.hcl"),

@@ -20,9 +20,9 @@ var boolFlagValues = []string{"if", "exclude_dependencies"}
 
 // ExcludeConfig configurations for hcl files.
 type ExcludeConfig struct {
-	If                  bool     `cty:"if" hcl:"if,attr" json:"if"`
-	Actions             []string `cty:"actions" hcl:"actions,attr" json:"actions"`
 	ExcludeDependencies *bool    `cty:"exclude_dependencies" hcl:"exclude_dependencies,attr" json:"exclude_dependencies"`
+	Actions             []string `cty:"actions" hcl:"actions,attr" json:"actions"`
+	If                  bool     `cty:"if" hcl:"if,attr" json:"if"`
 }
 
 // IsActionListed checks if the action is listed in the exclude block.

@@ -44,10 +44,10 @@ type CloneOptions struct {
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
+	cloneStart time.Time
 	store      *Store
 	git        *GitRunner
 	opts       Options
-	cloneStart time.Time
 }
 
 // New creates a new CAS instance with the given options

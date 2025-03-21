@@ -21,10 +21,10 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		description    string
 		envVarsInOpts  map[string]string
 		inputsInConfig map[string]any
 		expected       map[string]string
+		description    string
 	}{
 		{
 			description:    "No env vars in opts, no inputs",
@@ -258,9 +258,9 @@ func TestToTerraformEnvVars(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		description string
 		vars        map[string]any
 		expected    map[string]string
+		description string
 	}{
 		{
 			"empty",
@@ -492,12 +492,12 @@ func TestShouldCopyLockFile(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		args            []string
 		terraformConfig *config.TerraformConfig
+		args            []string
 	}
 	tests := []struct {
-		name string
 		args args
+		name string
 		want bool
 	}{
 		{

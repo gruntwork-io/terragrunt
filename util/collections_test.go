@@ -18,8 +18,8 @@ func TestMatchesAny(t *testing.T) {
 	}
 
 	tc := []struct {
-		list     []string
 		element  string
+		list     []string
 		expected bool
 	}{
 		{nil, "", false},
@@ -49,8 +49,8 @@ func TestListContainsElement(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		list     []string
 		element  string
+		list     []string
 		expected bool
 	}{
 		{[]string{}, "", false},
@@ -245,8 +245,8 @@ func TestCommaSeparatedStrings(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		list     []string
 		expected string
+		list     []string
 	}{
 		{[]string{}, ``},
 		{[]string{"foo"}, `"foo"`},
@@ -269,10 +269,10 @@ func TestStringListInsert(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		list     []string
 		element  string
-		index    int
+		list     []string
 		expected []string
+		index    int
 	}{
 		{[]string{}, "foo", 0, []string{"foo"}},
 		{[]string{"a", "c", "d"}, "b", 1, []string{"a", "b", "c", "d"}},

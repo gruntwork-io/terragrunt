@@ -24,10 +24,10 @@ func TestNewMetricsExporter(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
+		expectedType any
 		name         string
 		exporterType string
 		insecure     bool
-		expectedType any
 		expectNil    bool
 	}{
 		{

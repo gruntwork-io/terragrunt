@@ -21,9 +21,9 @@ func TestPathRelativeToInclude(t *testing.T) {
 
 	tc := []struct {
 		include           map[string]config.IncludeConfig
-		params            []string
 		terragruntOptions *options.TerragruntOptions
 		expectedPath      string
+		params            []string
 	}{
 		{
 			nil,
@@ -92,9 +92,9 @@ func TestPathRelativeFromInclude(t *testing.T) {
 
 	tc := []struct {
 		include           map[string]config.IncludeConfig
-		params            []string
 		terragruntOptions *options.TerragruntOptions
 		expectedPath      string
+		params            []string
 	}{
 		{
 			nil,
@@ -163,10 +163,10 @@ func TestRunCommand(t *testing.T) {
 
 	homeDir := os.Getenv("HOME")
 	tc := []struct {
-		params            []string
+		expectedErr       error
 		terragruntOptions *options.TerragruntOptions
 		expectedOutput    string
-		expectedErr       error
+		params            []string
 	}{
 		{
 			[]string{"/bin/bash", "-c", "echo -n foo"},
@@ -249,11 +249,11 @@ func TestFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		name              string
-		params            []string
-		terragruntOptions *options.TerragruntOptions
-		expectedPath      string
 		expectedErr       error
+		terragruntOptions *options.TerragruntOptions
+		name              string
+		expectedPath      string
+		params            []string
 	}{
 		{
 			"simple-lookup",
@@ -717,9 +717,9 @@ func TestGetParentTerragruntDir(t *testing.T) {
 
 	tc := []struct {
 		include           map[string]config.IncludeConfig
-		params            []string
 		terragruntOptions *options.TerragruntOptions
 		expectedPath      string
+		params            []string
 	}{
 		{
 			nil,
@@ -787,8 +787,8 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		input    string
 		expected any
+		input    string
 	}{
 		{
 			"abs(-1)",
@@ -853,8 +853,8 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		input    string
 		expected map[string]cty.Value
+		input    string
 	}{
 		{
 			`{"bool": {"sensitive": false, "type": "bool", "value": true}}`,
@@ -1149,9 +1149,9 @@ func TestTimeCmp(t *testing.T) {
 
 	tc := []struct {
 		config *options.TerragruntOptions
+		err    string
 		args   []string
 		value  int64
-		err    string
 	}{
 		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "2017-11-22T00:00:00Z"}, 0, ""},
 		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "2017-11-22T01:00:00+01:00"}, 0, ""},
@@ -1187,9 +1187,9 @@ func TestStrContains(t *testing.T) {
 
 	tc := []struct {
 		config *options.TerragruntOptions
+		err    string
 		args   []string
 		value  bool
-		err    string
 	}{
 		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, true, ""},
 		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, true, ""},

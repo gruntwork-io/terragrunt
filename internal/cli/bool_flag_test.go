@@ -18,11 +18,11 @@ func TestBoolFlagApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr   error
+		envs          map[string]string
 		flag          cli.BoolFlag
 		args          []string
-		envs          map[string]string
 		expectedValue bool
-		expectedErr   error
 	}{
 		{
 			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},

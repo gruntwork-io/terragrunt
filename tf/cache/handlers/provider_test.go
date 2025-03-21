@@ -14,8 +14,8 @@ func TestIsOfflineError(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		err      error
-		expected bool
 		desc     string
+		expected bool
 	}{
 		{syscall.ECONNREFUSED, true, "connection refused"},
 		{syscall.ECONNRESET, true, "connection reset by peer"},

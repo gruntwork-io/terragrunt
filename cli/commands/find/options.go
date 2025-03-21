@@ -27,29 +27,13 @@ const (
 
 type Options struct {
 	*options.TerragruntOptions
-
-	// Format determines the format of the output.
-	Format string
-
-	// JSON determines whether to output in JSON format.
-	// Alias for --format=json.
-	JSON bool
-
-	// DAG determines whether to sort output in DAG order.
-	// Alias for --sort=dag.
-	DAG bool
-
-	// Mode determines the mode of the find command.
-	Mode string
-
-	// Hidden determines whether to detect hidden directories.
-	Hidden bool
-
-	// Dependencies determines whether to include dependencies in the output.
+	Format       string
+	Mode         string
+	JSON         bool
+	DAG          bool
+	Hidden       bool
 	Dependencies bool
-
-	// External determines whether to include external dependencies in the output.
-	External bool
+	External     bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {

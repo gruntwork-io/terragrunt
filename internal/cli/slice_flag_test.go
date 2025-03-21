@@ -16,11 +16,11 @@ func TestSliceFlagStringApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr   error
+		envs          map[string]string
 		flag          cli.SliceFlag[string]
 		args          []string
-		envs          map[string]string
 		expectedValue []string
-		expectedErr   error
 	}{
 		{
 			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
@@ -74,11 +74,11 @@ func TestSliceFlagIntApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr   error
+		envs          map[string]string
 		flag          cli.SliceFlag[int]
 		args          []string
-		envs          map[string]string
 		expectedValue []int
-		expectedErr   error
 	}{
 		{
 			cli.SliceFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
@@ -118,11 +118,11 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr   error
+		envs          map[string]string
 		flag          cli.SliceFlag[int64]
 		args          []string
-		envs          map[string]string
 		expectedValue []int64
-		expectedErr   error
 	}{
 		{
 			cli.SliceFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
