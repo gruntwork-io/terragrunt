@@ -40,9 +40,26 @@ func TestConfig(t *testing.T) {
 				DisableCheckpoint: true,
 				PluginCacheDir:    "path/to/plugin/cache/dir1",
 			},
-			expectedHCL: `disable_checkpoint           = true
-disable_checkpoint_signature = false
-plugin_cache_dir             = "path/to/plugin/cache/dir1"
+			expectedHCL: `
+provider_installation {
+
+   "filesystem_mirror" {
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
+    path    = "` + tempCacheDir + `"
+  }
+   "network_mirror" {
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
+    url     = "https://network-mirror.io/providers/"
+  }
+   "direct" {
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
+  }
+}
+
+plugin_cache_dir = "path/to/plugin/cache/dir1"
 
 host "registry.terraform.io" {
   services = {
@@ -50,23 +67,8 @@ host "registry.terraform.io" {
   }
 }
 
-provider_installation {
-
-   "filesystem_mirror" {
-    path    = "` + tempCacheDir + `"
-    include = ["registry.terraform.io/*/*"]
-    exclude = ["registry.opentofu.org/*/*"]
-  }
-   "network_mirror" {
-    url     = "https://network-mirror.io/providers/"
-    include = ["registry.terraform.io/*/*"]
-    exclude = ["registry.opentofu.org/*/*"]
-  }
-   "direct" {
-    include = ["registry.terraform.io/*/*"]
-    exclude = ["registry.opentofu.org/*/*"]
-  }
-}
+disable_checkpoint           = true
+disable_checkpoint_signature = false
 `,
 		},
 		{
@@ -74,12 +76,13 @@ provider_installation {
 				DisableCheckpoint: false,
 				PluginCacheDir:    tempCacheDir,
 			},
-			expectedHCL: `disable_checkpoint           = false
-disable_checkpoint_signature = false
-plugin_cache_dir             = "` + tempCacheDir + `"
-
+			expectedHCL: `
 provider_installation {
 }
+
+plugin_cache_dir             = "` + tempCacheDir + `"
+disable_checkpoint           = false
+disable_checkpoint_signature = false
 `,
 		},
 	}
