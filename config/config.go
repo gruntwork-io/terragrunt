@@ -115,9 +115,13 @@ type DecodedBaseBlocks struct {
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
-	Engine                      *EngineConfig
-	RetryMaxAttempts            *int
-	FieldsMetadata              map[string]map[string]any
+	Engine           *EngineConfig
+	RetryMaxAttempts *int
+
+	// Map to store fields metadata
+	FieldsMetadata map[string]map[string]any
+
+	// Map of processed includes
 	ProcessedIncludes           IncludeConfigsMap
 	Errors                      *ErrorsConfig
 	RemoteState                 *remote.RemoteState
@@ -142,8 +146,13 @@ type TerragruntConfig struct {
 	TerragruntDependencies      Dependencies
 	RetryableErrors             []string
 	FeatureFlags                FeatureFlags
-	DependentModulesPath        []*string
-	IsPartial                   bool
+
+	// List of dependent modules
+	DependentModulesPath []*string
+
+	// Fields used for internal tracking
+	// Indicates whether this is the result of a partial evaluation
+	IsPartial bool
 }
 
 func (cfg *TerragruntConfig) String() string {
@@ -462,9 +471,13 @@ func (conf *ErrorHook) String() string {
 // NOTE: If any attributes or blocks are added here, be sure to add it to ctyTerraformConfig in config_as_cty.go as
 // well.
 type TerraformConfig struct {
-	Source                *string                   `hcl:"source,attr"`
-	IncludeInCopy         *[]string                 `hcl:"include_in_copy,attr"`
-	ExcludeFromCopy       *[]string                 `hcl:"exclude_from_copy,attr"`
+	Source *string `hcl:"source,attr"`
+
+	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
+	// be defined and we want to make this optional.
+	IncludeInCopy   *[]string `hcl:"include_in_copy,attr"`
+	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
+
 	CopyTerraformLockFile *bool                     `hcl:"copy_terraform_lock_file,attr"`
 	ExtraArgs             []TerraformExtraArguments `hcl:"extra_arguments,block"`
 	BeforeHooks           []Hook                    `hcl:"before_hook,block"`

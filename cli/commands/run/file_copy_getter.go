@@ -19,6 +19,9 @@ const SourceManifestName = ".terragrunt-source-manifest"
 type FileCopyGetter struct {
 	Logger log.Logger
 	getter.FileGetter
+
+	// List of glob paths that should be included in the copy. This can be used to override the default behavior of
+	// Terragrunt, which will skip hidden folders.
 	IncludeInCopy   []string
 	ExcludeFromCopy []string
 }

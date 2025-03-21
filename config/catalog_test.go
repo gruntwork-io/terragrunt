@@ -39,8 +39,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			},
 		},
 		{
-			configPath:     filepath.Join(basePath, "config2.hcl"),
-			expectedConfig: &config.CatalogConfig{},
+			configPath: filepath.Join(basePath, "config2.hcl"),
 		},
 		{
 			configPath:     filepath.Join(basePath, "config3.hcl"),
