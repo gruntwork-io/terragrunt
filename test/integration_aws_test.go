@@ -66,8 +66,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			"run apply",
 			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
 				require.Error(t, err)
-
-				assert.Contains(t, err.Error(), "S3 bucket does not exist")
+				assert.Contains(t, err.Error(), "S3 bucket must have been previously created")
 			},
 		},
 		{
@@ -118,6 +117,33 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			testCase.checkExpectedResultFn(t, err, s3BucketName, dynamoDBName)
 		})
 	}
+}
+
+func TestAwsDeleteBackend(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureBootstrapS3Backend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBootstrapS3Backend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureBootstrapS3Backend)
+
+	testID := strings.ToLower(helpers.UniqueID())
+
+	s3BucketName := "terragrunt-test-bucket-" + testID
+	dynamoDBName := "terragrunt-test-dynamodb-" + testID
+
+	defer func() {
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+	}()
+
+	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend delete --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	require.NoError(t, err)
 }
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
