@@ -66,7 +66,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			"run apply",
 			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "S3 bucket must have been previously created")
+				assert.Regexp(t, "S3 bucket must have been previously created|S3 bucket does not exist", err.Error())
 			},
 		},
 		{
@@ -105,7 +105,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 			defer func() {
-				deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+				deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
 				cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 			}()
 
@@ -1457,8 +1457,8 @@ func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 	require.NoError(t, err, "Failed to create S3 bucket")
 }
 
-func deleteS3Bucket(t *testing.T, tableName string, awsRegion string) {
-	helpers.DeleteS3Bucket(t, awsRegion, tableName)
+func deleteS3Bucket(t *testing.T, bucketName string, awsRegion string) {
+	helpers.DeleteS3Bucket(t, awsRegion, bucketName)
 }
 
 func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
