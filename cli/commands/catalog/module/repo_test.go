@@ -24,9 +24,9 @@ func TestFindModules(t *testing.T) {
 	}
 
 	testCases := []struct {
+		expectedErr  error
 		repoPath     string
 		expectedData []moduleData
-		expectedErr  error
 	}{
 		{
 			"testdata/find_modules",

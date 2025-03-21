@@ -321,9 +321,9 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	})
 
 	testCases := []struct {
+		comp      assert.Comparison
 		name      string
 		sourceURL string
-		comp      assert.Comparison
 	}{
 		{name: "test-stale-file-exists", sourceURL: "../../../test/fixtures/manifest/version-1", comp: func() bool {
 			return util.FileExists(filepath.Join(downloadDir, "stale.tf"))

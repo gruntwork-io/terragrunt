@@ -20,8 +20,8 @@ func TestBoolFlagApply(t *testing.T) {
 	testCases := []struct {
 		expectedErr   error
 		envs          map[string]string
-		flag          cli.BoolFlag
 		args          []string
+		flag          cli.BoolFlag
 		expectedValue bool
 	}{
 		{

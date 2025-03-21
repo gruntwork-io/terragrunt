@@ -34,8 +34,8 @@ type TerraformModule struct {
 	*Stack
 	TerragruntOptions    *options.TerragruntOptions
 	Path                 string
-	Config               config.TerragruntConfig
 	Dependencies         TerraformModules
+	Config               config.TerragruntConfig
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
 }

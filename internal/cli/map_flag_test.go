@@ -19,8 +19,8 @@ func TestMapFlagStringStringApply(t *testing.T) {
 		expectedErr   error
 		envs          map[string]string
 		expectedValue map[string]string
-		flag          cli.MapFlag[string, string]
 		args          []string
+		flag          cli.MapFlag[string, string]
 	}{
 		{
 			flag:          cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
@@ -67,8 +67,8 @@ func TestMapFlagStringIntApply(t *testing.T) {
 		expectedErr   error
 		envs          map[string]string
 		expectedValue map[string]int
-		flag          cli.MapFlag[string, int]
 		args          []string
+		flag          cli.MapFlag[string, int]
 	}{
 		{
 			flag:          cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}},

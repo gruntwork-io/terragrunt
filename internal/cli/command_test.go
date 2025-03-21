@@ -19,9 +19,9 @@ func TestCommandRun(t *testing.T) {
 	type TestActionFunc func(expectedOrder int, expectedArgs []string) cli.ActionFunc
 
 	type TestCase struct {
-		command     cli.Command
 		expectedErr error
 		args        []string
+		command     cli.Command
 	}
 
 	testCaseFuncs := []func(action TestActionFunc, skip cli.ActionFunc) TestCase{
@@ -193,8 +193,8 @@ func TestCommandHasName(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  cli.Command
 		hasName  string
+		command  cli.Command
 		expected bool
 	}{
 		{
@@ -230,8 +230,8 @@ func TestCommandNames(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  cli.Command
 		expected []string
+		command  cli.Command
 	}{
 		{
 			cli.Command{Name: "foo"},
@@ -259,9 +259,9 @@ func TestCommandSubcommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command       cli.Command
 		expected      *cli.Command
 		searchCmdName string
+		command       cli.Command
 	}{
 		{
 			command:       cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
@@ -291,8 +291,8 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  cli.Command
 		expected cli.Commands
+		command  cli.Command
 	}{
 		{
 			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz", HelpName: "helpBaz"}}},

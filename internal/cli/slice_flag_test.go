@@ -18,9 +18,9 @@ func TestSliceFlagStringApply(t *testing.T) {
 	testCases := []struct {
 		expectedErr   error
 		envs          map[string]string
-		flag          cli.SliceFlag[string]
 		args          []string
 		expectedValue []string
+		flag          cli.SliceFlag[string]
 	}{
 		{
 			flag:          cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
@@ -65,9 +65,9 @@ func TestSliceFlagIntApply(t *testing.T) {
 	testCases := []struct {
 		expectedErr   error
 		envs          map[string]string
-		flag          cli.SliceFlag[int]
 		args          []string
 		expectedValue []int
+		flag          cli.SliceFlag[int]
 	}{
 		{
 			flag:          cli.SliceFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
@@ -103,9 +103,9 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 	testCases := []struct {
 		expectedErr   error
 		envs          map[string]string
-		flag          cli.SliceFlag[int64]
 		args          []string
 		expectedValue []int64
+		flag          cli.SliceFlag[int64]
 	}{
 		{
 			flag:          cli.SliceFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},

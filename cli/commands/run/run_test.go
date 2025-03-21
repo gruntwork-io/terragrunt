@@ -496,8 +496,8 @@ func TestShouldCopyLockFile(t *testing.T) {
 		args            []string
 	}
 	tests := []struct {
-		args args
 		name string
+		args args
 		want bool
 	}{
 		{
