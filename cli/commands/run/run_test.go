@@ -97,12 +97,32 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			valid:       true,
 		},
 		{
+			description: "Directory with plain OpenTofu",
+			workingDir:  "test-fixtures/dir-with-tofu",
+			valid:       true,
+		},
+		{
+			description: "Directory with plain Terraform and OpenTofu",
+			workingDir:  "test-fixtures/dir-with-terraform-and-tofu",
+			valid:       true,
+		},
+		{
 			description: "Directory with JSON formatted Terraform",
 			workingDir:  "test-fixtures/dir-with-terraform-json",
 			valid:       true,
 		},
 		{
-			description: "Directory with no Terraform",
+			description: "Directory with JSON formatted OpenTofu",
+			workingDir:  "test-fixtures/dir-with-tofu-json",
+			valid:       true,
+		},
+		{
+			description: "Directory with JSON formatted Terraform and OpenTofu",
+			workingDir:  "test-fixtures/dir-with-terraform-and-tofu-json",
+			valid:       true,
+		},
+		{
+			description: "Directory with no Terraform or OpenTofu",
 			workingDir:  "test-fixtures/dir-with-no-terraform",
 			valid:       false,
 		},
