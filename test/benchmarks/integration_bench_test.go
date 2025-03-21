@@ -16,6 +16,10 @@ func BenchmarkEmptyTerragruntPlanApply(b *testing.B) {
 	includeRootConfig := `include "root" {
 		path = find_in_parent_folders("root.hcl")
 }
+
+terraform {
+	source = "."
+}
 `
 
 	b.Run("10 units", func(b *testing.B) {
@@ -77,3 +81,46 @@ func BenchmarkEmptyTerragruntPlanApply(b *testing.B) {
 		}
 	})
 }
+
+// TODO: Enable this once it's fixed.
+//
+// func BenchmarkDependencyTrainPlanApply(b *testing.B) {
+// 	b.Run("10 units", func(b *testing.B) {
+// 		for i := 0; i < b.N; i++ {
+// 			b.StopTimer()
+//
+// 			tmpDir := b.TempDir()
+// 			helpers.GenerateDependencyTrain(b, tmpDir, 10)
+//
+// 			b.StartTimer()
+//
+// 			helpers.PlanApplyDestroy(b, tmpDir)
+// 		}
+// 	})
+//
+// 	b.Run("100 units", func(b *testing.B) {
+// 		for i := 0; i < b.N; i++ {
+// 			b.StopTimer()
+//
+// 			tmpDir := b.TempDir()
+// 			helpers.GenerateDependencyTrain(b, tmpDir, 100)
+//
+// 			b.StartTimer()
+//
+// 			helpers.PlanApplyDestroy(b, tmpDir)
+// 		}
+// 	})
+//
+// 	b.Run("1000 units", func(b *testing.B) {
+// 		for i := 0; i < b.N; i++ {
+// 			b.StopTimer()
+//
+// 			tmpDir := b.TempDir()
+// 			helpers.GenerateDependencyTrain(b, tmpDir, 1000)
+//
+// 			b.StartTimer()
+//
+// 			helpers.PlanApplyDestroy(b, tmpDir)
+// 		}
+// 	})
+// }
