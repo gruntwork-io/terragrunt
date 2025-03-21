@@ -278,8 +278,25 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	}
 
 	// building destination path based on target directory
-	dest := cmp.path
-	dest = filepath.Join(cmp.targetDir, cmp.path)
+	dest := filepath.Join(cmp.targetDir, cmp.path)
+
+	// validate destination path is within the stack directory
+	// get the absolute path of the destination directory
+	absDest, err := filepath.Abs(dest)
+	if err != nil {
+		return errors.Errorf("failed to get absolute path for destination '%s': %v", cmp.name, err)
+	}
+
+	// get the absolute path of the stack directory
+	absStackDir, err := filepath.Abs(cmp.targetDir)
+	if err != nil {
+		return errors.Errorf("failed to get absolute path for stack directory '%s': %v", cmp.name, err)
+	}
+
+	// validate that the destination path is within the stack directory
+	if !strings.HasPrefix(absDest, absStackDir) {
+		return errors.Errorf("destination path '%s' is outside of the stack directory '%s'", absDest, absStackDir)
+	}
 
 	if cmp.noStack {
 		// for noStack components, we copy the files to the base directory of the target directory
