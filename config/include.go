@@ -27,7 +27,7 @@ var fieldsCopyLocks = util.NewKeyLocks()
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
+		return &TerragruntConfig{}, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path
@@ -82,7 +82,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 	// included config.
 	hasDependency, err := configFileHasDependencyBlock(includePath)
 	if err != nil {
-		return nil, err
+		return &TerragruntConfig{}, err
 	}
 
 	if hasDependency && len(ctx.PartialParseDecodeList) > 0 {
@@ -101,7 +101,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 // user.
 func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
-		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message.Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
+		return config, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message.Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
@@ -109,12 +109,14 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 	includeList := ctx.TrackInclude.CurrentList
 	baseConfig := config
 
+	errs := []error{}
+
 	for i := len(includeList) - 1; i >= 0; i-- {
 		includeConfig := includeList[i]
 
 		mergeStrategy, err := includeConfig.GetMergeStrategy()
 		if err != nil {
-			return config, err
+			errs = append(errs, err)
 		}
 
 		var (
@@ -130,7 +132,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 		}
 
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
 		}
 
 		// TODO: Remove lint suppression
@@ -141,7 +143,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy shallow merge: merging config in (shallow).", logPrefix, includeConfig.Path)
 
 			if err := parsedIncludeConfig.Merge(baseConfig, ctx.TerragruntOptions); err != nil {
-				return nil, err
+				errs = append(errs, err)
 			}
 
 			baseConfig = parsedIncludeConfig
@@ -149,13 +151,17 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy deep merge: merging config in (deep).", logPrefix, includeConfig.Path)
 
 			if err := parsedIncludeConfig.DeepMerge(baseConfig, ctx.TerragruntOptions); err != nil {
-				return nil, err
+				errs = append(errs, err)
 			}
 
 			baseConfig = parsedIncludeConfig
 		default:
-			return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+			errs = append(errs, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy))
 		}
+	}
+
+	if len(errs) > 0 {
+		return baseConfig, errors.Join(errs...)
 	}
 
 	return baseConfig, nil
@@ -224,6 +230,10 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency Terr
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
 func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
+	if cfg == nil {
+		cfg = &TerragruntConfig{}
+	}
+
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
 		cfg.DownloadDir = sourceConfig.DownloadDir
@@ -784,7 +794,7 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 			SecondLevelIncludePath: strings.Join(includedPaths, ","),
 		})
 
-		return nil, err
+		return &trackInc, err
 	case hasInclude && includeFromChild == nil:
 		// Current parsing ctx where there is no included config already loaded.
 		trackInc = TrackInclude{

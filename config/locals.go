@@ -25,9 +25,11 @@ const MaxIter = 1000
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
 func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]cty.Value, error) {
+	errs := &errors.MultiError{}
+
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
-		return nil, err
+		errs = errs.Append(err)
 	}
 
 	if len(localsBlock) == 0 {
@@ -41,7 +43,8 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 	attrs, err := localsBlock[0].JustAttributes()
 	if err != nil {
 		ctx.TerragruntOptions.Logger.Debugf("Encountered error while decoding locals block into name expression pairs.")
-		return nil, err
+
+		errs = errs.Append(err)
 	}
 
 	// Continuously attempt to evaluate the locals until there are no more locals to evaluate, or we can't evaluate
@@ -53,7 +56,7 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 		if iterations > MaxIter {
 			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
 			// short an return an error.
-			return nil, errors.New(MaxIterError{})
+			return evaluatedLocals, errors.New(MaxIterError{})
 		}
 
 		var err error
@@ -66,7 +69,8 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 
 		if err != nil {
 			ctx.TerragruntOptions.Logger.Debugf("Encountered error while evaluating locals in file %s", ctx.TerragruntOptions.TerragruntConfigPath)
-			return nil, err
+
+			errs = errs.Append(err)
 		}
 	}
 
@@ -74,21 +78,21 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 		// This is an error because we couldn't evaluate all locals
 		ctx.TerragruntOptions.Logger.Debugf("Not all locals could be evaluated:")
 
-		var errs *errors.MultiError
+		var localErrs *errors.MultiError
 
 		for _, attr := range attrs {
 			diags := canEvaluateLocals(attr.Expr, evaluatedLocals)
 			if err := file.HandleDiagnostics(diags); err != nil {
-				errs = errs.Append(err)
+				localErrs = localErrs.Append(err)
 			}
 		}
 
-		if err := errs.ErrorOrNil(); err != nil {
-			return nil, errors.New(CouldNotEvaluateAllLocalsError{Err: err})
+		if err := localErrs.ErrorOrNil(); err != nil {
+			errs = errs.Append(errors.New(CouldNotEvaluateAllLocalsError{Err: err}))
 		}
 	}
 
-	return evaluatedLocals, nil
+	return evaluatedLocals, errs.ErrorOrNil()
 }
 
 // attemptEvaluateLocals attempts to evaluate the locals block given the map of already evaluated locals, replacing
@@ -103,10 +107,13 @@ func attemptEvaluateLocals(
 	attrs hclparse.Attributes,
 	evaluatedLocals map[string]cty.Value,
 ) (unevaluatedAttrs hclparse.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
+	errs := &errors.MultiError{}
+
 	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
 		ctx.TerragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
-		return nil, evaluatedLocals, false, err
+
+		errs = errs.Append(err)
 	}
 
 	ctx.Locals = &localsAsCtyVal
@@ -114,7 +121,8 @@ func attemptEvaluateLocals(
 	evalCtx, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
 		ctx.TerragruntOptions.Logger.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
-		return nil, evaluatedLocals, false, err
+
+		errs = errs.Append(err)
 	}
 
 	// Track the locals that were evaluated for logging purposes
@@ -130,7 +138,9 @@ func attemptEvaluateLocals(
 		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {
 			evaluatedVal, err := attr.Value(evalCtx)
 			if err != nil {
-				return nil, evaluatedLocals, false, err
+				errs = errs.Append(err)
+
+				continue
 			}
 
 			newEvaluatedLocals[attr.Name] = evaluatedVal
@@ -149,7 +159,7 @@ func attemptEvaluateLocals(
 		strings.Join(newlyEvaluatedLocalNames, ", "),
 	)
 
-	return unevaluatedAttrs, newEvaluatedLocals, evaluated, nil
+	return unevaluatedAttrs, newEvaluatedLocals, evaluated, errs.ErrorOrNil()
 }
 
 // canEvaluateLocals determines if the local expression can be evaluated. An expression can be evaluated if one of the
