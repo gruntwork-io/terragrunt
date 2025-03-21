@@ -27,21 +27,21 @@ func TestCommandRun(t *testing.T) {
 	testCaseFuncs := []func(action TestActionFunc, skip cli.ActionFunc) TestCase{
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "--foo", "cmd-bar", "--bar", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "--foo", "cmd-bar", "--bar", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: skip,
 					Action: skip,
 					After:  skip,
 				},
-				errors.New("invalid boolean flag foo: setting the flag multiple times"),
+				expectedErr: errors.New("invalid boolean flag foo: setting the flag multiple times"),
 			}
 		},
 
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "cmd-bar", "--bar", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
@@ -63,13 +63,12 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "cmd-bar", "--bar", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
@@ -83,13 +82,12 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "--bar", "cmd-bar", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "--bar", "cmd-bar", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
@@ -104,13 +102,12 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
@@ -125,13 +122,12 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: action(2, []string{"cmd-bar", "--bar", "value", "one", "-two"}),
@@ -147,7 +143,6 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 	}
@@ -269,14 +264,14 @@ func TestCommandSubcommand(t *testing.T) {
 		searchCmdName string
 	}{
 		{
-			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
-			"baz",
-			&cli.Command{Name: "baz"},
+			command:       cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
+			searchCmdName: "baz",
+			expected:      &cli.Command{Name: "baz"},
 		},
 		{
-			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
-			"qux",
-			nil,
+			command:       cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
+			searchCmdName: "qux",
+			expected:      nil,
 		},
 	}
 

@@ -263,44 +263,44 @@ func TestToTerraformEnvVars(t *testing.T) {
 		description string
 	}{
 		{
-			"empty",
-			map[string]any{},
-			map[string]string{},
+			description: "empty",
+			vars:        map[string]any{},
+			expected:    map[string]string{},
 		},
 		{
-			"string value",
-			map[string]any{"foo": "bar"},
-			map[string]string{"TF_VAR_foo": `bar`},
+			description: "string value",
+			vars:        map[string]any{"foo": "bar"},
+			expected:    map[string]string{"TF_VAR_foo": `bar`},
 		},
 		{
-			"int value",
-			map[string]any{"foo": 42},
-			map[string]string{"TF_VAR_foo": `42`},
+			description: "int value",
+			vars:        map[string]any{"foo": 42},
+			expected:    map[string]string{"TF_VAR_foo": `42`},
 		},
 		{
-			"bool value",
-			map[string]any{"foo": true},
-			map[string]string{"TF_VAR_foo": `true`},
+			description: "bool value",
+			vars:        map[string]any{"foo": true},
+			expected:    map[string]string{"TF_VAR_foo": `true`},
 		},
 		{
-			"list value",
-			map[string]any{"foo": []string{"a", "b", "c"}},
-			map[string]string{"TF_VAR_foo": `["a","b","c"]`},
+			description: "list value",
+			vars:        map[string]any{"foo": []string{"a", "b", "c"}},
+			expected:    map[string]string{"TF_VAR_foo": `["a","b","c"]`},
 		},
 		{
-			"map value",
-			map[string]any{"foo": map[string]any{"a": "b", "c": "d"}},
-			map[string]string{"TF_VAR_foo": `{"a":"b","c":"d"}`},
+			description: "map value",
+			vars:        map[string]any{"foo": map[string]any{"a": "b", "c": "d"}},
+			expected:    map[string]string{"TF_VAR_foo": `{"a":"b","c":"d"}`},
 		},
 		{
-			"nested map value",
-			map[string]any{"foo": map[string]any{"a": []int{1, 2, 3}, "b": "c", "d": map[string]any{"e": "f"}}},
-			map[string]string{"TF_VAR_foo": `{"a":[1,2,3],"b":"c","d":{"e":"f"}}`},
+			description: "nested map value",
+			vars:        map[string]any{"foo": map[string]any{"a": []int{1, 2, 3}, "b": "c", "d": map[string]any{"e": "f"}}},
+			expected:    map[string]string{"TF_VAR_foo": `{"a":[1,2,3],"b":"c","d":{"e":"f"}}`},
 		},
 		{
-			"multiple values",
-			map[string]any{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
-			map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
+			description: "multiple values",
+			vars:        map[string]any{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
+			expected:    map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
 		},
 	}
 

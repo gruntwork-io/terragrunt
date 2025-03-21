@@ -264,18 +264,18 @@ func TestGenerateDisabling(t *testing.T) {
 		disabled bool
 	}{
 		{
-			"generate-disabled-true",
-			true,
-			fmt.Sprintf("%s/%s", testDir, "disabled_true"),
-			"this file should not be generated",
-			codegen.ExistsError,
+			name:     "generate-disabled-true",
+			path:     fmt.Sprintf("%s/%s", testDir, "disabled_true"),
+			contents: "this file should not be generated",
+			ifExists: codegen.ExistsError,
+			disabled: true,
 		},
 		{
-			"generate-disabled-false",
-			false,
-			fmt.Sprintf("%s/%s", testDir, "disabled_false"),
-			"this file should be generated",
-			codegen.ExistsError,
+			name:     "generate-disabled-false",
+			path:     fmt.Sprintf("%s/%s", testDir, "disabled_false"),
+			contents: "this file should be generated",
+			ifExists: codegen.ExistsError,
+			disabled: false,
 		},
 	}
 

@@ -34,7 +34,7 @@ func TestConfig(t *testing.T) {
 				cliconfig.NewProviderInstallationDirect(include, exclude),
 			},
 			hosts: []cliconfig.ConfigHost{
-				{"registry.terraform.io", map[string]string{"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/"}},
+				{Name: "registry.terraform.io", Services: map[string]string{"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/"}},
 			},
 			config: cliconfig.Config{
 				DisableCheckpoint: true,

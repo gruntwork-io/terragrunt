@@ -128,12 +128,12 @@ func TestCLIFlagHints(t *testing.T) {
 		args          string
 	}{
 		{
-			"-raw init",
-			flags.NewGlobalFlagHintError("raw", "stack output", "raw"),
+			expectedError: flags.NewGlobalFlagHintError("raw", "stack output", "raw"),
+			args:          "-raw init",
 		},
 		{
-			"run --no-include-root",
-			flags.NewCommandFlagHintError("run", "no-include-root", "catalog", "no-include-root"),
+			expectedError: flags.NewCommandFlagHintError("run", "no-include-root", "catalog", "no-include-root"),
+			args:          "run --no-include-root",
 		},
 	}
 
@@ -161,14 +161,13 @@ func TestExecCommand(t *testing.T) {
 		args       []string
 	}{
 		{
-			nil,
-			"./script.sh arg1 arg2",
-			"",
+			scriptPath: "./script.sh arg1 arg2",
+			runInDir:   "",
 		},
 		{
-			[]string{"--in-download-dir"},
-			"./script.sh arg1 arg2",
-			".terragrunt-cache",
+			args:       []string{"--in-download-dir"},
+			scriptPath: "./script.sh arg1 arg2",
+			runInDir:   ".terragrunt-cache",
 		},
 	}
 
@@ -289,88 +288,78 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		expectedStdErrRegs []*regexp.Regexp
 	}{
 		{
-			"%time %level %prefix %msg",
-			[]*regexp.Regexp{},
-			[]*regexp.Regexp{
+			logCustomFormat:    "%time %level %prefix %msg",
+			expectedStdOutRegs: []*regexp.Regexp{},
+			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + regexp.QuoteMeta(" Terragrunt Version:")),
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Module ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Module ` + absPathReg + `/app must wait for 1 dependencies to finish`),
 			},
-			nil,
 		},
 		{
-			"%interval %level(case=upper) %prefix(path=short-relative,prefix='[',suffix='] ')%msg(path=relative)",
-			[]*regexp.Regexp{},
-			[]*regexp.Regexp{
+			logCustomFormat:    "%interval %level(case=upper) %prefix(path=short-relative,prefix='[',suffix='] ')%msg(path=relative)",
+			expectedStdOutRegs: []*regexp.Regexp{},
+			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG Terragrunt Version:")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Module ./dep must wait for 0 dependencies to finish")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Module ./app must wait for 1 dependencies to finish")),
 			},
-			nil,
 		},
 		{
-			"%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command-args(suffix=': ')%msg(path=relative)",
-			[]*regexp.Regexp{
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command-args(suffix=': ')%msg(path=relative)",
+			expectedStdOutRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init -input=false -no-color: Initializing the backend...")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init -input=false -no-color: Initializing the backend...")),
 			},
-			[]*regexp.Regexp{
+			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
 			},
-			nil,
 		},
 		{
-			"%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command(suffix=': ')%msg(path=relative)",
-			[]*regexp.Regexp{
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command(suffix=': ')%msg(path=relative)",
+			expectedStdOutRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init: Initializing the backend...")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init: Initializing the backend...")),
 			},
-			[]*regexp.Regexp{
+			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
 			},
-			nil,
 		},
 		{
-			"%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command()-args %msg(path=relative)",
-			[]*regexp.Regexp{
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command()-args %msg(path=relative)",
+			expectedStdOutRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init-args Initializing the backend...")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init-args Initializing the backend...")),
 			},
-			[]*regexp.Regexp{
+			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  -args Terragrunt Version:")),
 			},
-			nil,
 		},
 		{
-			"%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command()-args % aaa %msg(path=relative) %%bbb % ccc",
-			[]*regexp.Regexp{
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command()-args % aaa %msg(path=relative) %%bbb % ccc",
+			expectedStdOutRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init-args % aaa Initializing the backend... %bbb % ccc")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init-args % aaa Initializing the backend... %bbb % ccc")),
 			},
-			[]*regexp.Regexp{
+			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  -args % aaa Terragrunt Version:")),
 			},
-			nil,
 		},
 		{
-			"%time(color=green) %level %wrong",
-			nil, nil,
-			errors.Errorf(`invalid value "\"%%time(color=green) %%level %%wrong\"" for flag -terragrunt-log-custom-format: invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
+			logCustomFormat: "%time(color=green) %level %wrong",
+			expectedErr:     errors.Errorf(`invalid value "\"%%time(color=green) %%level %%wrong\"" for flag -terragrunt-log-custom-format: invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
 		},
 		{
-			"%time(colorr=green) %level",
-			nil, nil,
-			errors.Errorf(`invalid value "\"%%time(colorr=green) %%level\"" for flag -terragrunt-log-custom-format: placeholder "time", invalid option name "colorr", available names: %s`, strings.Join(placeholders.Time().Options().Names(), ",")),
+			logCustomFormat: "%time(colorr=green) %level",
+			expectedErr:     errors.Errorf(`invalid value "\"%%time(colorr=green) %%level\"" for flag -terragrunt-log-custom-format: placeholder "time", invalid option name "colorr", available names: %s`, strings.Join(placeholders.Time().Options().Names(), ",")),
 		},
 		{
-			"%time(color=green) %level(format=tinyy)",
-			nil, nil,
-			errors.New(`invalid value "\"%time(color=green) %level(format=tinyy)\"" for flag -terragrunt-log-custom-format: placeholder "level", option "format", invalid value "tinyy", available values: full,short,tiny`),
+			logCustomFormat: "%time(color=green) %level(format=tinyy)",
+			expectedErr:     errors.New(`invalid value "\"%time(color=green) %level(format=tinyy)\"" for flag -terragrunt-log-custom-format: placeholder "level", option "format", invalid value "tinyy", available values: full,short,tiny`),
 		},
 		{
-			"%time(=green) %level(format=tiny)",
-			nil, nil,
-			errors.New(`invalid value "\"%time(=green) %level(format=tiny)\"" for flag -terragrunt-log-custom-format: placeholder "time", empty option name "=green) %level(format=tiny)\""`),
+			logCustomFormat: "%time(=green) %level(format=tiny)",
+			expectedErr:     errors.New(`invalid value "\"%time(=green) %level(format=tiny)\"" for flag -terragrunt-log-custom-format: placeholder "time", empty option name "=green) %level(format=tiny)\""`),
 		},
 	}
 
@@ -1079,39 +1068,33 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		command     []string
 	}{
 		{
-			[]string{"--", "version"},
-			wrappedBinary() + " version",
-			nil,
+			command:  []string{"--", "version"},
+			expected: wrappedBinary() + " version",
 		},
 		{
-			[]string{"--", "version", "foo"},
-			wrappedBinary() + " version",
-			nil,
+			command:  []string{"--", "version", "foo"},
+			expected: wrappedBinary() + " version",
 		},
 		{
-			[]string{"--", "version", "foo", "bar", "baz"},
-			wrappedBinary() + " version",
-			nil,
+			command:  []string{"--", "version", "foo", "bar", "baz"},
+			expected: wrappedBinary() + " version",
 		},
 		{
-			[]string{"--", "version", "foo", "bar", "baz", "foobar"},
-			wrappedBinary() + " version",
-			nil,
+			command:  []string{"--", "version", "foo", "bar", "baz", "foobar"},
+			expected: wrappedBinary() + " version",
 		},
 		{
-			[]string{"--", "graph"},
-			"digraph",
-			nil,
+			command:  []string{"--", "graph"},
+			expected: "digraph",
 		},
 		{
-			[]string{"--", "paln"}, //codespell:ignore
-			"",
-			expectedWrongCommandErr("paln"), //codespell:ignore
+			command:     []string{"--", "paln"}, //codespell:ignore
+			expected:    "",
+			expectedErr: expectedWrongCommandErr("paln"), //codespell:ignore
 		},
 		{
-			[]string{"--terragrunt-disable-command-validation", "--", "paln"}, //codespell:ignore
-			wrappedBinary() + " invocation failed",                            // error caused by running terraform with the wrong command
-			nil,
+			command:  []string{"--terragrunt-disable-command-validation", "--", "paln"}, //codespell:ignore
+			expected: wrappedBinary() + " invocation failed",                            // error caused by running terraform with the wrong command
 		},
 	}
 
@@ -1144,20 +1127,20 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		command  []string
 	}{
 		{
-			[]string{"force-unlock"},
-			wrappedBinary() + " force-unlock",
+			command:  []string{"force-unlock"},
+			expected: wrappedBinary() + " force-unlock",
 		},
 		{
-			[]string{"force-unlock", "foo"},
-			wrappedBinary() + " force-unlock foo",
+			command:  []string{"force-unlock", "foo"},
+			expected: wrappedBinary() + " force-unlock foo",
 		},
 		{
-			[]string{"force-unlock", "foo", "bar", "baz"},
-			wrappedBinary() + " force-unlock foo bar baz",
+			command:  []string{"force-unlock", "foo", "bar", "baz"},
+			expected: wrappedBinary() + " force-unlock foo bar baz",
 		},
 		{
-			[]string{"force-unlock", "foo", "bar", "baz", "foobar"},
-			wrappedBinary() + " force-unlock foo bar baz foobar",
+			command:  []string{"force-unlock", "foo", "bar", "baz", "foobar"},
+			expected: wrappedBinary() + " force-unlock foo bar baz foobar",
 		},
 	}
 
