@@ -190,9 +190,9 @@ func TestElement(t *testing.T) {
 	}{
 		{
 			content:              testH1EksK8sArgocd,
-			fileExt:              "md",
+			fileExt:              ".md",
 			maxDescriptionLength: 200,
-			expectedTitle:        "EKS K8s Argo CD",
+			expectedTitle:        "EKS K8s GitOps Module",
 			expectedDescription:  "This module deploys Argo CD to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the Argo CD for more details.",
 		},
 		{

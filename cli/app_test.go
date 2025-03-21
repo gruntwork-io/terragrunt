@@ -315,24 +315,20 @@ func TestParseMultiStringArg(t *testing.T) {
 			args:         []string{commands.CommandNameApplyAll, flagName, "bar"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"bar"},
-			expectedErr:  nil,
 		},
 		{
 			args:         []string{commands.CommandNameApplyAll, "--test", "bar"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"default_bar"},
-			expectedErr:  nil,
 		},
 		{
 			args:         []string{commands.CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName, "bar2"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"bar1", "bar2"},
-			expectedErr:  nil,
 		},
 		{
 			args:         []string{commands.CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName},
 			defaultValue: []string{"default_bar"},
-			expectedVals: nil,
 			expectedErr:  argMissingValueError(run.UnitsThatIncludeFlagName),
 		},
 	}
@@ -369,9 +365,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 		args         []string
 	}{
 		{
-			args:         []string{awsproviderpatch.CommandName},
-			defaultValue: map[string]string{},
-			expectedVals: map[string]string{},
+			args: []string{awsproviderpatch.CommandName},
 		},
 		{
 			args:         []string{awsproviderpatch.CommandName},
@@ -474,9 +468,8 @@ func TestTerragruntHelp(t *testing.T) {
 			notExpected: hclfmt.CommandName,
 		},
 		{
-			args:        []string{"terragrunt", commands.CommandNamePlanAll, "--help"},
-			expected:    runall.CommandName,
-			notExpected: "",
+			args:     []string{"terragrunt", commands.CommandNamePlanAll, "--help"},
+			expected: runall.CommandName,
 		},
 	}
 
