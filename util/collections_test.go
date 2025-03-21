@@ -24,9 +24,10 @@ func TestMatchesAny(t *testing.T) {
 	}{
 		{list: nil, element: "", expected: false},
 		{list: []string{}, element: "", expected: false},
-		{list: []string{"foo"}, element: "foo", expected: true},
-		{list: []string{"kafoot"}, element: "foo", expected: true},
+		{list: []string{}, element: "foo", expected: false},
+		{list: []string{"foo"}, element: "kafoot", expected: true},
 		{list: []string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, element: "Failed to load backend: Error...:...  TLS handshake timeout", expected: true},
+		{list: []string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, element: "Failed to load backend: Error...:...  TLxS handshake timeout", expected: false},
 		{list: []string{"(?s).*Failed to load state.*dial tcp.*timeout.*"}, element: realWorldErrorMessages[0], expected: true},
 		{list: []string{"(?s).*Creating metric alarm failed.*request to update this alarm is in progress.*"}, element: realWorldErrorMessages[1], expected: true},
 		{list: []string{"(?s).*Error configuring the backend.*TLS handshake timeout.*"}, element: realWorldErrorMessages[2], expected: true},
