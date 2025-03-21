@@ -19,24 +19,25 @@ import (
 )
 
 const (
-	testFixtureStacksBasic         = "fixtures/stacks/basic"
-	testFixtureStacksLocals        = "fixtures/stacks/locals"
-	testFixtureStacksRemote        = "fixtures/stacks/remote"
-	testFixtureStacksInputs        = "fixtures/stacks/inputs"
-	testFixtureStacksOutputs       = "fixtures/stacks/outputs"
-	testFixtureStacksUnitValues    = "fixtures/stacks/unit-values"
-	testFixtureStacksLocalsError   = "fixtures/stacks/errors/locals-error"
-	testFixtureStacksUnitEmptyPath = "fixtures/stacks/errors/unit-empty-path"
-	testFixtureStacksEmptyPath     = "fixtures/stacks/errors/stack-empty-path"
-	testFixtureNestedStacks        = "fixtures/stacks/nested"
-	testFixtureStackValues         = "fixtures/stacks/stack-values"
-	testFixtureStackDependencies   = "fixtures/stacks/dependencies"
-	testFixtureStackAbsolutePath   = "fixtures/stacks/absolute-path"
-	testFixtureStackSourceMap      = "fixtures/stacks/source-map"
-	testFixtureNoStack             = "fixtures/stacks/no-stack"
-	testFixtureStackCycles         = "fixtures/stacks/errors/cycles"
-	testFixtureNoStackNoDir        = "fixtures/stacks/no-stack-dir"
-	testFixtureMultipleStacks      = "fixtures/stacks/multiple-stacks"
+	testFixtureStacksBasic                     = "fixtures/stacks/basic"
+	testFixtureStacksLocals                    = "fixtures/stacks/locals"
+	testFixtureStacksRemote                    = "fixtures/stacks/remote"
+	testFixtureStacksInputs                    = "fixtures/stacks/inputs"
+	testFixtureStacksOutputs                   = "fixtures/stacks/outputs"
+	testFixtureStacksUnitValues                = "fixtures/stacks/unit-values"
+	testFixtureStacksLocalsError               = "fixtures/stacks/errors/locals-error"
+	testFixtureStacksUnitEmptyPath             = "fixtures/stacks/errors/unit-empty-path"
+	testFixtureStacksEmptyPath                 = "fixtures/stacks/errors/stack-empty-path"
+	testFixtureStackAbsolutePath               = "fixtures/stacks/errors/absolute-path"
+	testFixtureStackRelativePathOutsideOfStack = "fixtures/stacks/errors/relative-path-outside-of-stack"
+	testFixtureNoStack                         = "fixtures/stacks/no-stack"
+	testFixtureNestedStacks                    = "fixtures/stacks/nested"
+	testFixtureStackValues                     = "fixtures/stacks/stack-values"
+	testFixtureStackDependencies               = "fixtures/stacks/dependencies"
+	testFixtureStackSourceMap                  = "fixtures/stacks/source-map"
+	testFixtureStackCycles                     = "fixtures/stacks/errors/cycles"
+	testFixtureNoStackNoDir                    = "fixtures/stacks/no-stack-dir"
+	testFixtureMultipleStacks                  = "fixtures/stacks/multiple-stacks"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -817,6 +818,18 @@ func TestStacksGenerateAbsolutePathError(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackAbsolutePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackAbsolutePath, "live")
+	helpers.CreateGitRepo(t, rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --log-level debug --experiment stacks --working-dir "+rootPath)
+
+	require.Error(t, err)
+}
+
+func TestStacksGenerateRelativePathError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackRelativePathOutsideOfStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackRelativePathOutsideOfStack)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackRelativePathOutsideOfStack, "live")
 	helpers.CreateGitRepo(t, rootPath)
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --log-level debug --experiment stacks --working-dir "+rootPath)
 
