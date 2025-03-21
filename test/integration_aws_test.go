@@ -59,20 +59,20 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	testCases := []struct {
 		name                  string
 		args                  string
-		checkExpectedResultFn func(t *testing.T, err error, s3BucketName, dynamoDBName string)
+		checkExpectedResultFn func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string)
 	}{
 		{
 			"no bootstrap s3 backend without flag",
 			"run apply",
-			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
+			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
 				require.Error(t, err)
-				assert.Regexp(t, "(S3 bucket must have been previously created)|(S3 bucket does not exist)", err.Error())
+				assert.Regexp(t, "(S3 bucket must have been previously created)|(S3 bucket does not exist)", output)
 			},
 		},
 		{
 			"bootstrap s3 backend with flag",
 			"run apply --backend-bootstrap",
-			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
+			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
 				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
@@ -82,7 +82,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 		{
 			"bootstrap s3 backend by backend command",
 			"backend bootstrap",
-			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
+			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
 				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
@@ -112,9 +112,9 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 			helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --all --non-interactive --log-level debug --strict-control skip-backend-bootstrap --experiment cli-redesign --working-dir "+rootPath)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --all --non-interactive --log-level debug --strict-control skip-backend-bootstrap --experiment cli-redesign --working-dir "+rootPath)
 
-			testCase.checkExpectedResultFn(t, err, s3BucketName, dynamoDBName)
+			testCase.checkExpectedResultFn(t, err, stdout+stderr, s3BucketName, dynamoDBName)
 		})
 	}
 }
