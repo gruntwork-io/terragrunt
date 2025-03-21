@@ -154,7 +154,7 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 			filename:      "my-package.zip",
 			document:      fmt.Appendf(nil, "%x README.txt\n%x my-package.zip", [sha256.Size]byte{0xbe, 0xef}, [sha256.Size]byte{0xc0, 0xff, 0xee}),
 			wantSHA256Sum: [sha256.Size]byte{0xde, 0xca, 0xde},
-			expectedErr:   errors.New("checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected beef000000000000000000000000000000000000000000000000000000000000)"),
+			expectedErr:   errors.New("checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected decade0000000000000000000000000000000000000000000000000000000000)"),
 		},
 	}
 
