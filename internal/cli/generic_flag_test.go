@@ -16,53 +16,40 @@ func TestGenericFlagStringApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.GenericFlag[string]
-		args          []string
+		expectedErr   error
 		envs          map[string]string
 		expectedValue string
-		expectedErr   error
+		args          []string
+		flag          cli.GenericFlag[string]
 	}{
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "arg-value"},
-			map[string]string{"FOO": "env-value"},
-			"arg-value",
-			nil,
+			flag:          cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "arg-value"},
+			envs:          map[string]string{"FOO": "env-value"},
+			expectedValue: "arg-value",
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			map[string]string{"FOO": "env-value"},
-			"env-value",
-			nil,
+			flag:          cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			envs:          map[string]string{"FOO": "env-value"},
+			expectedValue: "env-value",
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			nil,
-			"",
-			nil,
+			flag: cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue("default-value")},
-			[]string{"--foo", "arg-value"},
-			map[string]string{"FOO": "env-value"},
-			"arg-value",
-			nil,
+			flag:          cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue("default-value")},
+			args:          []string{"--foo", "arg-value"},
+			envs:          map[string]string{"FOO": "env-value"},
+			expectedValue: "arg-value",
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", Destination: mockDestValue("default-value")},
-			nil,
-			nil,
-			"default-value",
-			nil,
+			flag:          cli.GenericFlag[string]{Name: "foo", Destination: mockDestValue("default-value")},
+			expectedValue: "default-value",
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
-			nil,
-			"",
-			errors.New(`invalid value "arg-value2" for flag -foo: setting the flag multiple times`),
+			flag:        cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:        []string{"--foo", "arg-value1", "--foo", "arg-value2"},
+			expectedErr: errors.New(`invalid value "arg-value2" for flag -foo: setting the flag multiple times`),
 		},
 	}
 
@@ -81,39 +68,33 @@ func TestGenericFlagIntApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.GenericFlag[int]
-		args          []string
-		envs          map[string]string
-		expectedValue int
 		expectedErr   error
+		envs          map[string]string
+		args          []string
+		flag          cli.GenericFlag[int]
+		expectedValue int
 	}{
 		{
-			cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "10"},
-			map[string]string{"FOO": "20"},
-			10,
-			nil,
+			flag:          cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "10"},
+			envs:          map[string]string{"FOO": "20"},
+			expectedValue: 10,
 		},
 		{
-			cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{},
-			map[string]string{"FOO": "20"},
-			20,
-			nil,
+			flag:          cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{},
+			envs:          map[string]string{"FOO": "20"},
+			expectedValue: 20,
 		},
 		{
-			cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{},
-			map[string]string{"FOO": "monkey"},
-			0,
-			errors.New(`invalid value "monkey" for env var FOO: must be 32-bit integer`),
+			flag:        cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:        []string{},
+			envs:        map[string]string{"FOO": "monkey"},
+			expectedErr: errors.New(`invalid value "monkey" for env var FOO: must be 32-bit integer`),
 		},
 		{
-			cli.GenericFlag[int]{Name: "foo", Destination: mockDestValue(55)},
-			nil,
-			nil,
-			55,
-			nil,
+			flag:          cli.GenericFlag[int]{Name: "foo", Destination: mockDestValue(55)},
+			expectedValue: 55,
 		},
 	}
 
@@ -132,39 +113,33 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.GenericFlag[int64]
-		args          []string
-		envs          map[string]string
-		expectedValue int64
 		expectedErr   error
+		envs          map[string]string
+		args          []string
+		flag          cli.GenericFlag[int64]
+		expectedValue int64
 	}{
 		{
-			cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "10"},
-			map[string]string{"FOO": "20"},
-			10,
-			nil,
+			flag:          cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "10"},
+			envs:          map[string]string{"FOO": "20"},
+			expectedValue: 10,
 		},
 		{
-			cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{},
-			map[string]string{"FOO": "20"},
-			20,
-			nil,
+			flag:          cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{},
+			envs:          map[string]string{"FOO": "20"},
+			expectedValue: 20,
 		},
 		{
-			cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{},
-			map[string]string{"FOO": "monkey"},
-			0,
-			errors.New(`invalid value "monkey" for env var FOO: must be 64-bit integer`),
+			flag:        cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:        []string{},
+			envs:        map[string]string{"FOO": "monkey"},
+			expectedErr: errors.New(`invalid value "monkey" for env var FOO: must be 64-bit integer`),
 		},
 		{
-			cli.GenericFlag[int64]{Name: "foo", Destination: mockDestValue(int64(55))},
-			nil,
-			nil,
-			55,
-			nil,
+			flag:          cli.GenericFlag[int64]{Name: "foo", Destination: mockDestValue(int64(55))},
+			expectedValue: 55,
 		},
 	}
 

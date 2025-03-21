@@ -42,8 +42,8 @@ const (
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
 type terragruntIncludeMultiple struct {
-	Include IncludeConfigs `hcl:"include,block"`
 	Remain  hcl.Body       `hcl:",remain"`
+	Include IncludeConfigs `hcl:"include,block"`
 }
 
 // terragruntDependencies is a struct that can be used to only decode the dependencies block.
@@ -54,8 +54,8 @@ type terragruntDependencies struct {
 
 // terragruntFeatureFlags is a struct that can be used to store decoded feature flags.
 type terragruntFeatureFlags struct {
-	FeatureFlags FeatureFlags `hcl:"feature,block"`
 	Remain       hcl.Body     `hcl:",remain"`
+	FeatureFlags FeatureFlags `hcl:"feature,block"`
 }
 
 // terragruntErrors struct to decode errors block
@@ -103,8 +103,8 @@ type terragruntVersionConstraints struct {
 
 // TerragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
 type TerragruntDependency struct {
-	Dependencies Dependencies `hcl:"dependency,block"`
 	Remain       hcl.Body     `hcl:",remain"`
+	Dependencies Dependencies `hcl:"dependency,block"`
 }
 
 // terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config

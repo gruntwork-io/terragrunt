@@ -76,10 +76,10 @@ func GetExitCode(err error) (int, error) {
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
 	Err            error
-	Output         CmdOutput
 	WorkingDir     string
 	Command        string
 	Args           []string
+	Output         CmdOutput
 	DisableSummary bool
 }
 

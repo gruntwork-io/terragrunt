@@ -24,17 +24,17 @@ import (
 
 // AwsSessionConfig is a representation of the configuration options for an AWS Session
 type AwsSessionConfig struct {
+	Tags                    map[string]string
 	Region                  string
 	CustomS3Endpoint        string
 	CustomDynamoDBEndpoint  string
 	Profile                 string
 	RoleArn                 string
 	CredsFilename           string
-	S3ForcePathStyle        bool
-	DisableComputeChecksums bool
 	ExternalID              string
 	SessionName             string
-	Tags                    map[string]string
+	S3ForcePathStyle        bool
+	DisableComputeChecksums bool
 }
 
 // addUserAgent - Add terragrunt version to the user agent for AWS API calls.

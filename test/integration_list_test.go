@@ -15,8 +15,8 @@ func TestListCommand(t *testing.T) {
 	testCases := []struct {
 		name           string
 		workingDir     string
-		args           []string
 		expectedOutput string
+		args           []string
 	}{
 		{
 			name:           "Basic list with default format",
@@ -70,8 +70,8 @@ func TestListCommandWithDependencies(t *testing.T) {
 	testCases := []struct {
 		name       string
 		workingDir string
-		args       []string
 		expected   string
+		args       []string
 	}{
 		{
 			name:       "List with dependencies in tree format",

@@ -20,15 +20,15 @@ func TestRun(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
 		setup         func(t *testing.T) string
-		expectedPaths []string
+		validate      func(t *testing.T, output string, expectedPaths []string)
+		name          string
 		format        string
 		mode          string
+		expectedPaths []string
 		hidden        bool
 		dependencies  bool
 		external      bool
-		validate      func(t *testing.T, output string, expectedPaths []string)
 	}{
 		{
 			name: "basic discovery",

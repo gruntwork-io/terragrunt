@@ -473,16 +473,16 @@ type ctyCatalogConfig struct {
 // ctyEngineConfig is an alternate representation of EngineConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyEngineConfig struct {
+	Meta    cty.Value `cty:"meta"`
 	Source  string    `cty:"source"`
 	Version string    `cty:"version"`
 	Type    string    `cty:"type"`
-	Meta    cty.Value `cty:"meta"`
 }
 
 // ctyExclude exclude representation for cty.
 type ctyExclude struct {
-	If                  bool     `cty:"if"`
 	Actions             []string `cty:"actions"`
+	If                  bool     `cty:"if"`
 	ExcludeDependencies bool     `cty:"exclude_dependencies"`
 }
 

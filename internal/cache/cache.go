@@ -15,9 +15,9 @@ import (
 
 // Cache - generic cache implementation
 type Cache[V any] struct {
-	Name  string
 	Cache map[string]V
 	Mutex *sync.RWMutex
+	Name  string
 }
 
 // NewCache - create new cache with generic type V
@@ -68,9 +68,9 @@ type ExpiringItem[V any] struct {
 
 // ExpiringCache - cache with items with expiration time
 type ExpiringCache[V any] struct {
-	Name  string
 	Cache map[string]ExpiringItem[V]
 	Mutex *sync.RWMutex
+	Name  string
 }
 
 // NewExpiringCache - create new cache with generic type V

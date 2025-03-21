@@ -134,150 +134,153 @@ func TestDiffersFrom(t *testing.T) {
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
-		name            string
 		existingBackend remote.TerraformBackend
+		name            string
 		stateFromConfig remote.RemoteState
 		shouldOverride  bool
 	}{
-		{"both empty", remote.TerraformBackend{}, remote.RemoteState{}, false},
-		{"same backend type value", remote.TerraformBackend{Type: "s3"}, remote.RemoteState{Backend: "s3"}, false},
-		{"different backend type values", remote.TerraformBackend{Type: "s3"}, remote.RemoteState{Backend: "atlas"}, true},
 		{
-			"identical S3 configs",
-			remote.TerraformBackend{
+			name:            "both empty",
+			existingBackend: remote.TerraformBackend{},
+			stateFromConfig: remote.RemoteState{},
+		},
+		{
+			name:            "same backend type value",
+			existingBackend: remote.TerraformBackend{Type: "s3"},
+			stateFromConfig: remote.RemoteState{Backend: "s3"},
+		}, {
+			name: "identical S3 configs",
+			existingBackend: remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]any{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]any{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			false,
 		}, {
-			"identical GCS configs",
-			remote.TerraformBackend{
+			name: "identical GCS configs",
+			existingBackend: remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]any{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]any{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			false,
+			shouldOverride: false,
 		}, {
-			"different s3 bucket values",
-			remote.TerraformBackend{
+			name: "different s3 bucket values",
+			existingBackend: remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]any{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]any{"bucket": "different", "key": "bar", "region": "us-east-1"},
 			},
-			true,
+			shouldOverride: true,
 		}, {
-			"different gcs bucket values",
-			remote.TerraformBackend{
+			name: "different gcs bucket values",
+			existingBackend: remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]any{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]any{"project": "foo-123456", "location": "europe-west3", "bucket": "different", "prefix": "bar"},
 			},
-			true,
+			shouldOverride: true,
 		}, {
-			"different s3 key values",
-			remote.TerraformBackend{
+			name: "different s3 key values",
+			existingBackend: remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]any{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]any{"bucket": "foo", "key": "different", "region": "us-east-1"},
 			},
-			true,
+			shouldOverride: true,
 		}, {
-			"different gcs prefix values",
-			remote.TerraformBackend{
+			name: "different gcs prefix values",
+			existingBackend: remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]any{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]any{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "different"},
 			},
-			true,
+			shouldOverride: true,
 		}, {
-			"different s3 region values",
-			remote.TerraformBackend{
+			name: "different s3 region values",
+			existingBackend: remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]any{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]any{"bucket": "foo", "key": "bar", "region": "different"},
 			},
-			true,
+			shouldOverride: true,
 		}, {
-			"different gcs location values",
-			remote.TerraformBackend{
+			name: "different gcs location values",
+			existingBackend: remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]any{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]any{"project": "foo-123456", "location": "different", "bucket": "foo", "prefix": "bar"},
 			},
-			true,
+			shouldOverride: true,
 		},
 		{
-			"different boolean values and boolean conversion",
-			remote.TerraformBackend{
+			name: "different boolean values and boolean conversion",
+			existingBackend: remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]any{"something": "true"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]any{"something": false},
 			},
-			true,
+			shouldOverride: true,
 		},
 		{
-			"different gcs boolean values and boolean conversion",
-			remote.TerraformBackend{
+			name: "different gcs boolean values and boolean conversion",
+			existingBackend: remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]any{"something": "true"},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]any{"something": false},
 			},
-			true,
+			shouldOverride: true,
 		},
 		{
-			"null values ignored",
-			remote.TerraformBackend{
+			name: "null values ignored",
+			existingBackend: remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]any{"something": "foo", "set-to-nil-should-be-ignored": nil},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]any{"something": "foo"},
 			},
-			false,
 		},
 		{
-			"gcs null values ignored",
-			remote.TerraformBackend{
+			name: "gcs null values ignored",
+			existingBackend: remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]any{"something": "foo", "set-to-nil-should-be-ignored": nil},
 			},
-			remote.RemoteState{
+			stateFromConfig: remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]any{"something": "foo"},
 			},
-			false,
 		},
 	}
 

@@ -20,11 +20,11 @@ import (
 
 // TelemetryOptions - options for telemetry provider.
 type TelemetryOptions struct {
+	Writer     io.Writer
+	ErrWriter  io.Writer
 	Vars       map[string]string
 	AppName    string
 	AppVersion string
-	Writer     io.Writer
-	ErrWriter  io.Writer
 }
 
 var spanExporter sdktrace.SpanExporter

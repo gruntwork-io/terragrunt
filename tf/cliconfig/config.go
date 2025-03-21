@@ -12,8 +12,8 @@ import (
 
 // ConfigHost is the structure of the "host" nested block within the CLI configuration, which can be used to override the default service host discovery behavior for a particular hostname.
 type ConfigHost struct {
-	Name     string            `hcl:",label"`
 	Services map[string]string `hcl:"services,attr"`
+	Name     string            `hcl:",label"`
 }
 
 // ConfigCredentials is the structure of the "credentials" nested block within the CLI configuration.
@@ -31,15 +31,13 @@ type ConfigCredentialsHelper struct {
 // Config provides methods to create a terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file).
 // The main purpose of which is to create a local config that will inherit the default user CLI config and adding new sections to force Terraform to send requests through the Terragrunt Cache server and use the provider cache directory.
 type Config struct {
-	DisableCheckpoint          bool `hcl:"disable_checkpoint"`
-	DisableCheckpointSignature bool `hcl:"disable_checkpoint_signature"`
-
-	Credentials        []ConfigCredentials      `hcl:"credentials,block"`
-	CredentialsHelpers *ConfigCredentialsHelper `hcl:"credentials_helper,block"`
-
-	PluginCacheDir       string                `hcl:"plugin_cache_dir"`
-	Hosts                []ConfigHost          `hcl:"host,block"`
-	ProviderInstallation *ProviderInstallation `hcl:"provider_installation,block"`
+	CredentialsHelpers         *ConfigCredentialsHelper `hcl:"credentials_helper,block"`
+	ProviderInstallation       *ProviderInstallation    `hcl:"provider_installation,block"`
+	PluginCacheDir             string                   `hcl:"plugin_cache_dir"`
+	Credentials                []ConfigCredentials      `hcl:"credentials,block"`
+	Hosts                      []ConfigHost             `hcl:"host,block"`
+	DisableCheckpoint          bool                     `hcl:"disable_checkpoint"`
+	DisableCheckpointSignature bool                     `hcl:"disable_checkpoint_signature"`
 }
 
 func (cfg *Config) Clone() *Config {

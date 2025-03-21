@@ -14,9 +14,9 @@ func TestAction(t *testing.T) {
 	t.Parallel()
 
 	tt := []struct {
-		name        string
-		opts        *options.TerragruntOptions
 		expectedErr error
+		opts        *options.TerragruntOptions
+		name        string
 	}{
 		{
 			name: "wrong tofu command",

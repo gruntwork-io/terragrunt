@@ -17,14 +17,13 @@ const SourceManifestName = ".terragrunt-source-manifest"
 // faster and use less disk space, but they cause issues in Windows and with infinite loops, so we copy files/folders
 // instead.
 type FileCopyGetter struct {
+	Logger log.Logger
 	getter.FileGetter
 
 	// List of glob paths that should be included in the copy. This can be used to override the default behavior of
 	// Terragrunt, which will skip hidden folders.
 	IncludeInCopy   []string
 	ExcludeFromCopy []string
-
-	Logger log.Logger
 }
 
 // Get replaces the original FileGetter

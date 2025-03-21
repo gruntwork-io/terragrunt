@@ -12,8 +12,8 @@ const (
 type CredentialsName string
 
 type Credentials struct {
-	Name CredentialsName
 	Envs map[string]string
+	Name CredentialsName
 }
 
 type Provider interface {
