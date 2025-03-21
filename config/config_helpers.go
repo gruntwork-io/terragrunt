@@ -127,8 +127,14 @@ type EnvVar struct {
 // TrackInclude is used to differentiate between an included config in the current parsing ctx, and an included
 // config that was passed through from a previous parsing ctx.
 type TrackInclude struct {
-	CurrentMap  map[string]IncludeConfig
-	Original    *IncludeConfig
+	// CurrentMap is the map version of CurrentList that maps the block labels to the included config.
+	CurrentMap map[string]IncludeConfig
+	// Original is used to track the original included config, and is used for resolving the include related
+	// functions.
+	Original *IncludeConfig
+	// CurrentList is used to track the list of configs that should be imported and merged before the final
+	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
+	// merge the included config in the right order.
 	CurrentList IncludeConfigs
 }
 
