@@ -3,9 +3,11 @@ package gcs
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 const BackendName = "gcs"
@@ -150,7 +152,14 @@ func (backend *Backend) DeleteBucket(ctx context.Context, backendConfig backend.
 
 	var bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
 
-	return client.DeleteGCSBucketIfNecessary(ctx, bucketName)
+	prompt := fmt.Sprintf("GCS bucket %s will be completely deleted. Do you want to continue?", bucketName)
+	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+		return err
+	} else if yes {
+		return client.DeleteGCSBucketIfNecessary(ctx, bucketName)
+	}
+
+	return nil
 }
 
 // GetTFInitArgs returns the subset of the given config that should be passed to terraform init

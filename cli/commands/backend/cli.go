@@ -4,16 +4,13 @@ package backend
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/bootstrap"
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/delete"
-	"github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-const (
-	CommandName = "backend"
-)
+const CommandName = "backend"
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
@@ -22,7 +19,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Subcommands: cli.Commands{
 			bootstrap.NewCommand(opts),
 			delete.NewCommand(opts),
-			migrate.NewCommand(opts),
 		},
 		ErrorOnUndefinedFlag: true,
 		Before: func(ctx *cli.Context) error {

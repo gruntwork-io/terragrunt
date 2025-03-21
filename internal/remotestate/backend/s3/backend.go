@@ -3,10 +3,12 @@ package s3
 
 import (
 	"context"
+	"fmt"
 	"path"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 const BackendName = "s3"
@@ -171,12 +173,24 @@ func (backend *Backend) DeleteBucket(ctx context.Context, backendConfig backend.
 	)
 
 	if tableName != "" {
-		if err := client.DeleteTableIfNecessary(ctx, tableName); err != nil {
+		prompt := fmt.Sprintf("DynamoDB table %s will be completely deleted. Do you want to continue?", tableName)
+		if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
 			return err
+		} else if yes {
+			if err := client.DeleteTableIfNecessary(ctx, tableName); err != nil {
+				return err
+			}
 		}
 	}
 
-	return client.DeleteS3BucketIfNecessary(ctx, bucketName)
+	prompt := fmt.Sprintf("S3 bucket %s will be completely deleted. Do you want to continue?", bucketName)
+	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+		return err
+	} else if yes {
+		return client.DeleteS3BucketIfNecessary(ctx, bucketName)
+	}
+
+	return nil
 }
 
 func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {

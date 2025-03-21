@@ -22,6 +22,7 @@ func NewFlags(cmdOpts *Options, prefix flags.Prefix) cli.Flags {
 			Name:        BucketFlagName,
 			EnvVars:     tgPrefix.EnvVars(BucketFlagName),
 			Usage:       "Delete the entire bucket.",
+			Hidden:      true,
 			Destination: &cmdOpts.DeleteBucket,
 		}),
 	}

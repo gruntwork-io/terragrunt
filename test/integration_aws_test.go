@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -31,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 )
 
@@ -46,9 +48,78 @@ const (
 	testFixtureReadIamRole               = "fixtures/read-config/iam_role_in_file"
 	testFixtureOutputFromRemoteState     = "fixtures/output-from-remote-state"
 	testFixtureOutputFromDependency      = "fixtures/output-from-dependency"
+	testFixtureBootstrapS3Backend        = "fixtures/bootstrap-s3-backend"
 
 	qaMyAppRelPath = "qa/my-app"
 )
+
+func TestAwsBootstrapBackend(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                  string
+		args                  string
+		checkExpectedResultFn func(t *testing.T, err error, s3BucketName, dynamoDBName string)
+	}{
+		{
+			"no bootstrap s3 backend without flag",
+			"run apply",
+			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
+				require.Error(t, err)
+
+				assert.Contains(t, err.Error(), "S3 bucket does not exist")
+			},
+		},
+		{
+			"bootstrap s3 backend with flag",
+			"run apply --backend-bootstrap",
+			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
+				require.NoError(t, err)
+
+				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+				validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil)
+			},
+		},
+		{
+			"bootstrap s3 backend by backend command",
+			"backend bootstrap",
+			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
+				require.NoError(t, err)
+
+				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+				validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil)
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf(testCase.name), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureBootstrapS3Backend)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBootstrapS3Backend)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureBootstrapS3Backend)
+
+			testID := strings.ToLower(helpers.UniqueID())
+
+			s3BucketName := "terragrunt-test-bucket-" + testID
+			dynamoDBName := "terragrunt-test-dynamodb-" + testID
+
+			defer func() {
+				deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+				cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+			}()
+
+			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+			helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --all --non-interactive --log-level debug --strict-control skip-backend-bootstrap --experiment cli-redesign --working-dir "+rootPath)
+
+			testCase.checkExpectedResultFn(t, err, s3BucketName, dynamoDBName)
+		})
+	}
+
+}
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
 	t.Parallel()
@@ -1289,6 +1360,10 @@ func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tabl
 		t.Fatal(err2)
 	}
 
+	if expectedTags == nil {
+		return
+	}
+
 	var actualTags = make(map[string]string)
 
 	for _, element := range tags.Tags {
@@ -1357,13 +1432,32 @@ func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 	require.NoError(t, err, "Failed to create S3 bucket")
 }
 
+func deleteS3Bucket(t *testing.T, tableName string, awsRegion string) {
+	helpers.DeleteS3Bucket(t, awsRegion, tableName)
+}
+
 func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 	t.Helper()
 
 	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 
-	_, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
-	require.NoError(t, err)
+	t.Logf("Deleting test DynamoDB table %s", tableName)
+
+	_, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	if err != nil {
+		var awsErr awserr.Error
+		if ok := errors.As(err, &awsErr); ok && awsErr.Code() == "ResourceNotFoundException" {
+			t.Logf("DynamoDB table %s does not exist", tableName)
+			return
+		}
+
+		t.Errorf("Failed to describe DynamoDB table %s: %v", tableName, err)
+		return
+	}
+
+	if _, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)}); err != nil {
+		t.Errorf("Failed to delete DynamoDB table %s: %v", tableName, err)
+	}
 }
 
 func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {

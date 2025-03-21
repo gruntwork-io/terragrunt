@@ -4,13 +4,13 @@ package delete
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/common"
+	"github.com/gruntwork-io/terragrunt/config"
 )
 
 func Run(ctx context.Context, cmdOpts *Options) error {
 	opts := cmdOpts.TerragruntOptions
 
-	remoteState, err := common.GetRemoteState(ctx, opts)
+	remoteState, err := config.ParseRemoteState(ctx, opts)
 	if err != nil {
 		return err
 	}

@@ -41,8 +41,8 @@ const (
 	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
 
-	// SkipRemoteStateInit is the control that prevents the remote state from being initialized unless the `--backend-bootstrap` flag is specified.
-	SkipRemoteStateInit = "skip-remote-state-init"
+	// SkipBackendBootstrap is the control that prevents the backend for remote state from being bootstraped unless the `--backend-bootstrap` flag is specified.
+	SkipBackendBootstrap = "skip-backend-bootstrap"
 )
 
 //nolint:lll
@@ -63,11 +63,11 @@ func New() strict.Controls {
 		Category:    stageCategory,
 	}
 
-	skipRemoteStateInitControl := &Control{
-		Name:        SkipRemoteStateInit,
-		Description: "Disable initialize remote state if `--backend-bootstrap` flag is not specified.",
-		Error:       errors.Errorf("Initializing remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
-		Warning:     "Initializing remote state by default is deprecated and will be removed in a future version of Terragrunt. Use `--backend-bootstrap` flag instead.",
+	skipBootstrapBackendControl := &Control{
+		Name:        SkipBackendBootstrap,
+		Description: "Disable bootstrap backend for remote state if `--backend-bootstrap` flag is not specified.",
+		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
+		Warning:     "Bootstrap backend for remote state by default is deprecated and will be removed in a future version of Terragrunt. Use `--backend-bootstrap` flag instead.",
 		Category:    stageCategory,
 	}
 
@@ -93,10 +93,11 @@ func New() strict.Controls {
 			Category:    lifecycleCategory,
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
+				skipBootstrapBackendControl,
 			},
 		},
 		skipDependenciesInputsControl,
-		skipRemoteStateInitControl,
+		skipBootstrapBackendControl,
 		&Control{
 			Name:        LegacyAll,
 			Description: "Prevents old *-all commands such as plan-all from being used.",

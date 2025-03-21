@@ -17,9 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-const (
-	CommandName = "graph"
-)
+const CommandName = "graph"
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{

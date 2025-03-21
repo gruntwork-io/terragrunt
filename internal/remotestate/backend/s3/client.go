@@ -123,7 +123,7 @@ func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, bucketName 
 
 	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, prompt, opts)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	if shouldCreateBucket {

@@ -32,7 +32,71 @@ const (
 	testFixtureGcsNoBucket          = "fixtures/gcs-no-bucket/"
 	testFixtureGcsNoPrefix          = "fixtures/gcs-no-prefix/"
 	testFixtureGcsParallelStateInit = "fixtures/gcs-parallel-state-init"
+	testFixtureBootstrapGCSBackend  = "fixtures/bootstrap-gcs-backend"
 )
+
+func TestAGcpBootstrapBackend(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                  string
+		args                  string
+		checkExpectedResultFn func(t *testing.T, err error, gcsBucketNameName string)
+	}{
+		{
+			"no bootstrap gcs backend without flag",
+			"run apply",
+			func(t *testing.T, err error, gcsBucketNameName string) {
+				require.Error(t, err)
+
+				assert.Contains(t, err.Error(), "bucket doesn't exist")
+			},
+		},
+		{
+			"bootstrap gcs backend with flag",
+			"run apply --backend-bootstrap",
+			func(t *testing.T, err error, gcsBucketName string) {
+				require.NoError(t, err)
+				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+			},
+		},
+		{
+			"bootstrap gcs backend by backend command",
+			"backend bootstrap",
+			func(t *testing.T, err error, gcsBucketName string) {
+				require.NoError(t, err)
+
+				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf(testCase.name), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureBootstrapGCSBackend)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBootstrapGCSBackend)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureBootstrapGCSBackend)
+
+			gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+			defer func() {
+				deleteGCSBucket(t, gcsBucketName)
+			}()
+
+			project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+
+			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+			copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --all --non-interactive --log-level debug --strict-control skip-backend-bootstrap --experiment cli-redesign --working-dir "+rootPath)
+
+			testCase.checkExpectedResultFn(t, err, gcsBucketName)
+		})
+	}
+
+}
 
 func TestGcpWorksWithBackend(t *testing.T) {
 	t.Parallel()
@@ -288,12 +352,14 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 		}
 
 		if err != nil {
-			t.Fatalf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
+			t.Logf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
+			return
 		}
 
 		// purge the object version
 		if err := bucket.Object(objectAttrs.Name).Generation(objectAttrs.Generation).Delete(ctx); err != nil {
-			t.Fatalf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
+			t.Logf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
+			return
 		}
 	}
 

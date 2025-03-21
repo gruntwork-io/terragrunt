@@ -135,18 +135,15 @@ func CopyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, p
 	t.Helper()
 
 	contents, err := util.ReadFileAsString(srcPath)
-	if err != nil {
-		t.Fatalf("Error reading file at %s: %v", srcPath, err)
-	}
+	require.NoError(t, err, "Error reading file at %s: %v", srcPath, err)
 
 	// iterate over placeholders and replace placeholders
 	for k, v := range placeholders {
 		contents = strings.ReplaceAll(contents, k, v)
 	}
 
-	if err := os.WriteFile(destPath, []byte(contents), readPermissions); err != nil {
-		t.Fatalf("Error writing temp file to %s: %v", destPath, err)
-	}
+	err = os.WriteFile(destPath, []byte(contents), readPermissions)
+	require.NoError(t, err, "Error writing temp file to %s: %v", destPath, err)
 }
 
 // UniqueID returns a unique (ish) id we can attach to resources and tfstate files so they don't conflict with each other

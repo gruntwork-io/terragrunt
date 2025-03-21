@@ -4,12 +4,12 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/common"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	remoteState, err := common.GetRemoteState(ctx, opts)
+	remoteState, err := config.ParseRemoteState(ctx, opts)
 	if err != nil {
 		return err
 	}

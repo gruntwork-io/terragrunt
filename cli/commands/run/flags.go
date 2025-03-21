@@ -73,12 +73,12 @@ const (
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
 
-	// `run-all/-all` related flags.
+	// `run-all/--all` related flags.
 
 	OutDirFlagName     = "out-dir"
 	JSONOutDirFlagName = "json-out-dir"
 
-	// `graph/-graph` related flags.
+	// `graph/--graph` related flags.
 
 	GraphRootFlagName = "graph-root"
 
