@@ -7,26 +7,72 @@ import (
 )
 
 type Command struct {
-	Category             *Category
-	Before               ActionFunc
-	CustomHelp           HelpFunc
-	After                ActionFunc
-	Complete             CompleteFunc
-	Action               ActionFunc
-	Description          string
-	HelpName             string
-	Name                 string
-	UsageText            string
-	CustomHelpTemplate   string
-	Usage                string
-	Flags                Flags
-	Examples             []string
-	Subcommands          Commands
-	Aliases              []string
-	IsRoot               bool
-	SkipRunning          bool
-	SkipFlagParsing      bool
-	Hidden               bool
+	// Category is the category the command belongs to.
+	Category *Category
+
+	// Before is an action to execute before the command is invoked.
+	// If a non-nil error is returned, no further processing is done.
+	Before ActionFunc
+
+	// CustomHelp is a custom function to display help text.
+	CustomHelp HelpFunc
+
+	// After is the function to call after the command is invoked.
+	After ActionFunc
+
+	// Complete is the function to call for shell completion.
+	Complete CompleteFunc
+
+	// Action is the function to execute when the command is invoked.
+	// Runs after subcommands are finished.
+	Action ActionFunc
+
+	// Description is a longer explanation of how the command works.
+	Description string
+
+	// HelpName is the full name of the command for help.
+	// Defaults to the full command name, including parent commands.
+	HelpName string
+
+	// Name is the command name.
+	Name string
+
+	// UsageText is custom text to show on the `Usage` section of the help.
+	UsageText string
+
+	// CustomHelpTemplate is a custom text template for the help topic.
+	CustomHelpTemplate string
+
+	// Usage is a short description of the usage for the command.
+	Usage string
+
+	// Flags is a list of flags to parse.
+	Flags Flags
+
+	// Examples is a list of examples for using the command in help.
+	Examples []string
+
+	// Subcommands is a list of subcommands.
+	Subcommands Commands
+
+	// Aliases is a list of aliases for the command.
+	Aliases []string
+
+	// IsRoot is true if this is a root "special" command.
+	// NOTE: The author of this comment doesn't know what this means.
+	IsRoot bool
+
+	// SkipRunning disables the parsing command, but it will
+	// still be shown in help.
+	SkipRunning bool
+
+	// SkipFlagParsing treats all flags as normal arguments.
+	SkipFlagParsing bool
+
+	// Hidden hides the command from help.
+	Hidden bool
+
+	// ErrorOnUndefinedFlag causes the application to exit and return an error on any undefined flag.
 	ErrorOnUndefinedFlag bool
 }
 

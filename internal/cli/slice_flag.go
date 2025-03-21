@@ -22,17 +22,39 @@ type SliceFlagType interface {
 // SliceFlag is a multiple flag.
 type SliceFlag[T SliceFlagType] struct {
 	flag
-	Action      FlagActionFunc[[]T]
-	Setter      FlagSetterFunc[T]
+
+	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	Action FlagActionFunc[[]T]
+
+	// Setter represents the function that is called when the flag is specified.
+	Setter FlagSetterFunc[T]
+
+	// Destination is a pointer to which the value of the flag or env var is assigned.
 	Destination *[]T
-	Splitter    SplitterFunc
-	Name        string
+
+	// Splitter represents the function that is called when the flag is specified.
+	Splitter SplitterFunc
+
+	// Name is the name of the flag.
+	Name string
+
+	// DefaultText is the default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
 	DefaultText string
-	Usage       string
-	EnvVarSep   string
-	Aliases     []string
-	EnvVars     []string
-	Hidden      bool
+
+	// Usage is a short usage description to display in help.
+	Usage string
+
+	// EnvVarSep is the separator used to split the env var value.
+	EnvVarSep string
+
+	// Aliases are usually used for the short flag name, like `-h`.
+	Aliases []string
+
+	// EnvVars are the names of the env variables that are parsed and assigned to `Destination` before the flag value.
+	EnvVars []string
+
+	// Hidden hides the flag from the help.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.

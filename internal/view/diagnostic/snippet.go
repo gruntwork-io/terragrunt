@@ -10,13 +10,26 @@ import (
 
 // Snippet represents source code information about the diagnostic.
 type Snippet struct {
-	FunctionCall         *FunctionCall     `json:"function_call,omitempty"`
-	Context              string            `json:"context"`
-	Code                 string            `json:"code"`
-	Values               []ExpressionValue `json:"values"`
-	StartLine            int               `json:"start_line"`
-	HighlightStartOffset int               `json:"highlight_start_offset"`
-	HighlightEndOffset   int               `json:"highlight_end_offset"`
+	// FunctionCall is information about a function call whose failure is being reported by this diagnostic, if any.
+	FunctionCall *FunctionCall `json:"function_call,omitempty"`
+
+	// Context is derived from HCL's hcled.ContextString output. This gives a high-level summary of the root context of the diagnostic.
+	Context string `json:"context"`
+
+	// Code is a possibly-multi-line string of OpenTofu/Terraform configuration, which includes both the diagnostic source and any relevant context as defined by the diagnostic.
+	Code string `json:"code"`
+
+	// Values is a sorted slice of expression values which may be useful in understanding the source of an error in a complex expression.
+	Values []ExpressionValue `json:"values"`
+
+	// StartLine is the line number in the source file for the first line of the snippet code block.
+	StartLine int `json:"start_line"`
+
+	// HighlightStartOffset is the character offset into Code at which the diagnostic source range starts, which ought to be highlighted as such by the consumer of this data.
+	HighlightStartOffset int `json:"highlight_start_offset"`
+
+	// HighlightEndOffset is the character offset into Code at which the diagnostic source range ends.
+	HighlightEndOffset int `json:"highlight_end_offset"`
 }
 
 func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Range) *Snippet {

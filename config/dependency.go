@@ -47,16 +47,22 @@ type dependencyOutputCache struct {
 }
 
 type Dependency struct {
-	ConfigPath                          cty.Value          `hcl:"config_path,attr" cty:"config_path"`
-	Enabled                             *bool              `hcl:"enabled,attr" cty:"enabled"`
-	SkipOutputs                         *bool              `hcl:"skip_outputs,attr" cty:"skip"`
-	MockOutputs                         *cty.Value         `hcl:"mock_outputs,attr" cty:"mock_outputs"`
-	MockOutputsAllowedTerraformCommands *[]string          `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
-	MockOutputsMergeWithState           *bool              `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
-	MockOutputsMergeStrategyWithState   *MergeStrategyType `hcl:"mock_outputs_merge_strategy_with_state" cty:"mock_outputs_merge_strategy_with_state"`
-	RenderedOutputs                     *cty.Value         `cty:"outputs"`
-	Inputs                              *cty.Value         `cty:"inputs"`
-	Name                                string             `hcl:",label" cty:"name"`
+	ConfigPath                          cty.Value  `hcl:"config_path,attr" cty:"config_path"`
+	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
+	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
+	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
+	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
+
+	// MockOutputsMergeWithState is deprecated. Use MockOutputsMergeStrategyWithState
+	MockOutputsMergeWithState *bool `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
+
+	MockOutputsMergeStrategyWithState *MergeStrategyType `hcl:"mock_outputs_merge_strategy_with_state" cty:"mock_outputs_merge_strategy_with_state"`
+
+	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
+	RenderedOutputs *cty.Value `cty:"outputs"`
+
+	Inputs *cty.Value `cty:"inputs"`
+	Name   string     `hcl:",label" cty:"name"`
 }
 
 // DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined

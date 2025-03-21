@@ -301,12 +301,18 @@ type ProviderService struct {
 	logger                log.Logger
 	providerCacheWarmUpCh chan *ProviderCache
 	credsSource           *cliconfig.CredentialsSource
-	cacheDir              string
-	tempDir               string
-	userCacheDir          string
-	providerCaches        ProviderCaches
-	cacheMu               sync.RWMutex
-	cacheReadyMu          sync.RWMutex
+
+	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
+	cacheDir string
+
+	// The path to a predictable temporary directory for provider archives and lock files.
+	tempDir string
+
+	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
+	userCacheDir   string
+	providerCaches ProviderCaches
+	cacheMu        sync.RWMutex
+	cacheReadyMu   sync.RWMutex
 }
 
 func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger log.Logger) *ProviderService {

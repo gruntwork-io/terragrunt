@@ -50,12 +50,25 @@ type DiscoveredConfigs []*DiscoveredConfig
 
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
-	workingDir                   string
-	sort                         Sort
-	hiddenDirMemo                []string
-	maxDependencyDepth           int
-	hidden                       bool
-	discoverDependencies         bool
+	// workingDir is the directory to search for Terragrunt configurations.
+	workingDir string
+
+	// sort determines the sort order of the discovered configurations.
+	sort Sort
+
+	// hiddenDirMemo is a memoization of hidden directories.
+	hiddenDirMemo []string
+
+	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
+	maxDependencyDepth int
+
+	// hidden determines whether to detect configurations in hidden directories.
+	hidden bool
+
+	// discoverDependencies determines whether to discover dependencies.
+	discoverDependencies bool
+
+	// discoverExternalDependencies determines whether to discover external dependencies.
 	discoverExternalDependencies bool
 }
 

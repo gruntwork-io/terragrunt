@@ -27,12 +27,22 @@ const matchCount = 2
 
 // Source represents information about Terraform source code that needs to be downloaded.
 type Source struct {
-	Logger             log.Logger
+	Logger log.Logger
+
+	// A canonical version of RawSource, in URL format
 	CanonicalSourceURL *url.URL
-	DownloadDir        string
-	WorkingDir         string
-	VersionFile        string
-	WalkWithSymlinks   bool
+
+	// The folder where we should download the source to
+	DownloadDir string
+
+	// The folder in DownloadDir that should be used as the working directory for Terraform
+	WorkingDir string
+
+	// The path to a file in DownloadDir that stores the version number of the code
+	VersionFile string
+
+	// WalkWithSymlinks controls whether to walk symlinks in the downloaded source
+	WalkWithSymlinks bool
 }
 
 func (src Source) String() string {

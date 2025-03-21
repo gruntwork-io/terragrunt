@@ -21,23 +21,60 @@ import (
 // `--terragrunt-non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
 // ctx.Args().Slice()
 type App struct {
+	// AutocompleteInstaller supports autocompletion via the github.com/posener/complete
+	// library. This library supports bash, zsh and fish. To add support
+	// for other shells, please see that library.
 	AutocompleteInstaller AutocompleteInstaller
-	FlagErrHandler        FlagErrHandlerFunc
-	ExitErrHandler        ExitErrHandlerFunc
+
+	// FlagErrHandler processes any error encountered while parsing flags.
+	FlagErrHandler FlagErrHandlerFunc
+
+	// ExitErrHandler processes any error encountered while running an App before
+	// it is returned to the caller. If no function is provided, HandleExitCoder
+	// is used as the default behavior.
+	ExitErrHandler ExitErrHandlerFunc
+
 	*cli.App
-	Before                    ActionFunc
-	After                     ActionFunc
-	Complete                  CompleteFunc
-	Action                    ActionFunc
-	OsExiter                  func(code int)
-	Author                    string
-	CustomAppVersionTemplate  string
-	AutocompleteInstallFlag   string
+
+	// Before is an action to execute before any subcommands are run, but after the context is ready.
+	Before ActionFunc
+
+	// After is an action to execute after
+	// any subcommands are run, but after the subcommand has finished.
+	After ActionFunc
+
+	// Complete is the function to call when checking for command completions.
+	Complete CompleteFunc
+
+	// Action is the action to execute when no subcommands are specified.
+	Action ActionFunc
+
+	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
+	OsExiter func(code int)
+
+	// Author is the author of the app.
+	Author string
+
+	// CustomAppVersionTemplate is a text template for app version topic.
+	CustomAppVersionTemplate string
+
+	// AutocompleteInstallFlag is the global flag name for installing the autocompletion handlers for the user's shell.
+	AutocompleteInstallFlag string
+
+	// AutocompleteUninstallFlag is the global flag name for uninstalling the autocompletion handlers for the user's shell.
 	AutocompleteUninstallFlag string
-	Commands                  Commands
-	Flags                     Flags
-	Examples                  []string
-	Autocomplete              bool
+
+	// Commands is a list of commands to execute.
+	Commands Commands
+
+	// Flags is a list of flags to parse.
+	Flags Flags
+
+	// Examples is a list of examples of using the App in the help.
+	Examples []string
+
+	// Autocomplete enables or disables subcommand auto-completion support.
+	Autocomplete bool
 }
 
 // NewApp returns app new App instance.
