@@ -540,12 +540,26 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 
 	files = append(files, hclFiles...)
 
+	tofuHclFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tofu")
+	if err != nil {
+		return errors.New(err)
+	}
+
+	files = append(files, tofuHclFiles...)
+
 	jsonFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf.json")
 	if err != nil {
 		return errors.New(err)
 	}
 
 	files = append(files, jsonFiles...)
+
+	tofuJSONFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tofu.json")
+	if err != nil {
+		return errors.New(err)
+	}
+
+	files = append(files, tofuJSONFiles...)
 
 	if len(files) == 0 {
 		return errors.New(NoTerraformFilesFound(terragruntOptions.WorkingDir))
