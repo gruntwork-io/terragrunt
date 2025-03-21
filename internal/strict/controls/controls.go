@@ -41,7 +41,7 @@ const (
 	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
 
-	// SkipBackendBootstrap is the control that prevents the backend for remote state from being bootstraped unless the `--backend-bootstrap` flag is specified.
+	// SkipBackendBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
 	SkipBackendBootstrap = "skip-backend-bootstrap"
 )
 
