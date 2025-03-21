@@ -22,14 +22,13 @@ var terragruntOnlyConfigs = []string{
  * has to create them.
  */
 type ExtendedRemoteStateConfigGCS struct {
-	RemoteStateConfigGCS RemoteStateConfigGCS `mapstructure:",squash"`
-
-	Project                string            `mapstructure:"project"`
-	Location               string            `mapstructure:"location"`
-	GCSBucketLabels        map[string]string `mapstructure:"gcs_bucket_labels"`
-	SkipBucketVersioning   bool              `mapstructure:"skip_bucket_versioning"`
-	SkipBucketCreation     bool              `mapstructure:"skip_bucket_creation"`
-	EnableBucketPolicyOnly bool              `mapstructure:"enable_bucket_policy_only"`
+	GCSBucketLabels        map[string]string    `mapstructure:"gcs_bucket_labels"`
+	Project                string               `mapstructure:"project"`
+	Location               string               `mapstructure:"location"`
+	RemoteStateConfigGCS   RemoteStateConfigGCS `mapstructure:",squash"`
+	SkipBucketVersioning   bool                 `mapstructure:"skip_bucket_versioning"`
+	SkipBucketCreation     bool                 `mapstructure:"skip_bucket_creation"`
+	EnableBucketPolicyOnly bool                 `mapstructure:"enable_bucket_policy_only"`
 }
 
 // Validate validates the configuration for GCS remote state.

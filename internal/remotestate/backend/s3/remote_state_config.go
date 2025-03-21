@@ -45,30 +45,29 @@ var terragruntOnlyConfigs = []string{
  * access logs, in case it has to create them.
  */
 type ExtendedRemoteStateConfigS3 struct {
-	RemoteStateConfigS3 RemoteStateConfigS3 `mapstructure:",squash"`
-
-	S3BucketTags                                 map[string]string `mapstructure:"s3_bucket_tags"`
-	DynamotableTags                              map[string]string `mapstructure:"dynamodb_table_tags"`
-	AccessLoggingBucketTags                      map[string]string `mapstructure:"accesslogging_bucket_tags"`
-	SkipCredentialsValidation                    bool              `mapstructure:"skip_credentials_validation"`
-	SkipBucketVersioning                         bool              `mapstructure:"skip_bucket_versioning"`
-	SkipBucketSSEncryption                       bool              `mapstructure:"skip_bucket_ssencryption"`
-	SkipBucketAccessLogging                      bool              `mapstructure:"skip_bucket_accesslogging"`
-	SkipBucketRootAccess                         bool              `mapstructure:"skip_bucket_root_access"`
-	SkipBucketEnforcedTLS                        bool              `mapstructure:"skip_bucket_enforced_tls"`
-	SkipBucketPublicAccessBlocking               bool              `mapstructure:"skip_bucket_public_access_blocking"`
-	DisableBucketUpdate                          bool              `mapstructure:"disable_bucket_update"`
-	EnableLockTableSSEncryption                  bool              `mapstructure:"enable_lock_table_ssencryption"`
-	DisableAWSClientChecksums                    bool              `mapstructure:"disable_aws_client_checksums"`
-	AccessLoggingBucketName                      string            `mapstructure:"accesslogging_bucket_name"`
-	AccessLoggingTargetObjectPartitionDateSource string            `mapstructure:"accesslogging_target_object_partition_date_source"`
-	AccessLoggingTargetPrefix                    string            `mapstructure:"accesslogging_target_prefix"`
-	SkipAccessLoggingBucketACL                   bool              `mapstructure:"skip_accesslogging_bucket_acl"`
-	SkipAccessLoggingBucketEnforcedTLS           bool              `mapstructure:"skip_accesslogging_bucket_enforced_tls"`
-	SkipAccessLoggingBucketPublicAccessBlocking  bool              `mapstructure:"skip_accesslogging_bucket_public_access_blocking"`
-	SkipAccessLoggingBucketSSEncryption          bool              `mapstructure:"skip_accesslogging_bucket_ssencryption"`
-	BucketSSEAlgorithm                           string            `mapstructure:"bucket_sse_algorithm"`
-	BucketSSEKMSKeyID                            string            `mapstructure:"bucket_sse_kms_key_id"`
+	S3BucketTags                                 map[string]string   `mapstructure:"s3_bucket_tags"`
+	DynamotableTags                              map[string]string   `mapstructure:"dynamodb_table_tags"`
+	AccessLoggingBucketTags                      map[string]string   `mapstructure:"accesslogging_bucket_tags"`
+	AccessLoggingBucketName                      string              `mapstructure:"accesslogging_bucket_name"`
+	BucketSSEKMSKeyID                            string              `mapstructure:"bucket_sse_kms_key_id"`
+	BucketSSEAlgorithm                           string              `mapstructure:"bucket_sse_algorithm"`
+	AccessLoggingTargetPrefix                    string              `mapstructure:"accesslogging_target_prefix"`
+	AccessLoggingTargetObjectPartitionDateSource string              `mapstructure:"accesslogging_target_object_partition_date_source"`
+	RemoteStateConfigS3                          RemoteStateConfigS3 `mapstructure:",squash"`
+	SkipBucketVersioning                         bool                `mapstructure:"skip_bucket_versioning"`
+	SkipBucketAccessLogging                      bool                `mapstructure:"skip_bucket_accesslogging"`
+	DisableBucketUpdate                          bool                `mapstructure:"disable_bucket_update"`
+	EnableLockTableSSEncryption                  bool                `mapstructure:"enable_lock_table_ssencryption"`
+	DisableAWSClientChecksums                    bool                `mapstructure:"disable_aws_client_checksums"`
+	SkipBucketEnforcedTLS                        bool                `mapstructure:"skip_bucket_enforced_tls"`
+	SkipBucketRootAccess                         bool                `mapstructure:"skip_bucket_root_access"`
+	SkipBucketPublicAccessBlocking               bool                `mapstructure:"skip_bucket_public_access_blocking"`
+	SkipAccessLoggingBucketACL                   bool                `mapstructure:"skip_accesslogging_bucket_acl"`
+	SkipAccessLoggingBucketEnforcedTLS           bool                `mapstructure:"skip_accesslogging_bucket_enforced_tls"`
+	SkipAccessLoggingBucketPublicAccessBlocking  bool                `mapstructure:"skip_accesslogging_bucket_public_access_blocking"`
+	SkipAccessLoggingBucketSSEncryption          bool                `mapstructure:"skip_accesslogging_bucket_ssencryption"`
+	SkipBucketSSEncryption                       bool                `mapstructure:"skip_bucket_ssencryption"`
+	SkipCredentialsValidation                    bool                `mapstructure:"skip_credentials_validation"`
 }
 
 func (cfg *ExtendedRemoteStateConfigS3) FetchEncryptionAlgorithm() string {
@@ -174,22 +173,22 @@ type RemoteStateConfigS3Endpoints struct {
 // RemoteStateConfigS3 is a representation of the
 // configuration options available for S3 remote state.
 type RemoteStateConfigS3 struct {
-	Encrypt          bool                          `mapstructure:"encrypt"`
+	Endpoints        RemoteStateConfigS3Endpoints  `mapstructure:"endpoints"`
+	RoleArn          string                        `mapstructure:"role_arn"`
+	ExternalID       string                        `mapstructure:"external_id"`
+	Region           string                        `mapstructure:"region"`
+	Endpoint         string                        `mapstructure:"endpoint"`
+	DynamoDBEndpoint string                        `mapstructure:"dynamodb_endpoint"`
 	Bucket           string                        `mapstructure:"bucket"`
 	Key              string                        `mapstructure:"key"`
-	Region           string                        `mapstructure:"region"`
-	Endpoint         string                        `mapstructure:"endpoint"`          // Deprecated in Terraform version 1.6 or newer.
-	DynamoDBEndpoint string                        `mapstructure:"dynamodb_endpoint"` // Deprecated in Terraform version 1.6 or newer.
-	Endpoints        RemoteStateConfigS3Endpoints  `mapstructure:"endpoints"`
-	Profile          string                        `mapstructure:"profile"`
-	RoleArn          string                        `mapstructure:"role_arn"`     // Deprecated in Terraform version 1.6 or newer.
-	ExternalID       string                        `mapstructure:"external_id"`  // Deprecated in Terraform version 1.6 or newer.
-	SessionName      string                        `mapstructure:"session_name"` // Deprecated in Terraform version 1.6 or newer.
-	LockTable        string                        `mapstructure:"lock_table"`   // Deprecated in Terraform version 0.13 or newer.
-	DynamoDBTable    string                        `mapstructure:"dynamodb_table"`
 	CredsFilename    string                        `mapstructure:"shared_credentials_file"`
-	S3ForcePathStyle bool                          `mapstructure:"force_path_style"`
+	Profile          string                        `mapstructure:"profile"`
+	SessionName      string                        `mapstructure:"session_name"`
+	LockTable        string                        `mapstructure:"lock_table"`
+	DynamoDBTable    string                        `mapstructure:"dynamodb_table"`
 	AssumeRole       RemoteStateConfigS3AssumeRole `mapstructure:"assume_role"`
+	Encrypt          bool                          `mapstructure:"encrypt"`
+	S3ForcePathStyle bool                          `mapstructure:"force_path_style"`
 }
 
 // CacheKey returns a unique key for the given S3 config that can be used to cache the initialization

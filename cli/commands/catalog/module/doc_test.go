@@ -184,37 +184,37 @@ func TestElement(t *testing.T) {
 	testCases := []struct {
 		content              string
 		fileExt              string
-		maxDescriptionLength int
 		expectedTitle        string
 		expectedDescription  string
+		maxDescriptionLength int
 	}{
 		{
-			testH1EksK8sArgocd,
-			".md",
-			200,
-			"EKS K8s GitOps Module",
-			"This module deploys Argo CD to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the Argo CD for more details.",
+			content:              testH1EksK8sArgocd,
+			fileExt:              ".md",
+			maxDescriptionLength: 200,
+			expectedTitle:        "EKS K8s GitOps Module",
+			expectedDescription:  "This module deploys Argo CD to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the Argo CD for more details.",
 		},
 		{
-			testH1EksCloudwatchAgent,
-			".md",
-			200,
-			"EKS CloudWatch Agent Module",
-			"This Terraform Module installs and configures Amazon CloudWatch Agent on an EKS cluster, so that each node runs the agent to collect more system-level metrics from Amazon EC2 instances and ship them to Amazon CloudWatch.",
+			content:              testH1EksCloudwatchAgent,
+			fileExt:              ".md",
+			maxDescriptionLength: 200,
+			expectedTitle:        "EKS CloudWatch Agent Module",
+			expectedDescription:  "This Terraform Module installs and configures Amazon CloudWatch Agent on an EKS cluster, so that each node runs the agent to collect more system-level metrics from Amazon EC2 instances and ship them to Amazon CloudWatch.",
 		},
 		{
-			testH1EcsCluster,
-			".md",
-			200,
-			"Amazon ECS Cluster",
-			"This service contains Terraform code to deploy a production-grade ECS cluster on AWS using Elastic Container Service (ECS).",
+			content:              testH1EcsCluster,
+			fileExt:              ".md",
+			maxDescriptionLength: 200,
+			expectedTitle:        "Amazon ECS Cluster",
+			expectedDescription:  "This service contains Terraform code to deploy a production-grade ECS cluster on AWS using Elastic Container Service (ECS).",
 		},
 		{
-			testH1EksAWSAuthMerger,
-			".adoc",
-			200,
-			"EKS AWS Auth Merger",
-			"This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes.",
+			content:              testH1EksAWSAuthMerger,
+			fileExt:              ".adoc",
+			maxDescriptionLength: 200,
+			expectedTitle:        "EKS AWS Auth Merger",
+			expectedDescription:  "This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes.",
 		},
 	}
 

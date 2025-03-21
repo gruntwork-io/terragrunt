@@ -45,8 +45,8 @@ func TestFindHidden(t *testing.T) {
 
 	tc := []struct {
 		name     string
-		hidden   bool
 		expected string
+		hidden   bool
 	}{
 		{
 			name:     "visible",

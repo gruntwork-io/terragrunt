@@ -14,7 +14,7 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 
 	remoteBackend := s3backend.NewBackend()
 
-	testCases := []struct {
+	testCases := []struct { //nolint: govet
 		name          string
 		config        backend.Config
 		expected      map[string]any

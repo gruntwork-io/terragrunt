@@ -58,9 +58,9 @@ type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *confi
 */
 
 type Target struct {
-	point             TargetPointType
 	callbackFunc      TargetCallbackType
 	errorCallbackFunc TargetErrorCallbackType
+	point             TargetPointType
 }
 
 func NewTarget(point TargetPointType, callbackFunc TargetCallbackType) *Target {

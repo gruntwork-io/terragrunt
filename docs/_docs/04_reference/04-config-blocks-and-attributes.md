@@ -520,7 +520,8 @@ For the `gcs` backend, the following additional properties are supported in the 
 #
 # Note that since we are not using any of the skip args, this will automatically create the S3 bucket
 # "my-tofu-state" and DynamoDB table "my-lock-table" if it does not already exist.
-# terragrunt.hcl
+#
+# root.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -563,8 +564,8 @@ Example with GCS:
 #
 # Note that since we are not using any of the skip args, this will automatically create the GCS bucket
 # "my-tofu-state" if it does not already exist.
-
-# terragrunt.hcl
+#
+# root.hcl
 remote_state {
   backend = "gcs"
 
@@ -689,8 +690,8 @@ Examples:
 # └── child
 #     ├── main.tf
 #     └── terragrunt.hcl
-
-# terragrunt.hcl
+#
+# root.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -730,8 +731,8 @@ terraform {
 # ├── region.hcl
 # └── child
 #     └── terragrunt.hcl
-
-# terragrunt.hcl
+#
+# root.hcl
 remote_state {
   backend = "s3"
   config = {

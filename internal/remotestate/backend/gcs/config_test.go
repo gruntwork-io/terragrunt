@@ -13,7 +13,7 @@ func TestConfig_IsEqual(t *testing.T) {
 
 	logger := log.New()
 
-	testCases := []struct {
+	testCases := []struct { //nolint: govet
 		name          string
 		cfg           gcs.Config
 		comparableCfg gcs.Config

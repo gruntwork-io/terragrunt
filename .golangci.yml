@@ -30,10 +30,6 @@ linters-settings:
   goconst:
     min-len: 3
     min-occurrences: 5
-  revive:
-    min-confidence: 0.8
-  unused:
-    check-exported: false
   unparam:
     check-exported: false
   nakedret:
@@ -48,6 +44,9 @@ linters-settings:
       - performance
     disabled-tags:
       - experimental
+  govet:
+    enable:
+      - fieldalignment
 
 linters:
   enable:
@@ -82,8 +81,6 @@ linters:
     - recvcheck # In the latest version of golangci-lint this https://github.com/raeperd/recvcheck/issues/7 issue is not fixed yet.
 
   fast: false
-  mnd:
-    ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
   presets:
     - bugs
     - performance
@@ -92,6 +89,7 @@ linters:
     # NOTE: These two are only in the strict lint right now
     # - style
     # - complexity
+
 
 issues:
   exclude-dirs:

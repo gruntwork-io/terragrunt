@@ -50,20 +50,22 @@ type dependencyOutputCache struct {
 }
 
 type Dependency struct {
-	Name                                string     `hcl:",label" cty:"name"`
-	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
 	ConfigPath                          cty.Value  `hcl:"config_path,attr" cty:"config_path"`
+	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
 	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
 	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
 	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
 
 	// MockOutputsMergeWithState is deprecated. Use MockOutputsMergeStrategyWithState
-	MockOutputsMergeWithState         *bool              `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
+	MockOutputsMergeWithState *bool `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
+
 	MockOutputsMergeStrategyWithState *MergeStrategyType `hcl:"mock_outputs_merge_strategy_with_state" cty:"mock_outputs_merge_strategy_with_state"`
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
-	Inputs          *cty.Value `cty:"inputs"`
+
+	Inputs *cty.Value `cty:"inputs"`
+	Name   string     `hcl:",label" cty:"name"`
 }
 
 // DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined
@@ -1102,9 +1104,9 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 	// can't quite return the data directly. Instead, we will need further processing to get the output we want.
 	// To do so, we first Unmarshal the json into a simple go map to a OutputMeta struct.
 	type OutputMeta struct {
-		Sensitive bool            `json:"sensitive"`
 		Type      json.RawMessage `json:"type"`
 		Value     json.RawMessage `json:"value"`
+		Sensitive bool            `json:"sensitive"`
 	}
 
 	var outputs map[string]OutputMeta

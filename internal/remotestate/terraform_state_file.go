@@ -23,23 +23,23 @@ const DefaultPathToRemoteStateFile = "terraform.tfstate"
 
 // TerraformState - represents the structure of the Terraform .tfstate file.
 type TerraformState struct {
-	Version int                    `json:"Version"`
-	Serial  int                    `json:"Serial"`
 	Backend *TerraformBackend      `json:"Backend"`
 	Modules []TerraformStateModule `json:"Modules"`
+	Version int                    `json:"Version"`
+	Serial  int                    `json:"Serial"`
 }
 
 // TerraformBackend represents the structure of the "backend" section in the Terraform .tfstate file.
 type TerraformBackend struct {
-	Type   string         `json:"Type"`
 	Config map[string]any `json:"Config"`
+	Type   string         `json:"Type"`
 }
 
 // TerraformStateModule represents the structure of a "module" section in the Terraform .tfstate file.
 type TerraformStateModule struct {
-	Path      []string       `json:"Path"`
 	Outputs   map[string]any `json:"Outputs"`
 	Resources map[string]any `json:"Resources"`
+	Path      []string       `json:"Path"`
 }
 
 // IsRemote returns true if this Terraform state is configured for remote state storage.
@@ -101,8 +101,8 @@ func ParseTerraformState(terraformStateData []byte) (*TerraformState, error) {
 
 // CantParseTerraformStateFileError error that occurs when we can't parse the Terraform state file.
 type CantParseTerraformStateFileError struct {
-	Path          string
 	UnderlyingErr error
+	Path          string
 }
 
 func (err CantParseTerraformStateFileError) Error() string {

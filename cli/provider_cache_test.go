@@ -51,12 +51,12 @@ func TestProviderCache(t *testing.T) {
 	opts := []cache.Option{cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(cli.CacheProviderHTTPStatusCode)}
 
 	testCases := []struct {
-		opts               []cache.Option
+		expectedBodyReg    *regexp.Regexp
 		fullURLPath        string
 		relURLPath         string
-		expectedStatusCode int
-		expectedBodyReg    *regexp.Regexp
 		expectedCachePath  string
+		opts               []cache.Option
+		expectedStatusCode int
 	}{
 		{
 			opts:               opts,

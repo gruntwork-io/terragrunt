@@ -103,25 +103,51 @@ The tree format provides a hierarchical view of your configurations:
 
 ![list-tree](../../assets/img/screenshots/list-tree.png)
 
-## Sorting and Grouping
+By default, configurations in tree format are displayed ordered by name and grouped by directory:
 
-The `list` command supports different sorting and grouping options to help you organize output:
+```bash
+.
+╰── live
+    ├── dev
+    │   ├── db
+    │   ├── ec2
+    │   ╰── vpc
+    ╰── prod
+        ├── db
+        ├── ec2
+        ╰── vpc
+```
 
-### Sorting
+## DAG Mode
 
-- `alpha` (default): Sort configurations alphabetically by path
-- `dag`: Sort configurations based on their dependencies
+The `list` command supports DAG mode to sort and group output based on dependencies using the `--dag` flag. When using DAG mode, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order.
 
-### Grouping
+For example, in default text format:
 
-The `--group-by` flag controls how dependencies are represented in the output:
+```bash
+# Default alphabetical order
+$ terragrunt list
+a-dependent b-dependency
 
-- `fs` (default): Shows dependencies as nested lists with entries as children of parent directories
-- `dag`: Shows dependencies in a tree structure from a DAG perspective
+# DAG mode order
+$ terragrunt list --dag
+b-dependency a-dependent
+```
 
-<Aside type="tip">
-  The `--dag` flag is a shorthand that sets both `--sort=dag` and `--group-by=dag`.
-</Aside>
+When using `--dag` with the tree format, configurations are sorted by dependency order and grouped by relationship in the dependency graph:
+
+```bash
+$ terragrunt list --tree --dag
+.
+├── live/dev/vpc
+│   ├── live/dev/db
+│   │   ╰── live/dev/ec2
+│   ╰── live/dev/ec2
+╰── live/prod/vpc
+    ├── live/prod/db
+    │   ╰── live/prod/ec2
+    ╰── live/prod/ec2
+```
 
 ## Dependencies and Discovery
 

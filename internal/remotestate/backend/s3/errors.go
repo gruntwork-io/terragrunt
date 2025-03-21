@@ -44,8 +44,8 @@ func (err TableActiveRetriesExceeded) Error() string {
 }
 
 type TableDoesNotExist struct {
-	TableName  string
 	Underlying error
+	TableName  string
 }
 
 func (err TableDoesNotExist) Error() string {

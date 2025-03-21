@@ -116,44 +116,35 @@ type DecodedBaseBlocks struct {
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
-	Catalog                     *CatalogConfig
+	Locals                      map[string]any
+	ProcessedIncludes           IncludeConfigsMap
+	RetryMaxAttempts            *int
+	FieldsMetadata              map[string]map[string]any
 	Terraform                   *TerraformConfig
-	TerraformBinary             string
-	TerraformVersionConstraint  string
-	TerragruntVersionConstraint string
+	Errors                      *ErrorsConfig
 	RemoteState                 *remotestate.RemoteState
 	Dependencies                *ModuleDependencies
-	DownloadDir                 string
+	Exclude                     *ExcludeConfig
 	PreventDestroy              *bool
 	Skip                        *bool
-	IamRole                     string
-	IamAssumeRoleDuration       *int64
-	IamAssumeRoleSessionName    string
-	IamWebIdentityToken         string
-	Inputs                      map[string]any
-	Locals                      map[string]any
-	TerragruntDependencies      Dependencies
 	GenerateConfigs             map[string]codegen.GenerateConfig
-	RetryableErrors             []string
-	RetryMaxAttempts            *int
+	IamAssumeRoleDuration       *int64
 	RetrySleepIntervalSec       *int
+	Inputs                      map[string]any
 	Engine                      *EngineConfig
+	Catalog                     *CatalogConfig
+	IamWebIdentityToken         string
+	IamAssumeRoleSessionName    string
+	IamRole                     string
+	DownloadDir                 string
+	TerragruntVersionConstraint string
+	TerraformVersionConstraint  string
+	TerraformBinary             string
+	TerragruntDependencies      Dependencies
+	RetryableErrors             []string
 	FeatureFlags                FeatureFlags
-	Exclude                     *ExcludeConfig
-	Errors                      *ErrorsConfig
-
-	// Fields used for internal tracking
-	// Indicates whether this is the result of a partial evaluation
-	IsPartial bool
-
-	// Map of processed includes
-	ProcessedIncludes IncludeConfigsMap
-
-	// Map to store fields metadata
-	FieldsMetadata map[string]map[string]any
-
-	// List of dependent modules
-	DependentModulesPath []*string
+	DependentModulesPath        []*string
+	IsPartial                   bool
 }
 
 func (cfg *TerragruntConfig) String() string {
@@ -253,21 +244,21 @@ type terragruntLocal struct {
 }
 
 type terragruntIncludeIgnore struct {
-	Name   string   `hcl:"name,label"`
 	Remain hcl.Body `hcl:",remain"`
+	Name   string   `hcl:"name,label"`
 }
 
 // Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
 // through the codegen routine.
 type terragruntGenerateBlock struct {
+	IfDisabled       *string `hcl:"if_disabled,attr" mapstructure:"if_disabled"`
+	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
+	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
+	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
 	Name             string  `hcl:",label" mapstructure:",omitempty"`
 	Path             string  `hcl:"path,attr" mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
-	IfDisabled       *string `hcl:"if_disabled,attr" mapstructure:"if_disabled"`
-	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
 	Contents         string  `hcl:"contents,attr" mapstructure:"contents"`
-	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
-	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
 }
 
 type IncludeConfigsMap map[string]IncludeConfig
@@ -288,10 +279,10 @@ type IncludeConfigs []IncludeConfig
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
 // include into a child Terragrunt configuration file. You can have more than one include config.
 type IncludeConfig struct {
-	Name          string  `hcl:"name,label"`
-	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
+	Name          string  `hcl:"name,label"`
+	Path          string  `hcl:"path,attr"`
 }
 
 func (include *IncludeConfig) String() string {
@@ -374,22 +365,22 @@ func (deps *ModuleDependencies) String() string {
 
 // Hook specifies terraform commands (apply/plan) and array of os commands to execute
 type Hook struct {
-	Name           string   `hcl:"name,label" cty:"name"`
 	If             *bool    `hcl:"if,attr" cty:"if"`
-	Commands       []string `hcl:"commands,attr" cty:"commands"`
-	Execute        []string `hcl:"execute,attr" cty:"execute"`
 	RunOnError     *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
 	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
 	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
+	Name           string   `hcl:"name,label" cty:"name"`
+	Commands       []string `hcl:"commands,attr" cty:"commands"`
+	Execute        []string `hcl:"execute,attr" cty:"execute"`
 }
 
 type ErrorHook struct {
+	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
+	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
 	Name           string   `hcl:"name,label" cty:"name"`
 	Commands       []string `hcl:"commands,attr" cty:"commands"`
 	Execute        []string `hcl:"execute,attr" cty:"execute"`
 	OnErrors       []string `hcl:"on_errors,attr" cty:"on_errors"`
-	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
-	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 
 func (conf *Hook) String() string {
@@ -404,18 +395,18 @@ func (conf *ErrorHook) String() string {
 // NOTE: If any attributes or blocks are added here, be sure to add it to ctyTerraformConfig in config_as_cty.go as
 // well.
 type TerraformConfig struct {
-	ExtraArgs   []TerraformExtraArguments `hcl:"extra_arguments,block"`
-	Source      *string                   `hcl:"source,attr"`
-	BeforeHooks []Hook                    `hcl:"before_hook,block"`
-	AfterHooks  []Hook                    `hcl:"after_hook,block"`
-	ErrorHooks  []ErrorHook               `hcl:"error_hook,block"`
+	Source *string `hcl:"source,attr"`
 
 	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
 	// be defined and we want to make this optional.
 	IncludeInCopy   *[]string `hcl:"include_in_copy,attr"`
 	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
 
-	CopyTerraformLockFile *bool `hcl:"copy_terraform_lock_file,attr"`
+	CopyTerraformLockFile *bool                     `hcl:"copy_terraform_lock_file,attr"`
+	ExtraArgs             []TerraformExtraArguments `hcl:"extra_arguments,block"`
+	BeforeHooks           []Hook                    `hcl:"before_hook,block"`
+	AfterHooks            []Hook                    `hcl:"after_hook,block"`
+	ErrorHooks            []ErrorHook               `hcl:"error_hook,block"`
 }
 
 func (cfg *TerraformConfig) String() string {
@@ -466,12 +457,12 @@ func (cfg *TerraformConfig) ValidateHooks() error {
 
 // TerraformExtraArguments sets a list of arguments to pass to Terraform if command fits any in the `Commands` list
 type TerraformExtraArguments struct {
-	Name             string             `hcl:"name,label" cty:"name"`
 	Arguments        *[]string          `hcl:"arguments,attr" cty:"arguments"`
 	RequiredVarFiles *[]string          `hcl:"required_var_files,attr" cty:"required_var_files"`
 	OptionalVarFiles *[]string          `hcl:"optional_var_files,attr" cty:"optional_var_files"`
-	Commands         []string           `hcl:"commands,attr" cty:"commands"`
 	EnvVars          *map[string]string `hcl:"env_vars,attr" cty:"env_vars"`
+	Name             string             `hcl:"name,label" cty:"name"`
+	Commands         []string           `hcl:"commands,attr" cty:"commands"`
 }
 
 func (args *TerraformExtraArguments) String() string {

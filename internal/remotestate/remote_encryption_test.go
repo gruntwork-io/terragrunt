@@ -11,10 +11,10 @@ import (
 func TestUnmarshalConfig(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	tc := []struct { //nolint: govet
 		name                          string
-		providerType                  string
 		encryptionConfig              map[string]any
+		providerType                  string
 		expectedErrorCreatingProvider bool
 		expectedErrorFromProvider     bool
 	}{
@@ -142,10 +142,10 @@ func TestToMap(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		name             string
-		providerType     string
 		encryptionConfig map[string]any
 		expectedMap      map[string]any
+		name             string
+		providerType     string
 		expectedError    bool
 	}{
 		{

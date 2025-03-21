@@ -26,12 +26,12 @@ type ConfigGenerate struct {
 // Config is the configuration for Terraform remote state.
 // NOTE: If any attributes are added here, be sure to add it to `ConfigFile` struct.
 type Config struct {
-	BackendName                   string          `mapstructure:"backend" json:"Backend"`
 	BackendConfig                 backend.Config  `mapstructure:"config" json:"Config"`
-	DisableInit                   bool            `mapstructure:"disable_init" json:"DisableInit"`
-	DisableDependencyOptimization bool            `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
 	Generate                      *ConfigGenerate `mapstructure:"generate" json:"Generate"`
 	Encryption                    map[string]any  `mapstructure:"encryption" json:"Encryption"`
+	BackendName                   string          `mapstructure:"backend" json:"Backend"`
+	DisableInit                   bool            `mapstructure:"disable_init" json:"DisableInit"`
+	DisableDependencyOptimization bool            `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
 }
 
 func (cfg *Config) String() string {
@@ -139,12 +139,12 @@ type ConfigFileGenerate struct {
 
 // ConfigFile is configuration for Terraform remote state as parsed from a terragrunt.hcl config file.
 type ConfigFile struct {
-	BackendName                   string              `hcl:"backend,attr"`
+	BackendConfig                 cty.Value           `hcl:"config,attr"`
 	DisableInit                   *bool               `hcl:"disable_init,attr"`
 	DisableDependencyOptimization *bool               `hcl:"disable_dependency_optimization,attr"`
 	Generate                      *ConfigFileGenerate `hcl:"generate,attr"`
-	BackendConfig                 cty.Value           `hcl:"config,attr"`
 	Encryption                    *cty.Value          `hcl:"encryption,attr"`
+	BackendName                   string              `hcl:"backend,attr"`
 }
 
 func (cfgFile *ConfigFile) String() string {

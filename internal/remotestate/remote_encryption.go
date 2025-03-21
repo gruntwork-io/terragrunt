@@ -89,10 +89,10 @@ func NewRemoteEncryptionKeyProvider(providerType string) (RemoteEncryptionConfig
 type RemoteEncryptionKeyProviderPBKDF2 struct {
 	RemoteEncryptionKeyProviderBase `mapstructure:",squash"`
 	Passphrase                      string `mapstructure:"passphrase"`
+	HashFunction                    string `mapstructure:"hash_function"`
 	KeyLength                       int    `mapstructure:"key_length"`
 	Iterations                      int    `mapstructure:"iterations"`
 	SaltLength                      int    `mapstructure:"salt_length"`
-	HashFunction                    string `mapstructure:"hash_function"`
 }
 
 type RemoteEncryptionKeyProviderAWSKMS struct {

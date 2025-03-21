@@ -28,9 +28,9 @@ func TestNewTraceExporter(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name             string
-		telemetryOptions *telemetry.TelemetryOptions
 		expectedType     any
+		telemetryOptions *telemetry.TelemetryOptions
+		name             string
 		expectError      bool
 	}{
 		{

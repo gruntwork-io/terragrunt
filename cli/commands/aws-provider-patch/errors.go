@@ -9,8 +9,8 @@ func (flagName MissingOverrideAttrError) Error() string {
 }
 
 type TypeInferenceError struct {
-	value         string
 	underlyingErr error
+	value         string
 }
 
 func (err TypeInferenceError) Error() string {
@@ -19,8 +19,8 @@ func (err TypeInferenceError) Error() string {
 }
 
 type MalformedJSONValError struct {
-	value         string
 	underlyingErr error
+	value         string
 }
 
 func (err MalformedJSONValError) Error() string {

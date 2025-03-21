@@ -31,24 +31,23 @@ type Options struct {
 	// Format determines the format of the output.
 	Format string
 
-	// JSON determines whether to output in JSON format.
-	// Alias for --format=json.
-	JSON bool
-
-	// DAG determines whether to sort output in DAG order.
-	// Alias for --sort=dag.
-	DAG bool
-
 	// Mode determines the mode of the find command.
 	Mode string
 
-	// Hidden determines whether to detect hidden directories.
+	// JSON determines if the output should be in JSON format.
+	// Alias for --format=json.
+	JSON bool
+
+	// DAG determines if the output should be in DAG mode.
+	DAG bool
+
+	// Hidden determines if hidden configurations should be included in the output.
 	Hidden bool
 
-	// Dependencies determines whether to include dependencies in the output.
+	// Dependencies determines if dependencies should be included in the output.
 	Dependencies bool
 
-	// External determines whether to include external dependencies in the output.
+	// External determines if external dependencies should be included in the output.
 	External bool
 }
 

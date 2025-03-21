@@ -13,14 +13,14 @@ type FeatureFlags []*FeatureFlag
 
 // FeatureFlag feature flags struct.
 type FeatureFlag struct {
-	Name    string     `cty:"name"    hcl:",label"`
 	Default *cty.Value `cty:"default" hcl:"default,attr"`
+	Name    string     `cty:"name"    hcl:",label"`
 }
 
 // ctyFeatureFlag struct used to pass FeatureFlag to cty.Value.
 type ctyFeatureFlag struct {
-	Name  string    `cty:"name"`
 	Value cty.Value `cty:"value"`
+	Name  string    `cty:"name"`
 }
 
 // DeepMerge merges the source FeatureFlag into the target FeatureFlag.

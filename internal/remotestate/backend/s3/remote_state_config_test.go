@@ -19,7 +19,7 @@ import (
 func TestConfig_CreateS3LoggingInput(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	testCases := []struct { //nolint: govet
 		name          string
 		config        s3backend.Config
 		loggingInput  s3.PutBucketLoggingInput
@@ -122,7 +122,7 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 func TestConfig_ForcePathStyleClientSession(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	testCases := []struct { //nolint: govet
 		name     string
 		config   s3backend.Config
 		expected bool
@@ -162,7 +162,7 @@ func TestConfig_ForcePathStyleClientSession(t *testing.T) {
 func TestConfig_CustomStateEndpoints(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	testCases := []struct { //nolint: govet
 		name     string
 		config   s3backend.Config
 		expected *awshelper.AwsSessionConfig
@@ -209,7 +209,7 @@ func TestConfig_CustomStateEndpoints(t *testing.T) {
 func TestConfig_GetAwsSessionConfig(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	testCases := []struct { //nolint: govet
 		name   string
 		config s3backend.Config
 	}{
@@ -254,7 +254,7 @@ func TestConfig_GetAwsSessionConfig(t *testing.T) {
 func TestConfig_GetAwsSessionConfigWithAssumeRole(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	testCases := []struct { //nolint: govet
 		name   string
 		config s3backend.Config
 	}{

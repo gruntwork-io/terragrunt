@@ -27,6 +27,8 @@ const matchCount = 2
 
 // Source represents information about Terraform source code that needs to be downloaded.
 type Source struct {
+	Logger log.Logger
+
 	// A canonical version of RawSource, in URL format
 	CanonicalSourceURL *url.URL
 
@@ -38,9 +40,6 @@ type Source struct {
 
 	// The path to a file in DownloadDir that stores the version number of the code
 	VersionFile string
-
-	// Logger to use for logging
-	Logger log.Logger
 
 	// WalkWithSymlinks controls whether to walk symlinks in the downloaded source
 	WalkWithSymlinks bool
