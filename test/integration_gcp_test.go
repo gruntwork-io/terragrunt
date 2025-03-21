@@ -95,7 +95,6 @@ func TestAGcpBootstrapBackend(t *testing.T) {
 			testCase.checkExpectedResultFn(t, err, gcsBucketName)
 		})
 	}
-
 }
 
 func TestGcpWorksWithBackend(t *testing.T) {

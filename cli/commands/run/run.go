@@ -728,7 +728,7 @@ func remoteStateNeedsInit(ctx context.Context, remoteState *remotestate.RemoteSt
 
 		strictControl := opts.StrictControls.Find(controls.SkipBackendBootstrap)
 		if err := strictControl.Evaluate(ctx); err != nil {
-			return false, nil
+			return false, nil //nolint: nilerr
 		}
 	}
 

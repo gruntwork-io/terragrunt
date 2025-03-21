@@ -118,7 +118,6 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			testCase.checkExpectedResultFn(t, err, s3BucketName, dynamoDBName)
 		})
 	}
-
 }
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
