@@ -66,7 +66,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			"run apply",
 			func(t *testing.T, err error, s3BucketName, dynamoDBName string) {
 				require.Error(t, err)
-				assert.Regexp(t, "S3 bucket must have been previously created|S3 bucket does not exist", err.Error())
+				assert.Regexp(t, "(S3 bucket must have been previously created)|(S3 bucket does not exist)", err.Error())
 			},
 		},
 		{
