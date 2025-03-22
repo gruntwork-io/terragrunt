@@ -144,7 +144,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 	}
 }
 
-func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) { //nolint: tparallel
+func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -154,8 +154,10 @@ func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) { //nolint: t
 		{"render-json --graph --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
 	}
 
-	for _, testCase := range testCases { //nolint: paralleltest
+	for _, testCase := range testCases {
 		t.Run("terragrunt args: "+testCase.args, func(t *testing.T) {
+			t.Parallel()
+
 			tmpEnvPath := prepareGraphFixture(t)
 			tmpModulePath := util.JoinPath(tmpEnvPath, testFixtureGraph, "eks")
 
