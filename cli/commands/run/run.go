@@ -723,15 +723,6 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
 // before running the command.
 func remoteStateNeedsInit(ctx context.Context, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) (bool, error) {
-	if !opts.BackendBootstrap {
-		ctx = log.ContextWithLogger(ctx, opts.Logger)
-
-		strictControl := opts.StrictControls.Find(controls.SkipBackendBootstrap)
-		if err := strictControl.Evaluate(ctx); err != nil {
-			return false, nil //nolint: nilerr
-		}
-	}
-
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
 	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
@@ -740,6 +731,15 @@ func remoteStateNeedsInit(ctx context.Context, remoteState *remotestate.RemoteSt
 
 	if ok, err := remoteState.NeedsInit(ctx, opts); err != nil || !ok {
 		return false, err
+	}
+
+	if !opts.BackendBootstrap {
+		ctx = log.ContextWithLogger(ctx, opts.Logger)
+
+		strictControl := opts.StrictControls.Find(controls.SkipBackendBootstrap)
+		if err := strictControl.Evaluate(ctx); err != nil {
+			return false, nil //nolint: nilerr
+		}
 	}
 
 	return true, nil
