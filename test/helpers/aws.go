@@ -14,7 +14,7 @@ func DeleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) 
 	t.Helper()
 
 	for i := 0; i < 3; i++ {
-		err := DeleteS3BucketE(t, awsRegion, bucketName)
+		err := DeleteS3Bucket(t, awsRegion, bucketName)
 		if err == nil {
 			return
 		}

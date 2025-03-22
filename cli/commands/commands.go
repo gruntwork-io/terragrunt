@@ -2,6 +2,7 @@
 package commands
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
@@ -52,6 +53,7 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		stack.NewCommand(opts),   // stack
 		graph.NewCommand(opts),   // graph
 		execCmd.NewCommand(opts), // exec
+		backend.NewCommand(opts), // backend
 	}.SetCategory(
 		&cli.Category{
 			Name:  MainCommandsCategoryName,

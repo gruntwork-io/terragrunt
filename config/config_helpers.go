@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
@@ -610,7 +611,12 @@ func getDefaultRetryableErrors(ctx *ParsingContext) ([]string, error) {
 
 // Return the AWS account alias
 func getAWSAccountAlias(ctx *ParsingContext) (string, error) {
-	accountAlias, err := awshelper.GetAWSAccountAlias(nil, ctx.TerragruntOptions)
+	session, err := awshelper.CreateAwsSession(nil, ctx.TerragruntOptions)
+	if err != nil {
+		return "", err
+	}
+
+	accountAlias, err := awshelper.GetAWSAccountAlias(session)
 	if err == nil {
 		return accountAlias, nil
 	}
@@ -620,7 +626,12 @@ func getAWSAccountAlias(ctx *ParsingContext) (string, error) {
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext) (string, error) {
-	accountID, err := awshelper.GetAWSAccountID(nil, ctx.TerragruntOptions)
+	session, err := awshelper.CreateAwsSession(nil, ctx.TerragruntOptions)
+	if err != nil {
+		return "", err
+	}
+
+	accountID, err := awshelper.GetAWSAccountID(session)
 	if err == nil {
 		return accountID, nil
 	}
@@ -630,7 +641,12 @@ func getAWSAccountID(ctx *ParsingContext) (string, error) {
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(ctx *ParsingContext) (string, error) {
-	identityARN, err := awshelper.GetAWSIdentityArn(nil, ctx.TerragruntOptions)
+	session, err := awshelper.CreateAwsSession(nil, ctx.TerragruntOptions)
+	if err != nil {
+		return "", err
+	}
+
+	identityARN, err := awshelper.GetAWSIdentityArn(session)
 	if err == nil {
 		return identityARN, nil
 	}
@@ -640,7 +656,12 @@ func getAWSCallerIdentityARN(ctx *ParsingContext) (string, error) {
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(ctx *ParsingContext) (string, error) {
-	userID, err := awshelper.GetAWSUserID(nil, ctx.TerragruntOptions)
+	session, err := awshelper.CreateAwsSession(nil, ctx.TerragruntOptions)
+	if err != nil {
+		return "", err
+	}
+
+	userID, err := awshelper.GetAWSUserID(session)
 	if err == nil {
 		return userID, nil
 	}
@@ -1164,7 +1185,7 @@ func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, file
 
 	typedOut, hasType := out.(*map[string]any)
 	if hasType {
-		genericMap, err := ParseCtyValueToMap(ctyVal)
+		genericMap, err := ctyhelper.ParseCtyValueToMap(ctyVal)
 		if err != nil {
 			return err
 		}

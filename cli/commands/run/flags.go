@@ -26,6 +26,7 @@ const (
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
 
+	BackendBootstrapFlagName        = "backend-bootstrap"
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
 	DisableBucketUpdateFlagName     = "disable-bucket-update"
 
@@ -72,12 +73,12 @@ const (
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
 
-	// `run-all/-all` related flags.
+	// `run-all/--all` related flags.
 
 	OutDirFlagName     = "out-dir"
 	JSONOutDirFlagName = "json-out-dir"
 
-	// `graph/-graph` related flags.
+	// `graph/--graph` related flags.
 
 	GraphRootFlagName = "graph-root"
 
@@ -426,6 +427,13 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt units that read the specified file via an HCL function or include.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedUnitsReadingFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        BackendBootstrapFlagName,
+			EnvVars:     tgPrefix.EnvVars(BackendBootstrapFlagName),
+			Destination: &opts.BackendBootstrap,
+			Usage:       "Automatically bootstrap backend infrastructure before attempting to use it.",
+		}),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        BackendRequireBootstrapFlagName,

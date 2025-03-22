@@ -12,6 +12,8 @@ import (
 
 	"maps"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -164,12 +166,12 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 // shallowMergeCtyMaps performs a shallow merge of two cty value objects.
 func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
-	outMap, err := ParseCtyValueToMap(target)
+	outMap, err := ctyhelper.ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
 
-	SourceMap, err := ParseCtyValueToMap(source)
+	SourceMap, err := ctyhelper.ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
 	}
@@ -193,17 +195,17 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 }
 
 // deepMergeCtyMapsMapOnly implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
-// we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
+// we cheat by using map[string]any as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
 	outMap := make(map[string]any)
 
-	targetMap, err := ParseCtyValueToMap(target)
+	targetMap, err := ctyhelper.ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceMap, err := ParseCtyValueToMap(source)
+	sourceMap, err := ctyhelper.ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
 	}
@@ -220,45 +222,6 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 	}
 
 	return &outCty, nil
-}
-
-// ParseCtyValueToMap converts a cty.Value to a map[string]interface{}.
-//
-// This is a hacky workaround to convert a cty Value to a Go map[string]interface{}. cty does not support this directly
-// (https://github.com/hashicorp/hcl2/issues/108) and doing it with gocty.FromCtyValue is nearly impossible, as cty
-// requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
-// we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
-// map[string]interface{} using the Go json library.
-func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
-	updatedValue, err := UpdateUnknownCtyValValues(value)
-	if err != nil {
-		return nil, err
-	}
-
-	value = updatedValue
-
-	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
-	if err != nil {
-		return nil, errors.New(err)
-	}
-
-	var ctyJSONOutput CtyJSONOutput
-	if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
-		return nil, errors.New(err)
-	}
-
-	return ctyJSONOutput.Value, nil
-}
-
-// CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.
-//
-// When you convert a cty value to JSON, if any of that types are not yet known (i.e., are labeled as
-// DynamicPseudoType), cty's Marshall method will write the type information to a type field and the actual value to
-// a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
-// can pull out just the Value field we need.
-type CtyJSONOutput struct {
-	Value map[string]any `json:"Value"`
-	Type  any            `json:"Type"`
 }
 
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
@@ -341,58 +304,6 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 	}
 
 	return cty.NilVal, nil
-}
-
-// UpdateUnknownCtyValValues deeply updates unknown values with default value
-func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
-	var updatedValue any
-
-	switch {
-	case !value.IsKnown():
-		return cty.StringVal(""), nil
-	case value.IsNull():
-		return value, nil
-	case value.Type().IsMapType(), value.Type().IsObjectType():
-		mapVals := value.AsValueMap()
-		for key, val := range mapVals {
-			val, err := UpdateUnknownCtyValValues(val)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			mapVals[key] = val
-		}
-
-		if len(mapVals) > 0 {
-			updatedValue = mapVals
-		}
-
-	case value.Type().IsTupleType(), value.Type().IsListType():
-		sliceVals := value.AsValueSlice()
-		for key, val := range sliceVals {
-			val, err := UpdateUnknownCtyValValues(val)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			sliceVals[key] = val
-		}
-
-		if len(sliceVals) > 0 {
-			updatedValue = sliceVals
-		}
-	}
-
-	if updatedValue == nil {
-		return value, nil
-	}
-
-	value, err := gocty.ToCtyValue(updatedValue, value.Type())
-	if err != nil {
-		return cty.NilVal, errors.New(err)
-	}
-
-	return value, nil
 }
 
 // CtyToStruct converts a cty.Value to a go struct.

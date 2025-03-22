@@ -727,3 +727,33 @@ func TestParseTFLog(t *testing.T) {
 		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: Go runtime version`)
 	}
 }
+
+// This test is flacky when run in parallel. Need to figure it out. Most likely after these changes
+// https://github.com/gruntwork-io/terragrunt/issues/3864 or because of global variables in codes.
+func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
+	testCases := []struct {
+		args string
+	}{
+		{"graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
+		{"render-json --graph --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run("terragrunt args: "+testCase.args, func(t *testing.T) {
+			tmpEnvPath := prepareGraphFixture(t)
+			tmpModulePath := util.JoinPath(tmpEnvPath, testFixtureGraph, "eks")
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			require.NoError(t, err)
+
+			// check that terragrunt_rendered.json is created in mod1/mod2/mod3
+			for _, module := range []string{"services/eks-service-1", "eks"} {
+				_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureGraph, module, "terragrunt_rendered.json"))
+				require.NoError(t, err)
+			}
+		})
+	}
+}

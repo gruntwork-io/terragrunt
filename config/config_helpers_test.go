@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -875,7 +876,7 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/inputs/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
-	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
+	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
 	inputsMap := tgConfigMap["inputs"].(map[string]any)
@@ -912,7 +913,7 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/terragrunt/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
-	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
+	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
 	remoteStateMap := tgConfigMap["remote_state"].(map[string]any)
@@ -945,7 +946,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/hooks/before-after-and-on-error/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
-	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
+	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
 	terraformMap := tgConfigMap["terraform"].(map[string]any)
@@ -988,7 +989,7 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/locals/canonical/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
-	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
+	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
 	localsMap := tgConfigMap["locals"].(map[string]any)
@@ -1221,7 +1222,7 @@ func TestReadTFVarsFiles(t *testing.T) {
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/read-tf-vars/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
-	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
+	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 
 	locals := tgConfigMap["locals"].(map[string]any)

@@ -19,6 +19,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -100,7 +101,7 @@ func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 		return nil, errors.New(err)
 	}
 
-	var ctyJSONOutput config.CtyJSONOutput
+	var ctyJSONOutput ctyhelper.CtyJSONOutput
 	if err := json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
 		return nil, errors.New(err)
 	}
