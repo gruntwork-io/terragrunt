@@ -1429,7 +1429,7 @@ func (client *Client) DoesS3ObjectExist(ctx context.Context, bucketName, key str
 	if _, err := client.HeadObjectWithContext(ctx, input); err != nil {
 		var awsErr awserr.Error
 		if ok := errors.As(err, &awsErr); ok {
-			if awsErr.Code() == "NotFound" {
+			if awsErr.Code() == "NotFound" { // s3.ErrCodeNoSuchKey does not work, aws is missing this error code so we hardwire a string
 				return false, nil
 			}
 		}

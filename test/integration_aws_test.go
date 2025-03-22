@@ -142,8 +142,27 @@ func TestAwsDeleteBackend(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
 	require.NoError(t, err)
 
+	remoteStateKeys := []string{
+		"unit1/tofu.tfstate",
+		"unit2/tofu.tfstate",
+	}
+
+	for _, key := range remoteStateKeys {
+		tableKey := path.Join(s3BucketName, key+"-md5")
+
+		assert.True(t, doesS3BuketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, key), "S3 bucket key %s must exist", key)
+		assert.True(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, tableKey), "DynamoDB table key %s must exist", tableKey)
+	}
+
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend delete --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
 	require.NoError(t, err)
+
+	for _, key := range remoteStateKeys {
+		tableKey := path.Join(s3BucketName, key+"-md5")
+
+		assert.False(t, doesS3BuketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, key), "S3 bucket key %s must not exist", key)
+		assert.False(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, tableKey), "DynamoDB table key %s must not exist", tableKey)
+	}
 }
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
@@ -1372,18 +1391,11 @@ func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tabl
 
 	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 
-	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	description, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	require.NoError(t, err, "DynamoDB table %s does not exist", tableName)
 
-	if err != nil {
-		// This is a ResourceNotFoundException in case the table does not exist
-		t.Fatal(err)
-	}
-
-	var tags, err2 = client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
-
-	if err2 != nil {
-		t.Fatal(err2)
-	}
+	tags, err := client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
+	require.NoError(t, err)
 
 	if expectedTags == nil {
 		return
@@ -1398,6 +1410,32 @@ func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tabl
 	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
 }
 
+func doesDynamoDBTableItemExist(t *testing.T, awsRegion string, tableName, key string) bool {
+	t.Helper()
+
+	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
+
+	_, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	require.NoError(t, err, "DynamoDB table %s does not exist", tableName)
+
+	input := &dynamodb.GetItemInput{
+		TableName: aws.String(tableName),
+		Key: map[string]*dynamodb.AttributeValue{
+			"LockID": {
+				S: aws.String(key),
+			},
+		},
+	}
+
+	res, err := client.GetItem(input)
+	require.NoError(t, err)
+
+	exists := len(res.Item) != 0
+
+	return exists
+
+}
+
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
 // Also check if bucket got tagged properly and that public access is disabled completely.
 func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
@@ -1406,13 +1444,40 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
 	_, err := client.HeadBucket(&s3.HeadBucketInput{Bucket: aws.String(bucketName)})
-	require.NoError(t, err, "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
 	if expectedTags != nil {
 		assertS3Tags(t, expectedTags, bucketName, client)
 	}
 
 	assertS3PublicAccessBlocks(t, client, bucketName)
+}
+
+func doesS3BuketKeyExist(t *testing.T, awsRegion string, bucketName, key string) bool {
+	t.Helper()
+
+	client := helpers.CreateS3ClientForTest(t, awsRegion)
+
+	_, err := client.HeadBucket(&s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
+
+	_, err = client.HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var awsErr awserr.Error
+
+		if ok := errors.As(err, &awsErr); ok {
+			if awsErr.Code() == "NotFound" { // s3.ErrCodeNoSuchKey does not work, aws is missing this error code so we hardwire a string
+				return false
+			}
+		}
+
+		require.NoError(t, err)
+	}
+
+	return true
 }
 
 func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {

@@ -83,7 +83,11 @@ require (
 	gopkg.in/ini.v1 v1.67.0
 )
 
-require github.com/aws/aws-sdk-go-v2/service/s3 v1.78.2
+require (
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.78.2
+	github.com/charmbracelet/x/term v0.2.1
+	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
+)
 
 require (
 	atomicgo.dev/cursor v0.2.0 // indirect
@@ -163,7 +167,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
-	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42 // indirect
 	github.com/containerd/console v1.0.4 // indirect
@@ -272,7 +275,6 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
-	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
 	golang.org/x/net v0.37.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
