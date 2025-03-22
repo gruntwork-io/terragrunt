@@ -1202,6 +1202,7 @@ func (client *Client) checkBucketAccess(bucket, key string) error {
 	return errors.Errorf("error checking access to S3 bucket %s: %w", bucket, err)
 }
 
+// DeleteS3BucketIfNecessary deletes the given S3 bucket with all its objects if it exists.
 func (client *Client) DeleteS3BucketIfNecessary(ctx context.Context, bucketName string) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, bucketName); err != nil || !exists {
 		return err
@@ -1254,6 +1255,7 @@ func (client *Client) DeleteS3BucketObject(ctx context.Context, bucketName, key 
 	return nil
 }
 
+// DeleteS3BucketV2Objects deletes S3 bucket object by the given key.
 func (client *Client) DeleteS3BucketV2Objects(ctx context.Context, bucketName string) error {
 	var v2Input = &s3.ListObjectsV2Input{Bucket: aws.String(bucketName)}
 
@@ -1285,6 +1287,7 @@ func (client *Client) DeleteS3BucketV2Objects(ctx context.Context, bucketName st
 	return nil
 }
 
+// DeleteS3BucketVersionObjects deletes S3 bucket object versions by the given key.
 func (client *Client) DeleteS3BucketVersionObjects(ctx context.Context, bucketName string, keys ...string) error {
 	var versionsInput = &s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)}
 
@@ -1388,6 +1391,7 @@ func (client *Client) WaitUntilS3BucketDeleted(ctx context.Context, bucketName s
 	return errors.New(MaxRetriesWaitingForS3BucketExceeded(bucketName))
 }
 
+// DeleteS3ObjectIfNecessary deletes the S3 object by the specified key if it exists.
 func (client *Client) DeleteS3ObjectIfNecessary(ctx context.Context, bucketName, key string) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, bucketName); err != nil || !exists {
 		return err
@@ -1420,6 +1424,7 @@ func (client *Client) DeleteS3ObjectIfNecessary(ctx context.Context, bucketName,
 	})
 }
 
+// DoesS3ObjectExist returns true if the specified S3 object exists otherwise false.
 func (client *Client) DoesS3ObjectExist(ctx context.Context, bucketName, key string) (bool, error) {
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(bucketName),
@@ -1455,6 +1460,7 @@ func (client *Client) CreateLockTableIfNecessary(ctx context.Context, tableName 
 	return nil
 }
 
+// DeleteTableIfNecessary deletes the given table if it exists.
 func (client *Client) DeleteTableIfNecessary(ctx context.Context, tableName string) error {
 	if exists, err := client.DoesLockTableExist(ctx, tableName); err != nil || !exists {
 		return err
@@ -1715,17 +1721,19 @@ func (client *Client) waitForEncryptionToBeEnabled(ctx context.Context, tableNam
 	return errors.New(TableEncryptedRetriesExceeded{TableName: tableName, Retries: maxRetriesWaitingForEncryption})
 }
 
-func (client *Client) DeleteTalbeItemIfNecessary(ctx context.Context, tableName, key string) error {
-	if exists, err := client.DoesTalbeItemExist(ctx, tableName, key); err != nil || !exists {
+// DeleteTableItemIfNecessary deletes the given DynamoDB table key, if the table exists.
+func (client *Client) DeleteTableItemIfNecessary(ctx context.Context, tableName, key string) error {
+	if exists, err := client.DoesTableItemExist(ctx, tableName, key); err != nil || !exists {
 		return err
 	}
 
 	client.logger.Debugf("Deleting DynamoDB table %s item %s", tableName, key)
 
-	return client.DeleteTalbeItem(ctx, tableName, key)
+	return client.DeleteTableItem(ctx, tableName, key)
 }
 
-func (client *Client) DeleteTalbeItem(ctx context.Context, tableName, key string) error {
+// DeleteTableItem deletes the given DynamoDB table key.
+func (client *Client) DeleteTableItem(ctx context.Context, tableName, key string) error {
 	input := &dynamodb.DeleteItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]*dynamodb.AttributeValue{
@@ -1742,7 +1750,8 @@ func (client *Client) DeleteTalbeItem(ctx context.Context, tableName, key string
 	return nil
 }
 
-func (client *Client) DoesTalbeItemExist(ctx context.Context, tableName, key string) (bool, error) {
+// DoesTableItemExist returns true if the given DynamoDB table and its key exist otherwise false.
+func (client *Client) DoesTableItemExist(ctx context.Context, tableName, key string) (bool, error) {
 	if exists, err := client.DoesLockTableExist(ctx, tableName); err != nil || !exists {
 		return false, err
 	}

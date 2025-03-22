@@ -15,7 +15,7 @@ import (
 
 type Config map[string]any
 
-func (cfg Config) GetTFInitArgs() Config {
+func (cfg Config) FilterOutTerragruntKeys() Config {
 	var filtered = make(Config)
 
 	for key, val := range cfg {
@@ -42,10 +42,8 @@ func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// Construct a new map excluding custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
 	newConfig := backend.Config{}
 
-	for key, val := range cfg {
-		if !slices.Contains(terragruntOnlyConfigs, key) {
-			newConfig[key] = val
-		}
+	for key, val := range cfg.FilterOutTerragruntKeys() {
+		newConfig[key] = val
 	}
 
 	return newConfig.IsEqual(backend.Config(targetCfg), BackendName, logger)

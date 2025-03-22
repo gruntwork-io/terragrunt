@@ -12,8 +12,9 @@ const (
 
 type Config map[string]any
 
+// Path returns the `patha field value.
 func (cfg Config) Path() string {
-	return GetConfigValueByKey[string](cfg, configPathKey)
+	return getConfigValueByKey[string](cfg, configPathKey)
 }
 
 // IsEqual returns true if the given `targetCfg` config is in any way different than what is configured for the backend.
@@ -61,7 +62,7 @@ func (cfg Config) CopyNotNullValues(targetCfg map[string]any) map[string]any {
 	return targetCfgNonNil
 }
 
-func GetConfigValueByKey[T any](m map[string]any, key string) T {
+func getConfigValueByKey[T any](m map[string]any, key string) T {
 	if val, ok := m[key]; ok {
 		if val, ok := val.(T); ok {
 			return val

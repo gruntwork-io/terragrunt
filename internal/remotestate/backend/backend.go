@@ -9,6 +9,7 @@ import (
 
 type Backends []Backend
 
+// Get returns the backend by the given name.
 func (backends Backends) Get(name string) Backend {
 	for _, backend := range backends {
 		if backend.Name() == name {

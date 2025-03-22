@@ -35,6 +35,7 @@ type Client struct {
 	logger log.Logger
 }
 
+// NewClient inits GCS client.
 func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger log.Logger) (*Client, error) {
 	var opts []option.ClientOption
 
@@ -200,6 +201,7 @@ func (client *Client) CreateGCSBucketWithVersioning(ctx context.Context, bucketN
 	return nil
 }
 
+// AddLabelsToGCSBucket adds the given labels to the GCS bucket.
 func (client *Client) AddLabelsToGCSBucket(ctx context.Context, bucketName string, labels map[string]string) error {
 	if len(labels) == 0 {
 		client.logger.Debugf("No labels specified for bucket %s.", bucketName)
@@ -306,6 +308,7 @@ func (client *Client) DoesGCSBucketExist(ctx context.Context, bucketName string)
 	return true
 }
 
+// DeleteGCSBucketIfNecessary deletes the given GCS bucket with all its objects if it exists.
 func (client *Client) DeleteGCSBucketIfNecessary(ctx context.Context, bucketName string) error {
 	if !client.DoesGCSBucketExist(ctx, bucketName) {
 		return nil
@@ -353,6 +356,7 @@ func (client *Client) WaitUntilGCSBucketDeleted(ctx context.Context, bucketName 
 	return errors.New(MaxRetriesWaitingForGCSBucketExceeded(bucketName))
 }
 
+// DeleteGCSObjectIfNecessary deletes the bucket objects with the given prefix if they exist.
 func (client *Client) DeleteGCSObjectIfNecessary(ctx context.Context, bucketName, prefix string) error {
 	if !client.DoesGCSBucketExist(ctx, bucketName) {
 		return nil
@@ -365,6 +369,7 @@ func (client *Client) DeleteGCSObjectIfNecessary(ctx context.Context, bucketName
 	})
 }
 
+// DeleteGCSObjects deletes the bucket objects with the given prefix.
 func (client *Client) DeleteGCSObjects(ctx context.Context, bucketName, prefix string) error {
 	bucket := client.Bucket(bucketName)
 

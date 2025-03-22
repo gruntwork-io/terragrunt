@@ -165,5 +165,5 @@ func (backend *Backend) DeleteBucket(ctx context.Context, backendConfig backend.
 // GetTFInitArgs returns the subset of the given config that should be passed to terraform init
 // when initializing the remote state.
 func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
-	return Config(config).GetTFInitArgs()
+	return Config(config).FilterOutTerragruntKeys()
 }

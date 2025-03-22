@@ -147,7 +147,7 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 	if tableName != "" {
 		tableKey := path.Join(bucketName, bucketKey+stateIDSuffix)
 
-		if err := client.DeleteTalbeItemIfNecessary(ctx, tableName, tableKey); err != nil {
+		if err := client.DeleteTableItemIfNecessary(ctx, tableName, tableKey); err != nil {
 			return err
 		}
 	}

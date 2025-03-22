@@ -29,17 +29,24 @@ const (
 
 type Config map[string]any
 
-func (cfg Config) GetTFInitArgs() Config {
+func (cfg Config) FilterOutTerragruntKeys() Config {
 	var filtered = make(Config)
 
 	for key, val := range cfg {
-		// Remove attributes that are specific to Terragrunt as
-		// Terraform would fail with an error while trying to
-		// consume these attributes.
 		if slices.Contains(terragruntOnlyConfigs, key) {
 			continue
 		}
 
+		filtered[key] = val
+	}
+
+	return filtered
+}
+
+func (cfg Config) GetTFInitArgs() Config {
+	var filtered = make(Config)
+
+	for key, val := range cfg.FilterOutTerragruntKeys() {
 		// Remove the deprecated "lock_table" attribute so that it
 		// will not be passed either when generating a backend block
 		// or as a command-line argument.
@@ -110,10 +117,8 @@ func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// related configs.
 	newConfig := backend.Config{}
 
-	for key, val := range cfg {
-		if !slices.Contains(terragruntOnlyConfigs, key) {
-			newConfig[key] = val
-		}
+	for key, val := range cfg.FilterOutTerragruntKeys() {
+		newConfig[key] = val
 	}
 
 	return newConfig.IsEqual(backend.Config(targetCfg), BackendName, logger)
