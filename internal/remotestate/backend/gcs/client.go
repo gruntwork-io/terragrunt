@@ -120,17 +120,6 @@ func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, bucketName
 		return nil
 	}
 
-	// At this point, the bucket doesn't exist and we need both project and location
-	if client.Project == "" {
-		return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
-	}
-
-	if client.Location == "" {
-		return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
-	}
-
-	client.logger.Debugf("Remote state GCS bucket %s does not exist. Attempting to create it", bucketName)
-
 	// A project must be specified in order for terragrunt to automatically create a storage bucket.
 	if client.Project == "" {
 		return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
@@ -140,6 +129,8 @@ func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, bucketName
 	if client.Location == "" {
 		return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
 	}
+
+	client.logger.Debugf("Remote state GCS bucket %s does not exist. Attempting to create it", bucketName)
 
 	if opts.FailIfBucketCreationRequired {
 		return backend.BucketCreationNotAllowed(bucketName)

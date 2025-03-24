@@ -150,7 +150,7 @@ func TestAwsDeleteBackend(t *testing.T) {
 	for _, key := range remoteStateKeys {
 		tableKey := path.Join(s3BucketName, key+"-md5")
 
-		assert.True(t, doesS3BuketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, key), "S3 bucket key %s must exist", key)
+		assert.True(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, key), "S3 bucket key %s must exist", key)
 		assert.True(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, tableKey), "DynamoDB table key %s must exist", tableKey)
 	}
 
@@ -160,7 +160,7 @@ func TestAwsDeleteBackend(t *testing.T) {
 	for _, key := range remoteStateKeys {
 		tableKey := path.Join(s3BucketName, key+"-md5")
 
-		assert.False(t, doesS3BuketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, key), "S3 bucket key %s must not exist", key)
+		assert.False(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, key), "S3 bucket key %s must not exist", key)
 		assert.False(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, tableKey), "DynamoDB table key %s must not exist", tableKey)
 	}
 }
@@ -1453,7 +1453,7 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 	assertS3PublicAccessBlocks(t, client, bucketName)
 }
 
-func doesS3BuketKeyExist(t *testing.T, awsRegion string, bucketName, key string) bool {
+func doesS3BucketKeyExist(t *testing.T, awsRegion string, bucketName, key string) bool {
 	t.Helper()
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)

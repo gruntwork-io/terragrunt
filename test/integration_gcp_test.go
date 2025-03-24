@@ -124,14 +124,14 @@ func TestGcpDeleteBackend(t *testing.T) {
 	}
 
 	for _, objectName := range remoteStateObjectNames {
-		assert.True(t, doesGCSBuketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must exist", objectName)
+		assert.True(t, doesGCSBucketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must exist", objectName)
 	}
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend delete --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, objectName := range remoteStateObjectNames {
-		assert.False(t, doesGCSBuketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must not exist", objectName)
+		assert.False(t, doesGCSBucketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must not exist", objectName)
 	}
 }
 
@@ -292,7 +292,7 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	}
 }
 
-func doesGCSBuketObjectExist(t *testing.T, bucketName, prefix string) bool {
+func doesGCSBucketObjectExist(t *testing.T, bucketName, prefix string) bool {
 	t.Helper()
 
 	ctx := context.Background()
