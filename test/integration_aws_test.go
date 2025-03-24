@@ -112,7 +112,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 			helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --all --non-interactive --log-level debug --strict-control skip-backend-bootstrap --experiment cli-redesign --working-dir "+rootPath)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath)
 
 			testCase.checkExpectedResultFn(t, err, stdout+stderr, s3BucketName, dynamoDBName)
 		})
