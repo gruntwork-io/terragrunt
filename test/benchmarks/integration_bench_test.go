@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func BenchmarkEmptyTerragruntPlanApply(b *testing.B) {
+func BenchmarkEmptyTerragruntPlanApplyDestroy(b *testing.B) {
 	emptyMainTf := ``
 
 	emptyRootConfig := ``
@@ -82,45 +82,43 @@ terraform {
 	})
 }
 
-// TODO: Enable this once it's fixed.
-//
-// func BenchmarkDependencyTrainPlanApply(b *testing.B) {
-// 	b.Run("10 units", func(b *testing.B) {
-// 		for i := 0; i < b.N; i++ {
-// 			b.StopTimer()
-//
-// 			tmpDir := b.TempDir()
-// 			helpers.GenerateDependencyTrain(b, tmpDir, 10)
-//
-// 			b.StartTimer()
-//
-// 			helpers.PlanApplyDestroy(b, tmpDir)
-// 		}
-// 	})
-//
-// 	b.Run("100 units", func(b *testing.B) {
-// 		for i := 0; i < b.N; i++ {
-// 			b.StopTimer()
-//
-// 			tmpDir := b.TempDir()
-// 			helpers.GenerateDependencyTrain(b, tmpDir, 100)
-//
-// 			b.StartTimer()
-//
-// 			helpers.PlanApplyDestroy(b, tmpDir)
-// 		}
-// 	})
-//
-// 	b.Run("1000 units", func(b *testing.B) {
-// 		for i := 0; i < b.N; i++ {
-// 			b.StopTimer()
-//
-// 			tmpDir := b.TempDir()
-// 			helpers.GenerateDependencyTrain(b, tmpDir, 1000)
-//
-// 			b.StartTimer()
-//
-// 			helpers.PlanApplyDestroy(b, tmpDir)
-// 		}
-// 	})
-// }
+func BenchmarkDependencyTrainPlan(b *testing.B) {
+	b.Run("10 units", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+
+			tmpDir := b.TempDir()
+			helpers.GenerateDependencyTrain(b, tmpDir, 10)
+
+			b.StartTimer()
+
+			helpers.Plan(b, tmpDir)
+		}
+	})
+
+	b.Run("100 units", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+
+			tmpDir := b.TempDir()
+			helpers.GenerateDependencyTrain(b, tmpDir, 100)
+
+			b.StartTimer()
+
+			helpers.Plan(b, tmpDir)
+		}
+	})
+
+	b.Run("1000 units", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+
+			tmpDir := b.TempDir()
+			helpers.GenerateDependencyTrain(b, tmpDir, 1000)
+
+			b.StartTimer()
+
+			helpers.Plan(b, tmpDir)
+		}
+	})
+}

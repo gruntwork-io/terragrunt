@@ -193,3 +193,16 @@ func PlanApplyDestroy(b *testing.B, dir string) {
 	b.ReportMetric(float64(applyDuration.Seconds()), "apply_s/op")
 	b.ReportMetric(float64(destroyDuration.Seconds()), "destroy_s/op")
 }
+
+func Plan(b *testing.B, dir string) {
+	b.Helper()
+
+	// Measure plan time
+	planStart := time.Now()
+
+	RunTerragruntCommand(b, "terragrunt", "run-all", "plan", "--non-interactive", "--working-dir", dir)
+
+	planDuration := time.Since(planStart)
+
+	b.ReportMetric(float64(planDuration.Seconds()), "plan_s/op")
+}
