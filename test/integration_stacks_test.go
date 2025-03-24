@@ -30,6 +30,7 @@ const (
 	testFixtureStacksEmptyPath                 = "fixtures/stacks/errors/stack-empty-path"
 	testFixtureStackAbsolutePath               = "fixtures/stacks/errors/absolute-path"
 	testFixtureStackRelativePathOutsideOfStack = "fixtures/stacks/errors/relative-path-outside-of-stack"
+	testFixtureStackNotExist                   = "fixtures/stacks/errors/not-existing-path"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
@@ -890,6 +891,17 @@ func TestStacksNoStackDirNoTerragruntStackDirectoryCreated(t *testing.T) {
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	// validate that the stack directory is not created
 	assert.NoDirExists(t, path)
+}
+
+func TestStacksNotExistingPathError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackNotExist)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNotExist)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackNotExist)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	require.Error(t, err)
 }
 
 func TestStacksGenerateMultipleStacks(t *testing.T) {
