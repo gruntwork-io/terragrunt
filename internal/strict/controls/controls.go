@@ -41,8 +41,8 @@ const (
 	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
 
-	// SkipBackendBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
-	SkipBackendBootstrap = "skip-backend-bootstrap"
+	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
+	RequireExplicitBootstrap = "require-explicit-bootstrap"
 )
 
 //nolint:lll
@@ -63,11 +63,11 @@ func New() strict.Controls {
 		Category:    stageCategory,
 	}
 
-	skipBootstrapBackendControl := &Control{
-		Name:        SkipBackendBootstrap,
-		Description: "Disable bootstrap backend for remote state if `--backend-bootstrap` flag is not specified.",
+	requireExplicitBootstrapControl := &Control{
+		Name:        RequireExplicitBootstrap,
+		Description: "Don't bootstrap backends by default. When enabled, users must supply `--backend-bootstrap` explicitly to automatically bootstrap backend resources.",
 		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
-		Warning:     "Bootstrap backend for remote state by default is deprecated and will be removed in a future version of Terragrunt. Use `--backend-bootstrap` flag instead.",
+		Warning:     "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
 		Category:    stageCategory,
 	}
 
@@ -93,11 +93,11 @@ func New() strict.Controls {
 			Category:    lifecycleCategory,
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
-				skipBootstrapBackendControl,
+				requireExplicitBootstrapControl,
 			},
 		},
 		skipDependenciesInputsControl,
-		skipBootstrapBackendControl,
+		requireExplicitBootstrapControl,
 		&Control{
 			Name:        LegacyAll,
 			Description: "Prevents old *-all commands such as plan-all from being used.",

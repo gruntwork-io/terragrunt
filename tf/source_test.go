@@ -42,8 +42,6 @@ func TestSplitSourceUrl(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		// Save a local copy in scope so all the tests don't run the final item in the loop
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -84,8 +82,6 @@ func TestToSourceUrl(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		// Save a local copy in scope so all the tests don't run the final item in the loop
-		testCase := testCase
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 

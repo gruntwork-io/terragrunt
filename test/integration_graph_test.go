@@ -47,8 +47,6 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(testCase.path, func(t *testing.T) {
 			t.Parallel()
 

@@ -736,7 +736,7 @@ func remoteStateNeedsInit(ctx context.Context, remoteState *remotestate.RemoteSt
 	if !opts.BackendBootstrap {
 		ctx = log.ContextWithLogger(ctx, opts.Logger)
 
-		strictControl := opts.StrictControls.Find(controls.SkipBackendBootstrap)
+		strictControl := opts.StrictControls.Find(controls.RequireExplicitBootstrap)
 		if err := strictControl.Evaluate(ctx); err != nil {
 			return false, nil //nolint: nilerr
 		}

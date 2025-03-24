@@ -148,8 +148,6 @@ func TestCommandRun(t *testing.T) {
 	}
 
 	for i, testCaseFn := range testCaseFuncs {
-		testCaseFn := testCaseFn
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -214,8 +212,6 @@ func TestCommandHasName(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -243,8 +239,6 @@ func TestCommandNames(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -275,8 +269,6 @@ func TestCommandSubcommand(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -304,8 +296,6 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 

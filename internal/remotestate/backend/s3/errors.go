@@ -11,7 +11,7 @@ func (configName MissingRequiredS3RemoteStateConfig) Error() string {
 type MultipleTagsDeclarations string
 
 func (target MultipleTagsDeclarations) Error() string {
-	return fmt.Sprintf("Tags for %s got declared multiple times. Please do only declare in one block.", string(target))
+	return fmt.Sprintf("Tags for %s declared multiple times. Please only declare tags in one block.", string(target))
 }
 
 type MaxRetriesWaitingForS3BucketExceeded string
@@ -23,7 +23,7 @@ func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
 type MaxRetriesWaitingForS3ACLExceeded string
 
 func (err MaxRetriesWaitingForS3ACLExceeded) Error() string {
-	return fmt.Sprintf("Exceeded max retries waiting for bucket S3 bucket %s to have proper ACL for access logging", string(err))
+	return fmt.Sprintf("Exceeded max retries waiting for S3 bucket %s to have the proper ACL for access logging", string(err))
 }
 
 type InvalidAccessLoggingBucketEncryption struct {
@@ -31,7 +31,7 @@ type InvalidAccessLoggingBucketEncryption struct {
 }
 
 func (err InvalidAccessLoggingBucketEncryption) Error() string {
-	return fmt.Sprintf("Encryption algorithm %s is not supported for access logging bucket. Please use AES256", err.BucketSSEAlgorithm)
+	return fmt.Sprintf("Encryption algorithm %s is not supported for access logging bucket. Please use a supported algorithm, like AES256", err.BucketSSEAlgorithm)
 }
 
 type TableActiveRetriesExceeded struct {
@@ -40,7 +40,7 @@ type TableActiveRetriesExceeded struct {
 }
 
 func (err TableActiveRetriesExceeded) Error() string {
-	return fmt.Sprintf("Table %s is still not in active state after %d retries.", err.TableName, err.Retries)
+	return fmt.Sprintf("Table %s failed to reach the 'active' state after %d retries.", err.TableName, err.Retries)
 }
 
 type TableDoesNotExist struct {
@@ -49,7 +49,7 @@ type TableDoesNotExist struct {
 }
 
 func (err TableDoesNotExist) Error() string {
-	return fmt.Sprintf("Table %s does not exist in DynamoDB! Original error from AWS: %v", err.TableName, err.Underlying)
+	return fmt.Sprintf("DynamoDB table %s does not exist! Original error from AWS: %v", err.TableName, err.Underlying)
 }
 
 type TableEncryptedRetriesExceeded struct {
@@ -58,5 +58,5 @@ type TableEncryptedRetriesExceeded struct {
 }
 
 func (err TableEncryptedRetriesExceeded) Error() string {
-	return fmt.Sprintf("Table %s still does not have encryption enabled after %d retries.", err.TableName, err.Retries)
+	return fmt.Sprintf("Failed to confirm that DynamoDB table %s has encryption enabled after %d retries.", err.TableName, err.Retries)
 }

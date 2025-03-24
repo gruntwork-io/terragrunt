@@ -50,8 +50,6 @@ func TestMapFlagStringStringApply(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -95,8 +93,6 @@ func TestMapFlagStringIntApply(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 

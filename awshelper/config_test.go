@@ -38,13 +38,13 @@ func TestAwsIsAddedInUserAgent(t *testing.T) {
 func TestAwsSessionValidationFail(t *testing.T) {
 	t.Parallel()
 
-	session, err := awshelper.CreateAwsSession(&awshelper.AwsSessionConfig{
+	sess, err := awshelper.CreateAwsSession(&awshelper.AwsSessionConfig{
 		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
 	}, options.NewTerragruntOptions())
 	require.NoError(t, err)
 
-	err = awshelper.ValidateAwsSession(session)
+	err = awshelper.ValidateAwsSession(sess)
 	assert.Error(t, err)
 }
 
@@ -86,8 +86,6 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			response, err := awshelper.ValidatePublicAccessBlock(testCase.response)

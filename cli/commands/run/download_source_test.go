@@ -349,7 +349,6 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	//
 	//nolint:paralleltest
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			copyFolder(t, testCase.sourceURL, downloadDir)
 			assert.Condition(t, testCase.comp)

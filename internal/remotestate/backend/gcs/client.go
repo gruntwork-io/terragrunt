@@ -27,6 +27,8 @@ const (
 
 	gcpMaxRetries          = 3
 	gcpSleepBetweenRetries = 10 * time.Second
+
+	tokenURL = "https://oauth2.googleapis.com/token"
 )
 
 type Client struct {
@@ -73,16 +75,12 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 			return nil, errors.Errorf("Error parsing credentials '%s': %w", contents, err)
 		}
 
-		if err := json.Unmarshal([]byte(contents), &account); err != nil {
-			return nil, errors.Errorf("Error parsing credentials '%s': %w", contents, err)
-		}
-
 		conf := jwt.Config{
 			Email:      account.ClientEmail,
 			PrivateKey: []byte(account.PrivateKey),
 			// We need the FullControl scope to be able to add metadata such as labels
 			Scopes:   []string{storage.ScopeFullControl},
-			TokenURL: "https://oauth2.googleapis.com/token",
+			TokenURL: tokenURL,
 		}
 
 		opts = append(opts, option.WithHTTPClient(conf.Client(ctx)))
@@ -277,7 +275,9 @@ func (client *Client) WaitUntilGCSBucketExists(ctx context.Context, bucketName s
 		if client.DoesGCSBucketExist(ctx, bucketName) {
 			client.logger.Debugf("GCS bucket %s created.", bucketName)
 			return nil
-		} else if retries < maxRetriesWaitingForGcsBucket-1 {
+		}
+
+		if retries < maxRetriesWaitingForGcsBucket-1 {
 			client.logger.Debugf("GCS bucket %s has not been created yet. Sleeping for %s and will check again.", bucketName, sleepBetweenRetriesWaitingForGcsBucket)
 			time.Sleep(sleepBetweenRetriesWaitingForGcsBucket)
 		}

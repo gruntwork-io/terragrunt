@@ -423,17 +423,5 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 		return false, nil
 	}
 
-	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
-		return false, nil
-	}
-
-	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
-		return false, nil
-	}
-
-	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
-		return false, nil
-	}
-
 	return true, nil
 }

@@ -135,8 +135,6 @@ provider "registry.terraform.io/hashicorp/template" {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 

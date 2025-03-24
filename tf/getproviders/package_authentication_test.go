@@ -42,8 +42,6 @@ func TestPackageAuthenticationResult(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -99,8 +97,6 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -159,8 +155,6 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -215,8 +209,6 @@ def1b73849bec0dc57a04405847921bf9206c75b52ae9de195476facb26bd85e  terraform_0.14
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -286,8 +278,6 @@ func TestSignatureAuthenticate(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 

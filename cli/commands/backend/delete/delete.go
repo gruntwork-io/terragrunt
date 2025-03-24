@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 func Run(ctx context.Context, cmdOpts *Options) error {
@@ -16,7 +17,8 @@ func Run(ctx context.Context, cmdOpts *Options) error {
 	}
 
 	if cmdOpts.DeleteBucket {
-		return remoteState.DeleteBucket(ctx, opts)
+		// TODO: Do an extra check before commenting out the code. //return remoteState.DeleteBucket(ctx, opts)
+		return errors.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
 	return remoteState.Delete(ctx, opts)
