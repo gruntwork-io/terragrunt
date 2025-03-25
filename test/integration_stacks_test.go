@@ -31,8 +31,8 @@ const (
 	testFixtureStackAbsolutePath               = "fixtures/stacks/errors/absolute-path"
 	testFixtureStackRelativePathOutsideOfStack = "fixtures/stacks/errors/relative-path-outside-of-stack"
 	testFixtureStackNotExist                   = "fixtures/stacks/errors/not-existing-path"
-	testFixtureStackValidationUnit             = "fixtures/stacks/errors/validation-unit"
-	testFixtureStackValidationStack            = "fixtures/stacks/errors/validation-stack"
+	testFixtureStackValidationUnitPath         = "fixtures/stacks/errors/validation-unit"
+	testFixtureStackValidationStackPath        = "fixtures/stacks/errors/validation-stack"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
@@ -925,9 +925,9 @@ func TestStacksGenerateMultipleStacks(t *testing.T) {
 func TestStackUnitValidation(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackValidationUnit)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationUnit)
-	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValidationUnit)
+	helpers.CleanupTerraformFolder(t, testFixtureStackValidationUnitPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationUnitPath)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValidationUnitPath)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
 
@@ -939,14 +939,16 @@ func TestStackUnitValidation(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Validation failed for unit v1")
+	assert.Contains(t, err.Error(), "expected unit to generate with terragrunt.hcl file at root of generated directory")
 }
 
 func TestStackValidation(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackValidationStack)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationStack)
-	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValidationStack)
+	helpers.CleanupTerraformFolder(t, testFixtureStackValidationStackPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationStackPath)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValidationStackPath)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
 
@@ -958,6 +960,9 @@ func TestStackValidation(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 	require.Error(t, err)
+
+	assert.Contains(t, err.Error(), "Validation failed for stack stack-v1")
+	assert.Contains(t, err.Error(), "expected stack to generate with terragrunt.stack.hcl file at root of generated directory")
 }
 
 // validateNoStackDirs check if the directories outside of stack are created and contain test files
