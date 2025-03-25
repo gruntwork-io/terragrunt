@@ -292,11 +292,6 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		kindStr = "stack"
 	}
 
-	// Validate that the source path exists
-	if !util.FileExists(source) {
-		return errors.Errorf("Failed to fetch %s %s at %s\n\nTry:\n1. Check if your source path is correct relative to the stack file location\n2. Verify the units or stacks directory exists at the expected location", kindStr, cmp.name, source)
-	}
-
 	// building destination path based on target directory
 	dest := filepath.Join(cmp.targetDir, cmp.path)
 
@@ -326,7 +321,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
 
 	if err := copyFiles(ctx, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
-		return errors.Errorf("Failed to copy %s to %s %w", source, dest, err)
+		return errors.Errorf("Failed to fetch %s %s at %s\n\nTry:\n1. Check if your source path is correct relative to the stack file location\n2. Verify the units or stacks directory exists at the expected location", kindStr, cmp.name, source)
 	}
 
 	if !cmp.noStack {
