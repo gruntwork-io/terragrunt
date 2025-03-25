@@ -77,7 +77,7 @@ func configureTraceCollection(ctx context.Context, opts *options.TerragruntOptio
 		// parse trace parent values
 		parts := strings.Split(traceParent, "-")
 		if len(parts) != traceParentParts {
-			return fmt.Errorf("invalid TRACEPARENT value %s", traceParent)
+			return fmt.Errorf("invalid TG_TELEMETRY_TRACEPARENT value %s", traceParent)
 		}
 
 		_, traceIDHex, spanIDHex, traceFlagsStr := parts[0], parts[1], parts[2], parts[3]

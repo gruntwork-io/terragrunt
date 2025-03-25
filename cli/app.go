@@ -92,7 +92,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 
 	ctx = app.registerGracefullyShutdown(ctx)
 
-	if err := global.NewTelemtryFlags(app.opts, nil).Parse(os.Args); err != nil {
+	if err := global.NewTelemetryFlags(app.opts, nil).Parse(os.Args); err != nil {
 		return err
 	}
 

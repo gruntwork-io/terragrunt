@@ -279,15 +279,15 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictControlFlagName), terragruntPrefixControl)),
 	}
 
-	flags = flags.Add(NewTelemtryFlags(opts, nil)...)
+	flags = flags.Add(NewTelemetryFlags(opts, nil)...)
 	flags = flags.Sort()
 	flags = flags.Add(NewHelpVersionFlags(opts)...)
 
 	return flags
 }
 
-// NewTelemtryFlags creates telemtry related flags.
-func NewTelemtryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+// NewTelemetryFlags creates telemetry related flags.
+func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
 	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)

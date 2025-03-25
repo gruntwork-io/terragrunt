@@ -22,24 +22,24 @@ Concepts:
 
 Tracing configuration:
 
-- `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER` - traces exporter type to be used. Currently supported values are:
+- `TG_TELEMETRY_TRACE_EXPORTER` - traces exporter type to be used. Currently supported values are:
   - `none` - no trace exporting, default value.
   - `console` - to export traces to console as JSON
   - `otlpHttp` - to export traces to an OpenTelemetry collector over HTTP [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
   - `otlpGrpc` - to export traces over gRPC [otlptracegrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc)
   - `http` - to export traces to a custom HTTP endpoint using [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
-- `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
-- `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
-- `TRACEPARENT` - if set, the value will be used as a parent trace context, format `TRACEPARENT=00-<hex_trace_id>-<hex_span_id>-<trace_flags>`, example: `TRACEPARENT=00-xxx-yyy-01`
+- `TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
+- `TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
+- `TG_TELEMETRY_TRACEPARENT` - if set, the value will be used as a parent trace context, format `TG_TELEMETRY_TRACEPARENT=00-<hex_trace_id>-<hex_span_id>-<trace_flags>`, example: `TG_TELEMETRY_TRACEPARENT=00-xxx-yyy-01`
 
 Metrics configuration:
 
-- `TERRAGRUNT_TELEMETRY_METRIC_EXPORTER` - metrics exporter type to be used. Currently supported values are:
+- `TG_TELEMETRY_METRIC_EXPORTER` - metrics exporter type to be used. Currently supported values are:
   - `none` - no metric exporting, default value.
   - `console` - write metrics to console as JSONs.
   - `otlpHttp` - export metrics to an OpenTelemetry collector over HTTP [otlpmetrichttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp)
   - `grpcHttp` - export metrics to an OpenTelemetry collector over gRPC [otlpmetricgrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc)
-- `TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
+- `TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
 
 ## Example configurations for trace collection
 
@@ -57,9 +57,9 @@ docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4
 - Define environment variables for Terragrunt to report traces to Jaeger:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=http
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+export TG_TELEMETRY_TRACE_EXPORTER=http
+export TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
+export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ```
 
 - Run terragrunt
@@ -71,10 +71,10 @@ export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 - Define environment variables for Terragrunt to report traces to Tempo:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=otlpHttp
+export TG_TELEMETRY_TRACE_EXPORTER=otlpHttp
 # Replace with your tempo instance
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ````
 
 - Run terragrunt
@@ -85,7 +85,7 @@ export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 - Set env variable to enable telemetry:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=console
+export TG_TELEMETRY_TRACE_EXPORTER=console
 ```
 
 - Run terragrunt
@@ -169,8 +169,8 @@ scrape_configs:
 - Define environment variables for Terragrunt to report metrics to OpenTelemetry collector:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=grpcHttp
-export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
+export TG_TELEMETRY_METRIC_EXPORTER=grpcHttp
+export TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 ```
 
@@ -182,7 +182,7 @@ Example configuration to export metrics to console:
 - Set env variable to enable telemetry:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=console
+export TG_TELEMETRY_METRIC_EXPORTER=console
 ```
 
 - Run terragrunt
