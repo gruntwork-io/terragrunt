@@ -34,7 +34,7 @@ Options:
    {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}{{ if .App.VisibleFlags }}
 
 Global Options:
-   {{ range $index, $option := .App.VisibleFlags.Sort }}{{ if $index }}
+   {{ range $index, $option := .App.VisibleFlags }}{{ if $index }}
    {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}
 
 `
