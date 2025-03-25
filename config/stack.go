@@ -330,7 +330,12 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		}
 
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
-			return errors.Errorf("validation failed for %v %v", cmp.name, err)
+			if opts.NoStackValidate {
+				// print warning if validation is skipped
+				opts.Logger.Warnf("Skipping validation for %s %v", cmp.name, err)
+			} else {
+				return errors.Errorf("validation failed for %s %v", cmp.name, err)
+			}
 		}
 	}
 

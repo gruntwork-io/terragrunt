@@ -31,6 +31,7 @@ const (
 	testFixtureStackAbsolutePath               = "fixtures/stacks/errors/absolute-path"
 	testFixtureStackRelativePathOutsideOfStack = "fixtures/stacks/errors/relative-path-outside-of-stack"
 	testFixtureStackNotExist                   = "fixtures/stacks/errors/not-existing-path"
+	testFixtureStackValidation                 = "fixtures/stacks/errors/validation"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
@@ -874,7 +875,7 @@ func TestStacksCyclesErrors(t *testing.T) {
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --no-stack-validate --working-dir "+rootPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Cycle detected")
 }
