@@ -837,6 +837,9 @@ func TestStacksGenerateRelativePathError(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --log-level debug --experiment stacks --working-dir "+rootPath)
 
 	require.Error(t, err)
+
+	assert.Contains(t, err.Error(), "app1 destination path")
+	assert.Contains(t, err.Error(), "is outside of the stack directory")
 }
 
 func TestStacksGenerateNoStack(t *testing.T) {

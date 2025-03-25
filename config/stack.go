@@ -305,7 +305,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 
 	// validate that the destination path is within the stack directory
 	if !strings.HasPrefix(absDest, absStackDir) {
-		return errors.Errorf("destination path '%s' is outside of the stack directory '%s'", absDest, absStackDir)
+		return errors.Errorf("%s destination path '%s' is outside of the stack directory '%s'", cmp.name, absDest, absStackDir)
 	}
 
 	if cmp.noStack {
