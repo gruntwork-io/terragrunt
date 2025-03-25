@@ -332,9 +332,9 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
 			if opts.NoStackValidate {
 				// print warning if validation is skipped
-				opts.Logger.Warnf("Suppressing validation error for unit %s at path '%s: expected unit to generate with %s file at root of generated directory.", cmp.name, cmp.targetDir, expectedFile)
+				opts.Logger.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			} else {
-				return errors.Errorf("Validation failed for unit %s at path %s: expected unit to generate with %s file at root of generated directory.", cmp.name, cmp.targetDir, expectedFile)
+				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			}
 		}
 	}

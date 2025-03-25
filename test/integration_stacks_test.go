@@ -31,7 +31,8 @@ const (
 	testFixtureStackAbsolutePath               = "fixtures/stacks/errors/absolute-path"
 	testFixtureStackRelativePathOutsideOfStack = "fixtures/stacks/errors/relative-path-outside-of-stack"
 	testFixtureStackNotExist                   = "fixtures/stacks/errors/not-existing-path"
-	testFixtureStackValidation                 = "fixtures/stacks/errors/validation"
+	testFixtureStackValidationUnit             = "fixtures/stacks/errors/validation-unit"
+	testFixtureStackValidationStack            = "fixtures/stacks/errors/validation-stack"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
@@ -921,12 +922,31 @@ func TestStacksGenerateMultipleStacks(t *testing.T) {
 	validateStackDir(t, liveStack)
 }
 
-func TestStackValidationError(t *testing.T) {
+func TestStackUnitValidation(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackValidation)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidation)
-	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValidation)
+	helpers.CleanupTerraformFolder(t, testFixtureStackValidationUnit)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationUnit)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValidationUnit)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --no-stack-validate --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	liveStack := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, liveStack)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	require.Error(t, err)
+}
+
+func TestStackValidation(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackValidationStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationStack)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackValidationStack)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
 
