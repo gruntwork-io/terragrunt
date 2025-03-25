@@ -205,6 +205,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 				source:    unitCopy.Source,
 				values:    unitCopy.Values,
 				noStack:   unitCopy.NoStack != nil && *unitCopy.NoStack,
+				kind:      unitKind,
 			}
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
@@ -235,6 +236,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 				source:    stackCopy.Source,
 				noStack:   stackCopy.NoStack != nil && *stackCopy.NoStack,
 				values:    stackCopy.Values,
+				kind:      stackKind,
 			}
 
 			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
@@ -250,6 +252,13 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 	return nil
 }
 
+type componentKind int
+
+const (
+	unitKind componentKind = iota
+	stackKind
+)
+
 // componentToProcess represents an item of work for processing a stack or unit.
 // It contains information about the source and target directories, the name and path of the item, the source URL or path,
 // and any associated values that need to be processed.
@@ -261,6 +270,7 @@ type componentToProcess struct {
 	path      string
 	source    string
 	noStack   bool
+	kind      componentKind
 }
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
@@ -307,6 +317,21 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 
 	if err := copyFiles(ctx, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
 		return errors.Errorf("Failed to copy %s to %s %w", source, dest, err)
+	}
+
+	if !cmp.noStack {
+		// validate what was copied to the destination, don't do validation for special noStack components
+		expectedFile := DefaultTerragruntConfigPath
+		kindStr := "unit"
+
+		if cmp.kind == stackKind {
+			expectedFile = defaultStackFile
+			kindStr = "stack"
+		}
+
+		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
+			return errors.Errorf("validation failed for %v %v", cmp.name, err)
+		}
 	}
 
 	// generate values file
@@ -632,4 +657,20 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 	}
 
 	return stackFiles, nil
+}
+
+// validateTargetDir target destination directory.
+func validateTargetDir(kind, name, destDir, expectedFile string) error {
+	expectedPath := filepath.Join(destDir, expectedFile)
+
+	info, err := os.Stat(expectedPath)
+	if err != nil {
+		return fmt.Errorf("%s '%s': expected file '%s' not found in target directory '%s': %w", kind, name, expectedFile, destDir, err)
+	}
+
+	if info.IsDir() {
+		return fmt.Errorf("%s '%s': expected file '%s' is a directory, not a file", kind, name, expectedFile)
+	}
+
+	return nil
 }
