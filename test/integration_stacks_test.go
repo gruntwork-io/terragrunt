@@ -930,14 +930,14 @@ func TestStackValidationError(t *testing.T) {
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
-	require.Error(t, err)
-
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --no-stack-validate --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --no-stack-validate --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	liveStack := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, liveStack)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	require.Error(t, err)
 }
 
 // validateNoStackDirs check if the directories outside of stack are created and contain test files
