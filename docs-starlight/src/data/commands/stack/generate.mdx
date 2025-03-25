@@ -77,6 +77,13 @@ terragrunt stack generate --parallelism 4
 
 Automatic Discovery: The command automatically discovers all `terragrunt.stack.hcl` files within the directory structure and generates them in parallel.
 
+Validation of Units and Stacks: During the stack generation, the system will validate that each unit and stack's target directory contains the appropriate configuration file (`terragrunt.hcl` for units and `terragrunt.stack.hcl` for stacks). This ensures the directories are correctly structured before proceeding with the stack generation.
+To **skip this validation**, you can use the `--no-stack-validate` flag:
+
+```bash
+terragrunt stack generate --no-stack-validate
+```
+
 </Aside>
 
 <Aside type="caution">
