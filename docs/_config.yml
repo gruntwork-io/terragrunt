@@ -21,7 +21,7 @@
 title: Terragrunt
 url: "https://terragrunt.gruntwork.io"
 email: info@gruntwork.io
-name: "Terragrunt | OpenTofu/Terraform wrapper"
+name: "Terragrunt | IaC Orchestrator"
 description: >- # this means to ignore newlines until "baseurl:"
   Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.
 baseurl: "" # the subpath of your site, e.g. /blog
