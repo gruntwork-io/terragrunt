@@ -10,6 +10,16 @@ import (
 
 type Flags []Flag
 
+func (flags Flags) Parse(args Args) error {
+	for _, flag := range flags {
+		if err := flag.Parse(args); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (flags Flags) NewFlagSet(cmdName string) (*libflag.FlagSet, error) {
 	flagSet := libflag.NewFlagSet(cmdName, libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
@@ -68,7 +78,7 @@ func (flags Flags) VisibleFlags() Flags {
 	var visibleFlags Flags
 
 	for _, flag := range flags {
-		if !flag.GetHidden() {
+		if !flag.GetHidden() && len(flag.Names()) > 0 {
 			visibleFlags = append(visibleFlags, flag)
 		}
 	}

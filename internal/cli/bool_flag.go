@@ -107,6 +107,10 @@ func (flag *BoolFlag) String() string {
 
 // Names returns the names of the flag.
 func (flag *BoolFlag) Names() []string {
+	if flag.Name == "" {
+		return flag.Aliases
+	}
+
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 

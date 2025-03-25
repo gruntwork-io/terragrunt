@@ -8,7 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
-	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -80,7 +80,7 @@ func Count(ctx context.Context, name string, value int64) {
 }
 
 // configureMetricsCollection - configure the metrics collection
-func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) error {
+func configureMetricsCollection(ctx context.Context, opts *options.TerragruntOptions) error {
 	exporter, err := NewMetricsExporter(ctx, opts)
 	if err != nil {
 		return errors.WithStack(err)
@@ -105,9 +105,13 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 }
 
 // NewMetricsExporter - create a new exporter based on the telemetry options.
-func NewMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exporter, error) {
-	exporterType := metricsExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_METRIC_EXPORTER"], string(noneMetricsExporterType)))
-	insecure := env.GetBool(opts.GetValue("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"), false)
+func NewMetricsExporter(ctx context.Context, opts *options.TerragruntOptions) (metric.Exporter, error) {
+	exporterType := metricsExporterType(opts.TelemetryMetricExporter)
+	if exporterType == "" {
+		exporterType = noneMetricsExporterType
+	}
+
+	insecure := opts.TelemetryMetricExporterInsecureEndpoint
 
 	// TODO: Remove this lint suppression
 	switch exporterType { //nolint:exhaustive
@@ -133,7 +137,7 @@ func NewMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exp
 }
 
 // newMetricsProvider - create a new metrics provider.
-func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.MeterProvider, error) {
+func newMetricsProvider(opts *options.TerragruntOptions, exp metric.Exporter) (*metric.MeterProvider, error) {
 	r, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(

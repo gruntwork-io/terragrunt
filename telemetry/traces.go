@@ -8,7 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
-	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/options"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
 	"github.com/pkg/errors"
@@ -51,7 +51,7 @@ func Trace(ctx context.Context, name string, attrs map[string]any, fn func(child
 }
 
 // configureTraceCollection - configure the traces collection
-func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error {
+func configureTraceCollection(ctx context.Context, opts *options.TerragruntOptions) error {
 	exp, err := NewTraceExporter(ctx, opts)
 	if err != nil {
 		return errors.WithStack(err)
@@ -71,7 +71,7 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 	otel.SetTracerProvider(traceProvider)
 	rootTracer = traceProvider.Tracer(opts.AppName)
 
-	traceParent := env.GetString(opts.Vars["TRACEPARENT"], "")
+	traceParent := opts.TelemetryTraceparent
 
 	if traceParent != "" {
 		// parse trace parent values
@@ -111,7 +111,7 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 }
 
 // newTraceProvider - create a new trace provider with terragrunt version.
-func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktrace.TracerProvider, error) {
+func newTraceProvider(opts *options.TerragruntOptions, exp sdktrace.SpanExporter) (*sdktrace.TracerProvider, error) {
 	r, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
@@ -132,17 +132,21 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 }
 
 // NewTraceExporter - create a new exporter based on the telemetry options.
-func NewTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
-	exporterType := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_EXPORTER"], string(noneTraceExporterType)))
-	insecure := env.GetBool(opts.GetValue("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT"), false)
+func NewTraceExporter(ctx context.Context, opts *options.TerragruntOptions) (sdktrace.SpanExporter, error) {
+	exporterType := traceExporterType(opts.TelemetryTraceExporter)
+	if exporterType == "" {
+		exporterType = noneTraceExporterType
+	}
+
+	insecure := opts.TelemetryTraceExporterInsecureEndpoint
 
 	// TODO: Remove lint suppression
 	switch exporterType { //nolint:exhaustive
 	case httpTraceExporterType:
-		endpoint := env.GetString(opts.GetValue("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT"), "")
+		endpoint := opts.TelemetryTraceExporterHTTPEndpoint
 		if endpoint == "" {
 			return nil, &ErrorMissingEnvVariable{
-				Vars: []string{"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT"},
+				Vars: []string{"TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT"},
 			}
 		}
 

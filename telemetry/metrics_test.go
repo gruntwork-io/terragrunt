@@ -3,11 +3,11 @@ package telemetry_test
 import (
 	"context"
 	"io"
-	"strconv"
 	"testing"
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,13 +60,10 @@ func TestNewMetricsExporter(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			opts := &telemetry.TelemetryOptions{
-				Vars: map[string]string{
-					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER":                   tt.exporterType,
-					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT": strconv.FormatBool(tt.insecure),
-				},
-				Writer: io.Discard,
-			}
+
+			opts := options.NewTerragruntOptionsWithWriters(io.Discard, io.Discard)
+			opts.TelemetryMetricExporter = tt.exporterType
+			opts.TelemetryMetricExporterInsecureEndpoint = tt.insecure
 
 			exporter, err := telemetry.NewMetricsExporter(ctx, opts)
 			require.NoError(t, err)

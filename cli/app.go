@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 
-	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -35,10 +34,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-)
-
-const (
-	AppName = "terragrunt"
 )
 
 func init() {
@@ -57,10 +52,10 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	terragruntCommands := commands.New(opts)
 
 	app := cli.NewApp()
-	app.Name = AppName
+	app.Name = opts.AppName
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
-	app.Version = version.GetVersion()
+	app.Version = opts.AppVersion
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
 	app.Flags = global.NewFlagsWithDeprecatedMovedFlags(opts)
@@ -97,13 +92,11 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 
 	ctx = app.registerGracefullyShutdown(ctx)
 
-	err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
-		Vars:       env.Parse(os.Environ()),
-		AppName:    app.Name,
-		AppVersion: app.Version,
-		Writer:     app.Writer,
-		ErrWriter:  app.ErrWriter,
-	})
+	if err := global.NewTelemtryFlags(app.opts, nil).Parse(os.Args); err != nil {
+		return err
+	}
+
+	err := telemetry.InitTelemetry(ctx, app.opts)
 	if err != nil {
 		return err
 	}

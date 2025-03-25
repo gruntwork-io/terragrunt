@@ -128,6 +128,10 @@ func (flag *SliceFlag[T]) String() string {
 
 // Names returns the names of the flag.
 func (flag *SliceFlag[T]) Names() []string {
+	if flag.Name == "" {
+		return flag.Aliases
+	}
+
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 

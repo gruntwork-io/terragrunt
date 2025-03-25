@@ -4,7 +4,6 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/gruntwork-io/terragrunt/options"
 
@@ -17,15 +16,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
-
-// TelemetryOptions - options for telemetry provider.
-type TelemetryOptions struct {
-	Writer     io.Writer
-	ErrWriter  io.Writer
-	Vars       map[string]string
-	AppName    string
-	AppVersion string
-}
 
 var spanExporter sdktrace.SpanExporter
 var traceProvider *sdktrace.TracerProvider
@@ -40,7 +30,7 @@ var parentSpanID *trace.SpanID
 var parentTraceFlags *trace.TraceFlags
 
 // InitTelemetry - initialize the telemetry provider.
-func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
+func InitTelemetry(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err := configureTraceCollection(ctx, opts); err != nil {
 		return errors.WithStack(err)
 	}
@@ -103,22 +93,6 @@ func mapToAttributes(data map[string]any) []attribute.KeyValue {
 	}
 
 	return attrs
-}
-
-// GetValue - get variable value, first check for key if not found check for deprecated key.
-func (to *TelemetryOptions) GetValue(key, deprecated string) string {
-	// check for key
-	if value, found := to.Vars[key]; found {
-		return value
-	}
-	// check for deprecated key and print warning
-	if value, found := to.Vars[deprecated]; found {
-		// print deprecation warning
-		_, _ = fmt.Fprintf(to.ErrWriter, "WARNING: %s is deprecated, use %s instead\n", deprecated, key)
-		return value
-	}
-
-	return ""
 }
 
 // ErrorMissingEnvVariable error for missing environment variable.

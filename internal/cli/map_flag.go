@@ -148,6 +148,10 @@ func (flag *MapFlag[K, V]) String() string {
 
 // Names returns the names of the flag.
 func (flag *MapFlag[K, V]) Names() []string {
+	if flag.Name == "" {
+		return flag.Aliases
+	}
+
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 
