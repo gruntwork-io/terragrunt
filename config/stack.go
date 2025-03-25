@@ -287,6 +287,16 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		return errors.Errorf("path %s must be relative", cmp.path)
 	}
 
+	kindStr := "unit"
+	if cmp.kind == stackKind {
+		kindStr = "stack"
+	}
+
+	// Validate that the source path exists
+	if !util.FileExists(source) {
+		return errors.Errorf("Failed to fetch %s %s at %s\n\nTry:\n1. Check if your source path is correct relative to the stack file location\n2. Verify the units or stacks directory exists at the expected location", kindStr, cmp.name, source)
+	}
+
 	// building destination path based on target directory
 	dest := filepath.Join(cmp.targetDir, cmp.path)
 
@@ -322,11 +332,9 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	if !cmp.noStack {
 		// validate what was copied to the destination, don't do validation for special noStack components
 		expectedFile := DefaultTerragruntConfigPath
-		kindStr := "unit"
 
 		if cmp.kind == stackKind {
 			expectedFile = defaultStackFile
-			kindStr = "stack"
 		}
 
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
