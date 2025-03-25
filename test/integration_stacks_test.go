@@ -33,6 +33,7 @@ const (
 	testFixtureStackNotExist                   = "fixtures/stacks/errors/not-existing-path"
 	testFixtureStackValidationUnitPath         = "fixtures/stacks/errors/validation-unit"
 	testFixtureStackValidationStackPath        = "fixtures/stacks/errors/validation-stack"
+	testFixtureStackIncorrectSource            = "fixtures/stacks/errors/incorrect-source"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
@@ -821,6 +822,18 @@ func TestStacksGenerateAbsolutePathError(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackAbsolutePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackAbsolutePath, "live")
+	helpers.CreateGitRepo(t, rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --log-level debug --experiment stacks --working-dir "+rootPath)
+
+	require.Error(t, err)
+}
+
+func TestStacksGenerateIncorrectSource(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackIncorrectSource)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackIncorrectSource)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackIncorrectSource, "live")
 	helpers.CreateGitRepo(t, rootPath)
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --log-level debug --experiment stacks --working-dir "+rootPath)
 
