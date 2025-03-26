@@ -925,7 +925,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		// process.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, file)
 		if err != nil {
-			return nil, err
+			errs = errs.Append(err)
 		}
 
 		ctx.DecodedDependencies = retrievedOutputs
@@ -956,7 +956,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {
-			return nil, err
+			errs = errs.Append(err)
 		}
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		mergedConfig.ProcessedIncludes = ctx.TrackInclude.CurrentMap

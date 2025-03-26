@@ -150,7 +150,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 
 	trackInclude, err := getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
 	if err != nil {
-		return nil, err
+		errs = errs.Append(err)
 	}
 
 	// set feature flags
@@ -170,12 +170,12 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	}
 
 	if flagErrs.ErrorOrNil() != nil {
-		return nil, flagErrs
+		errs = errs.Append(flagErrs)
 	}
 
 	flagsAsCtyVal, err := flagsAsCty(ctx, tgFlags.FeatureFlags)
 	if err != nil {
-		return nil, err
+		errs = errs.Append(err)
 	}
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
@@ -209,8 +209,15 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 
+	errs := &errors.MultiError{}
+
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
+			if flag.Default == nil {
+				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntOptions.TerragruntConfigPath))
+				continue
+			}
+
 			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
 
 			if err != nil {
@@ -227,7 +234,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 
-	return flagsAsCtyVal, nil
+	return flagsAsCtyVal, errs.ErrorOrNil()
 }
 
 // cliFlagsToCty converts CLI feature flags to Cty values. It returns a map of flag names
@@ -316,7 +323,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 
 	config, err := PartialParseConfig(ctx, file, includeFromChild)
 	if err != nil {
-		return nil, err
+		return config, err
 	}
 
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
@@ -629,11 +636,20 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		}
 	}
 
+	errsContainsIncludeErr := false
+
+	for _, err := range errs.WrappedErrors() {
+		if errors.As(err, &TooManyLevelsOfInheritanceError{}) {
+			errsContainsIncludeErr = true
+		}
+	}
+
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
-	if len(ctx.TrackInclude.CurrentList) > 0 {
+	// If there have been errors during this parse, don't attempt to parse the included config.
+	if len(ctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
 		config, err := handleInclude(ctx, output, true)
 		if err != nil {
-			return nil, err
+			errs = errs.Append(err)
 		}
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		config.ProcessedIncludes = ctx.TrackInclude.CurrentMap

@@ -130,7 +130,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 		}
 
 		if err != nil {
-			return nil, err
+			return baseConfig, err
 		}
 
 		// TODO: Remove lint suppression
@@ -772,7 +772,10 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 
 	hasInclude := len(terragruntIncludeList) > 0
 
-	var trackInc TrackInclude
+	trackInc := TrackInclude{
+		CurrentList: terragruntIncludeList,
+		CurrentMap:  terragruntIncludeMap,
+	}
 
 	switch {
 	case hasInclude && includeFromChild != nil:
@@ -784,21 +787,12 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 			SecondLevelIncludePath: strings.Join(includedPaths, ","),
 		})
 
-		return nil, err
+		return &TrackInclude{}, err
 	case hasInclude && includeFromChild == nil:
 		// Current parsing ctx where there is no included config already loaded.
-		trackInc = TrackInclude{
-			CurrentList: terragruntIncludeList,
-			CurrentMap:  terragruntIncludeMap,
-			Original:    nil,
-		}
 	case !hasInclude:
 		// Parsing ctx where there is an included config already loaded.
-		trackInc = TrackInclude{
-			CurrentList: terragruntIncludeList,
-			CurrentMap:  terragruntIncludeMap,
-			Original:    includeFromChild,
-		}
+		trackInc.Original = includeFromChild
 	}
 
 	return &trackInc, nil
