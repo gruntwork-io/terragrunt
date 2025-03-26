@@ -323,7 +323,21 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
 
 	if err := copyFiles(ctx, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
-		return errors.Errorf("Failed to fetch %s %s at %s\n\nTry:\n1. Check if your source path is correct relative to the stack file location\n2. Verify the units or stacks directory exists at the expected location %v", kindStr, cmp.name, source, err)
+		return errors.Errorf(
+			"Failed to fetch %s %s\n"+
+				"  Source:      %s\n"+
+				"  Destination: %s\n\n"+
+				"Troubleshooting:\n"+
+				"  1. Check if your source path is correct relative to the stack file location\n"+
+				"  2. Verify the units or stacks directory exists at the expected location\n"+
+				"  3. Ensure you have proper permissions to read from source and write to destination\n\n"+
+				"Original error: %v",
+			kindStr,
+			cmp.name,
+			source,
+			dest,
+			err,
+		)
 	}
 
 	if !cmp.noStack {
