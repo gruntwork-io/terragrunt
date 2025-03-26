@@ -199,14 +199,14 @@ func TestCheckForCycles(t *testing.T) {
 		{[]*configstack.TerraformModule{a, l, b, o, n, f, m, h}, configstack.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
 	}
 
-	for _, testCase := range testCases {
-		actual := testCase.modules.CheckForCycles()
-		if testCase.expected == nil {
+	for _, tc := range testCases {
+		actual := tc.modules.CheckForCycles()
+		if tc.expected == nil {
 			require.NoError(t, actual)
-		} else if assert.Error(t, actual, "For modules %v", testCase.modules) {
+		} else if assert.Error(t, actual, "For modules %v", tc.modules) {
 			var actualErr configstack.DependencyCycleError
 			errors.As(actual, &actualErr)
-			assert.Equal(t, []string(testCase.expected), []string(actualErr), "For modules %v", testCase.modules)
+			assert.Equal(t, []string(tc.expected), []string(actualErr), "For modules %v", tc.modules)
 		}
 	}
 }

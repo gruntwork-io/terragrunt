@@ -11,7 +11,7 @@ import (
 func TestGetRandomTime(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		lowerBound time.Duration
 		upperBound time.Duration
 	}{
@@ -24,9 +24,7 @@ func TestGetRandomTime(t *testing.T) {
 	}
 
 	// Loop through each test case
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
@@ -35,15 +33,15 @@ func TestGetRandomTime(t *testing.T) {
 				t.Run(strconv.Itoa(j), func(t *testing.T) {
 					t.Parallel()
 
-					actual := util.GetRandomTime(tt.lowerBound, tt.upperBound)
+					actual := util.GetRandomTime(tc.lowerBound, tc.upperBound)
 
-					if tt.lowerBound > 0 && tt.upperBound > 0 {
-						if actual < tt.lowerBound {
-							t.Fatalf("Randomly computed time %v should not be less than lowerBound %v", actual, tt.lowerBound)
+					if tc.lowerBound > 0 && tc.upperBound > 0 {
+						if actual < tc.lowerBound {
+							t.Fatalf("Randomly computed time %v should not be less than lowerBound %v", actual, tc.lowerBound)
 						}
 
-						if actual > tt.upperBound {
-							t.Fatalf("Randomly computed time %v should not be greater than upperBound %v", actual, tt.upperBound)
+						if actual > tc.upperBound {
+							t.Fatalf("Randomly computed time %v should not be greater than upperBound %v", actual, tc.upperBound)
 						}
 					}
 				})

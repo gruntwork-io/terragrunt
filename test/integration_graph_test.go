@@ -3,7 +3,6 @@ package test_test
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -47,21 +46,19 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase
-
-		t.Run(testCase.path, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
-			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
+			tmpModulePath := util.JoinPath(fixturePath, tc.path)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
-			for _, modulePath := range testCase.expectedModules {
+			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -70,7 +67,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
 			}
 
-			for _, modulePath := range testCase.notExpectedModules {
+			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -111,19 +108,19 @@ func TestTerragruntApplyGraph(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.path, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
-			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
+			tmpModulePath := util.JoinPath(fixturePath, tc.path)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args, tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
-			for _, modulePath := range testCase.expectedModules {
+			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -132,45 +129,13 @@ func TestTerragruntApplyGraph(t *testing.T) {
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
 			}
 
-			for _, modulePath := range testCase.notExpectedModules {
+			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
 				require.NoError(t, err)
 
 				assert.NotContainsf(t, output, "Module "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
-			}
-		})
-	}
-}
-
-func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		args string
-	}{
-		{"graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
-		{"render-json --graph --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
-	}
-
-	for _, testCase := range testCases {
-		t.Run("terragrunt args: "+testCase.args, func(t *testing.T) {
-			t.Parallel()
-
-			tmpEnvPath := prepareGraphFixture(t)
-			tmpModulePath := util.JoinPath(tmpEnvPath, testFixtureGraph, "eks")
-
-			stdout := bytes.Buffer{}
-			stderr := bytes.Buffer{}
-
-			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath), &stdout, &stderr)
-			require.NoError(t, err)
-
-			// check that terragrunt_rendered.json is created in mod1/mod2/mod3
-			for _, module := range []string{"services/eks-service-1", "eks"} {
-				_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureGraph, module, "terragrunt_rendered.json"))
-				require.NoError(t, err)
 			}
 		})
 	}

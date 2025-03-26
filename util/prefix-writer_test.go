@@ -14,7 +14,7 @@ import (
 func TestPrefixWriter(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		prefix   string
 		expected string
 		values   []string
@@ -96,20 +96,18 @@ func TestPrefixWriter(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
 			var b bytes.Buffer
-			pw := util.PrefixedWriter(&b, tt.prefix)
-			for _, input := range tt.values {
+			pw := util.PrefixedWriter(&b, tc.prefix)
+			for _, input := range tc.values {
 				written, err := pw.Write([]byte(input))
 				require.NoError(t, err)
 				assert.Len(t, input, written)
 			}
-			assert.Equal(t, tt.expected, b.String())
+			assert.Equal(t, tc.expected, b.String())
 		})
 	}
 }
@@ -123,7 +121,7 @@ func (fw *FailingWriter) Write(b []byte) (int, error) {
 func TestPrefixWriterFail(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		prefix   string
 		expected string
 		values   []string
@@ -135,14 +133,12 @@ func TestPrefixWriterFail(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			pw := util.PrefixedWriter(&FailingWriter{}, tt.prefix)
-			for _, input := range tt.values {
+			pw := util.PrefixedWriter(&FailingWriter{}, tc.prefix)
+			for _, input := range tc.values {
 				written, err := pw.Write([]byte(input))
 				require.Error(t, err)
 				assert.Empty(t, written)

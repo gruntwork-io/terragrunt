@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -30,8 +31,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -225,7 +227,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = generateConfig(terragruntConfig, updatedTerragruntOptions); err != nil {
+	if err = GenerateConfig(updatedTerragruntOptions, terragruntConfig); err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
@@ -261,26 +263,26 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	return nil
 }
 
-func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragruntOptions *options.TerragruntOptions) error {
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(updatedTerragruntOptions.DownloadDir, &sync.Mutex{})
+func GenerateConfig(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
 	actualLock.Lock()
 
-	for _, config := range terragruntConfig.GenerateConfigs {
-		if err := codegen.WriteToFile(updatedTerragruntOptions, updatedTerragruntOptions.WorkingDir, config); err != nil {
+	for _, config := range cfg.GenerateConfigs {
+		if err := codegen.WriteToFile(opts, opts.WorkingDir, config); err != nil {
 			return err
 		}
 	}
 
-	if terragruntConfig.RemoteState != nil && terragruntConfig.RemoteState.Generate != nil {
-		if err := terragruntConfig.RemoteState.GenerateTerraformCode(updatedTerragruntOptions); err != nil {
+	if cfg.RemoteState != nil && cfg.RemoteState.Generate != nil {
+		if err := cfg.RemoteState.GenerateTerraformCode(opts); err != nil {
 			return err
 		}
-	} else if terragruntConfig.RemoteState != nil {
+	} else if cfg.RemoteState != nil {
 		// We use else if here because we don't need to check the backend configuration is defined when the remote state
 		// block has a `generate` attribute configured.
-		if err := checkTerraformCodeDefinesBackend(updatedTerragruntOptions, terragruntConfig.RemoteState.Backend); err != nil {
+		if err := checkTerraformCodeDefinesBackend(opts, cfg.RemoteState.BackendName); err != nil {
 			return err
 		}
 	}
@@ -512,19 +514,19 @@ func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 func prepareInitCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntConfig.RemoteState != nil {
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
-		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
+		remoteStateNeedsInit, err := remoteStateNeedsInit(ctx, terragruntConfig.RemoteState, terragruntOptions)
 		if err != nil {
 			return err
 		}
 
 		if remoteStateNeedsInit {
-			if err := terragruntConfig.RemoteState.Initialize(ctx, terragruntOptions); err != nil {
+			if err := terragruntConfig.RemoteState.Init(ctx, terragruntOptions); err != nil {
 				return err
 			}
 		}
 
 		// Add backend config arguments to the command
-		terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.ToTerraformInitArgs()...)
+		terragruntOptions.InsertTerraformCliArgs(terragruntConfig.RemoteState.GetTFInitArgs()...)
 	}
 
 	return nil
@@ -569,13 +571,13 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 }
 
 // Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
-func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptions, backendType string) error {
+func checkTerraformCodeDefinesBackend(opts *options.TerragruntOptions, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
 	if err != nil {
 		return errors.New(err)
 	}
 
-	definesBackend, err := util.Grep(terraformBackendRegexp, terragruntOptions.WorkingDir+"/**/*.tf")
+	definesBackend, err := util.Grep(terraformBackendRegexp, opts.WorkingDir+"/**/*.tf")
 	if err != nil {
 		return err
 	}
@@ -589,7 +591,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 		return errors.New(err)
 	}
 
-	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, terragruntOptions.WorkingDir+"/**/*.tf.json")
+	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, opts.WorkingDir+"/**/*.tf.json")
 	if err != nil {
 		return err
 	}
@@ -598,14 +600,14 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 		return nil
 	}
 
-	return errors.New(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
+	return errors.New(BackendNotDefined{Opts: opts, BackendType: backendType})
 }
 
 // Prepare for running any command other than 'terraform init' by running 'terraform init' if necessary
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
 func prepareNonInitCommand(ctx context.Context, originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	needsInit, err := needsInit(terragruntOptions, terragruntConfig)
+	needsInit, err := needsInit(ctx, terragruntOptions, terragruntConfig)
 	if err != nil {
 		return err
 	}
@@ -620,7 +622,7 @@ func prepareNonInitCommand(ctx context.Context, originalTerragruntOptions *optio
 }
 
 // Determines if 'terraform init' needs to be executed
-func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
+func needsInit(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
 	if util.ListContainsElement(TerraformCommandsThatDoNotNeedInit, terragruntOptions.TerraformCliArgs.First()) {
 		return false, nil
 	}
@@ -638,7 +640,7 @@ func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *c
 		return true, nil
 	}
 
-	return remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
+	return remoteStateNeedsInit(ctx, terragruntConfig.RemoteState, terragruntOptions)
 }
 
 // Returns true if we need to run `terraform init` to download providers
@@ -734,14 +736,27 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
 // before running the command.
-func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func remoteStateNeedsInit(ctx context.Context, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) (bool, error) {
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState != nil && util.ListContainsElement(TerraformCommandsThatUseState, terragruntOptions.TerraformCliArgs.First()) {
-		return remoteState.NeedsInit(terragruntOptions)
+	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
+		return false, nil
 	}
 
-	return false, nil
+	if ok, err := remoteState.NeedsInit(ctx, opts); err != nil || !ok {
+		return false, err
+	}
+
+	if !opts.BackendBootstrap {
+		ctx = log.ContextWithLogger(ctx, opts.Logger)
+
+		strictControl := opts.StrictControls.Find(controls.RequireExplicitBootstrap)
+		if err := strictControl.Evaluate(ctx); err != nil {
+			return false, nil //nolint: nilerr
+		}
+	}
+
+	return true, nil
 }
 
 // runAll runs the provided terraform command against all the modules that are found in the directory tree.

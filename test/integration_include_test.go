@@ -34,21 +34,18 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	files, err := os.ReadDir(includeExposeFixturePath)
 	require.NoError(t, err)
 
-	tc := []string{}
+	testCases := []string{}
 	for _, finfo := range files {
 		if finfo.IsDir() {
-			tc = append(tc, finfo.Name())
+			testCases = append(testCases, finfo.Name())
 		}
 	}
 
-	for _, tt := range tc {
-		// Capture range variable to avoid it changing across parallel test runs
-		tt := tt
-
-		t.Run(filepath.Base(tt), func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(filepath.Base(tc), func(t *testing.T) {
 			t.Parallel()
 
-			childPath := filepath.Join(includeExposeFixturePath, tt, includeChildFixturePath)
+			childPath := filepath.Join(includeExposeFixturePath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
 			helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-include-external-dependencies --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+childPath)
 
@@ -211,14 +208,11 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 		}
 	}
 
-	for _, testCase := range testCases {
-		// Capture range variable to avoid it changing across parallel test runs
-		testCase := testCase
-
-		t.Run(filepath.Base(testCase), func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(filepath.Base(tc), func(t *testing.T) {
 			t.Parallel()
 
-			childPath := filepath.Join(includeMultipleFixturePath, testCase, includeDeepFixtureChildPath)
+			childPath := filepath.Join(includeMultipleFixturePath, tc, includeDeepFixtureChildPath)
 			helpers.CleanupTerraformFolder(t, childPath)
 			helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+childPath)
 

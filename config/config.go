@@ -17,7 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -36,7 +38,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -115,27 +116,23 @@ type DecodedBaseBlocks struct {
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
-	Engine           *EngineConfig
-	RetryMaxAttempts *int
-
-	// Map to store fields metadata
-	FieldsMetadata map[string]map[string]any
-
-	// Map of processed includes
+	Locals                      map[string]any
 	ProcessedIncludes           IncludeConfigsMap
+	RetryMaxAttempts            *int
+	FieldsMetadata              map[string]map[string]any
+	Terraform                   *TerraformConfig
 	Errors                      *ErrorsConfig
-	RemoteState                 *remote.RemoteState
+	RemoteState                 *remotestate.RemoteState
 	Dependencies                *ModuleDependencies
 	Exclude                     *ExcludeConfig
 	PreventDestroy              *bool
 	Skip                        *bool
-	Catalog                     *CatalogConfig
+	GenerateConfigs             map[string]codegen.GenerateConfig
 	IamAssumeRoleDuration       *int64
 	RetrySleepIntervalSec       *int
-	Locals                      map[string]any
-	Terraform                   *TerraformConfig
-	GenerateConfigs             map[string]codegen.GenerateConfig
 	Inputs                      map[string]any
+	Engine                      *EngineConfig
+	Catalog                     *CatalogConfig
 	IamWebIdentityToken         string
 	IamAssumeRoleSessionName    string
 	IamRole                     string
@@ -146,13 +143,8 @@ type TerragruntConfig struct {
 	TerragruntDependencies      Dependencies
 	RetryableErrors             []string
 	FeatureFlags                FeatureFlags
-
-	// List of dependent modules
-	DependentModulesPath []*string
-
-	// Fields used for internal tracking
-	// Indicates whether this is the result of a partial evaluation
-	IsPartial bool
+	DependentModulesPath        []*string
+	IsPartial                   bool
 }
 
 func (cfg *TerragruntConfig) String() string {
@@ -198,8 +190,8 @@ type terragruntConfigFile struct {
 	//   backend = "s3"
 	//   config  = { ... }
 	// }
-	RemoteState     *remoteStateConfigFile `hcl:"remote_state,block"`
-	RemoteStateAttr *cty.Value             `hcl:"remote_state,optional"`
+	RemoteState     *remotestate.ConfigFile `hcl:"remote_state,block"`
+	RemoteStateAttr *cty.Value              `hcl:"remote_state,optional"`
 
 	Dependencies             *ModuleDependencies `hcl:"dependencies,block"`
 	DownloadDir              *string             `hcl:"download_dir,attr"`
@@ -254,74 +246,6 @@ type terragruntLocal struct {
 type terragruntIncludeIgnore struct {
 	Remain hcl.Body `hcl:",remain"`
 	Name   string   `hcl:"name,label"`
-}
-
-// Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
-type remoteStateConfigFile struct {
-	Config                        cty.Value                  `hcl:"config,attr"`
-	DisableInit                   *bool                      `hcl:"disable_init,attr"`
-	DisableDependencyOptimization *bool                      `hcl:"disable_dependency_optimization,attr"`
-	Generate                      *remoteStateConfigGenerate `hcl:"generate,attr"`
-	Encryption                    *cty.Value                 `hcl:"encryption,attr"`
-	Backend                       string                     `hcl:"backend,attr"`
-}
-
-func (remoteState *remoteStateConfigFile) String() string {
-	return fmt.Sprintf("remoteStateConfigFile{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
-}
-
-// Convert the parsed config file remote state struct to the internal representation struct of remote state
-// configurations.
-func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
-	remoteStateConfig, err := ParseCtyValueToMap(remoteState.Config)
-	if err != nil {
-		return nil, err
-	}
-
-	config := &remote.RemoteState{}
-
-	config.Backend = remoteState.Backend
-	if remoteState.Generate != nil {
-		config.Generate = &remote.RemoteStateGenerate{
-			Path:     remoteState.Generate.Path,
-			IfExists: remoteState.Generate.IfExists,
-		}
-	}
-
-	config.Config = remoteStateConfig
-
-	if remoteState.Encryption != nil && !remoteState.Encryption.IsNull() {
-		remoteStateEncryption, err := ParseCtyValueToMap(*remoteState.Encryption)
-		if err != nil {
-			return nil, err
-		}
-
-		config.Encryption = remoteStateEncryption
-	} else {
-		config.Encryption = nil
-	}
-
-	if remoteState.DisableInit != nil {
-		config.DisableInit = *remoteState.DisableInit
-	}
-
-	if remoteState.DisableDependencyOptimization != nil {
-		config.DisableDependencyOptimization = *remoteState.DisableDependencyOptimization
-	}
-
-	config.FillDefaults()
-
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-
-	return config, err
-}
-
-type remoteStateConfigGenerate struct {
-	// We use cty instead of hcl, since we are using this type to convert an attr and not a block.
-	Path     string `cty:"path"`
-	IfExists string `cty:"if_exists"`
 }
 
 // Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
@@ -1062,7 +986,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	}
 
 	if terragruntConfig.Inputs != nil {
-		inputs, err := UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
+		inputs, err := ctyhelper.UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
 		}
@@ -1138,27 +1062,27 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	defaultMetadata := map[string]any{FoundInFile: configPath}
 
 	if terragruntConfigFromFile.RemoteState != nil {
-		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
+		config, err := terragruntConfigFromFile.RemoteState.Config()
 		if err != nil {
 			errs = errs.Append(err)
 		}
 
-		terragruntConfig.RemoteState = remoteState
+		terragruntConfig.RemoteState = remotestate.New(config)
 		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.RemoteStateAttr != nil {
-		remoteStateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
+		remoteStateMap, err := ctyhelper.ParseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
 		if err != nil {
 			return nil, err
 		}
 
-		var remoteState *remote.RemoteState
-		if err := mapstructure.Decode(remoteStateMap, &remoteState); err != nil {
+		var config *remotestate.Config
+		if err := mapstructure.Decode(remoteStateMap, &config); err != nil {
 			return nil, err
 		}
 
-		terragruntConfig.RemoteState = remoteState
+		terragruntConfig.RemoteState = remotestate.New(config)
 		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
 
@@ -1278,7 +1202,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
 	if terragruntConfigFromFile.GenerateAttrs != nil {
-		generateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
+		generateMap, err := ctyhelper.ParseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
 		if err != nil {
 			return nil, err
 		}
@@ -1344,7 +1268,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {
-		inputs, err := ParseCtyValueToMap(*terragruntConfigFromFile.Inputs)
+		inputs, err := ctyhelper.ParseCtyValueToMap(*terragruntConfigFromFile.Inputs)
 		if err != nil {
 			errs = errs.Append(err)
 		}
@@ -1354,7 +1278,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
-		localsParsed, err := ParseCtyValueToMap(*ctx.Locals)
+		localsParsed, err := ctyhelper.ParseCtyValueToMap(*ctx.Locals)
 		if err != nil {
 			return nil, err
 		}
@@ -1509,7 +1433,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	meta := map[string]any{}
 
 	if cfg.Engine.Meta != nil {
-		parsedMeta, err := ParseCtyValueToMap(*cfg.Engine.Meta)
+		parsedMeta, err := ctyhelper.ParseCtyValueToMap(*cfg.Engine.Meta)
 		if err != nil {
 			return nil, err
 		}
@@ -1587,7 +1511,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 				return nil, err
 			}
 
-			signals, err = ParseCtyValueToMap(value)
+			signals, err = ctyhelper.ParseCtyValueToMap(value)
 			if err != nil {
 				return nil, err
 			}
@@ -1636,4 +1560,36 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 		Pattern:  compiled,
 		Negative: isNegative,
 	}, nil
+}
+
+// ParseRemoteState reads the Terragrunt config file from its default location
+// and parses and returns the `remote_state` block.
+func ParseRemoteState(ctx context.Context, opts *options.TerragruntOptions) (*remotestate.RemoteState, error) {
+	cfg, err := ReadTerragruntConfig(ctx, opts, DefaultParserOptions(opts))
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.RemoteState == nil {
+		return nil, nil
+	}
+
+	sourceURL, err := GetTerraformSourceURL(opts, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	if sourceURL != "" {
+		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+
+		tfSource, err := tf.NewSource(sourceURL, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = opts.Clone()
+		opts.WorkingDir = tfSource.WorkingDir
+	}
+
+	return cfg.RemoteState, nil
 }

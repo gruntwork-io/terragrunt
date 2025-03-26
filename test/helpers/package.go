@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"os"
@@ -35,15 +36,14 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/version"
-	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -136,18 +136,15 @@ func CopyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, p
 	t.Helper()
 
 	contents, err := util.ReadFileAsString(srcPath)
-	if err != nil {
-		t.Fatalf("Error reading file at %s: %v", srcPath, err)
-	}
+	require.NoError(t, err, "Error reading file at %s: %v", srcPath, err)
 
 	// iterate over placeholders and replace placeholders
 	for k, v := range placeholders {
 		contents = strings.ReplaceAll(contents, k, v)
 	}
 
-	if err := os.WriteFile(destPath, []byte(contents), readPermissions); err != nil {
-		t.Fatalf("Error writing temp file to %s: %v", destPath, err)
-	}
+	err = os.WriteFile(destPath, []byte(contents), readPermissions)
+	require.NoError(t, err, "Error writing temp file to %s: %v", destPath, err)
 }
 
 // UniqueID returns a unique (ish) id we can attach to resources and tfstate files so they don't conflict with each other
@@ -168,36 +165,49 @@ func UniqueID() string {
 	return out.String()
 }
 
-// DeleteS3Bucket deletes the specified S3 bucket to clean up after a test, and fails the test if there was an error.
-func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) {
+// CreateS3ClientForTest creates a S3 client we can use at test time. If there are any errors creating the client, fail the test.
+func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
 	t.Helper()
 
-	require.NoError(t, DeleteS3BucketE(t, awsRegion, bucketName, opts...))
+	mockOptions, err := options.NewTerragruntOptionsForTest("aws_s3_test")
+	require.NoError(t, err, "Error creating mockOptions")
+
+	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
+
+	session, err := awshelper.CreateAwsSession(awsConfig, mockOptions)
+	require.NoError(t, err, "Error creating S3 client")
+
+	return s3.New(session)
 }
 
-// DeleteS3BucketE deletes the specified S3 bucket potentially with error to clean up after a test.
-func DeleteS3BucketE(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
+// CreateDynamoDBClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
+func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn string) *dynamodb.DynamoDB {
 	t.Helper()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test", opts...)
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return err
-	}
+	mockOptions, err := options.NewTerragruntOptionsForTest("aws_dynamodb_test")
+	require.NoError(t, err, "Error creating mockOptions")
 
 	sessionConfig := &awshelper.AwsSessionConfig{
-		Region: awsRegion,
+		Region:  awsRegion,
+		Profile: awsProfile,
+		RoleArn: iamRoleArn,
 	}
 
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Logf("Error creating S3 client: %v", err)
-		return err
-	}
+	session, err := awshelper.CreateAwsSession(sessionConfig, mockOptions)
+	require.NoError(t, err, "Error creating DynamoDB client")
+
+	return dynamodb.New(session)
+}
+
+// DeleteS3Bucket deletes the specified S3 bucket potentially with error to clean up after a test.
+func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
+	t.Helper()
+
+	client := CreateS3ClientForTest(t, awsRegion)
 
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
-	out, err := s3Client.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)})
+	out, err := client.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)})
 	if err != nil {
 		t.Logf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
 		return err
@@ -216,13 +226,13 @@ func DeleteS3BucketE(t *testing.T, awsRegion string, bucketName string, opts ...
 			Bucket: aws.String(bucketName),
 			Delete: &s3.Delete{Objects: objectIdentifiers},
 		}
-		if _, err := s3Client.DeleteObjects(deleteInput); err != nil {
+		if _, err := client.DeleteObjects(deleteInput); err != nil {
 			t.Logf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
 			return err
 		}
 	}
 
-	if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+	if _, err := client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
 		return err
 	}
