@@ -218,6 +218,7 @@ func (wp *Pool) GracefulStop() error {
 func (wp *Pool) IsRunning() bool {
 	wp.mu.RLock()
 	defer wp.mu.RUnlock()
+
 	return wp.isRunning
 }
 
