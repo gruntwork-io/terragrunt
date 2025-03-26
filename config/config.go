@@ -953,10 +953,12 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
+	// If there have been errors during this parse, don't attempt to parse the included config.
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {
 			errs = errs.Append(err)
+			return config, errs.ErrorOrNil()
 		}
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		mergedConfig.ProcessedIncludes = ctx.TrackInclude.CurrentMap
