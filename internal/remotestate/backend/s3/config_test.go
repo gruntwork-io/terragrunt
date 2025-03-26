@@ -107,12 +107,12 @@ func TestConfig_IsEqual(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.cfg.IsEqual(testCase.comparableCfg, logger)
-			assert.Equal(t, testCase.shouldBeEqual, actual)
+			actual := tc.cfg.IsEqual(tc.comparableCfg, logger)
+			assert.Equal(t, tc.shouldBeEqual, actual)
 		})
 	}
 }

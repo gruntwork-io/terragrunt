@@ -140,18 +140,18 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := remoteBackend.GetTFInitArgs(testCase.config)
+			actual := remoteBackend.GetTFInitArgs(tc.config)
 
-			if !testCase.shouldBeEqual {
-				assert.NotEqual(t, testCase.expected, actual)
+			if !tc.shouldBeEqual {
+				assert.NotEqual(t, tc.expected, actual)
 				return
 			}
 
-			assert.Equal(t, testCase.expected, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }

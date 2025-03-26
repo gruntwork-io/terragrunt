@@ -91,7 +91,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		t.Run(fmt.Sprintf(testCase.name), func(t *testing.T) {
 			t.Parallel()
 

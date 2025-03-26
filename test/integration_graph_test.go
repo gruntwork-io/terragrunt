@@ -46,19 +46,19 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.path, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
-			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
+			tmpModulePath := util.JoinPath(fixturePath, tc.path)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
-			for _, modulePath := range testCase.expectedModules {
+			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -67,7 +67,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
 			}
 
-			for _, modulePath := range testCase.notExpectedModules {
+			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -108,19 +108,19 @@ func TestTerragruntApplyGraph(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.path, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
-			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
+			tmpModulePath := util.JoinPath(fixturePath, tc.path)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args, tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
-			for _, modulePath := range testCase.expectedModules {
+			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -129,7 +129,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
 			}
 
-			for _, modulePath := range testCase.notExpectedModules {
+			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)

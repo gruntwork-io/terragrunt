@@ -13,7 +13,7 @@ import (
 func TestUpdateUnknownCtyValValues(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		value         cty.Value
 		expectedValue cty.Value
 	}{
@@ -45,16 +45,14 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
-		testCase := tt
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actualValue, err := ctyhelper.UpdateUnknownCtyValValues(testCase.value)
+			actualValue, err := ctyhelper.UpdateUnknownCtyValValues(tc.value)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedValue, actualValue)
+			assert.Equal(t, tc.expectedValue, actualValue)
 		})
 	}
 }

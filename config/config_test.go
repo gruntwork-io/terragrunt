@@ -1332,23 +1332,19 @@ func TestModuleDependenciesMerge(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		// Capture range variable so that it is brought into the scope within the for loop, so that it is stable even
-		// when subtests are run in parallel.
-		testCase := testCase
-
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			target := &config.ModuleDependencies{Paths: testCase.target}
+			target := &config.ModuleDependencies{Paths: tc.target}
 
 			var source *config.ModuleDependencies = nil
-			if testCase.source != nil {
-				source = &config.ModuleDependencies{Paths: testCase.source}
+			if tc.source != nil {
+				source = &config.ModuleDependencies{Paths: tc.source}
 			}
 
 			target.Merge(source)
-			assert.Equal(t, testCase.expected, target.Paths)
+			assert.Equal(t, tc.expected, target.Paths)
 		})
 	}
 }

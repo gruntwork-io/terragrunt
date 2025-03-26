@@ -103,17 +103,17 @@ func TestConfig_CreateS3LoggingInput(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := testCase.config.Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := tc.config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			createdLoggingInput := extS3Cfg.CreateS3LoggingInput()
-			actual := reflect.DeepEqual(createdLoggingInput, testCase.loggingInput)
-			if !assert.Equal(t, testCase.shouldBeEqual, actual) {
-				t.Errorf("s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v", createdLoggingInput, testCase.loggingInput)
+			actual := reflect.DeepEqual(createdLoggingInput, tc.loggingInput)
+			if !assert.Equal(t, tc.shouldBeEqual, actual) {
+				t.Errorf("s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v", createdLoggingInput, tc.loggingInput)
 			}
 		})
 	}
@@ -144,17 +144,17 @@ func TestConfig_ForcePathStyleClientSession(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := testCase.config.Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := tc.config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			awsSessionConfig := extS3Cfg.GetAwsSessionConfig()
 
 			actual := awsSessionConfig.S3ForcePathStyle
-			assert.Equal(t, testCase.expected, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -191,15 +191,15 @@ func TestConfig_CustomStateEndpoints(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := testCase.config.Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := tc.config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			actual := extS3Cfg.GetAwsSessionConfig()
-			assert.Equal(t, testCase.expected, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -225,11 +225,11 @@ func TestConfig_GetAwsSessionConfig(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := testCase.config.Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := tc.config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &awshelper.AwsSessionConfig{
@@ -266,11 +266,11 @@ func TestConfig_GetAwsSessionConfigWithAssumeRole(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			config := s3backend.Config{"assume_role": testCase.config}
+			config := s3backend.Config{"assume_role": tc.config}
 
 			extS3Cfg, err := config.Normalize(log.Default()).ParseExtendedS3Config()
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
@@ -321,8 +321,8 @@ func TestConfig_Validate(t *testing.T) {
 			expectedErr: s3backend.MissingRequiredS3RemoteStateConfig("key"),
 		},
 	}
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			buf := &bytes.Buffer{}
@@ -330,10 +330,10 @@ func TestConfig_Validate(t *testing.T) {
 			logger.SetLevel(logrus.DebugLevel)
 			logger.SetOutput(buf)
 
-			err := testCase.extConfig.Validate()
-			require.ErrorIs(t, err, testCase.expectedErr)
+			err := tc.extConfig.Validate()
+			require.ErrorIs(t, err, tc.expectedErr)
 
-			assert.Contains(t, buf.String(), testCase.expectedOutput)
+			assert.Contains(t, buf.String(), tc.expectedOutput)
 		})
 	}
 }

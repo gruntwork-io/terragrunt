@@ -41,11 +41,11 @@ func TestPackageAuthenticationResult(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, testCase.expected, testCase.result.String())
+			assert.Equal(t, tc.expected, tc.result.String())
 		})
 	}
 }
@@ -96,19 +96,19 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := getproviders.NewArchiveChecksumAuthentication(testCase.wantSHA256Sum)
-			actualResult, actualErr := auth.Authenticate(testCase.path)
-			if testCase.expectedErr != nil {
-				require.EqualError(t, actualErr, testCase.expectedErr.Error())
+			auth := getproviders.NewArchiveChecksumAuthentication(tc.wantSHA256Sum)
+			actualResult, actualErr := auth.Authenticate(tc.path)
+			if tc.expectedErr != nil {
+				require.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
 			}
 
-			assert.Equal(t, testCase.expectedResult, actualResult)
+			assert.Equal(t, tc.expectedResult, actualResult)
 		})
 
 	}
@@ -154,15 +154,15 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := getproviders.NewMatchingChecksumAuthentication(testCase.document, testCase.filename, testCase.wantSHA256Sum)
-			_, actualErr := auth.Authenticate(testCase.path)
+			auth := getproviders.NewMatchingChecksumAuthentication(tc.document, tc.filename, tc.wantSHA256Sum)
+			_, actualErr := auth.Authenticate(tc.path)
 
-			if testCase.expectedErr != nil {
-				require.EqualError(t, actualErr, testCase.expectedErr.Error())
+			if tc.expectedErr != nil {
+				require.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
 			}
@@ -208,16 +208,16 @@ def1b73849bec0dc57a04405847921bf9206c75b52ae9de195476facb26bd85e  terraform_0.14
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := getproviders.NewSignatureAuthentication([]byte(testCase.shasums), nil, nil)
+			auth := getproviders.NewSignatureAuthentication([]byte(tc.shasums), nil, nil)
 			authWithHashes, ok := auth.(getproviders.PackageAuthenticationHashes)
 			require.True(t, ok)
 
 			actualHash := authWithHashes.AcceptableHashes()
-			assert.Equal(t, testCase.expectedHashes, actualHash)
+			assert.Equal(t, tc.expectedHashes, actualHash)
 		})
 	}
 }
@@ -277,23 +277,23 @@ func TestSignatureAuthenticate(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			signature, err := base64.StdEncoding.DecodeString(testCase.signature)
+			signature, err := base64.StdEncoding.DecodeString(tc.signature)
 			require.NoError(t, err)
 
-			auth := getproviders.NewSignatureAuthentication(testCase.document, signature, testCase.keys)
-			actualResult, actualErr := auth.Authenticate(testCase.path)
+			auth := getproviders.NewSignatureAuthentication(tc.document, signature, tc.keys)
+			actualResult, actualErr := auth.Authenticate(tc.path)
 
-			if testCase.expectedErr != nil {
-				require.EqualError(t, actualErr, testCase.expectedErr.Error())
+			if tc.expectedErr != nil {
+				require.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
 			}
 
-			assert.Equal(t, testCase.expectedResult, actualResult)
+			assert.Equal(t, tc.expectedResult, actualResult)
 		})
 	}
 }

@@ -11,7 +11,7 @@ import (
 func TestUnmarshalConfig(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct { //nolint: govet
+	testCases := []struct { //nolint: govet
 		name                          string
 		encryptionConfig              map[string]any
 		providerType                  string
@@ -114,23 +114,21 @@ func TestUnmarshalConfig(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			provider, err := remotestate.NewRemoteEncryptionKeyProvider(tt.providerType)
+			provider, err := remotestate.NewRemoteEncryptionKeyProvider(tc.providerType)
 
-			if tt.expectedErrorCreatingProvider {
+			if tc.expectedErrorCreatingProvider {
 				require.Error(t, err)
 				return
 			}
 
 			require.NoError(t, err)
 
-			err = provider.UnmarshalConfig(tt.encryptionConfig)
-			if tt.expectedErrorFromProvider {
+			err = provider.UnmarshalConfig(tc.encryptionConfig)
+			if tc.expectedErrorFromProvider {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -141,7 +139,7 @@ func TestUnmarshalConfig(t *testing.T) {
 func TestToMap(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		encryptionConfig map[string]any
 		expectedMap      map[string]any
 		name             string
@@ -220,28 +218,26 @@ func TestToMap(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			provider, err := remotestate.NewRemoteEncryptionKeyProvider(tt.providerType)
+			provider, err := remotestate.NewRemoteEncryptionKeyProvider(tc.providerType)
 			if err != nil {
 				t.Fatalf("failed to create provider: %v", err)
 			}
 
-			err = provider.UnmarshalConfig(tt.encryptionConfig)
+			err = provider.UnmarshalConfig(tc.encryptionConfig)
 			if err != nil {
 				t.Fatalf("failed to unmarshal config: %v", err)
 			}
 
 			result, err := provider.ToMap()
-			if tt.expectedError {
+			if tc.expectedError {
 				assert.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.expectedMap, result)
+				assert.Equal(t, tc.expectedMap, result)
 			}
 		})
 	}

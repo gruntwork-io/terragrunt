@@ -167,18 +167,18 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions()
-			actualOptions, actualErr := runAppTest(testCase.args, opts)
+			actualOptions, actualErr := runAppTest(tc.args, opts)
 
-			if testCase.expectedErr != nil {
-				assert.EqualError(t, actualErr, testCase.expectedErr.Error())
+			if tc.expectedErr != nil {
+				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assertOptionsEqual(t, *testCase.expectedOptions, *actualOptions, "For args %v", testCase.args)
+				assertOptionsEqual(t, *tc.expectedOptions, *actualOptions, "For args %v", tc.args)
 			}
 		})
 	}
@@ -289,13 +289,13 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{commands.CommandNameDestroyAll, "plan", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"}},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 			opts := options.NewTerragruntOptions()
-			actualOptions, err := runAppTest(testCase.args, opts)
+			actualOptions, err := runAppTest(tc.args, opts)
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expected, []string(actualOptions.TerraformCliArgs), "For args %v", testCase.args)
+			assert.Equal(t, tc.expected, []string(actualOptions.TerraformCliArgs), "For args %v", tc.args)
 		})
 	}
 }
@@ -333,19 +333,19 @@ func TestParseMultiStringArg(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions()
-			opts.ModulesThatInclude = testCase.defaultValue
-			actualOptions, actualErr := runAppTest(testCase.args, opts)
+			opts.ModulesThatInclude = tc.defaultValue
+			actualOptions, actualErr := runAppTest(tc.args, opts)
 
-			if testCase.expectedErr != nil {
-				assert.EqualError(t, actualErr, testCase.expectedErr.Error())
+			if tc.expectedErr != nil {
+				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assert.Equal(t, testCase.expectedVals, actualOptions.ModulesThatInclude, "For args %q", testCase.args)
+				assert.Equal(t, tc.expectedVals, actualOptions.ModulesThatInclude, "For args %q", tc.args)
 			}
 		})
 	}
@@ -394,16 +394,16 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		opts := options.NewTerragruntOptions()
-		opts.AwsProviderPatchOverrides = testCase.defaultValue
-		actualOptions, actualErr := runAppTest(testCase.args, opts)
+		opts.AwsProviderPatchOverrides = tc.defaultValue
+		actualOptions, actualErr := runAppTest(tc.args, opts)
 
-		if testCase.expectedErr != nil {
-			assert.ErrorContains(t, actualErr, testCase.expectedErr.Error())
+		if tc.expectedErr != nil {
+			assert.ErrorContains(t, actualErr, tc.expectedErr.Error())
 		} else {
 			require.NoError(t, actualErr)
-			assert.Equal(t, testCase.expectedVals, actualOptions.AwsProviderPatchOverrides, "For args %v", testCase.args)
+			assert.Equal(t, tc.expectedVals, actualOptions.AwsProviderPatchOverrides, "For args %v", tc.args)
 		}
 	}
 }
@@ -421,14 +421,14 @@ func TestTerragruntVersion(t *testing.T) {
 		{[]string{"terragrunt", "-v"}},
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
 		app := cli.NewApp(opts)
 		app.Version = version
 
-		err := app.Run(testCase.args)
-		require.NoError(t, err, testCase)
+		err := app.Run(tc.args)
+		require.NoError(t, err, tc)
 
 		assert.Contains(t, output.String(), version)
 	}
@@ -473,19 +473,19 @@ func TestTerragruntHelp(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			output := &bytes.Buffer{}
 			opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
 			app := cli.NewApp(opts)
-			err := app.Run(testCase.args)
-			require.NoError(t, err, testCase)
+			err := app.Run(tc.args)
+			require.NoError(t, err, tc)
 
-			assert.Contains(t, output.String(), testCase.expected)
-			if testCase.notExpected != "" {
-				assert.NotContains(t, output.String(), testCase.notExpected)
+			assert.Contains(t, output.String(), tc.expected)
+			if tc.notExpected != "" {
+				assert.NotContains(t, output.String(), tc.notExpected)
 			}
 		})
 	}
@@ -503,14 +503,14 @@ func TestTerraformHelp(t *testing.T) {
 		{args: []string{"terragrunt", tf.CommandNameApply, "-h"}, expected: "(?s)Usage: terragrunt \\[global options\\] apply.*-destroy"},
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
 		app := cli.NewApp(opts)
-		err := app.Run(testCase.args)
+		err := app.Run(tc.args)
 		require.NoError(t, err)
 
-		assert.Regexp(t, testCase.expected, output.String())
+		assert.Regexp(t, tc.expected, output.String())
 	}
 }
 
@@ -590,8 +590,8 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Setenv("COMP_LINE", "terragrunt "+testCase.compLine)
+	for _, tc := range testCases {
+		t.Setenv("COMP_LINE", "terragrunt "+tc.compLine)
 
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
@@ -602,7 +602,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 		err := app.Run([]string{"terragrunt"})
 		require.NoError(t, err)
 
-		for _, expectedComplete := range testCase.expectedCompletes {
+		for _, expectedComplete := range tc.expectedCompletes {
 			assert.Contains(t, output.String(), expectedComplete)
 		}
 	}

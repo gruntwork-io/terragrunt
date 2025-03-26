@@ -230,7 +230,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		var (
 			stdout bytes.Buffer
 			stderr bytes.Buffer
@@ -242,19 +242,19 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		)
 
 		for _, app := range appDirs {
-			appDir = filepath.Join(testCase.rootPath, app)
+			appDir = filepath.Join(tc.rootPath, app)
 
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, testCase.downloadDir))
+			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, tc.downloadDir))
 			config.ClearOutputCache()
 		}
 
-		if testCase.downloadDir != "" {
-			entries, err := os.ReadDir(testCase.downloadDir)
+		if tc.downloadDir != "" {
+			entries, err := os.ReadDir(tc.downloadDir)
 			require.NoError(t, err)
 			assert.Equal(t, len(appDirs), len(entries))
 		}
 
-		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, testCase.downloadDir), &stdout, &stderr)
+		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, tc.downloadDir), &stdout, &stderr)
 
 		expectedOutpus := map[string]string{
 			"bar": "parent-bar",
@@ -328,19 +328,17 @@ func TestTerragruntDownloadDir(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase
-
-		t.Run(testCase.name, func(t *testing.T) {
-			if testCase.downloadDirEnv != "" {
-				t.Setenv("TERRAGRUNT_DOWNLOAD", testCase.downloadDirEnv)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.downloadDirEnv != "" {
+				t.Setenv("TERRAGRUNT_DOWNLOAD", tc.downloadDirEnv)
 			} else {
 				// Clear the variable if it's not set. This is clearing the variable in case the variable is set outside the test process.
 				require.NoError(t, os.Unsetenv("TERRAGRUNT_DOWNLOAD"))
 			}
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info %s --terragrunt-non-interactive --terragrunt-working-dir %s", testCase.downloadDirFlag, testCase.rootPath), &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info %s --terragrunt-non-interactive --terragrunt-working-dir %s", tc.downloadDirFlag, tc.rootPath), &stdout, &stderr)
 			helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 			helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 			require.NoError(t, err)
@@ -349,7 +347,7 @@ func TestTerragruntDownloadDir(t *testing.T) {
 			unmarshalErr := json.Unmarshal(stdout.Bytes(), &dat)
 			require.NoError(t, unmarshalErr)
 			// compare the results
-			assert.Equal(t, testCase.downloadDirReference, dat.DownloadDir)
+			assert.Equal(t, tc.downloadDirReference, dat.DownloadDir)
 		})
 	}
 
@@ -738,15 +736,15 @@ func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 		{"render-json --graph --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
 	}
 
-	for _, testCase := range testCases {
-		t.Run("terragrunt args: "+testCase.args, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run("terragrunt args: "+tc.args, func(t *testing.T) {
 			tmpEnvPath := prepareGraphFixture(t)
 			tmpModulePath := util.JoinPath(tmpEnvPath, testFixtureGraph, "eks")
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt "+tc.args, tmpModulePath, tmpEnvPath), &stdout, &stderr)
 			require.NoError(t, err)
 
 			// check that terragrunt_rendered.json is created in mod1/mod2/mod3

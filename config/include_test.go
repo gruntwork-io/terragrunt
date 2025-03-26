@@ -159,15 +159,15 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		// if nil, initialize to empty dependency list
-		if testCase.expected.TerragruntDependencies == nil {
-			testCase.expected.TerragruntDependencies = config.Dependencies{}
+		if tc.expected.TerragruntDependencies == nil {
+			tc.expected.TerragruntDependencies = config.Dependencies{}
 		}
 
-		err := testCase.includedConfig.Merge(testCase.config, mockOptionsForTest(t))
+		err := tc.includedConfig.Merge(tc.config, mockOptionsForTest(t))
 		require.NoError(t, err)
-		assert.EqualExportedValues(t, testCase.expected, testCase.includedConfig)
+		assert.EqualExportedValues(t, tc.expected, tc.includedConfig)
 	}
 }
 
@@ -227,7 +227,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 	}
 
-	tc := []struct {
+	testCases := []struct {
 		source   *config.TerragruntConfig
 		target   *config.TerragruntConfig
 		expected *config.TerragruntConfig
@@ -337,20 +337,18 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.target.DeepMerge(tt.source, mockOptionsForTest(t))
+			err := tc.target.DeepMerge(tc.source, mockOptionsForTest(t))
 			require.NoError(t, err)
 
 			// if nil, initialize to empty dependency list
-			if tt.expected.TerragruntDependencies == nil {
-				tt.expected.TerragruntDependencies = config.Dependencies{}
+			if tc.expected.TerragruntDependencies == nil {
+				tc.expected.TerragruntDependencies = config.Dependencies{}
 			}
-			assert.Equal(t, tt.expected, tt.target)
+			assert.Equal(t, tc.expected, tc.target)
 		})
 	}
 }

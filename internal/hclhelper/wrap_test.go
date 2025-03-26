@@ -26,13 +26,13 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := hclhelper.WrapMapToSingleLineHcl(testCase.input)
-			if result != testCase.expected {
-				t.Errorf("Expected %s, but got %s", testCase.expected, result)
+			result := hclhelper.WrapMapToSingleLineHcl(tc.input)
+			if result != tc.expected {
+				t.Errorf("Expected %s, but got %s", tc.expected, result)
 			}
 		})
 	}

@@ -181,13 +181,13 @@ func TestEnableControl(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			controls := newTestControls()
 
-			for _, testEnableControl := range testCase.enableControls {
+			for _, testEnableControl := range tc.enableControls {
 
 				err := controls.EnableControl(testEnableControl.controlName)
 
@@ -214,19 +214,19 @@ func TestEnableControl(t *testing.T) {
 
 			}
 
-			assert.ElementsMatch(t, testCase.expectedEnabledControls, actualEnabledControls)
+			assert.ElementsMatch(t, tc.expectedEnabledControls, actualEnabledControls)
 
 			logger, output := newTestLogger()
 
 			controls.LogEnabled(logger)
 
-			if testCase.expectedCompletedMsg == "" {
+			if tc.expectedCompletedMsg == "" {
 				assert.Empty(t, output.String())
 
 				return
 			}
 
-			assert.Contains(t, strings.TrimSpace(output.String()), testCase.expectedCompletedMsg)
+			assert.Contains(t, strings.TrimSpace(output.String()), tc.expectedCompletedMsg)
 		})
 	}
 }
@@ -248,13 +248,13 @@ func TestEnableStrictMode(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			controls := newTestControls()
 
-			if testCase.enableStrictMode {
+			if tc.enableStrictMode {
 				controls.FilterByStatus(strict.ActiveStatus).Enable()
 			}
 
@@ -271,7 +271,7 @@ func TestEnableStrictMode(t *testing.T) {
 				}
 			}
 
-			assert.ElementsMatch(t, testCase.expectedEnabledControls, actualEnabledControls)
+			assert.ElementsMatch(t, tc.expectedEnabledControls, actualEnabledControls)
 
 			logger, output := newTestLogger()
 
@@ -347,7 +347,7 @@ func TestEvaluateControl(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -357,12 +357,12 @@ func TestEvaluateControl(t *testing.T) {
 			ctx := context.Background()
 			ctx = log.ContextWithLogger(ctx, logger)
 
-			for _, name := range testCase.enableControls {
+			for _, name := range tc.enableControls {
 				err := controls.EnableControl(name)
 				require.NoError(t, err)
 			}
 
-			for _, control := range testCase.evaluateControls {
+			for _, control := range tc.evaluateControls {
 				err := controls.Find(control.name).Evaluate(ctx)
 				if control.expectedErr != nil {
 					require.EqualError(t, err, control.expectedErr.Error())
@@ -374,14 +374,14 @@ func TestEvaluateControl(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			if len(testCase.expectedWarns) == 0 {
+			if len(tc.expectedWarns) == 0 {
 				assert.Empty(t, output.String())
 
 				return
 			}
 
 			actualWarns := strings.Split(strings.TrimSpace(output.String()), "\n")
-			assert.ElementsMatch(t, actualWarns, testCase.expectedWarns)
+			assert.ElementsMatch(t, actualWarns, tc.expectedWarns)
 		})
 	}
 }

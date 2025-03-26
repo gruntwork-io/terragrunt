@@ -147,7 +147,7 @@ func TestCommandRun(t *testing.T) {
 		},
 	}
 
-	for i, testCaseFn := range testCaseFuncs {
+	for i, tcFn := range testCaseFuncs {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -171,16 +171,16 @@ func TestCommandRun(t *testing.T) {
 				return nil
 			}
 
-			testCase := testCaseFn(action, skip)
+			tc := tcFn(action, skip)
 
 			app := &cli.App{App: &urfaveCli.App{Writer: io.Discard}}
-			ctx := cli.NewAppContext(context.Background(), app, testCase.args)
+			ctx := cli.NewAppContext(context.Background(), app, tc.args)
 
-			err := testCase.command.Run(ctx, testCase.args)
-			if testCase.expectedErr != nil {
-				require.EqualError(t, err, testCase.expectedErr.Error(), testCase)
+			err := tc.command.Run(ctx, tc.args)
+			if tc.expectedErr != nil {
+				require.EqualError(t, err, tc.expectedErr.Error(), tc)
 			} else {
-				require.NoError(t, err, testCase)
+				require.NoError(t, err, tc)
 			}
 
 		})
@@ -211,12 +211,12 @@ func TestCommandHasName(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.command.HasName(testCase.hasName)
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := tc.command.HasName(tc.hasName)
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }
@@ -238,12 +238,12 @@ func TestCommandNames(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.command.Names()
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := tc.command.Names()
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }
@@ -268,12 +268,12 @@ func TestCommandSubcommand(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.command.Subcommand(testCase.searchCmdName)
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := tc.command.Subcommand(tc.searchCmdName)
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }
@@ -295,12 +295,12 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.command.VisibleSubcommands()
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := tc.command.VisibleSubcommands()
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }

@@ -63,16 +63,14 @@ func TestFrontmatter(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			doc := module.NewDoc(testCase.content, "")
+			doc := module.NewDoc(tc.content, "")
 
-			assert.Equal(t, testCase.expectedName, doc.Title(), "Frontmatter Name")
-			assert.Equal(t, testCase.expectedDesc, doc.Description(0), "Frontmatter Description")
+			assert.Equal(t, tc.expectedName, doc.Title(), "Frontmatter Name")
+			assert.Equal(t, tc.expectedDesc, doc.Description(0), "Frontmatter Description")
 		})
 	}
 
@@ -218,16 +216,14 @@ func TestElement(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			doc := module.NewDoc(testCase.content, testCase.fileExt)
+			doc := module.NewDoc(tc.content, tc.fileExt)
 
-			assert.Equal(t, testCase.expectedTitle, doc.Title(), "Title")
-			assert.Equal(t, testCase.expectedDescription, doc.Description(testCase.maxDescriptionLength), "Description")
+			assert.Equal(t, tc.expectedTitle, doc.Title(), "Title")
+			assert.Equal(t, tc.expectedDescription, doc.Description(tc.maxDescriptionLength), "Description")
 		})
 	}
 

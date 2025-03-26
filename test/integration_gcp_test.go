@@ -71,8 +71,8 @@ func TestGcpBootstrapBackend(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf(testCase.name), func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
 			t.Parallel()
 
 			helpers.CleanupTerraformFolder(t, testFixtureBootstrapGCSBackend)
@@ -89,9 +89,9 @@ func TestGcpBootstrapBackend(t *testing.T) {
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 			copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+testCase.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath)
 
-			testCase.checkExpectedResultFn(t, err, gcsBucketName)
+			tc.checkExpectedResultFn(t, err, gcsBucketName)
 		})
 	}
 }

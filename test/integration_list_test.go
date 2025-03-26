@@ -44,21 +44,21 @@ unit  b-unit
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testCase.workingDir)
+			helpers.CleanupTerraformFolder(t, tc.workingDir)
 
 			args := []string{"terragrunt", "--no-color", "--experiment", "cli-redesign"}
-			args = append(args, testCase.args...)
-			args = append(args, "--working-dir", testCase.workingDir)
+			args = append(args, tc.args...)
+			args = append(args, "--working-dir", tc.workingDir)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, strings.Join(args, " "))
 
 			require.NoError(t, err)
 			require.Empty(t, stderr)
-			assert.Equal(t, testCase.expectedOutput, stdout)
+			assert.Equal(t, tc.expectedOutput, stdout)
 		})
 	}
 }
@@ -106,21 +106,21 @@ unit  units/live/prod/vpc
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testCase.workingDir)
+			helpers.CleanupTerraformFolder(t, tc.workingDir)
 
 			args := []string{"terragrunt", "--no-color", "--experiment", "cli-redesign"}
-			args = append(args, testCase.args...)
-			args = append(args, "--working-dir", testCase.workingDir)
+			args = append(args, tc.args...)
+			args = append(args, "--working-dir", tc.workingDir)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, strings.Join(args, " "))
 			require.NoError(t, err)
 			require.Empty(t, stderr)
 
-			assert.Equal(t, testCase.expected, stdout)
+			assert.Equal(t, tc.expected, stdout)
 		})
 	}
 }

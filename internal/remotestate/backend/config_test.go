@@ -89,12 +89,12 @@ func TestConfig_IsEqual(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.cfg.IsEqual(testCase.existingBackend, "", log.Default())
-			assert.Equal(t, testCase.expected, actual, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.expected, actual, testCase.existingBackend, testCase.cfg)
+			actual := tc.cfg.IsEqual(tc.existingBackend, "", log.Default())
+			assert.Equal(t, tc.expected, actual, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", tc.expected, actual, tc.existingBackend, tc.cfg)
 		})
 	}
 }

@@ -43,7 +43,7 @@ func TestFindBasicJSON(t *testing.T) {
 func TestFindHidden(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		name     string
 		expected string
 		hidden   bool
@@ -59,15 +59,15 @@ func TestFindHidden(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindHidden)
 
 			cmd := "terragrunt find --experiment cli-redesign --no-color --working-dir " + testFixtureFindHidden
 
-			if tt.hidden {
+			if tc.hidden {
 				cmd += " --hidden"
 			}
 
@@ -75,7 +75,7 @@ func TestFindHidden(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
-			assert.Equal(t, tt.expected, stdout)
+			assert.Equal(t, tc.expected, stdout)
 		})
 	}
 }
@@ -83,7 +83,7 @@ func TestFindHidden(t *testing.T) {
 func TestFindDAG(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		name     string
 		sort     string
 		expected string
@@ -92,15 +92,15 @@ func TestFindDAG(t *testing.T) {
 		{name: "dag", sort: "dag", expected: "b-dependency\na-dependent\n"},
 	}
 
-	for _, tt := range tc {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
 
 			cmd := "terragrunt find --experiment cli-redesign --no-color --working-dir " + testFixtureFindDAG
 
-			if tt.sort == "dag" {
+			if tc.sort == "dag" {
 				cmd += " --dag"
 			}
 
@@ -108,7 +108,7 @@ func TestFindDAG(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
-			assert.Equal(t, tt.expected, stdout)
+			assert.Equal(t, tc.expected, stdout)
 		})
 	}
 }

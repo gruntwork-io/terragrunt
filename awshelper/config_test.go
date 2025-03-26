@@ -85,10 +85,10 @@ func TestAwsNegativePublicAccessResponse(t *testing.T) {
 			},
 		},
 	}
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			response, err := awshelper.ValidatePublicAccessBlock(testCase.response)
+			response, err := awshelper.ValidatePublicAccessBlock(tc.response)
 			require.NoError(t, err)
 			assert.False(t, response)
 		})

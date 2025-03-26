@@ -166,15 +166,14 @@ func TestAutoRetryConfigurableRetries(t *testing.T) {
 func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		fixture      string
 		errorMessage string
 	}{
 		{testFixtureAutoRetryConfigurableRetriesError1, "cannot have less than 1 max retry"},
 		{testFixtureAutoRetryConfigurableRetriesError2, "cannot sleep for less than 0 seconds"},
 	}
-	for _, tc := range tc {
-		tc := tc
+	for _, tc := range testCases {
 		t.Run(tc.fixture, func(t *testing.T) {
 			t.Parallel()
 

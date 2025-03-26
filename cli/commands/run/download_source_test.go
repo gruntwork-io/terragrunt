@@ -348,10 +348,10 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	// The test cases are run sequentially because they depend on each other.
 	//
 	//nolint:paralleltest
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			copyFolder(t, testCase.sourceURL, downloadDir)
-			assert.Condition(t, testCase.comp)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			copyFolder(t, tc.sourceURL, downloadDir)
+			assert.Condition(t, tc.comp)
 		})
 	}
 }

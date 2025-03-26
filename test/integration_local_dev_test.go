@@ -56,15 +56,13 @@ func TestTerragruntSourceMap(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		// capture range variable to avoid it changing across for loop runs during goroutine transitions.
-		testCase := testCase
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			tgPath := filepath.Join(rootPath, testCase.name)
+			tgPath := filepath.Join(rootPath, tc.name)
 
 			action := "apply"
-			if testCase.applyAll {
+			if tc.applyAll {
 				action = "run-all apply"
 			}
 
