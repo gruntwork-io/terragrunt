@@ -828,7 +828,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return config, err
 	}
 
 	return config, nil
@@ -876,6 +876,8 @@ func ParseConfigString(ctx *ParsingContext, configPath string, configString stri
 //  5. Merge the included config with the parsed config. Note that all the config data is mergeable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
 func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+	errs := &errors.MultiError{}
+
 	if detectInputsCtyUsage(file) {
 		allControls := ctx.TerragruntOptions.StrictControls
 
@@ -895,7 +897,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
 	// https://github.com/gruntwork-io/terragrunt/issues/667
 	if err := setIAMRole(ctx, file, includeFromChild); err != nil {
-		return nil, err
+		errs = errs.Append(err)
 	}
 
 	// read unit files and add to context
@@ -938,7 +940,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	// is appropriate
 	terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx, file, evalContext)
 	if err != nil {
-		return nil, err
+		errs = errs.Append(err)
 	}
 
 	if terragruntConfigFile == nil {
@@ -966,10 +968,10 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		mergedConfig.Locals = config.Locals
 		mergedConfig.Exclude = config.Exclude
 
-		return mergedConfig, nil
+		return mergedConfig, errs.ErrorOrNil()
 	}
 
-	return config, nil
+	return config, errs.ErrorOrNil()
 }
 
 // detectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.
@@ -1051,7 +1053,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
 		if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
-			return nil, err
+			return &terragruntConfig, err
 		}
 
 		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
