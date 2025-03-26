@@ -38,7 +38,7 @@ func TestGetTerraformHeader(t *testing.T) {
 func TestGetDownloadURLFromHeader(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		name           string
 		moduleURL      url.URL
 		terraformGet   string
@@ -91,15 +91,13 @@ func TestGetDownloadURLFromHeader(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			downloadURL, err := tf.GetDownloadURLFromHeader(tt.moduleURL, tt.terraformGet)
+			downloadURL, err := tf.GetDownloadURLFromHeader(tc.moduleURL, tc.terraformGet)
 			require.NoError(t, err)
-			assert.Equal(t, tt.expectedResult, downloadURL)
+			assert.Equal(t, tc.expectedResult, downloadURL)
 		})
 	}
 }

@@ -134,9 +134,7 @@ provider "registry.terraform.io/hashicorp/template" {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -144,22 +142,22 @@ provider "registry.terraform.io/hashicorp/template" {
 			require.NoError(t, err)
 			lockfilePath := filepath.Join(workingDir, ".terraform.lock.hcl")
 
-			if testCase.initialLockfile != "" {
+			if tc.initialLockfile != "" {
 				file, err := os.Create(lockfilePath)
 				require.NoError(t, err)
-				_, err = file.WriteString(testCase.initialLockfile)
+				_, err = file.WriteString(tc.initialLockfile)
 				require.NoError(t, err)
 				err = file.Close()
 				require.NoError(t, err)
 			}
 
-			err = UpdateLockfile(context.Background(), workingDir, testCase.providers)
+			err = UpdateLockfile(context.Background(), workingDir, tc.providers)
 			require.NoError(t, err)
 
 			actualLockfile, err := os.ReadFile(lockfilePath)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedLockfile, string(actualLockfile))
+			assert.Equal(t, tc.expectedLockfile, string(actualLockfile))
 		})
 	}
 }

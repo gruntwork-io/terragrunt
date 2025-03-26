@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
@@ -109,8 +111,8 @@ type TerragruntDependency struct {
 
 // terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config
 type terragruntRemoteState struct {
-	RemoteState *remoteStateConfigFile `hcl:"remote_state,block"`
-	Remain      hcl.Body               `hcl:",remain"`
+	RemoteState *remotestate.ConfigFile `hcl:"remote_state,block"`
+	Remain      hcl.Body                `hcl:",remain"`
 }
 
 // terragruntInputs is a struct that can be used to only decode the inputs block.
@@ -531,7 +533,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 
 			if decoded.Inputs != nil {
-				inputs, err := ParseCtyValueToMap(*decoded.Inputs)
+				inputs, err := ctyhelper.ParseCtyValueToMap(*decoded.Inputs)
 				if err != nil {
 					return nil, err
 				}
@@ -568,12 +570,12 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 
 			if decoded.RemoteState != nil {
-				remoteState, err := decoded.RemoteState.toConfig()
+				config, err := decoded.RemoteState.Config()
 				if err != nil {
 					return nil, err
 				}
 
-				output.RemoteState = remoteState
+				output.RemoteState = remotestate.New(config)
 			}
 		case FeatureFlagsBlock:
 			decoded := terragruntFeatureFlags{}

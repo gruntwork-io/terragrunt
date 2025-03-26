@@ -100,9 +100,8 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 			name: "multiple-with-dependency",
 		},
 	}
-	for _, testCase := range testCases {
-		testCase := testCase
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			fixtureSourceMapPath := "fixtures/source-map"
 			helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
 			targetPath := "C:\\test\\infrastructure-modules/"
@@ -119,7 +118,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 					",",
 				),
 			)
-			tgPath := filepath.Join(rootPath, testCase.name)
+			tgPath := filepath.Join(rootPath, tc.name)
 			tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
 			helpers.RunTerragrunt(t, tgArgs)
 		})

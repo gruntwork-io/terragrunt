@@ -41,13 +41,11 @@ func TestSplitSourceUrl(t *testing.T) {
 		{"separate-ref-with-slash", "ssh://git@github.com/foo/modules.git//foo?ref=feature/modules", "ssh://git@github.com/foo/modules.git?ref=feature/modules", "foo"},
 	}
 
-	for _, testCase := range testCases {
-		// Save a local copy in scope so all the tests don't run the final item in the loop
-		testCase := testCase
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			sourceURL, err := url.Parse(testCase.sourceURL)
+			sourceURL, err := url.Parse(tc.sourceURL)
 			require.NoError(t, err)
 
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("testing")
@@ -56,8 +54,8 @@ func TestSplitSourceUrl(t *testing.T) {
 			actualRootRepo, actualModulePath, err := tf.SplitSourceURL(sourceURL, terragruntOptions.Logger)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedSo, actualRootRepo.String())
-			assert.Equal(t, testCase.expectedModulePath, actualModulePath)
+			assert.Equal(t, tc.expectedSo, actualRootRepo.String())
+			assert.Equal(t, tc.expectedModulePath, actualModulePath)
 		})
 	}
 }
@@ -83,15 +81,13 @@ func TestToSourceUrl(t *testing.T) {
 		{"https://repository.rnd.net/artifactory/generic-production-iac/tf-auto-azr-iam.2.6.0.zip", "https://repository.rnd.net/artifactory/generic-production-iac/tf-auto-azr-iam.2.6.0.zip"},
 	}
 
-	for i, testCase := range testCases {
-		// Save a local copy in scope so all the tests don't run the final item in the loop
-		testCase := testCase
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actualSourceURL, err := tf.ToSourceURL(testCase.sourceURL, os.TempDir())
+			actualSourceURL, err := tf.ToSourceURL(tc.sourceURL, os.TempDir())
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedSourceURL, actualSourceURL.String())
+			assert.Equal(t, tc.expectedSourceURL, actualSourceURL.String())
 		})
 	}
 }

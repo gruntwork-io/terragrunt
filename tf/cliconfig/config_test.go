@@ -87,27 +87,25 @@ disable_checkpoint_signature = false
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			tempDir := t.TempDir()
 			configFile := filepath.Join(tempDir, ".terraformrc")
 
-			for _, host := range testCase.hosts {
-				testCase.config.AddHost(host.Name, host.Services)
+			for _, host := range tc.hosts {
+				tc.config.AddHost(host.Name, host.Services)
 			}
-			testCase.config.AddProviderInstallationMethods(testCase.providerInstallationMethods...)
+			tc.config.AddProviderInstallationMethods(tc.providerInstallationMethods...)
 
-			err := testCase.config.Save(configFile)
+			err := tc.config.Save(configFile)
 			require.NoError(t, err)
 
 			hclBytes, err := os.ReadFile(configFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedHCL, string(hclBytes))
+			assert.Equal(t, tc.expectedHCL, string(hclBytes))
 		})
 	}
 }
