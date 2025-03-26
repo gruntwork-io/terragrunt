@@ -297,7 +297,7 @@ func TestExcludeDirs(t *testing.T) {
 		modulePaths[moduleName] = util.JoinPath(testFixtureLocalWithExcludeDir, moduleName)
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		applyAllStdout := bytes.Buffer{}
 		applyAllStderr := bytes.Buffer{}
 
@@ -308,7 +308,7 @@ func TestExcludeDirs(t *testing.T) {
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s %s", testCase.workingDir, testCase.excludeArgs), &applyAllStdout, &applyAllStderr)
+		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s %s", tc.workingDir, tc.excludeArgs), &applyAllStdout, &applyAllStderr)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
@@ -328,7 +328,7 @@ func TestExcludeDirs(t *testing.T) {
 
 			require.NoError(t, err)
 			output := showStdout.String()
-			for _, excludedModuleOutput := range testCase.excludedModuleOutputs {
+			for _, excludedModuleOutput := range tc.excludedModuleOutputs {
 				assert.NotContains(t, output, excludedModuleOutput)
 			}
 
@@ -364,7 +364,7 @@ func TestIncludeDirs(t *testing.T) {
 		modulePaths[moduleName] = util.JoinPath(testFixtureLocalWithIncludeDir, moduleName)
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		applyAllStdout := bytes.Buffer{}
 		applyAllStderr := bytes.Buffer{}
 
@@ -375,7 +375,7 @@ func TestIncludeDirs(t *testing.T) {
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive  --terragrunt-log-level trace --terragrunt-working-dir %s %s", testCase.workingDir, testCase.includeArgs), &applyAllStdout, &applyAllStderr)
+		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive  --terragrunt-log-level trace --terragrunt-working-dir %s %s", tc.workingDir, tc.includeArgs), &applyAllStdout, &applyAllStderr)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
@@ -395,7 +395,7 @@ func TestIncludeDirs(t *testing.T) {
 
 			require.NoError(t, err)
 			output := showStdout.String()
-			for _, includedModuleOutput := range testCase.includedModuleOutputs {
+			for _, includedModuleOutput := range tc.includedModuleOutputs {
 				assert.NotContains(t, output, includedModuleOutput)
 			}
 

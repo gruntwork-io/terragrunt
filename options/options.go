@@ -282,6 +282,8 @@ type TerragruntOptions struct {
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
 	Graph bool
+	// BackendBootstrap automatically bootstraps backend infrastructure before attempting to use it.
+	BackendBootstrap bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests

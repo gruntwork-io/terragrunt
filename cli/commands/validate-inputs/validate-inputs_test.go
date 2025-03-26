@@ -50,20 +50,16 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		// Capture range variable so that it is brought into the scope within the for loop, so that it is stable even
-		// when subtests are run in parallel.
-		testCase := testCase
-
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			vars, varFiles, err := validateinputs.GetVarFlagsFromArgList(testCase.args)
+			vars, varFiles, err := validateinputs.GetVarFlagsFromArgList(tc.args)
 			require.NoError(t, err)
 			sort.Strings(vars)
 			sort.Strings(varFiles)
-			assert.Equal(t, testCase.expectedVars, vars)
-			assert.Equal(t, testCase.expectedVarFiles, varFiles)
+			assert.Equal(t, tc.expectedVars, vars)
+			assert.Equal(t, tc.expectedVarFiles, varFiles)
 		})
 	}
 

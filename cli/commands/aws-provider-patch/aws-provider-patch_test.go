@@ -313,22 +313,19 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		{testName: "one provider with nested blocks, with region and role_arn override, plus non-matching overrides", originalTerraformCode: terraformCodeExampleAwsOneProviderNestedBlocks, attributesToOverride: map[string]string{"region": `"eu-west-1"`, "assume_role.role_arn": `"nested-override"`, "should-be": `"ignored"`, "assume_role.should-be": `"ignored"`}, expectedCodeWasUpdated: true, expectedTerraformCode: []string{terraformCodeExampleAwsOneProviderNestedBlocksRegionRoleArnExpected}},
 	}
 
-	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
-		t.Run(testCase.testName, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
 			t.Parallel()
-			actualTerraformCode, actualCodeWasUpdated, err := awsproviderpatch.PatchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
+			actualTerraformCode, actualCodeWasUpdated, err := awsproviderpatch.PatchAwsProviderInTerraformCode(tc.originalTerraformCode, "test.tf", tc.attributesToOverride)
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedCodeWasUpdated, actualCodeWasUpdated)
+			assert.Equal(t, tc.expectedCodeWasUpdated, actualCodeWasUpdated)
 
 			// We check an array  of possible expected code here due to possible ordering differences. That is, the
 			// attributes within a provider block are stored in a map, and iteration order on maps is randomized, so
 			// sometimes the provider block might come back with region first, followed by version, but other times,
 			// the order is reversed. For those cases, we pass in multiple possible expected results and check that
 			// one of them matches.
-			assert.Contains(t, testCase.expectedTerraformCode, actualTerraformCode)
+			assert.Contains(t, tc.expectedTerraformCode, actualTerraformCode)
 		})
 	}
 }
