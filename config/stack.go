@@ -89,9 +89,7 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 			}
 		}
 
-		wpError := wp.Wait()
-		opts.Logger.Warnf("wpError %v", wpError)
-		if wpError != nil {
+		if wpError := wp.Wait(); wpError != nil {
 			return wpError
 		}
 
@@ -337,13 +335,10 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		}
 
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
-			opts.Logger.Warnf("%v opts.NoStackValidate %v", cmp.name, opts.NoStackValidate)
 			if opts.NoStackValidate {
 				// print warning if validation is skipped
 				opts.Logger.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			} else {
-				opts.Logger.Warnf("%v Throwing error opts.NoStackValidate %v", cmp.name, opts.NoStackValidate)
-
 				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			}
 		}
