@@ -126,11 +126,14 @@ func attemptEvaluateLocals(
 	newEvaluatedLocals = make(map[string]cty.Value, len(evaluatedLocals))
 	maps.Copy(newEvaluatedLocals, evaluatedLocals)
 
+	errs := &errors.MultiError{}
+
 	for _, attr := range attrs {
 		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {
 			evaluatedVal, err := attr.Value(evalCtx)
 			if err != nil {
-				return nil, newEvaluatedLocals, false, err
+				errs = errs.Append(err)
+				continue
 			}
 
 			newEvaluatedLocals[attr.Name] = evaluatedVal
@@ -149,7 +152,7 @@ func attemptEvaluateLocals(
 		strings.Join(newlyEvaluatedLocalNames, ", "),
 	)
 
-	return unevaluatedAttrs, newEvaluatedLocals, evaluated, nil
+	return unevaluatedAttrs, newEvaluatedLocals, evaluated, errs.ErrorOrNil()
 }
 
 // canEvaluateLocals determines if the local expression can be evaluated. An expression can be evaluated if one of the
