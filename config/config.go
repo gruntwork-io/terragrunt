@@ -1138,7 +1138,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
-			return nil, err
+			errs = errs.Append(err)
 		}
 
 		terragruntConfig.RemoteState = remoteState
