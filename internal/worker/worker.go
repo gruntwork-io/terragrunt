@@ -38,9 +38,9 @@ type Pool struct {
 	errorsSlice []error
 	wg          sync.WaitGroup
 	maxWorkers  int
-	mu          sync.Mutex
-	resultMu    sync.Mutex
-	allErrorsMu sync.Mutex
+	mu          sync.RWMutex
+	resultMu    sync.RWMutex
+	allErrorsMu sync.RWMutex
 	isStopping  atomic.Bool
 	isRunning   bool
 }
@@ -131,9 +131,9 @@ func (wp *Pool) appendError(err error) {
 
 // Submit adds a new task and starts a goroutine to execute it when a worker is available
 func (wp *Pool) Submit(task Task) {
-	wp.mu.Lock()
+	wp.mu.RLock()
 	notRunning := !wp.isRunning
-	wp.mu.Unlock()
+	wp.mu.RUnlock()
 
 	if notRunning {
 		wp.Start()
@@ -177,9 +177,9 @@ func (wp *Pool) Wait() error {
 	wp.wg.Wait()
 
 	// Get all collected errors
-	wp.allErrorsMu.Lock()
+	wp.allErrorsMu.RLock()
 	result := wp.allErrors.ErrorOrNil()
-	wp.allErrorsMu.Unlock()
+	wp.allErrorsMu.RUnlock()
 
 	return result
 }
@@ -212,4 +212,16 @@ func (wp *Pool) GracefulStop() error {
 	wp.Stop()
 
 	return err
+}
+
+// IsRunning returns whether the pool is currently running
+func (wp *Pool) IsRunning() bool {
+	wp.mu.RLock()
+	defer wp.mu.RUnlock()
+	return wp.isRunning
+}
+
+// IsStopping returns whether the pool is in the process of stopping
+func (wp *Pool) IsStopping() bool {
+	return wp.isStopping.Load()
 }
