@@ -708,6 +708,16 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 
 	ctx = ctx.WithTerragruntOptions(opts)
 
+	// decode file as stack file
+	if strings.HasSuffix(targetConfig, DefaultStackFile) {
+		return stackConfigAsCty(ctx, targetConfig)
+	}
+
+	// decode values file
+	if strings.HasSuffix(targetConfig, valuesFile) {
+		return stackValuesAsCty(ctx, targetConfig)
+	}
+
 	config, err := ParseConfigFile(ctx, targetConfig, nil)
 	if err != nil {
 		return cty.NilVal, err
