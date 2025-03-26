@@ -13,8 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
-
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
@@ -22,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -36,7 +35,6 @@ type Stack struct {
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
-	outputMu              sync.Mutex
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -616,6 +614,56 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		})
 	}
 
+	// Parse the terragrunt.values.hcl if it exists
+	valuesPath := filepath.Join(filepath.Dir(terragruntConfigPath), "terragrunt.values.hcl")
+	if util.FileExists(valuesPath) {
+		valuesConfig, err := config.PartialParseConfigFile(
+			parseCtx,
+			valuesPath,
+			includeConfig,
+		)
+		if err != nil {
+			return nil, errors.New(ProcessingModuleError{
+				UnderlyingError:       err,
+				HowThisModuleWasFound: howThisModuleWasFound,
+				ModulePath:            valuesPath,
+			})
+		}
+
+		// Merge dependencies from both configs, deduplicating them
+		if valuesConfig.Dependencies != nil {
+			if terragruntConfig.Dependencies == nil {
+				terragruntConfig.Dependencies = valuesConfig.Dependencies
+			} else {
+				// Deduplicate paths
+				pathMap := make(map[string]bool)
+				for _, path := range terragruntConfig.Dependencies.Paths {
+					pathMap[path] = true
+				}
+				for _, path := range valuesConfig.Dependencies.Paths {
+					if !pathMap[path] {
+						terragruntConfig.Dependencies.Paths = append(terragruntConfig.Dependencies.Paths, path)
+					}
+				}
+			}
+		}
+
+		// Merge dependency blocks, deduplicating by config_path
+		if len(valuesConfig.TerragruntDependencies) > 0 {
+			configPathMap := make(map[string]bool)
+			for _, dep := range terragruntConfig.TerragruntDependencies {
+				if dep.ConfigPath.Type() == cty.String {
+					configPathMap[dep.ConfigPath.AsString()] = true
+				}
+			}
+			for _, dep := range valuesConfig.TerragruntDependencies {
+				if dep.ConfigPath.Type() == cty.String && !configPathMap[dep.ConfigPath.AsString()] {
+					terragruntConfig.TerragruntDependencies = append(terragruntConfig.TerragruntDependencies, dep)
+				}
+			}
+		}
+	}
+
 	// Hack to persist readFiles. Need to discuss with team to see if there is a better way to handle this.
 	stack.terragruntOptions.CloneReadFiles(opts.ReadFiles)
 
@@ -654,7 +702,28 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, nil
 	}
 
-	return &TerraformModule{Stack: stack, Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	// Create the module with both regular and values dependencies
+	module := &TerraformModule{
+		Path:              modulePath,
+		Config:            *terragruntConfig,
+		TerragruntOptions: opts,
+		FlagExcluded:      false,
+	}
+
+	// Resolve dependencies from both configs
+	if len(terragruntConfig.TerragruntDependencies) > 0 {
+		deps, err := stack.resolveDependenciesForModule(ctx, module, modulesMap, true)
+		if err != nil {
+			return nil, err
+		}
+		// Convert the dependencies map to a slice
+		module.Dependencies = make(TerraformModules, 0, len(deps))
+		for _, dep := range deps {
+			module.Dependencies = append(module.Dependencies, dep)
+		}
+	}
+
+	return module, nil
 }
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.

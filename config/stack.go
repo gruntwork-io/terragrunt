@@ -42,11 +42,12 @@ type StackConfigFile struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
-	Name      string            `hcl:",label"`
-	Source    string            `hcl:"source,attr"`
-	Path      string            `hcl:"path,attr"`
-	Values    *cty.Value        `hcl:"values,attr"`
-	RawValues map[string]string // Store raw expressions for values
+	Name        string            `hcl:",label"`
+	Source      string            `hcl:"source,attr"`
+	Path        string            `hcl:"path,attr"`
+	Values      *cty.Value        `hcl:"values,attr"`
+	MockOutputs *cty.Value        `hcl:"mock_outputs,attr"`
+	RawValues   map[string]string // Store raw expressions for values
 }
 
 // Stack represents the stack block in the configuration.
@@ -433,11 +434,12 @@ func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory 
 			return nil, errors.New(err)
 		}
 
-		var configPathAttr *hclparse.Attribute
+		var configPathAttr, mockOutputsAttr *hclparse.Attribute
 		for _, attr := range attrs {
 			if attr.Name == "config_path" {
 				configPathAttr = attr
-				break
+			} else if attr.Name == "mock_outputs" {
+				mockOutputsAttr = attr
 			}
 		}
 
@@ -457,7 +459,34 @@ func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory 
 		configPath := configPathVal.AsString()
 		fullConfigPath := filepath.Join(directory, configPath, DefaultTerragruntConfigPath)
 
-		// Get outputs from the dependency using the parser context
+		// Check if we have mock_outputs first
+		if mockOutputsAttr != nil {
+			evalCtx, err := createTerragruntEvalContext(parser, file.ConfigPath)
+			if err != nil {
+				return nil, errors.Errorf("failed to create evaluation context for mock_outputs: %w", err)
+			}
+
+			mockOutputsVal, err := mockOutputsAttr.Value(evalCtx)
+			if err != nil {
+				return nil, errors.Errorf("failed to evaluate mock_outputs for dependency %s: %w", depName, err)
+			}
+
+			if !mockOutputsVal.Type().IsObjectType() {
+				return nil, errors.Errorf("mock_outputs for dependency %s must be an object", depName)
+			}
+
+			outputMap := make(map[string]cty.Value)
+			for key, value := range mockOutputsVal.AsValueMap() {
+				outputMap[key] = value
+			}
+
+			dependencies[depName] = cty.ObjectVal(map[string]cty.Value{
+				"outputs": cty.ObjectVal(outputMap),
+			})
+			continue
+		}
+
+		// If no mock_outputs, try to get real outputs
 		jsonBytes, err := getOutputJSONWithCaching(parser, fullConfigPath)
 		if err != nil {
 			return nil, errors.Errorf("failed to get outputs from dependency %s: %w", depName, err)
@@ -743,6 +772,14 @@ func writeValues(opts *options.TerragruntOptions, name string, values *cty.Value
 		depBlock := body.AppendNewBlock("dependency", []string{depName})
 		depBody := depBlock.Body()
 		depBody.SetAttributeValue("config_path", cty.StringVal(configPath))
+
+		// Add mock_outputs if available in the unit
+		for _, unit := range units {
+			if unit.Name == depName && unit.MockOutputs != nil {
+				depBody.SetAttributeValue("mock_outputs", *unit.MockOutputs)
+				opts.Logger.Debugf("Added mock_outputs for dependency %s", depName)
+			}
+		}
 		opts.Logger.Debugf("Added dependency block for unit %s with path %s", depName, configPath)
 	}
 

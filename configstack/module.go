@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -38,6 +39,7 @@ type TerraformModule struct {
 	TerragruntOptions    *options.TerragruntOptions
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
+	outputMu             sync.Mutex
 }
 
 // String renders this module as a human-readable string
