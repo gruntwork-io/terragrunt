@@ -64,22 +64,19 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
-		t.Run(testCase.description, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
-			opts.Env = testCase.envVarsInOpts
+			opts.Env = tc.envVarsInOpts
 
-			cfg := &config.TerragruntConfig{Inputs: testCase.inputsInConfig}
+			cfg := &config.TerragruntConfig{Inputs: tc.inputsInConfig}
 
 			require.NoError(t, run.SetTerragruntInputsAsEnvVars(opts, cfg))
 
-			assert.Equal(t, testCase.expected, opts.Env)
+			assert.Equal(t, tc.expected, opts.Env)
 		})
 	}
 }
@@ -133,26 +130,23 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
+	for _, tc := range testCases {
 		testFunc := func(t *testing.T) {
 			t.Helper()
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
-			opts.WorkingDir = testCase.workingDir
+			opts.WorkingDir = tc.workingDir
 			err = run.CheckFolderContainsTerraformCode(opts)
-			if (err != nil) && testCase.valid {
+			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
 			}
 
-			if (err == nil) && !testCase.valid {
+			if (err == nil) && !tc.valid {
 				t.Error("invalid terraform did not return error")
 			}
 		}
-		t.Run(testCase.description, func(t *testing.T) {
+		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
 			testFunc(t)
@@ -324,17 +318,14 @@ func TestToTerraformEnvVars(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
-		t.Run(testCase.description, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 			opts, err := options.NewTerragruntOptionsForTest("")
 			require.NoError(t, err)
-			actual, err := run.ToTerraformEnvVars(opts, testCase.vars)
+			actual, err := run.ToTerraformEnvVars(opts, tc.vars)
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expected, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -444,14 +435,14 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			[]string{},
 		},
 	}
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		config := config.TerragruntConfig{
-			Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{testCase.extraArgs}},
+			Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{tc.extraArgs}},
 		}
 
-		out := run.FilterTerraformExtraArgs(testCase.options, &config)
+		out := run.FilterTerraformExtraArgs(tc.options, &config)
 
-		assert.Equal(t, testCase.expectedArgs, out)
+		assert.Equal(t, tc.expectedArgs, out)
 	}
 
 }

@@ -14,7 +14,8 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/remote"
+	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,108 @@ const (
 	testFixtureGcsNoBucket          = "fixtures/gcs-no-bucket/"
 	testFixtureGcsNoPrefix          = "fixtures/gcs-no-prefix/"
 	testFixtureGcsParallelStateInit = "fixtures/gcs-parallel-state-init"
+	testFixtureBootstrapGCSBackend  = "fixtures/bootstrap-gcs-backend"
 )
+
+func TestGcpBootstrapBackend(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                  string
+		args                  string
+		checkExpectedResultFn func(t *testing.T, err error, gcsBucketNameName string)
+	}{
+		{
+			"no bootstrap gcs backend without flag",
+			"run apply",
+			func(t *testing.T, err error, gcsBucketNameName string) {
+				require.Error(t, err)
+
+				assert.Contains(t, err.Error(), "bucket doesn't exist")
+			},
+		},
+		{
+			"bootstrap gcs backend with flag",
+			"run apply --backend-bootstrap",
+			func(t *testing.T, err error, gcsBucketName string) {
+				require.NoError(t, err)
+				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+			},
+		},
+		{
+			"bootstrap gcs backend by backend command",
+			"backend bootstrap",
+			func(t *testing.T, err error, gcsBucketName string) {
+				require.NoError(t, err)
+
+				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureBootstrapGCSBackend)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBootstrapGCSBackend)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureBootstrapGCSBackend)
+
+			gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+			defer func() {
+				deleteGCSBucket(t, gcsBucketName)
+			}()
+
+			project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+			copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath)
+
+			tc.checkExpectedResultFn(t, err, gcsBucketName)
+		})
+	}
+}
+
+func TestGcpDeleteBackend(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureBootstrapGCSBackend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBootstrapGCSBackend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureBootstrapGCSBackend)
+
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	defer func() {
+		deleteGCSBucket(t, gcsBucketName)
+	}()
+
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	remoteStateObjectNames := []string{
+		"unit1/tofu.tfstate/default.tfstate",
+		"unit1/tofu.tfstate/default.tflock",
+		"unit2/tofu.tfstate/default.tfstate",
+		"unit2/tofu.tfstate/default.tflock",
+	}
+
+	for _, objectName := range remoteStateObjectNames {
+		assert.True(t, doesGCSBucketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must exist", objectName)
+	}
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend delete --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	for _, objectName := range remoteStateObjectNames {
+		assert.False(t, doesGCSBucketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must not exist", objectName)
+	}
+}
 
 func TestGcpWorksWithBackend(t *testing.T) {
 	t.Parallel()
@@ -164,17 +266,19 @@ func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath stri
 func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketName string, expectedLabels map[string]string) {
 	t.Helper()
 
-	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
-
 	ctx := context.TODO()
 
-	gcsClient, err := remote.CreateGCSClient(ctx, remoteStateConfig)
+	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{
+		RemoteStateConfigGCS: gcsbackend.RemoteStateConfigGCS{
+			Bucket: bucketName,
+		},
+	}
+
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, log.Default())
 	require.NoError(t, err, "Error creating GCS client")
 
-	bucketHandle := gcsClient.Bucket(bucketName)
-
 	// verify the bucket exists
-	assert.True(t, remote.DoesGCSBucketExist(ctx, bucketHandle), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
+	assert.True(t, gcsClient.DoesGCSBucketExist(ctx, bucketName), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
 
 	// verify the bucket location
 	bucket := gcsClient.Bucket(bucketName)
@@ -184,8 +288,41 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
 
 	if expectedLabels != nil {
-		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
+		assertGCSLabels(t, expectedLabels, bucketName, gcsClient.Client)
 	}
+}
+
+func doesGCSBucketObjectExist(t *testing.T, bucketName, prefix string) bool {
+	t.Helper()
+
+	ctx := context.Background()
+
+	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{
+		RemoteStateConfigGCS: gcsbackend.RemoteStateConfigGCS{
+			Bucket: bucketName,
+		},
+	}
+
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, log.Default())
+	require.NoError(t, err, "Error creating GCS client")
+	defer gcsClient.Close()
+
+	bucket := gcsClient.Bucket(bucketName)
+
+	it := bucket.Objects(ctx, &storage.Query{
+		Prefix:   prefix,
+		Versions: true,
+	})
+
+	if _, err := it.Next(); err != nil {
+		if errors.Is(err, iterator.Done) {
+			return false
+		}
+
+		require.NoError(t, err)
+	}
+
+	return true
 }
 
 // gcsObjectAttrs returns the attributes of the specified object in the bucket
@@ -194,12 +331,14 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 
 	ctx := context.Background()
 
-	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
-
-	gcsClient, err := remote.CreateGCSClient(ctx, remoteStateConfig)
-	if err != nil {
-		t.Fatalf("Error creating GCS client: %v", err)
+	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{
+		RemoteStateConfigGCS: gcsbackend.RemoteStateConfigGCS{
+			Bucket: bucketName,
+		},
 	}
+
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, log.Default())
+	require.NoError(t, err, "Error creating GCS client")
 
 	bucket := gcsClient.Bucket(bucketName)
 
@@ -237,11 +376,10 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 
 	ctx := context.Background()
 
-	var gcsConfig remote.RemoteStateConfigGCS
-	gcsClient, err := remote.CreateGCSClient(ctx, gcsConfig)
-	if err != nil {
-		t.Fatalf("Error creating GCS client: %v", err)
-	}
+	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
+
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, log.Default())
+	require.NoError(t, err, "Error creating GCS client")
 
 	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
 
@@ -263,11 +401,10 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 
 	ctx := context.Background()
 
-	var gcsConfig remote.RemoteStateConfigGCS
-	gcsClient, err := remote.CreateGCSClient(ctx, gcsConfig)
-	if err != nil {
-		t.Fatalf("Error creating GCS client: %v", err)
-	}
+	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
+
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, log.Default())
+	require.NoError(t, err, "Error creating GCS client")
 
 	t.Logf("Deleting test GCS bucket %s", bucketName)
 
@@ -285,12 +422,14 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 		}
 
 		if err != nil {
-			t.Fatalf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
+			t.Logf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
+			return
 		}
 
 		// purge the object version
 		if err := bucket.Object(objectAttrs.Name).Generation(objectAttrs.Generation).Delete(ctx); err != nil {
-			t.Fatalf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
+			t.Logf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
+			return
 		}
 	}
 

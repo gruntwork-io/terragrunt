@@ -48,13 +48,11 @@ func TestSliceFlagStringApply(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			testSliceFlagApply(t, &testCase.flag, testCase.args, testCase.envs, testCase.expectedValue, testCase.expectedErr)
+			testSliceFlagApply(t, &tc.flag, tc.args, tc.envs, tc.expectedValue, tc.expectedErr)
 		})
 	}
 }
@@ -86,13 +84,11 @@ func TestSliceFlagIntApply(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			testSliceFlagApply(t, &testCase.flag, testCase.args, testCase.envs, testCase.expectedValue, testCase.expectedErr)
+			testSliceFlagApply(t, &tc.flag, tc.args, tc.envs, tc.expectedValue, tc.expectedErr)
 		})
 	}
 }
@@ -124,13 +120,11 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			testSliceFlagApply(t, &testCase.flag, testCase.args, testCase.envs, testCase.expectedValue, testCase.expectedErr)
+			testSliceFlagApply(t, &tc.flag, tc.args, tc.envs, tc.expectedValue, tc.expectedErr)
 		})
 	}
 }
