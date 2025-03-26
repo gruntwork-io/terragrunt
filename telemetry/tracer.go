@@ -69,7 +69,7 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 		// parse trace parent values
 		parts := strings.Split(opts.TraceParent, "-")
 		if len(parts) != traceParentParts {
-			return nil, fmt.Errorf("invalid TG_TELEMETRY_TRACEPARENT value %s", opts.TraceParent)
+			return nil, fmt.Errorf("invalid TRACEPARENT value %s", opts.TraceParent)
 		}
 
 		_, traceIDHex, spanIDHex, traceFlagsStr := parts[0], parts[1], parts[2], parts[3]

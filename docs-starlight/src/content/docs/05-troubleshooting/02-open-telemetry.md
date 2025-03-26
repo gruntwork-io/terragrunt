@@ -25,7 +25,7 @@ Tracing configuration:
   - `http` - to export traces to a custom HTTP endpoint using [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
 - `TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
 - `TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
-- `TG_TELEMETRY_TRACEPARENT` - if set, the value will be used as a parent trace context, format `TG_TELEMETRY_TRACEPARENT=00-<hex_trace_id>-<hex_span_id>-<trace_flags>`, example: `TG_TELEMETRY_TRACEPARENT=00-xxx-yyy-01`
+- `TRACEPARENT` - if set, the value will be used as a parent trace context, format `TRACEPARENT=00-<hex_trace_id>-<hex_span_id>-<trace_flags>`, example: `TRACEPARENT=00-xxx-yyy-01`
 
 Metrics configuration:
 

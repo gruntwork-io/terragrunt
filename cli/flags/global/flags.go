@@ -53,7 +53,7 @@ const (
 	TelemetryTraceExporterFlagName                  = "telemetry-trace-exporter"
 	TelemetryTraceExporterInsecureEndpointFlagName  = "telemetry-trace-exporter-insecure-endpoint"
 	TelemetryTraceExporterHTTPEndpointFlagName      = "telemetry-trace-exporter-http-endpoint"
-	TelemetryTraceparentFlagName                    = "telemetry-traceparent"
+	TraceparentFlagName                             = "traceparent"
 	TelemetryMetricExporterFlagName                 = "telemetry-metric-exporter"
 	TelemetryMetricExporterInsecureEndpointFlagName = "telemetry-metric-exporter-insecure-endpoint"
 
@@ -315,11 +315,9 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("telemerty-trace-exporter-http-endpoint"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
-			EnvVars:     tgPrefix.EnvVars(TelemetryTraceparentFlagName),
+			EnvVars:     flags.Prefix{}.EnvVars(TraceparentFlagName),
 			Destination: &opts.Telemetry.TraceParent,
-		},
-			flags.WithDeprecatedNames(flags.Prefix{}.FlagNames("traceparent"), terragruntPrefixControl)),
-
+		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			EnvVars:     tgPrefix.EnvVars(TelemetryMetricExporterFlagName),
 			Destination: &opts.Telemetry.MetricExporter,
