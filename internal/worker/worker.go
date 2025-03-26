@@ -1,22 +1,3 @@
-// Package worker provides a concurrent task execution system with a configurable number of workers.
-//
-// It allows for controlled parallel execution of tasks while managing resources efficiently through
-// a semaphore-based worker pool. Key features include:
-//
-// - Configurable maximum number of concurrent workers
-// - Non-blocking task submission
-// - Graceful shutdown capabilities
-// - Error collection and aggregation
-// - Thread-safe operations
-//
-// The WorkerPool struct manages a pool of workers that can execute tasks concurrently while
-// limiting the number of goroutines running simultaneously. This prevents resource exhaustion
-// while maximizing throughput.
-//
-// This implementation is particularly useful for scenarios where you need to process many
-// independent tasks with controlled parallelism, such as in infrastructure management tools,
-// batch processing systems, or any application requiring concurrent execution with resource
-// constraints.
 package worker
 
 import (
@@ -38,6 +19,7 @@ type WorkerPool struct {
 	wg          sync.WaitGroup
 	maxWorkers  int
 	mu          sync.Mutex
+	resultMu    sync.Mutex // Additional mutex for error collection
 	isStopping  atomic.Bool
 	isRunning   bool
 }
@@ -74,6 +56,9 @@ func (wp *WorkerPool) Start() {
 	wp.doneChan = make(chan struct{})
 	wp.semaphore = make(chan struct{}, wp.maxWorkers)
 
+	// Clear previous errors
+	wp.errorsSlice = make([]error, 0)
+
 	wp.mu.Unlock()
 
 	// Start the error collector
@@ -90,9 +75,9 @@ func (wp *WorkerPool) collectResults() {
 			}
 
 			if err != nil {
-				wp.mu.Lock()
+				wp.resultMu.Lock()
 				wp.errorsSlice = append(wp.errorsSlice, err)
-				wp.mu.Unlock()
+				wp.resultMu.Unlock()
 			}
 		case <-wp.doneChan:
 			return
@@ -102,8 +87,12 @@ func (wp *WorkerPool) collectResults() {
 
 // Submit adds a new task and starts a goroutine to execute it when a worker is available
 func (wp *WorkerPool) Submit(task Task) {
+	wp.mu.Lock()
 	if !wp.isRunning {
+		wp.mu.Unlock()
 		wp.Start()
+	} else {
+		wp.mu.Unlock()
 	}
 
 	// Don't submit new tasks if the pool is stopping
@@ -124,17 +113,34 @@ func (wp *WorkerPool) Submit(task Task) {
 
 		// Only send result if the pool is not stopping
 		if !wp.isStopping.Load() {
-			wp.resultChan <- err
+			select {
+			case <-wp.doneChan:
+				// Pool is stopping, track the error directly
+				if err != nil {
+					wp.resultMu.Lock()
+					wp.errorsSlice = append(wp.errorsSlice, err)
+					wp.resultMu.Unlock()
+				}
+			case wp.resultChan <- err:
+				// Successfully sent the error
+			}
+		} else if err != nil {
+			// Pool is stopping but we still want to track the error
+			wp.resultMu.Lock()
+			wp.errorsSlice = append(wp.errorsSlice, err)
+			wp.resultMu.Unlock()
 		}
 	}()
 }
 
 // Wait blocks until all tasks are completed
 func (wp *WorkerPool) Wait() error {
+	// Wait for all tasks to complete
 	wp.wg.Wait()
 
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
+	// Collect all errors
+	wp.resultMu.Lock()
+	defer wp.resultMu.Unlock()
 
 	errs := &errors.MultiError{}
 
