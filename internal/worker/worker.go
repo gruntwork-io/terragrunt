@@ -1,4 +1,23 @@
-package util
+// Package worker provides a concurrent task execution system with a configurable number of workers.
+//
+// It allows for controlled parallel execution of tasks while managing resources efficiently through
+// a semaphore-based worker pool. Key features include:
+//
+// - Configurable maximum number of concurrent workers
+// - Non-blocking task submission
+// - Graceful shutdown capabilities
+// - Error collection and aggregation
+// - Thread-safe operations
+//
+// The WorkerPool struct manages a pool of workers that can execute tasks concurrently while
+// limiting the number of goroutines running simultaneously. This prevents resource exhaustion
+// while maximizing throughput.
+//
+// This implementation is particularly useful for scenarios where you need to process many
+// independent tasks with controlled parallelism, such as in infrastructure management tools,
+// batch processing systems, or any application requiring concurrent execution with resource
+// constraints.
+package worker
 
 import (
 	"sync"

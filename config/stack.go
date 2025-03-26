@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/worker"
+
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/hashicorp/go-getter/v2"
 
@@ -60,7 +62,7 @@ type Stack struct {
 // GenerateStacks generates the stack files.
 func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
-	wp := util.NewWorkerPool(opts.Parallelism)
+	wp := worker.NewWorkerPool(opts.Parallelism)
 	// stop worker pool on exit
 	defer wp.Stop()
 	// initial files setting as stack file
@@ -87,8 +89,10 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 			}
 		}
 
-		if err := wp.Wait(); err != nil {
-			return err
+		wpError := wp.Wait()
+		opts.Logger.Warnf("wpError %v", wpError)
+		if wpError != nil {
+			return wpError
 		}
 
 		if !processedNewFiles {
@@ -162,7 +166,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
-func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, stackFilePath string) error {
+func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, pool *worker.WorkerPool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
 	values, err := ReadValues(ctx, opts, stackSourceDir)
@@ -192,7 +196,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *worker.WorkerPool, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
 
@@ -223,7 +227,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *worker.WorkerPool, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 
@@ -321,7 +325,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
 
 	if err := copyFiles(ctx, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
-		return errors.Errorf("Failed to fetch %s %s at %s\n\nTry:\n1. Check if your source path is correct relative to the stack file location\n2. Verify the units or stacks directory exists at the expected location", kindStr, cmp.name, source)
+		return errors.Errorf("Failed to fetch %s %s at %s\n\nTry:\n1. Check if your source path is correct relative to the stack file location\n2. Verify the units or stacks directory exists at the expected location %v", kindStr, cmp.name, source, err)
 	}
 
 	if !cmp.noStack {
@@ -333,10 +337,13 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		}
 
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
+			opts.Logger.Warnf("%v opts.NoStackValidate %v", cmp.name, opts.NoStackValidate)
 			if opts.NoStackValidate {
 				// print warning if validation is skipped
 				opts.Logger.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			} else {
+				opts.Logger.Warnf("%v Throwing error opts.NoStackValidate %v", cmp.name, opts.NoStackValidate)
+
 				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			}
 		}

@@ -392,6 +392,8 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
+		NoStackValidate:            false,
+		NoStackGenerate:            false,
 	}
 }
 
