@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 
+	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -34,6 +35,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+)
+
+const (
+	AppName = "terragrunt"
 )
 
 func init() {
@@ -52,10 +57,10 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	terragruntCommands := commands.New(opts)
 
 	app := cli.NewApp()
-	app.Name = opts.AppName
+	app.Name = AppName
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
-	app.Version = opts.AppVersion
+	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
 	app.Flags = global.NewFlagsWithDeprecatedMovedFlags(opts)
@@ -96,15 +101,17 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		return err
 	}
 
-	err := telemetry.InitTelemetry(ctx, app.opts)
+	telemeter, err := telemetry.NewTelemeter(ctx, app.Name, app.Version, app.Writer, app.opts.Telemetry)
 	if err != nil {
 		return err
 	}
 	defer func(ctx context.Context) {
-		if err := telemetry.ShutdownTelemetry(ctx); err != nil {
+		if err := telemeter.Shutdown(ctx); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)
+
+	ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context
@@ -152,7 +159,7 @@ func removeNoColorFlagDuplicates(args []string) []string {
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
 func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
-		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]any{
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,

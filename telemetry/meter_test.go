@@ -62,10 +62,10 @@ func TestNewMetricsExporter(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptionsWithWriters(io.Discard, io.Discard)
-			opts.TelemetryMetricExporter = tt.exporterType
-			opts.TelemetryMetricExporterInsecureEndpoint = tt.insecure
+			opts.Telemetry.MetricExporter = tt.exporterType
+			opts.Telemetry.MetricExporterInsecureEndpoint = tt.insecure
 
-			exporter, err := telemetry.NewMetricsExporter(ctx, opts)
+			exporter, err := telemetry.NewMetricsExporter(ctx, io.Discard, opts.Telemetry)
 			require.NoError(t, err)
 
 			if tt.expectNil {

@@ -2,14 +2,13 @@ package telemetry
 
 import (
 	"context"
+	"io"
 	"regexp"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/pkg/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -19,8 +18,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
-
-type metricsExporterType string
 
 const (
 	noneMetricsExporterType     metricsExporterType = "none"
@@ -33,12 +30,47 @@ const (
 	readerInterval = 1 * time.Second
 )
 
-var metricNameCleanPattern = regexp.MustCompile(`[^A-Za-z0-9_.-/]`)
-var multipleUnderscoresPattern = regexp.MustCompile(`_+`)
+var (
+	metricNameCleanPattern     = regexp.MustCompile(`[^A-Za-z0-9_.-/]`)
+	multipleUnderscoresPattern = regexp.MustCompile(`_+`)
+)
 
-// Time - collect time for function execution
-func Time(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
-	if metricExporter == nil {
+type metricsExporterType string
+
+type Meter struct {
+	otelmetric.Meter
+	provider *metric.MeterProvider
+	exporter metric.Exporter
+}
+
+// NewMeter creates and configures the metrics collection.
+func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Meter, error) {
+	exporter, err := NewMetricsExporter(ctx, writer, opts)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+	if exporter == nil {
+		return nil, nil
+	}
+
+	provider, err := newMetricsProvider(exporter, appName, appVersion)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	otel.SetMeterProvider(provider)
+
+	meter := &Meter{
+		Meter:    otel.GetMeterProvider().Meter(appName),
+		provider: provider,
+		exporter: exporter,
+	}
+	return meter, nil
+}
+
+// Time collects time for function execution
+func (meter *Meter) Time(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+	if meter == nil || meter.exporter == nil {
 		return fn(ctx)
 	}
 
@@ -46,7 +78,7 @@ func Time(ctx context.Context, name string, attrs map[string]any, fn func(childC
 
 	histogram, err := meter.Int64Histogram(CleanMetricName(name + "_duration"))
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.New(err)
 	}
 
 	startTime := time.Now()
@@ -56,18 +88,18 @@ func Time(ctx context.Context, name string, attrs map[string]any, fn func(childC
 
 	if err != nil {
 		// count errors
-		Count(ctx, ErrorsCounter, 1)
-		Count(ctx, name+"_errors", 1)
+		meter.Count(ctx, ErrorsCounter, 1)
+		meter.Count(ctx, name+"_errors", 1)
 	} else {
-		Count(ctx, name+"_success", 1)
+		meter.Count(ctx, name+"_success", 1)
 	}
 
 	return err
 }
 
-// Count - add to counter provided value
-func Count(ctx context.Context, name string, value int64) {
-	if ctx == nil || metricExporter == nil {
+// Count adds to counter provided value.
+func (meter *Meter) Count(ctx context.Context, name string, value int64) {
+	if ctx == nil || meter == nil || meter.exporter == nil {
 		return
 	}
 
@@ -79,76 +111,49 @@ func Count(ctx context.Context, name string, value int64) {
 	counter.Add(ctx, value)
 }
 
-// configureMetricsCollection - configure the metrics collection
-func configureMetricsCollection(ctx context.Context, opts *options.TerragruntOptions) error {
-	exporter, err := NewMetricsExporter(ctx, opts)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	metricExporter = exporter
-	if metricExporter == nil {
-		return nil
-	}
-
-	provider, err := newMetricsProvider(opts, metricExporter)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	metricProvider = provider
-	otel.SetMeterProvider(metricProvider)
-	// configure app meter
-	meter = otel.GetMeterProvider().Meter(opts.AppName)
-
-	return nil
-}
-
 // NewMetricsExporter - create a new exporter based on the telemetry options.
-func NewMetricsExporter(ctx context.Context, opts *options.TerragruntOptions) (metric.Exporter, error) {
-	exporterType := metricsExporterType(opts.TelemetryMetricExporter)
+func NewMetricsExporter(ctx context.Context, writer io.Writer, opts *Options) (metric.Exporter, error) {
+	exporterType := metricsExporterType(opts.MetricExporter)
 	if exporterType == "" {
 		exporterType = noneMetricsExporterType
 	}
-
-	insecure := opts.TelemetryMetricExporterInsecureEndpoint
 
 	// TODO: Remove this lint suppression
 	switch exporterType { //nolint:exhaustive
 	case oltpHTTPMetricsExporterType:
 		var config []otlpmetrichttp.Option
-		if insecure {
+		if opts.MetricExporterInsecureEndpoint {
 			config = append(config, otlpmetrichttp.WithInsecure())
 		}
 
 		return otlpmetrichttp.New(ctx, config...)
 	case grpcHTTPMetricsExporterType:
 		var config []otlpmetricgrpc.Option
-		if insecure {
+		if opts.MetricExporterInsecureEndpoint {
 			config = append(config, otlpmetricgrpc.WithInsecure())
 		}
 
 		return otlpmetricgrpc.New(ctx, config...)
 	case consoleMetricsExporterType:
-		return stdoutmetric.New(stdoutmetric.WithWriter(opts.Writer))
+		return stdoutmetric.New(stdoutmetric.WithWriter(writer))
 	default:
 		return nil, nil
 	}
 }
 
-// newMetricsProvider - create a new metrics provider.
-func newMetricsProvider(opts *options.TerragruntOptions, exp metric.Exporter) (*metric.MeterProvider, error) {
+// newMetricsProvider creates a new metrics provider.
+func newMetricsProvider(exp metric.Exporter, appName, appVersion string) (*metric.MeterProvider, error) {
 	r, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceName(opts.AppName),
-			semconv.ServiceVersion(opts.AppVersion),
+			semconv.ServiceName(appName),
+			semconv.ServiceVersion(appVersion),
 		),
 	)
 
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.New(err)
 	}
 
 	meterProvider := metric.NewMeterProvider(
@@ -157,12 +162,4 @@ func newMetricsProvider(opts *options.TerragruntOptions, exp metric.Exporter) (*
 	)
 
 	return meterProvider, nil
-}
-
-// CleanMetricName - clean metric name from invalid characters.
-func CleanMetricName(metricName string) string {
-	cleanedName := metricNameCleanPattern.ReplaceAllString(metricName, "_")
-	cleanedName = multipleUnderscoresPattern.ReplaceAllString(cleanedName, "_")
-
-	return strings.Trim(cleanedName, "_")
 }

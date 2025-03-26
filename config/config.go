@@ -777,10 +777,11 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
-	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "parse_config_file", map[string]any{
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
+
 		childKey := "nil"
 		if includeFromChild != nil {
 			childKey = includeFromChild.String()

@@ -74,10 +74,10 @@ func TestNewTraceExporter(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptionsWithWriters(io.Discard, io.Discard)
-			opts.TelemetryTraceExporter = tt.traceExporter
-			opts.TelemetryTraceExporterHTTPEndpoint = tt.traceExporterHTTPEndpoint
+			opts.Telemetry.TraceExporter = tt.traceExporter
+			opts.Telemetry.TraceExporterHTTPEndpoint = tt.traceExporterHTTPEndpoint
 
-			exporter, err := telemetry.NewTraceExporter(ctx, opts)
+			exporter, err := telemetry.NewTraceExporter(ctx, io.Discard, opts.Telemetry)
 
 			if tt.expectError {
 				require.Error(t, err)

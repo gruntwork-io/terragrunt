@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	appversion "github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -25,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/puzpuzpuz/xsync/v3"
@@ -33,8 +33,6 @@ import (
 const ContextKey ctxKey = iota
 
 const (
-	AppName = "terragrunt"
-
 	DefaultMaxFoldersToCheck = 100
 
 	// no limits on parallelism by default (limited by GOPROCS)
@@ -92,10 +90,6 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct { //nolint: govet
-	// AppName is app name.
-	AppName string
-	// AppVersion is app version.
-	AppVersion string
 	// Logger is an interface for logging events.
 	Logger log.Logger `clone:"shadowcopy"`
 	// If you want stdout to go somewhere other than os.stdout
@@ -289,18 +283,8 @@ type TerragruntOptions struct { //nolint: govet
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
 	Graph bool
-	// TelemetryTraceExporter is the type of trace exporter to be used.
-	TelemetryTraceExporter string
-	// TelemetryTraceExporterInsecureEndpoint is useful for collecting traces locally. If set to true, the exporter will not validate the server certificate.
-	TelemetryTraceExporterInsecureEndpoint bool
-	// TelemetryTraceExporterHTTPEndpoint is the endpoint to which traces will be sent.
-	TelemetryTraceExporterHTTPEndpoint string
-	// TelemetryTraceparent is used as a parent trace context.
-	TelemetryTraceparent string
-	// TelemetryMetricExporter is the type of  metrics exporter.
-	TelemetryMetricExporter string
-	// TelemetryMetricExporterInsecureEndpoint is useful for local metrics collection. if set to true, the exporter will not validate the server's certificate.
-	TelemetryMetricExporterInsecureEndpoint bool
+	// Telemetry are telemetry options.
+	Telemetry *telemetry.Options
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -358,8 +342,6 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		AppName:                  AppName,
-		AppVersion:               appversion.GetVersion(),
 		TerraformPath:            DefaultWrappedPath,
 		ExcludesFile:             defaultExcludesFile,
 		OriginalTerraformCommand: "",
@@ -411,6 +393,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
+		Telemetry:                  new(telemetry.Options),
 	}
 }
 
