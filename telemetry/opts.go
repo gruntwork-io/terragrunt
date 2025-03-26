@@ -1,7 +1,7 @@
 package telemetry
 
 // Options are Telemetry options.
-type Options struct {
+type Options struct { //nolint: govet
 	// TraceExporter is the type of trace exporter to be used.
 	TraceExporter string
 	// TraceExporterInsecureEndpoint is useful for collecting traces locally. If set to true, the exporter will not validate the server certificate.

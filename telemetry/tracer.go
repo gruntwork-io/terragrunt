@@ -107,6 +107,7 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 		parentSpanID:     parentSpanID,
 		parentTraceFlags: parentTraceFlags,
 	}
+
 	return tracer, nil
 }
 

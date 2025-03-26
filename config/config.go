@@ -781,7 +781,6 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-
 		childKey := "nil"
 		if includeFromChild != nil {
 			childKey = includeFromChild.String()

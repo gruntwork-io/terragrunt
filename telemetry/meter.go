@@ -49,6 +49,7 @@ func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer,
 	if err != nil {
 		return nil, errors.New(err)
 	}
+
 	if exporter == nil {
 		return nil, nil
 	}
@@ -65,6 +66,7 @@ func NewMeter(ctx context.Context, appName, appVersion string, writer io.Writer,
 		provider: provider,
 		exporter: exporter,
 	}
+
 	return meter, nil
 }
 
