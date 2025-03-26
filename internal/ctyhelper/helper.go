@@ -21,6 +21,10 @@ import (
 // we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
 // map[string]any using the Go json library.
 func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
+	if value.IsNull() {
+		return map[string]any{}, nil
+	}
+
 	updatedValue, err := UpdateUnknownCtyValValues(value)
 	if err != nil {
 		return nil, err
