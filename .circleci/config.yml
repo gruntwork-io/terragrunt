@@ -209,6 +209,7 @@ jobs:
   # instability with the tests. The unit tests are fast to execute, so there is negligible
   # performance penalty.
   unit_test:
+    resource_class: large
     <<: *defaults
     <<: *env
     steps:
