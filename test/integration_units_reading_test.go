@@ -21,7 +21,7 @@ func TestUnitsReading(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureUnitsReading)
 
-	tc := []struct {
+	testCases := []struct {
 		name           string
 		unitsReading   []string
 		unitsExcluding []string
@@ -136,8 +136,8 @@ func TestUnitsReading(t *testing.T) {
 
 	includedLogEntryRegex := regexp.MustCompile(`=> Module ./([^ ]+) \(excluded: false`)
 
-	for _, tt := range tc {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
@@ -145,15 +145,15 @@ func TestUnitsReading(t *testing.T) {
 
 			cmd := "terragrunt run-all plan --non-interactive --log-level trace --working-dir " + rootPath
 
-			for _, f := range tt.unitsReading {
+			for _, f := range tc.unitsReading {
 				cmd = cmd + " --queue-include-units-reading " + f
 			}
 
-			for _, unit := range tt.unitsIncluding {
+			for _, unit := range tc.unitsIncluding {
 				cmd = cmd + " --queue-include-dir " + unit
 			}
 
-			for _, unit := range tt.unitsExcluding {
+			for _, unit := range tc.unitsExcluding {
 				cmd = cmd + " --queue-exclude-dir " + unit
 			}
 
@@ -167,7 +167,7 @@ func TestUnitsReading(t *testing.T) {
 				}
 			}
 
-			assert.ElementsMatch(t, tt.expectedUnits, includedUnits)
+			assert.ElementsMatch(t, tc.expectedUnits, includedUnits)
 		})
 	}
 }

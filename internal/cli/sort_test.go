@@ -22,14 +22,12 @@ func TestLexicographicLess(t *testing.T) {
 		{"bbbb", "c", true},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := cli.LexicographicLess(testCase.i, testCase.j)
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := cli.LexicographicLess(tc.i, tc.j)
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }

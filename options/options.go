@@ -89,7 +89,7 @@ const (
 )
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
-type TerragruntOptions struct { //nolint: govet
+type TerragruntOptions struct {
 	// Logger is an interface for logging events.
 	Logger log.Logger `clone:"shadowcopy"`
 	// If you want stdout to go somewhere other than os.stdout
@@ -285,6 +285,8 @@ type TerragruntOptions struct { //nolint: govet
 	Graph bool
 	// Telemetry are telemetry options.
 	Telemetry *telemetry.Options
+	// BackendBootstrap automatically bootstraps backend infrastructure before attempting to use it.
+	BackendBootstrap bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
