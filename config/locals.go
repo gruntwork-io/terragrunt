@@ -123,7 +123,7 @@ func attemptEvaluateLocals(
 	unevaluatedAttrs = hclparse.Attributes{}
 	evaluated = false
 
-	newEvaluatedLocals = map[string]cty.Value{}
+	newEvaluatedLocals = make(map[string]cty.Value, len(evaluatedLocals))
 	maps.Copy(newEvaluatedLocals, evaluatedLocals)
 
 	for _, attr := range attrs {
