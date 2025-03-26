@@ -160,12 +160,14 @@ func (wp *Pool) Submit(task Task) {
 			wp.appendError(err)
 		}
 
-		// Only send result to channel if the pool is not stopping
-		if !wp.isStopping.Load() && err != nil {
+		// Only try to send result to channel if there's an error and pool isn't stopping
+		if err != nil {
 			select {
 			case <-wp.doneChan:
-				// Pool is stopping, error already recorded
+				// Pool is stopping, error already recorded directly via appendError
 			case wp.resultChan <- err:
+				// Successfully sent the error
+			default: // Channel might be closed or full, but we already recorded the error via appendError, so we can safely continue without panic
 			}
 		}
 	}()
@@ -190,26 +192,46 @@ func (wp *Pool) Stop() {
 	defer wp.mu.Unlock()
 
 	if wp.isRunning {
-		// Mark as stopping to prevent writes to resultChan
+		// Mark as stopping to prevent new task submissions
 		wp.isStopping.Store(true)
 
-		// Signal done but don't close channels until we know all goroutines are done
-		// This prevents panic from writing to closed channel
+		// Signal done to all running goroutines first
 		close(wp.doneChan)
 
-		// It's safe to close resultChan now
-		close(wp.resultChan)
-		wp.isRunning = false
+		// Wait for a small cleanup period to allow goroutines to observe doneChan closure
+		// before closing the result channel
+		go func() {
+			// Wait for all tasks to complete
+			wp.wg.Wait()
+
+			// Now it's truly safe to close resultChan as all goroutines are done
+			wp.mu.Lock()
+			if wp.isRunning {
+				close(wp.resultChan)
+				wp.isRunning = false
+			}
+			wp.mu.Unlock()
+		}()
 	}
 }
 
 // GracefulStop waits for all tasks to complete before stopping the pool
 func (wp *Pool) GracefulStop() error {
+	// Mark as stopping to prevent new task submissions, but don't close channels yet
+	wp.isStopping.Store(true)
+
 	// Wait for all tasks to complete and capture any errors
 	err := wp.Wait()
 
-	// Then stop the pool
-	wp.Stop()
+	// Now fully stop the pool by closing channels
+	wp.mu.Lock()
+	defer wp.mu.Unlock()
+
+	if wp.isRunning {
+		close(wp.doneChan)
+		close(wp.resultChan)
+		wp.isRunning = false
+	}
 
 	return err
 }
