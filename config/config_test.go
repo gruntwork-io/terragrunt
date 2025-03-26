@@ -1403,7 +1403,7 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 }
 
 func TestBestEffortParseConfigString(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 
 	tc := []struct {
 		expectedConfig *config.TerragruntConfig
@@ -1461,7 +1461,7 @@ func TestBestEffortParseConfigString(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			// t.Parallel()
+			t.Parallel()
 
 			ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
 			terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, tt.cfg, nil)
