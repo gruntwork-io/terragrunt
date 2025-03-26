@@ -102,6 +102,8 @@ type TerragruntOptions struct {
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
+	// Telemetry are telemetry options.
+	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
 	// A command that can be used to run Terragrunt with the given options.
@@ -283,8 +285,6 @@ type TerragruntOptions struct {
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
 	Graph bool
-	// Telemetry are telemetry options.
-	Telemetry *telemetry.Options
 	// BackendBootstrap automatically bootstraps backend infrastructure before attempting to use it.
 	BackendBootstrap bool
 }

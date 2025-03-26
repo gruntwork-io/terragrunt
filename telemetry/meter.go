@@ -153,7 +153,6 @@ func newMetricsProvider(exp metric.Exporter, appName, appVersion string) (*metri
 			semconv.ServiceVersion(appVersion),
 		),
 	)
-
 	if err != nil {
 		return nil, errors.New(err)
 	}

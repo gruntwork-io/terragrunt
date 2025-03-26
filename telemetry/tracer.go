@@ -121,7 +121,6 @@ func newTraceProvider(exp sdktrace.SpanExporter, appName, appVersion string) (*s
 			semconv.ServiceVersion(appVersion),
 		),
 	)
-
 	if err != nil {
 		return nil, errors.New(err)
 	}
