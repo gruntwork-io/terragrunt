@@ -1,3 +1,22 @@
+// Package worker provides a concurrent task execution system with a configurable number of workers.
+//
+// It allows for controlled parallel execution of tasks while managing resources efficiently through
+// a semaphore-based worker pool. Key features include:
+//
+// - Configurable maximum number of concurrent workers
+// - Non-blocking task submission
+// - Graceful shutdown capabilities
+// - Error collection and aggregation
+// - Thread-safe operations
+//
+// The Pool struct manages a pool of workers that can execute tasks concurrently while
+// limiting the number of goroutines running simultaneously. This prevents resource exhaustion
+// while maximizing throughput.
+//
+// This implementation is particularly useful for scenarios where you need to process many
+// independent tasks with controlled parallelism, such as in infrastructure management tools,
+// batch processing systems, or any application requiring concurrent execution with resource
+// constraints.
 package worker
 
 import (
@@ -10,8 +29,8 @@ import (
 // Task represents a unit of work that can be executed
 type Task func() error
 
-// WorkerPool manages concurrent task execution with a configurable number of workers
-type WorkerPool struct {
+// Pool manages concurrent task execution with a configurable number of workers
+type Pool struct {
 	semaphore   chan struct{}
 	resultChan  chan error
 	doneChan    chan struct{}
@@ -21,27 +40,30 @@ type WorkerPool struct {
 	mu          sync.Mutex
 	resultMu    sync.Mutex // Additional mutex for error collection
 	isStopping  atomic.Bool
+	allErrorsMu sync.Mutex         // Mutex to protect the allErrors field
+	allErrors   *errors.MultiError // Collect all errors safely
 	isRunning   bool
 }
 
 // NewWorkerPool creates a new worker pool with the specified maximum number of concurrent workers
-func NewWorkerPool(maxWorkers int) *WorkerPool {
+func NewWorkerPool(maxWorkers int) *Pool {
 	if maxWorkers <= 0 {
 		maxWorkers = 1
 	}
 
-	return &WorkerPool{
+	return &Pool{
 		maxWorkers:  maxWorkers,
 		semaphore:   make(chan struct{}, maxWorkers),
 		resultChan:  make(chan error),
 		doneChan:    make(chan struct{}),
 		isRunning:   false,
 		errorsSlice: make([]error, 0),
+		allErrors:   &errors.MultiError{},
 	}
 }
 
 // Start initializes the worker pool
-func (wp *WorkerPool) Start() {
+func (wp *Pool) Start() {
 	wp.mu.Lock()
 	if wp.isRunning {
 		wp.mu.Unlock()
@@ -59,6 +81,11 @@ func (wp *WorkerPool) Start() {
 	// Clear previous errors
 	wp.errorsSlice = make([]error, 0)
 
+	// Reset allErrors
+	wp.allErrorsMu.Lock()
+	wp.allErrors = &errors.MultiError{}
+	wp.allErrorsMu.Unlock()
+
 	wp.mu.Unlock()
 
 	// Start the error collector
@@ -66,7 +93,7 @@ func (wp *WorkerPool) Start() {
 }
 
 // collectResults collects the errors from the result channel
-func (wp *WorkerPool) collectResults() {
+func (wp *Pool) collectResults() {
 	for {
 		select {
 		case err, ok := <-wp.resultChan:
@@ -75,6 +102,12 @@ func (wp *WorkerPool) collectResults() {
 			}
 
 			if err != nil {
+				// Add to allErrors safely
+				wp.allErrorsMu.Lock()
+				wp.allErrors = wp.allErrors.Append(err)
+				wp.allErrorsMu.Unlock()
+
+				// Also keep the slice for backward compatibility
 				wp.resultMu.Lock()
 				wp.errorsSlice = append(wp.errorsSlice, err)
 				wp.resultMu.Unlock()
@@ -85,14 +118,25 @@ func (wp *WorkerPool) collectResults() {
 	}
 }
 
+// appendError safely appends an error to allErrors
+func (wp *Pool) appendError(err error) {
+	if err == nil {
+		return
+	}
+
+	wp.allErrorsMu.Lock()
+	wp.allErrors = wp.allErrors.Append(err)
+	wp.allErrorsMu.Unlock()
+}
+
 // Submit adds a new task and starts a goroutine to execute it when a worker is available
-func (wp *WorkerPool) Submit(task Task) {
+func (wp *Pool) Submit(task Task) {
 	wp.mu.Lock()
-	if !wp.isRunning {
-		wp.mu.Unlock()
+	notRunning := !wp.isRunning
+	wp.mu.Unlock()
+
+	if notRunning {
 		wp.Start()
-	} else {
-		wp.mu.Unlock()
 	}
 
 	// Don't submit new tasks if the pool is stopping
@@ -111,52 +155,40 @@ func (wp *WorkerPool) Submit(task Task) {
 
 		err := task()
 
-		// Only send result if the pool is not stopping
-		if !wp.isStopping.Load() {
+		// If there's an error, always record it directly first
+		if err != nil {
+			wp.appendError(err)
+		}
+
+		// Only send result to channel if the pool is not stopping
+		if !wp.isStopping.Load() && err != nil {
 			select {
 			case <-wp.doneChan:
-				// Pool is stopping, track the error directly
-				if err != nil {
-					wp.resultMu.Lock()
-					wp.errorsSlice = append(wp.errorsSlice, err)
-					wp.resultMu.Unlock()
-				}
+				// Pool is stopping, error already recorded
 			case wp.resultChan <- err:
 				// Successfully sent the error
+			default:
+				// Channel might be full or closed, error already recorded
 			}
-		} else if err != nil {
-			// Pool is stopping but we still want to track the error
-			wp.resultMu.Lock()
-			wp.errorsSlice = append(wp.errorsSlice, err)
-			wp.resultMu.Unlock()
 		}
 	}()
 }
 
-// Wait blocks until all tasks are completed
-func (wp *WorkerPool) Wait() error {
+// Wait blocks until all tasks are completed and returns any errors
+func (wp *Pool) Wait() error {
 	// Wait for all tasks to complete
 	wp.wg.Wait()
 
-	// Collect all errors
-	wp.resultMu.Lock()
-	defer wp.resultMu.Unlock()
+	// Get all collected errors
+	wp.allErrorsMu.Lock()
+	result := wp.allErrors.ErrorOrNil()
+	wp.allErrorsMu.Unlock()
 
-	errs := &errors.MultiError{}
-
-	for _, err := range wp.errorsSlice {
-		if err == nil {
-			continue
-		}
-
-		errs = errs.Append(err)
-	}
-
-	return errs.ErrorOrNil()
+	return result
 }
 
 // Stop shuts down the worker pool after current tasks are completed
-func (wp *WorkerPool) Stop() {
+func (wp *Pool) Stop() {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
@@ -164,27 +196,23 @@ func (wp *WorkerPool) Stop() {
 		// Mark as stopping to prevent writes to resultChan
 		wp.isStopping.Store(true)
 
+		// Signal done but don't close channels until we know all goroutines are done
+		// This prevents panic from writing to closed channel
 		close(wp.doneChan)
+
+		// It's safe to close resultChan now
 		close(wp.resultChan)
 		wp.isRunning = false
 	}
 }
 
 // GracefulStop waits for all tasks to complete before stopping the pool
-func (wp *WorkerPool) GracefulStop() error {
-	// Wait for all tasks to complete
+func (wp *Pool) GracefulStop() error {
+	// Wait for all tasks to complete and capture any errors
 	err := wp.Wait()
 
 	// Then stop the pool
 	wp.Stop()
 
 	return err
-}
-
-// GetMaxWorkers returns the current maximum number of concurrent workers
-func (wp *WorkerPool) GetMaxWorkers() int {
-	wp.mu.Lock()
-	defer wp.mu.Unlock()
-
-	return wp.maxWorkers
 }

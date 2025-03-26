@@ -164,7 +164,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
-func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, pool *worker.WorkerPool, stackFilePath string) error {
+func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
 	values, err := ReadValues(ctx, opts, stackSourceDir)
@@ -194,7 +194,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *worker.WorkerPool, sourceDir, targetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
 
@@ -225,7 +225,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *worker.WorkerPool, sourceDir, targetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 
