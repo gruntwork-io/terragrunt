@@ -34,14 +34,14 @@ type Pool struct {
 	semaphore   chan struct{}
 	resultChan  chan error
 	doneChan    chan struct{}
+	allErrors   *errors.MultiError
 	errorsSlice []error
 	wg          sync.WaitGroup
 	maxWorkers  int
 	mu          sync.Mutex
-	resultMu    sync.Mutex // Additional mutex for error collection
+	resultMu    sync.Mutex
+	allErrorsMu sync.Mutex
 	isStopping  atomic.Bool
-	allErrorsMu sync.Mutex         // Mutex to protect the allErrors field
-	allErrors   *errors.MultiError // Collect all errors safely
 	isRunning   bool
 }
 
@@ -166,9 +166,6 @@ func (wp *Pool) Submit(task Task) {
 			case <-wp.doneChan:
 				// Pool is stopping, error already recorded
 			case wp.resultChan <- err:
-				// Successfully sent the error
-			default:
-				// Channel might be full or closed, error already recorded
 			}
 		}
 	}()
