@@ -132,6 +132,8 @@ type terragruntEngine struct {
 // - features
 // - include
 func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
+	errs := &errors.MultiError{}
+
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
@@ -143,7 +145,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		evalParsingContext,
 	)
 	if err != nil {
-		return nil, err
+		errs = errs.Append(err)
 	}
 
 	trackInclude, err := getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
@@ -180,7 +182,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	// evaluation ctx.
 	locals, err := EvaluateLocalsBlock(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
 	if err != nil {
-		return nil, err
+		errs = errs.Append(err)
 	}
 
 	localsAsCtyVal, err := convertValuesMapToCtyVal(locals)
@@ -192,7 +194,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		TrackInclude: trackInclude,
 		Locals:       &localsAsCtyVal,
 		FeatureFlags: &flagsAsCtyVal,
-	}, nil
+	}, errs.ErrorOrNil()
 }
 
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
@@ -354,6 +356,8 @@ func PartialParseConfigString(ctx *ParsingContext, configPath, configString stri
 }
 
 func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+	errs := &errors.MultiError{}
+
 	ctx = ctx.WithTrackInclude(nil)
 
 	// read unit files and add to context
@@ -370,7 +374,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 	// Initialize evaluation ctx extensions from base blocks.
 	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
-		return nil, err
+		errs = errs.Append(err)
 	}
 
 	ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
@@ -635,6 +639,10 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		config.ProcessedIncludes = ctx.TrackInclude.CurrentMap
 
 		output = config
+	}
+
+	if errs.ErrorOrNil() != nil {
+		return output, errs.ErrorOrNil()
 	}
 
 	return processExcludes(ctx, output, file)
