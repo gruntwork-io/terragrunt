@@ -130,7 +130,7 @@ func attemptEvaluateLocals(
 		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {
 			evaluatedVal, err := attr.Value(evalCtx)
 			if err != nil {
-				return nil, evaluatedLocals, false, err
+				return nil, newEvaluatedLocals, false, err
 			}
 
 			newEvaluatedLocals[attr.Name] = evaluatedVal

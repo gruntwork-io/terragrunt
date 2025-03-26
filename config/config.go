@@ -843,7 +843,7 @@ func ParseConfigString(ctx *ParsingContext, configPath string, configString stri
 
 	config, err := ParseConfig(ctx, file, includeFromChild)
 	if err != nil {
-		return nil, err
+		return config, err
 	}
 
 	return config, nil

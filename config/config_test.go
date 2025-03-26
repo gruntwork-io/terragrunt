@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -15,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func createLogger() log.Logger {
@@ -1398,4 +1400,139 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 			assert.NotNil(b, actual)
 		})
 	}
+}
+
+func TestBestEffortParseConfigString(t *testing.T) {
+	// t.Parallel()
+
+	tc := []struct {
+		expectedConfig *config.TerragruntConfig
+		name           string
+		cfg            string
+		expectError    bool
+	}{
+		{
+			name: "Simple",
+			cfg: `locals {
+	simple        = "value"
+	requires_auth = run_cmd("exit", "1") // intentional error
+}
+`,
+			expectError: true,
+			expectedConfig: &config.TerragruntConfig{
+				Locals: map[string]any{
+					"simple": "value",
+				},
+				GenerateConfigs:   map[string]codegen.GenerateConfig{},
+				ProcessedIncludes: config.IncludeConfigsMap{},
+				FieldsMetadata: map[string]map[string]any{
+					"locals-simple": {
+						"found_in_file": "terragrunt.hcl",
+					},
+				},
+			},
+		},
+		{
+			name: "Locals referencing each other",
+			cfg: `locals {
+	reference = local.simple
+	simple    = "value"
+}
+`,
+			expectError: false,
+			expectedConfig: &config.TerragruntConfig{
+				Locals: map[string]any{
+					"reference": "value",
+					"simple":    "value",
+				},
+				GenerateConfigs:   map[string]codegen.GenerateConfig{},
+				ProcessedIncludes: config.IncludeConfigsMap{},
+				FieldsMetadata: map[string]map[string]any{
+					"locals-reference": {
+						"found_in_file": "terragrunt.hcl",
+					},
+					"locals-simple": {
+						"found_in_file": "terragrunt.hcl",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			// t.Parallel()
+
+			ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+			terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, tt.cfg, nil)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.expectedConfig, terragruntConfig)
+		})
+	}
+}
+
+func TestBestEffortParseConfigStringWDependency(t *testing.T) {
+	t.Parallel()
+
+	depCfg := `locals {
+	simple = "value"
+	fail   = run_cmd("exit", "1") // intentional error
+}`
+
+	cfg := `locals {
+	simple = "value"
+	fail   = run_cmd("exit", "1") // intentional error
+}
+
+dependency "dep" {
+	config_path = "../dep"
+}`
+
+	tmpDir := t.TempDir()
+
+	depPath := filepath.Join(tmpDir, "dep")
+	require.NoError(t, os.MkdirAll(depPath, 0755))
+
+	depCfgPath := filepath.Join(depPath, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(depCfgPath, []byte(depCfg), 0644))
+
+	unitPath := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitPath, 0755))
+
+	unitCfgPath := filepath.Join(unitPath, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(unitCfgPath, []byte(cfg), 0644))
+
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+
+	ctx.TerragruntOptions.WorkingDir = unitPath
+
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+
+	assert.Equal(t, &config.TerragruntConfig{
+		Locals: map[string]any{
+			"simple": "value",
+		},
+		GenerateConfigs:   map[string]codegen.GenerateConfig{},
+		ProcessedIncludes: config.IncludeConfigsMap{},
+		FieldsMetadata: map[string]map[string]any{
+			"dependency-dep": {
+				"found_in_file": "terragrunt.hcl",
+			},
+			"locals-simple": {
+				"found_in_file": "terragrunt.hcl",
+			},
+		},
+		TerragruntDependencies: config.Dependencies{
+			config.Dependency{
+				Name:       "dep",
+				ConfigPath: cty.StringVal("../dep"),
+			},
+		},
+	}, terragruntConfig)
 }
