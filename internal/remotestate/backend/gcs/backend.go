@@ -135,7 +135,14 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 		prefix     = extGCSCfg.RemoteStateConfigGCS.Prefix
 	)
 
-	return client.DeleteGCSObjectIfNecessary(ctx, bucketName, prefix)
+	prompt := fmt.Sprintf("GCS bucket %s objects with prefix %s will be deleted. Do you want to continue?", bucketName, prefix)
+	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+		return err
+	} else if yes {
+		return client.DeleteGCSObjectIfNecessary(ctx, bucketName, prefix)
+	}
+
+	return nil
 }
 
 // DeleteBucket deletes the entire bucket specified in the given config.
