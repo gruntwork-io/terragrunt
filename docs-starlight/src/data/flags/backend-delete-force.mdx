@@ -1,0 +1,17 @@
+---
+name: force
+description: When this flag is set Terragrunt will delete the backend state regardless of whether it has versioning enabled.
+type: bool
+env:
+  - TG_FORCE
+---
+
+When this flag is set, Terragrunt will delete the backend state regardless of whether it has versioning enabled.
+
+<Aside type="warning" title="Warning">
+
+This flag is dangerous and should be used with extreme caution.
+
+Gruntwork recommends always enabling versioning on your backend state bucket.
+
+</Aside>
