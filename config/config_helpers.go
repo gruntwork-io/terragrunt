@@ -708,12 +708,12 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 
 	ctx = ctx.WithTerragruntOptions(opts)
 
-	// decode file as stack file
+	// check if file is stack file, decode as stack file
 	if strings.HasSuffix(targetConfig, DefaultStackFile) {
 		return stackConfigAsCty(ctx, targetConfig)
 	}
 
-	// decode values file
+	// check if file is a values file, decode as values file
 	if strings.HasSuffix(targetConfig, valuesFile) {
 		return stackValuesAsCty(ctx, targetConfig)
 	}
