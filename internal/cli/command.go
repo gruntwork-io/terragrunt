@@ -105,7 +105,15 @@ func (cmd *Command) Subcommand(name string) *Command {
 
 // VisibleFlags returns a slice of the Flags, used by `urfave/cli` package to generate help.
 func (cmd *Command) VisibleFlags() Flags {
-	return cmd.Flags
+	visibleFlags := make(Flags, 0, len(cmd.Flags))
+
+	for _, flag := range cmd.Flags {
+		if !flag.GetHidden() {
+			visibleFlags = append(visibleFlags, flag)
+		}
+	}
+
+	return visibleFlags
 }
 
 // VisibleSubcommands returns a slice of the Commands with Hidden=false.
@@ -115,7 +123,15 @@ func (cmd *Command) VisibleSubcommands() Commands {
 		return nil
 	}
 
-	return cmd.Subcommands.VisibleCommands()
+	visibleSubcommands := make(Commands, 0, len(cmd.Subcommands))
+
+	for _, subcommand := range cmd.Subcommands {
+		if !subcommand.Hidden {
+			visibleSubcommands = append(visibleSubcommands, subcommand)
+		}
+	}
+
+	return visibleSubcommands
 }
 
 // Run parses the given args for the presence of flags as well as subcommands.
