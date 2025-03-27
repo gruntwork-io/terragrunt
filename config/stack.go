@@ -455,16 +455,6 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	return config, nil
 }
 
-func stackConfigAsCty(ctx *ParsingContext, config string) (cty.Value, error) {
-
-	return cty.NilVal, nil
-}
-
-func stackValuesAsCty(ctx *ParsingContext, config string) (cty.Value, error) {
-
-	return cty.NilVal, nil
-}
-
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
 func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory string) error {
 	if values == nil {

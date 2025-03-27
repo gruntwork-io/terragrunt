@@ -698,6 +698,128 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 	return convertValuesMapToCtyVal(output)
 }
 
+// stackConfigAsCty converts a StackConfigFile into a cty Value so its attributes can be used in other configs.
+func stackConfigAsCty(stackConfig *StackConfigFile) (cty.Value, error) {
+	if stackConfig == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{}
+
+	if stackConfig.Locals != nil {
+		localsCty, err := convertToCtyWithJSON(stackConfig.Locals)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		if localsCty != cty.NilVal {
+			output[MetadataLocals] = localsCty
+		}
+	}
+
+	// Process stacks as a map from stack name to stack config
+	if len(stackConfig.Stacks) > 0 {
+		stacksMap := map[string]cty.Value{}
+
+		for _, stack := range stackConfig.Stacks {
+			stackCty, err := stackToCty(stack)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			if stackCty != cty.NilVal {
+				stacksMap[stack.Name] = stackCty
+			}
+		}
+
+		if len(stacksMap) > 0 {
+			stacksCty, err := convertValuesMapToCtyVal(stacksMap)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			output[MetadataStack] = stacksCty
+		}
+	}
+
+	// Process units as a map from unit name to unit config
+	if len(stackConfig.Units) > 0 {
+		unitsMap := map[string]cty.Value{}
+
+		for _, unit := range stackConfig.Units {
+			unitCty, err := unitToCty(unit)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			if unitCty != cty.NilVal {
+				unitsMap[unit.Name] = unitCty
+			}
+		}
+
+		if len(unitsMap) > 0 {
+			unitsCty, err := convertValuesMapToCtyVal(unitsMap)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			output[MetadataUnit] = unitsCty
+		}
+	}
+
+	return convertValuesMapToCtyVal(output)
+}
+
+// stackToCty converts a Stack struct to a cty Value
+func stackToCty(stack *Stack) (cty.Value, error) {
+	if stack == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{
+		"name":   gostringToCty(stack.Name),
+		"source": gostringToCty(stack.Source),
+		"path":   gostringToCty(stack.Path),
+	}
+
+	// Handle Values if available
+	if stack.Values != nil {
+		output["values"] = *stack.Values
+	}
+
+	// Handle NoStack if available
+	if stack.NoStack != nil {
+		output["no_dot_terragrunt_stack"] = goboolToCty(*stack.NoStack)
+	}
+
+	return convertValuesMapToCtyVal(output)
+}
+
+// unitToCty converts a Unit struct to a cty Value
+func unitToCty(unit *Unit) (cty.Value, error) {
+	if unit == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{
+		"name":   gostringToCty(unit.Name),
+		"source": gostringToCty(unit.Source),
+		"path":   gostringToCty(unit.Path),
+	}
+
+	// Handle Values if available
+	if unit.Values != nil {
+		output["values"] = *unit.Values
+	}
+
+	// Handle NoStack if available
+	if unit.NoStack != nil {
+		output["no_dot_terragrunt_stack"] = goboolToCty(*unit.NoStack)
+	}
+
+	return convertValuesMapToCtyVal(output)
+}
+
 // Converts arbitrary go types that are json serializable to a cty Value by using json as an intermediary
 // representation. This avoids the strict type nature of cty, where you need to know the output type beforehand to
 // serialize to cty.
