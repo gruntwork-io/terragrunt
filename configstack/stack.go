@@ -44,9 +44,9 @@ type Stack struct {
 func FindStackInSubfolders(ctx context.Context, terragruntOptions *options.TerragruntOptions, opts ...Option) (*Stack, error) {
 	var terragruntConfigFiles []string
 
-	err := telemetry.Telemetry(ctx, terragruntOptions, "find_files_in_path", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_files_in_path", map[string]any{
 		"working_dir": terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		result, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir, terragruntOptions)
 		if err != nil {
 			return err
@@ -295,9 +295,9 @@ func (stack *Stack) GetModuleRunGraph(terraformCommand string) ([]TerraformModul
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
 // modules into a Stack object that can be applied or destroyed in a single command
 func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, terragruntConfigPaths []string) error {
-	err := telemetry.Telemetry(ctx, stack.terragruntOptions, "create_stack_for_terragrunt_config_paths", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "create_stack_for_terragrunt_config_paths", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(ctx context.Context) error {
 		if len(terragruntConfigPaths) == 0 {
 			return errors.New(ErrNoTerraformModulesFound)
 		}
@@ -315,9 +315,9 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		return errors.New(err)
 	}
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "check_for_cycles", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "check_for_cycles", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		if err := stack.Modules.CheckForCycles(); err != nil {
 			return errors.New(err)
 		}
@@ -343,9 +343,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var modulesMap TerraformModulesMap
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_modules", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_modules", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(ctx context.Context) error {
 		howThesePathsWereFound := "Terragrunt config file found in a subdirectory of " + stack.terragruntOptions.WorkingDir
 
 		result, err := stack.resolveModules(ctx, canonicalTerragruntConfigPaths, howThesePathsWereFound)
@@ -364,9 +364,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var externalDependencies TerraformModulesMap
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_external_dependencies_for_modules", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_external_dependencies_for_modules", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(ctx context.Context) error {
 		result, err := stack.resolveExternalDependenciesForModules(ctx, modulesMap, TerraformModulesMap{}, 0)
 		if err != nil {
 			return err
@@ -382,9 +382,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var crossLinkedModules TerraformModules
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "crosslink_dependencies", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		result, err := modulesMap.mergeMaps(externalDependencies).crosslinkDependencies(canonicalTerragruntConfigPaths)
 		if err != nil {
 			return err
@@ -401,9 +401,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var withUnitsIncluded TerraformModules
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_included_dirs", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_included_dirs", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		withUnitsIncluded = crossLinkedModules.flagIncludedDirs(stack.terragruntOptions)
 		return nil
 	})
@@ -414,9 +414,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var withUnitsThatAreIncludedByOthers TerraformModules
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_units_that_are_included", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_are_included", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		result, err := withUnitsIncluded.flagUnitsThatAreIncluded(stack.terragruntOptions)
 		if err != nil {
 			return err
@@ -433,9 +433,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var withExcludedUnits TerraformModules
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_excluded_units", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		result := withUnitsThatAreIncludedByOthers.flagExcludedUnits(stack.terragruntOptions)
 		withExcludedUnits = result
 
@@ -448,9 +448,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var withUnitsRead TerraformModules
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_units_that_read", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_read", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		withUnitsRead = withExcludedUnits.flagUnitsThatRead(stack.terragruntOptions)
 
 		return nil
@@ -462,9 +462,9 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 
 	var withModulesExcluded TerraformModules
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_excluded_dirs", map[string]any{
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_dirs", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		withModulesExcluded = withUnitsRead.flagExcludedDirs(stack.terragruntOptions)
 		return nil
 	})
@@ -489,10 +489,10 @@ func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfi
 
 		var module *TerraformModule
 
-		err := telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_terraform_module", map[string]any{
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_terraform_module", map[string]any{
 			"config_path": terragruntConfigPath,
 			"working_dir": stack.terragruntOptions.WorkingDir,
-		}, func(childCtx context.Context) error {
+		}, func(ctx context.Context) error {
 			m, err := stack.resolveTerraformModule(ctx, terragruntConfigPath, modulesMap, howTheseModulesWereFound)
 			if err != nil {
 				return err
@@ -512,11 +512,11 @@ func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfi
 
 			var dependencies TerraformModulesMap
 
-			err := telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_dependencies_for_module", map[string]any{
+			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_dependencies_for_module", map[string]any{
 				"config_path": terragruntConfigPath,
 				"working_dir": stack.terragruntOptions.WorkingDir,
 				"module_path": module.Path,
-			}, func(childCtx context.Context) error {
+			}, func(ctx context.Context) error {
 				deps, err := stack.resolveDependenciesForModule(ctx, module, modulesMap, true)
 				if err != nil {
 					return err
