@@ -57,22 +57,26 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		checkExpectedResultFn func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string)
 		name                  string
 		args                  string
-		checkExpectedResultFn func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string)
 	}{
 		{
-			"no bootstrap s3 backend without flag",
-			"run apply",
-			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			name: "no bootstrap s3 backend without flag",
+			args: "run apply",
+			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+				t.Helper()
+
 				require.Error(t, err)
 				assert.Regexp(t, "(S3 bucket must have been previously created)|(S3 bucket does not exist)", output)
 			},
 		},
 		{
-			"bootstrap s3 backend with flag",
-			"run apply --backend-bootstrap",
-			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			name: "bootstrap s3 backend with flag",
+			args: "run apply --backend-bootstrap",
+			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+				t.Helper()
+
 				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
@@ -80,9 +84,11 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			},
 		},
 		{
-			"bootstrap s3 backend by backend command",
-			"backend bootstrap",
-			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			name: "bootstrap s3 backend by backend command",
+			args: "backend bootstrap",
+			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+				t.Helper()
+
 				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
@@ -92,7 +98,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			helpers.CleanupTerraformFolder(t, testFixtureBootstrapS3Backend)
@@ -1523,6 +1529,8 @@ func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 }
 
 func deleteS3Bucket(t *testing.T, bucketName string, awsRegion string) {
+	t.Helper()
+
 	helpers.DeleteS3Bucket(t, awsRegion, bucketName)
 }
 

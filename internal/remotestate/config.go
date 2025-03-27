@@ -193,9 +193,5 @@ func (cfgFile *ConfigFile) Config() (*Config, error) {
 		cfg.DisableDependencyOptimization = *cfgFile.DisableDependencyOptimization
 	}
 
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
-
-	return cfg, err
+	return cfg, cfg.Validate()
 }

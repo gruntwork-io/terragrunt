@@ -118,6 +118,11 @@ run_race_test: &run_race_test
     run-go-tests --packages "-run '.*WithRacing' -race ./test" | tee logs/test-results.log
   no_output_timeout: 30m
 
+run_parse_test: &run_parse_test
+  name: Run Parse tests
+  command: |
+    run-go-tests --packages "-tags parse -run ^TestParse ./test" | tee logs/test-results.log
+
 run_terratest_log_parser: &run_terratest_log_parser
   name: Terratest log parser
   command: |
@@ -204,6 +209,7 @@ jobs:
   # instability with the tests. The unit tests are fast to execute, so there is negligible
   # performance penalty.
   unit_test:
+    resource_class: large
     <<: *defaults
     <<: *env
     steps:
@@ -587,6 +593,25 @@ jobs:
       - store_test_results:
           path: logs
 
+  parse_test:
+    resource_class: medium
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_parse_test
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   run_markdownlint:
     <<: *defaults
     steps:
@@ -819,6 +844,16 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - race_test:
+          filters:
+            tags:
+              only:
+                - /^v.*/
+                - /^alpha.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - parse_test:
           filters:
             tags:
               only:
