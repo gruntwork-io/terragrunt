@@ -115,15 +115,7 @@ func (cmd *Command) VisibleSubcommands() Commands {
 		return nil
 	}
 
-	visibleSubcommands := make(Commands, 0, len(cmd.Subcommands))
-
-	for _, subcommand := range cmd.Subcommands {
-		if !subcommand.Hidden {
-			visibleSubcommands = append(visibleSubcommands, subcommand)
-		}
-	}
-
-	return visibleSubcommands
+	return cmd.Subcommands.VisibleCommands()
 }
 
 // Run parses the given args for the presence of flags as well as subcommands.
