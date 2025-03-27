@@ -617,6 +617,7 @@ Running `terragrunt backend delete` will delete the backend state file located a
 - `--all`: Delete backend state files for all units discovered in the current working directory.
 - `--config`: Path to the Terragrunt configuration file to use to delete the resources.
 - `--download-dir`: Path to download OpenTofu/Terraform modules into. The default is `.terragrunt-cache`.
+- `--force`: Force the deletion of the backend state file. By default, Terragrunt will refuse to delete backend state files if the bucket does not have versioning enabled.
 
 ### Catalog commands
 
