@@ -284,6 +284,8 @@ type TerragruntOptions struct {
 	Graph bool
 	// BackendBootstrap automatically bootstraps backend infrastructure before attempting to use it.
 	BackendBootstrap bool
+	// ForceBackendDelete forces the backend to be deleted, even if the bucket is not versioned.
+	ForceBackendDelete bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
