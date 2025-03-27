@@ -240,19 +240,13 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 
 		cfgs = dependencyDiscovery.cfgs
 
-		const maxCycleChecks = 10
+		if _, err := cfgs.CycleCheck(); err != nil {
+			opts.Logger.Warnf("Cycle detected in dependency graph, attempting removal of cycles:\n%s", err)
 
-		for range maxCycleChecks {
-			if cfg, err := cfgs.CycleCheck(); err != nil {
+			cfgs, err = cfgs.RemoveCycles()
+			if err != nil {
 				errs = append(errs, errors.New(err))
-
-				cfgs = cfgs.FilterByPath(cfg.Path)
 			}
-
-		}
-
-		if cfg, err := cfgs.CycleCheck(); err != nil {
-			errs = append(errs, errors.New(err))
 		}
 
 		if len(errs) > 0 {
@@ -523,14 +517,21 @@ func (c DiscoveredConfigs) CycleCheck() (*DiscoveredConfig, error) {
 }
 
 // RemoveCycles removes cycles from the dependency graph.
-func (c DiscoveredConfigs) RemoveCycles() DiscoveredConfigs {
-	const maxCycleChecks = 10
+func (c DiscoveredConfigs) RemoveCycles() (DiscoveredConfigs, error) {
+	const maxCycleChecks = 100
+
+	var (
+		err error
+		cfg *DiscoveredConfig
+	)
 
 	for range maxCycleChecks {
-		if cfg, err := c.CycleCheck(); err != nil {
-			c = c.RemoveByPath(cfg.Path)
+		if cfg, err = c.CycleCheck(); err == nil {
+			break
 		}
+
+		c = c.RemoveByPath(cfg.Path)
 	}
 
-	return c
+	return c, err
 }
