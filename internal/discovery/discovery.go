@@ -224,22 +224,39 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 		dependencyDiscovery := NewDependencyDiscovery(cfgs, d.maxDependencyDepth)
 
 		if d.discoverExternalDependencies {
-			dependencyDiscovery.WithDiscoverExternalDependencies()
+			dependencyDiscovery = dependencyDiscovery.WithDiscoverExternalDependencies()
 		}
 
 		if d.suppressParseErrors {
-			dependencyDiscovery.WithSuppressParseErrors()
+			dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
 		}
+
+		errs := []error{}
 
 		err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
 		if err != nil {
-			return dependencyDiscovery.cfgs, errors.New(err)
+			errs = append(errs, errors.New(err))
 		}
 
 		cfgs = dependencyDiscovery.cfgs
 
-		if err := cfgs.CycleCheck(); err != nil {
-			return cfgs, errors.New(err)
+		const maxCycleChecks = 10
+
+		for range maxCycleChecks {
+			if cfg, err := cfgs.CycleCheck(); err != nil {
+				errs = append(errs, errors.New(err))
+
+				cfgs = cfgs.FilterByPath(cfg.Path)
+			}
+
+		}
+
+		if cfg, err := cfgs.CycleCheck(); err != nil {
+			errs = append(errs, errors.New(err))
+		}
+
+		if len(errs) > 0 {
+			return cfgs, errors.Join(errs...)
 		}
 	}
 
@@ -320,8 +337,12 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 
 	//nolint: contextcheck
 	cfg, err := config.PartialParseConfigFile(parsingCtx, opts.TerragruntConfigPath, nil)
-	if err != nil && !d.suppressParseErrors && cfg != nil {
-		return errors.New(err)
+	if err != nil {
+		if !d.suppressParseErrors || cfg == nil {
+			return errors.New(err)
+		}
+
+		opts.Logger.Debugf("Suppressing parse error for %s: %s", opts.TerragruntConfigPath, err)
 	}
 
 	dependencyBlocks := cfg.TerragruntDependencies
@@ -424,10 +445,23 @@ func (c DiscoveredConfigs) Filter(configType ConfigType) DiscoveredConfigs {
 
 // FilterByPath filters the DiscoveredConfigs by path.
 func (c DiscoveredConfigs) FilterByPath(path string) DiscoveredConfigs {
-	filtered := make(DiscoveredConfigs, 0, len(c))
+	filtered := make(DiscoveredConfigs, 0, 1)
 
 	for _, config := range c {
 		if config.Path == path {
+			filtered = append(filtered, config)
+		}
+	}
+
+	return filtered
+}
+
+// RemoveByPath removes the DiscoveredConfig with the given path from the DiscoveredConfigs.
+func (c DiscoveredConfigs) RemoveByPath(path string) DiscoveredConfigs {
+	filtered := make(DiscoveredConfigs, 0, len(c)-1)
+
+	for _, config := range c {
+		if config.Path != path {
 			filtered = append(filtered, config)
 		}
 	}
@@ -446,7 +480,9 @@ func (c DiscoveredConfigs) Paths() []string {
 }
 
 // CycleCheck checks for cycles in the dependency graph.
-func (c DiscoveredConfigs) CycleCheck() error {
+// If a cycle is detected, it returns the first DiscoveredConfig that is part of the cycle, and an error.
+// If no cycle is detected, it returns nil and nil.
+func (c DiscoveredConfigs) CycleCheck() (*DiscoveredConfig, error) {
 	visited := make(map[string]bool)
 	inPath := make(map[string]bool)
 
@@ -478,10 +514,23 @@ func (c DiscoveredConfigs) CycleCheck() error {
 	for _, cfg := range c {
 		if !visited[cfg.Path] {
 			if err := checkCycle(cfg); err != nil {
-				return err
+				return cfg, err
 			}
 		}
 	}
 
-	return nil
+	return nil, nil
+}
+
+// RemoveCycles removes cycles from the dependency graph.
+func (c DiscoveredConfigs) RemoveCycles() DiscoveredConfigs {
+	const maxCycleChecks = 10
+
+	for range maxCycleChecks {
+		if cfg, err := c.CycleCheck(); err != nil {
+			c = c.RemoveByPath(cfg.Path)
+		}
+	}
+
+	return c
 }
