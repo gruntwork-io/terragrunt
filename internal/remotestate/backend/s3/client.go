@@ -416,7 +416,7 @@ func (client *Client) CheckIfVersioningEnabled(ctx context.Context, bucketName s
 	// NOTE: There must be a bug in the AWS SDK since res == nil when versioning is not enabled. In the future,
 	// check the AWS SDK for updates to see if we can remove "res == nil ||".
 	if res == nil || res.Status == nil || *res.Status != s3.BucketVersioningStatusEnabled {
-		client.logger.Warnf("Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", bucketName)
+		client.logger.Warnf("Versioning is not enabled for the remote state S3 bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your OpenTofu/Terraform state in case of error.", bucketName)
 		return false, nil
 	}
 
