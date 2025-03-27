@@ -44,7 +44,7 @@ func (flags Flags) Get(name string) Flag {
 
 // Filter returns a list of flags filtered by the given names.
 func (flags Flags) Filter(names ...string) Flags {
-	var filtered Flags
+	var filtered Flags = make(Flags, 0, len(names))
 
 	for _, flag := range flags {
 		for _, name := range names {
@@ -65,7 +65,7 @@ func (flags Flags) Add(newFlags ...Flag) Flags {
 // VisibleFlags returns a slice of the Flags.
 // Used by `urfave/cli` package to generate help.
 func (flags Flags) VisibleFlags() Flags {
-	var visibleFlags Flags
+	var visibleFlags Flags = make(Flags, 0, len(flags))
 
 	for _, flag := range flags {
 		if !flag.GetHidden() {
