@@ -156,21 +156,21 @@ func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, bucketName
 }
 
 // CheckIfGCSVersioningEnabled checks if versioning is enabled for the GCS bucket specified in the given config and warn the user if it is not
-func (client *Client) CheckIfGCSVersioningEnabled(bucketName string) error {
+func (client *Client) CheckIfGCSVersioningEnabled(bucketName string) (bool, error) {
 	ctx := context.Background()
 	bucket := client.Bucket(bucketName)
 
 	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		// ErrBucketNotExist
-		return errors.New(err)
+		return false, errors.New(err)
 	}
 
 	if !attrs.VersioningEnabled {
-		client.logger.Warnf("Versioning is not enabled for the remote state GCS bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your Terraform state in case of error.", bucketName)
+		client.logger.Warnf("Versioning is not enabled for the remote state GCS bucket %s. We recommend enabling versioning so that you can roll back to previous versions of your OpenTofu/Terraform state in case of error.", bucketName)
 	}
 
-	return nil
+	return attrs.VersioningEnabled, nil
 }
 
 // CreateGCSBucketWithVersioning creates the given GCS bucket and enables versioning for it.
