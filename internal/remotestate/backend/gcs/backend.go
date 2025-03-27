@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -108,7 +109,7 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
 	if !extGCSCfg.SkipBucketVersioning && bucketName != "" {
 		// TODO: Remove lint suppression
-		if err := client.CheckIfGCSVersioningEnabled(bucketName); err != nil { //nolint:contextcheck
+		if _, err := client.CheckIfGCSVersioningEnabled(ctx, bucketName); err != nil { //nolint:contextcheck
 			return err
 		}
 	}
@@ -128,6 +129,17 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
 	if err != nil {
 		return err
+	}
+
+	if !opts.ForceBackendDelete {
+		versioned, err := client.CheckIfGCSVersioningEnabled(ctx, extGCSCfg.RemoteStateConfigGCS.Bucket)
+		if err != nil {
+			return err
+		}
+
+		if !versioned {
+			return errors.New("bucket is not versioned, refusing to delete backend state. If you are sure you want to delete the backend state anyways, use the --force flag")
+		}
 	}
 
 	var (

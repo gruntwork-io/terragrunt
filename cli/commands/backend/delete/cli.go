@@ -11,7 +11,8 @@ import (
 const (
 	CommandName = "delete"
 
-	BucketFlagName = "bucket"
+	BucketFlagName             = "bucket"
+	ForceBackendDeleteFlagName = "force"
 )
 
 func NewFlags(cmdOpts *Options, prefix flags.Prefix) cli.Flags {
@@ -24,6 +25,12 @@ func NewFlags(cmdOpts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Delete the entire bucket.",
 			Hidden:      true,
 			Destination: &cmdOpts.DeleteBucket,
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        ForceBackendDeleteFlagName,
+			EnvVars:     tgPrefix.EnvVars(ForceBackendDeleteFlagName),
+			Usage:       "Force the backend to be deleted, even if the bucket is not versioned.",
+			Destination: &cmdOpts.ForceBackendDelete,
 		}),
 	}
 

@@ -97,21 +97,21 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 
 	ctx = app.registerGracefullyShutdown(ctx)
 
-	err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
-		Vars:       env.Parse(os.Environ()),
-		AppName:    app.Name,
-		AppVersion: app.Version,
-		Writer:     app.Writer,
-		ErrWriter:  app.ErrWriter,
-	})
+	if err := global.NewTelemetryFlags(app.opts, nil).Parse(os.Args); err != nil {
+		return err
+	}
+
+	telemeter, err := telemetry.NewTelemeter(ctx, app.Name, app.Version, app.Writer, app.opts.Telemetry)
 	if err != nil {
 		return err
 	}
 	defer func(ctx context.Context) {
-		if err := telemetry.ShutdownTelemetry(ctx); err != nil {
+		if err := telemeter.Shutdown(ctx); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)
+
+	ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context
@@ -159,7 +159,7 @@ func removeNoColorFlagDuplicates(args []string) []string {
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
 func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
-		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]any{
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
