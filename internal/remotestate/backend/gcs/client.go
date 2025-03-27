@@ -156,8 +156,7 @@ func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, bucketName
 }
 
 // CheckIfGCSVersioningEnabled checks if versioning is enabled for the GCS bucket specified in the given config and warn the user if it is not
-func (client *Client) CheckIfGCSVersioningEnabled(bucketName string) (bool, error) {
-	ctx := context.Background()
+func (client *Client) CheckIfGCSVersioningEnabled(ctx context.Context, bucketName string) (bool, error) {
 	bucket := client.Bucket(bucketName)
 
 	attrs, err := bucket.Attrs(ctx)

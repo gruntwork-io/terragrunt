@@ -109,7 +109,7 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
 	if !extGCSCfg.SkipBucketVersioning && bucketName != "" {
 		// TODO: Remove lint suppression
-		if _, err := client.CheckIfGCSVersioningEnabled(bucketName); err != nil { //nolint:contextcheck
+		if _, err := client.CheckIfGCSVersioningEnabled(ctx, bucketName); err != nil { //nolint:contextcheck
 			return err
 		}
 	}
@@ -132,7 +132,7 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 	}
 
 	if !opts.ForceBackendDelete {
-		versioned, err := client.CheckIfGCSVersioningEnabled(extGCSCfg.RemoteStateConfigGCS.Bucket)
+		versioned, err := client.CheckIfGCSVersioningEnabled(ctx, extGCSCfg.RemoteStateConfigGCS.Bucket)
 		if err != nil {
 			return err
 		}
