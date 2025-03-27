@@ -38,6 +38,7 @@ const (
 	testFixtureStackCycles                     = "fixtures/stacks/errors/cycles"
 	testFixtureNoStackNoDir                    = "fixtures/stacks/no-stack-dir"
 	testFixtureMultipleStacks                  = "fixtures/stacks/multiple-stacks"
+	testFixtureReadStack                       = "fixtures/stacks/read-stack"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -906,6 +907,22 @@ func TestStacksGenerateMultipleStacks(t *testing.T) {
 
 	liveStack := util.JoinPath(rootPath, "live", ".terragrunt-stack")
 	validateStackDir(t, liveStack)
+}
+
+func TestStacksReadFiles(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureReadStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadStack)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureReadStack)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --log-level debug --experiment stacks --non-interactive --working-dir "+rootPath)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
+
+	require.NoError(t, err)
 }
 
 // validateNoStackDirs check if the directories outside of stack are created and contain test files
