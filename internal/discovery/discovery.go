@@ -70,6 +70,9 @@ type Discovery struct {
 
 	// discoverExternalDependencies determines whether to discover external dependencies.
 	discoverExternalDependencies bool
+
+	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
+	suppressParseErrors bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -124,6 +127,13 @@ func (d *Discovery) WithMaxDependencyDepth(depth int) *Discovery {
 // WithDiscoverExternalDependencies sets the DiscoverExternalDependencies flag to true.
 func (d *Discovery) WithDiscoverExternalDependencies() *Discovery {
 	d.discoverExternalDependencies = true
+
+	return d
+}
+
+// WithSuppressParseErrors sets the SuppressParseErrors flag to true.
+func (d *Discovery) WithSuppressParseErrors() *Discovery {
+	d.suppressParseErrors = true
 
 	return d
 }
@@ -211,7 +221,15 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 	}
 
 	if d.discoverDependencies {
-		dependencyDiscovery := NewDependencyDiscovery(cfgs, d.maxDependencyDepth, d.discoverExternalDependencies)
+		dependencyDiscovery := NewDependencyDiscovery(cfgs, d.maxDependencyDepth)
+
+		if d.discoverExternalDependencies {
+			dependencyDiscovery.WithDiscoverExternalDependencies()
+		}
+
+		if d.suppressParseErrors {
+			dependencyDiscovery.WithSuppressParseErrors()
+		}
 
 		err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
 		if err != nil {
@@ -228,18 +246,36 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 	return cfgs, nil
 }
 
+// DependencyDiscovery is the configuration for a DependencyDiscovery.
 type DependencyDiscovery struct {
-	cfgs             DiscoveredConfigs
-	depthRemaining   int
-	discoverExternal bool
+	cfgs                DiscoveredConfigs
+	depthRemaining      int
+	discoverExternal    bool
+	suppressParseErrors bool
 }
 
-func NewDependencyDiscovery(cfgs DiscoveredConfigs, depthRemaining int, discoverExternal bool) *DependencyDiscovery {
+// DependencyDiscoveryOption is a function that modifies a DependencyDiscovery.
+type DependencyDiscoveryOption func(*DependencyDiscovery)
+
+func NewDependencyDiscovery(cfgs DiscoveredConfigs, depthRemaining int) *DependencyDiscovery {
 	return &DependencyDiscovery{
-		cfgs:             cfgs,
-		depthRemaining:   depthRemaining,
-		discoverExternal: discoverExternal,
+		cfgs:           cfgs,
+		depthRemaining: depthRemaining,
 	}
+}
+
+// WithSuppressParseErrors sets the SuppressParseErrors flag to true.
+func (d *DependencyDiscovery) WithSuppressParseErrors() *DependencyDiscovery {
+	d.suppressParseErrors = true
+
+	return d
+}
+
+// WithDiscoverExternalDependencies sets the DiscoverExternalDependencies flag to true.
+func (d *DependencyDiscovery) WithDiscoverExternalDependencies() *DependencyDiscovery {
+	d.discoverExternal = true
+
+	return d
 }
 
 func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, opts *options.TerragruntOptions) error {
@@ -284,7 +320,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 
 	//nolint: contextcheck
 	cfg, err := config.PartialParseConfigFile(parsingCtx, opts.TerragruntConfigPath, nil)
-	if err != nil {
+	if err != nil && !d.suppressParseErrors && cfg != nil {
 		return errors.New(err)
 	}
 
