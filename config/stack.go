@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/hashicorp/go-getter/v2"
 
@@ -37,6 +39,13 @@ type StackConfigFile struct {
 	Locals *terragruntLocal `hcl:"locals,block"`
 	Stacks []*Stack         `hcl:"stack,block"`
 	Units  []*Unit          `hcl:"unit,block"`
+}
+
+// StackConfig represents the structure of terragrunt.stack.hcl stack file.
+type StackConfig struct {
+	Locals map[string]any
+	Stacks []*Stack
+	Units  []*Unit
 }
 
 // Unit represent unit from stack file.
@@ -417,9 +426,9 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions,
 }
 
 // ReadStackConfigFile reads and parses a Terragrunt stack configuration file from the given path.
-// It creates a parsing context, processes locals, and decodes the file into a StackConfigFile struct.
+// It creates a parsing context, processes locals, and decodes the file into a StackConfig struct.
 // Validation is performed on the resulting config, and any encountered errors cause an early return.
-func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfigFile, error) {
+func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfig, error) {
 	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
 	parser := NewParsingContext(ctx, opts)
@@ -448,11 +457,25 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 		return nil, errors.New(err)
 	}
 
+	localsParsed := map[string]any{}
+	if parser.Locals != nil {
+		localsParsed, err = ctyhelper.ParseCtyValueToMap(*parser.Locals)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+	}
+
+	stackConfig := &StackConfig{
+		Locals: localsParsed,
+		Stacks: config.Stacks,
+		Units:  config.Units,
+	}
+
 	if err := ValidateStackConfig(config); err != nil {
 		return nil, errors.New(err)
 	}
 
-	return config, nil
+	return stackConfig, nil
 }
 
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.

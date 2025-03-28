@@ -708,6 +708,33 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 
 	ctx = ctx.WithTerragruntOptions(opts)
 
+	// check if file is stack file, decode as stack file
+	if strings.HasSuffix(targetConfig, DefaultStackFile) {
+		stackSourceDir := filepath.Dir(targetConfig)
+
+		values, err := ReadValues(ctx, opts, stackSourceDir)
+		if err != nil {
+			return cty.NilVal, errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, err)
+		}
+
+		stackFile, err := ReadStackConfigFile(ctx, opts, targetConfig, values)
+		if err != nil {
+			return cty.NilVal, errors.New(err)
+		}
+
+		return stackConfigAsCty(stackFile)
+	}
+
+	// check if file is a values file, decode as values file
+	if strings.HasSuffix(targetConfig, valuesFile) {
+		unitValues, err := ReadValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(targetConfig))
+		if err != nil {
+			return cty.NilVal, errors.New(err)
+		}
+
+		return *unitValues, nil
+	}
+
 	config, err := ParseConfigFile(ctx, targetConfig, nil)
 	if err != nil {
 		return cty.NilVal, err
