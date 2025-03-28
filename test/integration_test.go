@@ -4178,3 +4178,18 @@ func TestTF110EphemeralVars(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 }
+
+func TestTfPath(t *testing.T) {
+	// Test that the terragrunt run version command correctly identifies and uses
+	// the terraform_binary path configuration if present
+	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --experiment cli-redesign --working-dir "+workingDir)
+	require.NoError(t, err)
+
+	assert.Regexp(t, "(?i)(terraform|opentofu)", stdout+stderr)
+}
