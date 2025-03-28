@@ -787,7 +787,8 @@ inputs = {
 ```
 
 Notes:
-* `read_terragrunt_config` can be also used to read `terragrunt.stack.hcl` and `terragrunt.values.hcl` files.
+
+- `read_terragrunt_config` can be also used to read `terragrunt.stack.hcl` and `terragrunt.values.hcl` files.
 
 ## sops_decrypt_file
 
