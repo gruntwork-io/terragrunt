@@ -3,6 +3,7 @@ package discovery
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -235,13 +236,17 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 
 		err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
 		if err != nil {
-			errs = append(errs, errors.New(err))
+			opts.Logger.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
+
+			opts.Logger.Debugf("Errors: %w", err)
 		}
 
 		cfgs = dependencyDiscovery.cfgs
 
 		if _, err := cfgs.CycleCheck(); err != nil {
-			opts.Logger.Warnf("Cycle detected in dependency graph, attempting removal of cycles:\n%s", err)
+			opts.Logger.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+
+			opts.Logger.Debugf("Cycle: %w", err)
 
 			cfgs, err = cfgs.RemoveCycles()
 			if err != nil {
@@ -315,14 +320,24 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 		return errors.New("max dependency depth reached while discovering dependencies")
 	}
 
-	opts = opts.Clone()
-	opts.WorkingDir = dCfg.Path
-
-	if dCfg.Type == ConfigTypeUnit {
-		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, config.DefaultTerragruntConfigPath)
+	// Stack configs don't have dependencies (at least for now),
+	// so we can return early.
+	if dCfg.Type == ConfigTypeStack {
+		return nil
 	}
 
-	parsingCtx := config.NewParsingContext(ctx, opts).WithDecodeList(
+	parseOpts := opts.Clone()
+	parseOpts.WorkingDir = dCfg.Path
+
+	// Suppress logging to avoid cluttering the output.
+	parseOpts.Writer = io.Discard
+	parseOpts.ErrWriter = io.Discard
+
+	// We can assume this is a unit config, because we already filtered out
+	// stack configs above.
+	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, config.DefaultTerragruntConfigPath)
+
+	parsingCtx := config.NewParsingContext(ctx, parseOpts).WithDecodeList(
 		config.DependenciesBlock,
 		config.DependencyBlock,
 		config.FeatureFlagsBlock,
@@ -330,13 +345,15 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 	)
 
 	//nolint: contextcheck
-	cfg, err := config.PartialParseConfigFile(parsingCtx, opts.TerragruntConfigPath, nil)
+	cfg, err := config.PartialParseConfigFile(parsingCtx, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !d.suppressParseErrors || cfg == nil {
+			opts.Logger.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+
 			return errors.New(err)
 		}
 
-		opts.Logger.Debugf("Suppressing parse error for %s: %s", opts.TerragruntConfigPath, err)
+		opts.Logger.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 	}
 
 	dependencyBlocks := cfg.TerragruntDependencies
@@ -349,7 +366,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 		depPath := dependency.ConfigPath.AsString()
 
 		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Join(opts.WorkingDir, depPath)
+			depPath = filepath.Join(parseOpts.WorkingDir, depPath)
 		}
 
 		depPaths = append(depPaths, depPath)
@@ -358,7 +375,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 	if cfg.Dependencies != nil {
 		for _, dependency := range cfg.Dependencies.Paths {
 			if !filepath.IsAbs(dependency) {
-				dependency = filepath.Join(opts.WorkingDir, dependency)
+				dependency = filepath.Join(parseOpts.WorkingDir, dependency)
 			}
 
 			depPaths = append(depPaths, dependency)
@@ -367,6 +384,10 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
+	}
+
+	if len(depPaths) == 0 {
+		return nil
 	}
 
 	deduped := make(map[string]struct{}, len(depPaths))
