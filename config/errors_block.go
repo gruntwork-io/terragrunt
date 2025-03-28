@@ -152,9 +152,9 @@ func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
 			if otherBlock.SleepIntervalSec > 0 {
 				existingBlock.SleepIntervalSec = otherBlock.SleepIntervalSec
 			}
-		} else {
-			retryMap[otherBlock.Label] = otherBlock
+			continue
 		}
+		retryMap[otherBlock.Label] = otherBlock
 	}
 
 	return util.MapToSlice(retryMap)
