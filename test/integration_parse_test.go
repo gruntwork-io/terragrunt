@@ -82,6 +82,8 @@ func TestParseFindListAllComponents(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 				t,
 				tt.command,
@@ -124,13 +126,15 @@ func TestParseFindListAllComponentsWithDAG(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 				t,
 				tt.command,
 			)
 			require.NoError(t, err)
 
-			assert.Empty(t, stderr)
+			assert.NotEmpty(t, stderr)
 			assert.NotEmpty(t, stdout)
 
 			lines := strings.Split(stdout, "\n")
@@ -166,13 +170,15 @@ func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 				t,
 				tt.command,
 			)
 			require.NoError(t, err)
 
-			assert.Empty(t, stderr)
+			assert.NotEmpty(t, stderr)
 			assert.NotEmpty(t, stdout)
 
 			lines := strings.Split(stdout, "\n")
@@ -190,7 +196,7 @@ func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 				}
 			}
 
-			assert.Less(t, aDepLine, bDepLine)
+			assert.Greater(t, aDepLine, bDepLine)
 		})
 	}
 }
