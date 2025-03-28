@@ -1,18 +1,19 @@
-package util_test
+package worker_test
 
 import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/worker"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAllTasksCompleteWithoutErrors(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(5)
+	wp := worker.NewWorkerPool(5)
 	defer wp.Stop()
 
 	var counter int32
@@ -37,7 +38,7 @@ func TestAllTasksCompleteWithoutErrors(t *testing.T) {
 func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(10)
+	wp := worker.NewWorkerPool(10)
 	defer wp.Stop()
 
 	var counter int32
@@ -60,7 +61,7 @@ func TestSubmitLessAllTasksCompleteWithoutErrors(t *testing.T) {
 func TestSomeTasksReturnErrors(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(3)
+	wp := worker.NewWorkerPool(3)
 	defer wp.Stop()
 
 	var successCount int32
@@ -88,7 +89,7 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 func TestStopAndRestart(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(2)
+	wp := worker.NewWorkerPool(2)
 
 	var counter int32
 
@@ -109,7 +110,7 @@ func TestStopAndRestart(t *testing.T) {
 	require.Equal(t, int32(5), finalCount, "expected counter to be 5")
 
 	// Create a new worker pool instead of assuming restart
-	wp = util.NewWorkerPool(2)
+	wp = worker.NewWorkerPool(2)
 	defer wp.Stop()
 
 	// Submit new tasks
@@ -128,13 +129,13 @@ func TestStopAndRestart(t *testing.T) {
 func TestParallelSubmitsAndWaits(t *testing.T) {
 	t.Parallel()
 
-	wp := util.NewWorkerPool(4)
+	wp := worker.NewWorkerPool(4)
 	t.Cleanup(func() { wp.Stop() })
 	var totalCount int32
 
 	t.Run("parallelTaskSubmit1", func(t *testing.T) {
 		t.Parallel()
-		localWp := util.NewWorkerPool(4) // Create a new worker pool per subtest
+		localWp := worker.NewWorkerPool(4) // Create a new worker pool per subtest
 		defer localWp.Stop()
 
 		for range 10 {
@@ -149,7 +150,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 
 	t.Run("parallelTaskSubmit2", func(t *testing.T) {
 		t.Parallel()
-		localWp := util.NewWorkerPool(4) // Create another fresh worker pool
+		localWp := worker.NewWorkerPool(4) // Create another fresh worker pool
 		defer localWp.Stop()
 
 		for range 15 {
@@ -165,7 +166,7 @@ func TestParallelSubmitsAndWaits(t *testing.T) {
 
 func TestValidateParallelSubmits(t *testing.T) {
 	t.Parallel()
-	wp := util.NewWorkerPool(1)
+	wp := worker.NewWorkerPool(1)
 	defer wp.Stop()
 
 	var totalCount int32
