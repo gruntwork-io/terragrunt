@@ -1069,6 +1069,10 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		command     []string
 	}{
 		{
+			command:  []string{"version"},
+			expected: wrappedBinary() + " version",
+		},
+		{
 			command:  []string{"--", "version"},
 			expected: wrappedBinary() + " version",
 		},

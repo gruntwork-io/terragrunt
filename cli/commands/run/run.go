@@ -907,3 +907,15 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 func useLegacyNullValues() bool {
 	return os.Getenv(useLegacyNullValuesEnvVar) == "1"
 }
+
+func getTerragruntConfig(ctx context.Context, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+	configCtx := config.NewParsingContext(ctx, opts).WithDecodeList(
+		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
+
+	// TODO: See if we should be ignore this lint error
+	return config.PartialParseConfigFile( //nolint: contextcheck
+		configCtx,
+		opts.TerragruntConfigPath,
+		nil,
+	)
+}
