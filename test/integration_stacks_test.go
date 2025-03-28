@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/gruntwork-io/terratest/modules/files"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -920,9 +922,70 @@ func TestStacksReadFiles(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --log-level debug --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
-
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "stack_local_project = \"test-project\"")
+	assert.Contains(t, stdout, "unit_value_version  = \"6.6.6\"")
+
+	parser := hclparse.NewParser()
+	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
+	assert.Nil(t, diags)
+	attr, _ := hcl.Body.JustAttributes()
+	assert.Len(t, attr, 5)
+
+	// fetch for dev-app-2 output
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output dev-app-2 --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	hcl, diags = parser.ParseHCL([]byte(stdout), "dev-app-2.hcl")
+	require.Nil(t, diags)
+
+	topLevelAttrs, _ := hcl.Body.JustAttributes()
+	assert.Len(t, topLevelAttrs, 1, "Expected one top-level attribute (dev-app-2)")
+
+	devApp2Attr, exists := topLevelAttrs["dev-app-2"]
+	assert.True(t, exists, "dev-app-2 block should exist")
+
+	if exists {
+		objVal, diags := devApp2Attr.Expr.Value(nil)
+		assert.Nil(t, diags)
+
+		expectedValues := map[string]string{
+			"config":              "dev-project dev dev-app-2",
+			"data":                "dev-app-2",
+			"env":                 "dev",
+			"project":             "dev-project",
+			"stack_local_project": "test-project",
+			"stack_value_env":     "dev",
+			"unit_name":           "test_app",
+			"unit_source":         "../units/app",
+			"unit_value_version":  "6.6.6",
+		}
+
+		if objVal.Type().IsObjectType() {
+			for field, expectedValue := range expectedValues {
+				attrVal := objVal.GetAttr(field)
+				assert.False(t, attrVal.IsNull(), "Field %s should exist in output", field)
+
+				if !attrVal.IsNull() && attrVal.Type() == cty.String {
+					assert.Equal(t, expectedValue, attrVal.AsString(), "Field %s should have value %s", field, expectedValue)
+				}
+			}
+
+			stackSource := objVal.GetAttr("stack_source")
+			assert.False(t, stackSource.IsNull(), "Field stack_source should exist in output")
+			if !stackSource.IsNull() {
+				assert.Contains(t, stackSource.AsString(), "/fixtures/stacks/read-stack/stacks/dev")
+			}
+
+			// Verify expected fields count (including stack_source)
+			valueMap := objVal.AsValueMap()
+			assert.Len(t, valueMap, len(expectedValues)+1, "Expected %d fields in dev-app-2", len(expectedValues)+1)
+		} else {
+			t.Fatalf("Expected dev-app-2 to be an object type, got %s", objVal.Type().FriendlyName())
+		}
+	}
 }
 
 // validateNoStackDirs check if the directories outside of stack are created and contain test files
