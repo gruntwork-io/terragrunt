@@ -42,18 +42,35 @@ output "data" {
   description = "Additional data used in the configuration"
 }
 
-variable "stack_local_project" {}
+variable "stack_local_project" {
+  description = "The local project identifier for the stack configuration"
+  type        = string
+}
 
-variable "unit_source" {}
+variable "unit_source" {
+  description = "The source location for the unit configuration"
+  type        = string
+}
 
-variable "unit_name" {}
+variable "unit_name" {
+  description = "The name assigned to the unit"
+  type        = string
+}
 
-variable "unit_value_version" {}
+variable "unit_value_version" {
+  description = "The version identifier for the unit value"
+  type        = string
+}
 
-variable "stack_source" {}
+variable "stack_source" {
+  description = "The source location for the stack configuration"
+  type        = string
+}
 
-variable "stack_value_env" {}
-
+variable "stack_value_env" {
+  description = "The environment setting for the stack values"
+  type        = string
+}
 output "stack_local_project" {
   value       = var.stack_local_project
   description = "The local project identifier from the stack configuration"
