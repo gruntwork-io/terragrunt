@@ -44,7 +44,6 @@ import (
 const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultStackFile                = "terragrunt.stack.hcl"
-	ValuesFile                      = "terragrunt.values.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
 	RecommendedParentConfigName     = "root.hcl"
 
@@ -84,6 +83,8 @@ const (
 	MetadataRetry                       = "retry"
 	MetadataIgnore                      = "ignore"
 	MetadataValues                      = "values"
+	MetadataStack                       = "stack"
+	MetadataUnit                        = "unit"
 )
 
 var (

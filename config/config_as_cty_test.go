@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"context"
 	"sort"
 	"testing"
 
@@ -220,6 +221,39 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	ctyTerraformConfigFields := ctyTerraformConfigStructInfo.Names()
 	sort.Strings(ctyTerraformConfigFields)
 	assert.Equal(t, terraformConfigFields, ctyTerraformConfigFields)
+}
+
+func TestStackUnitCtyReading(t *testing.T) {
+	t.Parallel()
+
+	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
+	ctx := config.NewParsingContext(context.Background(), options)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
+	require.NoError(t, err)
+	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
+	require.NoError(t, err)
+	assert.NotNil(t, stackMap)
+	// validate parsed unit
+	unit := stackMap["unit"].(map[string]any)
+	assert.NotNil(t, unit)
+	assert.NotNil(t, unit["mother"])
+	assert.NotNil(t, unit["father"])
+	assert.NotNil(t, unit["chick_1"])
+	assert.NotNil(t, unit["chick_2"])
+}
+
+func TestStackLocalsCtyReading(t *testing.T) {
+	t.Parallel()
+
+	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
+	ctx := config.NewParsingContext(context.Background(), options)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
+	require.NoError(t, err)
+	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
+	require.NoError(t, err)
+	assert.NotNil(t, stackMap)
+	locals := stackMap["locals"].(map[string]any)
+	assert.NotNil(t, locals)
 }
 
 func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string, bool) {
