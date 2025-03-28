@@ -18,7 +18,9 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	d := discovery.
+		NewDiscovery(opts.WorkingDir).
+		WithSuppressParseErrors()
 
 	if opts.Hidden {
 		d = d.WithHidden()

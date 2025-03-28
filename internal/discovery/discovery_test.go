@@ -377,12 +377,14 @@ func TestDiscoveredConfigsCycleCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.configs.CycleCheck()
+			cfg, err := tt.configs.CycleCheck()
 			if tt.errorExpected {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "cycle detected")
+				assert.NotNil(t, cfg)
 			} else {
 				require.NoError(t, err)
+				assert.Nil(t, cfg)
 			}
 		})
 	}
