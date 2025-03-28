@@ -4,7 +4,7 @@ locals {
   env     = "test"
 }
 
-unit "test-app" {
+unit "test_app" {
   source = "../units/app"
   path   = "app"
   values = {

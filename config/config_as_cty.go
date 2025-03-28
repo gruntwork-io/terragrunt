@@ -698,8 +698,8 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 	return convertValuesMapToCtyVal(output)
 }
 
-// stackConfigAsCty converts a StackConfigFile into a cty Value so its attributes can be used in other configs.
-func stackConfigAsCty(stackConfig *StackConfigFile) (cty.Value, error) {
+// stackConfigAsCty converts a StackConfig into a cty Value so its attributes can be used in other configs.
+func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
 	if stackConfig == nil {
 		return cty.NilVal, nil
 	}
@@ -713,7 +713,7 @@ func stackConfigAsCty(stackConfig *StackConfigFile) (cty.Value, error) {
 		}
 
 		if localsCty != cty.NilVal {
-			output[MetadataLocals] = localsCty
+			output[MetadataLocal] = localsCty
 		}
 	}
 
