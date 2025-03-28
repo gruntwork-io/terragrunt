@@ -766,5 +766,5 @@ func TestTfPath(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --experiment cli-redesign --working-dir "+workingDir)
 	require.NoError(t, err)
 
-	assert.Contains(t, strings.ToLower(stdout+stderr), "terraform")
+	assert.Regexp(t, "(?i)(terraform|opentofu)", stdout+stderr)
 }

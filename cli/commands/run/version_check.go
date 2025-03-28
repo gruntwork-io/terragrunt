@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 )
 
@@ -36,12 +35,6 @@ const versionParts = 3
 // - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	if !util.FileExists(terragruntOptions.TerragruntConfigPath) {
-		terragruntOptions.Logger.Debugf("Did not find the config file %s", terragruntOptions.TerragruntConfigPath)
-
-		return nil
-	}
-
 	configContext := config.NewParsingContext(ctx, terragruntOptions).WithDecodeList(
 		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
 
