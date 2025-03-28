@@ -273,3 +273,52 @@ func TestStringListInsert(t *testing.T) {
 		})
 	}
 }
+
+func TestMapToSlice(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty Map", func(t *testing.T) {
+		t.Parallel()
+		m := make(map[string]*int)
+		result := util.MapToSlice(m)
+		if len(result) != 0 {
+			t.Errorf("Expected empty slice, got %v", result)
+		}
+	})
+
+	t.Run("Single Element Map", func(t *testing.T) {
+		t.Parallel()
+		val := 42
+		m := map[string]*int{"key1": &val}
+		result := util.MapToSlice(m)
+		if len(result) != 1 || result[0] != &val {
+			t.Errorf("Expected slice with one element %v, got %v", &val, result)
+		}
+	})
+
+	t.Run("Multiple Elements Map", func(t *testing.T) {
+		t.Parallel()
+		val1, val2 := 42, 84
+		m := map[string]*int{"key1": &val1, "key2": &val2}
+		result := util.MapToSlice(m)
+		if len(result) != 2 {
+			t.Errorf("Expected slice with two elements, got %v", result)
+		}
+		if result[0] != &val1 && result[1] != &val2 {
+			t.Errorf("Expected elements %v and %v, got %v", &val1, &val2, result)
+		}
+	})
+
+	t.Run("Nil Values", func(t *testing.T) {
+		t.Parallel()
+		val := 42
+		m := map[string]*int{"key1": &val, "key2": nil}
+		result := util.MapToSlice(m)
+		if len(result) != 2 {
+			t.Errorf("Expected slice with two elements, got %v", result)
+		}
+		if result[1] != nil {
+			t.Errorf("Expected second element to be nil, got %v", result[1])
+		}
+	})
+}
