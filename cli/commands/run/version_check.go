@@ -45,7 +45,6 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 
 	configContext := config.NewParsingContext(ctx, terragruntOptions).WithDecodeList(
 		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
-
 	configContext.ParserOptions = append(configContext.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
 
 	// TODO: See if we should be ignore this lint error
@@ -55,7 +54,7 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 		nil,
 	)
 	if err != nil {
-		return nil //nolint: nilerr
+		return err
 	}
 
 	// Change the terraform binary path before checking the version

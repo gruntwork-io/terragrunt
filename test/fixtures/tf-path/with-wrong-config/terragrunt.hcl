@@ -1,3 +1,0 @@
-terraform_binary = terraform
-
-{

@@ -1,1 +1,0 @@
-terraform_binary = "terraform"

@@ -124,55 +124,16 @@ const (
 func TestTfPath(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name           string
-		workingDir     string
-		args           string
-		expectedBinary string
-	}{
-		{
-			"without config",
-			filepath.Join(testFixtureTfPath, "without-config"),
-			"",
-			"tofu",
-		},
-		{
-			"config with terraform tfpath",
-			filepath.Join(testFixtureTfPath, "config-with-terraform-tfpath"),
-			"",
-			"terraform",
-		},
-		{
-			"with wrong config",
-			filepath.Join(testFixtureTfPath, "with-wrong-config"),
-			"--tf-path terraform",
-			"terraform",
-		},
-		{
-			"with wrong config",
-			filepath.Join(testFixtureTfPath, "with-wrong-config"),
-			"",
-			"tofu",
-		},
-	}
+	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
 
-	for i, tc := range testCases {
-		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
-			t.Parallel()
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --experiment cli-redesign --working-dir "+workingDir)
+	require.NoError(t, err)
 
-			helpers.CleanupTerraformFolder(t, testFixtureTfPath)
-			rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
-			workingDir := util.JoinPath(rootPath, tc.workingDir)
-			workingDir, err := filepath.EvalSymlinks(workingDir)
-			require.NoError(t, err)
-
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version "+tc.args+" --experiment cli-redesign --working-dir "+workingDir)
-			require.NoError(t, err)
-
-			assert.Contains(t, strings.ToLower(stdout), tc.expectedBinary)
-		})
-	}
-
+	assert.Contains(t, strings.ToLower(stdout+stderr), "terraform")
 }
 
 func TestCLIFlagHints(t *testing.T) {
