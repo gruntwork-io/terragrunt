@@ -4180,6 +4180,7 @@ func TestTF110EphemeralVars(t *testing.T) {
 }
 
 func TestTfPath(t *testing.T) {
+	t.Parallel()
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present
 	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
