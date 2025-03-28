@@ -13,6 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 )
 
 const (
@@ -332,6 +334,10 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 	// Suppress logging to avoid cluttering the output.
 	parseOpts.Writer = io.Discard
 	parseOpts.ErrWriter = io.Discard
+	parseOpts.Logger = log.New(
+		log.WithOutput(io.Discard),
+		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+	)
 
 	// We can assume this is a unit config, because we already filtered out
 	// stack configs above.
