@@ -10,8 +10,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
 
-	"github.com/gruntwork-io/terragrunt/util"
 	"maps"
+
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 type Config map[string]any

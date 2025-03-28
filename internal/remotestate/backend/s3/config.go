@@ -11,8 +11,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/gruntwork-io/terragrunt/util"
 	"maps"
+
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
