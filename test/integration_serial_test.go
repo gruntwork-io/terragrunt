@@ -755,3 +755,19 @@ func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 		})
 	}
 }
+
+func TestTfPath(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
+	err = os.Rename(filepath.Join(workingDir, "binary.sh"), "/tmp/binary.sh")
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --experiment cli-redesign --working-dir "+workingDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, strings.ToLower(stdout+stderr), "terraform")
+}
