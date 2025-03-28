@@ -69,7 +69,7 @@ func TestParseAllFixtureFiles(t *testing.T) {
 	}
 }
 
-func TestFindListAllComponents(t *testing.T) {
+func TestParseFindListAllComponents(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
@@ -111,7 +111,7 @@ func TestFindListAllComponents(t *testing.T) {
 	}
 }
 
-func TestFindListAllComponentsWithDAG(t *testing.T) {
+func TestParseFindListAllComponentsWithDAG(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
@@ -153,7 +153,7 @@ func TestFindListAllComponentsWithDAG(t *testing.T) {
 	}
 }
 
-func TestFindListAllComponentsWithDAGAndExternal(t *testing.T) {
+func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
