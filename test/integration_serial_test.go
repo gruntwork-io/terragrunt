@@ -763,9 +763,6 @@ func TestTfPath(t *testing.T) {
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
-	err = os.Rename(filepath.Join(workingDir, "binary.sh"), "/tmp/binary.sh")
-	require.NoError(t, err)
-
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --experiment cli-redesign --working-dir "+workingDir)
 	require.NoError(t, err)
 

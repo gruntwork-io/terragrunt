@@ -1,2 +1,2 @@
 # We need to specify a custom binary because some CircleCI jobs don't have `terraform` binary.
-terraform_binary = "/tmp/binary.sh"
+terraform_binary = "./binary.sh"
