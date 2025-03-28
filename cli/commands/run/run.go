@@ -85,16 +85,16 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return errors.New(MissingCommand{})
 	}
 
-	return runTerraform(ctx, opts, new(Target))
+	return run(ctx, opts, new(Target))
 }
 
 func RunWithTarget(ctx context.Context, opts *options.TerragruntOptions, target *Target) error {
-	return runTerraform(ctx, opts, target)
+	return run(ctx, opts, target)
 }
 
-func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOptions, target *Target) error {
+func run(ctx context.Context, terragruntOptions *options.TerragruntOptions, target *Target) error {
 	if terragruntOptions.TerraformCommand == tf.CommandNameVersion {
-		return tf.RunCommand(ctx, terragruntOptions, tf.CommandNameVersion)
+		return runVersionCommand(ctx, terragruntOptions)
 	}
 
 	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
@@ -906,4 +906,16 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 
 func useLegacyNullValues() bool {
 	return os.Getenv(useLegacyNullValuesEnvVar) == "1"
+}
+
+func getTerragruntConfig(ctx context.Context, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+	configCtx := config.NewParsingContext(ctx, opts).WithDecodeList(
+		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
+
+	// TODO: See if we should be ignore this lint error
+	return config.PartialParseConfigFile( //nolint: contextcheck
+		configCtx,
+		opts.TerragruntConfigPath,
+		nil,
+	)
 }

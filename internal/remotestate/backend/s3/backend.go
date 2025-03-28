@@ -159,12 +159,24 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 	if tableName != "" {
 		tableKey := path.Join(bucketName, bucketKey+stateIDSuffix)
 
-		if err := client.DeleteTableItemIfNecessary(ctx, tableName, tableKey); err != nil {
+		prompt := fmt.Sprintf("DynamoDB table %s key %s will be deleted. Do you want to continue?", tableName, tableKey)
+		if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
 			return err
+		} else if yes {
+			if err := client.DeleteTableItemIfNecessary(ctx, tableName, tableKey); err != nil {
+				return err
+			}
 		}
 	}
 
-	return client.DeleteS3ObjectIfNecessary(ctx, bucketName, bucketKey)
+	prompt := fmt.Sprintf("S3 bucket %s key %s will be deleted. Do you want to continue?", bucketName, bucketKey)
+	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+		return err
+	} else if yes {
+		return client.DeleteS3ObjectIfNecessary(ctx, bucketName, bucketKey)
+	}
+
+	return nil
 }
 
 // DeleteBucket deletes the entire bucket specified in the given config.

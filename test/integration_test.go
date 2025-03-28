@@ -111,6 +111,7 @@ const (
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
+	testFixtureTfPath                         = "fixtures/tf-path"
 
 	terraformFolder = ".terraform"
 
@@ -1067,6 +1068,10 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		expected    string
 		command     []string
 	}{
+		{
+			command:  []string{"version"},
+			expected: wrappedBinary() + " version",
+		},
 		{
 			command:  []string{"--", "version"},
 			expected: wrappedBinary() + " version",
@@ -4172,4 +4177,20 @@ func TestTF110EphemeralVars(t *testing.T) {
 	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
+}
+
+func TestTfPath(t *testing.T) {
+	t.Parallel()
+	// Test that the terragrunt run version command correctly identifies and uses
+	// the terraform_binary path configuration if present
+	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --experiment cli-redesign --working-dir "+workingDir)
+	require.NoError(t, err)
+
+	assert.Regexp(t, "(?i)(terraform|opentofu)", stdout+stderr)
 }
