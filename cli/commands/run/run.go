@@ -93,6 +93,10 @@ func RunWithTarget(ctx context.Context, opts *options.TerragruntOptions, target 
 }
 
 func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOptions, target *Target) error {
+	if err := CheckVersionConstraints(ctx, terragruntOptions); err != nil {
+		return target.runErrorCallback(terragruntOptions, nil, err)
+	}
+
 	if terragruntOptions.TerraformCommand == tf.CommandNameVersion {
 		return tf.RunCommand(ctx, terragruntOptions, tf.CommandNameVersion)
 	}
@@ -101,10 +105,6 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	credsGetter := creds.NewGetter()
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, externalcmd.NewProvider(terragruntOptions)); err != nil {
 		return err
-	}
-
-	if err := CheckVersionConstraints(ctx, terragruntOptions); err != nil {
-		return target.runErrorCallback(terragruntOptions, nil, err)
 	}
 
 	terragruntConfig, err := config.ReadTerragruntConfig(ctx, terragruntOptions, config.DefaultParserOptions(terragruntOptions))

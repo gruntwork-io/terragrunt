@@ -1,0 +1,3 @@
+terraform_binary = terraform
+
+{

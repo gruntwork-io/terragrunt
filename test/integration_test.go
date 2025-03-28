@@ -111,6 +111,7 @@ const (
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
+	testFixtureTfPath                         = "fixtures/tf-path"
 
 	terraformFolder = ".terraform"
 
@@ -119,6 +120,60 @@ const (
 	terraformStateBackup = "terraform.tfstate.backup"
 	terragruntCache      = ".terragrunt-cache"
 )
+
+func TestTfPath(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		workingDir     string
+		args           string
+		expectedBinary string
+	}{
+		{
+			"without config",
+			filepath.Join(testFixtureTfPath, "without-config"),
+			"",
+			"tofu",
+		},
+		{
+			"config with terraform tfpath",
+			filepath.Join(testFixtureTfPath, "config-with-terraform-tfpath"),
+			"",
+			"terraform",
+		},
+		{
+			"with wrong config",
+			filepath.Join(testFixtureTfPath, "with-wrong-config"),
+			"--tf-path terraform",
+			"terraform",
+		},
+		{
+			"with wrong config",
+			filepath.Join(testFixtureTfPath, "with-wrong-config"),
+			"",
+			"tofu",
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureTfPath)
+			rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
+			workingDir := util.JoinPath(rootPath, tc.workingDir)
+			workingDir, err := filepath.EvalSymlinks(workingDir)
+			require.NoError(t, err)
+
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version "+tc.args+" --experiment cli-redesign --working-dir "+workingDir)
+			require.NoError(t, err)
+
+			assert.Contains(t, strings.ToLower(stdout), tc.expectedBinary)
+		})
+	}
+
+}
 
 func TestCLIFlagHints(t *testing.T) {
 	t.Parallel()
