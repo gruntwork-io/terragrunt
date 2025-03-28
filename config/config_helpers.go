@@ -718,6 +718,10 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 		}
 
 		stackFile, err := ReadStackConfigFile(ctx, opts, targetConfig, values)
+		if err != nil {
+			return cty.NilVal, errors.New(err)
+		}
+
 		return stackConfigAsCty(stackFile)
 	}
 
@@ -727,6 +731,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 		if err != nil {
 			return cty.NilVal, errors.New(err)
 		}
+
 		return *unitValues, nil
 	}
 
