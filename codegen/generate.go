@@ -59,7 +59,8 @@ const (
 	DisabledRemoveStr           = "remove"
 	DisabledRemoveTerragruntStr = "remove_terragrunt"
 
-	assumeRoleConfigKey = "assume_role"
+	assumeRoleConfigKey                = "assume_role"
+	assumeRoleWithWebIdentityConfigKey = "assume_role_with_web_identity"
 
 	encryptionBlockName = "encryption"
 
@@ -357,6 +358,77 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 
 			if len(parsedConfig.TransitiveTagKeys) > 0 {
 				assumeRoleMap["transitive_tag_keys"] = parsedConfig.TransitiveTagKeys
+			}
+
+			// write assume role map as HCL object
+			ctyVal, err := convertValue(assumeRoleMap)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+
+			continue
+		}
+
+		if key == assumeRoleWithWebIdentityConfigKey {
+			assumeRoleWithWebIdentityValue, isAssumeRoleWithWebIdentity := config[assumeRoleWithWebIdentityConfigKey].(string)
+			if !isAssumeRoleWithWebIdentity {
+				continue
+			}
+
+			// Extracting the values requires two steps.
+			// Parsing into a struct first, enabling hclsimple.Decode() to deal with complex types.
+			// Then copying values into the assumeRoleMap for rendering to HCL.
+			assumeRoleMap := make(map[string]any)
+
+			type assumeRoleWithWebIdentityConfig struct {
+				RoleArn              string   `hcl:"role_arn"`
+				Duration             string   `hcl:"duration,optional"`
+				Policy               string   `hcl:"policy,optional"`
+				SessionName          string   `hcl:"session_name,optional"`
+				WebIdentityToken     string   `hcl:"web_identity_token,optional"`
+				WebIdentityTokenFile string   `hcl:"web_identity_token_file,optional"`
+				PolicyArns           []string `hcl:"policy_arns,optional"`
+			}
+
+			var parsedConfig assumeRoleWithWebIdentityConfig
+			// split single line hcl to default multiline file
+			hclValue := strings.TrimSuffix(assumeRoleWithWebIdentityValue, "}")
+			hclValue = strings.TrimPrefix(hclValue, "{")
+			hclValue = strings.ReplaceAll(hclValue, ",", "\n")
+
+			err := hclsimple.Decode("s3_assume_role_with_web_identity.hcl", []byte(hclValue), nil, &parsedConfig)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			if parsedConfig.RoleArn != "" {
+				assumeRoleMap["role_arn"] = parsedConfig.RoleArn
+			}
+
+			if parsedConfig.Duration != "" {
+				assumeRoleMap["duration"] = parsedConfig.Duration
+			}
+
+			if parsedConfig.Policy != "" {
+				assumeRoleMap["policy"] = parsedConfig.Policy
+			}
+
+			if len(parsedConfig.PolicyArns) > 0 {
+				assumeRoleMap["policy_arns"] = parsedConfig.PolicyArns
+			}
+
+			if parsedConfig.SessionName != "" {
+				assumeRoleMap["session_name"] = parsedConfig.SessionName
+			}
+
+			if parsedConfig.WebIdentityToken != "" {
+				assumeRoleMap["web_identity_token"] = parsedConfig.WebIdentityToken
+			}
+
+			if parsedConfig.WebIdentityTokenFile != "" {
+				assumeRoleMap["web_identity_token_file"] = parsedConfig.WebIdentityTokenFile
 			}
 
 			// write assume role map as HCL object

@@ -10,6 +10,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -42,9 +44,7 @@ func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// Construct a new map excluding custom GCS labels that are only used in Terragrunt config and not in Terraform's backend
 	newConfig := backend.Config{}
 
-	for key, val := range cfg.FilterOutTerragruntKeys() {
-		newConfig[key] = val
-	}
+	maps.Copy(newConfig, cfg.FilterOutTerragruntKeys())
 
 	return newConfig.IsEqual(backend.Config(targetCfg), BackendName, logger)
 }

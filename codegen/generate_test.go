@@ -82,6 +82,21 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
   }
 }
 `)
+	expectedS3WithAssumeRoleWithWebIdentity := []byte(`terraform {
+  backend "s3" {
+    assume_role_with_web_identity = {
+      duration                = "1h30m"
+      policy                  = "{}"
+      policy_arns             = ["arn:aws:iam::123456789012:policy/MyPolicy"]
+      role_arn                = "arn:aws:iam::123456789012:role/MyRole"
+      session_name            = "MySession"
+      web_identity_token      = "123456789012"
+      web_identity_token_file = "/path/to/web_identity_token_file"
+    }
+    bucket = "mybucket"
+  }
+}
+`)
 
 	testCases := []struct {
 		name       string
@@ -145,6 +160,17 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 			},
 			map[string]any{},
 			expectedS3WithAssumeRole,
+			false,
+		},
+		{
+			"s3-backend-with-assume-role-with-web-identity",
+			"s3",
+			map[string]any{
+				"bucket":                        "mybucket",
+				"assume_role_with_web_identity": "{role_arn=\"arn:aws:iam::123456789012:role/MyRole\",duration=\"1h30m\", policy=\"{}\", policy_arns=[\"arn:aws:iam::123456789012:policy/MyPolicy\"], session_name=\"MySession\", web_identity_token=\"123456789012\", web_identity_token_file=\"/path/to/web_identity_token_file\"}",
+			},
+			map[string]any{},
+			expectedS3WithAssumeRoleWithWebIdentity,
 			false,
 		},
 	}
