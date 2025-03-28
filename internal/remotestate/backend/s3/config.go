@@ -12,6 +12,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/gruntwork-io/terragrunt/util"
+	"maps"
 )
 
 const (
@@ -20,6 +21,7 @@ const (
 	configEncryptKey                   = "encrypt"
 	configKeyKey                       = "key"
 	configAssumeRoleKey                = "assume_role"
+	configAssumeRoleWithWebIdentityKey = "assume_role_with_web_identity"
 	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
 
 	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
@@ -63,6 +65,14 @@ func (cfg Config) GetTFInitArgs() Config {
 			}
 		}
 
+		if key == configAssumeRoleWithWebIdentityKey {
+			if mapVal, ok := val.(map[string]any); ok {
+				filtered[key] = hclhelper.WrapMapToSingleLineHcl(mapVal)
+
+				continue
+			}
+		}
+
 		filtered[key] = val
 	}
 
@@ -72,9 +82,7 @@ func (cfg Config) GetTFInitArgs() Config {
 func (cfg Config) Normalize(logger log.Logger) Config {
 	var normalized = make(Config)
 
-	for key, val := range cfg {
-		normalized[key] = val
-	}
+	maps.Copy(normalized, cfg)
 
 	// Nowadays it only makes sense to set the "dynamodb_table" attribute as it has
 	// been supported in Terraform since the release of version 0.10. The deprecated
@@ -117,9 +125,7 @@ func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// related configs.
 	newConfig := backend.Config{}
 
-	for key, val := range cfg.FilterOutTerragruntKeys() {
-		newConfig[key] = val
-	}
+	maps.Copy(newConfig, cfg.FilterOutTerragruntKeys())
 
 	return newConfig.IsEqual(backend.Config(targetCfg), BackendName, logger)
 }
