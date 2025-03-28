@@ -152,8 +152,10 @@ func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
 			if otherBlock.SleepIntervalSec > 0 {
 				existingBlock.SleepIntervalSec = otherBlock.SleepIntervalSec
 			}
+
 			continue
 		}
+
 		retryMap[otherBlock.Label] = otherBlock
 	}
 
