@@ -13,6 +13,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return err
 	}
+
 	if remoteState == nil {
 		opts.Logger.Debug("Did not find remote `remote_state` block in the config")
 
