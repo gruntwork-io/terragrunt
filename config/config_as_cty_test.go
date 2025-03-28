@@ -252,7 +252,7 @@ func TestStackLocalsCtyReading(t *testing.T) {
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
 	require.NoError(t, err)
 	assert.NotNil(t, stackMap)
-	locals := stackMap["locals"].(map[string]any)
+	locals := stackMap["local"].(map[string]any)
 	assert.NotNil(t, locals)
 }
 
