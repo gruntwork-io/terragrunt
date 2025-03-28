@@ -476,7 +476,7 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions,
 // ReadStackConfigFile reads and parses a Terragrunt stack configuration file from the given path.
 // It creates a parsing context, processes locals, and decodes the file into a StackConfigFile struct.
 // Validation is performed on the resulting config, and any encountered errors cause an early return.
-func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfigFile, error) {
+func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfig, error) {
 	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
 	parser := NewParsingContext(ctx, opts)
@@ -523,7 +523,7 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 		return nil, errors.New(err)
 	}
 
-	return config, nil
+	return stackConfig, nil
 }
 
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
