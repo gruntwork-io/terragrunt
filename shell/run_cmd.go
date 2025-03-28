@@ -57,11 +57,11 @@ func RunCommandWithOutput(
 		commandDir = opts.WorkingDir
 	}
 
-	err := telemetry.Telemetry(ctx, opts, "run_"+command, map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+command, map[string]any{
 		"command": command,
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,
-	}, func(childCtx context.Context) error {
+	}, func(ctx context.Context) error {
 		opts.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		var (

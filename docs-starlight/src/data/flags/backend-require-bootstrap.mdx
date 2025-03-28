@@ -1,12 +1,13 @@
 ---
 name: backend-require-bootstrap
-description: When this flag is set Terragrunt will fail if the remote state bucket needs to be created.
+description: |
+  When this flag is set, Terragrunt will throw an error if remote state needs to be created via the `backend bootstrap` command.
 type: bool
 env:
   - TG_BACKEND_REQUIRE_BOOTSTRAP
 ---
 
-This flag provides a safety mechanism when working with remote state backends. When enabled, Terragrunt will fail with an error if it detects that the remote state bucket does not exist and would need to be created.
+This flag provides a safety mechanism when working with remote state backends.
 
 This is particularly useful in production environments where you want to ensure that:
 

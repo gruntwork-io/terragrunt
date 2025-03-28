@@ -15,6 +15,11 @@ func Run(ctx context.Context, cmdOpts *Options) error {
 	if err != nil {
 		return err
 	}
+	if remoteState == nil {
+		opts.Logger.Debug("Did not find remote `remote_state` block in the config")
+
+		return nil
+	}
 
 	if cmdOpts.DeleteBucket {
 		// TODO: Do an extra check before commenting out the code. //return remoteState.DeleteBucket(ctx, opts)

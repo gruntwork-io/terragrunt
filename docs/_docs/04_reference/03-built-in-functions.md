@@ -786,6 +786,10 @@ inputs = {
 }
 ```
 
+Notes:
+
+- `read_terragrunt_config` can be also used to read `terragrunt.stack.hcl` and `terragrunt.values.hcl` files.
+
 ## sops_decrypt_file
 
 `sops_decrypt_file(file_path)` decrypts a yaml, json, ini, env or "raw text" file encrypted with `sops`.

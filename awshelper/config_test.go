@@ -53,8 +53,8 @@ func TestAwsSessionValidationFail(t *testing.T) {
 func TestAwsNegativePublicAccessResponse(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
-		name     string
 		response *s3.GetPublicAccessBlockOutput
+		name     string
 	}{
 		{
 			name: "nil-response",

@@ -57,22 +57,26 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		checkExpectedResultFn func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string)
 		name                  string
 		args                  string
-		checkExpectedResultFn func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string)
 	}{
 		{
-			"no bootstrap s3 backend without flag",
-			"run apply",
-			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			name: "no bootstrap s3 backend without flag",
+			args: "run apply",
+			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+				t.Helper()
+
 				require.Error(t, err)
 				assert.Regexp(t, "(S3 bucket must have been previously created)|(S3 bucket does not exist)", output)
 			},
 		},
 		{
-			"bootstrap s3 backend with flag",
-			"run apply --backend-bootstrap",
-			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			name: "bootstrap s3 backend with flag",
+			args: "run apply --backend-bootstrap",
+			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+				t.Helper()
+
 				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
@@ -80,9 +84,11 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			},
 		},
 		{
-			"bootstrap s3 backend by backend command",
-			"backend bootstrap",
-			func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			name: "bootstrap s3 backend by backend command",
+			args: "backend bootstrap",
+			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+				t.Helper()
+
 				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
@@ -92,7 +98,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			helpers.CleanupTerraformFolder(t, testFixtureBootstrapS3Backend)
@@ -117,6 +123,39 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			tc.checkExpectedResultFn(t, err, stdout+stderr, s3BucketName, dynamoDBName)
 		})
 	}
+}
+
+func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureBootstrapS3Backend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBootstrapS3Backend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureBootstrapS3Backend)
+
+	testID := strings.ToLower(helpers.UniqueID())
+
+	s3BucketName := "terragrunt-test-bucket-" + testID
+	dynamoDBName := "terragrunt-test-dynamodb-" + testID
+
+	defer func() {
+		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+	}()
+
+	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
+	require.NoError(t, err)
+
+	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+	validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
+	require.Error(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all --force")
+	require.NoError(t, err)
 }
 
 func TestAwsDeleteBackend(t *testing.T) {
@@ -1523,6 +1562,8 @@ func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 }
 
 func deleteS3Bucket(t *testing.T, bucketName string, awsRegion string) {
+	t.Helper()
+
 	helpers.DeleteS3Bucket(t, awsRegion, bucketName)
 }
 

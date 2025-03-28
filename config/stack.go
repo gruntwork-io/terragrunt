@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -39,6 +40,13 @@ type StackConfigFile struct {
 	Locals *terragruntLocal `hcl:"locals,block"`
 	Stacks []*Stack         `hcl:"stack,block"`
 	Units  []*Unit          `hcl:"unit,block"`
+}
+
+// StackConfig represents the structure of terragrunt.stack.hcl stack file.
+type StackConfig struct {
+	Locals map[string]any
+	Stacks []*Stack
+	Units  []*Unit
 }
 
 // Unit represent unit from stack file.
@@ -495,6 +503,20 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	config := &StackConfigFile{}
 	if err := file.Decode(config, evalParsingContext); err != nil {
 		return nil, errors.New(err)
+	}
+
+	localsParsed := map[string]any{}
+	if parser.Locals != nil {
+		localsParsed, err = ctyhelper.ParseCtyValueToMap(*parser.Locals)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+	}
+
+	stackConfig := &StackConfig{
+		Locals: localsParsed,
+		Stacks: config.Stacks,
+		Units:  config.Units,
 	}
 
 	if err := ValidateStackConfig(config); err != nil {
