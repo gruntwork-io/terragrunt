@@ -28,7 +28,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 			EnvVars: tgPrefix.EnvVars("log-disable"),
 			Usage:   "Disable logging.",
 		},
-	}
+	}.Sort()
 
 	cmd := &cli.Command{
 		Name:        "run",

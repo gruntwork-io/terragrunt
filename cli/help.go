@@ -10,7 +10,7 @@ const AppHelpTemplate = `Usage: {{ if .App.UsageText }}{{ wrap .App.UsageText 3 
    {{ $s := .HelpName }}{{ $s }}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{ wrap .Usage $cv }}{{ end }}{{ end }}{{ end }}{{ if .App.VisibleFlags }}
 
 Global Options:
-   {{ range $index, $option := .App.VisibleFlags.Sort }}{{ if $index }}
+   {{ range $index, $option := .App.VisibleFlags }}{{ if $index }}
    {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}{{ if not .App.HideVersion }}
 
 Version: {{ .App.Version }}{{ end }}{{ if len .App.Authors }}
@@ -34,7 +34,7 @@ Options:
    {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}{{ if .App.VisibleFlags }}
 
 Global Options:
-   {{ range $index, $option := .App.VisibleFlags.Sort }}{{ if $index }}
+   {{ range $index, $option := .App.VisibleFlags }}{{ if $index }}
    {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}
 
 `

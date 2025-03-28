@@ -79,10 +79,10 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 		}
 	}
 
-	return telemetry.Telemetry(ctx, opts, "run_all_on_stack", map[string]any{
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
-	}, func(childCtx context.Context) error {
+	}, func(ctx context.Context) error {
 		return stack.Run(ctx, opts)
 	})
 }
