@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/version"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -24,17 +25,17 @@ import (
 
 // AwsSessionConfig is a representation of the configuration options for an AWS Session
 type AwsSessionConfig struct {
+	Tags                    map[string]string
 	Region                  string
 	CustomS3Endpoint        string
 	CustomDynamoDBEndpoint  string
 	Profile                 string
 	RoleArn                 string
 	CredsFilename           string
-	S3ForcePathStyle        bool
-	DisableComputeChecksums bool
 	ExternalID              string
 	SessionName             string
-	Tags                    map[string]string
+	S3ForcePathStyle        bool
+	DisableComputeChecksums bool
 }
 
 // addUserAgent - Add terragrunt version to the user agent for AWS API calls.
@@ -46,7 +47,7 @@ var addUserAgent = request.NamedHandler{
 
 // CreateAwsSessionFromConfig returns an AWS session object for the given config region (required), profile name (optional), and IAM role to assume
 // (optional), ensuring that the credentials are available.
-func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+func CreateAwsSessionFromConfig(config *AwsSessionConfig, opts *options.TerragruntOptions) (*session.Session, error) {
 	defaultResolver := endpoints.DefaultResolver()
 	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
 		if service == "s3" && config.CustomS3Endpoint != "" {
@@ -89,7 +90,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 	sess.Handlers.Build.PushFrontNamed(addUserAgent)
 
 	// Merge the config based IAMRole options into the original one, as the config has higher precedence than CLI.
-	iamRoleOptions := terragruntOptions.IAMRoleOptions
+	iamRoleOptions := opts.IAMRoleOptions
 	if config.RoleArn != "" {
 		iamRoleOptions = options.MergeIAMRoleOptions(
 			iamRoleOptions,
@@ -113,7 +114,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 
 	if iamRoleOptions.RoleARN != "" {
 		sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, iamRoleOptions, credentialOptFn)
-	} else if creds := getCredentialsFromEnvs(terragruntOptions); creds != nil {
+	} else if creds := getCredentialsFromEnvs(opts); creds != nil {
 		sess.Config.Credentials = creds
 	}
 
@@ -188,6 +189,15 @@ func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Creden
 	return credentials.NewStaticCredentials(accessKeyID, secretAccessKey, sessionToken)
 }
 
+func CreateS3Client(config *AwsSessionConfig, opts *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := CreateAwsSession(config, opts)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	return s3.New(session), nil
+}
+
 // CreateAwsSession returns an AWS session object. The session is configured by either:
 //   - The provided AwsSessionConfig struct, which specifies region (required), profile name (optional), and IAM role to
 //     assume (optional).
@@ -195,7 +205,7 @@ func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Creden
 //
 // Note that if the AwsSessionConfig object is null, this will return default session credentials using the default
 // credentials chain of the AWS SDK.
-func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+func CreateAwsSession(config *AwsSessionConfig, opts *options.TerragruntOptions) (*session.Session, error) {
 	var (
 		sess *session.Session
 		err  error
@@ -211,19 +221,19 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 
 		sess.Handlers.Build.PushFrontNamed(addUserAgent)
 
-		if terragruntOptions.IAMRoleOptions.RoleARN != "" {
-			if terragruntOptions.IAMRoleOptions.WebIdentityToken != "" {
-				terragruntOptions.Logger.Debugf("Assuming role %s using WebIdentity token", terragruntOptions.IAMRoleOptions.RoleARN)
-				sess.Config.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(sess, terragruntOptions.IAMRoleOptions)
+		if opts.IAMRoleOptions.RoleARN != "" {
+			if opts.IAMRoleOptions.WebIdentityToken != "" {
+				opts.Logger.Debugf("Assuming role %s using WebIdentity token", opts.IAMRoleOptions.RoleARN)
+				sess.Config.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(sess, opts.IAMRoleOptions)
 			} else {
-				terragruntOptions.Logger.Debugf("Assuming role %s", terragruntOptions.IAMRoleOptions.RoleARN)
-				sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, terragruntOptions.IAMRoleOptions)
+				opts.Logger.Debugf("Assuming role %s", opts.IAMRoleOptions.RoleARN)
+				sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, opts.IAMRoleOptions)
 			}
-		} else if creds := getCredentialsFromEnvs(terragruntOptions); creds != nil {
+		} else if creds := getCredentialsFromEnvs(opts); creds != nil {
 			sess.Config.Credentials = creds
 		}
 	} else {
-		sess, err = CreateAwsSessionFromConfig(config, terragruntOptions)
+		sess, err = CreateAwsSessionFromConfig(config, opts)
 		if err != nil {
 			return nil, errors.New(err)
 		}
@@ -323,12 +333,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 }
 
 // GetAWSCallerIdentity returns the AWS caller identity associated with the current set of credentials
-func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
-	sess, err := CreateAwsSession(config, terragruntOptions)
-	if err != nil {
-		return sts.GetCallerIdentityOutput{}, errors.New(err)
-	}
-
+func GetAWSCallerIdentity(sess *session.Session) (sts.GetCallerIdentityOutput, error) {
 	identity, err := sts.New(sess).GetCallerIdentity(nil)
 	if err != nil {
 		return sts.GetCallerIdentityOutput{}, errors.New(err)
@@ -338,15 +343,15 @@ func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.T
 }
 
 // ValidateAwsSession - Validate if current AWS session is valid
-func ValidateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) error {
+func ValidateAwsSession(sess *session.Session) error {
 	// read the caller identity to check if the credentials are valid
-	_, err := GetAWSCallerIdentity(config, terragruntOptions)
+	_, err := GetAWSCallerIdentity(sess)
 	return err
 }
 
 // GetAWSPartition gets the AWS Partition of the current session configuration
-func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
+func GetAWSPartition(sess *session.Session) (string, error) {
+	identity, err := GetAWSCallerIdentity(sess)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -361,12 +366,7 @@ func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.Terrag
 
 // GetAWSAccountAlias gets the AWS account Alias of the current session configuration,
 // if there is no alias an empty string is return.
-func GetAWSAccountAlias(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	sess, err := CreateAwsSession(config, terragruntOptions)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
+func GetAWSAccountAlias(sess *session.Session) (string, error) {
 	aliases, err := iam.New(sess).ListAccountAliases(nil)
 	if err != nil {
 		return "", errors.New(err)
@@ -385,8 +385,8 @@ func GetAWSAccountAlias(config *AwsSessionConfig, terragruntOptions *options.Ter
 }
 
 // GetAWSAccountID gets the AWS account ID of the current session configuration.
-func GetAWSAccountID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
+func GetAWSAccountID(sess *session.Session) (string, error) {
+	identity, err := GetAWSCallerIdentity(sess)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -395,8 +395,8 @@ func GetAWSAccountID(config *AwsSessionConfig, terragruntOptions *options.Terrag
 }
 
 // GetAWSIdentityArn gets the ARN of the AWS identity associated with the current set of credentials.
-func GetAWSIdentityArn(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
+func GetAWSIdentityArn(sess *session.Session) (string, error) {
+	identity, err := GetAWSCallerIdentity(sess)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -405,11 +405,23 @@ func GetAWSIdentityArn(config *AwsSessionConfig, terragruntOptions *options.Terr
 }
 
 // GetAWSUserID gets the AWS user ID of the current session configuration.
-func GetAWSUserID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
-	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
+func GetAWSUserID(sess *session.Session) (string, error) {
+	identity, err := GetAWSCallerIdentity(sess)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
 	return *identity.UserId, nil
+}
+
+func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, error) {
+	if output.PublicAccessBlockConfiguration == nil {
+		return false, nil
+	}
+
+	if !aws.BoolValue(output.PublicAccessBlockConfiguration.BlockPublicAcls) {
+		return false, nil
+	}
+
+	return true, nil
 }

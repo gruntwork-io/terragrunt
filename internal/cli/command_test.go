@@ -19,29 +19,29 @@ func TestCommandRun(t *testing.T) {
 	type TestActionFunc func(expectedOrder int, expectedArgs []string) cli.ActionFunc
 
 	type TestCase struct {
+		expectedErr error
 		args        []string
 		command     cli.Command
-		expectedErr error
 	}
 
 	testCaseFuncs := []func(action TestActionFunc, skip cli.ActionFunc) TestCase{
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "--foo", "cmd-bar", "--bar", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "--foo", "cmd-bar", "--bar", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: skip,
 					Action: skip,
 					After:  skip,
 				},
-				errors.New("invalid boolean flag foo: setting the flag multiple times"),
+				expectedErr: errors.New("invalid boolean flag foo: setting the flag multiple times"),
 			}
 		},
 
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "cmd-bar", "--bar", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
@@ -63,13 +63,12 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "cmd-bar", "--bar", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
@@ -83,13 +82,12 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "--bar", "cmd-bar", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "--bar", "cmd-bar", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
@@ -104,13 +102,12 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
@@ -125,13 +122,12 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
-				[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
-				cli.Command{
+				args: []string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
+				command: cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: action(2, []string{"cmd-bar", "--bar", "value", "one", "-two"}),
@@ -147,14 +143,11 @@ func TestCommandRun(t *testing.T) {
 						},
 					},
 				},
-				nil,
 			}
 		},
 	}
 
-	for i, testCaseFn := range testCaseFuncs {
-		testCaseFn := testCaseFn
-
+	for i, tcFn := range testCaseFuncs {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -178,16 +171,16 @@ func TestCommandRun(t *testing.T) {
 				return nil
 			}
 
-			testCase := testCaseFn(action, skip)
+			tc := tcFn(action, skip)
 
 			app := &cli.App{App: &urfaveCli.App{Writer: io.Discard}}
-			ctx := cli.NewAppContext(context.Background(), app, testCase.args)
+			ctx := cli.NewAppContext(context.Background(), app, tc.args)
 
-			err := testCase.command.Run(ctx, testCase.args)
-			if testCase.expectedErr != nil {
-				require.EqualError(t, err, testCase.expectedErr.Error(), testCase)
+			err := tc.command.Run(ctx, tc.args)
+			if tc.expectedErr != nil {
+				require.EqualError(t, err, tc.expectedErr.Error(), tc)
 			} else {
-				require.NoError(t, err, testCase)
+				require.NoError(t, err, tc)
 			}
 
 		})
@@ -198,35 +191,32 @@ func TestCommandHasName(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  cli.Command
 		hasName  string
+		command  cli.Command
 		expected bool
 	}{
 		{
-			cli.Command{Name: "foo"},
-			"bar",
-			false,
+			command: cli.Command{Name: "foo"},
+			hasName: "bar",
 		},
 		{
-			cli.Command{Name: "foo", Aliases: []string{"bar"}},
-			"bar",
-			true,
+			command:  cli.Command{Name: "foo", Aliases: []string{"bar"}},
+			hasName:  "bar",
+			expected: true,
 		},
 		{
-			cli.Command{Name: "bar"},
-			"bar",
-			true,
+			command:  cli.Command{Name: "bar"},
+			hasName:  "bar",
+			expected: true,
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.command.HasName(testCase.hasName)
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := tc.command.HasName(tc.hasName)
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }
@@ -235,27 +225,25 @@ func TestCommandNames(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  cli.Command
 		expected []string
+		command  cli.Command
 	}{
 		{
-			cli.Command{Name: "foo"},
-			[]string{"foo"},
+			command:  cli.Command{Name: "foo"},
+			expected: []string{"foo"},
 		},
 		{
-			cli.Command{Name: "foo", Aliases: []string{"bar", "baz"}},
-			[]string{"foo", "bar", "baz"},
+			command:  cli.Command{Name: "foo", Aliases: []string{"bar", "baz"}},
+			expected: []string{"foo", "bar", "baz"},
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.command.Names()
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := tc.command.Names()
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }
@@ -264,30 +252,28 @@ func TestCommandSubcommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command       cli.Command
-		searchCmdName string
 		expected      *cli.Command
+		searchCmdName string
+		command       cli.Command
 	}{
 		{
-			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
-			"baz",
-			&cli.Command{Name: "baz"},
+			command:       cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
+			searchCmdName: "baz",
+			expected:      &cli.Command{Name: "baz"},
 		},
 		{
-			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
-			"qux",
-			nil,
+			command:       cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
+			searchCmdName: "qux",
+			expected:      nil,
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.command.Subcommand(testCase.searchCmdName)
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := tc.command.Subcommand(tc.searchCmdName)
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }
@@ -296,27 +282,25 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  cli.Command
 		expected cli.Commands
+		command  cli.Command
 	}{
 		{
-			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz", HelpName: "helpBaz"}}},
-			cli.Commands{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
+			command:  cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz", HelpName: "helpBaz"}}},
+			expected: cli.Commands{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
 		},
 		{
-			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar", Hidden: true}, &cli.Command{Name: "baz"}}},
-			cli.Commands{{Name: "baz", HelpName: "baz"}},
+			command:  cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar", Hidden: true}, &cli.Command{Name: "baz"}}},
+			expected: cli.Commands{{Name: "baz", HelpName: "baz"}},
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.command.VisibleSubcommands()
-			assert.Equal(t, testCase.expected, actual, testCase)
+			actual := tc.command.VisibleSubcommands()
+			assert.Equal(t, tc.expected, actual, tc)
 		})
 	}
 }

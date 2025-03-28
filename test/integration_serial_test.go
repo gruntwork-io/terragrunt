@@ -87,7 +87,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.opentofu.org --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
 
 	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
@@ -193,7 +193,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.opentofu.org --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appsPath))
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/hashicorp/azurerm", "example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "network_mirror" { url = "%s" exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/hashicorp/azurerm", "example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "network_mirror" { exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] url = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
 
 	for _, filename := range []string{"app0/.terraformrc", "app1/.terraformrc"} {
@@ -230,7 +230,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		var (
 			stdout bytes.Buffer
 			stderr bytes.Buffer
@@ -242,19 +242,19 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		)
 
 		for _, app := range appDirs {
-			appDir = filepath.Join(testCase.rootPath, app)
+			appDir = filepath.Join(tc.rootPath, app)
 
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, testCase.downloadDir))
+			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --download-dir=%s", appDir, tc.downloadDir))
 			config.ClearOutputCache()
 		}
 
-		if testCase.downloadDir != "" {
-			entries, err := os.ReadDir(testCase.downloadDir)
+		if tc.downloadDir != "" {
+			entries, err := os.ReadDir(tc.downloadDir)
 			require.NoError(t, err)
 			assert.Equal(t, len(appDirs), len(entries))
 		}
 
-		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, testCase.downloadDir), &stdout, &stderr)
+		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, tc.downloadDir), &stdout, &stderr)
 
 		expectedOutpus := map[string]string{
 			"bar": "parent-bar",
@@ -328,19 +328,17 @@ func TestTerragruntDownloadDir(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase
-
-		t.Run(testCase.name, func(t *testing.T) {
-			if testCase.downloadDirEnv != "" {
-				t.Setenv("TERRAGRUNT_DOWNLOAD", testCase.downloadDirEnv)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.downloadDirEnv != "" {
+				t.Setenv("TERRAGRUNT_DOWNLOAD", tc.downloadDirEnv)
 			} else {
 				// Clear the variable if it's not set. This is clearing the variable in case the variable is set outside the test process.
 				require.NoError(t, os.Unsetenv("TERRAGRUNT_DOWNLOAD"))
 			}
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info %s --terragrunt-non-interactive --terragrunt-working-dir %s", testCase.downloadDirFlag, testCase.rootPath), &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info %s --terragrunt-non-interactive --terragrunt-working-dir %s", tc.downloadDirFlag, tc.rootPath), &stdout, &stderr)
 			helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 			helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 			require.NoError(t, err)
@@ -349,7 +347,7 @@ func TestTerragruntDownloadDir(t *testing.T) {
 			unmarshalErr := json.Unmarshal(stdout.Bytes(), &dat)
 			require.NoError(t, unmarshalErr)
 			// compare the results
-			assert.Equal(t, testCase.downloadDirReference, dat.DownloadDir)
+			assert.Equal(t, tc.downloadDirReference, dat.DownloadDir)
 		})
 	}
 
@@ -725,5 +723,35 @@ func TestParseTFLog(t *testing.T) {
 
 	for _, prefixName := range []string{"app", "dep"} {
 		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: Go runtime version`)
+	}
+}
+
+// This test is flacky when run in parallel. Need to figure it out. Most likely after these changes
+// https://github.com/gruntwork-io/terragrunt/issues/3864 or because of global variables in codes.
+func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
+	testCases := []struct {
+		args string
+	}{
+		{"graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
+		{"render-json --graph --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
+	}
+
+	for _, tc := range testCases {
+		t.Run("terragrunt args: "+tc.args, func(t *testing.T) {
+			tmpEnvPath := prepareGraphFixture(t)
+			tmpModulePath := util.JoinPath(tmpEnvPath, testFixtureGraph, "eks")
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt "+tc.args, tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			require.NoError(t, err)
+
+			// check that terragrunt_rendered.json is created in mod1/mod2/mod3
+			for _, module := range []string{"services/eks-service-1", "eks"} {
+				_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureGraph, module, "terragrunt_rendered.json"))
+				require.NoError(t, err)
+			}
+		})
 	}
 }

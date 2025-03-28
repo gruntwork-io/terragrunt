@@ -51,12 +51,12 @@ func TestProviderCache(t *testing.T) {
 	opts := []cache.Option{cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(cli.CacheProviderHTTPStatusCode)}
 
 	testCases := []struct {
-		opts               []cache.Option
+		expectedBodyReg    *regexp.Regexp
 		fullURLPath        string
 		relURLPath         string
-		expectedStatusCode int
-		expectedBodyReg    *regexp.Regexp
 		expectedCachePath  string
+		opts               []cache.Option
+		expectedStatusCode int
 	}{
 		{
 			opts:               opts,
@@ -101,9 +101,7 @@ func TestProviderCache(t *testing.T) {
 		},
 	}
 	//
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -118,13 +116,13 @@ func TestProviderCache(t *testing.T) {
 			providerHandler := handlers.NewDirectProviderHandler(logger, new(cliconfig.ProviderInstallationDirect), nil)
 			proxyProviderHandler := handlers.NewProxyProviderHandler(logger, nil)
 
-			testCase.opts = append(testCase.opts,
+			tc.opts = append(tc.opts,
 				cache.WithProviderService(providerService),
 				cache.WithProviderHandlers(providerHandler),
 				cache.WithProxyProviderHandler(proxyProviderHandler),
 			)
 
-			server := cache.NewServer(testCase.opts...)
+			server := cache.NewServer(tc.opts...)
 			ln, err := server.Listen()
 			require.NoError(t, err)
 			defer ln.Close()
@@ -134,10 +132,10 @@ func TestProviderCache(t *testing.T) {
 			})
 
 			urlPath := server.ProviderController.URL()
-			urlPath.Path += testCase.relURLPath
+			urlPath.Path += tc.relURLPath
 
-			if testCase.fullURLPath != "" {
-				urlPath.Path = testCase.fullURLPath
+			if tc.fullURLPath != "" {
+				urlPath.Path = tc.fullURLPath
 			}
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), nil)
@@ -148,19 +146,19 @@ func TestProviderCache(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			assert.Equal(t, testCase.expectedStatusCode, resp.StatusCode)
+			assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
 
-			if testCase.expectedBodyReg != nil {
+			if tc.expectedBodyReg != nil {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				assert.Regexp(t, testCase.expectedBodyReg, string(body))
+				assert.Regexp(t, tc.expectedBodyReg, string(body))
 			}
 
 			_, err = providerService.WaitForCacheReady("")
 			require.NoError(t, err)
 
-			if testCase.expectedCachePath != "" {
-				assert.FileExists(t, filepath.Join(providerCacheDir, testCase.expectedCachePath))
+			if tc.expectedCachePath != "" {
+				assert.FileExists(t, filepath.Join(providerCacheDir, tc.expectedCachePath))
 			}
 
 			cancel()

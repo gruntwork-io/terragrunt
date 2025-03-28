@@ -1,0 +1,37 @@
+---
+name: external
+description: |
+  Discover external dependencies from initial results.
+type: boolean
+env:
+  - TG_EXTERNAL
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Controls whether Terragrunt should discover and include external dependencies in the list results. External dependencies are Terragrunt configurations that are referenced by your configurations but exist outside the current working directory.
+
+This flag is most useful when:
+- Investigating the complete dependency graph of your infrastructure
+- Determining the full blast radius of a change
+
+Example:
+
+```bash
+$ terragrunt list -l --dependencies
+Type  Path          Dependencies
+unit  a-dependent   b-dependency
+unit  b-dependency
+```
+
+```bash
+$ terragrunt list -l --dependencies --external
+Type  Path                      Dependencies
+unit  ../external/c-dependency
+unit  a-dependent               ../external/c-dependency, b-dependency
+unit  b-dependency
+```
+
+<Aside type="note">
+  The `--external` flag is typically used in combination with `--dependencies` to show why the external dependency was discovered.
+</Aside>

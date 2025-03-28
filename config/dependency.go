@@ -13,8 +13,12 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+
+	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -31,7 +35,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -47,20 +50,22 @@ type dependencyOutputCache struct {
 }
 
 type Dependency struct {
-	Name                                string     `hcl:",label" cty:"name"`
-	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
 	ConfigPath                          cty.Value  `hcl:"config_path,attr" cty:"config_path"`
+	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
 	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
 	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
 	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
 
 	// MockOutputsMergeWithState is deprecated. Use MockOutputsMergeStrategyWithState
-	MockOutputsMergeWithState         *bool              `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
+	MockOutputsMergeWithState *bool `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
+
 	MockOutputsMergeStrategyWithState *MergeStrategyType `hcl:"mock_outputs_merge_strategy_with_state" cty:"mock_outputs_merge_strategy_with_state"`
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
-	Inputs          *cty.Value `cty:"inputs"`
+
+	Inputs *cty.Value `cty:"inputs"`
+	Name   string     `hcl:",label" cty:"name"`
 }
 
 // DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined
@@ -798,7 +803,7 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 }
 
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
-func canGetRemoteState(remoteState *remote.RemoteState) bool {
+func canGetRemoteState(remoteState *remotestate.RemoteState) bool {
 	return remoteState != nil && !remoteState.DisableDependencyOptimization
 }
 
@@ -883,7 +888,7 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorking
 func getTerragruntOutputJSONFromRemoteState(
 	ctx *ParsingContext,
 	targetConfigPath string,
-	remoteState *remote.RemoteState,
+	remoteState *remotestate.RemoteState,
 	iamRoleOpts options.IAMRoleOptions,
 ) ([]byte, error) {
 	ctx.TerragruntOptions.Logger.Debugf("Detected remote state block with generate config. Resolving dependency by pulling remote state.")
@@ -917,8 +922,8 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
 	if ctx.TerragruntOptions.FetchDependencyOutputFromState {
-		switch backend := remoteState.Backend; backend {
-		case "s3":
+		switch backend := remoteState.BackendName; backend {
+		case s3backend.BackendName:
 			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateS3(
 				targetTGOptions,
 				remoteState,
@@ -938,7 +943,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Generate the backend configuration in the working dir. If no generate config is set on the remote state block,
 	// set a temporary generate config so we can generate the backend code.
 	if remoteState.Generate == nil {
-		remoteState.Generate = &remote.RemoteStateGenerate{
+		remoteState.Generate = &remotestate.ConfigGenerate{
 			Path:     "backend.tf",
 			IfExists: codegen.ExistsOverwriteTerragruntStr,
 		}
@@ -977,24 +982,24 @@ func getTerragruntOutputJSONFromRemoteState(
 }
 
 // getTerragruntOutputJSONFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform
-func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.TerragruntOptions, remoteState *remote.RemoteState) ([]byte, error) {
-	terragruntOptions.Logger.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.Config["bucket"], remoteState.Config["key"])
+func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+	terragruntOptions.Logger.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.BackendConfig["bucket"], remoteState.BackendConfig["key"])
 
-	s3ConfigExtended, err := remote.ParseExtendedS3Config(remoteState.Config)
+	s3ConfigExtended, err := s3backend.Config(remoteState.BackendConfig).ParseExtendedS3Config()
 	if err != nil {
 		return nil, err
 	}
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	s3Client, err := remote.CreateS3Client(sessionConfig, terragruntOptions)
+	s3Client, err := awshelper.CreateS3Client(sessionConfig, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := s3Client.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(fmt.Sprintf("%s", remoteState.Config["bucket"])),
-		Key:    aws.String(fmt.Sprintf("%s", remoteState.Config["key"])),
+		Bucket: aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])),
+		Key:    aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["key"])),
 	})
 
 	if err != nil {
@@ -1099,9 +1104,9 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 	// can't quite return the data directly. Instead, we will need further processing to get the output we want.
 	// To do so, we first Unmarshal the json into a simple go map to a OutputMeta struct.
 	type OutputMeta struct {
-		Sensitive bool            `json:"sensitive"`
 		Type      json.RawMessage `json:"type"`
 		Value     json.RawMessage `json:"value"`
+		Sensitive bool            `json:"sensitive"`
 	}
 
 	var outputs map[string]OutputMeta

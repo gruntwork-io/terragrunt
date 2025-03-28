@@ -30,7 +30,7 @@ Commands:{{ $cv := offsetCommands .Command.VisibleSubcommands 5 }}{{ range .Comm
    {{ $s := .HelpName }}{{ $s }}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{ wrap .Usage $cv }}{{ end }}{{ end }}{{ if .Command.VisibleFlags }}
 
 Options:
-   {{ range $index, $option := .Command.VisibleFlags }}{{ if $index }}
+   {{ range $index, $option := .Command.VisibleFlags.Sort }}{{ if $index }}
    {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}{{ if .App.VisibleFlags }}
 
 Global Options:

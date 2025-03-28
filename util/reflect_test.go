@@ -13,7 +13,7 @@ import (
 func TestKindOf(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		value    any
 		expected reflect.Kind
 	}{
@@ -28,15 +28,13 @@ func TestKindOf(t *testing.T) {
 		{"", reflect.String},
 		{any(false), reflect.Bool},
 	}
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.KindOf(tt.value).String()
-			assert.Equal(t, tt.expected.String(), actual, "For value %v", tt.value)
-			t.Logf("%v passed", tt.value)
+			actual := util.KindOf(tc.value).String()
+			assert.Equal(t, tc.expected.String(), actual, "For value %v", tc.value)
+			t.Logf("%v passed", tc.value)
 		})
 	}
 }
@@ -44,10 +42,10 @@ func TestKindOf(t *testing.T) {
 func TestMustWalkTerraformOutput(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		value    any
-		path     []string
 		expected any
+		path     []string
 	}{
 		{
 			value: map[string]map[string]string{
@@ -79,14 +77,12 @@ func TestMustWalkTerraformOutput(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.MustWalkTerraformOutput(tt.value, tt.path...)
-			assert.Equal(t, tt.expected, actual)
+			actual := util.MustWalkTerraformOutput(tc.value, tc.path...)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }

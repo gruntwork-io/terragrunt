@@ -8,7 +8,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
 // TerragruntConfigAsCty serializes TerragruntConfig struct to a cty Value that can be used to reference the attributes in other config. Note
@@ -473,16 +473,16 @@ type ctyCatalogConfig struct {
 // ctyEngineConfig is an alternate representation of EngineConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyEngineConfig struct {
+	Meta    cty.Value `cty:"meta"`
 	Source  string    `cty:"source"`
 	Version string    `cty:"version"`
 	Type    string    `cty:"type"`
-	Meta    cty.Value `cty:"meta"`
 }
 
 // ctyExclude exclude representation for cty.
 type ctyExclude struct {
-	If                  bool     `cty:"if"`
 	Actions             []string `cty:"actions"`
+	If                  bool     `cty:"if"`
 	ExcludeDependencies bool     `cty:"exclude_dependencies"`
 }
 
@@ -601,31 +601,33 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 // RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
 // serialize the struct because `config` and `encryption` are arbitrary
 // interfaces whose type we do not know, so we have to do a hack to go through json.
-func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
-	if remoteState == nil {
+func RemoteStateAsCty(remote *remotestate.RemoteState) (cty.Value, error) {
+	if remote == nil || remote.Config == nil {
 		return cty.NilVal, nil
 	}
 
-	output := map[string]cty.Value{}
-	output["backend"] = gostringToCty(remoteState.Backend)
-	output["disable_init"] = goboolToCty(remoteState.DisableInit)
-	output["disable_dependency_optimization"] = goboolToCty(remoteState.DisableDependencyOptimization)
+	config := remote.Config
 
-	generateCty, err := goTypeToCty(remoteState.Generate)
+	output := map[string]cty.Value{}
+	output["backend"] = gostringToCty(config.BackendName)
+	output["disable_init"] = goboolToCty(config.DisableInit)
+	output["disable_dependency_optimization"] = goboolToCty(config.DisableDependencyOptimization)
+
+	generateCty, err := goTypeToCty(config.Generate)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
 	output["generate"] = generateCty
 
-	ctyJSONVal, err := convertToCtyWithJSON(remoteState.Config)
+	ctyJSONVal, err := convertToCtyWithJSON(config.BackendConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
 	output["config"] = ctyJSONVal
 
-	ctyJSONVal, err = convertToCtyWithJSON(remoteState.Encryption)
+	ctyJSONVal, err = convertToCtyWithJSON(config.Encryption)
 	if err != nil {
 		return cty.NilVal, err
 	}

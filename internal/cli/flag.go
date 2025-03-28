@@ -92,6 +92,9 @@ type Flag interface {
 	// AllowedSubcommandScope returns true if the flag is allowed to be specified in subcommands,
 	// and not only after the command it belongs to.
 	AllowedSubcommandScope() bool
+
+	// Parse parses the given args and environment variables to set the flag value.
+	Parse(args Args) error
 }
 
 type LookupEnvFuncType func(key string) []string
@@ -143,11 +146,11 @@ type Value interface {
 // flag is a common flag related to parsing flags in cli.
 type flagValue struct {
 	value            Value
-	multipleSet      bool
 	name             string
+	initialTextValue string
+	multipleSet      bool
 	hasBeenSet       bool
 	envHasBeenSet    bool
-	initialTextValue string
 	negative         bool
 }
 
@@ -210,6 +213,11 @@ func (flag *flagValue) Getter(name string) FlagValueGetter {
 type flag struct {
 	FlagValue
 	LookupEnvFunc LookupEnvFuncType
+}
+
+// Parse implements `Flag` interface.
+func (flag *flag) Parse(args Args) error {
+	return nil
 }
 
 func (flag *flag) LookupEnv(envVar string) []string {

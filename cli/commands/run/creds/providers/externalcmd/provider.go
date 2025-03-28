@@ -102,8 +102,8 @@ type AWSCredentials struct {
 type AWSRole struct {
 	RoleARN          string `json:"roleARN"`
 	RoleSessionName  string `json:"roleSessionName"`
-	Duration         int64  `json:"duration"`
 	WebIdentityToken string `json:"webIdentityToken"`
+	Duration         int64  `json:"duration"`
 }
 
 func (role *AWSRole) Envs(ctx context.Context, opts *options.TerragruntOptions) map[string]string {

@@ -547,11 +547,11 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // we have to track all the files we touch in a manifest. This way we know exactly which files we need to clean on
 // subsequent runs.
 type fileManifest struct {
-	ManifestFolder string // this is a folder that has the manifest in it
-	ManifestFile   string // this is the manifest file name
+	logger         log.Logger
 	encoder        *gob.Encoder
 	fileHandle     *os.File
-	logger         log.Logger
+	ManifestFolder string
+	ManifestFile   string
 }
 
 // fileManifestEntry represents an entry in the fileManifest.

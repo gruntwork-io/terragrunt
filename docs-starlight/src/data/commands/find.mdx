@@ -34,9 +34,9 @@ examples:
     code: |
       terragrunt find --json
   - description: |
-      Sort configurations based on their dependencies (DAG order).
+      Sort configurations based on their dependencies using DAG mode.
     code: |
-      terragrunt find --sort 'dag'
+      terragrunt find --dag
   - description: |
       Include dependency information in the output.
     code: |
@@ -48,7 +48,7 @@ examples:
 flags:
   - find-format
   - find-json
-  - find-sort
+  - find-dag
   - find-hidden
   - find-dependencies
   - find-external
@@ -95,21 +95,18 @@ terragrunt find --json
 
 The JSON output includes additional metadata about each configuration, such as its type (unit or stack) and path.
 
-## Sorting
+## DAG Mode
 
-The `find` command supports two sorting modes:
+The `find` command supports DAG mode to sort output based on dependencies using the `--dag` flag.
 
-- `alpha` (default): Sort configurations alphabetically by path
-- `dag`: Sort configurations based on their dependencies, ensuring dependencies are listed before their dependents
-
-When using DAG sorting, configurations with no dependencies appear first, followed by configurations that depend on them:
+When using DAG mode, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order:
 
 ```bash
-terragrunt find --sort=dag
+terragrunt find --dag
 unitA           # no dependencies
 unitB           # no dependencies
 unitC           # depends on unitA
-unitD           # depends on unitA and unitB
+unitD           # depends on unitC
 ```
 
 If multiple configurations share common dependencies, they will be sorted in lexical order.
@@ -155,6 +152,14 @@ terragrunt find --dependencies --external --format=json
     "dependencies": []
   }
 ]
+```
+
+## Hidden Configurations
+
+By default, hidden directories (those starting with `.`) are excluded from the search. Use the `--hidden` flag to include them:
+
+```bash
+terragrunt find --hidden
 ```
 
 ## Disabling Color Output

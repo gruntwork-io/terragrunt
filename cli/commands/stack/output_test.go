@@ -31,9 +31,9 @@ func TestFilterOutputs(t *testing.T) {
 	tests := []struct {
 		name        string
 		outputIndex string
+		expectedKey string
 		expectedLen int
 		shouldExist bool
-		expectedKey string
 	}{
 		{
 			name:        "empty output index returns flattened map",
@@ -141,8 +141,8 @@ func TestPrintJsonOutput(t *testing.T) {
 
 // Mock implementation for testing
 type mockWriter struct {
-	written []byte
 	err     error
+	written []byte
 }
 
 func (m *mockWriter) Write(p []byte) (n int, err error) {
@@ -163,9 +163,9 @@ func TestPrintOutputs(t *testing.T) {
 	}
 
 	tests := []struct {
+		writerErr   error
 		name        string
 		outputIndex string
-		writerErr   error
 		shouldError bool
 	}{
 		{

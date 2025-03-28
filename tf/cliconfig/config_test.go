@@ -22,10 +22,10 @@ func TestConfig(t *testing.T) {
 	tempCacheDir := t.TempDir()
 
 	testCases := []struct {
+		expectedHCL                 string
 		providerInstallationMethods []cliconfig.ProviderInstallationMethod
 		hosts                       []cliconfig.ConfigHost
 		config                      cliconfig.Config
-		expectedHCL                 string
 	}{
 		{
 			providerInstallationMethods: []cliconfig.ProviderInstallationMethod{
@@ -34,15 +34,32 @@ func TestConfig(t *testing.T) {
 				cliconfig.NewProviderInstallationDirect(include, exclude),
 			},
 			hosts: []cliconfig.ConfigHost{
-				{"registry.terraform.io", map[string]string{"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/"}},
+				{Name: "registry.terraform.io", Services: map[string]string{"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/"}},
 			},
 			config: cliconfig.Config{
 				DisableCheckpoint: true,
 				PluginCacheDir:    "path/to/plugin/cache/dir1",
 			},
-			expectedHCL: `disable_checkpoint           = true
-disable_checkpoint_signature = false
-plugin_cache_dir             = "path/to/plugin/cache/dir1"
+			expectedHCL: `
+provider_installation {
+
+   "filesystem_mirror" {
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
+    path    = "` + tempCacheDir + `"
+  }
+   "network_mirror" {
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
+    url     = "https://network-mirror.io/providers/"
+  }
+   "direct" {
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
+  }
+}
+
+plugin_cache_dir = "path/to/plugin/cache/dir1"
 
 host "registry.terraform.io" {
   services = {
@@ -50,23 +67,8 @@ host "registry.terraform.io" {
   }
 }
 
-provider_installation {
-
-   "filesystem_mirror" {
-    path    = "` + tempCacheDir + `"
-    include = ["registry.terraform.io/*/*"]
-    exclude = ["registry.opentofu.org/*/*"]
-  }
-   "network_mirror" {
-    url     = "https://network-mirror.io/providers/"
-    include = ["registry.terraform.io/*/*"]
-    exclude = ["registry.opentofu.org/*/*"]
-  }
-   "direct" {
-    include = ["registry.terraform.io/*/*"]
-    exclude = ["registry.opentofu.org/*/*"]
-  }
-}
+disable_checkpoint           = true
+disable_checkpoint_signature = false
 `,
 		},
 		{
@@ -74,37 +76,36 @@ provider_installation {
 				DisableCheckpoint: false,
 				PluginCacheDir:    tempCacheDir,
 			},
-			expectedHCL: `disable_checkpoint           = false
-disable_checkpoint_signature = false
-plugin_cache_dir             = "` + tempCacheDir + `"
-
+			expectedHCL: `
 provider_installation {
 }
+
+plugin_cache_dir             = "` + tempCacheDir + `"
+disable_checkpoint           = false
+disable_checkpoint_signature = false
 `,
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			tempDir := t.TempDir()
 			configFile := filepath.Join(tempDir, ".terraformrc")
 
-			for _, host := range testCase.hosts {
-				testCase.config.AddHost(host.Name, host.Services)
+			for _, host := range tc.hosts {
+				tc.config.AddHost(host.Name, host.Services)
 			}
-			testCase.config.AddProviderInstallationMethods(testCase.providerInstallationMethods...)
+			tc.config.AddProviderInstallationMethods(tc.providerInstallationMethods...)
 
-			err := testCase.config.Save(configFile)
+			err := tc.config.Save(configFile)
 			require.NoError(t, err)
 
 			hclBytes, err := os.ReadFile(configFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedHCL, string(hclBytes))
+			assert.Equal(t, tc.expectedHCL, string(hclBytes))
 		})
 	}
 }

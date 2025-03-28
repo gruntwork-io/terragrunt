@@ -37,12 +37,12 @@ type DependencyOrder int
 // RunningModule represents a module we are trying to "run" (i.e. apply or destroy)
 // as part of the apply-all or destroy-all command.
 type RunningModule struct {
-	Module         *TerraformModule
-	Status         ModuleStatus
 	Err            error
+	Module         *TerraformModule
 	DependencyDone chan *RunningModule
 	Dependencies   map[string]*RunningModule
 	NotifyWhenDone []*RunningModule
+	Status         ModuleStatus
 	FlagExcluded   bool
 }
 
@@ -62,10 +62,10 @@ func newRunningModule(module *TerraformModule) *RunningModule {
 
 // Run a module once all of its dependencies have finished executing.
 func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, semaphore chan struct{}) {
-	err := telemetry.Telemetry(ctx, opts, "wait_for_module_ready", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "wait_for_module_ready", map[string]any{
 		"path":             module.Module.Path,
 		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
-	}, func(childCtx context.Context) error {
+	}, func(_ context.Context) error {
 		return module.waitForDependencies()
 	})
 
@@ -75,10 +75,10 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 	}()
 
 	if err == nil {
-		err = telemetry.Telemetry(ctx, opts, "run_module", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_module", map[string]any{
 			"path":             module.Module.Path,
 			"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
-		}, func(childCtx context.Context) error {
+		}, func(ctx context.Context) error {
 			return module.runNow(ctx, opts)
 		})
 	}

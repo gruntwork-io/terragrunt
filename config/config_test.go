@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -15,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func createLogger() log.Logger {
@@ -44,8 +46,8 @@ remote_state {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.Empty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Empty(t, terragruntConfig.RemoteState.BackendConfig)
 		assert.Empty(t, terragruntConfig.RemoteState.Encryption)
 	}
 }
@@ -69,8 +71,8 @@ remote_state = {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.Empty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Empty(t, terragruntConfig.RemoteState.BackendConfig)
 	}
 }
 
@@ -95,8 +97,8 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.Empty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Empty(t, terragruntConfig.RemoteState.BackendConfig)
 	}
 }
 
@@ -143,12 +145,12 @@ remote_state {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		assert.Equal(t, "pbkdf2", terragruntConfig.RemoteState.Encryption["key_provider"])
 		assert.Equal(t, "correct-horse-battery-staple", terragruntConfig.RemoteState.Encryption["passphrase"])
 	}
@@ -185,12 +187,12 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		assert.Equal(t, "pbkdf2", terragruntConfig.RemoteState.Encryption["key_provider"])
 		assert.Equal(t, "correct-horse-battery-staple", terragruntConfig.RemoteState.Encryption["passphrase"])
 	}
@@ -413,12 +415,12 @@ dependencies {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 	}
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
@@ -462,12 +464,12 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 	}
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
@@ -497,12 +499,12 @@ include {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
-			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-			assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+			assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
 	}
 
@@ -525,12 +527,12 @@ include {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
-			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-			assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+			assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
 	}
 
@@ -565,12 +567,12 @@ remote_state {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
-			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-			assert.Equal(t, false, terragruntConfig.RemoteState.Config["encrypt"])
-			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
-			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
-			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+			assert.Equal(t, false, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["bucket"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["key"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
 	}
 
@@ -616,12 +618,12 @@ dependencies {
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, false, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, false, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["region"])
 	}
 
 	assert.Equal(t, []string{"override"}, terragruntConfig.Dependencies.Paths)
@@ -665,12 +667,12 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, false, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, false, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["region"])
 	}
 
 	assert.Equal(t, []string{"override"}, terragruntConfig.Dependencies.Paths)
@@ -1332,23 +1334,19 @@ func TestModuleDependenciesMerge(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		// Capture range variable so that it is brought into the scope within the for loop, so that it is stable even
-		// when subtests are run in parallel.
-		testCase := testCase
-
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			target := &config.ModuleDependencies{Paths: testCase.target}
+			target := &config.ModuleDependencies{Paths: tc.target}
 
 			var source *config.ModuleDependencies = nil
-			if testCase.source != nil {
-				source = &config.ModuleDependencies{Paths: testCase.source}
+			if tc.source != nil {
+				source = &config.ModuleDependencies{Paths: tc.source}
 			}
 
 			target.Merge(source)
-			assert.Equal(t, testCase.expected, target.Paths)
+			assert.Equal(t, tc.expected, target.Paths)
 		})
 	}
 }
@@ -1398,4 +1396,139 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 			assert.NotNil(b, actual)
 		})
 	}
+}
+
+func TestBestEffortParseConfigString(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		expectedConfig *config.TerragruntConfig
+		name           string
+		cfg            string
+		expectError    bool
+	}{
+		{
+			name: "Simple",
+			cfg: `locals {
+	simple        = "value"
+	requires_auth = run_cmd("exit", "1") // intentional error
+}
+`,
+			expectError: true,
+			expectedConfig: &config.TerragruntConfig{
+				Locals: map[string]any{
+					"simple": "value",
+				},
+				GenerateConfigs:   map[string]codegen.GenerateConfig{},
+				ProcessedIncludes: config.IncludeConfigsMap{},
+				FieldsMetadata: map[string]map[string]any{
+					"locals-simple": {
+						"found_in_file": "terragrunt.hcl",
+					},
+				},
+			},
+		},
+		{
+			name: "Locals referencing each other",
+			cfg: `locals {
+	reference = local.simple
+	simple    = "value"
+}
+`,
+			expectError: false,
+			expectedConfig: &config.TerragruntConfig{
+				Locals: map[string]any{
+					"reference": "value",
+					"simple":    "value",
+				},
+				GenerateConfigs:   map[string]codegen.GenerateConfig{},
+				ProcessedIncludes: config.IncludeConfigsMap{},
+				FieldsMetadata: map[string]map[string]any{
+					"locals-reference": {
+						"found_in_file": "terragrunt.hcl",
+					},
+					"locals-simple": {
+						"found_in_file": "terragrunt.hcl",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+			terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, tt.cfg, nil)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.expectedConfig, terragruntConfig)
+		})
+	}
+}
+
+func TestBestEffortParseConfigStringWDependency(t *testing.T) {
+	t.Parallel()
+
+	depCfg := `locals {
+	simple = "value"
+	fail   = run_cmd("exit", "1") // intentional error
+}`
+
+	cfg := `locals {
+	simple = "value"
+	fail   = run_cmd("exit", "1") // intentional error
+}
+
+dependency "dep" {
+	config_path = "../dep"
+}`
+
+	tmpDir := t.TempDir()
+
+	depPath := filepath.Join(tmpDir, "dep")
+	require.NoError(t, os.MkdirAll(depPath, 0755))
+
+	depCfgPath := filepath.Join(depPath, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(depCfgPath, []byte(depCfg), 0644))
+
+	unitPath := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitPath, 0755))
+
+	unitCfgPath := filepath.Join(unitPath, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(unitCfgPath, []byte(cfg), 0644))
+
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+
+	ctx.TerragruntOptions.WorkingDir = unitPath
+
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+
+	assert.Equal(t, &config.TerragruntConfig{
+		Locals: map[string]any{
+			"simple": "value",
+		},
+		GenerateConfigs:   map[string]codegen.GenerateConfig{},
+		ProcessedIncludes: config.IncludeConfigsMap{},
+		FieldsMetadata: map[string]map[string]any{
+			"dependency-dep": {
+				"found_in_file": "terragrunt.hcl",
+			},
+			"locals-simple": {
+				"found_in_file": "terragrunt.hcl",
+			},
+		},
+		TerragruntDependencies: config.Dependencies{
+			config.Dependency{
+				Name:       "dep",
+				ConfigPath: cty.StringVal("../dep"),
+			},
+		},
+	}, terragruntConfig)
 }

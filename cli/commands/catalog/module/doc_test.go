@@ -63,16 +63,14 @@ func TestFrontmatter(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			doc := module.NewDoc(testCase.content, "")
+			doc := module.NewDoc(tc.content, "")
 
-			assert.Equal(t, testCase.expectedName, doc.Title(), "Frontmatter Name")
-			assert.Equal(t, testCase.expectedDesc, doc.Description(0), "Frontmatter Description")
+			assert.Equal(t, tc.expectedName, doc.Title(), "Frontmatter Name")
+			assert.Equal(t, tc.expectedDesc, doc.Description(0), "Frontmatter Description")
 		})
 	}
 
@@ -184,50 +182,48 @@ func TestElement(t *testing.T) {
 	testCases := []struct {
 		content              string
 		fileExt              string
-		maxDescriptionLength int
 		expectedTitle        string
 		expectedDescription  string
+		maxDescriptionLength int
 	}{
 		{
-			testH1EksK8sArgocd,
-			".md",
-			200,
-			"EKS K8s GitOps Module",
-			"This module deploys Argo CD to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the Argo CD for more details.",
+			content:              testH1EksK8sArgocd,
+			fileExt:              ".md",
+			maxDescriptionLength: 200,
+			expectedTitle:        "EKS K8s GitOps Module",
+			expectedDescription:  "This module deploys Argo CD to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the Argo CD for more details.",
 		},
 		{
-			testH1EksCloudwatchAgent,
-			".md",
-			200,
-			"EKS CloudWatch Agent Module",
-			"This Terraform Module installs and configures Amazon CloudWatch Agent on an EKS cluster, so that each node runs the agent to collect more system-level metrics from Amazon EC2 instances and ship them to Amazon CloudWatch.",
+			content:              testH1EksCloudwatchAgent,
+			fileExt:              ".md",
+			maxDescriptionLength: 200,
+			expectedTitle:        "EKS CloudWatch Agent Module",
+			expectedDescription:  "This Terraform Module installs and configures Amazon CloudWatch Agent on an EKS cluster, so that each node runs the agent to collect more system-level metrics from Amazon EC2 instances and ship them to Amazon CloudWatch.",
 		},
 		{
-			testH1EcsCluster,
-			".md",
-			200,
-			"Amazon ECS Cluster",
-			"This service contains Terraform code to deploy a production-grade ECS cluster on AWS using Elastic Container Service (ECS).",
+			content:              testH1EcsCluster,
+			fileExt:              ".md",
+			maxDescriptionLength: 200,
+			expectedTitle:        "Amazon ECS Cluster",
+			expectedDescription:  "This service contains Terraform code to deploy a production-grade ECS cluster on AWS using Elastic Container Service (ECS).",
 		},
 		{
-			testH1EksAWSAuthMerger,
-			".adoc",
-			200,
-			"EKS AWS Auth Merger",
-			"This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes.",
+			content:              testH1EksAWSAuthMerger,
+			fileExt:              ".adoc",
+			maxDescriptionLength: 200,
+			expectedTitle:        "EKS AWS Auth Merger",
+			expectedDescription:  "This module contains a go CLI, docker container, and terraform module for deploying a Kubernetes controller for managing mappings between AWS IAM roles and users to RBAC groups in Kubernetes.",
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			doc := module.NewDoc(testCase.content, testCase.fileExt)
+			doc := module.NewDoc(tc.content, tc.fileExt)
 
-			assert.Equal(t, testCase.expectedTitle, doc.Title(), "Title")
-			assert.Equal(t, testCase.expectedDescription, doc.Description(testCase.maxDescriptionLength), "Description")
+			assert.Equal(t, tc.expectedTitle, doc.Title(), "Title")
+			assert.Equal(t, tc.expectedDescription, doc.Description(tc.maxDescriptionLength), "Description")
 		})
 	}
 

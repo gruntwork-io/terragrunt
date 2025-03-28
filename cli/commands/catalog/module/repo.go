@@ -170,10 +170,10 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 }
 
 type CloneOptions struct {
-	SourceURL  string
-	TargetPath string
 	Context    context.Context
 	Logger     log.Logger
+	SourceURL  string
+	TargetPath string
 }
 
 func (repo *Repo) clone(ctx context.Context, l log.Logger) error {

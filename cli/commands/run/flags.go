@@ -26,6 +26,7 @@ const (
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
 
+	BackendBootstrapFlagName        = "backend-bootstrap"
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
 	DisableBucketUpdateFlagName     = "disable-bucket-update"
 
@@ -71,6 +72,15 @@ const (
 	EngineCachePathFlagName = "engine-cache-path"
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
+
+	// `run-all/--all` related flags.
+
+	OutDirFlagName     = "out-dir"
+	JSONOutDirFlagName = "json-out-dir"
+
+	// `graph/--graph` related flags.
+
+	GraphRootFlagName = "graph-root"
 
 	// Renamed flags.
 
@@ -123,6 +133,9 @@ const (
 	DeprecatedEngineCachePathFlagName                = "engine-cache-path"
 	DeprecatedEngineSkipCheckFlagName                = "engine-skip-check"
 	DeprecatedEngineLogLevelFlagName                 = "engine-log-level"
+	DeprecatedOutDirFlagName                         = "out-dir"
+	DeprecatedJSONOutDirFlagName                     = "json-out-dir"
+	DeprecatedGraphRootFlagName                      = "graph-root"
 
 	// Deprecated flags.
 
@@ -137,6 +150,34 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	legacyLogsControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName, controls.LegacyLogs)
 
 	flags := cli.Flags{
+		// `run-all/-all` related flags.
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        OutDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(OutDirFlagName),
+			Destination: &opts.OutputFolder,
+			Usage:       "Directory to store plan files.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedOutDirFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        JSONOutDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(JSONOutDirFlagName),
+			Destination: &opts.JSONOutputFolder,
+			Usage:       "Directory to store json plan files.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedJSONOutDirFlagName), terragruntPrefixControl)),
+
+		// `graph/-grpah` related flags.
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        GraphRootFlagName,
+			EnvVars:     tgPrefix.EnvVars(GraphRootFlagName),
+			Destination: &opts.GraphRoot,
+			Usage:       "Root directory from where to build graph dependencies.",
+		},
+			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedGraphRootFlagName), terragruntPrefixControl)),
+
 		//  Backward compatibility with `terragrunt-` prefix flags.
 
 		flags.NewFlag(&cli.GenericFlag[string]{
@@ -388,6 +429,13 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedUnitsReadingFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
+			Name:        BackendBootstrapFlagName,
+			EnvVars:     tgPrefix.EnvVars(BackendBootstrapFlagName),
+			Destination: &opts.BackendBootstrap,
+			Usage:       "Automatically bootstrap backend infrastructure before attempting to use it.",
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        BackendRequireBootstrapFlagName,
 			EnvVars:     tgPrefix.EnvVars(BackendRequireBootstrapFlagName),
 			Destination: &opts.FailIfBucketCreationRequired,
@@ -419,7 +467,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoDestroyDependenciesCheckFlagName), terragruntPrefixControl)),
 
-		// Terragrunt Provider Cache flags
+		// Terragrunt Provider Cache flags.
+
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ProviderCacheFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheFlagName),

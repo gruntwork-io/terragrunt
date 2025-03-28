@@ -16,56 +16,44 @@ func TestMapFlagStringStringApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.MapFlag[string, string]
-		args          []string
+		expectedErr   error
 		envs          map[string]string
 		expectedValue map[string]string
-		expectedErr   error
+		args          []string
+		flag          cli.MapFlag[string, string]
 	}{
 		{
-			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "arg1-key=arg1-value", "--foo", "arg2-key = arg2-value"},
-			map[string]string{"FOO": "env1-key=env1-value,env2-key=env2-value"},
-			map[string]string{"arg1-key": "arg1-value", "arg2-key": "arg2-value"},
-			nil,
+			flag:          cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "arg1-key=arg1-value", "--foo", "arg2-key = arg2-value"},
+			envs:          map[string]string{"FOO": "env1-key=env1-value,env2-key=env2-value"},
+			expectedValue: map[string]string{"arg1-key": "arg1-value", "arg2-key": "arg2-value"},
 		},
 		{
-			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			map[string]string{"FOO": "env1-key=env1-value,env2-key = env2-value"},
-			map[string]string{"env1-key": "env1-value", "env2-key": "env2-value"},
-			nil,
+			flag:          cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
+			envs:          map[string]string{"FOO": "env1-key=env1-value,env2-key = env2-value"},
+			expectedValue: map[string]string{"env1-key": "env1-value", "env2-key": "env2-value"},
 		},
 		{
-			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			nil,
-			map[string]string{},
-			nil,
+			flag:          cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
+			expectedValue: map[string]string{},
 		},
 		{
-			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
-			[]string{"--foo", "arg1-key=arg1-value", "--foo", "arg2-key=arg2-value"},
-			map[string]string{"FOO": "env1-key=env1-value,env2-key=env2-value"},
-			map[string]string{"arg1-key": "arg1-value", "arg2-key": "arg2-value"},
-			nil,
+			flag:          cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
+			args:          []string{"--foo", "arg1-key=arg1-value", "--foo", "arg2-key=arg2-value"},
+			envs:          map[string]string{"FOO": "env1-key=env1-value,env2-key=env2-value"},
+			expectedValue: map[string]string{"arg1-key": "arg1-value", "arg2-key": "arg2-value"},
 		},
 		{
-			cli.MapFlag[string, string]{Name: "foo", Destination: mockDestValue(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
-			nil,
-			nil,
-			map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"},
-			nil,
+			flag:          cli.MapFlag[string, string]{Name: "foo", Destination: mockDestValue(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
+			expectedValue: map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"},
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			testMapFlagApply(t, &testCase.flag, testCase.args, testCase.envs, testCase.expectedValue, testCase.expectedErr)
+			testMapFlagApply(t, &tc.flag, tc.args, tc.envs, tc.expectedValue, tc.expectedErr)
 		})
 	}
 }
@@ -74,50 +62,41 @@ func TestMapFlagStringIntApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.MapFlag[string, int]
-		args          []string
+		expectedErr   error
 		envs          map[string]string
 		expectedValue map[string]int
-		expectedErr   error
+		args          []string
+		flag          cli.MapFlag[string, int]
 	}{
 		{
-			cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "arg1-key=10", "--foo", "arg2-key=11"},
-			map[string]string{"FOO": "env1-key=20,env2-key=21"},
-			map[string]int{"arg1-key": 10, "arg2-key": 11},
-			nil,
+			flag:          cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "arg1-key=10", "--foo", "arg2-key=11"},
+			envs:          map[string]string{"FOO": "env1-key=20,env2-key=21"},
+			expectedValue: map[string]int{"arg1-key": 10, "arg2-key": 11},
 		},
 		{
-			cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			map[string]string{"FOO": "env1-key=20,env2-key=21"},
-			map[string]int{"env1-key": 20, "env2-key": 21},
-			nil,
+			flag:          cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}},
+			envs:          map[string]string{"FOO": "env1-key=20,env2-key=21"},
+			expectedValue: map[string]int{"env1-key": 20, "env2-key": 21},
 		},
 
 		{
-			cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(map[string]int{"default1-key": 50, "default2-key": 51})},
-			[]string{"--foo", "arg1-key=10", "--foo", "arg2-key=11"},
-			map[string]string{"FOO": "env1-key=20,env2-key=21"},
-			map[string]int{"arg1-key": 10, "arg2-key": 11},
-			nil,
+			flag:          cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(map[string]int{"default1-key": 50, "default2-key": 51})},
+			args:          []string{"--foo", "arg1-key=10", "--foo", "arg2-key=11"},
+			envs:          map[string]string{"FOO": "env1-key=20,env2-key=21"},
+			expectedValue: map[string]int{"arg1-key": 10, "arg2-key": 11},
 		},
 		{
-			cli.MapFlag[string, int]{Name: "foo", Destination: mockDestValue(map[string]int{"default1-key": 50, "default2-key": 51})},
-			nil,
-			nil,
-			map[string]int{"default1-key": 50, "default2-key": 51},
-			nil,
+			flag:          cli.MapFlag[string, int]{Name: "foo", Destination: mockDestValue(map[string]int{"default1-key": 50, "default2-key": 51})},
+			expectedValue: map[string]int{"default1-key": 50, "default2-key": 51},
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			testMapFlagApply(t, &testCase.flag, testCase.args, testCase.envs, testCase.expectedValue, testCase.expectedErr)
+			testMapFlagApply(t, &tc.flag, tc.args, tc.envs, tc.expectedValue, tc.expectedErr)
 		})
 	}
 }

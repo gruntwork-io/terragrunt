@@ -53,6 +53,9 @@ linters-settings:
       - performance
     disabled-tags:
       - experimental
+  govet:
+    enable:
+      - fieldalignment
 
 linters:
   enable:

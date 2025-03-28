@@ -7,51 +7,73 @@ import (
 )
 
 type Command struct {
-	// Name is the command name.
-	Name string
-	// Aliases is a list of aliases for the command.
-	Aliases []string
-	// Usage is a short description of the usage of the command.
-	Usage string
-	// UsageText is custom text to show on the `Usage` section of help.
-	UsageText string
-	// Description is a longer explanation of how the command works.
-	Description string
-	// Examples is list of examples of using the command in the help.
-	Examples []string
 	// Category is the category the command belongs to.
 	Category *Category
-	// Flags is list of flags to parse.
+
+	// Before is an action to execute before the command is invoked.
+	// If a non-nil error is returned, no further processing is done.
+	Before ActionFunc
+
+	// CustomHelp is a custom function to display help text.
+	CustomHelp HelpFunc
+
+	// After is the function to call after the command is invoked.
+	After ActionFunc
+
+	// Complete is the function to call for shell completion.
+	Complete CompleteFunc
+
+	// Action is the function to execute when the command is invoked.
+	// Runs after subcommands are finished.
+	Action ActionFunc
+
+	// Description is a longer explanation of how the command works.
+	Description string
+
+	// HelpName is the full name of the command for help.
+	// Defaults to the full command name, including parent commands.
+	HelpName string
+
+	// Name is the command name.
+	Name string
+
+	// UsageText is custom text to show on the `Usage` section of the help.
+	UsageText string
+
+	// CustomHelpTemplate is a custom text template for the help topic.
+	CustomHelpTemplate string
+
+	// Usage is a short description of the usage for the command.
+	Usage string
+
+	// Flags is a list of flags to parse.
 	Flags Flags
+
+	// Examples is a list of examples for using the command in help.
+	Examples []string
+
+	// Subcommands is a list of subcommands.
+	Subcommands Commands
+
+	// Aliases is a list of aliases for the command.
+	Aliases []string
+
+	// IsRoot is true if this is a root "special" command.
+	// NOTE: The author of this comment doesn't know what this means.
+	IsRoot bool
+
+	// SkipRunning disables the parsing command, but it will
+	// still be shown in help.
+	SkipRunning bool
+
+	// SkipFlagParsing treats all flags as normal arguments.
+	SkipFlagParsing bool
+
+	// Hidden hides the command from help.
+	Hidden bool
+
 	// ErrorOnUndefinedFlag causes the application to exit and return an error on any undefined flag.
 	ErrorOnUndefinedFlag bool
-	// Full name of cmd for help, defaults to full cmd name, including parent commands.
-	HelpName string
-	// if this is a root "special" cmd
-	IsRoot bool
-	// Boolean to hide this cmd from help
-	Hidden bool
-	// CustomHelpTemplate the text template for the cmd help topic.
-	// cli.go uses text/template to render templates. You can
-	// render custom help text by setting this variable.
-	CustomHelpTemplate string
-	// CustomHelp is a func that is executed when help for a command needs to be displayed.
-	CustomHelp HelpFunc
-	// List of child commands
-	Subcommands Commands
-	// Treat all flags as normal arguments if true
-	SkipFlagParsing bool
-	// Boolean to disable the parsing command, but it will still be shown in the help.
-	SkipRunning bool
-	// The function to call when checking for command completions
-	Complete CompleteFunc
-	// An action to execute before any subcommands are run, but after the context is ready
-	// If a non-nil error is returned, no subcommands are run
-	Before ActionFunc
-	// An action to execute after any subcommands are run, but after the subcommand has finished
-	After ActionFunc
-	// The action to execute when no subcommands are specified
-	Action ActionFunc
 }
 
 // Names returns the names including short names and aliases.
@@ -83,7 +105,7 @@ func (cmd *Command) Subcommand(name string) *Command {
 
 // VisibleFlags returns a slice of the Flags, used by `urfave/cli` package to generate help.
 func (cmd *Command) VisibleFlags() Flags {
-	return cmd.Flags
+	return cmd.Flags.VisibleFlags()
 }
 
 // VisibleSubcommands returns a slice of the Commands with Hidden=false.

@@ -31,11 +31,11 @@ func TestValidateExperiments(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedError   error
 		name            string
+		expectedWarning string
 		experiments     experiment.Experiments
 		experimentNames []string
-		expectedWarning string
-		expectedError   error
 	}{
 		{
 			name: "no experiments",
@@ -110,13 +110,13 @@ func TestValidateExperiments(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			for _, name := range testCase.experimentNames {
-				if err := testCase.experiments.EnableExperiment(name); err != nil {
-					require.EqualError(t, err, testCase.expectedError.Error())
+			for _, name := range tc.experimentNames {
+				if err := tc.experiments.EnableExperiment(name); err != nil {
+					require.EqualError(t, err, tc.expectedError.Error())
 				} else {
 					require.NoError(t, err)
 				}
@@ -124,15 +124,15 @@ func TestValidateExperiments(t *testing.T) {
 
 			logger, output := newTestLogger()
 
-			testCase.experiments.NotifyCompletedExperiments(logger)
+			tc.experiments.NotifyCompletedExperiments(logger)
 
-			if testCase.expectedWarning == "" {
+			if tc.expectedWarning == "" {
 				assert.Empty(t, output.String())
 
 				return
 			}
 
-			assert.Contains(t, strings.TrimSpace(output.String()), testCase.expectedWarning)
+			assert.Contains(t, strings.TrimSpace(output.String()), tc.expectedWarning)
 		})
 	}
 }

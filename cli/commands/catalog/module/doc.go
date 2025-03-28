@@ -45,15 +45,13 @@ func (regs DocRegs) Replace(str string) string {
 }
 
 type Doc struct {
-	rawContent string
-	fileExt    string
-
-	tagCache     map[docDataKey]string
-	tagRegs      map[docTagName]*regexp.Regexp
-	tagStripRegs DocRegs
-
+	tagCache         map[docDataKey]string
+	tagRegs          map[docTagName]*regexp.Regexp
 	frontmatterCache map[docDataKey]string
 	frontmatterReg   *regexp.Regexp
+	rawContent       string
+	fileExt          string
+	tagStripRegs     DocRegs
 }
 
 func NewDoc(rawContent, fileExt string) *Doc {

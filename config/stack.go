@@ -41,20 +41,20 @@ type StackConfigFile struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
+	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	Values  *cty.Value `hcl:"values,attr"`
 	Name    string     `hcl:",label"`
 	Source  string     `hcl:"source,attr"`
 	Path    string     `hcl:"path,attr"`
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
 }
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
+	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	Values  *cty.Value `hcl:"values,attr"`
 	Name    string     `hcl:",label"`
 	Source  string     `hcl:"source,attr"`
 	Path    string     `hcl:"path,attr"`
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
 }
 
 // GenerateStacks generates the stack files.
@@ -64,7 +64,11 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 	// stop worker pool on exit
 	defer wp.Stop()
 	// initial files setting as stack file
-	foundFiles := []string{opts.TerragruntStackConfigPath}
+
+	foundFiles, err := listStackFiles(opts, opts.WorkingDir)
+	if err != nil {
+		return errors.Errorf("Failed to list stack files in %s %v", opts.WorkingDir, err)
+	}
 
 	for {
 		// check if we have already processed the files
@@ -250,13 +254,13 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 // It contains information about the source and target directories, the name and path of the item, the source URL or path,
 // and any associated values that need to be processed.
 type componentToProcess struct {
+	values    *cty.Value
 	sourceDir string
 	targetDir string
 	name      string
 	path      string
 	source    string
 	noStack   bool
-	values    *cty.Value
 }
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
@@ -269,10 +273,29 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		return errors.Errorf("failed to adjust source %s: %v", cmp.source, err)
 	}
 
-	dest := cmp.path
-	// if destination is not an absolute path, join with target directory
-	if !filepath.IsAbs(cmp.path) {
-		dest = filepath.Join(cmp.targetDir, cmp.path)
+	if filepath.IsAbs(cmp.path) {
+		return errors.Errorf("path %s must be relative", cmp.path)
+	}
+
+	// building destination path based on target directory
+	dest := filepath.Join(cmp.targetDir, cmp.path)
+
+	// validate destination path is within the stack directory
+	// get the absolute path of the destination directory
+	absDest, err := filepath.Abs(dest)
+	if err != nil {
+		return errors.Errorf("failed to get absolute path for destination '%s': %v", cmp.name, err)
+	}
+
+	// get the absolute path of the stack directory
+	absStackDir, err := filepath.Abs(cmp.targetDir)
+	if err != nil {
+		return errors.Errorf("failed to get absolute path for stack directory '%s': %v", cmp.name, err)
+	}
+
+	// validate that the destination path is within the stack directory
+	if !strings.HasPrefix(absDest, absStackDir) {
+		return errors.Errorf("destination path '%s' is outside of the stack directory '%s'", absDest, absStackDir)
 	}
 
 	if cmp.noStack {

@@ -41,13 +41,11 @@ func TestPackageAuthenticationResult(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, testCase.expected, testCase.result.String())
+			assert.Equal(t, tc.expected, tc.result.String())
 		})
 	}
 }
@@ -56,68 +54,61 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr    error
+		expectedResult *getproviders.PackageAuthenticationResult
 		path           string
 		wantSHA256Sum  [sha256.Size]byte
-		expectedResult *getproviders.PackageAuthenticationResult
-		expectedErr    error
 	}{
 		{
-			"testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
-			[sha256.Size]byte{
+			path: "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
+			wantSHA256Sum: [sha256.Size]byte{
 				0x4f, 0xb3, 0x98, 0x49, 0xf2, 0xe1, 0x38, 0xeb,
 				0x16, 0xa1, 0x8b, 0xa0, 0xc6, 0x82, 0x63, 0x5d,
 				0x78, 0x1c, 0xb8, 0xc3, 0xb2, 0x59, 0x01, 0xdd,
 				0x5a, 0x79, 0x2a, 0xde, 0x97, 0x11, 0xf5, 0x01,
 			},
-			getproviders.NewPackageAuthenticationResult(getproviders.VerifiedChecksum),
-			nil,
+			expectedResult: getproviders.NewPackageAuthenticationResult(getproviders.VerifiedChecksum),
 		},
 		{
-			"testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_invalid.zip",
-			[sha256.Size]byte{
+			path: "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_invalid.zip",
+			wantSHA256Sum: [sha256.Size]byte{
 				0x4f, 0xb3, 0x98, 0x49, 0xf2, 0xe1, 0x38, 0xeb,
 				0x16, 0xa1, 0x8b, 0xa0, 0xc6, 0x82, 0x63, 0x5d,
 				0x78, 0x1c, 0xb8, 0xc3, 0xb2, 0x59, 0x01, 0xdd,
 				0x5a, 0x79, 0x2a, 0xde, 0x97, 0x11, 0xf5, 0x01,
 			},
-			nil,
-			errors.New("archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)"),
+			expectedErr: errors.New("archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)"),
 		},
 		{
-			"testdata/no-package-here.zip",
-			[sha256.Size]byte{},
-			nil,
-			errors.New("stat testdata/no-package-here.zip: no such file or directory"),
+			path:          "testdata/no-package-here.zip",
+			wantSHA256Sum: [sha256.Size]byte{},
+			expectedErr:   errors.New("stat testdata/no-package-here.zip: no such file or directory"),
 		},
 		{
-			"testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
-			[sha256.Size]byte{},
-			nil,
-			errors.New("archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)"),
+			path:          "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
+			wantSHA256Sum: [sha256.Size]byte{},
+			expectedErr:   errors.New("archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)"),
 		},
 		{
-			"testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64",
-			[sha256.Size]byte{},
-			nil,
-			errors.New("cannot check archive hash for non-archive location testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64"),
+			path:          "testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64",
+			wantSHA256Sum: [sha256.Size]byte{},
+			expectedErr:   errors.New("cannot check archive hash for non-archive location testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64"),
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := getproviders.NewArchiveChecksumAuthentication(testCase.wantSHA256Sum)
-			actualResult, actualErr := auth.Authenticate(testCase.path)
-			if testCase.expectedErr != nil {
-				require.EqualError(t, actualErr, testCase.expectedErr.Error())
+			auth := getproviders.NewArchiveChecksumAuthentication(tc.wantSHA256Sum)
+			actualResult, actualErr := auth.Authenticate(tc.path)
+			if tc.expectedErr != nil {
+				require.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
 			}
 
-			assert.Equal(t, testCase.expectedResult, actualResult)
+			assert.Equal(t, tc.expectedResult, actualResult)
 		})
 
 	}
@@ -127,65 +118,51 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedErr   error
 		path          string
 		filename      string
 		document      []byte
 		wantSHA256Sum [sha256.Size]byte
-		expectedErr   error
 	}{
 		{
-			"testdata/my-package.zip",
-			"my-package.zip",
-			fmt.Appendf(nil, "%x README.txt\n%x my-package.zip\n", [sha256.Size]byte{0xc0, 0xff, 0xee}, [sha256.Size]byte{0xde, 0xca, 0xde}),
-			[sha256.Size]byte{0xde, 0xca, 0xde},
-			nil,
+			path:          "testdata/my-package.zip",
+			filename:      "my-package.zip",
+			document:      fmt.Appendf(nil, "%x README.txt\n%x my-package.zip\n", [sha256.Size]byte{0xc0, 0xff, 0xee}, [sha256.Size]byte{0xde, 0xca, 0xde}),
+			wantSHA256Sum: [sha256.Size]byte{0xde, 0xca, 0xde},
 		},
 
 		{
-			"testdata/my-package.zip",
-			"my-package.zip",
-			fmt.Appendf(nil,
-				"%x README.txt",
-				[sha256.Size]byte{0xbe, 0xef},
-			),
-			[sha256.Size]byte{0xde, 0xca, 0xde},
-			errors.New(`checksum list has no SHA-256 hash for "my-package.zip"`),
+			path:          "testdata/my-package.zip",
+			filename:      "my-package.zip",
+			document:      fmt.Appendf(nil, "%x README.txt", [sha256.Size]byte{0xbe, 0xef}),
+			wantSHA256Sum: [sha256.Size]byte{0xde, 0xca, 0xde},
+			expectedErr:   errors.New(`checksum list has no SHA-256 hash for "my-package.zip"`),
 		},
 		{
-			"testdata/my-package.zip",
-			"my-package.zip",
-			fmt.Appendf(nil,
-				"%s README.txt\n%s my-package.zip",
-				"horses",
-				"chickens",
-			),
-			[sha256.Size]byte{0xde, 0xca, 0xde},
-			errors.New(`checksum list has invalid SHA256 hash "chickens": encoding/hex: invalid byte: U+0068 'h'`),
+			path:          "testdata/my-package.zip",
+			filename:      "my-package.zip",
+			document:      fmt.Appendf(nil, "%s README.txt\n%s my-package.zip", "horses", "chickens"),
+			wantSHA256Sum: [sha256.Size]byte{0xde, 0xca, 0xde},
+			expectedErr:   errors.New(`checksum list has invalid SHA256 hash "chickens": encoding/hex: invalid byte: U+0068 'h'`),
 		},
 		{
-			"testdata/my-package.zip",
-			"my-package.zip",
-			fmt.Appendf(nil,
-				"%x README.txt\n%x my-package.zip",
-				[sha256.Size]byte{0xbe, 0xef},
-				[sha256.Size]byte{0xc0, 0xff, 0xee},
-			),
-			[sha256.Size]byte{0xde, 0xca, 0xde},
-			errors.New("checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected decade0000000000000000000000000000000000000000000000000000000000)"),
+			path:          "testdata/my-package.zip",
+			filename:      "my-package.zip",
+			document:      fmt.Appendf(nil, "%x README.txt\n%x my-package.zip", [sha256.Size]byte{0xbe, 0xef}, [sha256.Size]byte{0xc0, 0xff, 0xee}),
+			wantSHA256Sum: [sha256.Size]byte{0xde, 0xca, 0xde},
+			expectedErr:   errors.New("checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected decade0000000000000000000000000000000000000000000000000000000000)"),
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := getproviders.NewMatchingChecksumAuthentication(testCase.document, testCase.filename, testCase.wantSHA256Sum)
-			_, actualErr := auth.Authenticate(testCase.path)
+			auth := getproviders.NewMatchingChecksumAuthentication(tc.document, tc.filename, tc.wantSHA256Sum)
+			_, actualErr := auth.Authenticate(tc.path)
 
-			if testCase.expectedErr != nil {
-				require.EqualError(t, actualErr, testCase.expectedErr.Error())
+			if tc.expectedErr != nil {
+				require.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
 			}
@@ -231,18 +208,16 @@ def1b73849bec0dc57a04405847921bf9206c75b52ae9de195476facb26bd85e  terraform_0.14
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := getproviders.NewSignatureAuthentication([]byte(testCase.shasums), nil, nil)
+			auth := getproviders.NewSignatureAuthentication([]byte(tc.shasums), nil, nil)
 			authWithHashes, ok := auth.(getproviders.PackageAuthenticationHashes)
 			require.True(t, ok)
 
 			actualHash := authWithHashes.AcceptableHashes()
-			assert.Equal(t, testCase.expectedHashes, actualHash)
+			assert.Equal(t, tc.expectedHashes, actualHash)
 		})
 	}
 }
@@ -251,82 +226,74 @@ func TestSignatureAuthenticate(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		path           string
-		document       []byte
-		signature      string
+		expectedErr    error
 		keys           map[string]string
 		expectedResult *getproviders.PackageAuthenticationResult
-		expectedErr    error
+		path           string
+		signature      string
+		document       []byte
 	}{
 		{
-			"testdata/my-package.zip",
-			[]byte(testProviderShaSums),
-			testHashicorpSignatureGoodBase64,
-			map[string]string{getproviders.HashicorpPublicKey: ""},
-			getproviders.NewPackageAuthenticationResult(getproviders.OfficialProvider),
-			nil,
+			path:           "testdata/my-package.zip",
+			document:       []byte(testProviderShaSums),
+			signature:      testHashicorpSignatureGoodBase64,
+			keys:           map[string]string{getproviders.HashicorpPublicKey: ""},
+			expectedResult: getproviders.NewPackageAuthenticationResult(getproviders.OfficialProvider),
 		},
 		{
-			"testdata/my-package.zip",
-			[]byte("example shasums data"),
-			testHashicorpSignatureGoodBase64,
-			map[string]string{"invalid PGP armor value": ""},
-			nil,
-			errors.New("error decoding signing key: openpgp: invalid argument: no armored data found"),
+			path:        "testdata/my-package.zip",
+			document:    []byte("example shasums data"),
+			signature:   testHashicorpSignatureGoodBase64,
+			keys:        map[string]string{"invalid PGP armor value": ""},
+			expectedErr: errors.New("error decoding signing key: openpgp: invalid argument: no armored data found"),
 		},
 		{
-			"testdata/my-package.zip",
-			[]byte("example shasums data"),
-			testSignatureBadBase64,
-			map[string]string{testAuthorKeyArmor: ""},
-			nil,
-			errors.New("error checking signature: openpgp: invalid data: signature subpacket truncated"),
+			path:        "testdata/my-package.zip",
+			document:    []byte("example shasums data"),
+			signature:   testSignatureBadBase64,
+			keys:        map[string]string{testAuthorKeyArmor: ""},
+			expectedErr: errors.New("error checking signature: openpgp: invalid data: signature subpacket truncated"),
 		},
 		{
-			"testdata/my-package.zip",
-			[]byte("example shasums data"),
-			testAuthorSignatureGoodBase64,
-			map[string]string{getproviders.HashicorpPublicKey: ""},
-			nil,
-			errors.New("authentication signature from unknown issuer"),
+			path:        "testdata/my-package.zip",
+			document:    []byte("example shasums data"),
+			signature:   testAuthorSignatureGoodBase64,
+			keys:        map[string]string{getproviders.HashicorpPublicKey: ""},
+			expectedErr: errors.New("authentication signature from unknown issuer"),
 		},
 		{
-			"testdata/my-package.zip",
-			[]byte("example shasums data"),
-			testAuthorSignatureGoodBase64,
-			map[string]string{testAuthorKeyArmor: "invalid PGP armor value"},
-			nil,
-			errors.New("error decoding trust signature: EOF"),
+			path:        "testdata/my-package.zip",
+			document:    []byte("example shasums data"),
+			signature:   testAuthorSignatureGoodBase64,
+			keys:        map[string]string{testAuthorKeyArmor: "invalid PGP armor value"},
+			expectedErr: errors.New("error decoding trust signature: EOF"),
 		},
 		{
-			"testdata/my-package.zip",
-			[]byte("example shasums data"),
-			testAuthorSignatureGoodBase64,
-			map[string]string{testAuthorKeyArmor: testOtherKeyTrustSignatureArmor},
-			nil,
-			errors.New("error verifying trust signature: openpgp: invalid signature: RSA verification failure"),
+			path:        "testdata/my-package.zip",
+			document:    []byte("example shasums data"),
+			signature:   testAuthorSignatureGoodBase64,
+			keys:        map[string]string{testAuthorKeyArmor: testOtherKeyTrustSignatureArmor},
+			expectedErr: errors.New("error verifying trust signature: openpgp: invalid signature: RSA verification failure"),
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			signature, err := base64.StdEncoding.DecodeString(testCase.signature)
+			signature, err := base64.StdEncoding.DecodeString(tc.signature)
 			require.NoError(t, err)
 
-			auth := getproviders.NewSignatureAuthentication(testCase.document, signature, testCase.keys)
-			actualResult, actualErr := auth.Authenticate(testCase.path)
+			auth := getproviders.NewSignatureAuthentication(tc.document, signature, tc.keys)
+			actualResult, actualErr := auth.Authenticate(tc.path)
 
-			if testCase.expectedErr != nil {
-				require.EqualError(t, actualErr, testCase.expectedErr.Error())
+			if tc.expectedErr != nil {
+				require.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
 			}
 
-			assert.Equal(t, testCase.expectedResult, actualResult)
+			assert.Equal(t, tc.expectedResult, actualResult)
 		})
 	}
 }

@@ -53,23 +53,23 @@ type Discovery struct {
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
-	// hidden determines whether to detect configurations in hidden directories.
-	hidden bool
-
 	// sort determines the sort order of the discovered configurations.
 	sort Sort
+
+	// hiddenDirMemo is a memoization of hidden directories.
+	hiddenDirMemo []string
+
+	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
+	maxDependencyDepth int
+
+	// hidden determines whether to detect configurations in hidden directories.
+	hidden bool
 
 	// discoverDependencies determines whether to discover dependencies.
 	discoverDependencies bool
 
 	// discoverExternalDependencies determines whether to discover external dependencies.
 	discoverExternalDependencies bool
-
-	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
-	maxDependencyDepth int
-
-	// hiddenDirMemo is a memoization of hidden directories.
-	hiddenDirMemo []string
 }
 
 // DiscoveryOption is a function that modifies a Discovery.

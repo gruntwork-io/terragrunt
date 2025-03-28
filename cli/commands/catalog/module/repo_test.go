@@ -24,13 +24,13 @@ func TestFindModules(t *testing.T) {
 	}
 
 	testCases := []struct {
+		expectedErr  error
 		repoPath     string
 		expectedData []moduleData
-		expectedErr  error
 	}{
 		{
-			"testdata/find_modules",
-			[]moduleData{
+			repoPath: "testdata/find_modules",
+			expectedData: []moduleData{
 				{
 					title:       "ALB Ingress Controller Module",
 					description: "This Terraform Module installs and configures the AWS ALB Ingress Controller on an EKS cluster, so that you can configure an ALB using Ingress resources.",
@@ -49,26 +49,23 @@ func TestFindModules(t *testing.T) {
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-aws-auth-merger",
 					moduleDir:   "modules/eks-aws-auth-merger",
 				}},
-			nil,
 		},
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase
-
-		t.Run(testCase.repoPath, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.repoPath, func(t *testing.T) {
 			t.Parallel()
 			// Unfortunately, we are unable to commit the `.git` directory. We have to temporarily rename it while running the tests.
-			os.Rename(filepath.Join(testCase.repoPath, "gitdir"), filepath.Join(testCase.repoPath, ".git"))
-			defer os.Rename(filepath.Join(testCase.repoPath, ".git"), filepath.Join(testCase.repoPath, "gitdir"))
+			os.Rename(filepath.Join(tc.repoPath, "gitdir"), filepath.Join(tc.repoPath, ".git"))
+			defer os.Rename(filepath.Join(tc.repoPath, ".git"), filepath.Join(tc.repoPath, "gitdir"))
 
 			ctx := context.Background()
 
-			repo, err := module.NewRepo(ctx, log.New(), testCase.repoPath, "", false, false)
+			repo, err := module.NewRepo(ctx, log.New(), tc.repoPath, "", false, false)
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)
-			assert.Equal(t, testCase.expectedErr, err)
+			assert.Equal(t, tc.expectedErr, err)
 
 			var realData []moduleData
 
@@ -82,7 +79,7 @@ func TestFindModules(t *testing.T) {
 				})
 			}
 
-			assert.Equal(t, testCase.expectedData, realData)
+			assert.Equal(t, tc.expectedData, realData)
 		})
 	}
 
@@ -92,73 +89,71 @@ func TestModuleURL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name        string
+		expectedErr error
 		repo        *module.Repo
+		name        string
 		moduleDir   string
 		expectedURL string
-		expectedErr error
 	}{
 		{
-			"github",
-			newRepo(t, "https://github.com/acme/terraform-aws-modules"),
-			".",
-			"https://github.com/acme/terraform-aws-modules/tree/main/.",
-			nil,
+			name:        "github",
+			repo:        newRepo(t, "https://github.com/acme/terraform-aws-modules"),
+			moduleDir:   ".",
+			expectedURL: "https://github.com/acme/terraform-aws-modules/tree/main/.",
+			expectedErr: nil,
 		},
 		{
-			"github enterprise",
-			newRepo(t, "https://github.acme.com/acme/terraform-aws-modules"),
-			".",
-			"https://github.acme.com/acme/terraform-aws-modules/tree/main/.",
-			nil,
+			name:        "github enterprise",
+			repo:        newRepo(t, "https://github.acme.com/acme/terraform-aws-modules"),
+			moduleDir:   ".",
+			expectedURL: "https://github.acme.com/acme/terraform-aws-modules/tree/main/.",
+			expectedErr: nil,
 		},
 		{
-			"gitlab",
-			newRepo(t, "https://gitlab.com/acme/terraform-aws-modules"),
-			".",
-			"https://gitlab.com/acme/terraform-aws-modules/-/tree/main/.",
-			nil,
+			name:        "gitlab",
+			repo:        newRepo(t, "https://gitlab.com/acme/terraform-aws-modules"),
+			moduleDir:   ".",
+			expectedURL: "https://gitlab.com/acme/terraform-aws-modules/-/tree/main/.",
+			expectedErr: nil,
 		},
 		{
-			"gitlab self-hosted",
-			newRepo(t, "https://gitlab.acme.com/acme/terraform-aws-modules"),
-			".",
-			"https://gitlab.acme.com/acme/terraform-aws-modules/-/tree/main/.",
-			nil,
+			name:        "gitlab self-hosted",
+			repo:        newRepo(t, "https://gitlab.acme.com/acme/terraform-aws-modules"),
+			moduleDir:   ".",
+			expectedURL: "https://gitlab.acme.com/acme/terraform-aws-modules/-/tree/main/.",
+			expectedErr: nil,
 		},
 		{
-			"bitbucket",
-			newRepo(t, "https://bitbucket.org/acme/terraform-aws-modules"),
-			".",
-			"https://bitbucket.org/acme/terraform-aws-modules/browse/.?at=main",
-			nil,
+			name:        "bitbucket",
+			repo:        newRepo(t, "https://bitbucket.org/acme/terraform-aws-modules"),
+			moduleDir:   ".",
+			expectedURL: "https://bitbucket.org/acme/terraform-aws-modules/browse/.?at=main",
+			expectedErr: nil,
 		},
 		{
-			"azuredev",
-			newRepo(t, "https://dev.azure.com/acme/terraform-aws-modules"),
-			".",
-			"https://dev.azure.com/_git/acme/terraform-aws-modules?path=.&version=GBmain",
-			nil,
+			name:        "azuredev",
+			repo:        newRepo(t, "https://dev.azure.com/acme/terraform-aws-modules"),
+			moduleDir:   ".",
+			expectedURL: "https://dev.azure.com/_git/acme/terraform-aws-modules?path=.&version=GBmain",
+			expectedErr: nil,
 		},
 		{
-			"unsupported",
-			newRepo(t, "https://fake.com/acme/terraform-aws-modules"),
-			".",
-			"",
-			errors.Errorf("hosting: %q is not supported yet", "fake.com"),
+			name:        "unsupported",
+			repo:        newRepo(t, "https://fake.com/acme/terraform-aws-modules"),
+			moduleDir:   ".",
+			expectedURL: "",
+			expectedErr: errors.Errorf("hosting: %q is not supported yet", "fake.com"),
 		},
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase
-
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			url, err := testCase.repo.ModuleURL(testCase.moduleDir)
-			assert.Equal(t, testCase.expectedURL, url)
-			if testCase.expectedErr != nil {
-				assert.EqualError(t, err, testCase.expectedErr.Error())
+			url, err := tc.repo.ModuleURL(tc.moduleDir)
+			assert.Equal(t, tc.expectedURL, url)
+			if tc.expectedErr != nil {
+				assert.EqualError(t, err, tc.expectedErr.Error())
 			} else {
 				assert.NoError(t, err)
 			}
