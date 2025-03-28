@@ -8,6 +8,7 @@ package test_test
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -19,16 +20,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var knownBadFiles = []string{
+	"fixtures/hclvalidate/second/a/terragrunt.hcl",
+	"fixtures/hclfmt-errors/dangling-attribute/terragrunt.hcl",
+	"fixtures/hclfmt-errors/invalid-character/terragrunt.hcl",
+	"fixtures/hclfmt-errors/invalid-key/terragrunt.hcl",
+	"fixtures/disabled/unit-disabled/terragrunt.hcl",
+}
+
 func TestParseAllFixtureFiles(t *testing.T) {
 	t.Parallel()
-
-	knownBadFiles := []string{
-		"fixtures/hclvalidate/second/a/terragrunt.hcl",
-		"fixtures/hclfmt-errors/dangling-attribute/terragrunt.hcl",
-		"fixtures/hclfmt-errors/invalid-character/terragrunt.hcl",
-		"fixtures/hclfmt-errors/invalid-key/terragrunt.hcl",
-		"fixtures/disabled/unit-disabled/terragrunt.hcl",
-	}
 
 	files := helpers.HCLFilesInDir(t, "fixtures")
 
@@ -59,6 +60,137 @@ func TestParseAllFixtureFiles(t *testing.T) {
 			}
 
 			assert.NotNil(t, cfg)
+
+			// Suggest garbage collection to free up memory.
+			// Parsing config files can be memory intensive, and we don't need the config
+			// files in memory after we've parsed them.
+			runtime.GC()
+		})
+	}
+}
+
+func TestFindListAllComponents(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		name    string
+		command string
+	}{
+		{name: "find", command: "terragrunt find --experiment cli-redesign --no-color"},
+		{name: "list", command: "terragrunt list --experiment cli-redesign --no-color"},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				tt.command,
+			)
+			require.NoError(t, err)
+
+			assert.Empty(t, stderr)
+			assert.NotEmpty(t, stdout)
+
+			lines := strings.Split(stdout, "\n")
+
+			aDepLine := 0
+			bDepLine := 0
+
+			for i, line := range lines {
+				if line == "fixtures/find/dag/a-dependency" {
+					aDepLine = i
+				}
+
+				if line == "fixtures/find/dag/b-dependency" {
+					bDepLine = i
+				}
+			}
+
+			assert.Less(t, aDepLine, bDepLine)
+		})
+	}
+}
+
+func TestFindListAllComponentsWithDAG(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		name    string
+		command string
+	}{
+		{name: "find", command: "terragrunt find --experiment cli-redesign --no-color --dag"},
+		{name: "list", command: "terragrunt list --experiment cli-redesign --no-color --dag"},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				tt.command,
+			)
+			require.NoError(t, err)
+
+			assert.Empty(t, stderr)
+			assert.NotEmpty(t, stdout)
+
+			lines := strings.Split(stdout, "\n")
+
+			aDepLine := 0
+			bDepLine := 0
+
+			for i, line := range lines {
+				if line == "fixtures/find/dag/a-dependency" {
+					aDepLine = i
+				}
+
+				if line == "fixtures/find/dag/b-dependency" {
+					bDepLine = i
+				}
+			}
+
+			assert.Greater(t, aDepLine, bDepLine)
+		})
+	}
+}
+
+func TestFindListAllComponentsWithDAGAndExternal(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		name    string
+		command string
+	}{
+		{name: "find", command: "terragrunt find --experiment cli-redesign --no-color --dag --external"},
+		{name: "list", command: "terragrunt list --experiment cli-redesign --no-color --dag --external"},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				tt.command,
+			)
+			require.NoError(t, err)
+
+			assert.Empty(t, stderr)
+			assert.NotEmpty(t, stdout)
+
+			lines := strings.Split(stdout, "\n")
+
+			aDepLine := 0
+			bDepLine := 0
+
+			for i, line := range lines {
+				if line == "fixtures/find/dag/a-dependency" {
+					aDepLine = i
+				}
+
+				if line == "fixtures/find/dag/b-dependency" {
+					bDepLine = i
+				}
+			}
+
+			assert.Less(t, aDepLine, bDepLine)
 		})
 	}
 }
