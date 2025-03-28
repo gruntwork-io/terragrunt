@@ -55,25 +55,31 @@ variable "stack_source" {}
 variable "stack_value_env" {}
 
 output "stack_local_project" {
-  value = var.stack_local_project
+  value       = var.stack_local_project
+  description = "The local project identifier from the stack configuration"
 }
 
 output "unit_source" {
-  value = var.unit_source
+  value       = var.unit_source
+  description = "The source location for the unit"
 }
 
 output "unit_name" {
-  value = var.unit_name
+  value       = var.unit_name
+  description = "The name identifier of the unit"
 }
 
 output "unit_value_version" {
-  value = var.unit_value_version
+  value       = var.unit_value_version
+  description = "The version of the unit's value configuration"
 }
 
 output "stack_source" {
-  value = var.stack_source
+  value       = var.stack_source
+  description = "The source location for the stack"
 }
 
 output "stack_value_env" {
-  value = var.stack_value_env
+  value       = var.stack_value_env
+  description = "The environment configuration value for the stack"
 }
