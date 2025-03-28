@@ -93,18 +93,18 @@ func RunWithTarget(ctx context.Context, opts *options.TerragruntOptions, target 
 }
 
 func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOptions, target *Target) error {
+	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, externalcmd.NewProvider(terragruntOptions)); err != nil {
+		return err
+	}
+
 	if err := CheckVersionConstraints(ctx, terragruntOptions); err != nil {
 		return target.runErrorCallback(terragruntOptions, nil, err)
 	}
 
 	if terragruntOptions.TerraformCommand == tf.CommandNameVersion {
 		return tf.RunCommand(ctx, terragruntOptions, tf.CommandNameVersion)
-	}
-
-	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
-	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, externalcmd.NewProvider(terragruntOptions)); err != nil {
-		return err
 	}
 
 	terragruntConfig, err := config.ReadTerragruntConfig(ctx, terragruntOptions, config.DefaultParserOptions(terragruntOptions))
