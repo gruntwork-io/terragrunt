@@ -1,7 +1,9 @@
 //go:build parse
 
-// This test consumes so much memory that it causes the CI runner to crash.
-// As a result, we have to run it on its own.
+// These tests consume so much memory that they cause the CI runner to crash.
+// As a result, we have to run them on their own.
+//
+// In the future, we should make improvements to parsing so that this isn't necessary.
 
 package test_test
 
@@ -93,17 +95,17 @@ func TestParseFindListAllComponents(t *testing.T) {
 			assert.Empty(t, stderr)
 			assert.NotEmpty(t, stdout)
 
-			lines := strings.Split(stdout, "\n")
+			fields := strings.Fields(stdout)
 
 			aDepLine := 0
 			bDepLine := 0
 
-			for i, line := range lines {
-				if line == "fixtures/find/dag/a-dependency" {
+			for i, field := range fields {
+				if field == "fixtures/find/dag/a-dependent" {
 					aDepLine = i
 				}
 
-				if line == "fixtures/find/dag/b-dependency" {
+				if field == "fixtures/find/dag/b-dependency" {
 					bDepLine = i
 				}
 			}
@@ -137,17 +139,17 @@ func TestParseFindListAllComponentsWithDAG(t *testing.T) {
 			assert.NotEmpty(t, stderr)
 			assert.NotEmpty(t, stdout)
 
-			lines := strings.Split(stdout, "\n")
+			fields := strings.Fields(stdout)
 
 			aDepLine := 0
 			bDepLine := 0
 
-			for i, line := range lines {
-				if line == "fixtures/find/dag/a-dependency" {
+			for i, field := range fields {
+				if field == "fixtures/find/dag/a-dependent" {
 					aDepLine = i
 				}
 
-				if line == "fixtures/find/dag/b-dependency" {
+				if field == "fixtures/find/dag/b-dependency" {
 					bDepLine = i
 				}
 			}
@@ -181,17 +183,17 @@ func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 			assert.NotEmpty(t, stderr)
 			assert.NotEmpty(t, stdout)
 
-			lines := strings.Split(stdout, "\n")
+			fields := strings.Fields(stdout)
 
 			aDepLine := 0
 			bDepLine := 0
 
-			for i, line := range lines {
-				if line == "fixtures/find/dag/a-dependency" {
+			for i, field := range fields {
+				if field == "fixtures/find/dag/a-dependent" {
 					aDepLine = i
 				}
 
-				if line == "fixtures/find/dag/b-dependency" {
+				if field == "fixtures/find/dag/b-dependency" {
 					bDepLine = i
 				}
 			}
