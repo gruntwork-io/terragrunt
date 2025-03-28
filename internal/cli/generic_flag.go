@@ -99,6 +99,10 @@ func (flag *GenericFlag[T]) String() string {
 
 // Names returns the names of the flag.
 func (flag *GenericFlag[T]) Names() []string {
+	if flag.Name == "" {
+		return flag.Aliases
+	}
+
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 

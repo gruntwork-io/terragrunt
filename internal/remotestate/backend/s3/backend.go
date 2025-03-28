@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -138,6 +139,17 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 		return err
 	}
 
+	if !opts.ForceBackendDelete {
+		versioned, err := client.CheckIfVersioningEnabled(ctx, extS3Cfg.RemoteStateConfigS3.Bucket)
+		if err != nil {
+			return err
+		}
+
+		if !versioned {
+			return errors.New("bucket is not versioned, refusing to delete backend state. If you are sure you want to delete the backend state anyways, use the --force flag")
+		}
+	}
+
 	var (
 		bucketName = extS3Cfg.RemoteStateConfigS3.Bucket
 		bucketKey  = extS3Cfg.RemoteStateConfigS3.Key
@@ -147,12 +159,24 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 	if tableName != "" {
 		tableKey := path.Join(bucketName, bucketKey+stateIDSuffix)
 
-		if err := client.DeleteTableItemIfNecessary(ctx, tableName, tableKey); err != nil {
+		prompt := fmt.Sprintf("DynamoDB table %s key %s will be deleted. Do you want to continue?", tableName, tableKey)
+		if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
 			return err
+		} else if yes {
+			if err := client.DeleteTableItemIfNecessary(ctx, tableName, tableKey); err != nil {
+				return err
+			}
 		}
 	}
 
-	return client.DeleteS3ObjectIfNecessary(ctx, bucketName, bucketKey)
+	prompt := fmt.Sprintf("S3 bucket %s key %s will be deleted. Do you want to continue?", bucketName, bucketKey)
+	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+		return err
+	} else if yes {
+		return client.DeleteS3ObjectIfNecessary(ctx, bucketName, bucketKey)
+	}
+
+	return nil
 }
 
 // DeleteBucket deletes the entire bucket specified in the given config.

@@ -25,14 +25,14 @@ func TestTerragruntParallelism(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedTimings        []int
 		parallelism            int
 		numberOfModules        int
 		timeToDeployEachModule time.Duration
-		expectedTimings        []int
 	}{
-		{1, 10, 5 * time.Second, []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
-		{3, 10, 5 * time.Second, []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
-		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
+		{parallelism: 1, numberOfModules: 10, timeToDeployEachModule: 5 * time.Second, expectedTimings: []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
+		{parallelism: 3, numberOfModules: 10, timeToDeployEachModule: 5 * time.Second, expectedTimings: []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
+		{parallelism: 5, numberOfModules: 10, timeToDeployEachModule: 5 * time.Second, expectedTimings: []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
 	for _, tc := range testCases {
 

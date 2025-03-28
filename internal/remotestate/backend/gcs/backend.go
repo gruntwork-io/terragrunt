@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -108,7 +109,7 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
 	if !extGCSCfg.SkipBucketVersioning && bucketName != "" {
 		// TODO: Remove lint suppression
-		if err := client.CheckIfGCSVersioningEnabled(bucketName); err != nil { //nolint:contextcheck
+		if _, err := client.CheckIfGCSVersioningEnabled(ctx, bucketName); err != nil { //nolint:contextcheck
 			return err
 		}
 	}
@@ -130,12 +131,30 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 		return err
 	}
 
+	if !opts.ForceBackendDelete {
+		versioned, err := client.CheckIfGCSVersioningEnabled(ctx, extGCSCfg.RemoteStateConfigGCS.Bucket)
+		if err != nil {
+			return err
+		}
+
+		if !versioned {
+			return errors.New("bucket is not versioned, refusing to delete backend state. If you are sure you want to delete the backend state anyways, use the --force flag")
+		}
+	}
+
 	var (
 		bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
 		prefix     = extGCSCfg.RemoteStateConfigGCS.Prefix
 	)
 
-	return client.DeleteGCSObjectIfNecessary(ctx, bucketName, prefix)
+	prompt := fmt.Sprintf("GCS bucket %s objects with prefix %s will be deleted. Do you want to continue?", bucketName, prefix)
+	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+		return err
+	} else if yes {
+		return client.DeleteGCSObjectIfNecessary(ctx, bucketName, prefix)
+	}
+
+	return nil
 }
 
 // DeleteBucket deletes the entire bucket specified in the given config.

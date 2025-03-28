@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"io/fs"
 	"math/big"
 	mathRand "math/rand"
 	"net"
@@ -953,4 +954,32 @@ func CreateGitRepo(t *testing.T, dir string) {
 
 	commandOutput, err := exec.Command("git", "init", dir).CombinedOutput()
 	require.NoErrorf(t, err, "Error initializing git repo: %v\n%s", err, string(commandOutput))
+}
+
+// HCLFilesInDir returns a list of all HCL files in a directory.
+func HCLFilesInDir(t *testing.T, dir string) []string {
+	t.Helper()
+
+	files := []string{}
+
+	walkFn := func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if strings.HasSuffix(path, ".hcl") {
+			files = append(files, path)
+		}
+
+		return nil
+	}
+
+	err := filepath.WalkDir(dir, walkFn)
+	require.NoError(t, err)
+
+	return files
 }
