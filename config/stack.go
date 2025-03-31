@@ -688,7 +688,7 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 		}
 
 		if len(path) >= generationMaxPath {
-			return errors.Errorf("Cycle detected: max depth of %d exceeded at %s", generationMaxPath, path)
+			return errors.Errorf("Cycle detected: maximum path length (%d) exceeded at %s", generationMaxPath, path)
 		}
 
 		if strings.HasSuffix(path, defaultStackFile) {
