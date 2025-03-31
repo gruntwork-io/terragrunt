@@ -150,3 +150,18 @@ stack "network" {
 	assert.NotNil(t, stack2.NoStack)
 	assert.True(t, *stack2.NoStack)
 }
+
+func TestParseTerragruntStackConfigInvalidSyntax(t *testing.T) {
+	t.Parallel()
+
+	invalidCfg := `
+locals {
+	project = "my-project
+}
+`
+	opts := mockOptionsForTest(t)
+	ctx := config.NewParsingContext(context.Background(), opts)
+	_, err := config.ReadStackConfigString(ctx, opts, config.DefaultStackFile, invalidCfg, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Invalid multi-line string")
+}
