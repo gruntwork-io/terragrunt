@@ -51,6 +51,8 @@ const (
 
 	iamRoleCacheName = "iamRoleCache"
 
+	logMsgSeparator = "\n"
+
 	DefaultEngineType                   = "rpc"
 	MetadataTerraform                   = "terraform"
 	MetadataTerraformBinary             = "terraform_binary"
@@ -95,7 +97,11 @@ var (
 	}
 
 	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
-		writer := writer.New(writer.WithLogger(opts.Logger), writer.WithDefaultLevel(log.ErrorLevel))
+		writer := writer.New(
+			writer.WithLogger(opts.Logger),
+			writer.WithDefaultLevel(log.ErrorLevel),
+			writer.WithMsgSeparator(logMsgSeparator),
+		)
 
 		return []hclparse.Option{
 			hclparse.WithDiagnosticsWriter(writer, opts.Logger.Formatter().DisabledColors()),
