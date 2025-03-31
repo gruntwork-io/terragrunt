@@ -503,6 +503,7 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 		return nil, errors.New(err)
 	}
 
+	//nolint:contextcheck
 	return ParseStackConfig(parser, opts, file, values)
 }
 
@@ -514,7 +515,6 @@ func ReadStackConfigString(
 	configString string,
 	values *cty.Value,
 ) (*StackConfig, error) {
-
 	parser := NewParsingContext(ctx, opts)
 
 	if values != nil {
@@ -526,6 +526,7 @@ func ReadStackConfigString(
 		return nil, errors.New(err)
 	}
 
+	//nolint:contextcheck
 	return ParseStackConfig(parser, opts, hclFile, values)
 }
 
