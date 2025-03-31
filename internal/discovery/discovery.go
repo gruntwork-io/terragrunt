@@ -557,6 +557,13 @@ func (c DiscoveredConfigs) RemoveCycles() (DiscoveredConfigs, error) {
 			break
 		}
 
+		// Cfg should never be nil if err is not nil,
+		// but we do this check to avoid a nil pointer dereference
+		// if our assumptions change in the future.
+		if cfg == nil {
+			break
+		}
+
 		c = c.RemoveByPath(cfg.Path)
 	}
 
