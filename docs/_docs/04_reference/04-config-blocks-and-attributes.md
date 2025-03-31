@@ -491,6 +491,14 @@ For the `s3` backend, the following additional properties are supported in the `
   - `source_identity` - (Optional) The source identity to use when assuming the role.
   - `tags` - (Optional) A map of key value pairs used as assume role session tags.
   - `transitive_tag_keys` - (Optional) A list of tag keys that to be passed.
+- `assume_role_with_web_identity` - (Optional) A configuration `map` to use when assuming a role with a web identity token.
+  - `role_arn` - (Required) The role to be assumed.
+  - `duration` - (Optional) The duration the credentials will be valid.
+  - `policy` - (Optional) Policy JSON to further restrict the role.
+  - `policy_arns` - (Optional) A list of policy ARNs to further restrict the role.
+  - `session_name` - (Optional) The session name to use when assuming the role.
+  - `web_identity_token` - (Required) The web identity token to use when assuming the role.
+  - `web_identity_token_file` - (Optional) The path to the file containing the web identity token to use when assuming the role.
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
@@ -1746,7 +1754,7 @@ rds
 The `vpc` unit is placed inside `.terragrunt-stack`, as expected.
 The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**, rather than inside `.terragrunt-stack`, due to `no_dot_terragrunt_stack = true`.
 
-**Note:**  
+**Note:**
 The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
 ### stack
@@ -1797,7 +1805,7 @@ In this example, the `services` stack is defined with path `services`, which wil
 The stack is also provided with custom values for `project` and `cidr`, which can be used within the stack's configuration files.
 Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
 
-**Note:**  
+**Note:**
 The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
 ## Attributes
