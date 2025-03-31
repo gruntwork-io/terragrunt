@@ -14,7 +14,9 @@ import (
 
 // Run runs the find command.
 func Run(ctx context.Context, opts *Options) error {
-	d := discovery.NewDiscovery(opts.WorkingDir)
+	d := discovery.
+		NewDiscovery(opts.WorkingDir).
+		WithSuppressParseErrors()
 
 	if opts.Hidden {
 		d = d.WithHidden()
@@ -30,7 +32,7 @@ func Run(ctx context.Context, opts *Options) error {
 
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
 	if err != nil {
-		return errors.New(err)
+		opts.Logger.Warnf("Error discovering configurations:\n%s", err)
 	}
 
 	switch opts.Mode {
