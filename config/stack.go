@@ -26,13 +26,13 @@ import (
 )
 
 const (
-	stackDir           = ".terragrunt-stack"
-	valuesFile         = "terragrunt.values.hcl"
-	manifestName       = ".terragrunt-stack-manifest"
-	defaultStackFile   = "terragrunt.stack.hcl"
-	unitDirPerm        = 0755
-	valueFilePerm      = 0644
-	generationMaxDepth = 100
+	stackDir          = ".terragrunt-stack"
+	valuesFile        = "terragrunt.values.hcl"
+	manifestName      = ".terragrunt-stack-manifest"
+	defaultStackFile  = "terragrunt.stack.hcl"
+	unitDirPerm       = 0755
+	valueFilePerm     = 0644
+	generationMaxPath = 1024
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -687,10 +687,8 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(dir, path)
-		depth := len(strings.Split(relPath, string(os.PathSeparator)))
-		if depth > generationMaxDepth {
-			return errors.Errorf("Cycle detected: max depth of %d exceeded at %s", generationMaxDepth, path)
+		if len(path) >= generationMaxPath {
+			return errors.Errorf("Cycle detected: maximum path length (%d) exceeded at %s", generationMaxPath, path)
 		}
 
 		if strings.HasSuffix(path, defaultStackFile) {
