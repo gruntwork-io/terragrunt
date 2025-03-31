@@ -487,7 +487,7 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsError(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTraces(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
@@ -504,7 +504,7 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 }
 
 func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
@@ -521,7 +521,7 @@ func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_METRIC_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
@@ -540,7 +540,7 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
@@ -560,7 +560,7 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
