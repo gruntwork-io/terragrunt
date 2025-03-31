@@ -83,6 +83,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 	}, func(ctx context.Context) error {
 		stackOutputs, err := config.StackOutput(ctx, opts)
 		outputs = stackOutputs
+
 		return err
 	})
 	if err != nil {
@@ -118,6 +119,7 @@ func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err := checkStackExperiment(opts); err != nil {
 		return err
 	}
+
 	baseDir := filepath.Join(opts.WorkingDir, stackDir)
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
@@ -125,6 +127,7 @@ func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
 	}, func(ctx context.Context) error {
 		opts.Logger.Debugf("Cleaning stack directory: %s", baseDir)
 		err := os.RemoveAll(baseDir)
+
 		return err
 	})
 

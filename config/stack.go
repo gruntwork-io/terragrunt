@@ -168,6 +168,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 			}, func(ctx context.Context) error {
 				unitOutput, err := unit.ReadOutputs(ctx, opts, unitDir)
 				output = unitOutput
+
 				return err
 			})
 			if err != nil {
@@ -272,7 +273,6 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 			}, func(ctx context.Context) error {
 				return processComponent(ctx, opts, &item)
 			})
-
 		})
 	}
 
