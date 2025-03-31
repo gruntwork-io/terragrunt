@@ -26,18 +26,14 @@ func NewBackend() *Backend {
 	}
 }
 
-// NeedsInit returns true if the remote state S3 bucket specified in the given config needs to be initialized.
+// NeedsBootstrap returns true if the remote state S3 bucket specified in the given config needs to be bootstrapped.
 //
 // Returns true if:
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
-func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Config, backendExistingConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) NeedsBootstrap(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
 	cfg := Config(backendConfig).Normalize(opts.Logger)
-
-	if !cfg.IsEqual(Config(backendExistingConfig), opts.Logger) {
-		return true, nil
-	}
 
 	extS3Cfg, err := cfg.ExtendedS3Config(opts.Logger)
 	if err != nil {
@@ -67,9 +63,9 @@ func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Con
 	return false, nil
 }
 
-// Init the remote state S3 bucket specified in the given config. This function will validate the config
+// Bootstrap the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Bootstrap(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
 	if err != nil {
 		return err

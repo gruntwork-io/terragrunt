@@ -949,7 +949,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		}
 	}
 
-	if err := remoteState.GenerateTerraformCode(targetTGOptions); err != nil {
+	if err := remoteState.GenerateOpenTofuCode(targetTGOptions); err != nil {
 		return nil, err
 	}
 

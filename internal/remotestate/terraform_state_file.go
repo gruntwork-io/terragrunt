@@ -44,7 +44,7 @@ type TerraformStateModule struct {
 
 // IsRemote returns true if this Terraform state is configured for remote state storage.
 func (state *TerraformState) IsRemote() bool {
-	return state.Backend != nil && state.Backend.Type != "local"
+	return state != nil && state.Backend != nil && state.Backend.Type != "local"
 }
 
 // ParseTerraformStateFileFromLocation parses the Terraform .tfstate file. If a local backend is used then search

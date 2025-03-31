@@ -115,6 +115,6 @@ func TestSopsDecryptOnMissing(t *testing.T) {
 	errorOut = strings.ReplaceAll(errorOut, "\n", " ")
 
 	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
-	assert.Contains(t, errorOut, "./missing.yaml: no such file")
+	assert.Regexp(t, `\./missing\.yaml:.+no such file`, errorOut)
 
 }

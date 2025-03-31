@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
 
@@ -35,7 +38,12 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 
-	return config.GenerateStacks(ctx, opts)
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+		"stack_config_path": opts.TerragruntStackConfigPath,
+		"working_dir":       opts.WorkingDir,
+	}, func(ctx context.Context) error {
+		return config.GenerateStacks(ctx, opts)
+	})
 }
 
 // Run execute stack command.
@@ -44,7 +52,14 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	if err := RunGenerate(ctx, opts); err != nil {
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
+		"stack_config_path": opts.TerragruntStackConfigPath,
+		"working_dir":       opts.WorkingDir,
+	}, func(ctx context.Context) error {
+		return RunGenerate(ctx, opts)
+	})
+
+	if err != nil {
 		return err
 	}
 
@@ -59,12 +74,23 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		return err
 	}
 
+	var outputs map[string]map[string]cty.Value
+
 	// collect outputs
-	outputs, err := config.StackOutput(ctx, opts)
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_output", map[string]any{
+		"stack_config_path": opts.TerragruntStackConfigPath,
+		"working_dir":       opts.WorkingDir,
+	}, func(ctx context.Context) error {
+		stackOutputs, err := config.StackOutput(ctx, opts)
+		outputs = stackOutputs
+
+		return err
+	})
 	if err != nil {
 		return errors.New(err)
 	}
-	// write outputs
+
+	// render outputs
 
 	writer := opts.Writer
 
@@ -89,14 +115,21 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 }
 
 // RunClean cleans the stack directory
-func RunClean(_ context.Context, opts *options.TerragruntOptions) error {
+func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err := checkStackExperiment(opts); err != nil {
 		return err
 	}
 
 	baseDir := filepath.Join(opts.WorkingDir, stackDir)
-	opts.Logger.Debugf("Cleaning stack directory: %s", baseDir)
-	err := os.RemoveAll(baseDir)
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
+		"stack_config_path": opts.TerragruntStackConfigPath,
+		"working_dir":       opts.WorkingDir,
+	}, func(ctx context.Context) error {
+		opts.Logger.Debugf("Cleaning stack directory: %s", baseDir)
+		err := os.RemoveAll(baseDir)
+
+		return err
+	})
 
 	if err != nil {
 		return errors.Errorf("failed to clean stack directory: %s %w", baseDir, err)

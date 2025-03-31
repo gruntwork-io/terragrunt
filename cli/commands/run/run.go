@@ -276,7 +276,7 @@ func GenerateConfig(opts *options.TerragruntOptions, cfg *config.TerragruntConfi
 	}
 
 	if cfg.RemoteState != nil && cfg.RemoteState.Generate != nil {
-		if err := cfg.RemoteState.GenerateTerraformCode(opts); err != nil {
+		if err := cfg.RemoteState.GenerateOpenTofuCode(opts); err != nil {
 			return err
 		}
 	} else if cfg.RemoteState != nil {
@@ -520,7 +520,7 @@ func prepareInitCommand(ctx context.Context, terragruntOptions *options.Terragru
 		}
 
 		if remoteStateNeedsInit {
-			if err := terragruntConfig.RemoteState.Init(ctx, terragruntOptions); err != nil {
+			if err := terragruntConfig.RemoteState.Bootstrap(ctx, terragruntOptions); err != nil {
 				return err
 			}
 		}
@@ -743,7 +743,7 @@ func remoteStateNeedsInit(ctx context.Context, remoteState *remotestate.RemoteSt
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsInit(ctx, opts); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, opts); err != nil || !ok {
 		return false, err
 	}
 
