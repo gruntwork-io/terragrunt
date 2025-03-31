@@ -117,8 +117,10 @@ func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, 
 			return err
 		}
 
-		if err := client.UpdateLockTableSetSSEncryptionOnIfNecessary(ctx, tableName); err != nil {
-			return err
+		if extS3Cfg.EnableLockTableSSEncryption {
+			if err := client.UpdateLockTableSetSSEncryptionOnIfNecessary(ctx, tableName); err != nil {
+				return err
+			}
 		}
 	}
 
