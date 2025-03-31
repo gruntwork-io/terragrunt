@@ -124,6 +124,49 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	}
 }
 
+func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureBootstrapS3Backend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBootstrapS3Backend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureBootstrapS3Backend)
+
+	testID := strings.ToLower(helpers.UniqueID())
+
+	s3BucketName := "terragrunt-test-bucket-" + testID
+	dynamoDBName := "terragrunt-test-dynamodb-" + testID
+
+	defer func() {
+		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+	}()
+
+	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" apply")
+	require.NoError(t, err)
+
+	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+	validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil)
+
+	assert.Contains(t, stderr, "Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.")
+
+	t.Logf("Validating that the warning is not shown if the backend is not being bootstrapped automatically.")
+
+	// Remove the `.terragrunt-cache` directory in each of `unit1` and `unit2`
+	// to simulate that the backend was already bootstrapped.
+	helpers.RemoveFolder(t, util.JoinPath(rootPath, "unit1", ".terragrunt-cache"))
+	helpers.RemoveFolder(t, util.JoinPath(rootPath, "unit2", ".terragrunt-cache"))
+
+	// Users should only see the warning if the backend is actually being
+	// bootstrapped automatically.
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" apply")
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.")
+}
+
 func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	t.Parallel()
 
