@@ -503,6 +503,23 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_2\"")
 }
 
+func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
+	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
+
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// check that output have Telemetry json output
+	assert.Contains(t, output, "\"SpanContext\":")
+	assert.Contains(t, output, "\"TraceID\":")
+	assert.Contains(t, output, "\"Name\":\"stack_generate_unit\"")
+	assert.Contains(t, output, "\"Name\":\"stack_generate\"")
+}
+
 func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	t.Setenv("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER", "console")
 
