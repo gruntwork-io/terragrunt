@@ -498,13 +498,41 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 
 	parser := NewParsingContext(ctx, opts)
 
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	return ParseStackConfig(parser, opts, file, values)
+}
+
+// ReadStackConfigString reads and parses a Terragrunt stack configuration from a string.
+func ReadStackConfigString(
+	ctx context.Context,
+	opts *options.TerragruntOptions,
+	configPath string,
+	configString string,
+	values *cty.Value,
+) (*StackConfig, error) {
+
+	parser := NewParsingContext(ctx, opts)
+
 	if values != nil {
 		parser = parser.WithValues(values)
 	}
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
+	hclFile, err := hclparse.NewParser(parser.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
 		return nil, errors.New(err)
+	}
+
+	return ParseStackConfig(parser, opts, hclFile, values)
+}
+
+// ParseStackConfig parses the stack configuration from the given file and values.
+func ParseStackConfig(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File, values *cty.Value) (*StackConfig, error) {
+	if values != nil {
+		parser = parser.WithValues(values)
 	}
 
 	//nolint:contextcheck
