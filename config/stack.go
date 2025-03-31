@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 
@@ -156,8 +158,19 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 
 			dir := filepath.Dir(path)
 			unitDir := filepath.Join(dir, stackDir, unit.Path)
-			output, err := unit.ReadOutputs(ctx, opts, unitDir)
 
+			var output map[string]cty.Value
+
+			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
+				"unit_name":   unit.Name,
+				"unit_source": unit.Source,
+				"unit_path":   unit.Path,
+			}, func(ctx context.Context) error {
+				unitOutput, err := unit.ReadOutputs(ctx, opts, unitDir)
+				output = unitOutput
+
+				return err
+			})
 			if err != nil {
 				return nil, errors.New(err)
 			}
@@ -220,11 +233,13 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
 
-			if err := processComponent(ctx, opts, &item); err != nil {
-				return err
-			}
-
-			return nil
+			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
+				"unit_name":   unitCopy.Name,
+				"unit_source": unitCopy.Source,
+				"unit_path":   unitCopy.Path,
+			}, func(ctx context.Context) error {
+				return processComponent(ctx, opts, &item)
+			})
 		})
 	}
 
@@ -251,11 +266,13 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 
 			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
 
-			if err := processComponent(ctx, opts, &item); err != nil {
-				return err
-			}
-
-			return nil
+			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
+				"stack_name":   stackCopy.Name,
+				"stack_source": stackCopy.Source,
+				"stack_path":   stackCopy.Path,
+			}, func(ctx context.Context) error {
+				return processComponent(ctx, opts, &item)
+			})
 		})
 	}
 
