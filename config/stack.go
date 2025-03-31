@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/worker"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/hashicorp/go-getter/v2"
@@ -69,7 +70,7 @@ type Stack struct {
 // GenerateStacks generates the stack files.
 func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
-	wp := util.NewWorkerPool(opts.Parallelism)
+	wp := worker.NewWorkerPool(opts.Parallelism)
 	// stop worker pool on exit
 	defer wp.Stop()
 	// initial files setting as stack file
@@ -96,8 +97,8 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 			}
 		}
 
-		if err := wp.Wait(); err != nil {
-			return err
+		if wpError := wp.Wait(); wpError != nil {
+			return wpError
 		}
 
 		if !processedNewFiles {
@@ -171,7 +172,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
-func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, stackFilePath string) error {
+func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
 	values, err := ReadValues(ctx, opts, stackSourceDir)
@@ -201,7 +202,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
 
@@ -214,6 +215,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 				source:    unitCopy.Source,
 				values:    unitCopy.Values,
 				noStack:   unitCopy.NoStack != nil && *unitCopy.NoStack,
+				kind:      unitKind,
 			}
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
@@ -231,7 +233,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *u
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *util.WorkerPool, sourceDir, targetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 
@@ -244,6 +246,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 				source:    stackCopy.Source,
 				noStack:   stackCopy.NoStack != nil && *stackCopy.NoStack,
 				values:    stackCopy.Values,
+				kind:      stackKind,
 			}
 
 			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
@@ -259,6 +262,13 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 	return nil
 }
 
+type componentKind int
+
+const (
+	unitKind componentKind = iota
+	stackKind
+)
+
 // componentToProcess represents an item of work for processing a stack or unit.
 // It contains information about the source and target directories, the name and path of the item, the source URL or path,
 // and any associated values that need to be processed.
@@ -270,6 +280,7 @@ type componentToProcess struct {
 	path      string
 	source    string
 	noStack   bool
+	kind      componentKind
 }
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
@@ -284,6 +295,11 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 
 	if filepath.IsAbs(cmp.path) {
 		return errors.Errorf("path %s must be relative", cmp.path)
+	}
+
+	kindStr := "unit"
+	if cmp.kind == stackKind {
+		kindStr = "stack"
 	}
 
 	// building destination path based on target directory
@@ -304,7 +320,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 
 	// validate that the destination path is within the stack directory
 	if !strings.HasPrefix(absDest, absStackDir) {
-		return errors.Errorf("destination path '%s' is outside of the stack directory '%s'", absDest, absStackDir)
+		return errors.Errorf("%s destination path '%s' is outside of the stack directory '%s'", cmp.name, absDest, absStackDir)
 	}
 
 	if cmp.noStack {
@@ -315,7 +331,39 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
 
 	if err := copyFiles(ctx, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
-		return errors.Errorf("Failed to copy %s to %s %w", source, dest, err)
+		return errors.Errorf(
+			"Failed to fetch %s %s\n"+
+				"  Source:      %s\n"+
+				"  Destination: %s\n\n"+
+				"Troubleshooting:\n"+
+				"  1. Check if your source path is correct relative to the stack file location\n"+
+				"  2. Verify the units or stacks directory exists at the expected location\n"+
+				"  3. Ensure you have proper permissions to read from source and write to destination\n\n"+
+				"Original error: %v",
+			kindStr,
+			cmp.name,
+			source,
+			dest,
+			err,
+		)
+	}
+
+	if !cmp.noStack {
+		// validate what was copied to the destination, don't do validation for special noStack components
+		expectedFile := DefaultTerragruntConfigPath
+
+		if cmp.kind == stackKind {
+			expectedFile = defaultStackFile
+		}
+
+		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
+			if opts.NoStackValidate {
+				// print warning if validation is skipped
+				opts.Logger.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+			} else {
+				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+			}
+		}
 	}
 
 	// generate values file
@@ -655,4 +703,20 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 	}
 
 	return stackFiles, nil
+}
+
+// validateTargetDir target destination directory.
+func validateTargetDir(kind, name, destDir, expectedFile string) error {
+	expectedPath := filepath.Join(destDir, expectedFile)
+
+	info, err := os.Stat(expectedPath)
+	if err != nil {
+		return fmt.Errorf("%s '%s': expected file '%s' not found in target directory '%s': %w", kind, name, expectedFile, destDir, err)
+	}
+
+	if info.IsDir() {
+		return fmt.Errorf("%s '%s': expected file '%s' is a directory, not a file", kind, name, expectedFile)
+	}
+
+	return nil
 }

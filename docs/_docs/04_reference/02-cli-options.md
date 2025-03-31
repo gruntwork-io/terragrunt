@@ -356,6 +356,13 @@ terragrunt stack generate --parallelism 4
 
 - Path Restrictions: If an absolute path is provided as an argument, the command will throw an error. Only relative paths within the working directory are supported.
 
+- Validation of Units and Stacks: During the stack generation, the system will validate that each unit and stack's target directory contains the appropriate configuration file (`terragrunt.hcl` for units and `terragrunt.stack.hcl` for stacks). This ensures the directories are correctly structured before proceeding with the stack generation.  
+  To **skip this validation**, you can use the `--no-stack-validate` flag:
+
+```bash
+terragrunt stack generate --no-stack-validate
+```
+
 #### stack run
 
 The `stack run *` command allows users to execute IaC commands across all units defined in a `terragrunt.stack.hcl` file.

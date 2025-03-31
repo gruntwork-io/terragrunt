@@ -975,7 +975,6 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 
 	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
 		var diagErr hcl.Diagnostics
-		// diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
 		ok := errors.As(err, &diagErr)
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value

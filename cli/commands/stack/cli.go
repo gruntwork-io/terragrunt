@@ -15,6 +15,7 @@ const (
 	JSONFormatFlagName   = "json"
 	RawFormatFlagName    = "raw"
 	NoStackGenerate      = "no-stack-generate"
+	NoStackValidate      = "no-stack-validate"
 
 	generateCommandName = "generate"
 	runCommandName      = "run"
@@ -72,6 +73,28 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
+func defaultFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	flags := cli.Flags{
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoStackGenerate,
+			EnvVars:     tgPrefix.EnvVars(NoStackGenerate),
+			Destination: &opts.NoStackGenerate,
+			Usage:       "Disable automatic stack regeneration before running the command.",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoStackValidate,
+			EnvVars:     tgPrefix.EnvVars(NoStackValidate),
+			Destination: &opts.NoStackValidate,
+			Hidden:      true,
+			Usage:       "Disable automatic stack validation after generation.",
+		}),
+	}
+
+	return append(run.NewFlags(opts, nil), flags...)
+}
+
 func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
@@ -101,19 +124,4 @@ func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags
 	}
 
 	return append(defaultFlags(opts, prefix), flags...)
-}
-
-func defaultFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-
-	generateFlags := cli.Flags{
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        NoStackGenerate,
-			EnvVars:     tgPrefix.EnvVars(NoStackGenerate),
-			Destination: &opts.NoStackGenerate,
-			Usage:       "Disable automatic stack regeneration before running the command.",
-		}),
-	}
-
-	return append(run.NewFlags(opts, nil), generateFlags...)
 }
