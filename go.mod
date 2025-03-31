@@ -13,7 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.3.4
-	github.com/charmbracelet/glamour v0.9.0
+	github.com/charmbracelet/glamour v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/creack/pty v1.1.24
 	github.com/fatih/structs v1.1.0
@@ -25,7 +25,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gruntwork-io/boilerplate v0.6.0
 	github.com/gruntwork-io/go-commons v0.17.2
-	github.com/gruntwork-io/terragrunt-engine-go v0.0.12
+	github.com/gruntwork-io/terragrunt-engine-go v0.0.13
 	github.com/gruntwork-io/terratest v0.48.2
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-getter v1.7.8
@@ -79,7 +79,7 @@ require (
 	golang.org/x/text v0.23.0
 	google.golang.org/api v0.227.0
 	google.golang.org/grpc v1.71.0
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/ini.v1 v1.67.0
 )
 
