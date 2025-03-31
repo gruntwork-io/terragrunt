@@ -25,7 +25,7 @@ type Backend interface {
 	Name() string
 
 	// NeedsBootstrap returns true if remote state needs to be bootstrapped.
-	NeedsBootstrap(ctx context.Context, config Config, existingConfig Config, opts *options.TerragruntOptions) (bool, error)
+	NeedsBootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) (bool, error)
 
 	// Bootstrap bootstraps the remote state.
 	Bootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) error

@@ -30,22 +30,22 @@ func (backend *CommonBackend) Name() string {
 }
 
 // NeedsBootstrap implements `backends.NeedsBootstrap` interface.
-func (backend *CommonBackend) NeedsBootstrap(ctx context.Context, config Config, existingConfig Config, opts *options.TerragruntOptions) (bool, error) {
-	needsInits := !config.IsEqual(existingConfig, backend.Name(), opts.Logger)
+func (backend *CommonBackend) NeedsBootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) (bool, error) {
+	opts.Logger.Warnf("NeedsBootstrap for %s backend not implemented", backend.Name())
 
-	return needsInits, nil
+	return true, nil
 }
 
 // Bootstrap implements `backends.Bootstrap` interface.
 func (backend *CommonBackend) Bootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Warnf("Bootstrapping remote state for %s backend not implemented", backend.Name())
+	opts.Logger.Warnf("Bootstrap for %s backend not implemented", backend.Name())
 
 	return nil
 }
 
 // Delete implements `backends.Delete` interface.
 func (backend *CommonBackend) Delete(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Warnf("Deleting remote state for %s backend not implemented", backend.Name())
+	opts.Logger.Warnf("Delete for %s backend not implemented", backend.Name())
 
 	return nil
 }

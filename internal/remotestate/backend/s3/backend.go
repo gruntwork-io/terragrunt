@@ -32,12 +32,8 @@ func NewBackend() *Backend {
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
-func (backend *Backend) NeedsBootstrap(ctx context.Context, backendConfig backend.Config, backendExistingConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) NeedsBootstrap(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
 	cfg := Config(backendConfig).Normalize(opts.Logger)
-
-	if !cfg.IsEqual(Config(backendExistingConfig), opts.Logger) {
-		return true, nil
-	}
 
 	extS3Cfg, err := cfg.ExtendedS3Config(opts.Logger)
 	if err != nil {
