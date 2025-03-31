@@ -158,8 +158,18 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 
 			dir := filepath.Dir(path)
 			unitDir := filepath.Join(dir, stackDir, unit.Path)
-			output, err := unit.ReadOutputs(ctx, opts, unitDir)
 
+			var output map[string]cty.Value
+
+			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
+				"unit_name":   unit.Name,
+				"unit_source": unit.Source,
+				"unit_path":   unit.Path,
+			}, func(ctx context.Context) error {
+				unitOutput, err := unit.ReadOutputs(ctx, opts, unitDir)
+				output = unitOutput
+				return err
+			})
 			if err != nil {
 				return nil, errors.New(err)
 			}
