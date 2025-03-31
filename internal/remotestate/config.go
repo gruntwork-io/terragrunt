@@ -55,7 +55,7 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-func (cfg *Config) NeedsInit(tfState *TerraformState, logger log.Logger) bool {
+func (cfg *Config) NeedsBootstrap(tfState *TerraformState, logger log.Logger) bool {
 	if tfState == nil || tfState.Backend == nil {
 		return true
 	}

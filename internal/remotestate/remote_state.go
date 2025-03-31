@@ -55,21 +55,21 @@ func (remote *RemoteState) DeleteBucket(ctx context.Context, opts *options.Terra
 	return remote.backend.DeleteBucket(ctx, remote.BackendConfig, opts)
 }
 
-// Init performs any actions necessary to initialize the remote state before it's used for storage. For example, if you're
+// Bootstrap performs any actions necessary to bootstrap remote state before it's used for storage. For example, if you're
 // using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
-func (remote *RemoteState) Init(ctx context.Context, opts *options.TerragruntOptions) error {
+func (remote *RemoteState) Bootstrap(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.Debugf("Initializing remote state for the %s backend", remote.BackendName)
 
-	return remote.backend.Init(ctx, remote.BackendConfig, opts)
+	return remote.backend.Bootstrap(ctx, remote.BackendConfig, opts)
 }
 
-// NeedsInit returns true if remote state needs to be configured. This will be the case when:
+// NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
 //
 // 1. Remote state auto-initialization has been disabled.
 // 2. Remote state has not already been configured.
 // 3. Remote state has been configured, but with a different configuration.
 // 4. The remote state initializer for this backend type, if there is one, says initialization is necessary.
-func (remote *RemoteState) NeedsInit(ctx context.Context, opts *options.TerragruntOptions) (bool, error) {
+func (remote *RemoteState) NeedsBootstrap(ctx context.Context, opts *options.TerragruntOptions) (bool, error) {
 	if opts.DisableBucketUpdate {
 		opts.Logger.Debug("Skipping remote state initialization")
 		return false, nil
@@ -84,7 +84,7 @@ func (remote *RemoteState) NeedsInit(ctx context.Context, opts *options.Terragru
 		return false, err
 	}
 
-	if remote.Config.NeedsInit(tfState, opts.Logger) {
+	if remote.Config.NeedsBootstrap(tfState, opts.Logger) {
 		return true, nil
 	}
 
@@ -93,7 +93,7 @@ func (remote *RemoteState) NeedsInit(ctx context.Context, opts *options.Terragru
 	}
 
 	// Remote state initializer says initialization is necessary.
-	return remote.backend.NeedsInit(ctx, remote.BackendConfig, tfState.Backend.Config, opts)
+	return remote.backend.NeedsBootstrap(ctx, remote.BackendConfig, tfState.Backend.Config, opts)
 }
 
 // GetTFInitArgs converts the RemoteState config into the format used by the `tofu init` command.

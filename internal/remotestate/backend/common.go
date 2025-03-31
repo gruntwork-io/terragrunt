@@ -29,16 +29,16 @@ func (backend *CommonBackend) Name() string {
 	return backend.name
 }
 
-// NeedsInit implements `backends.NeedsInit` interface.
-func (backend *CommonBackend) NeedsInit(ctx context.Context, config Config, existingConfig Config, opts *options.TerragruntOptions) (bool, error) {
+// NeedsBootstrap implements `backends.NeedsBootstrap` interface.
+func (backend *CommonBackend) NeedsBootstrap(ctx context.Context, config Config, existingConfig Config, opts *options.TerragruntOptions) (bool, error) {
 	needsInits := !config.IsEqual(existingConfig, backend.Name(), opts.Logger)
 
 	return needsInits, nil
 }
 
-// Init implements `backends.Init` interface.
-func (backend *CommonBackend) Init(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Warnf("Initialization of remote state for %s backend not implemented", backend.Name())
+// Bootstrap implements `backends.Bootstrap` interface.
+func (backend *CommonBackend) Bootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
+	opts.Logger.Warnf("Bootstrapping remote state for %s backend not implemented", backend.Name())
 
 	return nil
 }
