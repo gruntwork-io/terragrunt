@@ -13,7 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.3.4
-	github.com/charmbracelet/glamour v0.9.1
+	github.com/charmbracelet/glamour v0.9.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/creack/pty v1.1.24
 	github.com/fatih/structs v1.1.0
