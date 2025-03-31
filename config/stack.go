@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 
@@ -220,11 +222,13 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
 
-			if err := processComponent(ctx, opts, &item); err != nil {
-				return err
-			}
-
-			return nil
+			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
+				"unit_name":   unitCopy.Name,
+				"unit_source": unitCopy.Source,
+				"unit_path":   unitCopy.Path,
+			}, func(ctx context.Context) error {
+				return processComponent(ctx, opts, &item)
+			})
 		})
 	}
 
@@ -251,11 +255,14 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 
 			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
 
-			if err := processComponent(ctx, opts, &item); err != nil {
-				return err
-			}
+			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
+				"stack_name":   stackCopy.Name,
+				"stack_source": stackCopy.Source,
+				"stack_path":   stackCopy.Path,
+			}, func(ctx context.Context) error {
+				return processComponent(ctx, opts, &item)
+			})
 
-			return nil
 		})
 	}
 
