@@ -25,21 +25,17 @@ func NewBackend() *Backend {
 	}
 }
 
-// NeedsInit returns true if the GCS bucket specified in the given config does not exist or if the bucket
+// NeedsBootstrap returns true if the GCS bucket specified in the given config does not exist or if the bucket
 // exists but versioning is not enabled.
 //
 // Returns true if:
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
-func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Config, backendExistingConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) NeedsBootstrap(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
 	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return false, err
-	}
-
-	if Config(backendConfig).IsEqual(Config(backendExistingConfig), opts.Logger) {
-		return true, nil
 	}
 
 	var (
@@ -65,9 +61,9 @@ func (backend *Backend) NeedsInit(ctx context.Context, backendConfig backend.Con
 	return false, nil
 }
 
-// Init the remote state GCS bucket specified in the given config. This function will validate the config
+// Bootstrap the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
-func (backend *Backend) Init(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Bootstrap(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return err

@@ -24,11 +24,11 @@ type Backend interface {
 	// Names returns the backend name.
 	Name() string
 
-	// NeedsInit returns true if remote state needs to be initialized.
-	NeedsInit(ctx context.Context, config Config, existingConfig Config, opts *options.TerragruntOptions) (bool, error)
+	// NeedsBootstrap returns true if remote state needs to be bootstrapped.
+	NeedsBootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) (bool, error)
 
-	// Init initializes the remote state.
-	Init(ctx context.Context, config Config, opts *options.TerragruntOptions) error
+	// Bootstrap bootstraps the remote state.
+	Bootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) error
 
 	// Delete deletes the remote state.
 	Delete(ctx context.Context, config Config, opts *options.TerragruntOptions) error
