@@ -2,6 +2,10 @@ feature "disable_versioning" {
   default = false
 }
 
+feature "enable_lock_table_ssencryption" {
+  default = false
+}
+
 remote_state {
   backend = "s3"
   generate = {
@@ -15,5 +19,6 @@ remote_state {
     dynamodb_table = "__FILL_IN_LOCK_TABLE_NAME__"
 
     skip_bucket_versioning = feature.disable_versioning.value
+    enable_lock_table_ssencryption = feature.enable_lock_table_ssencryption.value
   }
 }
