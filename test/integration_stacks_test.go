@@ -45,6 +45,7 @@ const (
 	testFixtureNoStackNoDir                    = "fixtures/stacks/no-stack-dir"
 	testFixtureMultipleStacks                  = "fixtures/stacks/multiple-stacks"
 	testFixtureReadStack                       = "fixtures/stacks/read-stack"
+	testFixtureStackSelfInclude                = "fixtures/stacks/self-include"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -1082,6 +1083,19 @@ func validateNoStackDirs(t *testing.T, rootPath string) {
 
 	assert.DirExists(t, secondStackUnitConfigDir)
 	assert.FileExists(t, secondStackUnitConfig)
+}
+
+func TestStacksSelfInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackSelfInclude)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSelfInclude)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackSelfInclude, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply --non-interactive --working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
 }
 
 // check if the stack directory is created and contains files.
