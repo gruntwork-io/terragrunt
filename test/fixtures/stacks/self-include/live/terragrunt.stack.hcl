@@ -1,5 +1,5 @@
 locals {
-  version = "stack-scanning-4111"
+  version = "main"
 }
 
 unit "app1" {
