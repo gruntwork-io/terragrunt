@@ -1096,6 +1096,9 @@ func TestStacksSelfInclude(t *testing.T) {
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
+
+	// validate that subsequent runs don't fail
+	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply --non-interactive --working-dir "+rootPath)
 }
 
 // check if the stack directory is created and contains files.
