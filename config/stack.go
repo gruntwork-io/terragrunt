@@ -733,6 +733,12 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 			return nil
 		}
 
+		// skip files in Terragrunt cache directory
+		if strings.Contains(path, string(os.PathSeparator)+util.TerragruntCacheDir+string(os.PathSeparator)) ||
+			filepath.Base(path) == util.TerragruntCacheDir {
+			return filepath.SkipDir
+		}
+
 		if len(path) >= generationMaxPath {
 			return errors.Errorf("Cycle detected: maximum path length (%d) exceeded at %s", generationMaxPath, path)
 		}
