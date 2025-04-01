@@ -719,7 +719,7 @@ func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
 
 	// Process stacks as a map from stack name to stack config
 	if len(stackConfig.Stacks) > 0 {
-		stacksMap := map[string]cty.Value{}
+		stacksMap := make(map[string]cty.Value, len(stackConfig.Stacks))
 
 		for _, stack := range stackConfig.Stacks {
 			stackCty, err := stackToCty(stack)
@@ -744,7 +744,7 @@ func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
 
 	// Process units as a map from unit name to unit config
 	if len(stackConfig.Units) > 0 {
-		unitsMap := map[string]cty.Value{}
+		unitsMap := make(map[string]cty.Value, len(stackConfig.Units))
 
 		for _, unit := range stackConfig.Units {
 			unitCty, err := unitToCty(unit)
