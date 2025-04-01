@@ -20,5 +20,5 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return nil
 	}
 
-	return remoteState.Init(ctx, opts)
+	return remoteState.Bootstrap(ctx, opts)
 }

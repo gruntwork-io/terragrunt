@@ -487,7 +487,7 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsError(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTraces(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
@@ -503,8 +503,25 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_2\"")
 }
 
+func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
+
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// check that output have Telemetry json output
+	assert.Contains(t, output, "\"SpanContext\":")
+	assert.Contains(t, output, "\"TraceID\":")
+	assert.Contains(t, output, "\"Name\":\"stack_generate_unit\"")
+	assert.Contains(t, output, "\"Name\":\"stack_generate\"")
+}
+
 func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_METRIC_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
@@ -523,7 +540,7 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
@@ -543,7 +560,7 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
-	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
