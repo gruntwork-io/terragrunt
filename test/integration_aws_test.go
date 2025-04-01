@@ -79,7 +79,19 @@ func TestAwsBootstrapBackend(t *testing.T) {
 				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
-				validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil)
+				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
+			},
+		},
+		{
+			name: "bootstrap s3 backend with lock table ssencryption",
+			args: "run apply --backend-bootstrap --feature enable_lock_table_ssencryption=true",
+			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+				t.Helper()
+
+				require.NoError(t, err)
+
+				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, true)
 			},
 		},
 		{
@@ -91,7 +103,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
-				validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil)
+				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 			},
 		},
 	}
@@ -148,7 +160,7 @@ func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
-	validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil)
+	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
 	assert.Contains(t, stderr, "Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.")
 
@@ -191,7 +203,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
-	validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil)
+	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
 	require.Error(t, err)
@@ -369,7 +381,7 @@ func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 	var expectedDynamoDBTableTags = map[string]string{
 		"owner": "terragrunt integration test",
 		"name":  "Terraform lock table"}
-	validateDynamoDBTableExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, lockTableName, expectedDynamoDBTableTags)
+	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, lockTableName, expectedDynamoDBTableTags, true)
 }
 
 // Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
@@ -1467,13 +1479,20 @@ func assertS3Tags(t *testing.T, expectedTags map[string]string, bucketName strin
 
 // Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
 // Also check if table got tagged properly
-func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string) {
+func validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string, expectedSSEncrypted bool) {
 	t.Helper()
 
 	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 
 	description, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	require.NoError(t, err, "DynamoDB table %s does not exist", tableName)
+
+	if expectedSSEncrypted {
+		require.NotNil(t, description.Table.SSEDescription)
+		assert.Equal(t, dynamodb.SSEStatusEnabled, aws.StringValue(description.Table.SSEDescription.Status))
+	} else {
+		require.Nil(t, description.Table.SSEDescription)
+	}
 
 	tags, err := client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
 	require.NoError(t, err)
