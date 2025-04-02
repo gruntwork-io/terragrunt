@@ -39,21 +39,22 @@ type Client struct {
 // NewClient inits GCS client.
 func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger log.Logger) (*Client, error) {
 	var opts []option.ClientOption
+	var credOpts []option.ClientOption
 
 	gcsConfig := config.RemoteStateConfigGCS
 
 	if gcsConfig.Credentials != "" {
-		opts = append(opts, option.WithCredentialsFile(gcsConfig.Credentials))
+		credOpts = append(credOpts, option.WithCredentialsFile(gcsConfig.Credentials))
 	} else if gcsConfig.AccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcsConfig.AccessToken,
 		})
-		opts = append(opts, option.WithTokenSource(tokenSource))
+		credOpts = append(credOpts, option.WithTokenSource(tokenSource))
 	} else if oauthAccessToken := os.Getenv("GOOGLE_OAUTH_ACCESS_TOKEN"); oauthAccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: oauthAccessToken,
 		})
-		opts = append(opts, option.WithTokenSource(tokenSource))
+		credOpts = append(credOpts, option.WithTokenSource(tokenSource))
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
 		// to mirror how Terraform works, we have to accept either the file path or the contents
 		creds := os.Getenv("GOOGLE_CREDENTIALS")
@@ -67,7 +68,7 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 			return nil, errors.Errorf("The string provided in credentials is not valid json: %w", err)
 		}
 
-		opts = append(opts, option.WithCredentialsJSON([]byte(contents)))
+		credOpts = append(credOpts, option.WithCredentialsJSON([]byte(contents)))
 	}
 
 	if gcsConfig.ImpersonateServiceAccount != "" {
@@ -75,12 +76,16 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 			TargetPrincipal: gcsConfig.ImpersonateServiceAccount,
 			Scopes:          []string{storage.ScopeFullControl},
 			Delegates:       gcsConfig.ImpersonateServiceAccountDelegates,
-		})
+		}, credOpts...)
+
 		if err != nil {
 			return nil, err
 		}
 
 		opts = append(opts, option.WithTokenSource(ts))
+
+	} else {
+		opts = append(opts, credOpts...)
 	}
 
 	gcsClient, err := storage.NewClient(ctx, opts...)
