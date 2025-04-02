@@ -107,9 +107,9 @@ Here's an example of how to use Hyperfine to benchmark the performance of Terrag
 hyperfine -w 3 -r 5 'terragrunt run-all plan' 'terragrunt run-all plan --dependency-fetch-output-from-state'
 ```
 
-### Developer
+### Terragrunt Developer
 
-As a developer, you're advised to use the following tools to improve the performance of Terragrunt when improving the codebase.
+As a Terragrunt developer, you're advised to use the following tools to improve the performance of Terragrunt when improving the codebase.
 
 #### Benchmark Tests
 

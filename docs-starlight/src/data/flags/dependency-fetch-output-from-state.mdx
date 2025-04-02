@@ -16,9 +16,9 @@ The main benefit this flag provides is performance. Reading directly from state 
 The limitation of this approach is that it is only supported by the S3 backend, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
 
 <Aside type="caution">
-This is an experimental feature, use with caution.
+Avoid using this flag without pinning the version of OpenTofu/Terraform you are using.
 
-There is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform. Also, note that the only backend that supports this feature is the AWS S3 backend.
+There is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform. They have not changed the schema of the state file in a long time, but there is no guarantee that they will not change it in the future. We are coordinating with the OpenTofu team to encourage stability in the state file schema, unless significant performance improvements can be made to OpenTofu output fetching to make this flag unnecessary.
 </Aside>
 
 <Aside type="tip">
