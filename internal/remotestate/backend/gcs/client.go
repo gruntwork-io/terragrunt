@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/impersonate"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -56,13 +55,6 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 		})
 		opts = append(opts, option.WithTokenSource(tokenSource))
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
-		var account = struct {
-			PrivateKeyID string `json:"private_key_id"`
-			PrivateKey   string `json:"private_key"`
-			ClientEmail  string `json:"client_email"`
-			ClientID     string `json:"client_id"`
-		}{}
-
 		// to mirror how Terraform works, we have to accept either the file path or the contents
 		creds := os.Getenv("GOOGLE_CREDENTIALS")
 
@@ -71,19 +63,11 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 			return nil, errors.Errorf("Error loading credentials: %w", err)
 		}
 
-		if err := json.Unmarshal([]byte(contents), &account); err != nil {
-			return nil, errors.Errorf("Error parsing credentials '%s': %w", contents, err)
+		if !json.Valid([]byte(contents)) {
+			return nil, errors.Errorf("The string provided in credentials is not valid json: %w", err)
 		}
 
-		conf := jwt.Config{
-			Email:      account.ClientEmail,
-			PrivateKey: []byte(account.PrivateKey),
-			// We need the FullControl scope to be able to add metadata such as labels
-			Scopes:   []string{storage.ScopeFullControl},
-			TokenURL: tokenURL,
-		}
-
-		opts = append(opts, option.WithHTTPClient(conf.Client(ctx)))
+		opts = append(opts, option.WithCredentialsJSON([]byte(contents)))
 	}
 
 	if gcsConfig.ImpersonateServiceAccount != "" {
