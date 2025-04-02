@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: OpenTelemetry
 category: troubleshooting
 categories_url: troubleshooting
-excerpt: Learn how to debug issues with terragrunt and tofu/terraform.
+excerpt: Learn how to collect traces from Terragrunt using OpenTelemetry.
 tags: ["OpenTelemetry", "Tracing", "Metrics", "Otel"]
 order: 502
 nav_title: Documentation
