@@ -16,10 +16,10 @@ However, given the nature of the problems that Terragrunt solves, there are some
 
 One of the most expensive things that OpenTofu/Terraform does, from a bandwidth and disk utilization perspective, is download and install providers. These are large binary files that are downloaded from the internet, and not cached across units by default.
 
-You can significantly reduce the amount of time taken by Terragrunt runs by enabling the [provider cache server](/docs/features/provider-cache-server), like this:
+You can significantly reduce the amount of time taken by Terragrunt runs by enabling the provider cache server, like this:
 
 ```shell
-terragrunt run-all plan --provider-cache
+terragrunt run --all plan --provider-cache
 ```
 
 #### Provider Cache - Gotchas
@@ -45,12 +45,14 @@ You can significantly improve the performance of dependency blocks by using the 
 For example:
 
 ```shell
-terragrunt run-all plan --dependency-fetch-output-from-state
+terragrunt run --all plan --dependency-fetch-output-from-state
 ```
 
 #### Fetching Output From State - Gotchas
 
-**NOTE**: This is an experimental feature, use with caution. There is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform. Also, note that the only backend that supports this feature is the AWS S3 backend.
+The first thing you need to be aware of when considering usage of the `--dependency-fetch-output-from-state` flag is that it only works for S3 backends. If you are using a different backend, you should not use this flag.
+
+Next, you should be aware that there is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform.
 
 We are coordinating with the OpenTofu team to improve the performance of the `output` command, and we hope that this flag will be unnecessary for most users in the future.
 
@@ -62,7 +64,7 @@ A rarely used capability of Terragrunt dependency blocks is the ability to read 
 
 The reason for this is that Terragrunt needs to recursively read inputs from dependencies, and their dependencies, all the way down to the ancestral Terragrunt unit they all have in common to be able to expose the inputs to the dependent unit.
 
-You can mitigate this performance penalty by using the `skip-dependency-inputs` strict control. For more information about strict controls, refer to the [Strict Mode documentation](/docs/reference/strict-mode).
+You can mitigate this performance penalty by using the `skip-dependency-inputs` strict control.
 
 Enabling this strict control will enable a breaking change in Terragrunt behavior, making it so that dependency blocks no longer read inputs from dependencies.
 
