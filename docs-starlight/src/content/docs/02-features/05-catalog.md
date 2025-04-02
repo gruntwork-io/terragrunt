@@ -19,11 +19,12 @@ If `<repo-url>` is provided, the repository will be cloned into a temporary dire
 1. The repository list are searched in the config file `terragrunt.hcl`. if `terragrunt.hcl` does not exist in the current directory, the config are searched in the parent directories.
 1. If the repository list is not found in the configuration file, the modules are looked for in the current directory.
 
-An example of how to define the list of repositories for the `catalog` command in the `terragrunt.hcl` configuration file:
+An example of how to define the optional default template and the list of repositories for the `catalog` command in the `terragrunt.hcl` configuration file:
 
 ``` hcl
 # terragrunt.hcl
 catalog {
+  default_template = "git@github.com/acme/example.git//path/to/template"  # Optional default template to use for scaffolding
   urls = [
     "relative/path/to/repo", # will be converted to the absolute path, relative to the path of the configuration file.
     "/absolute/path/to/repo",
@@ -39,6 +40,13 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
 1. See the docs for a selected module: `ENTER`.
 1. Use [`terragrunt scaffold`](/docs/features/scaffold/) to render a `terragrunt.hcl` for using the module: `S`.
+
+## Custom templates for scaffolding
+
+Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize how code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via two mechanisms while using catalog:
+
+1. You can define a custom Boilerplate template in a `.boilerplate` sub-directory of any OpenTofu/Terraform module.
+2. You can specify a custom Boilerplate template in the catalog configuration using the `default_template` option.
 
 ## Scaffolding Flags
 

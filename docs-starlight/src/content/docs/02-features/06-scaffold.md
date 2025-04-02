@@ -65,10 +65,11 @@ Important notes:
 
 ## Custom templates for scaffolding
 
-Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize what code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via two mechanisms:
+Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize what code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via three mechanisms - listed in order of priority:
 
 1. You can specify a custom boilerplate template to use as the second argument of the `scaffold` command.
 2. You can define a custom boilerplate template in a `.boilerplate` subfolder of your module.
+3. You can define a default custom boilerplate template in the [catalog config](/docs/features/catalog/#configuration).
 
 If you define input variables in your boilerplate template, Terragrunt will prompt users for the values. Those values can also be passed in via `--var` and `--var-file` arguments.
 There are also a set of variables that Terragrunt will automatically expose to your boilerplate templates for rendering:
