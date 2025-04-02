@@ -13,7 +13,11 @@ slug: open-telemetry
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format, traces and metrics.
 
-Concepts:
+OpenTelemetry tracing is frequently used in Terragrunt to collect traces to analyze performance. For more details on analyzing and optimizing performance, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
+
+## High-level overview
+
+The following are concepts and technologies that are important to be aware of when using OpenTelemetry with Terragrunt.
 
 - [OpenTelemetry](https://opentelemetry.io/)
 - [Traces](https://opentelemetry.io/docs/concepts/signals/traces/)

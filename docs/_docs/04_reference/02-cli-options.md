@@ -356,7 +356,7 @@ terragrunt stack generate --parallelism 4
 
 - Path Restrictions: If an absolute path is provided as an argument, the command will throw an error. Only relative paths within the working directory are supported.
 
-- Validation of Units and Stacks: During the stack generation, the system will validate that each unit and stack's target directory contains the appropriate configuration file (`terragrunt.hcl` for units and `terragrunt.stack.hcl` for stacks). This ensures the directories are correctly structured before proceeding with the stack generation.  
+- Validation of Units and Stacks: During the stack generation, the system will validate that each unit and stack's target directory contains the appropriate configuration file (`terragrunt.hcl` for units and `terragrunt.stack.hcl` for stacks). This ensures the directories are correctly structured before proceeding with the stack generation.
   To **skip this validation**, you can use the `--no-stack-validate` flag:
 
 ```bash
@@ -2208,8 +2208,10 @@ block is not evaluated until _after_ the queue has been populated with units to 
 
 When using many dependencies, this option can speed up the dependency processing by fetching dependency output directly
 from the state file instead of using `tofu/terraform output` to fetch them.
-NOTE: This is an experimental feature, use with caution.
-Currently only AWS S3 backend is supported.
+
+**NOTE**: This is an experimental feature, use with caution. There is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform. Also, note that the only backend that supports this feature is the AWS S3 backend.
+
+Direct output fetching is a performance optimization. For more details on performance optimizations, their tradeoffs, and other performance tips, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
 
 ### use-partial-parse-config-cache
 
@@ -2270,7 +2272,7 @@ When this flag is set, Terragrunt will not validate the terraform command, which
 
 - [run-all](#run-all)
 
-Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
+Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
 ### provider-cache-dir
 
@@ -2282,7 +2284,7 @@ Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make pr
 
 - [run-all](#run-all)
 
-The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
+The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) directory. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
 ### provider-cache-hostname
 
@@ -2294,7 +2296,7 @@ The path to the Terragrunt provider cache directory. By default, `terragrunt/pro
 
 - [run-all](#run-all)
 
-The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
+The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
 ### provider-cache-port
 
@@ -2306,7 +2308,7 @@ The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. M
 
 - [run-all](#run-all)
 
-The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
+The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
 ### provider-cache-token
 
@@ -2318,7 +2320,7 @@ The port of the Terragrunt Provider Cache server. By default, assigned automatic
 
 - [run-all](#run-all)
 
-The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
+The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
 ### provider-cache-registry-names
 
@@ -2330,7 +2332,7 @@ The Token for authentication on the Terragrunt Provider Cache server. By default
 
 - [run-all](#run-all)
 
-The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
+The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
 ### out-dir
 
