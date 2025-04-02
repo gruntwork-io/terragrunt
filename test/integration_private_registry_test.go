@@ -36,7 +36,7 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 
 	URL, err := url.Parse("tfr://" + registryUrl)
 	if err != nil {
-		t.Fatalf("REGISTRY_URL is invalid: %f", err)
+		t.Fatalf("REGISTRY_URL is invalid: %v", err)
 	}
 
 	if URL.Hostname() == "" {
