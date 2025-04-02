@@ -246,11 +246,16 @@ In general, when encountering a bug caused by a race condition in the wild, we e
 
 We can do a better job of finding candidates for additional testing here, so if you are interested in helping out, please open an issue to discuss it.
 
+The convention we use for race tests is to prefix them with `WithRacing`. The Terragrunt Continuous Integration workflow will run these tests wit
+h the `-race` flag as part of the test suite.
+
 #### Benchmark tests
 
 Benchmark tests are tests that are run with the `-bench` flag to the `go test` command. They are used to measure the performance of a particular function or set of functions.
 
 You can find them by looking for tests that start with `Benchmark*` instead of `Test*` in the codebase.
+
+For more information on Terragrunt performance, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
 
 In general, we have inadequate benchmark testing in the Terragrunt codebase, and want to improve this. If you are interested in helping out, please open an issue to discuss it.
 
@@ -353,7 +358,7 @@ To ensure that your changes get properly formatted, please install the git pre-c
     }
     ```
 
-3. Open the project as a VSCode workspace and select `Reopen in Container` when prompted. 
+3. Open the project as a VSCode workspace and select `Reopen in Container` when prompted.
 
    <Aside type="tip">
 
