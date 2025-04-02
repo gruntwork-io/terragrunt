@@ -1,5 +1,5 @@
-// Package delete provides the ability to remove remote state files/buckets.
-package delete
+// Package migrate provides the ability to bootstrap remote state backend.
+package migrate
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntOptions) error {
 	remoteState, err := config.ParseRemoteState(ctx, opts)
 	if err != nil {
 		return err
@@ -23,18 +23,13 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return nil
 	}
 
-	if !opts.ForceBackendDelete {
+	if !opts.ForceBackendMigrate {
 		if err := checkIfVersionControlEnabled(ctx, remoteState, opts); err != nil {
 			return nil
 		}
 	}
 
-	if opts.DeleteBucket {
-		// TODO: Do an extra check before commenting out the code. //return remoteState.DeleteBucket(ctx, opts)
-		return errors.Errorf("flag -%s is not supported yet", BucketFlagName)
-	}
-
-	return remoteState.Delete(ctx, opts)
+	return remoteState.Migrate(ctx, srcPath, dstPath, opts)
 }
 
 func checkIfVersionControlEnabled(ctx context.Context, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) error {
@@ -44,7 +39,7 @@ func checkIfVersionControlEnabled(ctx context.Context, remoteState *remotestate.
 	}
 
 	if !enabled {
-		return errors.Errorf("bucket is not versioned, refusing to delete backend state. If you are sure you want to delete the backend state anyways, use the --%s flag", ForceBackendDeleteFlagName)
+		return errors.Errorf("bucket is not versioned, refusing to migrate backend state. If you are sure you want to migrate the backend state anyways, use the --%s flag", ForceBackendMigrateFlagName)
 	}
 
 	return nil

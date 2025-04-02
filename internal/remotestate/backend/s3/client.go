@@ -3,6 +3,7 @@ package s3
 import (
 	"context"
 	"fmt"
+	"path"
 	"reflect"
 	"slices"
 	"time"
@@ -406,7 +407,13 @@ func (client *Client) checkIfS3BucketNeedsUpdate(ctx context.Context, bucketName
 
 // CheckIfVersioningEnabled checks if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
 func (client *Client) CheckIfVersioningEnabled(ctx context.Context, bucketName string) (bool, error) {
-	client.logger.Debugf("Verifying AWS S3 Bucket Versioning %s", bucketName)
+	if exists, err := client.DoesS3BucketExist(ctx, bucketName); err != nil {
+		return false, err
+	} else if !exists {
+		return false, backend.NewBucketDoesNotExistError(bucketName)
+	}
+
+	client.logger.Debugf("Verifying AWS S3 bucket versioning %s", bucketName)
 
 	res, err := client.GetBucketVersioningWithContext(ctx, &s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)})
 	if err != nil {
@@ -1412,14 +1419,6 @@ func (client *Client) DeleteS3ObjectIfNecessary(ctx context.Context, bucketName,
 			return util.FatalError{Underlying: err}
 		}
 
-		if err := client.DeleteS3BucketVersionObjects(ctx, bucketName, key); err != nil {
-			if isBucketErrorRetriable(err) {
-				return err
-			}
-			// return FatalError so that retry loop will not continue
-			return util.FatalError{Underlying: err}
-		}
-
 		return nil
 	})
 }
@@ -1443,6 +1442,16 @@ func (client *Client) DoesS3ObjectExist(ctx context.Context, bucketName, key str
 	}
 
 	return true, nil
+}
+
+func (client *Client) DoesS3ObjectExistWithLogging(ctx context.Context, bucketName, key string) (bool, error) {
+	if exists, err := client.DoesS3ObjectExist(ctx, bucketName, key); err != nil || exists {
+		return exists, err
+	}
+
+	client.logger.Debugf("Remote state S3 bucket %s object %s does not exist or you don't have permissions to access it.", bucketName, key)
+
+	return false, nil
 }
 
 // CreateLockTableIfNecessary creates the lock table in DynamoDB if it doesn't already exist.
@@ -1727,13 +1736,25 @@ func (client *Client) DeleteTableItemIfNecessary(ctx context.Context, tableName,
 		return err
 	}
 
-	client.logger.Debugf("Deleting DynamoDB table %s item %s", tableName, key)
+	description := fmt.Sprintf("Delete DynamoDB table %s item %s", tableName, key)
 
-	return client.DeleteTableItem(ctx, tableName, key)
+	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
+		if err := client.DeleteTableItem(ctx, tableName, key); err != nil {
+			if isBucketErrorRetriable(err) {
+				return err
+			}
+			// return FatalError so that retry loop will not continue
+			return util.FatalError{Underlying: err}
+		}
+
+		return nil
+	})
 }
 
 // DeleteTableItem deletes the given DynamoDB table key.
 func (client *Client) DeleteTableItem(ctx context.Context, tableName, key string) error {
+	client.logger.Debugf("Deleting DynamoDB table %s item %s", tableName, key)
+
 	input := &dynamodb.DeleteItemInput{
 		TableName: aws.String(tableName),
 		Key: map[string]*dynamodb.AttributeValue{
@@ -1773,4 +1794,118 @@ func (client *Client) DoesTableItemExist(ctx context.Context, tableName, key str
 	exists := len(res.Item) != 0
 
 	return exists, nil
+}
+
+func (client *Client) DoesTableItemExistWithLogging(ctx context.Context, tableName, key string) (bool, error) {
+	if exists, err := client.DoesTableItemExist(ctx, tableName, key); err != nil || exists {
+		return exists, err
+	}
+
+	client.logger.Debugf("Remote state DynamoDB table %s item %s does not exist or you don't have permissions to access it.", tableName, key)
+
+	return false, nil
+}
+
+func (client *Client) CopyS3BucketObject(ctx context.Context, bucketName, srcKey, dstKey string) error {
+	client.logger.Debugf("Copying S3 bucket %s object %s to %s", bucketName, srcKey, dstKey)
+
+	input := &s3.CopyObjectInput{
+		Bucket:     aws.String(bucketName),
+		Key:        aws.String(dstKey),
+		CopySource: aws.String(path.Join(bucketName, srcKey)),
+	}
+
+	if _, err := client.CopyObjectWithContext(ctx, input); err != nil {
+		return errors.Errorf("failed to copy object: %w", err)
+	}
+
+	return nil
+}
+
+func (client *Client) MoveS3Object(ctx context.Context, bucketName, srcKey, dstKey string) error {
+	if err := client.CopyS3BucketObject(ctx, bucketName, srcKey, dstKey); err != nil {
+		return err
+	}
+
+	return client.DeleteS3BucketObject(ctx, bucketName, srcKey, nil)
+}
+
+// MoveS3ObjectIfNecessary moves the S3 object by the specified srcKey to dstKey if it exists.
+func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, bucketName, srcKey, dstKey string) error {
+	if exists, err := client.DoesS3ObjectExistWithLogging(ctx, bucketName, srcKey); err != nil || !exists {
+		return err
+	}
+
+	if exists, err := client.DoesS3ObjectExist(ctx, bucketName, dstKey); err != nil {
+		return err
+	} else if exists {
+		return errors.Errorf("destination S3 bucket %s object %s already exists", bucketName, dstKey)
+	}
+
+	description := fmt.Sprintf("Move S3 bucket %s object %s to %s", bucketName, srcKey, dstKey)
+
+	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
+		if err := client.MoveS3Object(ctx, bucketName, srcKey, dstKey); err != nil {
+			if isBucketErrorRetriable(err) {
+				return err
+			}
+			// return FatalError so that retry loop will not continue
+			return util.FatalError{Underlying: err}
+		}
+
+		return nil
+	})
+}
+
+func (client *Client) RenameTableItemIfNecessary(ctx context.Context, tableName, srcKey, dstKey string) error {
+	if exists, err := client.DoesTableItemExistWithLogging(ctx, tableName, srcKey); err != nil || !exists {
+		return err
+	}
+
+	if exists, err := client.DoesTableItemExist(ctx, tableName, dstKey); err != nil {
+		return err
+	} else if exists {
+		return errors.Errorf("destination DynamoDB table %s item %s already exists", tableName, dstKey)
+	}
+
+	description := fmt.Sprintf("Rename DynamoDB table %s item %s with %s", tableName, srcKey, dstKey)
+
+	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
+		if err := client.RenameTableItem(ctx, tableName, srcKey, dstKey); err != nil {
+			if isBucketErrorRetriable(err) {
+				return err
+			}
+			// return FatalError so that retry loop will not continue
+			return util.FatalError{Underlying: err}
+		}
+
+		return nil
+	})
+}
+
+func (client *Client) RenameTableItem(ctx context.Context, tableName, srcKey, dstKey string) error {
+	if err := client.CreateTableItem(ctx, tableName, dstKey); err != nil {
+		return err
+	}
+
+	return client.DeleteTableItem(ctx, tableName, srcKey)
+}
+
+func (client *Client) CreateTableItem(ctx context.Context, tableName, key string) error {
+	client.logger.Debugf("Creating DynamoDB %s item %s", tableName, key)
+
+	input := &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
+		Item: map[string]*dynamodb.AttributeValue{
+			AttrLockID: {
+				S: aws.String(key),
+			},
+		},
+	}
+
+	if _, err := client.PutItemWithContext(ctx, input); err != nil {
+		return errors.Errorf("failed to create table item: %w", err)
+	}
+
+	return nil
 }

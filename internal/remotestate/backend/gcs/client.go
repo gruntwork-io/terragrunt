@@ -159,6 +159,10 @@ func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, bucketName
 func (client *Client) CheckIfGCSVersioningEnabled(ctx context.Context, bucketName string) (bool, error) {
 	bucket := client.Bucket(bucketName)
 
+	if !client.DoesGCSBucketExist(ctx, bucketName) {
+		return false, backend.NewBucketDoesNotExistError(bucketName)
+	}
+
 	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		// ErrBucketNotExist
@@ -307,7 +311,7 @@ func (client *Client) DeleteGCSBucketIfNecessary(ctx context.Context, bucketName
 	description := fmt.Sprintf("Delete GCS bucket %s with retry", bucketName)
 
 	return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
-		if err := client.DeleteGCSObjects(ctx, bucketName, ""); err != nil {
+		if err := client.DeleteGCSObjects(ctx, bucketName, "", true); err != nil {
 			return err
 		}
 
@@ -355,17 +359,17 @@ func (client *Client) DeleteGCSObjectIfNecessary(ctx context.Context, bucketName
 	description := fmt.Sprintf("Delete GCS objects with prefix %s in bucket %s with retry", prefix, bucketName)
 
 	return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
-		return client.DeleteGCSObjects(ctx, bucketName, prefix)
+		return client.DeleteGCSObjects(ctx, bucketName, prefix, false)
 	})
 }
 
 // DeleteGCSObjects deletes the bucket objects with the given prefix.
-func (client *Client) DeleteGCSObjects(ctx context.Context, bucketName, prefix string) error {
+func (client *Client) DeleteGCSObjects(ctx context.Context, bucketName, prefix string, withVersions bool) error {
 	bucket := client.Bucket(bucketName)
 
 	it := bucket.Objects(ctx, &storage.Query{
 		Prefix:   prefix,
-		Versions: true,
+		Versions: withVersions,
 	})
 
 	for {

@@ -1,18 +1,18 @@
-package delete
+package migrate
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 const (
-	CommandName = "delete"
+	CommandName = "migrate"
 
-	BucketFlagName             = "bucket"
-	ForceBackendDeleteFlagName = "force"
+	ForceBackendMigrateFlagName = "force"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -20,17 +20,10 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 	flags := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        BucketFlagName,
-			EnvVars:     tgPrefix.EnvVars(BucketFlagName),
-			Usage:       "Delete the entire bucket.",
-			Hidden:      true,
-			Destination: &opts.DeleteBucket,
-		}),
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        ForceBackendDeleteFlagName,
-			EnvVars:     tgPrefix.EnvVars(ForceBackendDeleteFlagName),
-			Usage:       "Force the backend to be deleted, even if the bucket is not versioned.",
-			Destination: &opts.ForceBackendDelete,
+			Name:        ForceBackendMigrateFlagName,
+			EnvVars:     tgPrefix.EnvVars(ForceBackendMigrateFlagName),
+			Usage:       "Force the backend to be migrated, even if the bucket is not versioned.",
+			Destination: &opts.ForceBackendMigrate,
 		}),
 	}
 
@@ -40,11 +33,22 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:                 CommandName,
-		Usage:                "Delete OpenTofu/Terraform state.",
+		Usage:                "Migrate OpenTofu/Terraform state from one location to another.",
+		UsageText:            "terragrunt backend migrage [options] <src-path> <dst-path>",
 		Flags:                NewFlags(opts, nil),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
-			return Run(ctx, opts.OptionsFromContext(ctx))
+			srcPath := ctx.Args().First()
+			if srcPath == "" {
+				return errors.New("not specified src path")
+			}
+
+			dstPath := ctx.Args().Second()
+			if dstPath == "" {
+				return errors.New("not specified dst path")
+			}
+
+			return Run(ctx, srcPath, dstPath, opts.OptionsFromContext(ctx))
 		},
 	}
 

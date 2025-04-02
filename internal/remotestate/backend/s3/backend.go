@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -125,6 +124,48 @@ func (backend *Backend) Bootstrap(ctx context.Context, backendConfig backend.Con
 	return nil
 }
 
+// IsVersionControlEnabled returns true if version control for s3 bucket is enabled.
+func (backend *Backend) IsVersionControlEnabled(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
+	if err != nil {
+		return false, err
+	}
+
+	var bucketName = extS3Cfg.RemoteStateConfigS3.Bucket
+
+	client, err := NewClient(extS3Cfg, opts)
+	if err != nil {
+		return false, err
+	}
+
+	return client.CheckIfVersioningEnabled(ctx, bucketName)
+}
+
+func (backend *Backend) Migrate(ctx context.Context, backendConfig backend.Config, srcKey, dstKey string, opts *options.TerragruntOptions) error {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
+	if err != nil {
+		return err
+	}
+
+	var (
+		bucketName  = extS3Cfg.RemoteStateConfigS3.Bucket
+		tableName   = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
+		srcTableKey = path.Join(bucketName, srcKey+stateIDSuffix)
+		dstTableKey = path.Join(bucketName, dstKey+stateIDSuffix)
+	)
+
+	client, err := NewClient(extS3Cfg, opts)
+	if err != nil {
+		return err
+	}
+
+	if err = client.MoveS3ObjectIfNecessary(ctx, bucketName, srcKey, dstKey); err != nil {
+		return err
+	}
+
+	return client.RenameTableItemIfNecessary(ctx, tableName, srcTableKey, dstTableKey)
+}
+
 // Delete deletes the remote state specified in the given config.
 func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
@@ -132,27 +173,16 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 		return err
 	}
 
-	client, err := NewClient(extS3Cfg, opts)
-	if err != nil {
-		return err
-	}
-
-	if !opts.ForceBackendDelete {
-		versioned, err := client.CheckIfVersioningEnabled(ctx, extS3Cfg.RemoteStateConfigS3.Bucket)
-		if err != nil {
-			return err
-		}
-
-		if !versioned {
-			return errors.New("bucket is not versioned, refusing to delete backend state. If you are sure you want to delete the backend state anyways, use the --force flag")
-		}
-	}
-
 	var (
 		bucketName = extS3Cfg.RemoteStateConfigS3.Bucket
 		bucketKey  = extS3Cfg.RemoteStateConfigS3.Key
 		tableName  = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
 	)
+
+	client, err := NewClient(extS3Cfg, opts)
+	if err != nil {
+		return err
+	}
 
 	if tableName != "" {
 		tableKey := path.Join(bucketName, bucketKey+stateIDSuffix)

@@ -41,6 +41,12 @@ func (remote *RemoteState) String() string {
 	return remote.Config.String()
 }
 
+func (remote *RemoteState) IsVersionControlEnabled(ctx context.Context, opts *options.TerragruntOptions) (bool, error) {
+	opts.Logger.Debugf("Checking if version control is enabled for the %s backend", remote.BackendName)
+
+	return remote.backend.IsVersionControlEnabled(ctx, remote.BackendConfig, opts)
+}
+
 // Delete deletes the remote state.
 func (remote *RemoteState) Delete(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.Debugf("Deleting remote state for the %s backend", remote.BackendName)
@@ -61,6 +67,13 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, opts *options.Terragru
 	opts.Logger.Debugf("Bootstrapping remote state for the %s backend", remote.BackendName)
 
 	return remote.backend.Bootstrap(ctx, remote.BackendConfig, opts)
+}
+
+// Migrate determines where the remote state resources exist for source path and migrate them to dest path.
+func (remote *RemoteState) Migrate(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Migrate remote state for the %s backend", remote.BackendName)
+
+	return remote.backend.Migrate(ctx, remote.BackendConfig, srcPath, dstPath, opts)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
