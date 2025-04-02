@@ -19,12 +19,14 @@ const (
 )
 
 func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
+	t.Helper()
+
 	registryToken := os.Getenv("PRIVATE_REGISTRY_TOKEN")
 
-	// the private registry test is recommended to be a clone of yorinasub17/terragrunt-registry-test
+	// the private registry test is recommended to be a clone of gruntwork-io/terraform-null-terragrunt-registry-test
 	registryUrl := os.Getenv("PRIVATE_REGISTRY_URL")
 
-	if registryToken == "" && registryUrl == "" {
+	if registryToken == "" || registryUrl == "" {
 		t.Skip("Skipping test because it requires a valid Terraform registry token and url")
 	}
 
@@ -33,8 +35,12 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 	rootPath := util.JoinPath(tmpEnvPath, privateRegistryFixturePath)
 
 	URL, err := url.Parse("tfr://" + registryUrl)
-	if err != nil || URL.Hostname() == "" {
-		t.Error("REGISTRY_URL is invalid")
+	if err != nil {
+		t.Fatalf("REGISTRY_URL is invalid: %f", err)
+	}
+
+	if URL.Hostname() == "" {
+		t.Fatal("REGISTRY_URL is invalid")
 	}
 
 	helpers.CopyAndFillMapPlaceholders(t, util.JoinPath(privateRegistryFixturePath, "terragrunt.hcl"), util.JoinPath(rootPath, "terragrunt.hcl"), map[string]string{
@@ -45,11 +51,7 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 }
 
 func TestPrivateRegistryWithConfgFileToken(t *testing.T) {
-	t.Helper()
-
 	rootPath, host, token := setupPrivateRegistryTest(t)
-
-	os.Stdout.Write([]byte(host))
 
 	helpers.CopyAndFillMapPlaceholders(t, util.JoinPath(privateRegistryFixturePath, "env.tfrc"), util.JoinPath(rootPath, "env.tfrc"), map[string]string{
 		"__registry_token__": token,
@@ -65,15 +67,17 @@ func TestPrivateRegistryWithConfgFileToken(t *testing.T) {
 }
 
 func TestPrivateRegistryWithEnvToken(t *testing.T) {
-	t.Helper()
-
 	rootPath, host, token := setupPrivateRegistryTest(t)
 
+	// Convert host to format suitable for Terraform env vars.
+	// This is based on the tf/cliconfig/credentials.go collectCredentialsFromEnv
 	host = strings.ReplaceAll(strings.ReplaceAll(host, ".", "_"), "-", "__")
+
 	t.Setenv(fmt.Sprintf("TF_TOKEN_%s", host), token)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --log-level=trace --working-dir="+rootPath)
 
-	// the hashicorp/null provider errors on install, but that indicates that the private tfr module was downloaded
+	// The main test is for authentication against the private registry, so if the null provider fails then we know
+	// that terragrunt authenticated and downloaded the module.
 	require.Contains(t, err.Error(), "hashicorp/null", "Error accessing the private registry")
 }
