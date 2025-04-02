@@ -69,7 +69,7 @@ Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, b
 
 1. You can specify a custom boilerplate template to use as the second argument of the `scaffold` command.
 2. You can define a custom boilerplate template in a `.boilerplate` subfolder of your module.
-3. You can define a default custom boilerplate template in the [catalog config](/docs/features/catalog/#configuration).
+3. You can define a default custom boilerplate template in the [catalog config](/docs/features/catalog).
 
 If you define input variables in your boilerplate template, Terragrunt will prompt users for the values. Those values can also be passed in via `--var` and `--var-file` arguments.
 There are also a set of variables that Terragrunt will automatically expose to your boilerplate templates for rendering:
