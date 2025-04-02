@@ -115,6 +115,12 @@ func TestCatalogParseConfigFile(t *testing.T) {
 				},
 			},
 		},
+		{
+			configPath: filepath.Join(basePath, "config4.hcl"),
+			expectedConfig: &config.CatalogConfig{
+				DefaultTemplate: "/test/fixtures/scaffold/external-template",
+			},
+		},
 	}
 
 	for i, tt := range testCases {

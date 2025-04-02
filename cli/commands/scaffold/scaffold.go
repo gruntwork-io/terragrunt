@@ -221,62 +221,93 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 	return nil
 }
 
-// prepareBoilerplateFiles prepares boilerplate files.
-func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOptions, templateURL string, tempDir string) (string, error) {
-	// identify template url
-	templateDir := ""
-
-	if templateURL != "" {
-		// process template url if was passed
-		parsedTemplateURL, err := tf.ToSourceURL(templateURL, tempDir)
-		if err != nil {
-			return "", errors.New(err)
-		}
-
-		parsedTemplateURL, err = rewriteTemplateURL(ctx, opts, parsedTemplateURL)
-		if err != nil {
-			return "", errors.New(err)
-		}
-		// regenerate template url with all changes
-		templateURL = parsedTemplateURL.String()
-
-		// prepare temporary directory for template
-		templateDir, err = os.MkdirTemp("", "template")
-		if err != nil {
-			return "", errors.New(err)
-		}
-
-		// downloading template
-		opts.Logger.Infof("Using template from %s", templateURL)
-
-		if _, err := getter.GetAny(ctx, templateDir, templateURL); err != nil {
-			return "", errors.New(err)
-		}
+// generateDefaultTemplate - write default template to provided dir
+func generateDefaultTemplate(boilerplateDir string) (string, error) {
+	const ownerWriteGlobalReadPerms = 0644
+	if err := os.WriteFile(util.JoinPath(boilerplateDir, config.DefaultTerragruntConfigPath), []byte(DefaultTerragruntTemplate), ownerWriteGlobalReadPerms); err != nil {
+		return "", errors.New(err)
 	}
-	// prepare boilerplate dir
+
+	if err := os.WriteFile(util.JoinPath(boilerplateDir, "boilerplate.yml"), []byte(DefaultBoilerplateConfig), ownerWriteGlobalReadPerms); err != nil {
+		return "", errors.New(err)
+	}
+
+	return boilerplateDir, nil
+}
+
+// downloadTemplate - parse URL and download files
+func downloadTemplate(ctx context.Context, opts *options.TerragruntOptions, templateURL string, tempDir string) (string, error) {
+	parsedTemplateURL, err := tf.ToSourceURL(templateURL, tempDir)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	parsedTemplateURL, err = rewriteTemplateURL(ctx, opts, parsedTemplateURL)
+	if err != nil {
+		return "", errors.New(err)
+	}
+	// regenerate template url with all changes
+	templateURL = parsedTemplateURL.String()
+
+	// prepare temporary directory for template
+	templateDir, err := os.MkdirTemp("", "template")
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	// downloading templateURL
+	opts.Logger.Infof("Using template from %s", templateURL)
+
+	if _, err := getter.GetAny(ctx, templateDir, templateURL); err != nil {
+		return "", errors.New(err)
+	}
+
+	return templateDir, nil
+}
+
+// prepareBoilerplateFiles - prepare boilerplate files from provided template, tf module, or (custom) default template
+func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOptions, templateURL string, tempDir string) (string, error) {
 	boilerplateDir := util.JoinPath(tempDir, util.DefaultBoilerplateDir)
-	// use template dir as boilerplate dir
-	if templateDir != "" {
-		boilerplateDir = templateDir
+
+	// process template url if it was passed. This overrides the .boilerplate folder in the OpenTofu/Terraform module
+	if templateURL != "" {
+		// process template url if it was passed
+		tempTemplateDir, err := downloadTemplate(ctx, opts, templateURL, tempDir)
+		if err != nil {
+			return "", errors.New(err)
+		}
+
+		boilerplateDir = tempTemplateDir
 	}
 
 	// if boilerplate dir is not found, create one with default template
 	if !files.IsExistingDir(boilerplateDir) {
-		// no default boilerplate dir, create one
-		defaultTempDir, err := os.MkdirTemp("", "boilerplate")
+		config, err := config.ReadCatalogConfig(ctx, opts)
 		if err != nil {
 			return "", errors.New(err)
 		}
 
-		boilerplateDir = defaultTempDir
+		// use defaultTemplateURL if defined in config, otherwise use basic default template
+		if config != nil && config.DefaultTemplate != "" {
+			// process template url if available
+			tempTemplateDir, err := downloadTemplate(ctx, opts, config.DefaultTemplate, tempDir)
+			if err != nil {
+				return "", errors.New(err)
+			}
 
-		const ownerWriteGlobalReadPerms = 0644
-		if err := os.WriteFile(util.JoinPath(boilerplateDir, "terragrunt.hcl"), []byte(DefaultTerragruntTemplate), ownerWriteGlobalReadPerms); err != nil {
-			return "", errors.New(err)
-		}
+			boilerplateDir = tempTemplateDir
+		} else {
+			defaultTempDir, err := os.MkdirTemp("", "boilerplate")
+			if err != nil {
+				return "", errors.New(err)
+			}
 
-		if err := os.WriteFile(util.JoinPath(boilerplateDir, "boilerplate.yml"), []byte(DefaultBoilerplateConfig), ownerWriteGlobalReadPerms); err != nil {
-			return "", errors.New(err)
+			boilerplateDir = defaultTempDir
+
+			boilerplateDir, err = generateDefaultTemplate(boilerplateDir)
+			if err != nil {
+				return "", errors.New(err)
+			}
 		}
 	}
 

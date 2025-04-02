@@ -38,11 +38,12 @@ var (
 )
 
 type CatalogConfig struct {
-	URLs []string `hcl:"urls,attr" cty:"urls"`
+	DefaultTemplate string   `hcl:"default_template,attr" cty:"default_template"`
+	URLs            []string `hcl:"urls,attr" cty:"urls"`
 }
 
 func (cfg *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v}", cfg.URLs)
+	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v}", cfg.URLs, cfg.DefaultTemplate)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {
@@ -54,6 +55,13 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 
 		if files.FileExists(url) {
 			cfg.URLs[i] = url
+		}
+	}
+
+	if cfg.DefaultTemplate != "" {
+		path := filepath.Join(configDir, cfg.DefaultTemplate)
+		if files.FileExists(path) {
+			cfg.DefaultTemplate = path
 		}
 	}
 }

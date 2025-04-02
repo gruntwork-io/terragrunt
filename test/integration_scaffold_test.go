@@ -14,14 +14,15 @@ import (
 )
 
 const (
-	testScaffoldModuleURL              = "https://github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
-	testScaffoldModuleGit              = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
-	testScaffoldModuleShort            = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs"
-	testScaffoldTemplateModule         = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template"
-	testScaffoldExternalTemplateModule = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template"
-	testScaffoldLocalModulePath        = "fixtures/scaffold/scaffold-module"
-	testScaffoldWithRootHCL            = "fixtures/scaffold/root-hcl"
-	testScaffold3rdPartyModulePath     = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
+	testScaffoldModuleURL                 = "https://github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
+	testScaffoldModuleGit                 = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
+	testScaffoldModuleShort               = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs"
+	testScaffoldTemplateModule            = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template"
+	testScaffoldExternalTemplateModule    = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template"
+	testScaffoldLocalModulePath           = "fixtures/scaffold/scaffold-module"
+	testScaffoldWithRootHCL               = "fixtures/scaffold/root-hcl"
+	testScaffold3rdPartyModulePath        = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
+	testScaffoldWithCustomDefaultTemplate = "fixtures/scaffold/custom-default-template"
 )
 
 func TestScaffoldModule(t *testing.T) {
@@ -211,7 +212,7 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testScaffoldWithRootHCL)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
-		"terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s",
+		"terragrunt --non-interactive --working-dir %s scaffold %s",
 		filepath.Join(testPath, "unit"),
 		testScaffoldModuleURL,
 	))
@@ -224,4 +225,24 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 	content, err := util.ReadFileAsString(filepath.Join(testPath, "unit", "terragrunt.hcl"))
 	require.NoError(t, err)
 	assert.Contains(t, content, `path = find_in_parent_folders("root.hcl")`)
+}
+
+func TestScaffoldWithCustomDefaultTemplate(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithCustomDefaultTemplate)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testScaffoldWithCustomDefaultTemplate)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
+		"terragrunt --non-interactive --working-dir %s scaffold %s",
+		filepath.Join(testPath, "unit"),
+		testScaffoldModuleURL,
+	))
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+
+	assert.FileExists(t, filepath.Join(testPath, "unit", "terragrunt.hcl"))
+	assert.FileExists(t, filepath.Join(testPath, "unit", "external-template.txt"))
 }
