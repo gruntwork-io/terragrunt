@@ -116,19 +116,27 @@ $ terragrunt plan-all --strict-control deprecated-commands
 
 The following strict mode controls are available:
 
-- [spin-up](#spin-up)
-- [tear-down](#tear-down)
-- [plan-all](#plan-all)
-- [apply-all](#apply-all)
-- [destroy-all](#destroy-all)
-- [output-all](#output-all)
-- [validate-all](#validate-all)
-- [skip-dependencies-inputs](#skip-dependencies-inputs)
-- [require-explicit-bootstrap](#require-explicit-bootstrap)
-- [root-terragrunt-hcl](#root-terragrunt-hcl)
-- [terragrunt-prefix-flags](#terragrunt-prefix-flags)
-- [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
-- [default-command](#default-command)
+- [Controlling Strict Mode](#controlling-strict-mode)
+- [Strict Mode Controls](#strict-mode-controls)
+  - [spin-up](#spin-up)
+  - [tear-down](#tear-down)
+  - [plan-all](#plan-all)
+  - [apply-all](#apply-all)
+  - [destroy-all](#destroy-all)
+  - [output-all](#output-all)
+  - [validate-all](#validate-all)
+  - [skip-dependencies-inputs](#skip-dependencies-inputs)
+  - [require-explicit-bootstrap](#require-explicit-bootstrap)
+  - [root-terragrunt-hcl](#root-terragrunt-hcl)
+  - [terragrunt-prefix-flags](#terragrunt-prefix-flags)
+  - [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
+  - [default-command](#default-command)
+- [Control Categories](#control-categories)
+  - [deprecated-commands](#deprecated-commands)
+  - [deprecated-flags](#deprecated-flags)
+  - [deprecated-env-vars](#deprecated-env-vars)
+  - [deprecated-configs](#deprecated-configs)
+  - [legacy-all-commands](#legacy-all-commands)
 
 ### spin-up
 
@@ -175,6 +183,8 @@ Throw an error when using the `validate-all` command.
 ### skip-dependencies-inputs
 
 Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
+
+Skipping dependency inputs is a performance optimization. For more details on performance optimizations, their tradeoffs, and other performance tips, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
 
 **Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
 

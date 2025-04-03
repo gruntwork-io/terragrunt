@@ -6,6 +6,8 @@ sidebar:
   order: 3
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Terragrunt supports operating in a mode referred to as "Strict Mode".
 
 Strict Mode is a set of controls that can be enabled to ensure that your Terragrunt usage is future-proof
@@ -140,6 +142,10 @@ Throw an error when using the `validate-all` command.
 ### skip-dependencies-inputs
 
 Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
+
+<Aside type="tip">
+Skipping dependency inputs is a performance optimization. For more details on performance optimizations, their tradeoffs, and other performance tips, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
+</Aside>
 
 **Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
 

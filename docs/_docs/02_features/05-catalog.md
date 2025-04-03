@@ -35,14 +35,14 @@ You can then:
 1. See the docs for a selected module: `ENTER`.
 1. Use [`terragrunt scaffold`]({{site.baseurl}}/docs/features/scaffold/) to render a `terragrunt.hcl` file that uses the module: `S`.
 
-### Custom templates for scaffolding
+## Custom templates for scaffolding
 
 Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize how code is generated! Scaffolding is done via an integration with [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via two mechanisms while using catalog:
 
 1. You can define a custom Boilerplate template in a `.boilerplate` sub-directory of any OpenTofu/Terraform module.
 1. You can specify a custom Boilerplate template in the [catalog config](#configuration).
 
-### Configuration
+## Configuration
 
 An example of how to define the optional default template, and the list of repositories for the `catalog` command in a `root.hcl` configuration file:
 

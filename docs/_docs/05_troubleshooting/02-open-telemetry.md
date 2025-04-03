@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: OpenTelemetry
 category: troubleshooting
 categories_url: troubleshooting
-excerpt: Learn how to debug issues with terragrunt and tofu/terraform.
+excerpt: Learn how to collect traces from Terragrunt using OpenTelemetry.
 tags: ["OpenTelemetry", "Tracing", "Metrics", "Otel"]
 order: 502
 nav_title: Documentation
@@ -13,7 +13,11 @@ slug: open-telemetry
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format, traces and metrics.
 
-Concepts:
+OpenTelemetry tracing is frequently used in Terragrunt to collect traces to analyze performance. For more details on analyzing and optimizing performance, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
+
+## High-level overview
+
+The following are concepts and technologies that are important to be aware of when using OpenTelemetry with Terragrunt.
 
 - [OpenTelemetry](https://opentelemetry.io/)
 - [Traces](https://opentelemetry.io/docs/concepts/signals/traces/)
