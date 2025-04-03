@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terratest/modules/files"
@@ -1116,15 +1117,36 @@ func TestStackNestedOutputs(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "custom_value2 = \"value2\"")
-	assert.Contains(t, stdout, "custom_value1 = \"value1\"")
-	assert.Contains(t, stdout, "name      = \"name1\"")
-
 	parser := hclparse.NewParser()
 	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
 	assert.Nil(t, diags)
 	attr, _ := hcl.Body.JustAttributes()
-	assert.Len(t, attr, 4)
+
+	// New checks for specific keys and values
+	checkHCLAttributes(t, attr, map[string]string{
+		"root_stack_3.stack_v3.stack_v2.app_3": "app_3",
+		"root_stack_3.stack_v3.stack_v2.app_4": "app_4",
+		"app_1":                                "app_1",
+		"app_2":                                "app_2",
+		"root_stack_1.app_3":                   "app_3",
+		"root_stack_1.app_4":                   "app_4",
+		"root_stack_2.stack_v2.app_3":          "app_3",
+		"root_stack_2.stack_v2.app_4":          "app_4",
+	})
+}
+
+// checkHCLAttributes verifies that the HCL attributes contain the expected keys and values.
+func checkHCLAttributes(t *testing.T, attr map[string]*hcl.Attribute, expected map[string]string) {
+	for key, expectedValue := range expected {
+		attribute, exists := attr[key]
+		assert.True(t, exists, "Expected key %s to exist", key)
+
+		if exists {
+			value, diags := attribute.Expr.Value(nil)
+			assert.Nil(t, diags)
+			assert.Equal(t, expectedValue, value.AsString(), "Expected value for key %s to be %s", key, expectedValue)
+		}
+	}
 }
 
 // check if the stack directory is created and contains files.
