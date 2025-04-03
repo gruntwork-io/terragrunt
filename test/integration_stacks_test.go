@@ -46,6 +46,7 @@ const (
 	testFixtureMultipleStacks                  = "fixtures/stacks/multiple-stacks"
 	testFixtureReadStack                       = "fixtures/stacks/read-stack"
 	testFixtureStackSelfInclude                = "fixtures/stacks/self-include"
+	testFixtureStackNestedOutputs              = "fixtures/stacks/nested-outputs"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -1099,6 +1100,31 @@ func TestStacksSelfInclude(t *testing.T) {
 
 	// validate that subsequent runs don't fail
 	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply --non-interactive --working-dir "+rootPath)
+}
+
+func TestStackNestedOutputs(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackNestedOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNestedOutputs)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackNestedOutputs)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "custom_value2 = \"value2\"")
+	assert.Contains(t, stdout, "custom_value1 = \"value1\"")
+	assert.Contains(t, stdout, "name      = \"name1\"")
+
+	parser := hclparse.NewParser()
+	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
+	assert.Nil(t, diags)
+	attr, _ := hcl.Body.JustAttributes()
+	assert.Len(t, attr, 4)
 }
 
 // check if the stack directory is created and contains files.
