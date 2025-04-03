@@ -39,6 +39,7 @@ type Client struct {
 // NewClient inits GCS client.
 func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger log.Logger) (*Client, error) {
 	var opts []option.ClientOption
+
 	var credOpts []option.ClientOption
 
 	gcsConfig := config.RemoteStateConfigGCS
@@ -65,7 +66,7 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 		}
 
 		if !json.Valid([]byte(contents)) {
-			return nil, errors.Errorf("The string provided in credentials is not valid json: %w", err)
+			return nil, errors.Errorf("The string provided in credentials is not valid json")
 		}
 
 		credOpts = append(credOpts, option.WithCredentialsJSON([]byte(contents)))
@@ -83,7 +84,6 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 		}
 
 		opts = append(opts, option.WithTokenSource(ts))
-
 	} else {
 		opts = append(opts, credOpts...)
 	}
