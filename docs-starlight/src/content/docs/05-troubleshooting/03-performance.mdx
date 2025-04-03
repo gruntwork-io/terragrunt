@@ -60,13 +60,13 @@ See [#1549](https://github.com/opentofu/opentofu/issues/1549) for more details.
 
 ### Skip Dependency Inputs
 
-A rarely used capability of Terragrunt dependency blocks is the ability to read inputs from dependencies. There's very little in the way of valid use-cases for this, and supporting this behavior is a source of significant performance penalty for Terragrunt users.
+Terragrunt dependency blocks allow reading inputs directly from other dependencies. However, the mechanism required to support this capability introduces performance overhead during Terragrunt operations. Due to this performance impact, using this feature is heavily discouraged.
 
-The reason for this is that Terragrunt needs to recursively read inputs from dependencies, and their dependencies, all the way down to the ancestral Terragrunt unit they all have in common to be able to expose the inputs to the dependent unit.
+The reason for this is that Terragrunt needs to recursively read inputs from dependencies, and their dependencies, all the way down to the ancestral Terragrunt unit they all have in common to be able to expose the inputs to the dependent unit from its direct dependency (as the inputs from the direct dependency might be derived from a dependency of the direct dependency).
 
 You can mitigate this performance penalty by using the `skip-dependency-inputs` strict control.
 
-Enabling this strict control will enable a breaking change in Terragrunt behavior, making it so that dependency blocks no longer read inputs from dependencies.
+Enabling this strict control will activate a breaking change in Terragrunt behavior, making it so that dependency blocks no longer parse dependencies of dependencies, which is required to read inputs from direct dependencies.
 
 In the future, we will be removing this capability from Terragrunt, so you won't need to use this strict control.
 
