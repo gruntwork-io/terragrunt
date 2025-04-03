@@ -128,8 +128,8 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 		return nil, errors.Errorf("Failed to list stack files in %s: %v", opts.WorkingDir, err)
 	}
 
-	unitOutputs := make(map[string]map[string]cty.Value, len(foundFiles))
-	declaredStacks := make(map[string]string, len(foundFiles))
+	outputs := make(map[string]map[string]cty.Value)
+	declaredStacks := make(map[string]string)
 	declaredUnits := make(map[string]*Unit)
 
 	// save parsed stacks
@@ -173,46 +173,37 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 			}
 			key := filepath.Join(targetDir, unit.Path)
 			declaredUnits[key] = unit
-			unitOutputs[key] = output
+			outputs[key] = output
 			opts.Logger.Debugf("Added output for %s", key)
 		}
 	}
 
+	unitOutputs := make(map[string]map[string]cty.Value)
+
+	// Build stack list separated by stacks, find all nested stacks, and build a dotted path. If no stack is found, use the unit name.
 	for path, unit := range declaredUnits {
-		output, found := unitOutputs[path]
+		output, found := outputs[path]
 		if !found {
 			opts.Logger.Debugf("No output found for %s", path)
 			continue
 		}
-		// TODO: find all stacks which include this unit and key for outputs in format <alls-stacks-separated-by-dots>.<unit-name>
 
+		stackNames := []string{}
+		for stackPath, stackName := range declaredStacks {
+			if strings.HasPrefix(path, stackPath) {
+				stackNames = append(stackNames, stackName)
+			}
+		}
+
+		stackKey := unit.Name
+		if len(stackNames) > 0 {
+			stackKey = strings.Join(stackNames, ".") + "." + unit.Name
+		}
+
+		unitOutputs[stackKey] = output
+		opts.Logger.Debugf("Added output for stack key %s", stackKey)
 	}
-	//
-	//for _, path := range foundFiles {
-	//	dir := filepath.Dir(path)
-	//
-	//	values, err := ReadValues(ctx, opts, dir)
-	//	if err != nil {
-	//		return nil, errors.Errorf("Failed to read values from %s: %v", dir, err)
-	//	}
-	//
-	//	stackFile, err := ReadStackConfigFile(ctx, opts, path, values)
-	//	if err != nil {
-	//		return nil, errors.Errorf("Failed to read stack file %s: %v", path, err)
-	//	}
-	//
-	//	currentStack := ""
-	//	inStack := false
-	//	for stackPath, name := range declaredStacks {
-	//		if strings.HasPrefix(dir, stackPath) {
-	//			currentStack = name
-	//			inStack = true
-	//			opts.Logger.Debugf("Stack file %s is in declared stack %s", path, name)
-	//			break
-	//		}
-	//	}
-	//
-	//}
+
 	return unitOutputs, nil
 }
 
