@@ -123,114 +123,157 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[string]map[string]cty.Value, error) {
 	opts.Logger.Debugf("Generating output from %s", opts.WorkingDir)
 
-	// Map to store all unit outputs
-	finalOutputs := make(map[string]map[string]cty.Value)
+	// Find all stack files recursively, similar to GenerateStacks but without concurrency
+	processedFiles := make(map[string]bool)
 
-	// Process the root stack file first
-	rootStackFile := filepath.Join(opts.WorkingDir, defaultStackFile)
-	if !util.FileExists(rootStackFile) {
-		return nil, errors.Errorf("No stack file found at %s", rootStackFile)
-	}
+	// Map to store all unit outputs with qualified unit name as key
+	unitOutputs := make(map[string]map[string]cty.Value)
 
-	// Read the root stack config
-	rootValues, err := ReadValues(ctx, opts, opts.WorkingDir)
+	// Map to track declared stacks: path -> stack name
+	declaredStacks := make(map[string]string)
+
+	// Find initial stack files
+	foundFiles, err := listStackFiles(opts, opts.WorkingDir)
 	if err != nil {
-		return nil, errors.Errorf("Failed to read values from working directory: %v", err)
+		return nil, errors.Errorf("Failed to list stack files in %s: %v", opts.WorkingDir, err)
 	}
 
-	rootStackConfig, err := ReadStackConfigFile(ctx, opts, rootStackFile, rootValues)
-	if err != nil {
-		return nil, errors.Errorf("Failed to read stack file %s: %v", rootStackFile, err)
-	}
+	// First pass: find all declared stacks to build the name mapping
+	for _, stackFilePath := range foundFiles {
+		stackSourceDir := filepath.Dir(stackFilePath)
 
-	// Process direct units from root stack (these will be added with just their unit name)
-	for _, unit := range rootStackConfig.Units {
-		unitName := unit.Name
-		unitPath := filepath.Join(opts.WorkingDir, stackDir, unit.Path)
-
-		opts.Logger.Debugf("Processing root unit %s at %s", unitName, unitPath)
-
-		var output map[string]cty.Value
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
-			"unit_name":   unitName,
-			"unit_source": unit.Source,
-			"unit_path":   unit.Path,
-		}, func(ctx context.Context) error {
-			unitOutput, err := unit.ReadOutputs(ctx, opts, unitPath)
-			output = unitOutput
-			return err
-		})
-
+		// Read values for this stack
+		values, err := ReadValues(ctx, opts, stackSourceDir)
 		if err != nil {
-			opts.Logger.Warnf("Failed to get output for unit %s: %v", unitName, err)
-			continue
-		}
-
-		// Add to final outputs with just the unit name (no stack prefix)
-		finalOutputs[unitName] = output
-		opts.Logger.Debugf("Added root unit output for %s", unitName)
-	}
-
-	// Process each declared stack
-	for _, stack := range rootStackConfig.Stacks {
-		stackName := stack.Name // This is the name from the stack declaration
-		stackPath := filepath.Join(opts.WorkingDir, stackDir, stack.Path)
-
-		opts.Logger.Debugf("Processing stack %s at path %s", stackName, stackPath)
-
-		// Read the stack's config file
-		stackConfigFile := filepath.Join(stackPath, defaultStackFile)
-		if !util.FileExists(stackConfigFile) {
-			opts.Logger.Warnf("Stack file not found for %s at %s", stackName, stackConfigFile)
-			continue
-		}
-
-		// Get values for this stack
-		stackValues, err := ReadValues(ctx, opts, stackPath)
-		if err != nil {
-			opts.Logger.Warnf("Failed to read values for stack %s: %v", stackName, err)
-			continue
+			return nil, errors.Errorf("Failed to read values from directory %s: %v", stackSourceDir, err)
 		}
 
 		// Read the stack configuration
-		stackConfig, err := ReadStackConfigFile(ctx, opts, stackConfigFile, stackValues)
+		stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath, values)
 		if err != nil {
-			opts.Logger.Warnf("Failed to read stack config for %s: %v", stackName, err)
-			continue
+			return nil, errors.Errorf("Failed to read stack file %s in %s: %v", stackFilePath, stackSourceDir, err)
 		}
 
-		// Process units in this stack - these will get the stack name prefix
-		for _, unit := range stackConfig.Units {
-			unitName := unit.Name
-			unitPath := filepath.Join(stackPath, stackDir, unit.Path)
+		// Register each declared stack
+		stackTargetDir := filepath.Join(stackSourceDir, stackDir)
+		for _, stack := range stackFile.Stacks {
+			stackName := stack.Name
+			stackPath := filepath.Join(stackTargetDir, stack.Path)
 
-			opts.Logger.Debugf("Processing unit %s in stack %s", unitName, stackName)
-
-			var output map[string]cty.Value
-			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
-				"unit_name":   unitName,
-				"unit_source": unit.Source,
-				"unit_path":   unit.Path,
-				"stack_name":  stackName,
-			}, func(ctx context.Context) error {
-				unitOutput, err := unit.ReadOutputs(ctx, opts, unitPath)
-				output = unitOutput
-				return err
-			})
-
-			if err != nil {
-				opts.Logger.Warnf("Failed to get output for unit %s in stack %s: %v", unitName, stackName, err)
-				continue
-			}
-
-			// Add to final outputs with stack name prefix
-			outputKey := fmt.Sprintf("%s.%s", stackName, unitName)
-			finalOutputs[outputKey] = output
-			opts.Logger.Debugf("Added stack unit output for %s", outputKey)
+			declaredStacks[stackPath] = stackName
+			opts.Logger.Debugf("Registered stack %s at path %s", stackName, stackPath)
 		}
 	}
 
-	return finalOutputs, nil
+	// Process stack files in iterations, similar to GenerateStacks
+	for {
+		// check if we have already processed the files
+		processedNewFiles := false
+
+		for _, stackFilePath := range foundFiles {
+			if processedFiles[stackFilePath] {
+				continue
+			}
+
+			processedNewFiles = true
+			processedFiles[stackFilePath] = true
+
+			// Get the stack directory for this stack file
+			stackSourceDir := filepath.Dir(stackFilePath)
+
+			// Check if this directory is a declared stack
+			var currentStackName string
+			isInStack := false
+
+			// Find if this directory is in a declared stack
+			for stackPath, stackName := range declaredStacks {
+				// Check if stackSourceDir is under a declared stack path
+				if strings.HasPrefix(stackSourceDir, stackPath) {
+					currentStackName = stackName
+					isInStack = true
+					opts.Logger.Debugf("Stack file %s is in declared stack %s", stackFilePath, stackName)
+					break
+				}
+			}
+
+			// Read values for this stack
+			values, err := ReadValues(ctx, opts, stackSourceDir)
+			if err != nil {
+				return nil, errors.Errorf("Failed to read values from directory %s: %v", stackSourceDir, err)
+			}
+
+			// Read the stack configuration
+			stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath, values)
+			if err != nil {
+				return nil, errors.Errorf("Failed to read stack file %s in %s: %v", stackFilePath, stackSourceDir, err)
+			}
+
+			// Process each unit
+			for _, unit := range stackFile.Units {
+				unitName := unit.Name
+				unitDir := filepath.Join(stackSourceDir, stackDir, unit.Path)
+
+				var output map[string]cty.Value
+
+				err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
+					"unit_name":   unitName,
+					"unit_source": unit.Source,
+					"unit_path":   unit.Path,
+				}, func(ctx context.Context) error {
+					unitOutput, err := unit.ReadOutputs(ctx, opts, unitDir)
+					output = unitOutput
+					return err
+				})
+				if err != nil {
+					return nil, errors.New(err)
+				}
+
+				// Determine the output key format
+				var outputKey string
+				if isInStack {
+					// This unit is in a declared stack
+					outputKey = fmt.Sprintf("%s.%s", currentStackName, unitName)
+				} else {
+					// This is a direct unit
+					outputKey = unitName
+				}
+
+				unitOutputs[outputKey] = output
+				opts.Logger.Debugf("Added output for %s", outputKey)
+			}
+
+			// Register child stacks for future iterations
+			stackTargetDir := filepath.Join(stackSourceDir, stackDir)
+			for _, stack := range stackFile.Stacks {
+				stackName := stack.Name
+				stackPath := filepath.Join(stackTargetDir, stack.Path)
+
+				declaredStacks[stackPath] = stackName
+				opts.Logger.Debugf("Registered stack %s at path %s", stackName, stackPath)
+			}
+		}
+
+		if !processedNewFiles {
+			break
+		}
+
+		newFiles := []string{}
+
+		for processedFile := range processedFiles {
+			stackDir := filepath.Join(filepath.Dir(processedFile), ".terragrunt-stack")
+			if util.FileExists(stackDir) {
+				stackFiles, err := listStackFiles(opts, stackDir)
+				if err != nil {
+					return nil, errors.Errorf("Failed to list stack files in %s: %v", stackDir, err)
+				}
+				newFiles = append(newFiles, stackFiles...)
+			}
+		}
+
+		foundFiles = newFiles
+	}
+
+	return unitOutputs, nil
 }
 
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,
