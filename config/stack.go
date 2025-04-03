@@ -188,16 +188,29 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 			continue
 		}
 
+		// Implement more logic to find all stacks in which the path is located
 		stackNames := []string{}
 		for stackPath, stackName := range declaredStacks {
-			if strings.HasPrefix(path, stackPath) {
+			if strings.Contains(path, stackPath) {
 				stackNames = append(stackNames, stackName)
 			}
 		}
 
+		// Sort stackNames based on the length of stackPath to ensure correct order
+		stackNamesSorted := make([]string, len(stackNames))
+		copy(stackNamesSorted, stackNames)
+
+		for i := 0; i < len(stackNamesSorted); i++ {
+			for j := i + 1; j < len(stackNamesSorted); j++ {
+				if len(declaredStacks[stackNamesSorted[i]]) < len(declaredStacks[stackNamesSorted[j]]) {
+					stackNamesSorted[i], stackNamesSorted[j] = stackNamesSorted[j], stackNamesSorted[i]
+				}
+			}
+		}
+
 		stackKey := unit.Name
-		if len(stackNames) > 0 {
-			stackKey = strings.Join(stackNames, ".") + "." + unit.Name
+		if len(stackNamesSorted) > 0 {
+			stackKey = strings.Join(stackNamesSorted, ".") + "." + unit.Name
 		}
 
 		unitOutputs[stackKey] = output
