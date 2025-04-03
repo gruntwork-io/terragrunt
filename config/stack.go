@@ -120,6 +120,11 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 	return nil
 }
 
+type stackEntry struct {
+	Path string
+	Name string
+}
+
 // StackOutput collects and returns the Terraform output values for all declared units in a stack hierarchy.
 //
 // It performs the following steps:
@@ -131,13 +136,12 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 //
 // This function is useful for retrieving and organizing outputs across a multi-level stack setup
 // defined using Terragrunt stack and unit configurations.
-func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[string]map[string]cty.Value, error) {
+func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Value, error) {
 	opts.Logger.Debugf("Generating output from %s", opts.WorkingDir)
 
-	// Discover stack files in the working directory
 	stackFiles, err := listStackFiles(opts, opts.WorkingDir)
 	if err != nil {
-		return nil, errors.Errorf("Failed to list stack files in %s: %v", opts.WorkingDir, err)
+		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %v", opts.WorkingDir, err)
 	}
 
 	outputs := make(map[string]map[string]cty.Value)
@@ -145,31 +149,28 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 	units := make(map[string]*Unit)
 	parsedStacks := make(map[string]*StackConfig, len(stackFiles))
 
-	// Parse stack files and collect outputs
 	for _, file := range stackFiles {
 		dir := filepath.Dir(file)
 
 		values, err := ReadValues(ctx, opts, dir)
 		if err != nil {
-			return nil, errors.Errorf("Failed to read values from %s: %v", dir, err)
+			return cty.NilVal, errors.Errorf("Failed to read values from %s: %v", dir, err)
 		}
 
 		stackCfg, err := ReadStackConfigFile(ctx, opts, file, values)
 		if err != nil {
-			return nil, errors.Errorf("Failed to read stack config from %s: %v", file, err)
+			return cty.NilVal, errors.Errorf("Failed to read stack config from %s: %v", file, err)
 		}
 		parsedStacks[file] = stackCfg
 
 		targetDir := filepath.Join(dir, stackDir)
 
-		// Register stack paths
 		for _, stack := range stackCfg.Stacks {
 			fullPath := filepath.Join(targetDir, stack.Path)
 			stackPaths[fullPath] = stack.Name
 			opts.Logger.Debugf("Registered stack %s at path %s", stack.Name, fullPath)
 		}
 
-		// Read outputs for each unit
 		for _, unit := range stackCfg.Units {
 			unitPath := filepath.Join(targetDir, unit.Path)
 
@@ -183,7 +184,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 				return err
 			})
 			if err != nil {
-				return nil, errors.New(err)
+				return cty.NilVal, errors.New(err)
 			}
 
 			units[unitPath] = unit
@@ -192,7 +193,8 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 		}
 	}
 
-	finalOutputs := make(map[string]map[string]cty.Value)
+	// Nested map: stackName -> unitName -> outputs
+	finalMap := make(map[string]map[string]cty.Value)
 
 	for unitPath, unit := range units {
 		output, ok := outputs[unitPath]
@@ -201,11 +203,6 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 			continue
 		}
 
-		// Find stacks that match this unit path
-		type stackEntry struct {
-			Path string
-			Name string
-		}
 		var matchedStacks []stackEntry
 		for path, name := range stackPaths {
 			if strings.HasPrefix(unitPath, path) {
@@ -213,26 +210,39 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (map[stri
 			}
 		}
 
-		// build complex key path
 		sort.Slice(matchedStacks, func(i, j int) bool {
 			return len(matchedStacks[i].Path) < len(matchedStacks[j].Path)
 		})
 
-		var stackNames []string
-		for _, entry := range matchedStacks {
-			stackNames = append(stackNames, entry.Name)
+		var stackKey string
+		if len(matchedStacks) > 0 {
+			stackKey = strings.Join(mapStackNames(matchedStacks), ".")
+		} else {
+			stackKey = "root"
 		}
 
-		stackKey := unit.Name
-		if len(stackNames) > 0 {
-			stackKey = strings.Join(stackNames, ".") + "." + unit.Name
+		if _, ok := finalMap[stackKey]; !ok {
+			finalMap[stackKey] = make(map[string]cty.Value)
 		}
-
-		finalOutputs[stackKey] = output
+		finalMap[stackKey][unit.Name] = cty.ObjectVal(output)
 		opts.Logger.Debugf("Added output for stack key %s", stackKey)
 	}
 
-	return finalOutputs, nil
+	// Convert finalMap into a cty.ObjectVal
+	result := make(map[string]cty.Value)
+	for stackName, unitMap := range finalMap {
+		result[stackName] = cty.ObjectVal(unitMap)
+	}
+
+	return cty.ObjectVal(result), nil
+}
+
+func mapStackNames(entries []stackEntry) []string {
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name)
+	}
+	return names
 }
 
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,

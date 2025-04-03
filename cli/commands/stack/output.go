@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs cty.Value, outputIndex string) error {
 	if len(outputIndex) == 0 {
 		// output index is required in raw mode
 		return errors.New("output index is required in raw mode")
@@ -25,16 +25,18 @@ func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs 
 
 	filteredOutputs := FilterOutputs(outputs, outputIndex)
 
-	if filteredOutputs == nil {
+	if filteredOutputs == cty.NilVal {
 		return nil
 	}
 
-	if len(filteredOutputs) > 1 {
+	valueMap := filteredOutputs.AsValueMap()
+
+	if len(valueMap) > 1 {
 		// return error since in raw mode we want to print only one output
 		return errors.New("multiple outputs found, please specify only one index")
 	}
 
-	for key, value := range filteredOutputs {
+	for key, value := range valueMap {
 		valueStr, err := getValueString(value)
 		if err != nil {
 			opts.Logger.Warnf("Error fetching output for '%s': %v", key, err)
@@ -58,19 +60,18 @@ func getValueString(value cty.Value) (string, error) {
 	return config.CtyValueAsString(value)
 }
 
-func PrintOutputs(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+func PrintOutputs(writer io.Writer, outputs cty.Value, outputIndex string) error {
 	filteredOutputs := FilterOutputs(outputs, outputIndex)
 
-	if filteredOutputs == nil {
+	if filteredOutputs == cty.NilVal {
 		return nil
 	}
 
 	f := hclwrite.NewEmptyFile()
 	rootBody := f.Body()
 
-	for key, value := range filteredOutputs {
-		tokens := hclwrite.TokensForValue(value)
-		rootBody.SetAttributeRaw(key, tokens)
+	for key, val := range filteredOutputs.AsValueMap() {
+		rootBody.SetAttributeRaw(key, hclwrite.TokensForValue(val))
 	}
 
 	if _, err := writer.Write(f.Bytes()); err != nil {
@@ -80,15 +81,14 @@ func PrintOutputs(writer io.Writer, outputs map[string]map[string]cty.Value, out
 	return nil
 }
 
-func PrintJSONOutput(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+func PrintJSONOutput(writer io.Writer, outputs cty.Value, outputIndex string) error {
 	filteredOutputs := FilterOutputs(outputs, outputIndex)
 
-	if filteredOutputs == nil {
+	if filteredOutputs == cty.NilVal {
 		return nil
 	}
 
-	topVal := cty.ObjectVal(filteredOutputs)
-	rawJSON, err := ctyjson.Marshal(topVal, topVal.Type())
+	rawJSON, err := ctyjson.Marshal(filteredOutputs, filteredOutputs.Type())
 
 	if err != nil {
 		return errors.New(err)
@@ -106,40 +106,31 @@ func PrintJSONOutput(writer io.Writer, outputs map[string]map[string]cty.Value, 
 	return nil
 }
 
-func FilterOutputs(outputs map[string]map[string]cty.Value, outputIndex string) map[string]cty.Value {
+func FilterOutputs(outputs cty.Value, outputIndex string) cty.Value {
+	if !outputs.IsKnown() || outputs.IsNull() || !outputs.Type().IsObjectType() {
+		return cty.NilVal
+	}
+
 	if outputIndex == "" {
-		flattened := make(map[string]cty.Value)
-		for unit, values := range outputs {
-			flattened[unit] = cty.ObjectVal(values)
-		}
-
-		return flattened
+		return outputs
 	}
 
+	// Split the key path, e.g., "root_stack_1.app_3.data"
 	keys := strings.Split(outputIndex, ".")
-	currentMap := make(map[string]cty.Value)
+	current := outputs
 
-	for unit, values := range outputs {
-		if !strings.HasPrefix(outputIndex, unit) {
-			continue
-		}
-
-		value := cty.ObjectVal(values)
-		for _, key := range keys[1:] {
-			if value.Type().IsObjectType() {
-				mapVal := value.AsValueMap()
-				if v, exists := mapVal[key]; exists {
-					value = v
-				} else {
-					return nil
-				}
-			} else {
-				return nil
+	for _, key := range keys {
+		if current.Type().IsObjectType() {
+			valMap := current.AsValueMap()
+			next, exists := valMap[key]
+			if !exists {
+				return cty.NilVal
 			}
+			current = next
+		} else {
+			return cty.NilVal
 		}
-
-		currentMap[outputIndex] = value
 	}
 
-	return currentMap
+	return current
 }

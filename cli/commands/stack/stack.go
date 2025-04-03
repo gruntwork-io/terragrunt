@@ -74,7 +74,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		return err
 	}
 
-	var outputs map[string]map[string]cty.Value
+	var outputs cty.Value
 
 	// collect outputs
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_output", map[string]any{
