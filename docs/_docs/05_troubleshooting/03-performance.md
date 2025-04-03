@@ -55,7 +55,7 @@ terragrunt run-all plan --dependency-fetch-output-from-state
 
 #### Fetching Output From State - Gotchas
 
-The first thing you need to be aware of when considering usage of the `--dependency-fetch-output-from-state` flag is that it only works for S3 backends. If you are using a different backend, you should not use this flag.
+The first thing you need to be aware of when considering usage of the `--dependency-fetch-output-from-state` flag is that it only works for S3 backends. If you are using a different backend, this flag won't do anything.
 
 Next, you should be aware that there is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform.
 
