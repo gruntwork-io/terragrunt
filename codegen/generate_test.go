@@ -329,3 +329,53 @@ func TestGenerateDisabling(t *testing.T) {
 		})
 	}
 }
+
+func TestReplaceAllCommasOutsideQuotesWithNewLines(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:  "happy-path-basic-replacement",
+			input: `key=value,another=value,third=value`,
+			expected: `key=value
+another=value
+third=value`,
+		},
+		{
+			name:  "comma-inside-quotes",
+			input: `key="value,with,commas",another=value`,
+			expected: `key="value,with,commas"
+another=value`,
+		},
+		{
+			name:  "mixed-quotes-and-commas",
+			input: `key="value,with,commas",simple=value,quoted="hello,world"`,
+			expected: `key="value,with,commas"
+simple=value
+quoted="hello,world"`,
+		},
+		{
+			name:     "empty-string",
+			input:    ``,
+			expected: ``,
+		},
+		{
+			name:     "no-commas",
+			input:    `key=value`,
+			expected: `key=value`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := codegen.ReplaceAllCommasOutsideQuotesWithNewLines(tc.input)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}

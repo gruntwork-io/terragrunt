@@ -27,7 +27,15 @@ process](https://help.github.com/articles/about-pull-requests/) for contribution
   - [Running locally](#running-locally)
   - [Dependencies](#dependencies)
   - [Linting](#linting)
+    - [Default linter](#default-linter)
+    - [Strict linter](#strict-linter)
+    - [Markdownlint](#markdownlint)
   - [Running tests](#running-tests)
+    - [Unit tests](#unit-tests)
+    - [Integration tests](#integration-tests)
+    - [Race tests](#race-tests)
+    - [Benchmark tests](#benchmark-tests)
+    - [Continuous Integration](#continuous-integration)
   - [Debug logging](#debug-logging)
   - [Error handling](#error-handling)
   - [Formatting](#formatting)
@@ -266,6 +274,8 @@ Given that Terragrunt is a tool that frequently involves concurrently running mu
 
 In general, when encountering a bug caused by a race condition in the wild, we endeavor to write a test for it, and add it to the `./test/race_test.go` file to avoid regressions in the future. If you want to make sure that new code you are writing doesn't introduce a race condition, add a test for it in the `race_test.go` file.
 
+The convention we use for race tests is to prefix them with `WithRacing`. The Terragrunt Continuous Integration workflow will run these tests with the `-race` flag as part of the test suite.
+
 We can do a better job of finding candidates for additional testing here, so if you are interested in helping out, please open an issue to discuss it.
 
 #### Benchmark tests
@@ -273,6 +283,8 @@ We can do a better job of finding candidates for additional testing here, so if 
 Benchmark tests are tests that are run with the `-bench` flag to the `go test` command. They are used to measure the performance of a particular function or set of functions.
 
 You can find them by looking for tests that start with `Benchmark*` instead of `Test*` in the codebase.
+
+For more information on Terragrunt performance, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
 
 In general, we have inadequate benchmark testing in the Terragrunt codebase, and want to improve this. If you are interested in helping out, please open an issue to discuss it.
 
