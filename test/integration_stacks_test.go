@@ -6,9 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/hcl/v2"
-	"github.com/zclconf/go-cty/cty"
-
 	"github.com/gruntwork-io/terratest/modules/files"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -966,14 +963,14 @@ func TestStacksReadFiles(t *testing.T) {
 	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
 	assert.Nil(t, diags)
 	attr, _ := hcl.Body.JustAttributes()
-	assert.Len(t, attr, 5)
+	assert.Len(t, attr, 3)
 
 	// fetch for dev-app-2 output
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output dev-app-2 --experiment stacks --non-interactive --working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output dev.dev-app-2 --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	hcl, diags = parser.ParseHCL([]byte(stdout), "dev-app-2.hcl")
-	require.Nil(t, diags)
+	require.Nil(t, diags, diags.Error())
 
 	topLevelAttrs, _ := hcl.Body.JustAttributes()
 	assert.Len(t, topLevelAttrs, 1, "Expected one top-level attribute (dev-app-2)")
@@ -1001,8 +998,7 @@ func TestStacksReadFiles(t *testing.T) {
 			for field, expectedValue := range expectedValues {
 				attrVal := objVal.GetAttr(field)
 				assert.False(t, attrVal.IsNull(), "Field %s should exist in output", field)
-
-				if !attrVal.IsNull() && attrVal.Type() == cty.String {
+				if !attrVal.IsNull() {
 					assert.Equal(t, expectedValue, attrVal.AsString(), "Field %s should have value %s", field, expectedValue)
 				}
 			}
@@ -1119,22 +1115,8 @@ func TestStackNestedOutputs(t *testing.T) {
 	require.NoError(t, err)
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
-	assert.Nil(t, diags)
+	assert.Nil(t, diags, diags.Error())
 
-}
-
-// checkHCLAttributes verifies that the HCL attributes contain the expected keys and values.
-func checkHCLAttributes(t *testing.T, attr map[string]*hcl.Attribute, expected map[string]string) {
-	for key, expectedValue := range expected {
-		attribute, exists := attr[key]
-		assert.True(t, exists, "Expected key %s to exist", key)
-
-		if exists {
-			value, diags := attribute.Expr.Value(nil)
-			assert.Nil(t, diags)
-			assert.Equal(t, expectedValue, value.AsString(), "Expected value for key %s to be %s", key, expectedValue)
-		}
-	}
 }
 
 // check if the stack directory is created and contains files.

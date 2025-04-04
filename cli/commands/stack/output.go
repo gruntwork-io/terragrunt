@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -17,19 +16,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs cty.Value, outputIndex string) error {
-	if len(outputIndex) == 0 {
-		// output index is required in raw mode
-		return errors.New("output index is required in raw mode")
-	}
+func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs cty.Value) error {
 
-	filteredOutputs := FilterOutputs(outputs, outputIndex)
-
-	if filteredOutputs == cty.NilVal {
+	if outputs == cty.NilVal {
 		return nil
 	}
 
-	valueMap := filteredOutputs.AsValueMap()
+	valueMap := outputs.AsValueMap()
 
 	if len(valueMap) > 1 {
 		// return error since in raw mode we want to print only one output
@@ -60,17 +53,16 @@ func getValueString(value cty.Value) (string, error) {
 	return config.CtyValueAsString(value)
 }
 
-func PrintOutputs(writer io.Writer, outputs cty.Value, outputIndex string) error {
-	filteredOutputs := FilterOutputs(outputs, outputIndex)
+func PrintOutputs(writer io.Writer, outputs cty.Value) error {
 
-	if filteredOutputs == cty.NilVal {
+	if outputs == cty.NilVal {
 		return nil
 	}
 
 	f := hclwrite.NewEmptyFile()
 	rootBody := f.Body()
 
-	for key, val := range filteredOutputs.AsValueMap() {
+	for key, val := range outputs.AsValueMap() {
 		rootBody.SetAttributeRaw(key, hclwrite.TokensForValue(val))
 	}
 
@@ -81,14 +73,13 @@ func PrintOutputs(writer io.Writer, outputs cty.Value, outputIndex string) error
 	return nil
 }
 
-func PrintJSONOutput(writer io.Writer, outputs cty.Value, outputIndex string) error {
-	filteredOutputs := FilterOutputs(outputs, outputIndex)
+func PrintJSONOutput(writer io.Writer, outputs cty.Value) error {
 
-	if filteredOutputs == cty.NilVal {
+	if outputs == cty.NilVal {
 		return nil
 	}
 
-	rawJSON, err := ctyjson.Marshal(filteredOutputs, filteredOutputs.Type())
+	rawJSON, err := ctyjson.Marshal(outputs, outputs.Type())
 
 	if err != nil {
 		return errors.New(err)
@@ -104,33 +95,4 @@ func PrintJSONOutput(writer io.Writer, outputs cty.Value, outputIndex string) er
 	}
 
 	return nil
-}
-
-func FilterOutputs(outputs cty.Value, outputIndex string) cty.Value {
-	if !outputs.IsKnown() || outputs.IsNull() || !outputs.Type().IsObjectType() {
-		return cty.NilVal
-	}
-
-	if outputIndex == "" {
-		return outputs
-	}
-
-	// Split the key path, e.g., "root_stack_1.app_3.data"
-	keys := strings.Split(outputIndex, ".")
-	current := outputs
-
-	for _, key := range keys {
-		if current.Type().IsObjectType() {
-			valMap := current.AsValueMap()
-			next, exists := valMap[key]
-			if !exists {
-				return cty.NilVal
-			}
-			current = next
-		} else {
-			return cty.NilVal
-		}
-	}
-
-	return current
 }

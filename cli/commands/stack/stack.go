@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/zclconf/go-cty/cty"
@@ -90,28 +91,65 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		return errors.New(err)
 	}
 
+	// Filter outputs based on index key
+	filteredOutputs := filterOutputsByIndex(outputs, index)
+
 	// render outputs
 
 	writer := opts.Writer
 
 	switch opts.StackOutputFormat {
 	default:
-		if err := PrintOutputs(writer, outputs, index); err != nil {
+		if err := PrintOutputs(writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 
 	case rawOutputFormat:
-		if err := PrintRawOutputs(opts, writer, outputs, index); err != nil {
+		if err := PrintRawOutputs(opts, writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 
 	case jsonOutputFormat:
-		if err := PrintJSONOutput(writer, outputs, index); err != nil {
+		if err := PrintJSONOutput(writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 	}
 
 	return nil
+}
+
+// filterOutputsByIndex filters the outputs based on the provided index key.
+func filterOutputsByIndex(outputs cty.Value, index string) cty.Value {
+	if !outputs.IsKnown() || outputs.IsNull() || len(index) == 0 {
+		return outputs
+	}
+
+	// Split the index into parts
+	indexParts := strings.Split(index, ".")
+	lastPart := index
+	// Traverse the map using the index parts
+	currentValue := outputs
+	for _, part := range indexParts {
+		// Check if the current value is a map or object
+		if currentValue.Type().IsObjectType() || currentValue.Type().IsMapType() {
+			valueMap := currentValue.AsValueMap()
+			if nextValue, exists := valueMap[part]; exists {
+				lastPart = part
+				currentValue = nextValue
+			} else {
+				// If any part of the index path is not found, return NilVal
+				return cty.NilVal
+			}
+		} else {
+			// If the current value is not a map or object, return NilVal
+			return cty.NilVal
+		}
+	}
+
+	// create a new object with key as lastPart and value as currentValue
+	return cty.ObjectVal(map[string]cty.Value{
+		lastPart: currentValue,
+	})
 }
 
 // RunClean cleans the stack directory
