@@ -17,7 +17,6 @@ import (
 )
 
 func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs cty.Value) error {
-
 	if outputs == cty.NilVal {
 		return nil
 	}
@@ -54,7 +53,6 @@ func getValueString(value cty.Value) (string, error) {
 }
 
 func PrintOutputs(writer io.Writer, outputs cty.Value) error {
-
 	if outputs == cty.NilVal {
 		return nil
 	}
@@ -74,7 +72,6 @@ func PrintOutputs(writer io.Writer, outputs cty.Value) error {
 }
 
 func PrintJSONOutput(writer io.Writer, outputs cty.Value) error {
-
 	if outputs == cty.NilVal {
 		return nil
 	}

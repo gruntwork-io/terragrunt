@@ -73,7 +73,8 @@ func TestFilterOutputs(t *testing.T) {
 			}
 
 			assert.False(t, result.IsNull() || result.RawEquals(cty.NilVal))
-			assert.Equal(t, tt.expectedLen, len(result.AsValueMap()))
+			assert.Len(t, result.AsValueMap(), tt.expectedLen)
+
 			if tt.expectedKey != "" {
 				_, exists := result.AsValueMap()[tt.expectedKey]
 				assert.True(t, exists)

@@ -119,11 +119,6 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 	return nil
 }
 
-type stackEntry struct {
-	Path string
-	Name string
-}
-
 // StackOutput collects and returns the Terraform output values for all declared units in a stack hierarchy.
 //
 // It performs the following steps:
@@ -166,6 +161,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 		parsedStackFiles[path] = stackFile
 
 		targetDir := filepath.Join(dir, stackDir)
+
 		for _, stack := range stackFile.Stacks {
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
 			opts.Logger.Debugf("Registered stack %s at path %s", stack.Name, filepath.Join(targetDir, stack.Path))
@@ -175,6 +171,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 			unitDir := filepath.Join(dir, stackDir, unit.Path)
 
 			var output map[string]cty.Value
+
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
 				"unit_name":   unit.Name,
 				"unit_source": unit.Source,
@@ -183,12 +180,15 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 				output, err = unit.ReadOutputs(ctx, opts, unitDir)
 				return err
 			})
+
 			if err != nil {
 				return cty.NilVal, errors.New(err)
 			}
+
 			key := filepath.Join(targetDir, unit.Path)
 			declaredUnits[key] = unit
 			outputs[key] = output
+
 			opts.Logger.Debugf("Added output for %s", key)
 		}
 	}
@@ -205,6 +205,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 		// Implement more logic to find all stacks in which the path is located
 		stackNames := []string{}
+
 		for stackPath, stackName := range declaredStacks {
 			if strings.Contains(path, stackPath) {
 				stackNames = append(stackNames, stackName)
@@ -229,17 +230,20 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 		}
 
 		unitOutputs[stackKey] = output
+
 		opts.Logger.Debugf("Added output for stack key %s", stackKey)
 	}
 
 	// Convert finalMap into a cty.ObjectVal
 	result := make(map[string]cty.Value)
 	nestedOutputs, err := NestUnitOutputs(unitOutputs)
+
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to nest unit outputs: %v", err)
-
 	}
+
 	ctyResult, err := goTypeToCty(nestedOutputs)
+
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to convert unit output to cty value: %s %v", result, err)
 	}
@@ -260,17 +264,19 @@ func NestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]interface
 				if err != nil {
 					return nil, errors.Errorf("Failed to convert unit output to cty value: %s %v", flatKey, err)
 				}
+
 				current[part] = ctyValue
 			} else {
-				// Traverse or create next level
-				if _, exists := current[part]; !exists {
+				if _, exists := current[part]; !exists { // Traverse or create next level
 					current[part] = make(map[string]interface{})
 				}
+
 				var ok bool
+
 				current, ok = current[part].(map[string]interface{})
+
 				if !ok {
-					// Type conflict
-					break
+					return nil, errors.Errorf("Failed to traverse unit output: %v %s", flat, part)
 				}
 			}
 		}

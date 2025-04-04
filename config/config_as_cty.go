@@ -843,13 +843,16 @@ func goTypeToCty(val any) (cty.Value, error) {
 	// Check if the value is a map
 	if m, ok := val.(map[string]interface{}); ok {
 		convertedMap := make(map[string]cty.Value)
+
 		for k, v := range m {
 			convertedValue, err := goTypeToCty(v)
 			if err != nil {
 				return cty.NilVal, err
 			}
+
 			convertedMap[k] = convertedValue
 		}
+
 		return cty.ObjectVal(convertedMap), nil
 	}
 

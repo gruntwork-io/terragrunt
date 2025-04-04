@@ -515,16 +515,28 @@ func TestNestedStackOutput(t *testing.T) {
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
-	assert.Len(t, result, 6)
-	// check output contains stacks
-	assert.Contains(t, result, "dev-api")
-	assert.Contains(t, result, "dev-db")
-	assert.Contains(t, result, "dev-web")
+	assert.Contains(t, result, "dev")
+	assert.Contains(t, result, "prod")
 
-	assert.Contains(t, result, "prod-api")
-	assert.Contains(t, result, "prod-db")
-	assert.Contains(t, result, "prod-web")
+	// Check dev outputs
+	devOutputs := result["dev"].(map[string]any)
+	assert.Contains(t, devOutputs, "dev-api")
+	assert.Contains(t, devOutputs, "dev-db")
+	assert.Contains(t, devOutputs, "dev-web")
 
+	assert.Equal(t, "api dev-api 1.0.0", devOutputs["dev-api"].(map[string]any)["data"])
+	assert.Equal(t, "db dev-db 1.0.0", devOutputs["dev-db"].(map[string]any)["data"])
+	assert.Equal(t, "web dev-web 1.0.0", devOutputs["dev-web"].(map[string]any)["data"])
+
+	// Check prod outputs
+	prodOutputs := result["prod"].(map[string]any)
+	assert.Contains(t, prodOutputs, "prod-api")
+	assert.Contains(t, prodOutputs, "prod-db")
+	assert.Contains(t, prodOutputs, "prod-web")
+
+	assert.Equal(t, "api prod-api 1.0.0", prodOutputs["prod-api"].(map[string]any)["data"])
+	assert.Equal(t, "db prod-db 1.0.0", prodOutputs["prod-db"].(map[string]any)["data"])
+	assert.Equal(t, "web prod-web 1.0.0", prodOutputs["prod-web"].(map[string]any)["data"])
 }
 
 func TestNestedStacksApply(t *testing.T) {
