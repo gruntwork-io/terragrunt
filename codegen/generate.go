@@ -317,7 +317,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 			// split single line hcl to default multiline file
 			hclValue := strings.TrimSuffix(assumeRoleValue, "}")
 			hclValue = strings.TrimPrefix(hclValue, "{")
-			hclValue = replaceAllCommasOutsideQuotesWithNewLines(hclValue)
+			hclValue = ReplaceAllCommasOutsideQuotesWithNewLines(hclValue)
 
 			err := hclsimple.Decode("s3_assume_role.hcl", []byte(hclValue), nil, &parsedConfig)
 			if err != nil {
@@ -397,7 +397,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 			// split single line hcl to default multiline file
 			hclValue := strings.TrimSuffix(assumeRoleWithWebIdentityValue, "}")
 			hclValue = strings.TrimPrefix(hclValue, "{")
-			hclValue = replaceAllCommasOutsideQuotesWithNewLines(hclValue)
+			hclValue = ReplaceAllCommasOutsideQuotesWithNewLines(hclValue)
 
 			err := hclsimple.Decode("s3_assume_role_with_web_identity.hcl", []byte(hclValue), nil, &parsedConfig)
 			if err != nil {
@@ -561,10 +561,10 @@ var (
 	re = regexp.MustCompile(`("[^"\\]*(?:\\.[^"\\]*)*")|(,)`)
 )
 
-// replaceAllCommasOutsideQuotesWithNewLines replaces all commas outside quotes with new lines.
+// ReplaceAllCommasOutsideQuotesWithNewLines replaces all commas outside quotes with new lines.
 // This is useful for instances where a single line of HCL content might contain a comma, and we don't
 // want to split the line into multiple lines.
-func replaceAllCommasOutsideQuotesWithNewLines(s string) string {
+func ReplaceAllCommasOutsideQuotesWithNewLines(s string) string {
 	output := re.ReplaceAllStringFunc(s, func(match string) string {
 		// Check if the match starts with a quote.
 		// If it does, it's a quoted string (group 1 matched). Return it unchanged.
