@@ -17,12 +17,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs cty.Value) error {
+func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty.Value) error {
 	if outputs == cty.NilVal {
 		return nil
 	}
 
 	var buffer bytes.Buffer
+
 	printValueMap(&buffer, "", outputs.AsValueMap())
 
 	if _, err := writer.Write(buffer.Bytes()); err != nil {
@@ -30,7 +31,6 @@ func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs 
 	}
 
 	return nil
-
 }
 
 func getValueString(value cty.Value) (string, error) {
