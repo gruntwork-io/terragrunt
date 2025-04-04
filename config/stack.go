@@ -234,19 +234,49 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 	// Convert finalMap into a cty.ObjectVal
 	result := make(map[string]cty.Value)
-	for stackName, unitMap := range unitOutputs {
-		result[stackName] = cty.ObjectVal(unitMap)
+	nestedOutputs, err := NestUnitOutputs(unitOutputs)
+	if err != nil {
+		return cty.NilVal, errors.Errorf("Failed to nest unit outputs: %v", err)
+
+	}
+	ctyResult, err := goTypeToCty(nestedOutputs)
+	if err != nil {
+		return cty.NilVal, errors.Errorf("Failed to convert unit output to cty value: %s %v", result, err)
 	}
 
-	return cty.ObjectVal(result), nil
+	return ctyResult, nil
 }
 
-func mapStackNames(entries []stackEntry) []string {
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		names = append(names, e.Name)
+func NestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]interface{}, error) {
+	nested := make(map[string]interface{})
+
+	for flatKey, value := range flat {
+		parts := strings.Split(flatKey, ".")
+		current := nested
+
+		for i, part := range parts {
+			if i == len(parts)-1 {
+				ctyValue, err := convertValuesMapToCtyVal(value)
+				if err != nil {
+					return nil, errors.Errorf("Failed to convert unit output to cty value: %s %v", flatKey, err)
+				}
+				current[part] = ctyValue
+			} else {
+				// Traverse or create next level
+				if _, exists := current[part]; !exists {
+					current[part] = make(map[string]interface{})
+				}
+				var ok bool
+				current, ok = current[part].(map[string]interface{})
+				if !ok {
+					// Type conflict
+					break
+				}
+			}
+		}
 	}
-	return names
+
+	return nested, nil
 }
 
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,
