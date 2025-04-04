@@ -15,18 +15,18 @@ import (
 
 func TestFilterOutputs(t *testing.T) {
 	t.Parallel()
-	outputs := map[string]map[string]cty.Value{
-		"unit1": {
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"unit1": cty.ObjectVal(map[string]cty.Value{
 			"output1": cty.StringVal("value1"),
 			"output2": cty.NumberIntVal(42),
-		},
-		"unit2": {
+		}),
+		"unit2": cty.ObjectVal(map[string]cty.Value{
 			"output3": cty.BoolVal(true),
 			"nested": cty.ObjectVal(map[string]cty.Value{
 				"inner": cty.StringVal("nested_value"),
 			}),
-		},
-	}
+		}),
+	})
 
 	tests := []struct {
 		name        string
@@ -68,13 +68,14 @@ func TestFilterOutputs(t *testing.T) {
 			result := stack.FilterOutputs(outputs, tt.outputIndex)
 
 			if !tt.shouldExist {
-				assert.Empty(t, result)
+				assert.True(t, result.IsNull() || result.RawEquals(cty.NilVal))
 				return
 			}
 
-			assert.Len(t, result, tt.expectedLen)
+			assert.False(t, result.IsNull() || result.RawEquals(cty.NilVal))
+			assert.Equal(t, tt.expectedLen, len(result.AsValueMap()))
 			if tt.expectedKey != "" {
-				_, exists := result[tt.expectedKey]
+				_, exists := result.AsValueMap()[tt.expectedKey]
 				assert.True(t, exists)
 			}
 		})
@@ -83,12 +84,12 @@ func TestFilterOutputs(t *testing.T) {
 
 func TestPrintJsonOutput(t *testing.T) {
 	t.Parallel()
-	outputs := map[string]map[string]cty.Value{
-		"unit1": {
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"unit1": cty.ObjectVal(map[string]cty.Value{
 			"str": cty.StringVal("test"),
 			"num": cty.NumberIntVal(123),
-		},
-	}
+		}),
+	})
 
 	tests := []struct {
 		name        string
@@ -114,7 +115,7 @@ func TestPrintJsonOutput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			err := stack.PrintJSONOutput(&buf, outputs, tt.outputIndex)
+			err := stack.PrintJSONOutput(&buf, outputs)
 
 			if tt.shouldError {
 				assert.Error(t, err)
@@ -155,12 +156,12 @@ func (m *mockWriter) Write(p []byte) (n int, err error) {
 
 func TestPrintOutputs(t *testing.T) {
 	t.Parallel()
-	outputs := map[string]map[string]cty.Value{
-		"unit1": {
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"unit1": cty.ObjectVal(map[string]cty.Value{
 			"output1": cty.StringVal("value1"),
 			"output2": cty.NumberIntVal(42),
-		},
-	}
+		}),
+	})
 
 	tests := []struct {
 		writerErr   error
@@ -186,7 +187,7 @@ func TestPrintOutputs(t *testing.T) {
 			t.Parallel()
 			writer := &mockWriter{err: tt.writerErr}
 
-			err := stack.PrintOutputs(writer, outputs, tt.outputIndex)
+			err := stack.PrintOutputs(writer, outputs)
 
 			if tt.shouldError {
 				require.Error(t, err)

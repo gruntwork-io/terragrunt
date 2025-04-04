@@ -92,7 +92,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 	}
 
 	// Filter outputs based on index key
-	filteredOutputs := filterOutputsByIndex(outputs, index)
+	filteredOutputs := FilterOutputs(outputs, index)
 
 	// render outputs
 
@@ -118,15 +118,15 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 	return nil
 }
 
-// filterOutputsByIndex filters the outputs based on the provided index key.
-func filterOutputsByIndex(outputs cty.Value, index string) cty.Value {
+// FilterOutputs filters the outputs based on the provided index key.
+func FilterOutputs(outputs cty.Value, index string) cty.Value {
 	if !outputs.IsKnown() || outputs.IsNull() || len(index) == 0 {
 		return outputs
 	}
 
 	// Split the index into parts
 	indexParts := strings.Split(index, ".")
-	lastPart := index
+	///lastPart := index
 	// Traverse the map using the index parts
 	currentValue := outputs
 	for _, part := range indexParts {
@@ -134,7 +134,7 @@ func filterOutputsByIndex(outputs cty.Value, index string) cty.Value {
 		if currentValue.Type().IsObjectType() || currentValue.Type().IsMapType() {
 			valueMap := currentValue.AsValueMap()
 			if nextValue, exists := valueMap[part]; exists {
-				lastPart = part
+				//lastPart = part
 				currentValue = nextValue
 			} else {
 				// If any part of the index path is not found, return NilVal
@@ -148,7 +148,7 @@ func filterOutputsByIndex(outputs cty.Value, index string) cty.Value {
 
 	// create a new object with key as lastPart and value as currentValue
 	return cty.ObjectVal(map[string]cty.Value{
-		lastPart: currentValue,
+		"\"" + index + "\"": currentValue,
 	})
 }
 
