@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
+
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/zclconf/go-cty/cty"
@@ -21,27 +22,15 @@ func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs 
 		return nil
 	}
 
-	valueMap := outputs.AsValueMap()
+	var buffer bytes.Buffer
+	printValueMap(&buffer, "", outputs.AsValueMap())
 
-	if len(valueMap) > 1 {
-		// return error since in raw mode we want to print only one output
-		return errors.New("multiple outputs found, please specify only one index")
-	}
-
-	for key, value := range valueMap {
-		valueStr, err := getValueString(value)
-		if err != nil {
-			opts.Logger.Warnf("Error fetching output for '%s': %v", key, err)
-			continue
-		}
-
-		line := valueStr + "\n"
-		if _, err := writer.Write([]byte(line)); err != nil {
-			return errors.New(err)
-		}
+	if _, err := writer.Write(buffer.Bytes()); err != nil {
+		return errors.New(err)
 	}
 
 	return nil
+
 }
 
 func getValueString(value cty.Value) (string, error) {
@@ -69,6 +58,47 @@ func PrintOutputs(writer io.Writer, outputs cty.Value) error {
 	}
 
 	return nil
+}
+
+func printValueMap(buffer *bytes.Buffer, prefix string, valueMap map[string]cty.Value) {
+	for key, val := range valueMap {
+		newPrefix := key
+		if prefix != "" {
+			newPrefix = prefix + "." + key
+		}
+
+		if val.Type().IsObjectType() || val.Type().IsMapType() {
+			// Recursively extract each field as a key
+			for subKey, subVal := range val.AsValueMap() {
+				subPrefix := newPrefix + "." + subKey
+				if subVal.Type().IsObjectType() || subVal.Type().IsMapType() {
+					printValueMap(buffer, subPrefix, subVal.AsValueMap())
+				} else {
+					valueStr, err := getValueString(subVal)
+					if err != nil {
+						continue
+					}
+					// Quote the value if it's a string
+					if subVal.Type() == cty.String {
+						buffer.WriteString(subPrefix + " = \"" + valueStr + "\"\n")
+					} else {
+						buffer.WriteString(subPrefix + " = " + valueStr + "\n")
+					}
+				}
+			}
+		} else {
+			valueStr, err := getValueString(val)
+			if err != nil {
+				continue
+			}
+			// Quote the value if it's a string
+			if val.Type() == cty.String {
+				buffer.WriteString(newPrefix + " = \"" + valueStr + "\"\n")
+			} else {
+				buffer.WriteString(newPrefix + " = " + valueStr + "\n")
+			}
+		}
+	}
 }
 
 func PrintJSONOutput(writer io.Writer, outputs cty.Value) error {

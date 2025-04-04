@@ -264,7 +264,7 @@ func TestStackOutputs(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output  --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "custom_value2 = \"value2\"")
@@ -276,6 +276,24 @@ func TestStackOutputs(t *testing.T) {
 	assert.Nil(t, diags)
 	attr, _ := hcl.Body.JustAttributes()
 	assert.Len(t, attr, 4)
+}
+
+func TestStackOutputsRaw(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "filtered_app1.complex.id = 2")
+	assert.Contains(t, stdout, "filtered_app1.complex.name = \"name1\"")
+	assert.Contains(t, stdout, "project2_app2.complex.delta = 0.02")
+	assert.Contains(t, stdout, "project2_app2.list = [\"a\",\"b\",\"c\"]")
 }
 
 func TestStackOutputsIndex(t *testing.T) {
@@ -337,19 +355,6 @@ func TestStackOutputsJsonIndex(t *testing.T) {
 
 	assert.Len(t, result, 1)
 	assert.Contains(t, result, "project2_app1")
-}
-
-func TestStackOutputsRawError(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
-
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
-	require.Error(t, err)
 }
 
 func TestStackOutputsRawIndex(t *testing.T) {
@@ -1178,9 +1183,8 @@ func TestStackNestedOutputs(t *testing.T) {
 	_, stackV2Exists := topLevelAttrs["stack_v2"]
 	assert.True(t, stackV2Exists, "stack_v2 block should exist")
 
-	// Check root_stack_2 structure
-	_, rootStack2Exists := topLevelAttrs["root_stack_2"]
-	assert.True(t, rootStack2Exists, "root_stack_2 block should exist")
+	_, rootStack3Exists := topLevelAttrs["root_stack_3"]
+	assert.True(t, rootStack3Exists, "root_stack_3 block should exist")
 }
 
 // check if the stack directory is created and contains files.
