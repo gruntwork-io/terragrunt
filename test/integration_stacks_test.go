@@ -1161,12 +1161,26 @@ func TestStackNestedOutputs(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
-
 	require.NoError(t, err)
-	parser := hclparse.NewParser()
-	_, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
-	assert.Nil(t, diags, diags.Error())
 
+	// Parse the HCL output
+	parser := hclparse.NewParser()
+	hclFile, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
+	require.False(t, diags.HasErrors(), "Failed to parse HCL: %s", diags.Error())
+
+	require.Nil(t, diags)
+	require.NotNil(t, hclFile)
+
+	topLevelAttrs, _ := hclFile.Body.JustAttributes()
+	_, app1Exists := topLevelAttrs["app_1"]
+	assert.True(t, app1Exists, "app_1 block should exist")
+
+	_, stackV2Exists := topLevelAttrs["stack_v2"]
+	assert.True(t, stackV2Exists, "stack_v2 block should exist")
+
+	// Check root_stack_2 structure
+	_, rootStack2Exists := topLevelAttrs["root_stack_2"]
+	assert.True(t, rootStack2Exists, "root_stack_2 block should exist")
 }
 
 // check if the stack directory is created and contains files.
