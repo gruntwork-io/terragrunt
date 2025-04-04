@@ -37,17 +37,18 @@ import (
 )
 
 const (
-	testFixtureAwsProviderPatch          = "fixtures/aws-provider-patch"
-	testFixtureAwsAccountAlias           = "fixtures/get-aws-account-alias"
-	testFixtureAwsGetCallerIdentity      = "fixtures/get-aws-caller-identity"
-	testFixtureS3Errors                  = "fixtures/s3-errors/"
-	testFixtureAssumeRole                = "fixtures/assume-role/external-id"
-	testFixtureAssumeRoleDuration        = "fixtures/assume-role/duration"
-	testFixtureAssumeRoleWebIdentityFile = "fixtures/assume-role-web-identity/file-path"
-	testFixtureReadIamRole               = "fixtures/read-config/iam_role_in_file"
-	testFixtureOutputFromRemoteState     = "fixtures/output-from-remote-state"
-	testFixtureOutputFromDependency      = "fixtures/output-from-dependency"
-	testFixtureBootstrapS3Backend        = "fixtures/bootstrap-s3-backend"
+	testFixtureAwsProviderPatch                  = "fixtures/aws-provider-patch"
+	testFixtureAwsAccountAlias                   = "fixtures/get-aws-account-alias"
+	testFixtureAwsGetCallerIdentity              = "fixtures/get-aws-caller-identity"
+	testFixtureS3Errors                          = "fixtures/s3-errors/"
+	testFixtureAssumeRole                        = "fixtures/assume-role/external-id"
+	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
+	testFixtureAssumeRoleDuration                = "fixtures/assume-role/duration"
+	testFixtureAssumeRoleWebIdentityFile         = "fixtures/assume-role-web-identity/file-path"
+	testFixtureReadIamRole                       = "fixtures/read-config/iam_role_in_file"
+	testFixtureOutputFromRemoteState             = "fixtures/output-from-remote-state"
+	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"
+	testFixtureBootstrapS3Backend                = "fixtures/bootstrap-s3-backend"
 
 	qaMyAppRelPath = "qa/my-app"
 )
@@ -1275,6 +1276,42 @@ func TestAwsAssumeRole(t *testing.T) {
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
 	assert.Contains(t, content, "external_id  = \"external_id_123\"")
+	assert.Contains(t, content, "session_name = \"session_name_example\"")
+}
+
+func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWithExternalIDWithComma)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWithExternalIDWithComma)
+
+	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWithExternalIDWithComma, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
+
+	helpers.RunTerragrunt(t, "terragrunt validate-inputs -auto-approve --non-interactive --working-dir "+testPath)
+
+	// validate generated backend.tf
+	backendFile := filepath.Join(testPath, "backend.tf")
+	assert.FileExists(t, backendFile)
+
+	content, err := files.ReadFileAsString(backendFile)
+	require.NoError(t, err)
+
+	opts, err := options.NewTerragruntOptionsForTest(testPath)
+	require.NoError(t, err)
+
+	session, err := awshelper.CreateAwsSession(nil, opts)
+	require.NoError(t, err)
+
+	identityARN, err := awshelper.GetAWSIdentityArn(session)
+	require.NoError(t, err)
+
+	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
+	assert.Contains(t, content, "external_id  = \"external_id_123,external_id_456\"")
 	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
