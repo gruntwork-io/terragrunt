@@ -840,6 +840,20 @@ func convertToCtyWithJSON(val any) (cty.Value, error) {
 // Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
 // uint, float, cty.Value) to a cty Value
 func goTypeToCty(val any) (cty.Value, error) {
+	// Check if the value is a map
+	if m, ok := val.(map[string]interface{}); ok {
+		convertedMap := make(map[string]cty.Value)
+		for k, v := range m {
+			convertedValue, err := goTypeToCty(v)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			convertedMap[k] = convertedValue
+		}
+		return cty.ObjectVal(convertedMap), nil
+	}
+
+	// Use the existing logic for other types
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
 		return cty.NilVal, errors.New(err)
