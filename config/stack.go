@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -139,98 +138,103 @@ type stackEntry struct {
 func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Value, error) {
 	opts.Logger.Debugf("Generating output from %s", opts.WorkingDir)
 
-	stackFiles, err := listStackFiles(opts, opts.WorkingDir)
+	foundFiles, err := listStackFiles(opts, opts.WorkingDir)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %v", opts.WorkingDir, err)
 	}
 
 	outputs := make(map[string]map[string]cty.Value)
-	stackPaths := make(map[string]string)
-	units := make(map[string]*Unit)
-	parsedStacks := make(map[string]*StackConfig, len(stackFiles))
+	declaredStacks := make(map[string]string)
+	declaredUnits := make(map[string]*Unit)
 
-	for _, file := range stackFiles {
-		dir := filepath.Dir(file)
+	// save parsed stacks
+	parsedStackFiles := make(map[string]*StackConfig, len(foundFiles))
+
+	for _, path := range foundFiles {
+		dir := filepath.Dir(path)
 
 		values, err := ReadValues(ctx, opts, dir)
 		if err != nil {
 			return cty.NilVal, errors.Errorf("Failed to read values from %s: %v", dir, err)
 		}
 
-		stackCfg, err := ReadStackConfigFile(ctx, opts, file, values)
+		stackFile, err := ReadStackConfigFile(ctx, opts, path, values)
 		if err != nil {
-			return cty.NilVal, errors.Errorf("Failed to read stack config from %s: %v", file, err)
+			return cty.NilVal, errors.Errorf("Failed to read stack file %s: %v", path, err)
 		}
-		parsedStacks[file] = stackCfg
+
+		parsedStackFiles[path] = stackFile
 
 		targetDir := filepath.Join(dir, stackDir)
-
-		for _, stack := range stackCfg.Stacks {
-			fullPath := filepath.Join(targetDir, stack.Path)
-			stackPaths[fullPath] = stack.Name
-			opts.Logger.Debugf("Registered stack %s at path %s", stack.Name, fullPath)
+		for _, stack := range stackFile.Stacks {
+			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
+			opts.Logger.Debugf("Registered stack %s at path %s", stack.Name, filepath.Join(targetDir, stack.Path))
 		}
 
-		for _, unit := range stackCfg.Units {
-			unitPath := filepath.Join(targetDir, unit.Path)
+		for _, unit := range stackFile.Units {
+			unitDir := filepath.Join(dir, stackDir, unit.Path)
 
-			var unitOutput map[string]cty.Value
+			var output map[string]cty.Value
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
 				"unit_name":   unit.Name,
 				"unit_source": unit.Source,
 				"unit_path":   unit.Path,
 			}, func(ctx context.Context) error {
-				unitOutput, err = unit.ReadOutputs(ctx, opts, unitPath)
+				output, err = unit.ReadOutputs(ctx, opts, unitDir)
 				return err
 			})
 			if err != nil {
 				return cty.NilVal, errors.New(err)
 			}
-
-			units[unitPath] = unit
-			outputs[unitPath] = unitOutput
-			opts.Logger.Debugf("Added output for %s", unitPath)
+			key := filepath.Join(targetDir, unit.Path)
+			declaredUnits[key] = unit
+			outputs[key] = output
+			opts.Logger.Debugf("Added output for %s", key)
 		}
 	}
 
-	// Nested map: stackName -> unitName -> outputs
-	finalMap := make(map[string]map[string]cty.Value)
+	unitOutputs := make(map[string]map[string]cty.Value)
 
-	for unitPath, unit := range units {
-		output, ok := outputs[unitPath]
-		if !ok {
-			opts.Logger.Debugf("No output found for %s", unitPath)
+	// Build stack list separated by stacks, find all nested stacks, and build a dotted path. If no stack is found, use the unit name.
+	for path, unit := range declaredUnits {
+		output, found := outputs[path]
+		if !found {
+			opts.Logger.Debugf("No output found for %s", path)
 			continue
 		}
 
-		var matchedStacks []stackEntry
-		for path, name := range stackPaths {
-			if strings.HasPrefix(unitPath, path) {
-				matchedStacks = append(matchedStacks, stackEntry{Path: path, Name: name})
+		// Implement more logic to find all stacks in which the path is located
+		stackNames := []string{}
+		for stackPath, stackName := range declaredStacks {
+			if strings.Contains(path, stackPath) {
+				stackNames = append(stackNames, stackName)
 			}
 		}
 
-		sort.Slice(matchedStacks, func(i, j int) bool {
-			return len(matchedStacks[i].Path) < len(matchedStacks[j].Path)
-		})
+		// Sort stackNames based on the length of stackPath to ensure correct order
+		stackNamesSorted := make([]string, len(stackNames))
+		copy(stackNamesSorted, stackNames)
 
-		var stackKey string
-		if len(matchedStacks) > 0 {
-			stackKey = strings.Join(mapStackNames(matchedStacks), ".")
-		} else {
-			stackKey = "root"
+		for i := 0; i < len(stackNamesSorted); i++ {
+			for j := i + 1; j < len(stackNamesSorted); j++ {
+				if len(declaredStacks[stackNamesSorted[i]]) < len(declaredStacks[stackNamesSorted[j]]) {
+					stackNamesSorted[i], stackNamesSorted[j] = stackNamesSorted[j], stackNamesSorted[i]
+				}
+			}
 		}
 
-		if _, ok := finalMap[stackKey]; !ok {
-			finalMap[stackKey] = make(map[string]cty.Value)
+		stackKey := unit.Name
+		if len(stackNamesSorted) > 0 {
+			stackKey = strings.Join(stackNamesSorted, ".") + "." + unit.Name
 		}
-		finalMap[stackKey][unit.Name] = cty.ObjectVal(output)
+
+		unitOutputs[stackKey] = output
 		opts.Logger.Debugf("Added output for stack key %s", stackKey)
 	}
 
 	// Convert finalMap into a cty.ObjectVal
 	result := make(map[string]cty.Value)
-	for stackName, unitMap := range finalMap {
+	for stackName, unitMap := range unitOutputs {
 		result[stackName] = cty.ObjectVal(unitMap)
 	}
 

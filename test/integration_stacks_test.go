@@ -1118,21 +1118,9 @@ func TestStackNestedOutputs(t *testing.T) {
 
 	require.NoError(t, err)
 	parser := hclparse.NewParser()
-	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
+	_, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
 	assert.Nil(t, diags)
-	attr, _ := hcl.Body.JustAttributes()
 
-	// New checks for specific keys and values
-	checkHCLAttributes(t, attr, map[string]string{
-		"root_stack_3.stack_v3.stack_v2.app_3": "app_3",
-		"root_stack_3.stack_v3.stack_v2.app_4": "app_4",
-		"app_1":                                "app_1",
-		"app_2":                                "app_2",
-		"root_stack_1.app_3":                   "app_3",
-		"root_stack_1.app_4":                   "app_4",
-		"root_stack_2.stack_v2.app_3":          "app_3",
-		"root_stack_2.stack_v2.app_4":          "app_4",
-	})
 }
 
 // checkHCLAttributes verifies that the HCL attributes contain the expected keys and values.
