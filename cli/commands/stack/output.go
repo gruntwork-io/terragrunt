@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
+
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/zclconf/go-cty/cty"
@@ -17,34 +17,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func PrintRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-	if len(outputIndex) == 0 {
-		// output index is required in raw mode
-		return errors.New("output index is required in raw mode")
-	}
-
-	filteredOutputs := FilterOutputs(outputs, outputIndex)
-
-	if filteredOutputs == nil {
+func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty.Value) error {
+	if outputs == cty.NilVal {
 		return nil
 	}
 
-	if len(filteredOutputs) > 1 {
-		// return error since in raw mode we want to print only one output
-		return errors.New("multiple outputs found, please specify only one index")
-	}
+	var buffer bytes.Buffer
 
-	for key, value := range filteredOutputs {
-		valueStr, err := getValueString(value)
-		if err != nil {
-			opts.Logger.Warnf("Error fetching output for '%s': %v", key, err)
-			continue
-		}
+	printValueMap(&buffer, "", outputs.AsValueMap())
 
-		line := valueStr + "\n"
-		if _, err := writer.Write([]byte(line)); err != nil {
-			return errors.New(err)
-		}
+	if _, err := writer.Write(buffer.Bytes()); err != nil {
+		return errors.New(err)
 	}
 
 	return nil
@@ -58,19 +41,16 @@ func getValueString(value cty.Value) (string, error) {
 	return config.CtyValueAsString(value)
 }
 
-func PrintOutputs(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-	filteredOutputs := FilterOutputs(outputs, outputIndex)
-
-	if filteredOutputs == nil {
+func PrintOutputs(writer io.Writer, outputs cty.Value) error {
+	if outputs == cty.NilVal {
 		return nil
 	}
 
 	f := hclwrite.NewEmptyFile()
 	rootBody := f.Body()
 
-	for key, value := range filteredOutputs {
-		tokens := hclwrite.TokensForValue(value)
-		rootBody.SetAttributeRaw(key, tokens)
+	for key, val := range outputs.AsValueMap() {
+		rootBody.SetAttributeRaw(key, hclwrite.TokensForValue(val))
 	}
 
 	if _, err := writer.Write(f.Bytes()); err != nil {
@@ -80,15 +60,53 @@ func PrintOutputs(writer io.Writer, outputs map[string]map[string]cty.Value, out
 	return nil
 }
 
-func PrintJSONOutput(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-	filteredOutputs := FilterOutputs(outputs, outputIndex)
+func printValueMap(buffer *bytes.Buffer, prefix string, valueMap map[string]cty.Value) {
+	for key, val := range valueMap {
+		newPrefix := key
+		if prefix != "" {
+			newPrefix = prefix + "." + key
+		}
 
-	if filteredOutputs == nil {
+		if val.Type().IsObjectType() || val.Type().IsMapType() {
+			// Recursively extract each field as a key
+			for subKey, subVal := range val.AsValueMap() {
+				subPrefix := newPrefix + "." + subKey
+				if subVal.Type().IsObjectType() || subVal.Type().IsMapType() {
+					printValueMap(buffer, subPrefix, subVal.AsValueMap())
+				} else {
+					valueStr, err := getValueString(subVal)
+					if err != nil {
+						continue
+					}
+					// Quote the value if it's a string
+					if subVal.Type() == cty.String {
+						buffer.WriteString(subPrefix + " = \"" + valueStr + "\"\n")
+					} else {
+						buffer.WriteString(subPrefix + " = " + valueStr + "\n")
+					}
+				}
+			}
+		} else {
+			valueStr, err := getValueString(val)
+			if err != nil {
+				continue
+			}
+			// Quote the value if it's a string
+			if val.Type() == cty.String {
+				buffer.WriteString(newPrefix + " = \"" + valueStr + "\"\n")
+			} else {
+				buffer.WriteString(newPrefix + " = " + valueStr + "\n")
+			}
+		}
+	}
+}
+
+func PrintJSONOutput(writer io.Writer, outputs cty.Value) error {
+	if outputs == cty.NilVal {
 		return nil
 	}
 
-	topVal := cty.ObjectVal(filteredOutputs)
-	rawJSON, err := ctyjson.Marshal(topVal, topVal.Type())
+	rawJSON, err := ctyjson.Marshal(outputs, outputs.Type())
 
 	if err != nil {
 		return errors.New(err)
@@ -104,42 +122,4 @@ func PrintJSONOutput(writer io.Writer, outputs map[string]map[string]cty.Value, 
 	}
 
 	return nil
-}
-
-func FilterOutputs(outputs map[string]map[string]cty.Value, outputIndex string) map[string]cty.Value {
-	if outputIndex == "" {
-		flattened := make(map[string]cty.Value)
-		for unit, values := range outputs {
-			flattened[unit] = cty.ObjectVal(values)
-		}
-
-		return flattened
-	}
-
-	keys := strings.Split(outputIndex, ".")
-	currentMap := make(map[string]cty.Value)
-
-	for unit, values := range outputs {
-		if !strings.HasPrefix(outputIndex, unit) {
-			continue
-		}
-
-		value := cty.ObjectVal(values)
-		for _, key := range keys[1:] {
-			if value.Type().IsObjectType() {
-				mapVal := value.AsValueMap()
-				if v, exists := mapVal[key]; exists {
-					value = v
-				} else {
-					return nil
-				}
-			} else {
-				return nil
-			}
-		}
-
-		currentMap[outputIndex] = value
-	}
-
-	return currentMap
 }

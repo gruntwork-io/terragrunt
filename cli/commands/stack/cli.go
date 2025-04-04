@@ -24,6 +24,7 @@ const (
 
 	rawOutputFormat  = "raw"
 	jsonOutputFormat = "json"
+	hclOutputFormat  = "hcl"
 )
 
 // NewCommand builds the command for stack.
