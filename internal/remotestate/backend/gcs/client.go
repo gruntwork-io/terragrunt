@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/impersonate"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -41,28 +40,23 @@ type Client struct {
 func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger log.Logger) (*Client, error) {
 	var opts []option.ClientOption
 
+	var credOpts []option.ClientOption
+
 	gcsConfig := config.RemoteStateConfigGCS
 
 	if gcsConfig.Credentials != "" {
-		opts = append(opts, option.WithCredentialsFile(gcsConfig.Credentials))
+		credOpts = append(credOpts, option.WithCredentialsFile(gcsConfig.Credentials))
 	} else if gcsConfig.AccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcsConfig.AccessToken,
 		})
-		opts = append(opts, option.WithTokenSource(tokenSource))
+		credOpts = append(credOpts, option.WithTokenSource(tokenSource))
 	} else if oauthAccessToken := os.Getenv("GOOGLE_OAUTH_ACCESS_TOKEN"); oauthAccessToken != "" {
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: oauthAccessToken,
 		})
-		opts = append(opts, option.WithTokenSource(tokenSource))
+		credOpts = append(credOpts, option.WithTokenSource(tokenSource))
 	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
-		var account = struct {
-			PrivateKeyID string `json:"private_key_id"`
-			PrivateKey   string `json:"private_key"`
-			ClientEmail  string `json:"client_email"`
-			ClientID     string `json:"client_id"`
-		}{}
-
 		// to mirror how Terraform works, we have to accept either the file path or the contents
 		creds := os.Getenv("GOOGLE_CREDENTIALS")
 
@@ -71,19 +65,11 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 			return nil, errors.Errorf("Error loading credentials: %w", err)
 		}
 
-		if err := json.Unmarshal([]byte(contents), &account); err != nil {
-			return nil, errors.Errorf("Error parsing credentials '%s': %w", contents, err)
+		if !json.Valid([]byte(contents)) {
+			return nil, errors.Errorf("The string provided in credentials is not valid json")
 		}
 
-		conf := jwt.Config{
-			Email:      account.ClientEmail,
-			PrivateKey: []byte(account.PrivateKey),
-			// We need the FullControl scope to be able to add metadata such as labels
-			Scopes:   []string{storage.ScopeFullControl},
-			TokenURL: tokenURL,
-		}
-
-		opts = append(opts, option.WithHTTPClient(conf.Client(ctx)))
+		credOpts = append(credOpts, option.WithCredentialsJSON([]byte(contents)))
 	}
 
 	if gcsConfig.ImpersonateServiceAccount != "" {
@@ -91,12 +77,15 @@ func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS, logger
 			TargetPrincipal: gcsConfig.ImpersonateServiceAccount,
 			Scopes:          []string{storage.ScopeFullControl},
 			Delegates:       gcsConfig.ImpersonateServiceAccountDelegates,
-		})
+		}, credOpts...)
+
 		if err != nil {
 			return nil, err
 		}
 
 		opts = append(opts, option.WithTokenSource(ts))
+	} else {
+		opts = append(opts, credOpts...)
 	}
 
 	gcsClient, err := storage.NewClient(ctx, opts...)
