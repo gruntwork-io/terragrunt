@@ -607,17 +607,41 @@ func TestStackValuesOutput(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	var result map[string]any
+	var result map[string]map[string]map[string]string
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
-	assert.Len(t, result, 4)
+	// Check the structure of the JSON
+	assert.Contains(t, result, "dev")
+	assert.Contains(t, result, "prod")
 
-	// check output contains stacks
-	assert.Contains(t, result, "dev-app-1")
-	assert.Contains(t, result, "dev-app-2")
-	assert.Contains(t, result, "prod-app-1")
-	assert.Contains(t, result, "prod-app-2")
+	// Check dev-app-1
+	devApp1 := result["dev"]["dev-app-1"]
+	assert.Equal(t, "dev-project dev dev-app-1", devApp1["config"])
+	assert.Equal(t, "dev-app-1", devApp1["data"])
+	assert.Equal(t, "dev", devApp1["env"])
+	assert.Equal(t, "dev-project", devApp1["project"])
+
+	// Check dev-app-2
+	devApp2 := result["dev"]["dev-app-2"]
+	assert.Equal(t, "dev-project dev dev-app-2", devApp2["config"])
+	assert.Equal(t, "dev-app-2", devApp2["data"])
+	assert.Equal(t, "dev", devApp2["env"])
+	assert.Equal(t, "dev-project", devApp2["project"])
+
+	// Check prod-app-1
+	prodApp1 := result["prod"]["prod-app-1"]
+	assert.Equal(t, "prod-project prod prod-app-1", prodApp1["config"])
+	assert.Equal(t, "prod-app-1", prodApp1["data"])
+	assert.Equal(t, "prod", prodApp1["env"])
+	assert.Equal(t, "prod-project", prodApp1["project"])
+
+	// Check prod-app-2
+	prodApp2 := result["prod"]["prod-app-2"]
+	assert.Equal(t, "prod-project prod prod-app-2", prodApp2["config"])
+	assert.Equal(t, "prod-app-2", prodApp2["data"])
+	assert.Equal(t, "prod", prodApp2["env"])
+	assert.Equal(t, "prod-project", prodApp2["project"])
 }
 
 func TestStacksGenerateParallelism(t *testing.T) {
@@ -966,54 +990,68 @@ func TestStacksReadFiles(t *testing.T) {
 	assert.Len(t, attr, 3)
 
 	// fetch for dev-app-2 output
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output dev.dev-app-2 --experiment stacks --non-interactive --working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output dev --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	hcl, diags = parser.ParseHCL([]byte(stdout), "dev-app-2.hcl")
+	hcl, diags = parser.ParseHCL([]byte(stdout), "dev.hcl")
 	require.Nil(t, diags, diags.Error())
 
 	topLevelAttrs, _ := hcl.Body.JustAttributes()
-	assert.Len(t, topLevelAttrs, 1, "Expected one top-level attribute (dev-app-2)")
+	assert.Len(t, topLevelAttrs, 1, "Expected one top-level attribute (dev)")
 
-	devApp2Attr, exists := topLevelAttrs["dev-app-2"]
-	assert.True(t, exists, "dev-app-2 block should exist")
+	devAttr, exists := topLevelAttrs["dev"]
+	assert.True(t, exists, "dev block should exist")
 
 	if exists {
-		objVal, diags := devApp2Attr.Expr.Value(nil)
+		devObjVal, diags := devAttr.Expr.Value(nil)
 		assert.Nil(t, diags)
 
-		expectedValues := map[string]string{
-			"config":              "dev-project dev dev-app-2",
-			"data":                "dev-app-2",
-			"env":                 "dev",
-			"project":             "dev-project",
-			"stack_local_project": "test-project",
-			"stack_value_env":     "dev",
-			"unit_name":           "test_app",
-			"unit_source":         "../units/app",
-			"unit_value_version":  "6.6.6",
-		}
+		if devObjVal.Type().IsObjectType() {
+			devApp2Attr := devObjVal.GetAttr("dev-app-2")
+			assert.False(t, devApp2Attr.IsNull(), "dev-app-2 block should exist in dev")
 
-		if objVal.Type().IsObjectType() {
-			for field, expectedValue := range expectedValues {
-				attrVal := objVal.GetAttr(field)
-				assert.False(t, attrVal.IsNull(), "Field %s should exist in output", field)
-				if !attrVal.IsNull() {
-					assert.Equal(t, expectedValue, attrVal.AsString(), "Field %s should have value %s", field, expectedValue)
+			if !devApp2Attr.IsNull() {
+				objVal := devApp2Attr
+				assert.False(t, objVal.IsNull(), "dev-app-2 block should exist in dev")
+
+				if !objVal.IsNull() {
+					expectedValues := map[string]string{
+						"config":              "dev-project dev dev-app-2",
+						"data":                "dev-app-2",
+						"env":                 "dev",
+						"project":             "dev-project",
+						"stack_local_project": "test-project",
+						"stack_value_env":     "dev",
+						"unit_name":           "test_app",
+						"unit_source":         "../units/app",
+						"unit_value_version":  "6.6.6",
+					}
+
+					if objVal.Type().IsObjectType() {
+						for field, expectedValue := range expectedValues {
+							attrVal := objVal.GetAttr(field)
+							assert.False(t, attrVal.IsNull(), "Field %s should exist in output", field)
+							if !attrVal.IsNull() {
+								assert.Equal(t, expectedValue, attrVal.AsString(), "Field %s should have value %s", field, expectedValue)
+							}
+						}
+
+						stackSource := objVal.GetAttr("stack_source")
+						assert.False(t, stackSource.IsNull(), "Field stack_source should exist in output")
+						if !stackSource.IsNull() {
+							assert.Contains(t, stackSource.AsString(), "/fixtures/stacks/read-stack/stacks/dev")
+						}
+
+						// Verify expected fields count (including stack_source)
+						valueMap := objVal.AsValueMap()
+						assert.Len(t, valueMap, len(expectedValues)+1, "Expected %d fields in dev-app-2", len(expectedValues)+1)
+					} else {
+						t.Fatalf("Expected dev-app-2 to be an object type, got %s", objVal.Type().FriendlyName())
+					}
 				}
 			}
-
-			stackSource := objVal.GetAttr("stack_source")
-			assert.False(t, stackSource.IsNull(), "Field stack_source should exist in output")
-			if !stackSource.IsNull() {
-				assert.Contains(t, stackSource.AsString(), "/fixtures/stacks/read-stack/stacks/dev")
-			}
-
-			// Verify expected fields count (including stack_source)
-			valueMap := objVal.AsValueMap()
-			assert.Len(t, valueMap, len(expectedValues)+1, "Expected %d fields in dev-app-2", len(expectedValues)+1)
 		} else {
-			t.Fatalf("Expected dev-app-2 to be an object type, got %s", objVal.Type().FriendlyName())
+			t.Fatalf("Expected dev to be an object type, got %s", devObjVal.Type().FriendlyName())
 		}
 	}
 }
