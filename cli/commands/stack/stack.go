@@ -126,7 +126,6 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 
 	// Split the index into parts
 	indexParts := strings.Split(index, ".")
-	///lastPart := index
 	// Traverse the map using the index parts
 	currentValue := outputs
 	for _, part := range indexParts {
@@ -134,7 +133,6 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 		if currentValue.Type().IsObjectType() || currentValue.Type().IsMapType() {
 			valueMap := currentValue.AsValueMap()
 			if nextValue, exists := valueMap[part]; exists {
-				//lastPart = part
 				currentValue = nextValue
 			} else {
 				// If any part of the index path is not found, return NilVal
@@ -146,10 +144,15 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 		}
 	}
 
-	// create a new object with key as lastPart and value as currentValue
-	return cty.ObjectVal(map[string]cty.Value{
-		"\"" + index + "\"": currentValue,
-	})
+	// Reconstruct the nested map structure
+	nested := currentValue
+	for i := len(indexParts) - 1; i >= 0; i-- {
+		nested = cty.ObjectVal(map[string]cty.Value{
+			indexParts[i]: nested,
+		})
+	}
+
+	return nested
 }
 
 // RunClean cleans the stack directory

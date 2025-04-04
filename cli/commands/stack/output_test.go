@@ -115,7 +115,9 @@ func TestPrintJsonOutput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			err := stack.PrintJSONOutput(&buf, outputs)
+			result := stack.FilterOutputs(outputs, tt.outputIndex)
+
+			err := stack.PrintJSONOutput(&buf, result)
 
 			if tt.shouldError {
 				assert.Error(t, err)
