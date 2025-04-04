@@ -1180,11 +1180,11 @@ func TestStackNestedOutputs(t *testing.T) {
 	_, app1Exists := topLevelAttrs["app_1"]
 	assert.True(t, app1Exists, "app_1 block should exist")
 
+	_, app2Exists := topLevelAttrs["app_2"]
+	assert.True(t, app2Exists, "app_2 block should exist")
+
 	_, stackV2Exists := topLevelAttrs["stack_v2"]
 	assert.True(t, stackV2Exists, "stack_v2 block should exist")
-
-	_, rootStack3Exists := topLevelAttrs["root_stack_3"]
-	assert.True(t, rootStack3Exists, "root_stack_3 block should exist")
 }
 
 // check if the stack directory is created and contains files.
