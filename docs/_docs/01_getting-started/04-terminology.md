@@ -128,7 +128,7 @@ Much of the marketing around Terragrunt still emphasizes the DRY principle, as i
 
 In the context of infrastructure management, blast radius is used to describe the potential impact (negative or positive) of a change to infrastructure. The larger the blast radius, the more potential impact a change has.
 
-Terragrunt was born out of a need to reduce the blast radii of infrastructure changes. By making it easier to segment state in infrastructure, and to manage dependencies between units, Terragrunt makes it easier to reason about the impact of changes to infrastructure, and to ensure that changes can be made safely.
+Terragrunt was born out of a need to reduce the blast radius of infrastructure changes. By making it easier to segment state in infrastructure, and to manage dependencies between units, Terragrunt makes it easier to reason about the impact of changes to infrastructure, and to ensure that changes can be made safely.
 
 When using Terragrunt, there is very frequently a mapping between your filesystem and the infrastructure you have provisioned with OpenTofu/Terraform. As such, when changing your current working directory in a Terragrunt project, you end up implicitly changing the blast radius of Terragrunt commands. The more units you have as children of your current working directory (the units in your stack), the more infrastructure you are likely to impact with a Terragrunt command.
 
