@@ -33,7 +33,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Migrate OpenTofu/Terraform state from one location to another.",
-		UsageText:            "terragrunt backend migrage [options] <src-path> <dst-path>",
+		UsageText:            "terragrunt backend migrate [options] <src-path> <dst-path>",
 		Flags:                NewFlags(opts, nil),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
