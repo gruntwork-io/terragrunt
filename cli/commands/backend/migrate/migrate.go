@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -24,23 +23,15 @@ func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntO
 	}
 
 	if !opts.ForceBackendMigrate {
-		if err := checkIfVersionControlEnabled(ctx, remoteState, opts); err != nil {
+		enabled, err := remoteState.IsVersionControlEnabled(ctx, opts)
+		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
+		}
+
+		if !enabled {
+			return errors.Errorf("bucket is not versioned, refusing to migrate backend state. If you are sure you want to migrate the backend state anyways, use the --%s flag", ForceBackendMigrateFlagName)
 		}
 	}
 
 	return remoteState.Migrate(ctx, srcPath, dstPath, opts)
-}
-
-func checkIfVersionControlEnabled(ctx context.Context, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) error {
-	enabled, err := remoteState.IsVersionControlEnabled(ctx, opts)
-	if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
-		return err
-	}
-
-	if !enabled {
-		return errors.Errorf("bucket is not versioned, refusing to migrate backend state. If you are sure you want to migrate the backend state anyways, use the --%s flag", ForceBackendMigrateFlagName)
-	}
-
-	return nil
 }

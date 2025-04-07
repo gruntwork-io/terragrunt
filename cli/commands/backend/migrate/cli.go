@@ -39,12 +39,12 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Action: func(ctx *cli.Context) error {
 			srcPath := ctx.Args().First()
 			if srcPath == "" {
-				return errors.New("not specified src path")
+				return errors.New("not specified src-path")
 			}
 
 			dstPath := ctx.Args().Second()
 			if dstPath == "" {
-				return errors.New("not specified dst path")
+				return errors.New("not specified dst-path")
 			}
 
 			return Run(ctx, srcPath, dstPath, opts.OptionsFromContext(ctx))

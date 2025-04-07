@@ -49,7 +49,6 @@ const (
 	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"
 	testFixtureS3Backend                         = "fixtures/s3-backend"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
-	testFixtureBootstrapS3Backend                = "fixtures/bootstrap-s3-backend"
 
 	qaMyAppRelPath = "qa/my-app"
 )
