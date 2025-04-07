@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/files"
@@ -287,13 +288,20 @@ func TestStackOutputsRaw(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
+	// Using raw with no specific output key should return an error
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.Error(t, err, "Should error when no specific output key is provided with --format raw")
+	assert.Contains(t, err.Error(), "requires a single output value")
 
+	// With a specific key, it should work for simple values
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1.custom_value1 --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "filtered_app1.complex.id = 2")
-	assert.Contains(t, stdout, "filtered_app1.complex.name = \"name1\"")
-	assert.Contains(t, stdout, "project2_app2.complex.delta = 0.02")
-	assert.Contains(t, stdout, "project2_app2.list = [\"a\",\"b\",\"c\"]")
+	assert.Equal(t, "value1", strings.TrimSpace(stdout), "Raw output should print only the value without quotes")
+
+	// Complex values should return an error
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1.complex --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Unsupported value for raw output")
 }
 
 func TestStackOutputsIndex(t *testing.T) {
