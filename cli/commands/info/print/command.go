@@ -18,9 +18,10 @@ func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Comma
 	prefix = prefix.Append(CommandName)
 
 	return &cli.Command{
-		Name:  CommandName,
-		Usage: "Print out a short description of Terragrunt context.",
-
+		Name:                 CommandName,
+		Usage:                "Print out a short description of Terragrunt context.",
+		UsageText:            "terragrunt info print",
+		Flags:                NewListFlags(opts, prefix),
 		ErrorOnUndefinedFlag: true,
 		Action:               infoAction(opts),
 	}
