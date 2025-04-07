@@ -719,7 +719,7 @@ func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
 
 	// Process stacks as a map from stack name to stack config
 	if len(stackConfig.Stacks) > 0 {
-		stacksMap := map[string]cty.Value{}
+		stacksMap := make(map[string]cty.Value, len(stackConfig.Stacks))
 
 		for _, stack := range stackConfig.Stacks {
 			stackCty, err := stackToCty(stack)
@@ -744,7 +744,7 @@ func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
 
 	// Process units as a map from unit name to unit config
 	if len(stackConfig.Units) > 0 {
-		unitsMap := map[string]cty.Value{}
+		unitsMap := make(map[string]cty.Value, len(stackConfig.Units))
 
 		for _, unit := range stackConfig.Units {
 			unitCty, err := unitToCty(unit)
@@ -840,6 +840,23 @@ func convertToCtyWithJSON(val any) (cty.Value, error) {
 // Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
 // uint, float, cty.Value) to a cty Value
 func goTypeToCty(val any) (cty.Value, error) {
+	// Check if the value is a map
+	if m, ok := val.(map[string]interface{}); ok {
+		convertedMap := make(map[string]cty.Value)
+
+		for k, v := range m {
+			convertedValue, err := goTypeToCty(v)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			convertedMap[k] = convertedValue
+		}
+
+		return cty.ObjectVal(convertedMap), nil
+	}
+
+	// Use the existing logic for other types
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
 		return cty.NilVal, errors.New(err)
@@ -873,4 +890,13 @@ func goboolToCty(val bool) cty.Value {
 	}
 
 	return ctyOut
+}
+
+// FormatValue converts a primitive value to its string representation.
+func FormatValue(value cty.Value) (string, error) {
+	if value.Type() == cty.String {
+		return value.AsString(), nil
+	}
+
+	return GetValueString(value)
 }

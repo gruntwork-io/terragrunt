@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-
-	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terratest/modules/files"
 
@@ -45,6 +44,8 @@ const (
 	testFixtureNoStackNoDir                    = "fixtures/stacks/no-stack-dir"
 	testFixtureMultipleStacks                  = "fixtures/stacks/multiple-stacks"
 	testFixtureReadStack                       = "fixtures/stacks/read-stack"
+	testFixtureStackSelfInclude                = "fixtures/stacks/self-include"
+	testFixtureStackNestedOutputs              = "fixtures/stacks/nested-outputs"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -278,6 +279,31 @@ func TestStackOutputs(t *testing.T) {
 	assert.Len(t, attr, 4)
 }
 
+func TestStackOutputsRaw(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
+
+	// Using raw with no specific output key should return an error
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.Error(t, err, "Should error when no specific output key is provided with --format raw")
+	assert.Contains(t, err.Error(), "requires a single output value")
+
+	// With a specific key, it should work for simple values
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1.custom_value1 --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Equal(t, "value1", strings.TrimSpace(stdout), "Raw output should print only the value without quotes")
+
+	// Complex values should return an error
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output filtered_app1.complex --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Unsupported value for raw output")
+}
+
 func TestStackOutputsIndex(t *testing.T) {
 	t.Parallel()
 
@@ -337,19 +363,6 @@ func TestStackOutputsJsonIndex(t *testing.T) {
 
 	assert.Len(t, result, 1)
 	assert.Contains(t, result, "project2_app1")
-}
-
-func TestStackOutputsRawError(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs, "live")
-
-	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
-
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --format raw --experiment stacks --non-interactive --working-dir "+rootPath)
-	require.Error(t, err)
 }
 
 func TestStackOutputsRawIndex(t *testing.T) {
@@ -515,16 +528,28 @@ func TestNestedStackOutput(t *testing.T) {
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
-	assert.Len(t, result, 6)
-	// check output contains stacks
-	assert.Contains(t, result, "dev-api")
-	assert.Contains(t, result, "dev-db")
-	assert.Contains(t, result, "dev-web")
+	assert.Contains(t, result, "dev")
+	assert.Contains(t, result, "prod")
 
-	assert.Contains(t, result, "prod-api")
-	assert.Contains(t, result, "prod-db")
-	assert.Contains(t, result, "prod-web")
+	// Check dev outputs
+	devOutputs := result["dev"].(map[string]any)
+	assert.Contains(t, devOutputs, "dev-api")
+	assert.Contains(t, devOutputs, "dev-db")
+	assert.Contains(t, devOutputs, "dev-web")
 
+	assert.Equal(t, "api dev-api 1.0.0", devOutputs["dev-api"].(map[string]any)["data"])
+	assert.Equal(t, "db dev-db 1.0.0", devOutputs["dev-db"].(map[string]any)["data"])
+	assert.Equal(t, "web dev-web 1.0.0", devOutputs["dev-web"].(map[string]any)["data"])
+
+	// Check prod outputs
+	prodOutputs := result["prod"].(map[string]any)
+	assert.Contains(t, prodOutputs, "prod-api")
+	assert.Contains(t, prodOutputs, "prod-db")
+	assert.Contains(t, prodOutputs, "prod-web")
+
+	assert.Equal(t, "api prod-api 1.0.0", prodOutputs["prod-api"].(map[string]any)["data"])
+	assert.Equal(t, "db prod-db 1.0.0", prodOutputs["prod-db"].(map[string]any)["data"])
+	assert.Equal(t, "web prod-web 1.0.0", prodOutputs["prod-web"].(map[string]any)["data"])
 }
 
 func TestNestedStacksApply(t *testing.T) {
@@ -607,17 +632,41 @@ func TestStackValuesOutput(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output -json --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	var result map[string]any
+	var result map[string]map[string]map[string]string
 	err = json.Unmarshal([]byte(stdout), &result)
 	require.NoError(t, err)
 
-	assert.Len(t, result, 4)
+	// Check the structure of the JSON
+	assert.Contains(t, result, "dev")
+	assert.Contains(t, result, "prod")
 
-	// check output contains stacks
-	assert.Contains(t, result, "dev-app-1")
-	assert.Contains(t, result, "dev-app-2")
-	assert.Contains(t, result, "prod-app-1")
-	assert.Contains(t, result, "prod-app-2")
+	// Check dev-app-1
+	devApp1 := result["dev"]["dev-app-1"]
+	assert.Equal(t, "dev-project dev dev-app-1", devApp1["config"])
+	assert.Equal(t, "dev-app-1", devApp1["data"])
+	assert.Equal(t, "dev", devApp1["env"])
+	assert.Equal(t, "dev-project", devApp1["project"])
+
+	// Check dev-app-2
+	devApp2 := result["dev"]["dev-app-2"]
+	assert.Equal(t, "dev-project dev dev-app-2", devApp2["config"])
+	assert.Equal(t, "dev-app-2", devApp2["data"])
+	assert.Equal(t, "dev", devApp2["env"])
+	assert.Equal(t, "dev-project", devApp2["project"])
+
+	// Check prod-app-1
+	prodApp1 := result["prod"]["prod-app-1"]
+	assert.Equal(t, "prod-project prod prod-app-1", prodApp1["config"])
+	assert.Equal(t, "prod-app-1", prodApp1["data"])
+	assert.Equal(t, "prod", prodApp1["env"])
+	assert.Equal(t, "prod-project", prodApp1["project"])
+
+	// Check prod-app-2
+	prodApp2 := result["prod"]["prod-app-2"]
+	assert.Equal(t, "prod-project prod prod-app-2", prodApp2["config"])
+	assert.Equal(t, "prod-app-2", prodApp2["data"])
+	assert.Equal(t, "prod", prodApp2["env"])
+	assert.Equal(t, "prod-project", prodApp2["project"])
 }
 
 func TestStacksGenerateParallelism(t *testing.T) {
@@ -963,58 +1012,71 @@ func TestStacksReadFiles(t *testing.T) {
 	hcl, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
 	assert.Nil(t, diags)
 	attr, _ := hcl.Body.JustAttributes()
-	assert.Len(t, attr, 5)
+	assert.Len(t, attr, 3)
 
 	// fetch for dev-app-2 output
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output dev-app-2 --experiment stacks --non-interactive --working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output dev --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	hcl, diags = parser.ParseHCL([]byte(stdout), "dev-app-2.hcl")
-	require.Nil(t, diags)
+	hcl, diags = parser.ParseHCL([]byte(stdout), "dev.hcl")
+	require.Nil(t, diags, diags.Error())
 
 	topLevelAttrs, _ := hcl.Body.JustAttributes()
-	assert.Len(t, topLevelAttrs, 1, "Expected one top-level attribute (dev-app-2)")
+	assert.Len(t, topLevelAttrs, 1, "Expected one top-level attribute (dev)")
 
-	devApp2Attr, exists := topLevelAttrs["dev-app-2"]
-	assert.True(t, exists, "dev-app-2 block should exist")
+	devAttr, exists := topLevelAttrs["dev"]
+	assert.True(t, exists, "dev block should exist")
 
 	if exists {
-		objVal, diags := devApp2Attr.Expr.Value(nil)
+		devObjVal, diags := devAttr.Expr.Value(nil)
 		assert.Nil(t, diags)
 
-		expectedValues := map[string]string{
-			"config":              "dev-project dev dev-app-2",
-			"data":                "dev-app-2",
-			"env":                 "dev",
-			"project":             "dev-project",
-			"stack_local_project": "test-project",
-			"stack_value_env":     "dev",
-			"unit_name":           "test_app",
-			"unit_source":         "../units/app",
-			"unit_value_version":  "6.6.6",
-		}
+		if devObjVal.Type().IsObjectType() {
+			devApp2Attr := devObjVal.GetAttr("dev-app-2")
+			assert.False(t, devApp2Attr.IsNull(), "dev-app-2 block should exist in dev")
 
-		if objVal.Type().IsObjectType() {
-			for field, expectedValue := range expectedValues {
-				attrVal := objVal.GetAttr(field)
-				assert.False(t, attrVal.IsNull(), "Field %s should exist in output", field)
+			if !devApp2Attr.IsNull() {
+				objVal := devApp2Attr
+				assert.False(t, objVal.IsNull(), "dev-app-2 block should exist in dev")
 
-				if !attrVal.IsNull() && attrVal.Type() == cty.String {
-					assert.Equal(t, expectedValue, attrVal.AsString(), "Field %s should have value %s", field, expectedValue)
+				if !objVal.IsNull() {
+					expectedValues := map[string]string{
+						"config":              "dev-project dev dev-app-2",
+						"data":                "dev-app-2",
+						"env":                 "dev",
+						"project":             "dev-project",
+						"stack_local_project": "test-project",
+						"stack_value_env":     "dev",
+						"unit_name":           "test_app",
+						"unit_source":         "../units/app",
+						"unit_value_version":  "6.6.6",
+					}
+
+					if objVal.Type().IsObjectType() {
+						for field, expectedValue := range expectedValues {
+							attrVal := objVal.GetAttr(field)
+							assert.False(t, attrVal.IsNull(), "Field %s should exist in output", field)
+							if !attrVal.IsNull() {
+								assert.Equal(t, expectedValue, attrVal.AsString(), "Field %s should have value %s", field, expectedValue)
+							}
+						}
+
+						stackSource := objVal.GetAttr("stack_source")
+						assert.False(t, stackSource.IsNull(), "Field stack_source should exist in output")
+						if !stackSource.IsNull() {
+							assert.Contains(t, stackSource.AsString(), "/fixtures/stacks/read-stack/stacks/dev")
+						}
+
+						// Verify expected fields count (including stack_source)
+						valueMap := objVal.AsValueMap()
+						assert.Len(t, valueMap, len(expectedValues)+1, "Expected %d fields in dev-app-2", len(expectedValues)+1)
+					} else {
+						t.Fatalf("Expected dev-app-2 to be an object type, got %s", objVal.Type().FriendlyName())
+					}
 				}
 			}
-
-			stackSource := objVal.GetAttr("stack_source")
-			assert.False(t, stackSource.IsNull(), "Field stack_source should exist in output")
-			if !stackSource.IsNull() {
-				assert.Contains(t, stackSource.AsString(), "/fixtures/stacks/read-stack/stacks/dev")
-			}
-
-			// Verify expected fields count (including stack_source)
-			valueMap := objVal.AsValueMap()
-			assert.Len(t, valueMap, len(expectedValues)+1, "Expected %d fields in dev-app-2", len(expectedValues)+1)
 		} else {
-			t.Fatalf("Expected dev-app-2 to be an object type, got %s", objVal.Type().FriendlyName())
+			t.Fatalf("Expected dev to be an object type, got %s", devObjVal.Type().FriendlyName())
 		}
 	}
 }
@@ -1082,6 +1144,55 @@ func validateNoStackDirs(t *testing.T, rootPath string) {
 
 	assert.DirExists(t, secondStackUnitConfigDir)
 	assert.FileExists(t, secondStackUnitConfig)
+}
+
+func TestStacksSelfInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackSelfInclude)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSelfInclude)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackSelfInclude, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply --non-interactive --working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+
+	// validate that subsequent runs don't fail
+	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply --non-interactive --working-dir "+rootPath)
+}
+
+func TestStackNestedOutputs(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackNestedOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNestedOutputs)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackNestedOutputs)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "live")
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// Parse the HCL output
+	parser := hclparse.NewParser()
+	hclFile, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
+	require.False(t, diags.HasErrors(), "Failed to parse HCL: %s", diags.Error())
+
+	require.Nil(t, diags)
+	require.NotNil(t, hclFile)
+
+	topLevelAttrs, _ := hclFile.Body.JustAttributes()
+	_, app1Exists := topLevelAttrs["app_1"]
+	assert.True(t, app1Exists, "app_1 block should exist")
+
+	_, app2Exists := topLevelAttrs["app_2"]
+	assert.True(t, app2Exists, "app_2 block should exist")
+
+	_, stackV2Exists := topLevelAttrs["stack_v2"]
+	assert.True(t, stackV2Exists, "stack_v2 block should exist")
 }
 
 // check if the stack directory is created and contains files.

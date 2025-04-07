@@ -37,17 +37,19 @@ import (
 )
 
 const (
-	testFixtureAwsProviderPatch          = "fixtures/aws-provider-patch"
-	testFixtureAwsAccountAlias           = "fixtures/get-aws-account-alias"
-	testFixtureAwsGetCallerIdentity      = "fixtures/get-aws-caller-identity"
-	testFixtureS3Errors                  = "fixtures/s3-errors/"
-	testFixtureAssumeRole                = "fixtures/assume-role/external-id"
-	testFixtureAssumeRoleDuration        = "fixtures/assume-role/duration"
-	testFixtureAssumeRoleWebIdentityFile = "fixtures/assume-role-web-identity/file-path"
-	testFixtureReadIamRole               = "fixtures/read-config/iam_role_in_file"
-	testFixtureOutputFromRemoteState     = "fixtures/output-from-remote-state"
-	testFixtureOutputFromDependency      = "fixtures/output-from-dependency"
-	testFixtureS3Backend                 = "fixtures/s3-backend"
+	testFixtureAwsProviderPatch                  = "fixtures/aws-provider-patch"
+	testFixtureAwsAccountAlias                   = "fixtures/get-aws-account-alias"
+	testFixtureAwsGetCallerIdentity              = "fixtures/get-aws-caller-identity"
+	testFixtureS3Errors                          = "fixtures/s3-errors/"
+	testFixtureAssumeRole                        = "fixtures/assume-role/external-id"
+	testFixtureAssumeRoleDuration                = "fixtures/assume-role/duration"
+	testFixtureAssumeRoleWebIdentityFile         = "fixtures/assume-role-web-identity/file-path"
+	testFixtureReadIamRole                       = "fixtures/read-config/iam_role_in_file"
+	testFixtureOutputFromRemoteState             = "fixtures/output-from-remote-state"
+	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"
+	testFixtureS3Backend                         = "fixtures/s3-backend"
+	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
+	testFixtureBootstrapS3Backend                = "fixtures/bootstrap-s3-backend"
 
 	qaMyAppRelPath = "qa/my-app"
 )
@@ -1087,89 +1089,6 @@ func TestAwsAssumeRoleDuration(t *testing.T) {
 	assert.Contains(t, output, "no changes are needed.")
 }
 
-func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
-	if os.Getenv("CIRCLECI") != "true" {
-		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
-	}
-
-	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
-	// These tests need to be run without the static key + secret
-	// used by most AWS tests here.
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	os.Unsetenv("AWS_ACCESS_KEY_ID")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWebIdentityFile)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWebIdentityFile)
-
-	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWebIdentityFile, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
-
-	role := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
-	require.NotEmpty(t, role)
-	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
-	require.NotEmpty(t, token)
-
-	tokenFile := t.TempDir() + "/oidc-token"
-	require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0400))
-
-	defer func() {
-		t.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
-		t.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey)
-
-		helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(role), options.WithIAMWebIdentityToken(token))
-	}()
-
-	helpers.CopyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
-		"__FILL_IN_BUCKET_NAME__":              s3BucketName,
-		"__FILL_IN_REGION__":                   helpers.TerraformRemoteStateS3Region,
-		"__FILL_IN_ASSUME_ROLE__":              role,
-		"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenFile,
-	})
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-
-	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
-}
-
-func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
-	if os.Getenv("CIRCLECI") != "true" {
-		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
-	}
-
-	// These tests need to be run without the static key + secret
-	// used by most AWS tests here.
-	t.Setenv("AWS_ACCESS_KEY_ID", "")
-	os.Unsetenv("AWS_ACCESS_KEY_ID")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
-	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
-
-	tmp := t.TempDir()
-
-	emptyTerragruntConfigPath := filepath.Join(tmp, "terragrunt.hcl")
-	require.NoError(t, os.WriteFile(emptyTerragruntConfigPath, []byte(""), 0400))
-
-	emptyMainTFPath := filepath.Join(tmp, "main.tf")
-	require.NoError(t, os.WriteFile(emptyMainTFPath, []byte(""), 0400))
-
-	roleARN := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
-	require.NotEmpty(t, roleARN)
-	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
-	require.NotEmpty(t, token)
-
-	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+tmp+" --terragrunt-iam-role "+roleARN+" --terragrunt-iam-web-identity-token "+token)
-}
-
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
 func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 	t.Parallel()
@@ -1354,6 +1273,42 @@ func TestAwsAssumeRole(t *testing.T) {
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
 	assert.Contains(t, content, "external_id  = \"external_id_123\"")
+	assert.Contains(t, content, "session_name = \"session_name_example\"")
+}
+
+func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWithExternalIDWithComma)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWithExternalIDWithComma)
+
+	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWithExternalIDWithComma, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
+
+	helpers.RunTerragrunt(t, "terragrunt validate-inputs -auto-approve --non-interactive --working-dir "+testPath)
+
+	// validate generated backend.tf
+	backendFile := filepath.Join(testPath, "backend.tf")
+	assert.FileExists(t, backendFile)
+
+	content, err := files.ReadFileAsString(backendFile)
+	require.NoError(t, err)
+
+	opts, err := options.NewTerragruntOptionsForTest(testPath)
+	require.NoError(t, err)
+
+	session, err := awshelper.CreateAwsSession(nil, opts)
+	require.NoError(t, err)
+
+	identityARN, err := awshelper.GetAWSIdentityArn(session)
+	require.NoError(t, err)
+
+	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
+	assert.Contains(t, content, "external_id  = \"external_id_123,external_id_456\"")
 	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 

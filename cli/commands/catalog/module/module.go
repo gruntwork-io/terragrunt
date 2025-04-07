@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultDescription   = "(no description found)"
-	maxDescriptionLenght = 200
+	maxDescriptionLength = 200
 )
 
 var (
@@ -86,7 +86,7 @@ func (module *Module) Title() string {
 
 // Description implements /github.com/charmbracelet/bubbles.list.DefaultItem.Description
 func (module *Module) Description() string {
-	if desc := module.Doc.Description(maxDescriptionLenght); desc != "" {
+	if desc := module.Doc.Description(maxDescriptionLength); desc != "" {
 		return desc
 	}
 
