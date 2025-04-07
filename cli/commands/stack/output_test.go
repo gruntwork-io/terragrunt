@@ -2,201 +2,225 @@ package stack_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/zclconf/go-cty/cty"
 )
 
-func TestFilterOutputs(t *testing.T) {
+func TestPrintRawOutputs(t *testing.T) {
 	t.Parallel()
+
+	var buffer bytes.Buffer
 	outputs := cty.ObjectVal(map[string]cty.Value{
-		"unit1": cty.ObjectVal(map[string]cty.Value{
-			"output1": cty.StringVal("value1"),
-			"output2": cty.NumberIntVal(42),
-		}),
-		"unit2": cty.ObjectVal(map[string]cty.Value{
-			"output3": cty.BoolVal(true),
-			"nested": cty.ObjectVal(map[string]cty.Value{
-				"inner": cty.StringVal("nested_value"),
-			}),
-		}),
+		"key1": cty.StringVal("value1"),
+		"key2": cty.NumberIntVal(2),
 	})
 
-	tests := []struct {
-		name        string
-		outputIndex string
-		expectedKey string
-		expectedLen int
-		shouldExist bool
-	}{
-		{
-			name:        "empty output index returns flattened map",
-			outputIndex: "",
-			expectedLen: 2,
-			shouldExist: true,
-		},
-		{
-			name:        "valid unit prefix returns filtered output",
-			outputIndex: "unit1.output1",
-			expectedLen: 1,
-			shouldExist: true,
-			expectedKey: "unit1.output1",
-		},
-		{
-			name:        "invalid unit prefix returns nil",
-			outputIndex: "unit3.output1",
-			shouldExist: false,
-		},
-		{
-			name:        "nested object access",
-			outputIndex: "unit2.nested.inner",
-			expectedLen: 1,
-			shouldExist: true,
-			expectedKey: "unit2.nested.inner",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := stack.FilterOutputs(outputs, tt.outputIndex)
-
-			if !tt.shouldExist {
-				assert.True(t, result.IsNull() || result.RawEquals(cty.NilVal))
-				return
-			}
-
-			assert.False(t, result.IsNull() || result.RawEquals(cty.NilVal))
-			assert.Len(t, result.AsValueMap(), tt.expectedLen)
-
-			if tt.expectedKey != "" {
-				_, exists := result.AsValueMap()[tt.expectedKey]
-				assert.True(t, exists)
-			}
-		})
-	}
-}
-
-func TestPrintJsonOutput(t *testing.T) {
-	t.Parallel()
-	outputs := cty.ObjectVal(map[string]cty.Value{
-		"unit1": cty.ObjectVal(map[string]cty.Value{
-			"str": cty.StringVal("test"),
-			"num": cty.NumberIntVal(123),
-		}),
-	})
-
-	tests := []struct {
-		name        string
-		outputIndex string
-		expected    string
-		shouldError bool
-	}{
-		{
-			name:        "valid json output",
-			outputIndex: "",
-			expected:    `{"unit1":{"num":123,"str":"test"}}`,
-			shouldError: false,
-		},
-		{
-			name:        "filtered output",
-			outputIndex: "unit1.str",
-			expected:    `{"unit1.str":"test"}`,
-			shouldError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var buf bytes.Buffer
-			result := stack.FilterOutputs(outputs, tt.outputIndex)
-
-			err := stack.PrintJSONOutput(&buf, result)
-
-			if tt.shouldError {
-				assert.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-
-			// Normalize the JSON for comparison
-			var normalized map[string]any
-
-			err = json.Unmarshal(buf.Bytes(), &normalized)
-
-			require.NoError(t, err)
-
-			expectedNormalized := make(map[string]any)
-			err = json.Unmarshal([]byte(tt.expected), &expectedNormalized)
-			require.NoError(t, err)
-
-			assert.Equal(t, expectedNormalized, normalized)
-		})
-	}
-}
-
-// Mock implementation for testing
-type mockWriter struct {
-	err     error
-	written []byte
-}
-
-func (m *mockWriter) Write(p []byte) (n int, err error) {
-	if m.err != nil {
-		return 0, m.err
-	}
-	m.written = append(m.written, p...)
-	return len(p), nil
+	err := stack.PrintRawOutputs(nil, &buffer, outputs)
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "key1 = \"value1\"")
+	assert.Contains(t, buffer.String(), "key2 = 2")
 }
 
 func TestPrintOutputs(t *testing.T) {
 	t.Parallel()
+
+	var buffer bytes.Buffer
 	outputs := cty.ObjectVal(map[string]cty.Value{
-		"unit1": cty.ObjectVal(map[string]cty.Value{
-			"output1": cty.StringVal("value1"),
-			"output2": cty.NumberIntVal(42),
-		}),
+		"key1": cty.StringVal("value1"),
+		"key2": cty.NumberIntVal(2),
 	})
 
+	err := stack.PrintOutputs(&buffer, outputs)
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "key1 = \"value1\"")
+	assert.Contains(t, buffer.String(), "key2 = 2")
+}
+
+func TestPrintJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"key1": cty.StringVal("value1"),
+		"key2": cty.NumberIntVal(2),
+	})
+
+	err := stack.PrintJSONOutput(&buffer, outputs)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"key1":"value1","key2":2}`, buffer.String())
+}
+
+func TestPrintRawOutputsEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		writerErr   error
-		name        string
-		outputIndex string
-		shouldError bool
+		name     string
+		outputs  cty.Value
+		expected []string
 	}{
 		{
-			name:        "successful write",
-			outputIndex: "",
-			shouldError: false,
+			name:     "Empty Outputs",
+			outputs:  cty.ObjectVal(map[string]cty.Value{}),
+			expected: []string{},
 		},
 		{
-			name:        "writer error",
-			outputIndex: "",
-			writerErr:   assert.AnError,
-			shouldError: true,
+			name:     "Nil Outputs",
+			outputs:  cty.NilVal,
+			expected: []string{},
+		},
+		{
+			name: "Nested Structures",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"parent": cty.ObjectVal(map[string]cty.Value{
+					"child": cty.StringVal("value"),
+				}),
+			}),
+			expected: []string{"parent.child = \"value\""},
+		},
+		{
+			name: "Different Data Types",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.StringVal("text"),
+				"number": cty.NumberIntVal(42),
+				"bool":   cty.BoolVal(true),
+				"list":   cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
+			}),
+			expected: []string{
+				"string = \"text\"",
+				"number = 42",
+				"bool = true",
+				"list = [\"a\",\"b\"]",
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			writer := &mockWriter{err: tt.writerErr}
+			var buffer bytes.Buffer
+			err := stack.PrintRawOutputs(nil, &buffer, tt.outputs)
+			assert.NoError(t, err)
+			output := buffer.String()
+			for _, expectedLine := range tt.expected {
+				assert.Contains(t, output, expectedLine)
+			}
+		})
+	}
+}
 
-			err := stack.PrintOutputs(writer, outputs)
+func TestPrintOutputsEdgeCases(t *testing.T) {
+	t.Parallel()
 
-			if tt.shouldError {
-				require.Error(t, err)
+	tests := []struct {
+		name     string
+		outputs  cty.Value
+		expected []string
+	}{
+		{
+			name:     "Empty Outputs",
+			outputs:  cty.ObjectVal(map[string]cty.Value{}),
+			expected: []string{},
+		},
+		{
+			name:     "Nil Outputs",
+			outputs:  cty.NilVal,
+			expected: []string{},
+		},
+		{
+			name: "Nested Structures",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"parent": cty.ObjectVal(map[string]cty.Value{
+					"child": cty.StringVal("value"),
+				}),
+			}),
+			expected: []string{"parent = {", "child = \"value\""},
+		},
+		{
+			name: "Different Data Types",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.StringVal("text"),
+				"number": cty.NumberIntVal(42),
+				"bool":   cty.BoolVal(true),
+				"list":   cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
+			}),
+			expected: []string{
+				"string = \"text\"",
+				"number = 42",
+				"bool   = true",
+				"list   = [",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buffer bytes.Buffer
+			err := stack.PrintOutputs(&buffer, tt.outputs)
+			assert.NoError(t, err)
+			output := buffer.String()
+			for _, expectedLine := range tt.expected {
+				assert.Contains(t, output, expectedLine)
+			}
+		})
+	}
+}
+
+func TestPrintJSONOutputEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		outputs  cty.Value
+		expected string
+		isNil    bool
+	}{
+		{
+			name:     "Empty Outputs",
+			outputs:  cty.ObjectVal(map[string]cty.Value{}),
+			expected: "{}",
+			isNil:    false,
+		},
+		{
+			name:     "Nil Outputs",
+			outputs:  cty.NilVal,
+			expected: "",
+			isNil:    true,
+		},
+		{
+			name: "Nested Structures",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"parent": cty.ObjectVal(map[string]cty.Value{
+					"child": cty.StringVal("value"),
+				}),
+			}),
+			expected: `{"parent":{"child":"value"}}`,
+			isNil:    false,
+		},
+		{
+			name: "Different Data Types",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"string": cty.StringVal("text"),
+				"number": cty.NumberIntVal(42),
+				"bool":   cty.BoolVal(true),
+				"list":   cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
+			}),
+			expected: `{"string":"text","number":42,"bool":true,"list":["a","b"]}`,
+			isNil:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buffer bytes.Buffer
+			err := stack.PrintJSONOutput(&buffer, tt.outputs)
+			assert.NoError(t, err)
+			if tt.isNil {
+				assert.Equal(t, tt.expected, buffer.String())
 			} else {
-				require.NoError(t, err)
-				assert.NotEmpty(t, writer.written)
+				assert.JSONEq(t, tt.expected, buffer.String())
 			}
 		})
 	}

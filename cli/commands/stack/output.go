@@ -33,14 +33,6 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 	return nil
 }
 
-func getValueString(value cty.Value) (string, error) {
-	if value.Type() == cty.String {
-		return value.AsString(), nil
-	}
-
-	return config.CtyValueAsString(value)
-}
-
 func PrintOutputs(writer io.Writer, outputs cty.Value) error {
 	if outputs == cty.NilVal {
 		return nil
@@ -74,7 +66,7 @@ func printValueMap(buffer *bytes.Buffer, prefix string, valueMap map[string]cty.
 				if subVal.Type().IsObjectType() || subVal.Type().IsMapType() {
 					printValueMap(buffer, subPrefix, subVal.AsValueMap())
 				} else {
-					valueStr, err := getValueString(subVal)
+					valueStr, err := config.GetValueString(subVal)
 					if err != nil {
 						continue
 					}
@@ -87,7 +79,7 @@ func printValueMap(buffer *bytes.Buffer, prefix string, valueMap map[string]cty.
 				}
 			}
 		} else {
-			valueStr, err := getValueString(val)
+			valueStr, err := config.GetValueString(val)
 			if err != nil {
 				continue
 			}

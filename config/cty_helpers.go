@@ -330,3 +330,17 @@ func CtyValueAsString(val cty.Value) (string, error) {
 
 	return string(jsonBytes), nil
 }
+
+// GetValueString returns the string representation of a cty.Value.
+// If the value is of type cty.String, it returns the raw string value directly.
+// Otherwise, it falls back to converting the value to a JSON-formatted string
+// using the CtyValueAsString helper function.
+//
+// Returns an error if the conversion fails.
+func GetValueString(value cty.Value) (string, error) {
+	if value.Type() == cty.String {
+		return value.AsString(), nil
+	}
+
+	return CtyValueAsString(value)
+}
