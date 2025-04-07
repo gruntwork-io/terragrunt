@@ -37,9 +37,7 @@ func (backend *CommonBackend) IsVersionControlEnabled(ctx context.Context, confi
 
 // NeedsBootstrap implements `backends.NeedsBootstrap` interface.
 func (backend *CommonBackend) NeedsBootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) (bool, error) {
-	opts.Logger.Warnf("NeedsBootstrap for %s backend not implemented.", backend.Name())
-
-	return true, nil
+	return false, nil
 }
 
 // Bootstrap implements `backends.Bootstrap` interface.
