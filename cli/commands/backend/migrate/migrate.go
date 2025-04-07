@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, src, dst string, opts *options.TerragruntOptions) error {
 	remoteState, err := config.ParseRemoteState(ctx, opts)
 	if err != nil {
 		return err
@@ -33,5 +33,5 @@ func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntO
 		}
 	}
 
-	return remoteState.Migrate(ctx, srcPath, dstPath, opts)
+	return remoteState.Migrate(ctx, src, dst, opts)
 }

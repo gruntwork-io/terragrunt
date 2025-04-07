@@ -12,6 +12,8 @@ const (
 	CommandName = "migrate"
 
 	ForceBackendMigrateFlagName = "force"
+
+	usageText = "terragrunt backend migrate [options] <src-path> <dst-path>"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -33,18 +35,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Migrate OpenTofu/Terraform state from one location to another.",
-		UsageText:            "terragrunt backend migrate [options] <src-path> <dst-path>",
+		UsageText:            usageText,
 		Flags:                NewFlags(opts, nil),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			srcPath := ctx.Args().First()
 			if srcPath == "" {
-				return errors.New("not specified src-path")
+				return errors.New(usageText)
 			}
 
 			dstPath := ctx.Args().Second()
 			if dstPath == "" {
-				return errors.New("not specified dst-path")
+				return errors.New(usageText)
 			}
 
 			return Run(ctx, srcPath, dstPath, opts.OptionsFromContext(ctx))
