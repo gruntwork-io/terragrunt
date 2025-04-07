@@ -841,7 +841,7 @@ func convertToCtyWithJSON(val any) (cty.Value, error) {
 // uint, float, cty.Value) to a cty Value
 func goTypeToCty(val any) (cty.Value, error) {
 	// Check if the value is a map
-	if m, ok := val.(map[string]interface{}); ok {
+	if m, ok := val.(map[string]any); ok {
 		convertedMap := make(map[string]cty.Value)
 
 		for k, v := range m {
