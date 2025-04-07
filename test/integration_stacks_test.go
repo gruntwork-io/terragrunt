@@ -265,7 +265,7 @@ func TestStackOutputs(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output  --experiment stacks --non-interactive --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "custom_value2 = \"value2\"")
