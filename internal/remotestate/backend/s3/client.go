@@ -1806,6 +1806,7 @@ func (client *Client) DoesTableItemExistWithLogging(ctx context.Context, tableNa
 	return false, nil
 }
 
+// MoveS3Object copies the S3 object at the specified srcKey to dstKey.
 func (client *Client) CopyS3BucketObject(ctx context.Context, bucketName, srcKey, dstKey string) error {
 	client.logger.Debugf("Copying S3 bucket %s object %s to %s", bucketName, srcKey, dstKey)
 
@@ -1822,6 +1823,7 @@ func (client *Client) CopyS3BucketObject(ctx context.Context, bucketName, srcKey
 	return nil
 }
 
+// MoveS3Object copies the S3 object at the specified srcKey to dstKey and then removes srcKey.
 func (client *Client) MoveS3Object(ctx context.Context, bucketName, srcKey, dstKey string) error {
 	if err := client.CopyS3BucketObject(ctx, bucketName, srcKey, dstKey); err != nil {
 		return err
@@ -1830,7 +1832,7 @@ func (client *Client) MoveS3Object(ctx context.Context, bucketName, srcKey, dstK
 	return client.DeleteS3BucketObject(ctx, bucketName, srcKey, nil)
 }
 
-// MoveS3ObjectIfNecessary moves the S3 object by the specified srcKey to dstKey if it exists.
+// MoveS3ObjectIfNecessary moves the S3 object at the specified srcKey to dstKey, if srcKey exists and dstKey does not.
 func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, bucketName, srcKey, dstKey string) error {
 	if exists, err := client.DoesS3ObjectExistWithLogging(ctx, bucketName, srcKey); err != nil || !exists {
 		return err
@@ -1883,6 +1885,7 @@ func (client *Client) RenameTableItemIfNecessary(ctx context.Context, tableName,
 	})
 }
 
+// RenameTableItem creates a new table item `dstKey` and removes the `srcKey`.
 func (client *Client) RenameTableItem(ctx context.Context, tableName, srcKey, dstKey string) error {
 	if err := client.CreateTableItem(ctx, tableName, dstKey); err != nil {
 		return err
@@ -1891,6 +1894,7 @@ func (client *Client) RenameTableItem(ctx context.Context, tableName, srcKey, ds
 	return client.DeleteTableItem(ctx, tableName, srcKey)
 }
 
+// CreateTableItem creates a new table item `key`.
 func (client *Client) CreateTableItem(ctx context.Context, tableName, key string) error {
 	client.logger.Debugf("Creating DynamoDB %s item %s", tableName, key)
 

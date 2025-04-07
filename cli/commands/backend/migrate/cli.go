@@ -1,7 +1,6 @@
 package migrate
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -51,8 +50,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			return Run(ctx, srcPath, dstPath, opts.OptionsFromContext(ctx))
 		},
 	}
-
-	cmd = runall.WrapCommand(opts, cmd)
 
 	return cmd
 }

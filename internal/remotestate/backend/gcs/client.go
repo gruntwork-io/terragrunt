@@ -391,3 +391,74 @@ func (client *Client) DeleteGCSObjects(ctx context.Context, bucketName, prefix s
 
 	return nil
 }
+
+// MoveS3ObjectIfNecessary moves the GCS object at the specified srcKey to dstKey, if srcKey exists and dstKey does not.
+func (client *Client) MoveGCSObjectIfNecessary(ctx context.Context, bucketName, srcKey, dstKey string) error {
+	if exists, err := client.DoesGCSObjectExistWithLogging(ctx, bucketName, srcKey); err != nil || !exists {
+		return err
+	}
+
+	if exists, err := client.DoesGCSObjectExist(ctx, bucketName, dstKey); err != nil {
+		return err
+	} else if exists {
+		return errors.Errorf("destination GCS bucket %s object %s already exists", bucketName, dstKey)
+	}
+
+	description := fmt.Sprintf("Move GCS bucket %s object %s to %s", bucketName, srcKey, dstKey)
+
+	return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
+		return client.MoveGCSObject(ctx, bucketName, srcKey, dstKey)
+	})
+}
+
+// DoesGCSObjectExist returns true if the specified GCS object exists otherwise false.
+func (client *Client) DoesGCSObjectExist(ctx context.Context, bucketName, key string) (bool, error) {
+	bucket := client.Bucket(bucketName)
+
+	obj := bucket.Object(key)
+
+	if _, err := obj.Attrs(ctx); err != nil {
+		if errors.Is(err, storage.ErrObjectNotExist) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (client *Client) DoesGCSObjectExistWithLogging(ctx context.Context, bucketName, key string) (bool, error) {
+	if exists, err := client.DoesGCSObjectExist(ctx, bucketName, key); err != nil || exists {
+		return exists, err
+	}
+
+	client.logger.Debugf("Remote state GCS bucket %s object %s does not exist or you don't have permissions to access it.", bucketName, key)
+
+	return false, nil
+}
+
+// MoveGCSObject copies the GCS object at the specified srcKey to dstKey and then removes srcKey.
+func (client *Client) MoveGCSObject(ctx context.Context, bucketName, srcKey, dstKey string) error {
+	if err := client.CopyGCSBucketObject(ctx, bucketName, srcKey, dstKey); err != nil {
+		return err
+	}
+
+	return client.DeleteGCSObjects(ctx, bucketName, srcKey, false)
+}
+
+// MoveGCSObject copies the GCS object at the specified srcKey to dstKey.
+func (client *Client) CopyGCSBucketObject(ctx context.Context, bucketName, srcKey, dstKey string) error {
+	client.logger.Debugf("Copying GCS bucket %s object %s to %s", bucketName, srcKey, dstKey)
+
+	bucket := client.Bucket(bucketName)
+
+	src := bucket.Object(srcKey)
+	dst := bucket.Object(dstKey)
+
+	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
+		return errors.Errorf("failed to copy object: %w", err)
+	}
+
+	return nil
+}

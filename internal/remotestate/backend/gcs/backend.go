@@ -4,13 +4,18 @@ package gcs
 import (
 	"context"
 	"fmt"
+	"path"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
-const BackendName = "gcs"
+const (
+	BackendName = "gcs"
+
+	defaultTfState = "default.tfstate"
+)
 
 var _ backend.Backend = new(Backend)
 
@@ -129,6 +134,25 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, backendConf
 	}
 
 	return client.CheckIfGCSVersioningEnabled(ctx, bucketName)
+}
+
+func (backend *Backend) Migrate(ctx context.Context, backendConfig backend.Config, srcKey, dstKey string, opts *options.TerragruntOptions) error {
+	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
+	if err != nil {
+		return err
+	}
+
+	var bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
+
+	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
+	if err != nil {
+		return err
+	}
+
+	srcKey = path.Join(srcKey, defaultTfState)
+	dstKey = path.Join(dstKey, defaultTfState)
+
+	return client.MoveGCSObjectIfNecessary(ctx, bucketName, srcKey, dstKey)
 }
 
 // Delete deletes the remote state specified in the given config.

@@ -141,6 +141,8 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, backendConf
 	return client.CheckIfVersioningEnabled(ctx, bucketName)
 }
 
+// Migrate copies the s3 bucket object located at srcKey to dstKey, deletes the old object.
+// Creates a new DynamoDB table lock item using the new dstKey, deletes the old one.
 func (backend *Backend) Migrate(ctx context.Context, backendConfig backend.Config, srcKey, dstKey string, opts *options.TerragruntOptions) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
 	if err != nil {
@@ -163,7 +165,11 @@ func (backend *Backend) Migrate(ctx context.Context, backendConfig backend.Confi
 		return err
 	}
 
-	return client.RenameTableItemIfNecessary(ctx, tableName, srcTableKey, dstTableKey)
+	if tableName != "" {
+		return client.RenameTableItemIfNecessary(ctx, tableName, srcTableKey, dstTableKey)
+	}
+
+	return nil
 }
 
 // Delete deletes the remote state specified in the given config.
