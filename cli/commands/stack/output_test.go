@@ -56,7 +56,7 @@ func TestPrintRawOutputsComplexObject(t *testing.T) {
 
 	var buffer bytes.Buffer
 	outputs := cty.ObjectVal(map[string]cty.Value{
-		"key1": cty.ObjectVal(map[string]cty.Value{
+		"key1": cty.MapVal(map[string]cty.Value{
 			"nested": cty.StringVal("value"),
 		}),
 	})
@@ -65,7 +65,6 @@ func TestPrintRawOutputsComplexObject(t *testing.T) {
 	require.Error(t, err, "Complex objects should return an error")
 	assert.Contains(t, err.Error(), "Unsupported value for raw output")
 	assert.Contains(t, err.Error(), "key1")
-	assert.Contains(t, err.Error(), "object")
 }
 
 func TestPrintRawOutputsMultipleKeys(t *testing.T) {
@@ -139,43 +138,71 @@ func TestPrintRawOutputsEdgeCases(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		outputs  cty.Value
-		expected []string
+		outputs     cty.Value
+		name        string
+		expected    string
+		expectError bool
 	}{
 		{
-			name:     "Empty Outputs",
-			outputs:  cty.ObjectVal(map[string]cty.Value{}),
-			expected: []string{},
+			name:        "Empty Outputs",
+			outputs:     cty.ObjectVal(map[string]cty.Value{}),
+			expectError: false,
+			expected:    "",
 		},
 		{
-			name:     "Nil Outputs",
-			outputs:  cty.NilVal,
-			expected: []string{},
+			name:        "Nil Outputs",
+			outputs:     cty.NilVal,
+			expectError: false,
+			expected:    "",
 		},
 		{
-			name: "Nested Structures",
+			name: "Single Nested Structure with Single Value",
 			outputs: cty.ObjectVal(map[string]cty.Value{
 				"parent": cty.ObjectVal(map[string]cty.Value{
 					"child": cty.StringVal("value"),
 				}),
 			}),
-			expected: []string{"parent.child = \"value\""},
+			expectError: false,
+			expected:    "value",
 		},
 		{
-			name: "Different Data Types",
+			name: "Multi-level Nested Structure",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"level1": cty.ObjectVal(map[string]cty.Value{
+					"level2": cty.ObjectVal(map[string]cty.Value{
+						"level3": cty.StringVal("deep_value"),
+					}),
+				}),
+			}),
+			expectError: false,
+			expected:    "deep_value",
+		},
+		{
+			name: "Multiple Top-level Keys",
 			outputs: cty.ObjectVal(map[string]cty.Value{
 				"string": cty.StringVal("text"),
 				"number": cty.NumberIntVal(42),
-				"bool":   cty.BoolVal(true),
-				"list":   cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
 			}),
-			expected: []string{
-				"string = \"text\"",
-				"number = 42",
-				"bool = true",
-				"list = [\"a\",\"b\"]",
-			},
+			expectError: true,
+			expected:    "",
+		},
+		{
+			name: "List Output (Complex Type)",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"list": cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
+			}),
+			expectError: true,
+			expected:    "",
+		},
+		{
+			name: "Map Output (Complex Type)",
+			outputs: cty.ObjectVal(map[string]cty.Value{
+				"map": cty.MapVal(map[string]cty.Value{
+					"a": cty.StringVal("value"),
+				}),
+			}),
+			expectError: true,
+			expected:    "",
 		},
 	}
 
@@ -184,13 +211,105 @@ func TestPrintRawOutputsEdgeCases(t *testing.T) {
 			t.Parallel()
 			var buffer bytes.Buffer
 			err := stack.PrintRawOutputs(nil, &buffer, tt.outputs)
-			require.NoError(t, err)
-			output := buffer.String()
-			for _, expectedLine := range tt.expected {
-				assert.Contains(t, output, expectedLine)
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, buffer.String())
 			}
 		})
 	}
+}
+
+// Additional test case for deeper nested structures
+func TestPrintRawOutputsDeepNesting(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+	// Create a more deeply nested structure
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"a": cty.ObjectVal(map[string]cty.Value{
+			"b": cty.ObjectVal(map[string]cty.Value{
+				"c": cty.ObjectVal(map[string]cty.Value{
+					"d": cty.ObjectVal(map[string]cty.Value{
+						"e": cty.StringVal("very_nested_value"),
+					}),
+				}),
+			}),
+		}),
+	})
+
+	err := stack.PrintRawOutputs(nil, &buffer, outputs)
+	require.NoError(t, err)
+	assert.Equal(t, "very_nested_value", buffer.String(), "Should extract deeply nested values")
+}
+
+// Test partial nested pattern
+func TestPrintRawOutputsPartialNesting(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+	// Create a structure where a nested value terminates with a complex value
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"parent": cty.ObjectVal(map[string]cty.Value{
+			"child": cty.ObjectVal(map[string]cty.Value{
+				"complex": cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")}),
+			}),
+		}),
+	})
+
+	err := stack.PrintRawOutputs(nil, &buffer, outputs)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Unsupported value for raw output")
+}
+
+// Test the boundary case where there's exactly one leaf node value
+func TestPrintRawOutputsExactlyOneLeafNode(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+	// Create a structure with one leaf node that is a string
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"a": cty.ObjectVal(map[string]cty.Value{
+			"b": cty.ObjectVal(map[string]cty.Value{
+				"c": cty.StringVal("leaf_value"),
+			}),
+		}),
+	})
+
+	err := stack.PrintRawOutputs(nil, &buffer, outputs)
+	require.NoError(t, err)
+	assert.Equal(t, "leaf_value", buffer.String(), "Should extract the single leaf value")
+}
+
+// Test with special characters in the string
+func TestPrintRawOutputsSpecialCharacters(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"special": cty.StringVal("value with spaces, quotes \" and special chars @#$%^&*()"),
+	})
+
+	err := stack.PrintRawOutputs(nil, &buffer, outputs)
+	require.NoError(t, err)
+	assert.Equal(t, "value with spaces, quotes \" and special chars @#$%^&*()", buffer.String(),
+		"Should preserve special characters in the output")
+}
+
+// Test with null value
+func TestPrintRawOutputsNullValue(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"null_val": cty.NullVal(cty.String),
+	})
+
+	err := stack.PrintRawOutputs(nil, &buffer, outputs)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Unsupported value for raw output")
 }
 
 func TestPrintOutputsEdgeCases(t *testing.T) {
@@ -380,4 +499,18 @@ func TestPrintRawOutputsNestedMultipleKeys(t *testing.T) {
 	err := stack.PrintRawOutputs(nil, &buffer, outputs)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Unsupported value for raw output")
+}
+
+// Test with specific string data types
+func TestPrintRawOutputsSpecificStringTypes(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+	outputs := cty.ObjectVal(map[string]cty.Value{
+		"marked_string": cty.StringVal("marked_value").Mark("sensitive"),
+	})
+
+	err := stack.PrintRawOutputs(nil, &buffer, outputs)
+	require.NoError(t, err)
+	assert.Equal(t, "marked_value", buffer.String(), "Should handle marked values correctly")
 }

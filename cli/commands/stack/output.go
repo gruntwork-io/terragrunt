@@ -28,16 +28,20 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 
 	// Extract the value from the nested structure, if any
 	valueMap := outputs.AsValueMap()
+
 	var finalValue cty.Value
 
 	// If there are multiple nested levels (from FilterOutputs), we need to extract the deepest value
 	if len(valueMap) == 1 {
 		// Get the first key-value pair (there's only one)
 		var topKey string
+
 		var topValue cty.Value
+
 		for k, v := range valueMap {
 			topKey = k
 			topValue = v
+
 			break
 		}
 
@@ -60,10 +64,13 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 
 				// Get the only key-value pair in the nested object
 				var nextKey string
+
 				var nextValue cty.Value
+
 				for k, v := range nestedMap {
 					nextKey = k
 					nextValue = v
+
 					break
 				}
 
@@ -98,11 +105,17 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 		return nil
 	}
 
+	// Check if the final value is null
+	if finalValue.IsNull() {
+		return errors.New("Error: Unsupported value for raw output\n\n" +
+			"The -raw option only supports strings, numbers, and boolean values, but the output value is null.\n\n" +
+			"Use the -json option for machine-readable representations of output values that have complex types.")
+	}
+
 	// Check if the final value is a complex type
 	if finalValue.Type().IsObjectType() || finalValue.Type().IsMapType() ||
 		finalValue.Type().IsListType() || finalValue.Type().IsTupleType() ||
 		finalValue.Type().IsSetType() {
-
 		// Find the path to show in the error message
 		var path string
 		for k := range valueMap {
@@ -118,7 +131,13 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 
 	// Get string representation of the final value without quotes for raw output
 	var valueStr string
+
 	var err error
+
+	// Unmark the value if it's marked (like with "sensitive")
+	if finalValue.IsMarked() {
+		finalValue, _ = finalValue.Unmark()
+	}
 
 	if finalValue.Type() == cty.String {
 		// For strings, get the raw string value without quotes
@@ -185,64 +204,4 @@ func PrintJSONOutput(writer io.Writer, outputs cty.Value) error {
 	}
 
 	return nil
-}
-
-// printValueMap recursively formats a map of cty.Values as key-value pairs with dot notation for nested paths.
-// It handles complex nested structures by flattening them into fully-qualified paths (e.g., parent.child.key),
-// writing the formatted output to the provided buffer. String values are automatically quoted, while other
-// primitive types are written as-is. Each key-value pair is written on a separate line with an equals sign
-// as the separator.
-//
-// Parameters:
-//   - buffer: The bytes.Buffer where formatted output will be written
-//   - prefix: The current path prefix to use (empty for top-level keys)
-//   - valueMap: The map of cty.Values to format
-//
-// The function handles four main cases:
-//  1. Top-level values (prefix is empty)
-//  2. Nested values (prefix contains parent path)
-//  3. Complex types (maps/objects) which require recursive traversal
-//  4. Primitive values which are directly formatted
-//
-// Any errors encountered when converting values to strings are silently ignored,
-// and those entries are skipped in the output.
-func printValueMap(buffer *bytes.Buffer, prefix string, valueMap map[string]cty.Value) {
-	for key, val := range valueMap {
-		newPrefix := key
-		if prefix != "" {
-			newPrefix = prefix + "." + key
-		}
-
-		if val.Type().IsObjectType() || val.Type().IsMapType() {
-			// Recursively extract each field as a key
-			for subKey, subVal := range val.AsValueMap() {
-				subPrefix := newPrefix + "." + subKey
-				if subVal.Type().IsObjectType() || subVal.Type().IsMapType() {
-					printValueMap(buffer, subPrefix, subVal.AsValueMap())
-				} else {
-					valueStr, err := config.GetValueString(subVal)
-					if err != nil {
-						continue
-					}
-					// Quote the value if it's a string
-					if subVal.Type() == cty.String {
-						buffer.WriteString(subPrefix + " = \"" + valueStr + "\"\n")
-					} else {
-						buffer.WriteString(subPrefix + " = " + valueStr + "\n")
-					}
-				}
-			}
-		} else {
-			valueStr, err := config.GetValueString(val)
-			if err != nil {
-				continue
-			}
-			// Quote the value if it's a string
-			if val.Type() == cty.String {
-				buffer.WriteString(newPrefix + " = \"" + valueStr + "\"\n")
-			} else {
-				buffer.WriteString(newPrefix + " = " + valueStr + "\n")
-			}
-		}
-	}
 }
