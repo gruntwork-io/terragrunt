@@ -227,10 +227,12 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 		// Implement more logic to find all stacks in which the path is located
 		stackNames := []string{}
+		nameToPath := make(map[string]string) // Map to track which path each stack name came from
 
 		for stackPath, stackName := range declaredStacks {
 			if strings.Contains(path, stackPath) {
 				stackNames = append(stackNames, stackName)
+				nameToPath[stackName] = stackPath
 			}
 		}
 
@@ -240,7 +242,8 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 		for i := 0; i < len(stackNamesSorted); i++ {
 			for j := i + 1; j < len(stackNamesSorted); j++ {
-				if len(declaredStacks[stackNamesSorted[i]]) < len(declaredStacks[stackNamesSorted[j]]) {
+				// Compare lengths of the actual paths from the nameToPath map, not the declaredStacks lookup
+				if len(nameToPath[stackNamesSorted[i]]) < len(nameToPath[stackNamesSorted[j]]) {
 					stackNamesSorted[i], stackNamesSorted[j] = stackNamesSorted[j], stackNamesSorted[i]
 				}
 			}
