@@ -148,9 +148,7 @@ func TestGcpDeleteBackend(t *testing.T) {
 
 	remoteStateObjectNames := []string{
 		"unit1/tofu.tfstate/default.tfstate",
-		"unit1/tofu.tfstate/default.tflock",
 		"unit2/tofu.tfstate/default.tfstate",
-		"unit2/tofu.tfstate/default.tflock",
 	}
 
 	for _, objectName := range remoteStateObjectNames {

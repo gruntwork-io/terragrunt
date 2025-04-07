@@ -1806,7 +1806,7 @@ func (client *Client) DoesTableItemExistWithLogging(ctx context.Context, tableNa
 	return false, nil
 }
 
-// MoveS3Object copies the S3 object at the specified srcKey to dstKey.
+// CopyS3BucketObject copies the S3 object at the specified srcKey to dstKey.
 func (client *Client) CopyS3BucketObject(ctx context.Context, bucketName, srcKey, dstKey string) error {
 	client.logger.Debugf("Copying S3 bucket %s object %s to %s", bucketName, srcKey, dstKey)
 
@@ -1833,7 +1833,7 @@ func (client *Client) MoveS3Object(ctx context.Context, bucketName, srcKey, dstK
 }
 
 // MoveS3ObjectIfNecessary moves the S3 object at the specified srcKey to dstKey, if srcKey exists and dstKey does not.
-func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, bucketName, srcKey, dstKey string) error {
+func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, bucketName, srcKey, dstKey string) error { // nolint: dupl
 	if exists, err := client.DoesS3ObjectExistWithLogging(ctx, bucketName, srcKey); err != nil || !exists {
 		return err
 	}
@@ -1859,7 +1859,8 @@ func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, bucketName, s
 	})
 }
 
-func (client *Client) RenameTableItemIfNecessary(ctx context.Context, tableName, srcKey, dstKey string) error {
+// RenameTableItemIfNecessary renames the DynamoDB table item at the specified srcKey to dstKey, if srcKey exists and dstKey does not.
+func (client *Client) RenameTableItemIfNecessary(ctx context.Context, tableName, srcKey, dstKey string) error { // nolint: dupl
 	if exists, err := client.DoesTableItemExistWithLogging(ctx, tableName, srcKey); err != nil || !exists {
 		return err
 	}

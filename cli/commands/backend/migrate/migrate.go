@@ -25,7 +25,7 @@ func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntO
 
 	if !opts.ForceBackendMigrate {
 		if err := checkIfVersionControlEnabled(ctx, remoteState, opts); err != nil {
-			return nil
+			return err
 		}
 	}
 

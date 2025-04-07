@@ -25,7 +25,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	if !opts.ForceBackendDelete {
 		if err := checkIfVersionControlEnabled(ctx, remoteState, opts); err != nil {
-			return nil
+			return err
 		}
 	}
 

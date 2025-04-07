@@ -392,7 +392,7 @@ func (client *Client) DeleteGCSObjects(ctx context.Context, bucketName, prefix s
 	return nil
 }
 
-// MoveS3ObjectIfNecessary moves the GCS object at the specified srcKey to dstKey, if srcKey exists and dstKey does not.
+// MoveGCSObjectIfNecessary moves the GCS object at the specified srcKey to dstKey, if srcKey exists and dstKey does not.
 func (client *Client) MoveGCSObjectIfNecessary(ctx context.Context, bucketName, srcKey, dstKey string) error {
 	if exists, err := client.DoesGCSObjectExistWithLogging(ctx, bucketName, srcKey); err != nil || !exists {
 		return err
@@ -447,7 +447,7 @@ func (client *Client) MoveGCSObject(ctx context.Context, bucketName, srcKey, dst
 	return client.DeleteGCSObjects(ctx, bucketName, srcKey, false)
 }
 
-// MoveGCSObject copies the GCS object at the specified srcKey to dstKey.
+// CopyGCSBucketObject copies the GCS object at the specified srcKey to dstKey.
 func (client *Client) CopyGCSBucketObject(ctx context.Context, bucketName, srcKey, dstKey string) error {
 	client.logger.Debugf("Copying GCS bucket %s object %s to %s", bucketName, srcKey, dstKey)
 

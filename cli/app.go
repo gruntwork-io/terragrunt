@@ -70,6 +70,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.ExitErrHandler = ExitErrHandler
 	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
 	app.Action = cli.ShowAppHelp
+
 	return &App{app, opts}
 }
 
