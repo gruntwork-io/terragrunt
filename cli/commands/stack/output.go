@@ -42,7 +42,7 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 			return err
 		}
 
-		return writePrimitiveValue(writer, finalValue, getFirstKey(valueMap))
+		return writePrimitiveValue(writer, finalValue, config.GetFirstKey(valueMap))
 	}
 
 	// Multiple top-level keys, can't provide a single raw output
@@ -54,7 +54,7 @@ func PrintRawOutputs(_ *options.TerragruntOptions, writer io.Writer, outputs cty
 // extractSingleValue extracts a single primitive value from a map with only one element,
 // potentially traversing through a nested object structure.
 func extractSingleValue(valueMap map[string]cty.Value) (cty.Value, error) {
-	topKey := getFirstKey(valueMap)
+	topKey := config.GetFirstKey(valueMap)
 	topValue := valueMap[topKey]
 
 	// If the value is not an object type, return it directly
@@ -83,7 +83,7 @@ func traverseNestedObject(topKey string, topValue cty.Value) (cty.Value, error) 
 		}
 
 		// Get the only key-value pair in the nested object
-		nextKey := getFirstKey(nestedMap)
+		nextKey := config.GetFirstKey(nestedMap)
 		nextValue := nestedMap[nextKey]
 
 		currentKey = nextKey
@@ -115,7 +115,7 @@ func writePrimitiveValue(writer io.Writer, value cty.Value, path string) error {
 	}
 
 	// Check if the value is a complex type
-	if isComplexType(value) {
+	if config.IsComplexType(value) {
 		return createUnsupportedValueError(path, value)
 	}
 
@@ -124,8 +124,7 @@ func writePrimitiveValue(writer io.Writer, value cty.Value, path string) error {
 		value, _ = value.Unmark()
 	}
 
-	// Convert the value to string representation
-	valueStr, err := formatValue(value)
+	valueStr, err := config.FormatValue(value)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -138,38 +137,12 @@ func writePrimitiveValue(writer io.Writer, value cty.Value, path string) error {
 	return nil
 }
 
-// formatValue converts a primitive value to its string representation.
-func formatValue(value cty.Value) (string, error) {
-	if value.Type() == cty.String {
-		return value.AsString(), nil
-	}
-
-	return config.GetValueString(value)
-}
-
-// isComplexType checks if a value is a complex data type that can't be used with raw output.
-func isComplexType(value cty.Value) bool {
-	return value.Type().IsObjectType() || value.Type().IsMapType() ||
-		value.Type().IsListType() || value.Type().IsTupleType() ||
-		value.Type().IsSetType()
-}
-
 // createUnsupportedValueError creates a formatted error for unsupported value types.
 func createUnsupportedValueError(path string, value cty.Value) error {
 	return errors.New("Error: Unsupported value for raw output\n\n" +
 		"The -raw option only supports strings, numbers, and boolean values, but output value \"" + path + "\" is " +
 		value.Type().FriendlyName() + ".\n\n" +
 		"Use the -json option for machine-readable representations of output values that have complex types.")
-}
-
-// getFirstKey returns the first key from a map.
-// This is a helper for maps that are known to have exactly one element.
-func getFirstKey(m map[string]cty.Value) string {
-	for k := range m {
-		return k
-	}
-
-	return ""
 }
 
 // PrintOutputs formats Terraform outputs as HCL and writes them to the provided writer.
