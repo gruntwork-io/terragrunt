@@ -8,6 +8,8 @@ sidebar:
 
 Terragrunt has the ability to cache OpenTofu/Terraform providers across all OpenTofu/Terraform runs. The Provider Cache Server feature ensures that each provider is only ever downloaded and stored on disk exactly once by running a local provider cache server while Terragrunt runs OpenTofu/Terraform commands.
 
+The Provider Cache Server is a performance optimization. For more details on performance optimizations, their tradeoffs, and other performance tips, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
+
 ## Why caching is useful
 
 Let's imagine that your project consists of 50 Terragrunt units, and each of them uses the same `aws` provider. Without caching, each of them will download the provider from the Internet, and store it in its own `.terraform` directory. For clarity, the downloadable archive `terraform-provider-aws_5.36.0_darwin_arm64.zip` has a size of ~100MB, and when unzipped it takes up ~450MB of disk space. It’s easy to calculate that initializing such a project with 50 modules will cost you 5GB of traffic and 22.5GB of free space instead of 100MB and 450MB using the cache.
