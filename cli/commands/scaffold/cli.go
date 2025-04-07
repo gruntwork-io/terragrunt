@@ -40,6 +40,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 				if value != opts.TerragruntConfigPath {
 					opts.ScaffoldRootFileName = value
+
+					return nil
 				}
 
 				if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).Evaluate(ctx); err != nil {
