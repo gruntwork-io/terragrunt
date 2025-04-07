@@ -79,7 +79,7 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 
 	foundFiles, err := listStackFiles(opts, opts.WorkingDir)
 	if err != nil {
-		return errors.Errorf("Failed to list stack files in %s %v", opts.WorkingDir, err)
+		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
 
 	for {
@@ -95,7 +95,7 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 			processedFiles[file] = true
 
 			if err := generateStackFile(ctx, opts, wp, file); err != nil {
-				return errors.Errorf("Failed to process stack file %s %v", file, err)
+				return errors.Errorf("Failed to process stack file %s %w", file, err)
 			}
 		}
 
@@ -110,7 +110,7 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 		newFiles, err := listStackFiles(opts, opts.WorkingDir)
 
 		if err != nil {
-			return errors.Errorf("Failed to list stack files %v", err)
+			return errors.Errorf("Failed to list stack files %w", err)
 		}
 
 		foundFiles = newFiles
@@ -119,20 +119,20 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 	return nil
 }
 
-// StackOutput collects and returns the Terraform output values for all declared units in a stack hierarchy.
+// StackOutput collects and returns the OpenTofu/Terraform output values for all declared units in a stack hierarchy.
 //
 // This function is a central component of Terragrunt's stack output system, providing a mechanism to
 // aggregate and organize outputs from multiple deployments in a hierarchical structure. It's particularly
-// useful when working with complex infrastructure composed of multiple interconnected Terraform modules.
+// useful when working with complex infrastructure composed of multiple interconnected OpenTofu/Terraform units.
 //
 // The function performs several key operations:
 //
 //  1. Discovers all stack definition files (terragrunt.stack.hcl) in the working directory and its subdirectories.
 //  2. For each stack file, parses the configuration and extracts the declared stacks and units.
-//  3. For each unit, reads its Terraform outputs from the corresponding .terragrunt-stack directory.
-//  4. Constructs a hierarchical map of outputs by organizing units according to their stack hierarchy.
+//  3. For each unit, reads its OpenTofu/Terraform outputs from the corresponding directory within .terragrunt-stack.
+//  4. Constructs a hierarchical map of outputs by organizing units according to their position in the stack hierarchy.
 //     Units are keyed using dot notation that reflects the stack path (e.g., "parent.child.unit").
-//  5. Orders stack names from highest level (shortest path) to deepest nested (longest path).
+//  5. Orders stack names from the highest level (shortest path) to deepest nested (longest path).
 //  6. Nests the flat output map into a hierarchical structure and converts it to a cty.Value object.
 //
 // The returned cty.Value object contains a structured representation of all outputs, preserving the
@@ -157,7 +157,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 	foundFiles, err := listStackFiles(opts, opts.WorkingDir)
 	if err != nil {
-		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %v", opts.WorkingDir, err)
+		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
 
 	outputs := make(map[string]map[string]cty.Value)
@@ -172,12 +172,12 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 		values, err := ReadValues(ctx, opts, dir)
 		if err != nil {
-			return cty.NilVal, errors.Errorf("Failed to read values from %s: %v", dir, err)
+			return cty.NilVal, errors.Errorf("Failed to read values from %s: %w", dir, err)
 		}
 
 		stackFile, err := ReadStackConfigFile(ctx, opts, path, values)
 		if err != nil {
-			return cty.NilVal, errors.Errorf("Failed to read stack file %s: %v", path, err)
+			return cty.NilVal, errors.Errorf("Failed to read stack file %s: %w", path, err)
 		}
 
 		parsedStackFiles[path] = stackFile
@@ -264,13 +264,13 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 	nestedOutputs, err := nestUnitOutputs(unitOutputs)
 
 	if err != nil {
-		return cty.NilVal, errors.Errorf("Failed to nest unit outputs: %v", err)
+		return cty.NilVal, errors.Errorf("Failed to nest unit outputs: %w", err)
 	}
 
 	ctyResult, err := goTypeToCty(nestedOutputs)
 
 	if err != nil {
-		return cty.NilVal, errors.Errorf("Failed to convert unit output to cty value: %s %v", result, err)
+		return cty.NilVal, errors.Errorf("Failed to convert unit output to cty value: %s %w", result, err)
 	}
 
 	return ctyResult, nil
@@ -278,7 +278,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 // nestUnitOutputs transforms a flat map of unit outputs into a nested hierarchical structure.
 //
-// This function is a critical part of Terragrunt's stack output system, converting flat key-value pairs
+// This function is a critical part of Terragrunt/Opentofu's stack output system, converting flat key-value pairs
 // with dot notation into a proper nested object hierarchy. It processes each flattened key (e.g., "parent.child.unit")
 // by splitting it into path segments and recursively building the corresponding nested structure.
 //
@@ -294,16 +294,16 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 //
 // Parameters:
 //   - flat: A map where keys are dot-separated paths (e.g., "parent.child.unit") and values are
-//     maps of cty.Value representing the Terraform outputs for each unit
+//     maps of cty.Value representing the OpenTofu/Terraform outputs for each unit
 //
 // Returns:
-//   - map[string]interface{}: A nested map structure reflecting the hierarchy implied by the dot notation
+//   - map[string]any: A nested map structure reflecting the hierarchy implied by the dot notation
 //   - error: An error if conversion fails, particularly when building the nested structure
 //
 // Errors can occur during cty.Value conversion or when attempting to traverse the nested structure
 // if the path contains contradictory type information (e.g., a path segment is both a leaf and a branch).
-func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]interface{}, error) {
-	nested := make(map[string]interface{})
+func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, error) {
+	nested := make(map[string]any)
 
 	for flatKey, value := range flat {
 		parts := strings.Split(flatKey, ".")
@@ -313,18 +313,18 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]interface
 			if i == len(parts)-1 {
 				ctyValue, err := convertValuesMapToCtyVal(value)
 				if err != nil {
-					return nil, errors.Errorf("Failed to convert unit output to cty value: %s %v", flatKey, err)
+					return nil, errors.Errorf("Failed to convert unit output to cty value: %s %w", flatKey, err)
 				}
 
 				current[part] = ctyValue
 			} else {
 				if _, exists := current[part]; !exists { // Traverse or create next level
-					current[part] = make(map[string]interface{})
+					current[part] = make(map[string]any)
 				}
 
 				var ok bool
 
-				current, ok = current[part].(map[string]interface{})
+				current, ok = current[part].(map[string]any)
 
 				if !ok {
 					return nil, errors.Errorf("Failed to traverse unit output: %v %s", flat, part)
@@ -344,13 +344,13 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 
 	values, err := ReadValues(ctx, opts, stackSourceDir)
 	if err != nil {
-		return errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, err)
+		return errors.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
 
 	stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath, values)
 
 	if err != nil {
-		return errors.Errorf("Failed to read stack file %s in %s %v", stackFilePath, stackSourceDir, err)
+		return errors.Errorf("Failed to read stack file %s in %s %w", stackFilePath, stackSourceDir, err)
 	}
 
 	stackTargetDir := filepath.Join(stackSourceDir, stackDir)
@@ -461,7 +461,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.TerragruntStackConfigPath)
 
 	if err != nil {
-		return errors.Errorf("failed to adjust source %s: %v", cmp.source, err)
+		return errors.Errorf("failed to adjust source %s: %w", cmp.source, err)
 	}
 
 	if filepath.IsAbs(cmp.path) {
@@ -480,13 +480,13 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	// get the absolute path of the destination directory
 	absDest, err := filepath.Abs(dest)
 	if err != nil {
-		return errors.Errorf("failed to get absolute path for destination '%s': %v", cmp.name, err)
+		return errors.Errorf("failed to get absolute path for destination '%s': %w", cmp.name, err)
 	}
 
 	// get the absolute path of the stack directory
 	absStackDir, err := filepath.Abs(cmp.targetDir)
 	if err != nil {
-		return errors.Errorf("failed to get absolute path for stack directory '%s': %v", cmp.name, err)
+		return errors.Errorf("failed to get absolute path for stack directory '%s': %w", cmp.name, err)
 	}
 
 	// validate that the destination path is within the stack directory
@@ -510,7 +510,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 				"  1. Check if your source path is correct relative to the stack file location\n"+
 				"  2. Verify the units or stacks directory exists at the expected location\n"+
 				"  3. Ensure you have proper permissions to read from source and write to destination\n\n"+
-				"Original error: %v",
+				"Original error: %w",
 			kindStr,
 			cmp.name,
 			source,
@@ -539,7 +539,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 
 	// generate values file
 	if err := writeValues(opts, cmp.values, dest); err != nil {
-		return errors.Errorf("failed to write values %v %v", cmp.name, err)
+		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
 	return nil
@@ -564,7 +564,7 @@ func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier,
 		localSrc, err := filepath.Abs(localSrc)
 
 		if err != nil {
-			opts.Logger.Warnf("failed to get absolute path for source '%s': %v", identifier, err)
+			opts.Logger.Warnf("failed to get absolute path for source '%s': %w", identifier, err)
 			// fallback to original source
 			localSrc = src
 		}
@@ -572,11 +572,11 @@ func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier,
 		if err := util.CopyFolderContentsWithFilter(opts.Logger, localSrc, dest, manifestName, func(absolutePath string) bool {
 			return true
 		}); err != nil {
-			return errors.Errorf("Failed to copy %s to %s %v", localSrc, dest, err)
+			return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)
 		}
 	} else {
 		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
-			return errors.Errorf("Failed to create directory %s for %s %v", dest, identifier, err)
+			return errors.Errorf("Failed to create directory %s for %s %w", dest, identifier, err)
 		}
 
 		if _, err := getter.GetAny(ctx, dest, src); err != nil {
@@ -609,7 +609,7 @@ func isLocal(opts *options.TerragruntOptions, workingDir, src string) bool {
 	for _, g := range getter.Getters {
 		recognized, err := getter.Detect(req, g)
 		if err != nil {
-			opts.Logger.Debugf("Error detecting getter for %s: %v", src, err)
+			opts.Logger.Debugf("Error detecting getter for %s: %w", src, err)
 			continue
 		}
 
@@ -621,7 +621,7 @@ func isLocal(opts *options.TerragruntOptions, workingDir, src string) bool {
 	return strings.HasPrefix(req.Src, "file://")
 }
 
-// ReadOutputs retrieves the Terraform output JSON for this unit, converts it into a map of cty.Values,
+// ReadOutputs retrieves the OpenTofu/Terraform output JSON for this unit, converts it into a map of cty.Values,
 // and logs the operation for debugging. It returns early in case of any errors during retrieval or conversion.
 func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions, unitDir string) (map[string]cty.Value, error) {
 	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
@@ -879,7 +879,7 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 	// find all defaultStackFile files
 	if err := walkFunc(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			opts.Logger.Warnf("Error accessing path %s: %v", path, err)
+			opts.Logger.Warnf("Error accessing path %s: %w", path, err)
 			return nil
 		}
 
