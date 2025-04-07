@@ -1,3 +1,7 @@
+// Package print implements the 'terragrunt info print' command that outputs Terragrunt context
+// information in a structured JSON format. This includes configuration paths, working directories,
+// IAM roles, and other essential Terragrunt runtime information useful for debugging and
+// automation purposes.
 package print
 
 import (
