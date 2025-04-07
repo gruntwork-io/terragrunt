@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +22,7 @@ func TestPrintRawOutputs(t *testing.T) {
 	})
 
 	err := stack.PrintRawOutputs(nil, &buffer, outputs)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, buffer.String(), "key1 = \"value1\"")
 	assert.Contains(t, buffer.String(), "key2 = 2")
 }
@@ -35,7 +37,7 @@ func TestPrintOutputs(t *testing.T) {
 	})
 
 	err := stack.PrintOutputs(&buffer, outputs)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, buffer.String(), "key1 = \"value1\"")
 	assert.Contains(t, buffer.String(), "key2 = 2")
 }
@@ -50,7 +52,7 @@ func TestPrintJSONOutput(t *testing.T) {
 	})
 
 	err := stack.PrintJSONOutput(&buffer, outputs)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, `{"key1":"value1","key2":2}`, buffer.String())
 }
 
@@ -100,9 +102,10 @@ func TestPrintRawOutputsEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var buffer bytes.Buffer
 			err := stack.PrintRawOutputs(nil, &buffer, tt.outputs)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			output := buffer.String()
 			for _, expectedLine := range tt.expected {
 				assert.Contains(t, output, expectedLine)
@@ -157,9 +160,10 @@ func TestPrintOutputsEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var buffer bytes.Buffer
 			err := stack.PrintOutputs(&buffer, tt.outputs)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			output := buffer.String()
 			for _, expectedLine := range tt.expected {
 				assert.Contains(t, output, expectedLine)
@@ -214,9 +218,10 @@ func TestPrintJSONOutputEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var buffer bytes.Buffer
 			err := stack.PrintJSONOutput(&buffer, tt.outputs)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if tt.isNil {
 				assert.Equal(t, tt.expected, buffer.String())
 			} else {
