@@ -126,6 +126,36 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSBackend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
+	unitPath := util.JoinPath(rootPath, "unit1")
+
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+	defer func() {
+		deleteGCSBucket(t, gcsBucketName)
+	}()
+
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true --backend-bootstrap apply -- -auto-approve")
+	require.NoError(t, err)
+
+	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true backend migrate unit1/tofu.tfstate migrated/unit1/tofu.tfstate")
+	require.Error(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true backend migrate --force unit1/tofu.tfstate migrated/unit1/tofu.tfstate")
+	require.NoError(t, err)
+}
+
 func TestGcpDeleteBackend(t *testing.T) {
 	t.Parallel()
 
