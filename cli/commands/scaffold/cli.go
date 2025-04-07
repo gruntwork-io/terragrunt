@@ -106,7 +106,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 }
 
 func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions) string {
-	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).Evaluate(ctx); err != nil {
+	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).SuppressWarning().Evaluate(ctx); err != nil {
 		return config.RecommendedParentConfigName
 	}
 
