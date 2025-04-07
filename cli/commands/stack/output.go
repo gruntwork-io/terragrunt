@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// PrintRawOutputs formats Terraform outputs for raw output format, similar to Terraform's output -raw.
+// PrintRawOutputs formats  outputs for raw output format, similar to Tofu's output -raw.
 // When the output is a raw output for a specific path, it will extract the raw value without quotes
 // or formatting and write it directly to the provided writer.
 // It only supports primitive values (strings, numbers, and booleans) and will return an error for complex types.
@@ -145,7 +145,7 @@ func createUnsupportedValueError(path string, value cty.Value) error {
 		"Use the -json option for machine-readable representations of output values that have complex types.")
 }
 
-// PrintOutputs formats Terraform outputs as HCL and writes them to the provided writer.
+// PrintOutputs formats outputs as HCL and writes them to the provided writer.
 // It creates a new HCL file with each top-level output as an attribute, preserving the
 // original structure of complex types like maps and objects.
 func PrintOutputs(writer io.Writer, outputs cty.Value) error {
@@ -167,7 +167,7 @@ func PrintOutputs(writer io.Writer, outputs cty.Value) error {
 	return nil
 }
 
-// PrintJSONOutput formats Terraform outputs as pretty-printed JSON with 2-space indentation.
+// PrintJSONOutput formats outputs as pretty-printed JSON with 2-space indentation.
 // It marshals the cty.Value data to JSON using the go-cty library and writes the formatted
 // result to the provided writer.
 func PrintJSONOutput(writer io.Writer, outputs cty.Value) error {
