@@ -344,3 +344,20 @@ func GetValueString(value cty.Value) (string, error) {
 
 	return CtyValueAsString(value)
 }
+
+// IsComplexType checks if a value is a complex data type that can't be used with raw output.
+func IsComplexType(value cty.Value) bool {
+	return value.Type().IsObjectType() || value.Type().IsMapType() ||
+		value.Type().IsListType() || value.Type().IsTupleType() ||
+		value.Type().IsSetType()
+}
+
+// GetFirstKey returns the first key from a map.
+// This is a helper for maps that are known to have exactly one element.
+func GetFirstKey(m map[string]cty.Value) string {
+	for k := range m {
+		return k
+	}
+
+	return ""
+}
