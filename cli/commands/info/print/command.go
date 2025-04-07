@@ -46,14 +46,13 @@ func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Comma
 		Flags:                NewListFlags(opts, prefix),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
-			target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, runInfo, runErrorInfo)
-
+			target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
 			return run.RunWithTarget(ctx, opts, target)
 		},
 	}
 }
 
-func printInfo(opts *options.TerragruntOptions) error {
+func printTerragruntContext(opts *options.TerragruntOptions) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
@@ -66,7 +65,6 @@ func printInfo(opts *options.TerragruntOptions) error {
 	b, err := json.MarshalIndent(group, "", "  ")
 	if err != nil {
 		opts.Logger.Errorf("JSON error marshalling info")
-
 		return errors.New(err)
 	}
 
@@ -77,14 +75,14 @@ func printInfo(opts *options.TerragruntOptions) error {
 	return nil
 }
 
-func runInfo(_ context.Context, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
-	return printInfo(opts)
+func handleTerragruntContextPrint(_ context.Context, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
+	return printTerragruntContext(opts)
 }
 
-func runErrorInfo(opts *options.TerragruntOptions, _ *config.TerragruntConfig, err error) error {
-	opts.Logger.Debugf("Fetching info: %v", err)
+func handleTerragruntContextPrintWithError(opts *options.TerragruntOptions, _ *config.TerragruntConfig, err error) error {
+	opts.Logger.Debugf("Fetching info with error: %v", err)
 
-	if err := printInfo(opts); err != nil {
+	if err := printTerragruntContext(opts); err != nil {
 		opts.Logger.Errorf("Error printing info: %v", err)
 	}
 
