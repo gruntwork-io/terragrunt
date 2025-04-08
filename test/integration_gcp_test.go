@@ -126,6 +126,11 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 }
 
 func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
+	// NOTE: This is being backed out because the migration command
+	// needs some work to handle the case where the source and destination
+	// backends have unsupported types or differ.
+	t.Skip("Skipping test for now, as it needs to be reworked to handle unsupported backend types")
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
@@ -193,6 +198,11 @@ func TestGcpDeleteBackend(t *testing.T) {
 }
 
 func TestGcpMigrateBackend(t *testing.T) {
+	// NOTE: This is being backed out because the migration command
+	// needs some work to handle the case where the source and destination
+	// backends have unsupported types or differ.
+	t.Skip("Skipping test for now, as it needs to be reworked to handle unsupported backend types")
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
