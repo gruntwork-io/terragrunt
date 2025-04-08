@@ -24,11 +24,17 @@ type Backend interface {
 	// Names returns the backend name.
 	Name() string
 
+	// IsVersionControlEnabled returns true if the version control is enabled.
+	IsVersionControlEnabled(ctx context.Context, config Config, opts *options.TerragruntOptions) (bool, error)
+
 	// NeedsBootstrap returns true if remote state needs to be bootstrapped.
 	NeedsBootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) (bool, error)
 
 	// Bootstrap bootstraps the remote state.
 	Bootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) error
+
+	// Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
+	Migrate(ctx context.Context, srcConfig, dstConfig Config, opts *options.TerragruntOptions) error
 
 	// Delete deletes the remote state.
 	Delete(ctx context.Context, config Config, opts *options.TerragruntOptions) error
