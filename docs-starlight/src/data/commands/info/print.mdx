@@ -4,7 +4,9 @@ path: info/print
 category: configuration
 sidebar:
   order: 1200
-description: Print out a short description of Terragrunt context.
+description: |
+  This command outputs a JSON object that includes useful contextual information such as the path to the configuration file,
+  working directory, download cache location, the IAM role in use, and the Terraform (or Tofu) binary being invoked.
 usage: |
   Print out a short description of Terragrunt context.
 experiment:
@@ -13,5 +15,18 @@ experiment:
 examples:
   - description: Print out information about the current context of Terragrunt.
     code: |
-      terragrunt info print
+      $ terragrunt info print
+      {
+        "config_path": "/example/path/terragrunt.hcl",
+        "download_dir": "/example/path/.terragrunt-cache",
+        "iam_role": "",
+        "terraform_binary": "tofu",
+        "terraform_command": "print",
+        "working_dir": "/example/path"
+      }
+
 ---
+
+This command outputs a JSON object that includes useful contextual information such as the path to the configuration file,
+working directory, download cache location, the IAM role in use, and the Terraform (or Tofu) binary being invoked.
+
