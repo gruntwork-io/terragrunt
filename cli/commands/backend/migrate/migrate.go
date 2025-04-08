@@ -27,7 +27,7 @@ func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntO
 		return err
 	}
 
-	opts.Logger.Debugf("Destination unit path %s", srcPath)
+	opts.Logger.Debugf("Destination unit path %s", dstPath)
 
 	stack, err := configstack.FindStackInSubfolders(ctx, opts)
 	if err != nil {
