@@ -15,7 +15,7 @@ const (
 	ForceBackendDeleteFlagName = "force"
 )
 
-func NewFlags(cmdOpts *Options, prefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	flags := cli.Flags{
@@ -24,29 +24,27 @@ func NewFlags(cmdOpts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(BucketFlagName),
 			Usage:       "Delete the entire bucket.",
 			Hidden:      true,
-			Destination: &cmdOpts.DeleteBucket,
+			Destination: &opts.DeleteBucket,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ForceBackendDeleteFlagName,
 			EnvVars:     tgPrefix.EnvVars(ForceBackendDeleteFlagName),
 			Usage:       "Force the backend to be deleted, even if the bucket is not versioned.",
-			Destination: &cmdOpts.ForceBackendDelete,
+			Destination: &opts.ForceBackendDelete,
 		}),
 	}
 
-	return append(flags, run.NewFlags(cmdOpts.TerragruntOptions, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
+	return append(flags, run.NewFlags(opts, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdOpts := NewOptions(opts)
-
 	cmd := &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Delete OpenTofu/Terraform state.",
-		Flags:                NewFlags(cmdOpts, nil),
+		Flags:                NewFlags(opts, nil),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
-			return Run(ctx, cmdOpts.OptionsFromContext(ctx))
+			return Run(ctx, opts.OptionsFromContext(ctx))
 		},
 	}
 
