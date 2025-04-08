@@ -626,6 +626,77 @@ Running `terragrunt backend delete` will delete the backend state file located a
 - `--download-dir`: Path to download OpenTofu/Terraform modules into. The default is `.terragrunt-cache`.
 - `--force`: Force the deletion of the backend state file. By default, Terragrunt will refuse to delete backend state files if the bucket does not have versioning enabled.
 
+#### backend migrate
+
+Migrate the OpenTofu/Terraform state backend.
+
+```bash
+terragrunt backend migrate old-unit new-unit
+```
+
+This command will migrate the OpenTofu/Terraform state backend from the old unit to the new unit.
+
+You will typically want to use this command if you are using a `key` attribute for your `remote_state` block that uses the `relative_path_to_include` function, and you want to rename the unit.
+
+For example, given the following filesystem structure:
+
+```bash
+.
+├── old-unit-name
+│   └── terragrunt.hcl
+└── root.hcl
+```
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+```
+
+```hcl
+# old-unit-name/terragrunt.hcl
+
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+```
+
+You couldn't simply rename the `old-unit-name` directory to `new-unit-name` and run `terragrunt apply` in `new-unit-name`, because the change in the evaluated value for `path_relative_to_include()` would result in a new state key for the `new-unit-name` unit.
+
+Instead, you can use the `backend migrate` command to migrate the backend state from the `old-unit-name` unit to the `new-unit-name` unit.
+
+```bash
+cp -R old-unit-name new-unit-name
+terragrunt backend migrate old-unit-name new-unit-name
+rm -rf old-unit-name
+```
+
+This will migrate the backend state from the `old-unit-name` unit to the `new-unit-name` unit, and then delete the `old-unit-name` unit.
+
+Terragrunt performs migrations in one of two ways, depending on the level of support for the backends being migrated, and the state of configuration between the two units.
+
+1. If the backend source for both the source and destination units are the same (both are S3 or GCS), Terragrunt will use the AWS/GCP SDK to move state between the two units transparently without interacting with OpenTofu/Terraform. This is the preferred method, when possible.
+2. If either backend source isn't supported by Terragrunt, or the state of configuration between the two units is different, Terragrunt will instead use the OpenTofu/Terraform CLI to move the state between the two units. This is the fallback method, and will generally be slower. Terragrunt also won't be able to delete the existing state from the source unit in this case, so you'll need to handle that yourself.
+
+**Flags:**
+
+- `--config`: Path to the Terragrunt configuration file to use to migrate the resources.
+- `--download-dir`: Path to download OpenTofu/Terraform modules into. The default is `.terragrunt-cache`.
+- `--force`: Force the migration of the backend state file. By default, Terragrunt will refuse to migrate the backend state file if the source bucket does not have versioning enabled.
+
 ### Catalog commands
 
 #### catalog
@@ -1186,6 +1257,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [Backend commands](#backend-commands)
     - [backend bootstrap](#backend-bootstrap)
     - [backend delete](#backend-delete)
+    - [backend migrate](#backend-migrate)
   - [Catalog commands](#catalog-commands)
     - [catalog](#catalog)
     - [scaffold](#scaffold)
