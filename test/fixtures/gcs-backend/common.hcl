@@ -2,6 +2,10 @@ feature "disable_versioning" {
   default = false
 }
 
+feature "key_prefix" {
+  default = ""
+}
+
 remote_state {
   backend = "gcs"
 
@@ -11,7 +15,7 @@ remote_state {
   }
 
   config = {
-    prefix   = "${path_relative_to_include()}/tofu.tfstate"
+    prefix   = "${feature.key_prefix.value}${path_relative_to_include()}/tofu.tfstate"
     location = "__FILL_IN_LOCATION__"
     project  = "__FILL_IN_PROJECT__"
     bucket   = "__FILL_IN_BUCKET_NAME__"

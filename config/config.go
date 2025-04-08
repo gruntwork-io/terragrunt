@@ -154,6 +154,33 @@ type TerragruntConfig struct {
 	IsPartial                   bool
 }
 
+func (cfg *TerragruntConfig) GetRemoteState(opts *options.TerragruntOptions) (*remotestate.RemoteState, error) {
+	if cfg.RemoteState == nil {
+		opts.Logger.Debug("Did not find remote `remote_state` block in the config")
+
+		return nil, nil
+	}
+
+	sourceURL, err := GetTerraformSourceURL(opts, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	if sourceURL != "" {
+		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+
+		tfSource, err := tf.NewSource(sourceURL, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = opts.Clone()
+		opts.WorkingDir = tfSource.WorkingDir
+	}
+
+	return cfg.RemoteState, nil
+}
+
 func (cfg *TerragruntConfig) String() string {
 	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", cfg.Terraform, cfg.RemoteState, cfg.Dependencies, cfg.PreventDestroy)
 }
@@ -1576,26 +1603,5 @@ func ParseRemoteState(ctx context.Context, opts *options.TerragruntOptions) (*re
 		return nil, err
 	}
 
-	if cfg.RemoteState == nil {
-		return nil, nil
-	}
-
-	sourceURL, err := GetTerraformSourceURL(opts, cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	if sourceURL != "" {
-		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
-
-		tfSource, err := tf.NewSource(sourceURL, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
-		if err != nil {
-			return nil, err
-		}
-
-		opts = opts.Clone()
-		opts.WorkingDir = tfSource.WorkingDir
-	}
-
-	return cfg.RemoteState, nil
+	return cfg.GetRemoteState(opts)
 }

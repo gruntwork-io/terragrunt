@@ -29,6 +29,12 @@ func (backend *CommonBackend) Name() string {
 	return backend.name
 }
 
+func (backend *CommonBackend) IsVersionControlEnabled(ctx context.Context, config Config, opts *options.TerragruntOptions) (bool, error) {
+	opts.Logger.Warnf("Checking version control for %s backend not implemented.", backend.Name())
+
+	return false, nil
+}
+
 // NeedsBootstrap implements `backends.NeedsBootstrap` interface.
 func (backend *CommonBackend) NeedsBootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) (bool, error) {
 	return false, nil
@@ -36,21 +42,28 @@ func (backend *CommonBackend) NeedsBootstrap(ctx context.Context, config Config,
 
 // Bootstrap implements `backends.Bootstrap` interface.
 func (backend *CommonBackend) Bootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Warnf("Bootstrap for %s backend not implemented", backend.Name())
+	opts.Logger.Warnf("Bootstrap for %s backend not implemented.", backend.Name())
+
+	return nil
+}
+
+// Migrate implements `backends.Migrate` interface.
+func (backend *CommonBackend) Migrate(ctx context.Context, srcConfig, dstConfig Config, opts *options.TerragruntOptions) error {
+	opts.Logger.Warnf("Migrate for %s backend not implemented.", backend.Name())
 
 	return nil
 }
 
 // Delete implements `backends.Delete` interface.
 func (backend *CommonBackend) Delete(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Warnf("Delete for %s backend not implemented", backend.Name())
+	opts.Logger.Warnf("Delete for %s backend not implemented.", backend.Name())
 
 	return nil
 }
 
 // DeleteBucket implements `backends.DeleteBucket` interface.
 func (backend *CommonBackend) DeleteBucket(ctx context.Context, config Config, opts *options.TerragruntOptions) error {
-	opts.Logger.Warnf("Deleting entire bucket for %s backend not implemented", backend.Name())
+	opts.Logger.Warnf("Deleting entire bucket for %s backend not implemented.", backend.Name())
 
 	return nil
 }

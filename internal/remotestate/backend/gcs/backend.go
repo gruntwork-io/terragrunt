@@ -4,14 +4,18 @@ package gcs
 import (
 	"context"
 	"fmt"
+	"path"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
-const BackendName = "gcs"
+const (
+	BackendName = "gcs"
+
+	defaultTfState = "default.tfstate"
+)
 
 var _ backend.Backend = new(Backend)
 
@@ -115,6 +119,50 @@ func (backend *Backend) Bootstrap(ctx context.Context, backendConfig backend.Con
 	return nil
 }
 
+// IsVersionControlEnabled returns true if version control for gcs bucket is enabled.
+func (backend *Backend) IsVersionControlEnabled(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
+	if err != nil {
+		return false, err
+	}
+
+	var bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
+
+	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
+	if err != nil {
+		return false, err
+	}
+
+	return client.CheckIfGCSVersioningEnabled(ctx, bucketName)
+}
+
+func (backend *Backend) Migrate(ctx context.Context, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
+	srcExtGCSCfg, err := Config(srcBackendConfig).ExtendedGCSConfig()
+	if err != nil {
+		return err
+	}
+
+	dstExtGCSCfg, err := Config(dstBackendConfig).ExtendedGCSConfig()
+	if err != nil {
+		return err
+	}
+
+	var (
+		srcBucketName = srcExtGCSCfg.RemoteStateConfigGCS.Bucket
+		srcBucketKey  = path.Join(srcExtGCSCfg.RemoteStateConfigGCS.Prefix, defaultTfState)
+
+		dstBucketName = dstExtGCSCfg.RemoteStateConfigGCS.Bucket
+		dstBucketKey  = path.Join(dstExtGCSCfg.RemoteStateConfigGCS.Prefix, defaultTfState)
+	)
+
+	client, err := NewClient(ctx, srcExtGCSCfg, opts.Logger)
+	if err != nil {
+		return err
+	}
+
+	return client.MoveGCSObjectIfNecessary(ctx, srcBucketName, srcBucketKey, dstBucketName, dstBucketKey)
+}
+
 // Delete deletes the remote state specified in the given config.
 func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
@@ -122,26 +170,15 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 		return err
 	}
 
-	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
-	if err != nil {
-		return err
-	}
-
-	if !opts.ForceBackendDelete {
-		versioned, err := client.CheckIfGCSVersioningEnabled(ctx, extGCSCfg.RemoteStateConfigGCS.Bucket)
-		if err != nil {
-			return err
-		}
-
-		if !versioned {
-			return errors.New("bucket is not versioned, refusing to delete backend state. If you are sure you want to delete the backend state anyways, use the --force flag")
-		}
-	}
-
 	var (
 		bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
 		prefix     = extGCSCfg.RemoteStateConfigGCS.Prefix
 	)
+
+	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
+	if err != nil {
+		return err
+	}
 
 	prompt := fmt.Sprintf("GCS bucket %s objects with prefix %s will be deleted. Do you want to continue?", bucketName, prefix)
 	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {

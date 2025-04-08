@@ -38,7 +38,7 @@ var (
 )
 
 type CatalogConfig struct {
-	DefaultTemplate string   `hcl:"default_template,attr" cty:"default_template"`
+	DefaultTemplate string   `hcl:"default_template,optional" cty:"default_template"`
 	URLs            []string `hcl:"urls,attr" cty:"urls"`
 }
 
