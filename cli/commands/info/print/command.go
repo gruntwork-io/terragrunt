@@ -32,8 +32,8 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func NewListFlags(_ *options.TerragruntOptions, _ flags.Prefix) cli.Flags {
-	return cli.Flags{}
+func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	return run.NewFlags(opts, prefix)
 }
 
 func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
@@ -50,6 +50,20 @@ func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Comma
 			return run.RunWithTarget(ctx, opts, target)
 		},
 	}
+}
+
+func handleTerragruntContextPrint(_ context.Context, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
+	return printTerragruntContext(opts)
+}
+
+func handleTerragruntContextPrintWithError(opts *options.TerragruntOptions, _ *config.TerragruntConfig, err error) error {
+	opts.Logger.Debugf("Fetching info with error: %v", err)
+
+	if err := printTerragruntContext(opts); err != nil {
+		opts.Logger.Errorf("Error printing info: %v", err)
+	}
+
+	return nil
 }
 
 func printTerragruntContext(opts *options.TerragruntOptions) error {
@@ -70,20 +84,6 @@ func printTerragruntContext(opts *options.TerragruntOptions) error {
 
 	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
 		return errors.New(err)
-	}
-
-	return nil
-}
-
-func handleTerragruntContextPrint(_ context.Context, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
-	return printTerragruntContext(opts)
-}
-
-func handleTerragruntContextPrintWithError(opts *options.TerragruntOptions, _ *config.TerragruntConfig, err error) error {
-	opts.Logger.Debugf("Fetching info with error: %v", err)
-
-	if err := printTerragruntContext(opts); err != nil {
-		opts.Logger.Errorf("Error printing info: %v", err)
 	}
 
 	return nil

@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
+	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -338,12 +338,12 @@ func TestTerragruntDownloadDir(t *testing.T) {
 			}
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info %s --terragrunt-non-interactive --terragrunt-working-dir %s", tc.downloadDirFlag, tc.rootPath), &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt info print %s --terragrunt-non-interactive --terragrunt-working-dir %s", tc.downloadDirFlag, tc.rootPath), &stdout, &stderr)
 			helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 			helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 			require.NoError(t, err)
 
-			var dat terragruntinfo.TerragruntInfoGroup
+			var dat print.InfoOutput
 			unmarshalErr := json.Unmarshal(stdout.Bytes(), &dat)
 			require.NoError(t, unmarshalErr)
 			// compare the results
