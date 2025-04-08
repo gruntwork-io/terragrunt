@@ -12,14 +12,8 @@ import (
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	remoteState, err := config.ParseRemoteState(ctx, opts)
-	if err != nil {
+	if err != nil || remoteState == nil {
 		return err
-	}
-
-	if remoteState == nil {
-		opts.Logger.Debug("Did not find remote `remote_state` block in the config")
-
-		return nil
 	}
 
 	if !opts.ForceBackendDelete {

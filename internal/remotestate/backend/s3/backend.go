@@ -141,32 +141,48 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, backendConf
 	return client.CheckIfVersioningEnabled(ctx, bucketName)
 }
 
-// Migrate copies the s3 bucket object located at srcKey to dstKey, deletes the old object.
-// Creates a new DynamoDB table lock item using the new dstKey, deletes the old one.
-func (backend *Backend) Migrate(ctx context.Context, backendConfig backend.Config, srcKey, dstKey string, opts *options.TerragruntOptions) error {
-	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
+// Migrate copies the s3 bucket object located at src config to dst config and deletes the src object.
+// Creates a new DynamoDB table item for dst config and deletes the table item from the src config.
+func (backend *Backend) Migrate(ctx context.Context, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
+	srcExtS3Cfg, err := Config(srcBackendConfig).ExtendedS3Config(opts.Logger)
+	if err != nil {
+		return err
+	}
+
+	dstExtS3Cfg, err := Config(dstBackendConfig).ExtendedS3Config(opts.Logger)
 	if err != nil {
 		return err
 	}
 
 	var (
-		bucketName  = extS3Cfg.RemoteStateConfigS3.Bucket
-		tableName   = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
-		srcTableKey = path.Join(bucketName, srcKey+stateIDSuffix)
-		dstTableKey = path.Join(bucketName, dstKey+stateIDSuffix)
+		srcBucketName = srcExtS3Cfg.RemoteStateConfigS3.Bucket
+		srcBucketKey  = srcExtS3Cfg.RemoteStateConfigS3.Key
+		srcTableName  = srcExtS3Cfg.RemoteStateConfigS3.GetLockTableName()
+		srcTableKey   = path.Join(srcBucketName, srcBucketKey+stateIDSuffix)
+
+		dstBucketName = dstExtS3Cfg.RemoteStateConfigS3.Bucket
+		dstBucketKey  = dstExtS3Cfg.RemoteStateConfigS3.Key
+		dstTableName  = dstExtS3Cfg.RemoteStateConfigS3.GetLockTableName()
+		dstTableKey   = path.Join(dstBucketName, dstBucketKey+stateIDSuffix)
 	)
 
-	client, err := NewClient(extS3Cfg, opts)
+	client, err := NewClient(srcExtS3Cfg, opts)
 	if err != nil {
 		return err
 	}
 
-	if err = client.MoveS3ObjectIfNecessary(ctx, bucketName, srcKey, dstKey); err != nil {
+	if err = client.MoveS3ObjectIfNecessary(ctx, srcBucketName, srcBucketKey, dstBucketName, dstBucketKey); err != nil {
 		return err
 	}
 
-	if tableName != "" {
-		return client.RenameTableItemIfNecessary(ctx, tableName, srcTableKey, dstTableKey)
+	if dstTableName != "" {
+		if err := client.CreateTableItemIfNecessary(ctx, dstTableName, dstTableKey); err != nil {
+			return err
+		}
+	}
+
+	if srcTableName != "" {
+		return client.DeleteTableItemIfNecessary(ctx, srcTableName, srcTableKey)
 	}
 
 	return nil

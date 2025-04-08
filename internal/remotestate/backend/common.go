@@ -48,7 +48,7 @@ func (backend *CommonBackend) Bootstrap(ctx context.Context, config Config, opts
 }
 
 // Migrate implements `backends.Migrate` interface.
-func (backend *CommonBackend) Migrate(ctx context.Context, config Config, pathFrom, pathTo string, opts *options.TerragruntOptions) error {
+func (backend *CommonBackend) Migrate(ctx context.Context, srcConfig, dstConfig Config, opts *options.TerragruntOptions) error {
 	opts.Logger.Warnf("Migrate for %s backend not implemented.", backend.Name())
 
 	return nil

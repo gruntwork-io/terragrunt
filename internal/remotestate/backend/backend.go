@@ -33,8 +33,8 @@ type Backend interface {
 	// Bootstrap bootstraps the remote state.
 	Bootstrap(ctx context.Context, config Config, opts *options.TerragruntOptions) error
 
-	// Migrate determines where the remote state resources exist for src path and migrate them to dst path.
-	Migrate(ctx context.Context, config Config, srcPath, dstPath string, opts *options.TerragruntOptions) error
+	// Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
+	Migrate(ctx context.Context, srcConfig, dstConfig Config, opts *options.TerragruntOptions) error
 
 	// Delete deletes the remote state.
 	Delete(ctx context.Context, config Config, opts *options.TerragruntOptions) error

@@ -1806,14 +1806,14 @@ func (client *Client) DoesTableItemExistWithLogging(ctx context.Context, tableNa
 	return false, nil
 }
 
-// CopyS3BucketObject copies the S3 object at the specified srcKey to dstKey.
-func (client *Client) CopyS3BucketObject(ctx context.Context, bucketName, srcKey, dstKey string) error {
-	client.logger.Debugf("Copying S3 bucket %s object %s to %s", bucketName, srcKey, dstKey)
+// CopyS3BucketObject copies the S3 object at the specified `srcBucketName` and `srcKey` to the `dstBucketName` and `dstKey`.
+func (client *Client) CopyS3BucketObject(ctx context.Context, srcBucketName, srcKey, dstBucketName, dstKey string) error {
+	client.logger.Debugf("Copying S3 bucket object from %s to %s", path.Join(srcBucketName, srcKey), path.Join(dstBucketName, dstKey))
 
 	input := &s3.CopyObjectInput{
-		Bucket:     aws.String(bucketName),
+		Bucket:     aws.String(dstBucketName),
 		Key:        aws.String(dstKey),
-		CopySource: aws.String(path.Join(bucketName, srcKey)),
+		CopySource: aws.String(path.Join(srcBucketName, srcKey)),
 	}
 
 	if _, err := client.CopyObjectWithContext(ctx, input); err != nil {
@@ -1824,30 +1824,30 @@ func (client *Client) CopyS3BucketObject(ctx context.Context, bucketName, srcKey
 }
 
 // MoveS3Object copies the S3 object at the specified srcKey to dstKey and then removes srcKey.
-func (client *Client) MoveS3Object(ctx context.Context, bucketName, srcKey, dstKey string) error {
-	if err := client.CopyS3BucketObject(ctx, bucketName, srcKey, dstKey); err != nil {
+func (client *Client) MoveS3Object(ctx context.Context, srcBucketName, srcKey, dstBucketName, dstKey string) error {
+	if err := client.CopyS3BucketObject(ctx, srcBucketName, srcKey, dstBucketName, dstKey); err != nil {
 		return err
 	}
 
-	return client.DeleteS3BucketObject(ctx, bucketName, srcKey, nil)
+	return client.DeleteS3BucketObject(ctx, srcBucketName, srcKey, nil)
 }
 
-// MoveS3ObjectIfNecessary moves the S3 object at the specified srcKey to dstKey, if srcKey exists and dstKey does not.
-func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, bucketName, srcKey, dstKey string) error { // nolint: dupl
-	if exists, err := client.DoesS3ObjectExistWithLogging(ctx, bucketName, srcKey); err != nil || !exists {
+// MoveS3ObjectIfNecessary moves the S3 object at the specified srcBucketName and srcKey to dstBucketName and dstKey.
+func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, srcBucketName, srcKey, dstBucketName, dstKey string) error { // nolint: dupl
+	if exists, err := client.DoesS3ObjectExistWithLogging(ctx, srcBucketName, srcKey); err != nil || !exists {
 		return err
 	}
 
-	if exists, err := client.DoesS3ObjectExist(ctx, bucketName, dstKey); err != nil {
+	if exists, err := client.DoesS3ObjectExist(ctx, dstBucketName, dstKey); err != nil {
 		return err
 	} else if exists {
-		return errors.Errorf("destination S3 bucket %s object %s already exists", bucketName, dstKey)
+		return errors.Errorf("destination S3 bucket %s object %s already exists", dstBucketName, dstKey)
 	}
 
-	description := fmt.Sprintf("Move S3 bucket %s object %s to %s", bucketName, srcKey, dstKey)
+	description := fmt.Sprintf("Move S3 bucket object from %s to %s", path.Join(srcBucketName, srcKey), path.Join(dstBucketName, dstKey))
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
-		if err := client.MoveS3Object(ctx, bucketName, srcKey, dstKey); err != nil {
+		if err := client.MoveS3Object(ctx, srcBucketName, srcKey, dstBucketName, dstKey); err != nil {
 			if isBucketErrorRetriable(err) {
 				return err
 			}
@@ -1859,22 +1859,18 @@ func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, bucketName, s
 	})
 }
 
-// RenameTableItemIfNecessary renames the DynamoDB table item at the specified srcKey to dstKey, if srcKey exists and dstKey does not.
-func (client *Client) RenameTableItemIfNecessary(ctx context.Context, tableName, srcKey, dstKey string) error { // nolint: dupl
-	if exists, err := client.DoesTableItemExistWithLogging(ctx, tableName, srcKey); err != nil || !exists {
-		return err
-	}
-
-	if exists, err := client.DoesTableItemExist(ctx, tableName, dstKey); err != nil {
+// CreateTableItemIfNecessary creates the DynamoDB table item with the specified key.
+func (client *Client) CreateTableItemIfNecessary(ctx context.Context, tableName, key string) error { // nolint: dupl
+	if exists, err := client.DoesTableItemExist(ctx, tableName, key); err != nil {
 		return err
 	} else if exists {
-		return errors.Errorf("destination DynamoDB table %s item %s already exists", tableName, dstKey)
+		return errors.Errorf("DynamoDB table %s item %s already exists", tableName, key)
 	}
 
-	description := fmt.Sprintf("Rename DynamoDB table %s item %s with %s", tableName, srcKey, dstKey)
+	description := fmt.Sprintf("Create DynamoDB table %s item %s", tableName, key)
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, client.logger, log.DebugLevel, func(ctx context.Context) error {
-		if err := client.RenameTableItem(ctx, tableName, srcKey, dstKey); err != nil {
+		if err := client.CreateTableItem(ctx, tableName, key); err != nil {
 			if isBucketErrorRetriable(err) {
 				return err
 			}
@@ -1884,15 +1880,6 @@ func (client *Client) RenameTableItemIfNecessary(ctx context.Context, tableName,
 
 		return nil
 	})
-}
-
-// RenameTableItem creates a new table item `dstKey` and removes the `srcKey`.
-func (client *Client) RenameTableItem(ctx context.Context, tableName, srcKey, dstKey string) error {
-	if err := client.CreateTableItem(ctx, tableName, dstKey); err != nil {
-		return err
-	}
-
-	return client.DeleteTableItem(ctx, tableName, srcKey)
 }
 
 // CreateTableItem creates a new table item `key`.

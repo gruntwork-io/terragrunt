@@ -136,23 +136,31 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, backendConf
 	return client.CheckIfGCSVersioningEnabled(ctx, bucketName)
 }
 
-func (backend *Backend) Migrate(ctx context.Context, backendConfig backend.Config, srcKey, dstKey string, opts *options.TerragruntOptions) error {
-	extGCSCfg, err := Config(backendConfig).ExtendedGCSConfig()
+func (backend *Backend) Migrate(ctx context.Context, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
+	srcExtGCSCfg, err := Config(srcBackendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return err
 	}
 
-	var bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
-
-	client, err := NewClient(ctx, extGCSCfg, opts.Logger)
+	dstExtGCSCfg, err := Config(dstBackendConfig).ExtendedGCSConfig()
 	if err != nil {
 		return err
 	}
 
-	srcKey = path.Join(srcKey, defaultTfState)
-	dstKey = path.Join(dstKey, defaultTfState)
+	var (
+		srcBucketName = srcExtGCSCfg.RemoteStateConfigGCS.Bucket
+		srcBucketKey  = path.Join(srcExtGCSCfg.RemoteStateConfigGCS.Prefix, defaultTfState)
 
-	return client.MoveGCSObjectIfNecessary(ctx, bucketName, srcKey, dstKey)
+		dstBucketName = dstExtGCSCfg.RemoteStateConfigGCS.Bucket
+		dstBucketKey  = path.Join(dstExtGCSCfg.RemoteStateConfigGCS.Prefix, defaultTfState)
+	)
+
+	client, err := NewClient(ctx, srcExtGCSCfg, opts.Logger)
+	if err != nil {
+		return err
+	}
+
+	return client.MoveGCSObjectIfNecessary(ctx, srcBucketName, srcBucketKey, dstBucketName, dstBucketKey)
 }
 
 // Delete deletes the remote state specified in the given config.

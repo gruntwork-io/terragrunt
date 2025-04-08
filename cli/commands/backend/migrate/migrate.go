@@ -5,33 +5,65 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(ctx context.Context, src, dst string, opts *options.TerragruntOptions) error {
-	remoteState, err := config.ParseRemoteState(ctx, opts)
+func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntOptions) error {
+	var err error
+
+	srcPath, err = util.CanonicalPath(srcPath, opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 
-	if remoteState == nil {
-		opts.Logger.Debug("Did not find remote `remote_state` block in the config")
+	opts.Logger.Debugf("Source unit path %s", srcPath)
 
-		return nil
+	dstPath, err = util.CanonicalPath(dstPath, opts.WorkingDir)
+	if err != nil {
+		return err
+	}
+
+	opts.Logger.Debugf("Destination unit path %s", srcPath)
+
+	stack, err := configstack.FindStackInSubfolders(ctx, opts)
+	if err != nil {
+		return err
+	}
+
+	srcModule := stack.Modules.FindByPath(srcPath)
+	if srcModule == nil {
+		return errors.Errorf("src unit not found at %s", srcPath)
+	}
+
+	dstModule := stack.Modules.FindByPath(dstPath)
+	if dstModule == nil {
+		return errors.Errorf("dst unit not found at %s", dstPath)
+	}
+
+	srcRemoteState, err := config.ParseRemoteState(ctx, srcModule.TerragruntOptions)
+	if err != nil || srcRemoteState == nil {
+		return err
+	}
+
+	dstRemoteState, err := config.ParseRemoteState(ctx, dstModule.TerragruntOptions)
+	if err != nil || dstRemoteState == nil {
+		return err
 	}
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := remoteState.IsVersionControlEnabled(ctx, opts)
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, srcModule.TerragruntOptions)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
 
 		if !enabled {
-			return errors.Errorf("bucket is not versioned, refusing to migrate backend state. If you are sure you want to migrate the backend state anyways, use the --%s flag", ForceBackendMigrateFlagName)
+			return errors.Errorf("src bucket is not versioned, refusing to migrate backend state. If you are sure you want to migrate the backend state anyways, use the --%s flag", ForceBackendMigrateFlagName)
 		}
 	}
 
-	return remoteState.Migrate(ctx, src, dst, opts)
+	return srcRemoteState.Migrate(ctx, dstRemoteState.BackendConfig, opts)
 }

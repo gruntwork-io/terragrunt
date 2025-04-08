@@ -69,11 +69,11 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, opts *options.Terragru
 	return remote.backend.Bootstrap(ctx, remote.BackendConfig, opts)
 }
 
-// Migrate determines where the remote state resources exist for source path and migrate them to dest path.
-func (remote *RemoteState) Migrate(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntOptions) error {
+// Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
+func (remote *RemoteState) Migrate(ctx context.Context, toConfig backend.Config, opts *options.TerragruntOptions) error {
 	opts.Logger.Debugf("Migrate remote state for the %s backend", remote.BackendName)
 
-	return remote.backend.Migrate(ctx, remote.BackendConfig, srcPath, dstPath, opts)
+	return remote.backend.Migrate(ctx, remote.BackendConfig, toConfig, opts)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:

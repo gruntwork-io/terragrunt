@@ -240,10 +240,10 @@ func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
 	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
 	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true backend migrate unit1/tofu.tfstate migrated/unit1/tofu.tfstate")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend migrate unit1 unit2")
 	require.Error(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true backend migrate --force unit1/tofu.tfstate migrated/unit1/tofu.tfstate")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend migrate --force unit1 unit2")
 	require.NoError(t, err)
 }
 
@@ -296,78 +296,58 @@ func TestAwsDeleteBackend(t *testing.T) {
 func TestAwsMigrateBackend(t *testing.T) {
 	t.Parallel()
 
+	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3Backend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3Backend)
+
 	testID := strings.ToLower(helpers.UniqueID())
 
 	s3BucketName := "terragrunt-test-bucket-" + testID
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
+
+	unit1Path := util.JoinPath(rootPath, "unit1")
+	unit2Path := util.JoinPath(rootPath, "unit2")
+
+	unit1BackendKey := "unit1/tofu.tfstate"
+	unit2BackendKey := "unit2/tofu.tfstate"
+
+	unit1TableKey := path.Join(s3BucketName, unit1BackendKey+"-md5")
+	unit2TableKey := path.Join(s3BucketName, unit2BackendKey+"-md5")
 
 	defer func() {
 		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
-	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3Backend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3Backend)
-
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-	// Bootstrap backend and create remote state by `tofu apply` command.
+	// Bootstrap backend and create remote state for unit1.
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit1Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Changes to Outputs")
 
-	remoteStateKeys := []string{
-		"unit1/tofu.tfstate",
-		"unit2/tofu.tfstate",
-	}
-
 	// Check for remote states.
 
-	for _, key := range remoteStateKeys {
-		tableKey := path.Join(s3BucketName, key+"-md5")
+	assert.True(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, unit1BackendKey), "S3 bucket key %s must exist", unit1BackendKey)
+	assert.True(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, unit1TableKey), "DynamoDB table key %s must exist", unit1TableKey)
+	assert.False(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, unit2BackendKey), "S3 bucket key %s must not exist", unit2BackendKey)
+	assert.False(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, unit2TableKey), "DynamoDB table key %s must not exist", unit2TableKey)
 
-		assert.True(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, key), "S3 bucket key %s must exist", key)
-		assert.True(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, tableKey), "DynamoDB table key %s must exist", tableKey)
-	}
+	// Migrate remote state from unit1 to unit2.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --experiment cli-redesign --working-dir "+rootPath+" unit1 unit2")
+	require.NoError(t, err)
 
-	// Migrate unit's remote state.
+	// Check for remote states after migration.
+	assert.False(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, unit1BackendKey), "S3 bucket key %s must not exist", unit1BackendKey)
+	assert.False(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, unit1TableKey), "DynamoDB table key %s must not exist", unit1TableKey)
+	assert.True(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, unit2BackendKey), "S3 bucket key %s must exist", unit2BackendKey)
+	assert.True(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, unit2TableKey), "DynamoDB table key %s must exist", unit2TableKey)
 
-	for _, unitName := range []string{"unit1", "unit2"} {
-		unitWorkDir := filepath.Join(rootPath, unitName)
-		key := path.Join(unitName, "tofu.tfstate")
-		migratedKey := path.Join("migrated", unitName, "tofu.tfstate")
+	// Run `tofu apply` for unit2 with migrated remote state from unit1.
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --experiment cli-redesign --working-dir "+unitWorkDir+" "+key+" "+migratedKey)
-		require.NoError(t, err)
-	}
-
-	// Check for migrated remote states.
-
-	for _, key := range remoteStateKeys {
-		tableKey := path.Join(s3BucketName, key+"-md5")
-
-		assert.False(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, key), "S3 bucket key %s must not exist", key)
-		assert.False(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, tableKey), "DynamoDB table key %s must not exist", tableKey)
-
-		migratedKey := path.Join("migrated", key)
-		migratedTableKey := path.Join(s3BucketName, migratedKey+"-md5")
-
-		assert.True(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, migratedKey), "S3 bucket key %s must exist", migratedKey)
-		assert.True(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, migratedTableKey), "DynamoDB table key %s must exist", migratedTableKey)
-	}
-
-	// Repeat `tofu apply` using the migrated remote states.
-
-	tmpEnvPath = helpers.CopyEnvironment(t, testFixtureS3Backend)
-	rootPath = util.JoinPath(tmpEnvPath, testFixtureS3Backend)
-
-	commonConfigPath = util.JoinPath(rootPath, "common.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
-
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --feature key_prefix=migrated/ --working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit2Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "No changes")
 }

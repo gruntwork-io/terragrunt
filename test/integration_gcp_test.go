@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -149,10 +148,10 @@ func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
 
 	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true backend migrate unit1/tofu.tfstate migrated/unit1/tofu.tfstate")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend migrate unit1 unit2")
 	require.Error(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true backend migrate --force unit1/tofu.tfstate migrated/unit1/tofu.tfstate")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend migrate --force unit1 unit2")
 	require.NoError(t, err)
 }
 
@@ -196,6 +195,16 @@ func TestGcpDeleteBackend(t *testing.T) {
 func TestGcpMigrateBackend(t *testing.T) {
 	t.Parallel()
 
+	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSBackend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
+
+	unit1Path := util.JoinPath(rootPath, "unit1")
+	unit2Path := util.JoinPath(rootPath, "unit2")
+
+	unit1BackendKey := "unit1/tofu.tfstate/default.tfstate"
+	unit2BackendKey := "unit2/tofu.tfstate/default.tfstate"
+
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
@@ -203,60 +212,31 @@ func TestGcpMigrateBackend(t *testing.T) {
 		deleteGCSBucket(t, gcsBucketName)
 	}()
 
-	// Bootstrap backend and create remote state by `tofu apply` command.
-
-	helpers.CleanupTerraformFolder(t, testFixtureGCSBackend)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGCSBackend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
-
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	// Bootstrap backend and create remote state for unit1.
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit1Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Changes to Outputs")
 
-	remoteStateObjectNames := []string{
-		"unit1/tofu.tfstate/default.tfstate",
-		"unit2/tofu.tfstate/default.tfstate",
-	}
-
 	// Check for remote states.
 
-	for _, objectName := range remoteStateObjectNames {
-		assert.True(t, doesGCSBucketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must exist", objectName)
-	}
+	assert.True(t, doesGCSBucketObjectExist(t, gcsBucketName, unit1BackendKey), "GCS bucket object %s must exist", unit1BackendKey)
+	assert.False(t, doesGCSBucketObjectExist(t, gcsBucketName, unit2BackendKey), "GCS bucket object %s must not exist", unit2BackendKey)
 
-	// Migrate unit's remote state.
+	// Migrate remote state from unit1 to unit2.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --experiment cli-redesign --working-dir "+rootPath+" unit1 unit2")
+	require.NoError(t, err)
 
-	for _, unitName := range []string{"unit1", "unit2"} {
-		unitWorkDir := filepath.Join(rootPath, unitName)
-		key := path.Join(unitName, "tofu.tfstate")
-		migratedKey := path.Join("migrated", unitName, "tofu.tfstate")
+	// Check for remote states after migration.
+	assert.False(t, doesGCSBucketObjectExist(t, gcsBucketName, unit1BackendKey), "GCS bucket object %s must not exist", unit1BackendKey)
+	assert.True(t, doesGCSBucketObjectExist(t, gcsBucketName, unit2BackendKey), "GCS bucket object %s must exist", unit2BackendKey)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --experiment cli-redesign --working-dir "+unitWorkDir+" "+key+" "+migratedKey)
-		require.NoError(t, err)
-	}
+	// Run `tofu apply` for unit2 with migrated remote state from unit1.
 
-	// Check for migrated remote states.
-
-	for _, objectName := range remoteStateObjectNames {
-		assert.False(t, doesGCSBucketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must not exist", objectName)
-
-		migratedObjectName := path.Join("migrated", objectName)
-
-		assert.True(t, doesGCSBucketObjectExist(t, gcsBucketName, migratedObjectName), "GCS bucket object %s must exist", migratedObjectName)
-	}
-
-	// Repeat `tofu apply` using the migrated remote states.
-
-	tmpEnvPath = helpers.CopyEnvironment(t, testFixtureGCSBackend)
-	rootPath = util.JoinPath(tmpEnvPath, testFixtureGCSBackend)
-
-	commonConfigPath = util.JoinPath(rootPath, "common.hcl")
-	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
-
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --feature key_prefix=migrated/ --working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit2Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "No changes")
 }

@@ -13,7 +13,7 @@ const (
 
 	ForceBackendMigrateFlagName = "force"
 
-	usageText = "terragrunt backend migrate [options] <src-path> <dst-path>"
+	usageText = "terragrunt backend migrate [options] <src-unit> <dst-unit>"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
