@@ -2,9 +2,9 @@
 package backend
 
 import (
+	// "github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/bootstrap"
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/delete"
-	// "github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"

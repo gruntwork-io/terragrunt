@@ -214,6 +214,11 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 }
 
 func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
+	// NOTE: This is being backed out because the migration command
+	// needs some work to handle the case where the source and destination
+	// backends have unsupported types or differ.
+	t.Skip("Skipping test for now, as it needs to be reworked to handle unsupported backend types")
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
@@ -294,6 +299,11 @@ func TestAwsDeleteBackend(t *testing.T) {
 }
 
 func TestAwsMigrateBackend(t *testing.T) {
+	// NOTE: This is being backed out because the migration command
+	// needs some work to handle the case where the source and destination
+	// backends have unsupported types or differ.
+	t.Skip("Skipping test for now, as it needs to be reworked to handle unsupported backend types")
+
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
