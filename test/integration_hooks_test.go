@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
+	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -395,16 +395,16 @@ func TestTerragruntInfo(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt info print --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 
-	var dat terragruntinfo.TerragruntInfoGroup
+	var dat print.InfoOutput
 	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
 	require.NoError(t, errUnmarshal)
 
 	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, helpers.TerragruntCache), dat.DownloadDir)
 	assert.Equal(t, wrappedBinary(), dat.TerraformBinary)
-	assert.Empty(t, dat.IamRole)
+	assert.Empty(t, dat.IAMRole)
 }

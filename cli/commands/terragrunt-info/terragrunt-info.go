@@ -1,3 +1,6 @@
+// Package terragruntinfo provides information about Terragrunt configuration.
+// Deprecated: This package is deprecated and will be removed in a future version.
+// Use the newer package `print` instead.
 package terragruntinfo
 
 import (

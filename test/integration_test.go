@@ -16,8 +16,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
-	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -3785,11 +3785,11 @@ func TestTerragruntInfoError(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.Error(t, err)
+	err := helpers.RunTerragruntCommand(t, "terragrunt info print --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	require.NoError(t, err)
 
-	// parse stdout json as TerragruntInfoGroup
-	var output terragruntinfo.TerragruntInfoGroup
+	// parse stdout json as InfoOutput
+	var output print.InfoOutput
 	err = json.Unmarshal(stdout.Bytes(), &output)
 	require.NoError(t, err)
 }
