@@ -25,6 +25,9 @@ const (
 	Dependencies   = "dependencies"
 	External       = "external"
 	Exclude        = "exclude"
+
+	QueueConstructAsFlagName  = "queue-construct-as"
+	QueueConstructAsFlagAlias = "as"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -74,6 +77,13 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(External),
 			Destination: &opts.External,
 			Usage:       "Discover external dependencies from initial results, and add them to top-level results.",
+		}),
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        QueueConstructAsFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueConstructAsFlagName),
+			Destination: &opts.QueueConstructAs,
+			Usage:       "Construct the queue as if a specific command was run.",
+			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
 	}
 }

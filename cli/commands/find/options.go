@@ -52,6 +52,9 @@ type Options struct {
 
 	// External determines if external dependencies should be included in the output.
 	External bool
+
+	// QueueConstructAs constructs the queue as if a particular command was run.
+	QueueConstructAs string
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
