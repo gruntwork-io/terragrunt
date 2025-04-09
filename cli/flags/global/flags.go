@@ -83,6 +83,11 @@ const (
 	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
 )
 
+// experimentalCommands is a list of experimental commands for which the deprecated messages about moved global flags should not be displayed unless the `cli-redesign` experiment is enabled.
+var experimentalCommands = []string{
+	run.CommandName,
+}
+
 // NewFlagsWithDeprecatedMovedFlags returns global flags along with flags that have been moved to other commands and hidden from CLI help.
 func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags {
 	globalFlags := NewFlags(opts, nil)
@@ -110,7 +115,7 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 
 			// Disable strcit control evaluation of moves global flags for the experimental `run` command if the `cli-redesign` experiment is not enabled.
 			evaluateWrapper := func(ctx context.Context, evalFn func(ctx context.Context) error) error {
-				if opts.Experiments.Evaluate(experiment.CLIRedesign) && cmd.Name == run.CommandName {
+				if opts.Experiments.Evaluate(experiment.CLIRedesign) && slices.Contains(experimentalCommands, cmd.Name) {
 					return evalFn(ctx)
 				}
 
