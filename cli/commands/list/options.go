@@ -54,6 +54,9 @@ type Options struct {
 
 	// DAG determines whether to output in DAG format.
 	DAG bool
+
+	// QueueConstructAs constructs the queue as if a particular command was run.
+	QueueConstructAs string
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {

@@ -34,6 +34,10 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithDiscoverExternalDependencies()
 	}
 
+	if opts.QueueConstructAs != "" {
+		d = d.WithParseExclude()
+	}
+
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
 	if err != nil {
 		return errors.New(err)
@@ -129,6 +133,14 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 	for _, config := range configs {
 		if config.External && !opts.External {
 			continue
+		}
+
+		if opts.QueueConstructAs != "" {
+			if config.Parsed != nil && config.Parsed.Exclude != nil {
+				if config.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
+					continue
+				}
+			}
 		}
 
 		relPath, err := filepath.Rel(opts.WorkingDir, config.Path)
