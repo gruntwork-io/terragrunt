@@ -275,6 +275,8 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 		return cfgs, errors.New(err)
 	}
 
+	errs := []error{}
+
 	// We do an initial parse loop if we know we need to parse configurations,
 	// as we might need to parse configurations for multiple reasons.
 	// e.g. dependencies, exclude, etc.
@@ -282,7 +284,7 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 		for _, cfg := range cfgs {
 			_, err := cfg.Parse(ctx, opts, d.suppressParseErrors)
 			if err != nil {
-				return cfgs, errors.New(err)
+				errs = append(errs, errors.New(err))
 			}
 		}
 	}
@@ -297,8 +299,6 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 		if d.suppressParseErrors {
 			dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
 		}
-
-		errs := []error{}
 
 		err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
 		if err != nil {
