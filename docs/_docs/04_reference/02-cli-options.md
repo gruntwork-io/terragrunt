@@ -1089,6 +1089,32 @@ Example:
 terragrunt info strict deprecated-flags
 ```
 
+##### Print command
+
+Print out a short description of the current Terragrunt context.
+
+Example:
+
+```bash
+terragrunt info print
+```
+
+This command outputs a JSON object that includes useful contextual information such as the path to the configuration file,
+working directory, download cache location, the IAM role in use, and the Terraform (or Tofu) binary being invoked.
+
+Example output:
+
+```json
+{
+  "config_path": "/example/path/terragrunt.hcl",
+  "download_dir": "/example/path/.terragrunt-cache",
+  "iam_role": "",
+  "terraform_binary": "tofu",
+  "terraform_command": "print",
+  "working_dir": "/example/path"
+}
+```
+
 #### terragrunt-info
 
 Emits limited terragrunt state on `stdout` in a JSON format and exits.
