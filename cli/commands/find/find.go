@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -28,6 +29,10 @@ func Run(ctx context.Context, opts *Options) error {
 
 	if opts.External {
 		d = d.WithDiscoverExternalDependencies()
+	}
+
+	if opts.Exclude {
+		d = d.WithParseExclude()
 	}
 
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
@@ -74,6 +79,8 @@ type FoundConfig struct {
 	Type discovery.ConfigType `json:"type"`
 	Path string               `json:"path"`
 
+	Exclude *config.ExcludeConfig `json:"exclude,omitempty"`
+
 	Dependencies []string `json:"dependencies,omitempty"`
 }
 
@@ -96,6 +103,10 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 		foundCfg := &FoundConfig{
 			Type: config.Type,
 			Path: relPath,
+		}
+
+		if opts.Exclude && config.Parsed != nil && config.Parsed.Exclude != nil {
+			foundCfg.Exclude = config.Parsed.Exclude.Clone()
 		}
 
 		if !opts.Dependencies || len(config.Dependencies) == 0 {

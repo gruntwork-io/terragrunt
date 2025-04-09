@@ -24,6 +24,7 @@ const (
 	HiddenFlagName = "hidden"
 	Dependencies   = "dependencies"
 	External       = "external"
+	Exclude        = "exclude"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -61,6 +62,12 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(Dependencies),
 			Destination: &opts.Dependencies,
 			Usage:       "Include dependencies in the results (only when using --format=json).",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        Exclude,
+			EnvVars:     tgPrefix.EnvVars(Exclude),
+			Destination: &opts.Exclude,
+			Usage:       "Display exclude configurations in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        External,

@@ -30,20 +30,14 @@ type ConfigType string
 // Sort is the sort order of the discovered configurations.
 type Sort string
 
-// Exclude is the exclude configuration for a discovered configuration.
-type Exclude struct {
-	If                  string
-	Actions             []string
-	ExcludeDependencies bool
-}
-
 // DiscoveredConfig represents a discovered Terragrunt configuration.
 type DiscoveredConfig struct {
+	Parsed *config.TerragruntConfig
+
 	Type ConfigType
 	Path string
 
 	Dependencies DiscoveredConfigs
-	Exclude      Exclude
 
 	External bool
 }
@@ -68,8 +62,14 @@ type Discovery struct {
 	// hidden determines whether to detect configurations in hidden directories.
 	hidden bool
 
+	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
+	requiresParse bool
+
 	// discoverDependencies determines whether to discover dependencies.
 	discoverDependencies bool
+
+	// parseExclude determines whether to parse exclude configurations.
+	parseExclude bool
 
 	// discoverExternalDependencies determines whether to discover external dependencies.
 	discoverExternalDependencies bool
@@ -113,9 +113,20 @@ func (d *Discovery) WithSort(sort Sort) *Discovery {
 func (d *Discovery) WithDiscoverDependencies() *Discovery {
 	d.discoverDependencies = true
 
+	d.requiresParse = true
+
 	if d.maxDependencyDepth == 0 {
 		d.maxDependencyDepth = 1000
 	}
+
+	return d
+}
+
+// WithParseExclude sets the ParseExclude flag to true.
+func (d *Discovery) WithParseExclude() *Discovery {
+	d.parseExclude = true
+
+	d.requiresParse = true
 
 	return d
 }
@@ -160,6 +171,47 @@ func (c *DiscoveredConfig) ContainsDependencyInAncestry(path string) bool {
 	}
 
 	return false
+}
+
+// Parse parses the discovered configurations.
+func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOptions, suppressParseErrors bool) (*DiscoveredConfig, error) {
+	parseOpts := opts.Clone()
+	parseOpts.WorkingDir = c.Path
+
+	// Suppress logging to avoid cluttering the output.
+	parseOpts.Writer = io.Discard
+	parseOpts.ErrWriter = io.Discard
+	parseOpts.Logger = log.New(
+		log.WithOutput(io.Discard),
+		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+	)
+
+	// We can assume this is a unit config, because we already filtered out
+	// stack configs above.
+	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, config.DefaultTerragruntConfigPath)
+
+	parsingCtx := config.NewParsingContext(ctx, parseOpts).WithDecodeList(
+		config.DependenciesBlock,
+		config.DependencyBlock,
+		config.FeatureFlagsBlock,
+		config.ExcludeBlock,
+	)
+
+	//nolint: contextcheck
+	cfg, err := config.PartialParseConfigFile(parsingCtx, parseOpts.TerragruntConfigPath, nil)
+	if err != nil {
+		if !suppressParseErrors || cfg == nil {
+			opts.Logger.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+
+			return c, errors.New(err)
+		}
+
+		opts.Logger.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+	}
+
+	c.Parsed = cfg
+
+	return c, nil
 }
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
@@ -221,6 +273,18 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 
 	if err := filepath.WalkDir(d.workingDir, walkFn); err != nil {
 		return cfgs, errors.New(err)
+	}
+
+	// We do an initial parse loop if we know we need to parse configurations,
+	// as we might need to parse configurations for multiple reasons.
+	// e.g. dependencies, exclude, etc.
+	if d.requiresParse {
+		for _, cfg := range cfgs {
+			_, err := cfg.Parse(ctx, opts, d.suppressParseErrors)
+			if err != nil {
+				return cfgs, errors.New(err)
+			}
+		}
 	}
 
 	if d.discoverDependencies {
@@ -328,41 +392,17 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 		return nil
 	}
 
-	parseOpts := opts.Clone()
-	parseOpts.WorkingDir = dCfg.Path
+	// This should only happen if we're discovering an ancestor dependency.
+	if dCfg.Parsed == nil {
+		var err error
 
-	// Suppress logging to avoid cluttering the output.
-	parseOpts.Writer = io.Discard
-	parseOpts.ErrWriter = io.Discard
-	parseOpts.Logger = log.New(
-		log.WithOutput(io.Discard),
-		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
-	)
-
-	// We can assume this is a unit config, because we already filtered out
-	// stack configs above.
-	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, config.DefaultTerragruntConfigPath)
-
-	parsingCtx := config.NewParsingContext(ctx, parseOpts).WithDecodeList(
-		config.DependenciesBlock,
-		config.DependencyBlock,
-		config.FeatureFlagsBlock,
-		config.ExcludeBlock,
-	)
-
-	//nolint: contextcheck
-	cfg, err := config.PartialParseConfigFile(parsingCtx, parseOpts.TerragruntConfigPath, nil)
-	if err != nil {
-		if !d.suppressParseErrors || cfg == nil {
-			opts.Logger.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
-
+		dCfg, err = dCfg.Parse(ctx, opts, d.suppressParseErrors)
+		if err != nil {
 			return errors.New(err)
 		}
-
-		opts.Logger.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 	}
 
-	dependencyBlocks := cfg.TerragruntDependencies
+	dependencyBlocks := dCfg.Parsed.TerragruntDependencies
 
 	depPaths := make([]string, 0, len(dependencyBlocks))
 
@@ -372,16 +412,16 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 		depPath := dependency.ConfigPath.AsString()
 
 		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Join(parseOpts.WorkingDir, depPath)
+			depPath = filepath.Join(dCfg.Path, depPath)
 		}
 
 		depPaths = append(depPaths, depPath)
 	}
 
-	if cfg.Dependencies != nil {
-		for _, dependency := range cfg.Dependencies.Paths {
+	if dCfg.Dependencies != nil {
+		for _, dependency := range dCfg.Parsed.Dependencies.Paths {
 			if !filepath.IsAbs(dependency) {
-				dependency = filepath.Join(parseOpts.WorkingDir, dependency)
+				dependency = filepath.Join(dCfg.Path, dependency)
 			}
 
 			depPaths = append(depPaths, dependency)

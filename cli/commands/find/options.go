@@ -47,6 +47,9 @@ type Options struct {
 	// Dependencies determines if dependencies should be included in the output.
 	Dependencies bool
 
+	// Exclude determines if exclude configurations should be included in the output.
+	Exclude bool
+
 	// External determines if external dependencies should be included in the output.
 	External bool
 }
