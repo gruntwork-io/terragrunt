@@ -13,16 +13,22 @@ import (
 
 var _ = cli.Flag(new(Flag))
 
+type EvaluateWrapperFunc func(ctx context.Context, evalFn func(ctx context.Context) error) error
+
 // Flag is a wrapper for `cli.Flag` that avoids displaying deprecated flags in help, but registers their flag names and environment variables.
 type Flag struct {
 	cli.Flag
 	deprecatedFlags DeprecatedFlags
+	evaluateWrapper EvaluateWrapperFunc
 }
 
 // NewFlag returns a new Flag instance.
 func NewFlag(new cli.Flag, opts ...Option) *Flag {
 	flag := &Flag{
 		Flag: new,
+		evaluateWrapper: func(ctx context.Context, evalFn func(ctx context.Context) error) error {
+			return evalFn(ctx)
+		},
 	}
 
 	for _, opt := range opts {
@@ -32,8 +38,8 @@ func NewFlag(new cli.Flag, opts ...Option) *Flag {
 	return flag
 }
 
-func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn RegisterStrictControlsFunc) *Flag {
-	return NewFlag(nil, WithDeprecatedMovedFlag(deprecatedFlag, newCommandName, regControlsFn))
+func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn RegisterStrictControlsFunc, opts ...Option) *Flag {
+	return NewFlag(nil, append(opts, WithDeprecatedMovedFlag(deprecatedFlag, newCommandName, regControlsFn))...)
 }
 
 // TakesValue implements `github.com/urfave/cli.DocGenerationFlag` required to generate help.
@@ -120,7 +126,7 @@ func (newFlag *Flag) Apply(set *flag.FlagSet) error {
 // RunAction implements `cli.Flag` interface.
 func (newFlag *Flag) RunAction(ctx *cli.Context) error {
 	for _, deprecated := range newFlag.deprecatedFlags {
-		if err := deprecated.Evaluate(ctx); err != nil {
+		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err
 		}
 
@@ -136,7 +142,7 @@ func (newFlag *Flag) RunAction(ctx *cli.Context) error {
 	if deprecated, ok := newFlag.Flag.(interface {
 		Evaluate(ctx context.Context) error
 	}); ok {
-		if err := deprecated.Evaluate(ctx); err != nil {
+		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err
 		}
 	}

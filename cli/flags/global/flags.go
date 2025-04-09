@@ -2,6 +2,7 @@
 package global
 
 import (
+	"context"
 	"fmt"
 
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -93,6 +95,15 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 	cmdOpts := opts.Clone()
 	cmdOpts.StrictControls = nil
 
+	// Disable evaluation of global flags moves if `cli-redesign` experiment is not enabled.
+	evaluateWrapper := func(ctx context.Context, evalFn func(ctx context.Context) error) error {
+		if opts.Experiments.Evaluate(experiment.CLIRedesign) {
+			return evalFn(ctx)
+		}
+
+		return nil
+	}
+
 	commands := commands.New(cmdOpts)
 
 	var seen []string
@@ -106,7 +117,12 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 			}
 
 			seen = append(seen, flagName)
-			globalFlags = append(globalFlags, flags.NewMovedFlag(flag, cmd.Name, flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name)))
+			globalFlags = append(globalFlags, flags.NewMovedFlag(
+				flag,
+				cmd.Name,
+				flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name),
+				flags.WithEvaluateWrapper(evaluateWrapper),
+			))
 		}
 	}
 
