@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
+	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 	"github.com/gruntwork-io/terragrunt/options"
 
@@ -90,6 +91,7 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		info.NewCommand(opts),               // info
 		terragruntinfo.NewCommand(opts),     // terragrunt-info
 		renderjson.NewCommand(opts),         // render-json
+		render.NewCommand(opts),             // render
 		helpCmd.NewCommand(opts),            // help (hidden)
 		versionCmd.NewCommand(opts),         // version (hidden)
 		awsproviderpatch.NewCommand(opts),   // aws-provider-patch (hidden)
