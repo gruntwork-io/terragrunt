@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/help"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -95,15 +96,6 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 	cmdOpts := opts.Clone()
 	cmdOpts.StrictControls = nil
 
-	// Disable evaluation of global flags moves if `cli-redesign` experiment is not enabled.
-	evaluateWrapper := func(ctx context.Context, evalFn func(ctx context.Context) error) error {
-		if opts.Experiments.Evaluate(experiment.CLIRedesign) {
-			return evalFn(ctx)
-		}
-
-		return nil
-	}
-
 	commands := commands.New(cmdOpts)
 
 	var seen []string
@@ -114,6 +106,15 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 
 			if slices.Contains(seen, flagName) {
 				continue
+			}
+
+			// Disable strcit control evaluation of moves global flags for the experimental `run` command if the `cli-redesign` experiment is not enabled.
+			evaluateWrapper := func(ctx context.Context, evalFn func(ctx context.Context) error) error {
+				if opts.Experiments.Evaluate(experiment.CLIRedesign) && cmd.Name == run.CommandName {
+					return evalFn(ctx)
+				}
+
+				return nil
 			}
 
 			seen = append(seen, flagName)
