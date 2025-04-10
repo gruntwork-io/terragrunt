@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -456,6 +457,12 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 	errs := []error{}
 
 	for _, dependency := range dependencyBlocks {
+		if dependency.ConfigPath.Type() != cty.String {
+			errs = append(errs, errors.New("dependency config path is not a string"))
+
+			continue
+		}
+
 		depPath := dependency.ConfigPath.AsString()
 
 		if !filepath.IsAbs(depPath) {
