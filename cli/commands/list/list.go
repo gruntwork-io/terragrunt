@@ -52,7 +52,7 @@ func Run(ctx context.Context, opts *Options) error {
 			return errors.New(err)
 		}
 
-		cfgs = q.Entries()
+		cfgs = q.Configs()
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.

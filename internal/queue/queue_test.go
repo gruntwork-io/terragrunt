@@ -22,33 +22,33 @@ func TestNoDependenciesMaintainsAlphabeticalOrder(t *testing.T) {
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
-	entries := q.Entries()
+	entries := q.Entries
 
 	// Should be sorted alphabetically at front since none have dependencies
-	assert.Equal(t, "a", entries[0].Path)
-	assert.Equal(t, "b", entries[1].Path)
-	assert.Equal(t, "c", entries[2].Path)
+	assert.Equal(t, "a", entries[0].Config.Path)
+	assert.Equal(t, "b", entries[1].Config.Path)
+	assert.Equal(t, "c", entries[2].Config.Path)
 }
 
 func TestDependenciesOrderedByDependencyLevel(t *testing.T) {
 	// Create configs with dependencies - should order by dependency level
-	configs := []*discovery.DiscoveredConfig{
-		{Path: "c", Dependencies: []*discovery.DiscoveredConfig{{Path: "b"}}},
-		{Path: "b", Dependencies: []*discovery.DiscoveredConfig{{Path: "a"}}},
-		{Path: "a", Dependencies: []*discovery.DiscoveredConfig{}},
-	}
+	aCfg := &discovery.DiscoveredConfig{Path: "a", Dependencies: []*discovery.DiscoveredConfig{}}
+	bCfg := &discovery.DiscoveredConfig{Path: "b", Dependencies: []*discovery.DiscoveredConfig{aCfg}}
+	cCfg := &discovery.DiscoveredConfig{Path: "c", Dependencies: []*discovery.DiscoveredConfig{bCfg}}
+
+	configs := []*discovery.DiscoveredConfig{aCfg, bCfg, cCfg}
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
-	entries := q.Entries()
+	entries := q.Entries
 
 	// 'a' has no deps so should be at front
 	// 'b' depends on 'a' so should be after
 	// 'c' depends on 'b' so should be at back
-	assert.Equal(t, "a", entries[0].Path)
-	assert.Equal(t, "b", entries[1].Path)
-	assert.Equal(t, "c", entries[2].Path)
+	assert.Equal(t, "a", entries[0].Config.Path)
+	assert.Equal(t, "b", entries[1].Config.Path)
+	assert.Equal(t, "c", entries[2].Config.Path)
 }
 
 func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
@@ -72,18 +72,18 @@ func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
-	entries := q.Entries()
+	entries := q.Entries
 
 	// Verify ordering by dependency level and alphabetically within levels:
 	// Level 0 (no deps): A, B
 	// Level 1 (depends on level 0): C, D
 	// Level 2 (depends on level 1): E, F
-	assert.Equal(t, "A", entries[0].Path)
-	assert.Equal(t, "B", entries[1].Path)
-	assert.Equal(t, "C", entries[2].Path)
-	assert.Equal(t, "D", entries[3].Path)
-	assert.Equal(t, "E", entries[4].Path)
-	assert.Equal(t, "F", entries[5].Path)
+	assert.Equal(t, "A", entries[0].Config.Path)
+	assert.Equal(t, "B", entries[1].Config.Path)
+	assert.Equal(t, "C", entries[2].Config.Path)
+	assert.Equal(t, "D", entries[3].Config.Path)
+	assert.Equal(t, "E", entries[4].Config.Path)
+	assert.Equal(t, "F", entries[5].Config.Path)
 
 	// Also verify relative ordering
 	aIndex := findIndex(entries, "A")
@@ -122,15 +122,15 @@ func TestDeterministicOrderingOfParallelDependencies(t *testing.T) {
 		q, err := queue.NewQueue(configs)
 		require.NoError(t, err)
 
-		entries := q.Entries()
+		entries := q.Entries
 
 		// A should be first (no deps)
-		assert.Equal(t, "A", entries[0].Path)
+		assert.Equal(t, "A", entries[0].Config.Path)
 
 		// B, C, D should maintain alphabetical order since they're all at the same level
-		assert.Equal(t, "B", entries[1].Path)
-		assert.Equal(t, "C", entries[2].Path)
-		assert.Equal(t, "D", entries[3].Path)
+		assert.Equal(t, "B", entries[1].Config.Path)
+		assert.Equal(t, "C", entries[2].Config.Path)
+		assert.Equal(t, "D", entries[3].Config.Path)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestDepthBasedOrderingVerification(t *testing.T) {
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
-	entries := q.Entries()
+	entries := q.Entries
 
 	// Verify that items are grouped by their depth levels
 	// Level 0: A,B (no deps)
@@ -202,13 +202,13 @@ func TestErrorHandlingEmptyConfigList(t *testing.T) {
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
-	assert.Empty(t, q.Entries())
+	assert.Empty(t, q.Entries)
 }
 
 // findIndex returns the index of the config with the given path in the slice
-func findIndex(configs []*discovery.DiscoveredConfig, path string) int {
-	for i, cfg := range configs {
-		if cfg.Path == path {
+func findIndex(entries queue.Entries, path string) int {
+	for i, cfg := range entries {
+		if cfg.Config.Path == path {
 			return i
 		}
 	}

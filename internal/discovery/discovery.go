@@ -32,7 +32,8 @@ type Sort string
 
 // DiscoveredConfig represents a discovered Terragrunt configuration.
 type DiscoveredConfig struct {
-	Parsed *config.TerragruntConfig
+	Parsed           *config.TerragruntConfig
+	DiscoveryContext *DiscoveryContext
 
 	Type ConfigType
 	Path string
@@ -42,11 +43,25 @@ type DiscoveredConfig struct {
 	External bool
 }
 
+// DiscoveryContext is the context in which
+// a DiscoveredConfig was discovered.
+//
+// It's useful to know this information,
+// because it can help us determine how the
+// DiscoveredConfig should be processed later.
+type DiscoveryContext struct {
+	Cmd  string
+	Args []string
+}
+
 // DiscoveredConfigs is a list of discovered Terragrunt configurations.
 type DiscoveredConfigs []*DiscoveredConfig
 
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
+	// discoveryContext is the context in which the discovery is happening.
+	discoveryContext *DiscoveryContext
+
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string
 
@@ -148,6 +163,13 @@ func (d *Discovery) WithDiscoverExternalDependencies() *Discovery {
 // WithSuppressParseErrors sets the SuppressParseErrors flag to true.
 func (d *Discovery) WithSuppressParseErrors() *Discovery {
 	d.suppressParseErrors = true
+
+	return d
+}
+
+// WithDiscoveryContext sets the DiscoveryContext flag to the given context.
+func (d *Discovery) WithDiscoveryContext(discoveryContext *DiscoveryContext) *Discovery {
+	d.discoveryContext = discoveryContext
 
 	return d
 }
@@ -261,15 +283,27 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
-			cfgs = append(cfgs, &DiscoveredConfig{
+			cfg := &DiscoveredConfig{
 				Type: ConfigTypeUnit,
 				Path: filepath.Dir(path),
-			})
+			}
+
+			if d.discoveryContext != nil {
+				cfg.DiscoveryContext = d.discoveryContext
+			}
+
+			cfgs = append(cfgs, cfg)
 		case config.DefaultStackFile:
-			cfgs = append(cfgs, &DiscoveredConfig{
+			cfg := &DiscoveredConfig{
 				Type: ConfigTypeStack,
 				Path: filepath.Dir(path),
-			})
+			}
+
+			if d.discoveryContext != nil {
+				cfg.DiscoveryContext = d.discoveryContext
+			}
+
+			cfgs = append(cfgs, cfg)
 		}
 
 		return nil
@@ -295,6 +329,10 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 
 	if d.discoverDependencies {
 		dependencyDiscovery := NewDependencyDiscovery(cfgs, d.maxDependencyDepth)
+
+		if d.discoveryContext != nil {
+			dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
+		}
 
 		if d.discoverExternalDependencies {
 			dependencyDiscovery = dependencyDiscovery.WithDiscoverExternalDependencies()
@@ -334,6 +372,7 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
 type DependencyDiscovery struct {
+	discoveryContext    *DiscoveryContext
 	cfgs                DiscoveredConfigs
 	depthRemaining      int
 	discoverExternal    bool
@@ -360,6 +399,12 @@ func (d *DependencyDiscovery) WithSuppressParseErrors() *DependencyDiscovery {
 // WithDiscoverExternalDependencies sets the DiscoverExternalDependencies flag to true.
 func (d *DependencyDiscovery) WithDiscoverExternalDependencies() *DependencyDiscovery {
 	d.discoverExternal = true
+
+	return d
+}
+
+func (d *DependencyDiscovery) WithDiscoveryContext(discoveryContext *DiscoveryContext) *DependencyDiscovery {
+	d.discoveryContext = discoveryContext
 
 	return d
 }
@@ -464,6 +509,10 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 				Type:     ConfigTypeUnit,
 				Path:     depPath,
 				External: true,
+			}
+
+			if d.discoveryContext != nil {
+				ext.DiscoveryContext = d.discoveryContext
 			}
 
 			dCfg.Dependencies = append(dCfg.Dependencies, ext)
