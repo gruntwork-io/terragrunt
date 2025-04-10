@@ -164,7 +164,7 @@ To transition `cli-redesign` features to a stable release, the following must be
   - [x] Add support for `find` with `--hidden` flag.
   - [x] Add support for `find` with `--sort=alpha` flag.
   - [x] Add support for `find` with `--sort=dag` flag.
-  - [ ] Add support for `find` with the `exclude` block used to exclude units from the search.
+  - [x] Add support for `find` with the `exclude` block used to exclude units from the search.
   - [ ] Add integration with `symlinks` experiment to support finding units/stacks via symlinks.
   - [x] Add handling of broken configurations or configurations requiring authentication.
   - [x] Add integration test for `find` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
@@ -179,7 +179,7 @@ To transition `cli-redesign` features to a stable release, the following must be
   - [x] Add support for `list` with `--sort=dag` flag.
   - [x] Add support for `list` with `--group-by=fs` flag.
   - [x] Add support for `list` with `--group-by=dag` flag.
-  - [ ] Add support for `list` with the `exclude` block used to exclude units from the search.
+  - [x] Add support for `list` with the `exclude` block used to exclude units from the search.
   - [ ] Add integration with `symlinks` experiment to support listing units/stacks via symlinks.
   - [x] Add handling of broken configurations or configurations requiring authentication.
   - [x] Add integration test for `list` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
