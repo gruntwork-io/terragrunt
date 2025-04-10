@@ -53,20 +53,22 @@ type StackConfig struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
-	Name    string     `hcl:",label"`
-	Source  string     `hcl:"source,attr"`
-	Path    string     `hcl:"path,attr"`
+	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	NoValidation *bool      `hcl:"no_validation,attr"`
+	Values       *cty.Value `hcl:"values,attr"`
+	Name         string     `hcl:",label"`
+	Source       string     `hcl:"source,attr"`
+	Path         string     `hcl:"path,attr"`
 }
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
-	Name    string     `hcl:",label"`
-	Source  string     `hcl:"source,attr"`
-	Path    string     `hcl:"path,attr"`
+	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	NoValidation *bool      `hcl:"no_validation,attr"`
+	Values       *cty.Value `hcl:"values,attr"`
+	Name         string     `hcl:",label"`
+	Source       string     `hcl:"source,attr"`
+	Path         string     `hcl:"path,attr"`
 }
 
 // GenerateStacks generates the stack files.
@@ -375,14 +377,15 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 
 		pool.Submit(func() error {
 			item := componentToProcess{
-				sourceDir: sourceDir,
-				targetDir: targetDir,
-				name:      unitCopy.Name,
-				path:      unitCopy.Path,
-				source:    unitCopy.Source,
-				values:    unitCopy.Values,
-				noStack:   unitCopy.NoStack != nil && *unitCopy.NoStack,
-				kind:      unitKind,
+				sourceDir:    sourceDir,
+				targetDir:    targetDir,
+				name:         unitCopy.Name,
+				path:         unitCopy.Path,
+				source:       unitCopy.Source,
+				values:       unitCopy.Values,
+				noStack:      unitCopy.NoStack != nil && *unitCopy.NoStack,
+				noValidation: unitCopy.NoValidation != nil && *unitCopy.NoValidation,
+				kind:         unitKind,
 			}
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
@@ -408,14 +411,15 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 
 		pool.Submit(func() error {
 			item := componentToProcess{
-				sourceDir: sourceDir,
-				targetDir: targetDir,
-				name:      stackCopy.Name,
-				path:      stackCopy.Path,
-				source:    stackCopy.Source,
-				noStack:   stackCopy.NoStack != nil && *stackCopy.NoStack,
-				values:    stackCopy.Values,
-				kind:      stackKind,
+				sourceDir:    sourceDir,
+				targetDir:    targetDir,
+				name:         stackCopy.Name,
+				path:         stackCopy.Path,
+				source:       stackCopy.Source,
+				noStack:      stackCopy.NoStack != nil && *stackCopy.NoStack,
+				noValidation: stackCopy.NoValidation != nil && *stackCopy.NoValidation,
+				values:       stackCopy.Values,
+				kind:         stackKind,
 			}
 
 			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
@@ -444,14 +448,15 @@ const (
 // It contains information about the source and target directories, the name and path of the item, the source URL or path,
 // and any associated values that need to be processed.
 type componentToProcess struct {
-	values    *cty.Value
-	sourceDir string
-	targetDir string
-	name      string
-	path      string
-	source    string
-	noStack   bool
-	kind      componentKind
+	values       *cty.Value
+	sourceDir    string
+	targetDir    string
+	name         string
+	path         string
+	source       string
+	noStack      bool
+	noValidation bool
+	kind         componentKind
 }
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
@@ -519,7 +524,21 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		)
 	}
 
-	if !cmp.noStack {
+	skipValidation := false
+
+	if cmp.noStack {
+		opts.Logger.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
+
+		skipValidation = true
+	}
+
+	if cmp.noValidation {
+		opts.Logger.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
+
+		skipValidation = true
+	}
+
+	if !skipValidation {
 		// validate what was copied to the destination, don't do validation for special noStack components
 		expectedFile := DefaultTerragruntConfigPath
 
