@@ -526,7 +526,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 
 	skipValidation := false
 
-	if !cmp.noStack {
+	if cmp.noStack {
 		opts.Logger.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
 
 		skipValidation = true
@@ -538,7 +538,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		skipValidation = true
 	}
 
-	if skipValidation {
+	if !skipValidation {
 		// validate what was copied to the destination, don't do validation for special noStack components
 		expectedFile := DefaultTerragruntConfigPath
 
