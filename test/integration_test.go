@@ -904,7 +904,7 @@ func TestTerragruntGraphDependenciesCommand(t *testing.T) {
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt graph-dependencies --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
+	helpers.RunTerragruntRedirectOutput(t, "terragrunt dag graph --working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 	assert.Contains(t, output, strings.TrimSpace(`
 digraph {
