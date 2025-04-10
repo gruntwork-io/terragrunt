@@ -68,6 +68,10 @@ examples:
     code: |
       terragrunt find --dependencies --format 'json'
   - description: |
+      Include exclude configuration in the output.
+    code: |
+      terragrunt find --exclude --format 'json'
+  - description: |
       Include external dependencies in the output.
     code: |
       terragrunt find --dependencies --external --format 'json'
@@ -77,6 +81,7 @@ flags:
   - find-dag
   - find-hidden
   - find-dependencies
+  - find-exclude
   - find-external
   - queue-construct-as
 ---
@@ -195,6 +200,37 @@ terragrunt find --dependencies --format=json
   }
 ]
 ```
+
+## Exclude Configuration
+
+You can include exclude configuration in the output using the `--exclude` flag. When enabled, the JSON output will include the configurations of the `exclude` block in the discovered units:
+
+```bash
+terragrunt find --exclude --format=json
+[
+  {
+    "type": "unit",
+    "path": "action/exclude-apply",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "apply"
+      ],
+      "if": true
+    }
+  }
+]
+```
+
+You can combine this with the `--queue-construct-as` flag to dry-run behavior relevant to excludes:
+
+```bash
+terragrunt find --exclude --queue-construct-as=plan --format=json
+```
+
+`find` will remove any units that would match the exclude configuration.
+
+## External Dependencies
 
 By default, external dependencies (those outside the working directory) are not part of the overall results (although, they will be mentioned in the dependency section of the JSON output). Use the `--external` flag to include them as top-level results:
 
