@@ -46,6 +46,7 @@ const (
 	testFixtureReadStack                       = "fixtures/stacks/read-stack"
 	testFixtureStackSelfInclude                = "fixtures/stacks/self-include"
 	testFixtureStackNestedOutputs              = "fixtures/stacks/nested-outputs"
+	testFixtureStackNoValidation               = "fixtures/stacks/no-validation"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -1193,6 +1194,23 @@ func TestStackNestedOutputs(t *testing.T) {
 
 	_, stackV2Exists := topLevelAttrs["stack_v2"]
 	assert.True(t, stackV2Exists, "stack_v2 block should exist")
+}
+
+func TestStacksNoValidation(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackNoValidation)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNoValidation)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackNoValidation, "live")
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/stack1/stack1/.terragrunt-stack/unit2/app1/code")
+	assert.Contains(t, stderr, "Module ./.terragrunt-stack/unit1/app1/code")
+
+	assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy")
+	assert.Contains(t, stdout, "local_file.file will be created")
 }
 
 // check if the stack directory is created and contains files.
