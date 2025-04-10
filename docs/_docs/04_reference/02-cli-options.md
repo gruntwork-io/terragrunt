@@ -1127,11 +1127,13 @@ It will soon replace the [`graph-dependencies`](#graph-dependencies) command. Se
 Print a visual representation of the Terragrunt dependency graph in DOT language format. This command analyzes your Terragrunt configuration and outputs a directed acyclic graph (DAG) showing the relationships and dependencies between your Terraform modules.
 
 Example usage:
+
 ```bash
 terragrunt dag graph 
 ```
 
 The output can be piped to Graphviz tools to generate visual diagrams:
+
 ```bash
 terragrunt dag graph  | dot -Tpng > graph.png
 ```

@@ -15,9 +15,7 @@ const (
 	CommandName = "graph"
 )
 
-func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
-	prefix = prefix.Append(CommandName)
-
+func NewCommand(opts *options.TerragruntOptions, _ flags.Prefix) *cli.Command {
 	cmd := &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Graph the Directed Acyclic Graph (DAG) in DOT language.",
