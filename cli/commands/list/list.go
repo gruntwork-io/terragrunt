@@ -44,7 +44,7 @@ func Run(ctx context.Context, opts *Options) error {
 
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
 	if err != nil {
-		return errors.New(err)
+		opts.Logger.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
 
 	switch opts.Mode {
