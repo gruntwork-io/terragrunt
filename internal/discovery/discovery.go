@@ -208,6 +208,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOp
 		log.WithOutput(io.Discard),
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
+	parseOpts.SkipOutput = true
 
 	filename := config.DefaultTerragruntConfigPath
 
