@@ -186,9 +186,13 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOp
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
 
-	// We can assume this is a unit config, because we already filtered out
-	// stack configs above.
-	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, config.DefaultTerragruntConfigPath)
+	filename := config.DefaultTerragruntConfigPath
+
+	if c.Type == ConfigTypeStack {
+		filename = config.DefaultStackFile
+	}
+
+	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, filename)
 
 	parsingCtx := config.NewParsingContext(ctx, parseOpts).WithDecodeList(
 		config.DependenciesBlock,
