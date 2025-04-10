@@ -124,3 +124,57 @@ unit  units/live/prod/vpc
 		})
 	}
 }
+
+func TestListCommandWithExclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		expectedOutput string
+		args           []string
+	}{
+		{
+			name:           "List with queue-construct-as plan",
+			args:           []string{"list", "--queue-construct-as", "plan"},
+			expectedOutput: "unit2  unit3  \n",
+		},
+		{
+			name:           "List with queue-construct-as apply",
+			args:           []string{"list", "--queue-construct-as", "apply"},
+			expectedOutput: "unit1  unit3  \n",
+		},
+		{
+			name: "List with queue-construct-as plan in long format",
+			args: []string{"list", "--queue-construct-as", "plan", "--long"},
+			expectedOutput: `Type  Path
+unit  unit2
+unit  unit3
+`,
+		},
+		{
+			name: "List with queue-construct-as apply in tree format",
+			args: []string{"list", "--queue-construct-as", "apply", "--tree"},
+			expectedOutput: `.
+├── unit1
+╰── unit3
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFindExclude)
+
+			args := []string{"terragrunt", "--no-color", "--experiment", "cli-redesign"}
+			args = append(args, tc.args...)
+			args = append(args, "--working-dir", testFixtureFindExclude)
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, strings.Join(args, " "))
+			require.NoError(t, err)
+			require.Empty(t, stderr)
+			assert.Equal(t, tc.expectedOutput, stdout)
+		})
+	}
+}
