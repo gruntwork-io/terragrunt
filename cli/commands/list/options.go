@@ -37,6 +37,9 @@ type Options struct {
 	// Mode determines the mode of the list command.
 	Mode string
 
+	// QueueConstructAs constructs the queue as if a particular command was run.
+	QueueConstructAs string
+
 	// Hidden determines whether to detect hidden directories.
 	Hidden bool
 
@@ -54,9 +57,6 @@ type Options struct {
 
 	// DAG determines whether to output in DAG format.
 	DAG bool
-
-	// QueueConstructAs constructs the queue as if a particular command was run.
-	QueueConstructAs string
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {

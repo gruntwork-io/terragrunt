@@ -31,6 +31,8 @@ func TestNoDependenciesMaintainsAlphabeticalOrder(t *testing.T) {
 }
 
 func TestDependenciesOrderedByDependencyLevel(t *testing.T) {
+	t.Parallel()
+
 	// Create configs with dependencies - should order by dependency level
 	aCfg := &discovery.DiscoveredConfig{Path: "a", Dependencies: []*discovery.DiscoveredConfig{}}
 	bCfg := &discovery.DiscoveredConfig{Path: "b", Dependencies: []*discovery.DiscoveredConfig{aCfg}}
@@ -52,6 +54,8 @@ func TestDependenciesOrderedByDependencyLevel(t *testing.T) {
 }
 
 func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
+	t.Parallel()
+
 	// Create a more complex dependency graph:
 	// Create a more complex dependency graph:
 	//   A (no deps)
@@ -104,6 +108,8 @@ func TestComplexDagOrderedByDependencyLevelAndAlphabetically(t *testing.T) {
 }
 
 func TestDeterministicOrderingOfParallelDependencies(t *testing.T) {
+	t.Parallel()
+
 	// Create a graph with parallel dependencies that could be ordered multiple ways:
 	// Create a graph with parallel dependencies that could be ordered multiple ways:
 	//   A (no deps)
@@ -135,6 +141,8 @@ func TestDeterministicOrderingOfParallelDependencies(t *testing.T) {
 }
 
 func TestDepthBasedOrderingVerification(t *testing.T) {
+	t.Parallel()
+
 	// Create a graph where depth matters:
 	// Create a graph where depth matters:
 	//   A (no deps, depth 0)
@@ -183,6 +191,8 @@ func TestDepthBasedOrderingVerification(t *testing.T) {
 }
 
 func TestErrorHandlingCycle(t *testing.T) {
+	t.Parallel()
+
 	// Create a cycle: A -> B -> C -> A
 	// Create a cycle: A -> B -> C -> A
 	configs := []*discovery.DiscoveredConfig{
@@ -197,6 +207,8 @@ func TestErrorHandlingCycle(t *testing.T) {
 }
 
 func TestErrorHandlingEmptyConfigList(t *testing.T) {
+	t.Parallel()
+
 	// Create an empty config list
 	configs := []*discovery.DiscoveredConfig{}
 
