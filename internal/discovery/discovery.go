@@ -196,7 +196,7 @@ func (c *DiscoveredConfig) ContainsDependencyInAncestry(path string) bool {
 }
 
 // Parse parses the discovered configurations.
-func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOptions, suppressParseErrors bool) (*DiscoveredConfig, error) {
+func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOptions, suppressParseErrors bool) error {
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = c.Path
 
@@ -224,12 +224,12 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOp
 	)
 
 	//nolint: contextcheck
-	cfg, err := config.PartialParseConfigFile(parsingCtx, parseOpts.TerragruntConfigPath, nil)
+	cfg, err := config.ParseConfigFile(parsingCtx, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
 			opts.Logger.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 
-			return c, errors.New(err)
+			return errors.New(err)
 		}
 
 		opts.Logger.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
@@ -237,7 +237,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOp
 
 	c.Parsed = cfg
 
-	return c, nil
+	return nil
 }
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
@@ -320,7 +320,7 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 	// e.g. dependencies, exclude, etc.
 	if d.requiresParse {
 		for _, cfg := range cfgs {
-			_, err := cfg.Parse(ctx, opts, d.suppressParseErrors)
+			err := cfg.Parse(ctx, opts, d.suppressParseErrors)
 			if err != nil {
 				errs = append(errs, errors.New(err))
 			}
@@ -443,9 +443,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 
 	// This should only happen if we're discovering an ancestor dependency.
 	if dCfg.Parsed == nil {
-		var err error
-
-		dCfg, err = dCfg.Parse(ctx, opts, d.suppressParseErrors)
+		err := dCfg.Parse(ctx, opts, d.suppressParseErrors)
 		if err != nil {
 			return errors.New(err)
 		}
