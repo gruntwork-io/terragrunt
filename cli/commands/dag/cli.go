@@ -1,3 +1,5 @@
+// Package dag implements the dag command to interact with the Directed Acyclic Graph (DAG).
+// It provides functionality to visualize and analyze dependencies between Terragrunt configurations.
 package dag
 
 import (

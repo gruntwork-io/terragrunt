@@ -1,3 +1,5 @@
+// Package graph implements the terragrunt dag graph command which generates a visual
+// representation of the Terragrunt dependency graph in DOT language format.
 package graph
 
 import (
