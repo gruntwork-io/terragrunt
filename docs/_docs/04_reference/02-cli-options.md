@@ -747,7 +747,7 @@ units/live/dev/ec2
 units/live/prod/ec2
 ```
 
-This will sort the output based on the dependency graph, as if the `plan` command was run. Meaning that all dependent units will appear *after* the units they depend on.
+This will sort the output based on the dependency graph, as if the `plan` command was run. Meaning that all dependent units will appear _after_ the units they depend on.
 
 ```bash
 # Note that you can also use the shorter alias of the flag, `--as`.
@@ -762,7 +762,7 @@ units/live/dev/vpc
 units/live/prod/vpc
 ```
 
-This will sort the output based on the dependency graph, as if the `destroy` command was run. Meaning that all dependent units will appear *before* the units they depend on.
+This will sort the output based on the dependency graph, as if the `destroy` command was run. Meaning that all dependent units will appear _before_ the units they depend on.
 
 **Note:** The `--queue-construct-as` flag implies the `--dag` flag.
 
@@ -996,7 +996,7 @@ units/live/prod/vpc  units/live/dev/db    units/live/prod/db
 units/live/dev/ec2   units/live/prod/ec2
 ```
 
-This will sort the output based on the dependency graph, as if the `plan` command was run. Meaning that all dependent units will appear *after* the units they depend on.
+This will sort the output based on the dependency graph, as if the `plan` command was run. Meaning that all dependent units will appear _after_ the units they depend on.
 
 ```bash
 $ terragrunt list --queue-construct-as=destroy
@@ -1005,7 +1005,7 @@ units/live/prod/ec2  units/live/dev/db    units/live/prod/db
 units/live/dev/vpc   units/live/prod/vpc
 ```
 
-This will sort the output based on the dependency graph, as if the `destroy` command was run. Meaning that all dependent units will appear *before* the units they depend on.
+This will sort the output based on the dependency graph, as if the `destroy` command was run. Meaning that all dependent units will appear _before_ the units they depend on.
 
 **Note:** The `--queue-construct-as` flag implies the `--dag` flag.
 
