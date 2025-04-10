@@ -1674,6 +1674,7 @@ The `unit` block supports the following arguments:
 - `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`). Also take note of the `no_dot_terragrunt_stack` attribute below, which can impact this.
 - `values` (attribute, optional): A map of values that will be passed to the unit as inputs.
 - `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the unit **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
+- `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the unit's configuration. When set to `true`, Terragrunt will skip validation checks for this unit.
 
 Example:
 
@@ -1790,6 +1791,7 @@ The `stack` block supports the following arguments:
 - `path` (attribute): The relative path within `.terragrunt-stack` where this stack should be generated.If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory. Also take note of the `no_dot_terragrunt_stack` attribute below, which can impact this.
 - `values` (attribute, optional): A map of custom values that can be passed to the stack. These values can be referenced within the stack's configuration files, allowing for customization without modifying the stack source.
 - `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the stack **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
+- `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the stack's configuration. When set to `true`, Terragrunt will skip validation checks for this stack.
 
 Example:
 
