@@ -368,21 +368,6 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 	return nil
 }
 
-// componentToProcess represents an item of work for processing a stack or unit.
-// It contains information about the source and target directories, the name and path of the item, the source URL or path,
-// and any associated values that need to be processed.
-type componentToProcess struct {
-	values       *cty.Value
-	sourceDir    string
-	targetDir    string
-	name         string
-	path         string
-	source       string
-	noStack      bool
-	noValidation bool
-	kind         componentKind
-}
-
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
@@ -459,6 +444,21 @@ const (
 	stackKind
 )
 
+// componentToProcess represents an item of work for processing a stack or unit.
+// It contains information about the source and target directories, the name and path of the item, the source URL or path,
+// and any associated values that need to be processed.
+type componentToProcess struct {
+	values       *cty.Value
+	sourceDir    string
+	targetDir    string
+	name         string
+	path         string
+	source       string
+	noStack      bool
+	noValidation bool
+	kind         componentKind
+}
+
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
 func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp *componentToProcess) error {
 	source := cmp.source
@@ -524,24 +524,36 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		)
 	}
 
-	// Validate the generated component directory, unless explicitly skipped
-	if cmp.noStack || cmp.noValidation {
+	skipValidation := false
+
+	if !cmp.noStack {
+		opts.Logger.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
+
+		skipValidation = true
+	}
+
+	if cmp.noValidation {
+		opts.Logger.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
+
+		skipValidation = true
+	}
+
+	if skipValidation {
+		// validate what was copied to the destination, don't do validation for special noStack components
 		expectedFile := DefaultTerragruntConfigPath
+
 		if cmp.kind == stackKind {
 			expectedFile = defaultStackFile
 		}
 
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
-			return errors.Errorf("validation failed for %s %s at %s: expected %q file at root", kindStr, cmp.name, dest, expectedFile)
+			if opts.NoStackValidate {
+				// print warning if validation is skipped
+				opts.Logger.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+			} else {
+				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+			}
 		}
-	}
-
-	if cmp.noStack {
-		opts.Logger.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
-	}
-
-	if cmp.noValidation {
-		opts.Logger.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
 	}
 
 	// generate values file
