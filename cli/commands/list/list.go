@@ -36,6 +36,10 @@ func Run(ctx context.Context, opts *Options) error {
 
 	if opts.QueueConstructAs != "" {
 		d = d.WithParseExclude()
+		d = d.WithDiscoverDependencies()
+		d = d.WithDiscoveryContext(&discovery.DiscoveryContext{
+			Cmd: opts.QueueConstructAs,
+		})
 	}
 
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)

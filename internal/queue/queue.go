@@ -206,7 +206,7 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 				return true
 			}
 
-			if entries[i].Status == entries[j].Status {
+			if entries[i].Status == StatusUnsorted && entries[j].Status == StatusUnsorted {
 				return entries[i].Config.Path < entries[j].Config.Path
 			}
 

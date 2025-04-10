@@ -117,6 +117,12 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				cmdOpts.Mode = ModeDAG
 			}
 
+			// Requesting a specific command to be used for queue construction
+			// implies DAG mode.
+			if cmdOpts.QueueConstructAs != "" {
+				cmdOpts.Mode = ModeDAG
+			}
+
 			if err := cmdOpts.Validate(); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}

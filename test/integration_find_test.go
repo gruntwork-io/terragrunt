@@ -209,3 +209,70 @@ func TestFindExclude(t *testing.T) {
 		})
 	}
 }
+
+func TestFindQueueConstructAs(t *testing.T) {
+	t.Parallel()
+
+	// I'm using the list fixture here because it's more convenient.
+	helpers.CleanupTerraformFolder(t, testFixtureListDag)
+
+	testCases := []struct {
+		name           string
+		args           string
+		expectedOutput string
+		expectedPaths  []string
+	}{
+		{
+			name: "up command",
+			args: "--queue-construct-as plan",
+			expectedPaths: []string{
+				"stacks/live/dev",
+				"stacks/live/prod",
+				"units/live/dev/vpc",
+				"units/live/prod/vpc",
+				"units/live/dev/db",
+				"units/live/prod/db",
+				"units/live/dev/ec2",
+				"units/live/prod/ec2",
+			},
+		},
+		{
+			name: "down command",
+			args: "--queue-construct-as destroy",
+			expectedPaths: []string{
+				"stacks/live/dev",
+				"stacks/live/prod",
+				"units/live/dev/ec2",
+				"units/live/prod/ec2",
+				"units/live/dev/db",
+				"units/live/prod/db",
+				"units/live/dev/vpc",
+				"units/live/prod/vpc",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureListDag)
+
+			cmd := fmt.Sprintf("terragrunt find --json --experiment cli-redesign --no-color --working-dir %s %s", testFixtureListDag, tc.args)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+			assert.Empty(t, stderr)
+
+			var configs find.FoundConfigs
+			err = json.Unmarshal([]byte(stdout), &configs)
+			require.NoError(t, err)
+
+			var paths []string
+			for _, config := range configs {
+				paths = append(paths, config.Path)
+			}
+
+			assert.Equal(t, tc.expectedPaths, paths)
+		})
+	}
+}

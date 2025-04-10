@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFixtureListBasic = "fixtures/list/basic"
+	testFixtureListDag   = "fixtures/list/dag"
+)
+
 func TestListCommand(t *testing.T) {
 	t.Parallel()
 
@@ -20,13 +25,13 @@ func TestListCommand(t *testing.T) {
 	}{
 		{
 			name:           "Basic list with default format",
-			workingDir:     "fixtures/list/basic",
+			workingDir:     testFixtureListBasic,
 			args:           []string{"list"},
 			expectedOutput: "a-unit  b-unit  \n",
 		},
 		{
 			name:       "List with long format",
-			workingDir: "fixtures/list/basic",
+			workingDir: testFixtureListBasic,
 			args:       []string{"list", "--long"},
 			expectedOutput: `Type  Path
 unit  a-unit
@@ -35,7 +40,7 @@ unit  b-unit
 		},
 		{
 			name:       "List with tree format",
-			workingDir: "fixtures/list/basic",
+			workingDir: testFixtureListBasic,
 			args:       []string{"list", "--tree"},
 			expectedOutput: `.
 ├── a-unit
@@ -74,7 +79,7 @@ func TestListCommandWithDependencies(t *testing.T) {
 	}{
 		{
 			name:       "List with dependencies in tree format",
-			workingDir: "fixtures/list/dag",
+			workingDir: testFixtureListDag,
 			args:       []string{"list", "--tree", "--dag"},
 			expected: `.
 ├── stacks/live/dev
@@ -91,7 +96,7 @@ func TestListCommandWithDependencies(t *testing.T) {
 		},
 		{
 			name:       "List with dependencies in long format",
-			workingDir: "fixtures/list/dag",
+			workingDir: testFixtureListDag,
 			args:       []string{"list", "--long", "--dependencies"},
 			expected: `Type  Path                 Dependencies
 stack stacks/live/dev

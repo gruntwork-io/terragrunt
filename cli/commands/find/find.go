@@ -31,8 +31,15 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithDiscoverExternalDependencies()
 	}
 
-	if opts.Exclude || opts.QueueConstructAs != "" {
+	if opts.Exclude {
 		d = d.WithParseExclude()
+	}
+
+	if opts.QueueConstructAs != "" {
+		d = d.WithParseExclude()
+		d = d.WithDiscoveryContext(&discovery.DiscoveryContext{
+			Cmd: opts.QueueConstructAs,
+		})
 	}
 
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
