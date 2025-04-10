@@ -53,20 +53,22 @@ type StackConfig struct {
 
 // Unit represent unit from stack file.
 type Unit struct {
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
-	Name    string     `hcl:",label"`
-	Source  string     `hcl:"source,attr"`
-	Path    string     `hcl:"path,attr"`
+	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	NoValidation *bool      `hcl:"no_validation,attr"`
+	Values       *cty.Value `hcl:"values,attr"`
+	Name         string     `hcl:",label"`
+	Source       string     `hcl:"source,attr"`
+	Path         string     `hcl:"path,attr"`
 }
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
-	NoStack *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	Values  *cty.Value `hcl:"values,attr"`
-	Name    string     `hcl:",label"`
-	Source  string     `hcl:"source,attr"`
-	Path    string     `hcl:"path,attr"`
+	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	NoValidation *bool      `hcl:"no_validation,attr"`
+	Values       *cty.Value `hcl:"values,attr"`
+	Name         string     `hcl:",label"`
+	Source       string     `hcl:"source,attr"`
+	Path         string     `hcl:"path,attr"`
 }
 
 // GenerateStacks generates the stack files.
@@ -366,6 +368,21 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 	return nil
 }
 
+// componentToProcess represents an item of work for processing a stack or unit.
+// It contains information about the source and target directories, the name and path of the item, the source URL or path,
+// and any associated values that need to be processed.
+type componentToProcess struct {
+	values       *cty.Value
+	sourceDir    string
+	targetDir    string
+	name         string
+	path         string
+	source       string
+	noStack      bool
+	noValidation bool
+	kind         componentKind
+}
+
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
@@ -375,14 +392,15 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 
 		pool.Submit(func() error {
 			item := componentToProcess{
-				sourceDir: sourceDir,
-				targetDir: targetDir,
-				name:      unitCopy.Name,
-				path:      unitCopy.Path,
-				source:    unitCopy.Source,
-				values:    unitCopy.Values,
-				noStack:   unitCopy.NoStack != nil && *unitCopy.NoStack,
-				kind:      unitKind,
+				sourceDir:    sourceDir,
+				targetDir:    targetDir,
+				name:         unitCopy.Name,
+				path:         unitCopy.Path,
+				source:       unitCopy.Source,
+				values:       unitCopy.Values,
+				noStack:      unitCopy.NoStack != nil && *unitCopy.NoStack,
+				noValidation: unitCopy.NoValidation != nil && *unitCopy.NoValidation,
+				kind:         unitKind,
 			}
 
 			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
@@ -408,14 +426,15 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 
 		pool.Submit(func() error {
 			item := componentToProcess{
-				sourceDir: sourceDir,
-				targetDir: targetDir,
-				name:      stackCopy.Name,
-				path:      stackCopy.Path,
-				source:    stackCopy.Source,
-				noStack:   stackCopy.NoStack != nil && *stackCopy.NoStack,
-				values:    stackCopy.Values,
-				kind:      stackKind,
+				sourceDir:    sourceDir,
+				targetDir:    targetDir,
+				name:         stackCopy.Name,
+				path:         stackCopy.Path,
+				source:       stackCopy.Source,
+				noStack:      stackCopy.NoStack != nil && *stackCopy.NoStack,
+				noValidation: stackCopy.NoValidation != nil && *stackCopy.NoValidation,
+				values:       stackCopy.Values,
+				kind:         stackKind,
 			}
 
 			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
@@ -439,20 +458,6 @@ const (
 	unitKind componentKind = iota
 	stackKind
 )
-
-// componentToProcess represents an item of work for processing a stack or unit.
-// It contains information about the source and target directories, the name and path of the item, the source URL or path,
-// and any associated values that need to be processed.
-type componentToProcess struct {
-	values    *cty.Value
-	sourceDir string
-	targetDir string
-	name      string
-	path      string
-	source    string
-	noStack   bool
-	kind      componentKind
-}
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
 func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp *componentToProcess) error {
@@ -519,22 +524,24 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		)
 	}
 
-	if !cmp.noStack {
-		// validate what was copied to the destination, don't do validation for special noStack components
+	// Validate the generated component directory, unless explicitly skipped
+	if cmp.noStack || cmp.noValidation {
 		expectedFile := DefaultTerragruntConfigPath
-
 		if cmp.kind == stackKind {
 			expectedFile = defaultStackFile
 		}
 
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
-			if opts.NoStackValidate {
-				// print warning if validation is skipped
-				opts.Logger.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
-			} else {
-				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
-			}
+			return errors.Errorf("validation failed for %s %s at %s: expected %q file at root", kindStr, cmp.name, dest, expectedFile)
 		}
+	}
+
+	if cmp.noStack {
+		opts.Logger.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
+	}
+
+	if cmp.noValidation {
+		opts.Logger.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
 	}
 
 	// generate values file

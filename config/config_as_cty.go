@@ -792,6 +792,11 @@ func stackToCty(stack *Stack) (cty.Value, error) {
 		output["no_dot_terragrunt_stack"] = goboolToCty(*stack.NoStack)
 	}
 
+	// Handle NoValidation if available
+	if stack.NoValidation != nil {
+		output["no_validation"] = goboolToCty(*stack.NoValidation)
+	}
+
 	return convertValuesMapToCtyVal(output)
 }
 
@@ -815,6 +820,11 @@ func unitToCty(unit *Unit) (cty.Value, error) {
 	// Handle NoStack if available
 	if unit.NoStack != nil {
 		output["no_dot_terragrunt_stack"] = goboolToCty(*unit.NoStack)
+	}
+
+	// Handle NoValidation if available
+	if unit.NoValidation != nil {
+		output["no_validation"] = goboolToCty(*unit.NoValidation)
 	}
 
 	return convertValuesMapToCtyVal(output)
