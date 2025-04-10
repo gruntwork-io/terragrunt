@@ -38,6 +38,32 @@ examples:
     code: |
       terragrunt find --dag
   - description: |
+      Sort configurations based on dependency graph as if running plan command.
+    code: |
+      $ terragrunt find --queue-construct-as=plan
+      stacks/live/dev
+      stacks/live/prod
+      units/live/dev/vpc
+      units/live/prod/vpc
+      units/live/dev/db
+      units/live/prod/db
+      units/live/dev/ec2
+      units/live/prod/ec2
+
+  - description: |
+      Sort configurations based on dependency graph as if running destroy command.
+    code: |
+      $ terragrunt find --queue-construct-as=destroy
+      stacks/live/dev
+      stacks/live/prod
+      units/live/dev/ec2
+      units/live/prod/ec2
+      units/live/dev/db
+      units/live/prod/db
+      units/live/dev/vpc
+      units/live/prod/vpc
+
+  - description: |
       Include dependency information in the output.
     code: |
       terragrunt find --dependencies --format 'json'
@@ -52,6 +78,7 @@ flags:
   - find-hidden
   - find-dependencies
   - find-external
+  - queue-construct-as
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -110,6 +137,44 @@ unitD           # depends on unitC
 ```
 
 If multiple configurations share common dependencies, they will be sorted in lexical order.
+
+## Queue Construct As
+
+The `find` command supports the `--queue-construct-as` flag (or its shorter alias `--as`) to sort output based on the dependency graph, as if a particular command was run.
+
+For example, when using the `plan` command:
+
+```bash
+terragrunt find --queue-construct-as=plan
+stacks/live/dev
+stacks/live/prod
+units/live/dev/vpc
+units/live/prod/vpc
+units/live/dev/db
+units/live/prod/db
+units/live/dev/ec2
+units/live/prod/ec2
+```
+
+This will sort the output based on the dependency graph, as if the `plan` command was run. All dependent units will appear *after* the units they depend on.
+
+When using the `destroy` command:
+
+```bash
+terragrunt find --as=destroy
+stacks/live/dev
+stacks/live/prod
+units/live/dev/ec2
+units/live/prod/ec2
+units/live/dev/db
+units/live/prod/db
+units/live/dev/vpc
+units/live/prod/vpc
+```
+
+This will sort the output based on the dependency graph, as if the `destroy` command was run. All dependent units will appear *before* the units they depend on.
+
+**Note:** The `--queue-construct-as` flag implies the `--dag` flag.
 
 ## Dependencies
 

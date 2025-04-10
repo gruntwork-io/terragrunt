@@ -1,0 +1,45 @@
+---
+name: queue-construct-as
+description: |
+  Sort output based on the dependency graph, as if a particular command was run. This flag implies the `--dag` flag.
+
+  The flag has a shorter alias `--as`.
+type: string
+env:
+  - TG_QUEUE_CONSTRUCT_AS
+aliases:
+  - --as
+---
+
+Sort output based on the dependency graph, as if a particular command was run. This flag implies the `--dag` flag.
+
+The flag has a shorter alias `--as`.
+
+## Usage
+
+```bash
+--queue-construct-as=COMMAND
+--as=COMMAND
+```
+
+Where `COMMAND` is the command to simulate (e.g., `plan`, `destroy`).
+
+## Examples
+
+Sort output as if running plan command (dependencies after dependents):
+```bash
+terragrunt find --queue-construct-as=plan
+```
+
+Sort output as if running destroy command (dependencies before dependents):
+```bash
+terragrunt find --queue-construct-as=destroy
+```
+
+## Behavior
+
+When using `plan` command, all dependent units will appear *after* the units they depend on.
+
+When using `destroy` command, all dependent units will appear *before* the units they depend on.
+
+**Note:** This flag implies the `--dag` flag.
