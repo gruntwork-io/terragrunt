@@ -34,9 +34,17 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithDiscoverExternalDependencies()
 	}
 
+	if opts.QueueConstructAs != "" {
+		d = d.WithParseExclude()
+		d = d.WithDiscoverDependencies()
+		d = d.WithDiscoveryContext(&discovery.DiscoveryContext{
+			Cmd: opts.QueueConstructAs,
+		})
+	}
+
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
 	if err != nil {
-		return errors.New(err)
+		opts.Logger.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
 
 	switch opts.Mode {
@@ -48,7 +56,7 @@ func Run(ctx context.Context, opts *Options) error {
 			return errors.New(err)
 		}
 
-		cfgs = q.Entries()
+		cfgs = q.Configs()
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -129,6 +137,14 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 	for _, config := range configs {
 		if config.External && !opts.External {
 			continue
+		}
+
+		if opts.QueueConstructAs != "" {
+			if config.Parsed != nil && config.Parsed.Exclude != nil {
+				if config.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
+					continue
+				}
+			}
 		}
 
 		relPath, err := filepath.Rel(opts.WorkingDir, config.Path)

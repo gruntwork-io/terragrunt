@@ -27,6 +27,9 @@ const (
 	ExternalFlagName     = "external"
 
 	DAGFlagName = "dag"
+
+	QueueConstructAsFlagName  = "queue-construct-as"
+	QueueConstructAsFlagAlias = "as"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -78,6 +81,13 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.DAG,
 			Usage:       "Use DAG mode to sort and group output.",
 		}),
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        QueueConstructAsFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueConstructAsFlagName),
+			Destination: &opts.QueueConstructAs,
+			Usage:       "Construct the queue as if a specific command was run.",
+			Aliases:     []string{QueueConstructAsFlagAlias},
+		}),
 	}
 }
 
@@ -104,6 +114,12 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if cmdOpts.DAG {
+				cmdOpts.Mode = ModeDAG
+			}
+
+			// Requesting a specific command to be used for queue construction
+			// implies DAG mode.
+			if cmdOpts.QueueConstructAs != "" {
 				cmdOpts.Mode = ModeDAG
 			}
 

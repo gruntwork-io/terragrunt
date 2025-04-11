@@ -37,6 +37,9 @@ type Options struct {
 	// Mode determines the mode of the list command.
 	Mode string
 
+	// QueueConstructAs constructs the queue as if a particular command was run.
+	QueueConstructAs string
+
 	// Hidden determines whether to detect hidden directories.
 	Hidden bool
 
