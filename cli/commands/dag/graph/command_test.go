@@ -1,4 +1,4 @@
-package graphdependencies_test
+package graph_test
 
 import (
 	"context"
@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
+	"github.com/gruntwork-io/terragrunt/cli/commands/dag/graph"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +21,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 	cwd, err := os.Getwd()
 	require.NoError(b, err)
 
-	testDir := "../../../test/fixtures"
+	testDir := "../../../../test/fixtures"
 
 	fixtureDirs := []struct {
 		description          string
@@ -46,7 +48,8 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 
 			b.ResetTimer()
 			b.StartTimer()
-			err = graphdependencies.Run(context.Background(), terragruntOptions)
+			ctx := cli.NewAppContext(context.Background(), cli.NewApp(), nil)
+			err = graph.Run(ctx, terragruntOptions)
 			b.StopTimer()
 			require.NoError(b, err)
 		})

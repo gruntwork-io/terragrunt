@@ -1,4 +1,6 @@
 // Package graphdependencies provides the command to print the terragrunt dependency graph to stdout.
+// Deprecated: This package is deprecated and will be removed in a future version.
+// Use the 'terragrunt dag graph' command instead.
 package graphdependencies
 
 import (
