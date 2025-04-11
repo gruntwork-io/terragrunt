@@ -2,6 +2,7 @@
 package global
 
 import (
+	"context"
 	"fmt"
 
 	"slices"
@@ -9,9 +10,11 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/help"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -80,6 +83,11 @@ const (
 	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
 )
 
+// experimentalCommands is a list of experimental commands for which the deprecated messages about moved global flags should not be displayed unless the `cli-redesign` experiment is enabled.
+var experimentalCommands = []string{
+	run.CommandName,
+}
+
 // NewFlagsWithDeprecatedMovedFlags returns global flags along with flags that have been moved to other commands and hidden from CLI help.
 func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags {
 	globalFlags := NewFlags(opts, nil)
@@ -105,8 +113,22 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 				continue
 			}
 
+			// Disable strcit control evaluation of moves global flags for the experimental `run` command if the `cli-redesign` experiment is not enabled.
+			evaluateWrapper := func(ctx context.Context, evalFn func(ctx context.Context) error) error {
+				if opts.Experiments.Evaluate(experiment.CLIRedesign) && slices.Contains(experimentalCommands, cmd.Name) {
+					return evalFn(ctx)
+				}
+
+				return nil
+			}
+
 			seen = append(seen, flagName)
-			globalFlags = append(globalFlags, flags.NewMovedFlag(flag, cmd.Name, flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name)))
+			globalFlags = append(globalFlags, flags.NewMovedFlag(
+				flag,
+				cmd.Name,
+				flags.StrictControlsByMovedGlobalFlags(opts.StrictControls, cmd.Name),
+				flags.WithEvaluateWrapper(evaluateWrapper),
+			))
 		}
 	}
 

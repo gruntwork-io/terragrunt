@@ -153,6 +153,51 @@ func TestCLIFlagHints(t *testing.T) {
 	}
 }
 
+func TestGlobalFlagMoveStrictControl(t *testing.T) {
+	t.Parallel()
+
+	tfPath := os.Getenv("TG_TF_PATH")
+
+	testCases := []struct {
+		containsLogMsg    string
+		notContainsLogMsg string
+		args              string
+	}{
+		{
+			notContainsLogMsg: "The global `--tf-path` flag has moved",
+			args:              "-tf-path=" + tfPath + " init",
+		},
+		{
+			containsLogMsg: "The global `--tf-path` flag has moved",
+			args:           "--experiment cli-redesign -tf-path=" + tfPath + " init",
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureCLIFlagHints)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
+
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureCLIFlagHints)
+			rootPath, err := filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --working-dir "+rootPath+" "+tc.args)
+			require.NoError(t, err)
+
+			if tc.containsLogMsg != "" {
+				assert.Contains(t, stderr, tc.containsLogMsg)
+			}
+
+			if tc.notContainsLogMsg != "" {
+				assert.NotContains(t, stderr, tc.notContainsLogMsg)
+			}
+		})
+	}
+}
+
 func TestExecCommand(t *testing.T) {
 	t.Parallel()
 

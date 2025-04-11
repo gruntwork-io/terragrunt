@@ -151,3 +151,10 @@ func WithDeprecatedNamesEnvVars(flagNames, envVars []string, regControlsFn Regis
 		newFlag.deprecatedFlags = append(newFlag.deprecatedFlags, deprecatedFlag)
 	}
 }
+
+// WithEvaluateWrapper returns an Option that wraps the strict control `Evaluate(ctx context.Context)` function.
+func WithEvaluateWrapper(fn EvaluateWrapperFunc) Option {
+	return func(newFlag *Flag) {
+		newFlag.evaluateWrapper = fn
+	}
+}
