@@ -148,6 +148,11 @@ func (remote *RemoteState) pullPushState(ctx context.Context, opts, dstOpts *opt
 		return errors.New(err)
 	}
 
+	defer func() {
+		file.Close()
+		os.Remove(file.Name())
+	}()
+
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
 		return errors.New(err)
 	}
