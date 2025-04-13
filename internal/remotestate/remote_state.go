@@ -150,7 +150,7 @@ func (remote *RemoteState) pullPushState(ctx context.Context, opts, dstOpts *opt
 
 	defer func() {
 		file.Close()
-		os.Remove(file.Name())
+		os.Remove(file.Name()) // nolint: errcheck
 	}()
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
