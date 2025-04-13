@@ -100,6 +100,12 @@ run_integration_aws_test: &run_integration_aws_test
     run-go-tests --packages "-tags=aws -run ^TestAws ./..." | tee logs/test-results.log
   no_output_timeout: 30m
 
+run_integration_awsgcp_test: &run_integration_awsgcp_test
+  name: Run integration tests AWS and GCP
+  command: |
+    run-go-tests --packages "-tags=aws -run ^TestAwsGcp ./..." | tee logs/test-results.log
+  no_output_timeout: 30m
+
 run_integration_engine_test: &run_integration_engine_test
   name: Run integration tests engine
   command: |
@@ -483,6 +489,23 @@ jobs:
           <<: *setup_test_environment
       - run:
           <<: *run_integration_aws_test
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_terraform_awsgcp:
+    resource_class: "medium+"
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_integration_awsgcp_test
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:

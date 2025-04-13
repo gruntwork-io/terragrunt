@@ -4,11 +4,14 @@ package remotestate
 import (
 	"context"
 	"fmt"
+	"os"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/tf"
 )
 
 var backends = backend.Backends{
@@ -70,10 +73,14 @@ func (remote *RemoteState) Bootstrap(ctx context.Context, opts *options.Terragru
 }
 
 // Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
-func (remote *RemoteState) Migrate(ctx context.Context, toConfig backend.Config, opts *options.TerragruntOptions) error {
+func (remote *RemoteState) Migrate(ctx context.Context, opts, dstOpts *options.TerragruntOptions, dstRemote *RemoteState) error {
 	opts.Logger.Debugf("Migrate remote state for the %s backend", remote.BackendName)
 
-	return remote.backend.Migrate(ctx, remote.BackendConfig, toConfig, opts)
+	if remote.BackendName == dstRemote.BackendName {
+		return remote.backend.Migrate(ctx, remote.BackendConfig, dstRemote.BackendConfig, opts)
+	}
+
+	return remote.pullPushState(ctx, opts, dstOpts)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
@@ -126,4 +133,26 @@ func (remote *RemoteState) GenerateOpenTofuCode(opts *options.TerragruntOptions)
 	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
 	return remote.Config.GenerateOpenTofuCode(opts, backendConfig)
+}
+
+func (remote *RemoteState) pullPushState(ctx context.Context, opts, dstOpts *options.TerragruntOptions) error {
+	args := []string{tf.CommandNameState, tf.CommandNamePull}
+
+	output, err := tf.RunCommandWithOutput(ctx, opts, args...)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.CreateTemp("", "*.tfstate")
+	if err != nil {
+		errors.New(err)
+	}
+
+	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
+		errors.New(err)
+	}
+
+	args = []string{tf.CommandNameState, tf.CommandNamePush, file.Name()}
+
+	return tf.RunCommand(ctx, dstOpts, args...)
 }

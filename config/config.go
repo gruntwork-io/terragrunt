@@ -174,7 +174,6 @@ func (cfg *TerragruntConfig) GetRemoteState(opts *options.TerragruntOptions) (*r
 			return nil, err
 		}
 
-		opts = opts.Clone()
 		opts.WorkingDir = tfSource.WorkingDir
 	}
 

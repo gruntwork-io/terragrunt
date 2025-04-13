@@ -1,4 +1,4 @@
-//go:build aws
+//go:build aws || awsgcp
 
 package test_test
 
@@ -48,6 +48,7 @@ const (
 	testFixtureOutputFromRemoteState             = "fixtures/output-from-remote-state"
 	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"
 	testFixtureS3Backend                         = "fixtures/s3-backend"
+	testFixtureS3BackendMigrate                  = "fixtures/s3-backend-migrate"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
 
 	qaMyAppRelPath = "qa/my-app"
@@ -214,11 +215,6 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 }
 
 func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
-	// NOTE: This is being backed out because the migration command
-	// needs some work to handle the case where the source and destination
-	// backends have unsupported types or differ.
-	t.Skip("Skipping test for now, as it needs to be reworked to handle unsupported backend types")
-
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
@@ -299,11 +295,6 @@ func TestAwsDeleteBackend(t *testing.T) {
 }
 
 func TestAwsMigrateBackend(t *testing.T) {
-	// NOTE: This is being backed out because the migration command
-	// needs some work to handle the case where the source and destination
-	// backends have unsupported types or differ.
-	t.Skip("Skipping test for now, as it needs to be reworked to handle unsupported backend types")
-
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
@@ -354,6 +345,57 @@ func TestAwsMigrateBackend(t *testing.T) {
 	assert.False(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, unit1TableKey), "DynamoDB table key %s must not exist", unit1TableKey)
 	assert.True(t, doesS3BucketKeyExist(t, helpers.TerraformRemoteStateS3Region, s3BucketName, unit2BackendKey), "S3 bucket key %s must exist", unit2BackendKey)
 	assert.True(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, unit2TableKey), "DynamoDB table key %s must exist", unit2TableKey)
+
+	// Run `tofu apply` for unit2 with migrated remote state from unit1.
+
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit2Path+" -- -auto-approve")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "No changes")
+}
+
+func TestAwsGcpMigrateBetweenDifferentBackends(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureS3BackendMigrate)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3BackendMigrate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3BackendMigrate)
+
+	testID := strings.ToLower(helpers.UniqueID())
+
+	s3BucketName := "terragrunt-test-bucket-" + testID
+	dynamoDBName := "terragrunt-test-dynamodb-" + testID
+	gcsBucketName := "terragrunt-test-bucket-" + testID
+
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+
+	unit1Path := util.JoinPath(rootPath, "unit1")
+	unit2Path := util.JoinPath(rootPath, "unit2")
+
+	defer func() {
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+		deleteGCSBucket(t, gcsBucketName)
+	}()
+
+	unit1ConfigPath := util.JoinPath(unit1Path, "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, unit1ConfigPath, unit1ConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
+	unit2ConfigPath := util.JoinPath(unit2Path, "terragrunt.hcl")
+	copyTerragruntGCSConfigAndFillPlaceholders(t, unit2ConfigPath, unit2ConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
+
+	// Bootstrap backend and create remote state for unit1.
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit1Path+" -- -auto-approve")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Changes to Outputs")
+
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run plan --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit2Path+"")
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Changes to Outputs")
+
+	// Migrate remote state from unit1 to unit2.
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --experiment cli-redesign --working-dir "+rootPath+" unit1 unit2")
+	require.NoError(t, err)
 
 	// Run `tofu apply` for unit2 with migrated remote state from unit1.
 
