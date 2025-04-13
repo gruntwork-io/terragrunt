@@ -80,7 +80,16 @@ func (remote *RemoteState) Migrate(ctx context.Context, opts, dstOpts *options.T
 		return remote.backend.Migrate(ctx, remote.BackendConfig, dstRemote.BackendConfig, opts)
 	}
 
-	return remote.pullPushState(ctx, opts, dstOpts)
+	stateFile, err := remote.pullState(ctx, opts)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		os.Remove(stateFile) // nolint: errcheck
+	}()
+
+	return dstRemote.pushState(ctx, dstOpts, stateFile)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
@@ -135,29 +144,38 @@ func (remote *RemoteState) GenerateOpenTofuCode(opts *options.TerragruntOptions)
 	return remote.Config.GenerateOpenTofuCode(opts, backendConfig)
 }
 
-func (remote *RemoteState) pullPushState(ctx context.Context, opts, dstOpts *options.TerragruntOptions) error {
+func (remote *RemoteState) pullState(ctx context.Context, opts *options.TerragruntOptions) (string, error) {
+	opts.Logger.Debugf("Pulling state from %s backend", remote.BackendName)
+
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
 	output, err := tf.RunCommandWithOutput(ctx, opts, args...)
 	if err != nil {
-		return err
+		return "", err
 	}
+
+	opts.Logger.Debugf("Creating temporary state file for migration")
 
 	file, err := os.CreateTemp("", "*.tfstate")
 	if err != nil {
-		return errors.New(err)
+		return "", errors.New(err)
 	}
 
 	defer func() {
-		file.Close()
-		os.Remove(file.Name()) // nolint: errcheck
+		file.Close() // nolint: errcheck
 	}()
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
-		return errors.New(err)
+		return "", errors.New(err)
 	}
 
-	args = []string{tf.CommandNameState, tf.CommandNamePush, file.Name()}
+	return file.Name(), nil
+}
 
-	return tf.RunCommand(ctx, dstOpts, args...)
+func (remote *RemoteState) pushState(ctx context.Context, opts *options.TerragruntOptions, stateFile string) error {
+	opts.Logger.Debugf("Pushing state to %s backend", remote.BackendName)
+
+	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
+
+	return tf.RunCommand(ctx, opts, args...)
 }
