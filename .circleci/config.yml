@@ -954,6 +954,18 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
+      - integration_test_terraform_awsgcp:
+          filters:
+            tags:
+              only:
+                - /^v.*/
+                - /^alpha.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - AWS__PHXDEVOPS__terragrunt-oidc-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+            - APPLE__OSX__code-signing
       - integration_test_terraform_latest_aws:
           filters:
             tags:
