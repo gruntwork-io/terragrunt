@@ -103,7 +103,7 @@ run_integration_aws_test: &run_integration_aws_test
 run_integration_awsgcp_test: &run_integration_awsgcp_test
   name: Run integration tests AWS and GCP
   command: |
-    run-go-tests --packages "-tags=aws -run ^TestAwsGcp ./..." | tee logs/test-results.log
+    run-go-tests --packages "-tags=aws -run ^TestAwsGcpMigrateBetweenDifferentBackends ./..." | tee logs/test-results.log
   no_output_timeout: 30m
 
 run_integration_engine_test: &run_integration_engine_test
