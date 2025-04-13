@@ -145,11 +145,11 @@ func (remote *RemoteState) pullPushState(ctx context.Context, opts, dstOpts *opt
 
 	file, err := os.CreateTemp("", "*.tfstate")
 	if err != nil {
-		errors.New(err)
+		return errors.New(err)
 	}
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
-		errors.New(err)
+		return errors.New(err)
 	}
 
 	args = []string{tf.CommandNameState, tf.CommandNamePush, file.Name()}
