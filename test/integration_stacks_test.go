@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/shell"
+
 	"github.com/gruntwork-io/terratest/modules/files"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -1211,6 +1213,24 @@ func TestStacksNoValidation(t *testing.T) {
 
 	assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy")
 	assert.Contains(t, stdout, "local_file.file will be created")
+}
+
+func TestStacksValuesError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitValues)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksUnitValues, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	stackDir := util.JoinPath(rootPath, ".terragrunt-stack")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --non-interactive --working-dir "+stackDir)
+	require.Error(t, err)
+
+	explanation := shell.ExplainError(err)
+	assert.Contains(t, explanation, "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\".")
 }
 
 // check if the stack directory is created and contains files.
