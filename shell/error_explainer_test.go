@@ -37,6 +37,22 @@ func TestExplainError(t *testing.T) {
 			errorOutput: "exec: \"tofu\": executable file not found in $PATH",
 			explanation: "The executables 'terraform' and 'tofu' are missing from your $PATH. Please add at least one of these to your $PATH.",
 		},
+		{
+			errorOutput: "Error: Reference to undeclared input variable   on main.tf line 12, in resource \"aws_s3_bucket\" \"example\":   12:   bucket = var.values.bucket_name  An input variable with the name \"values\" has not been declared. This variable can be declared with a variable \"values\" {} block.╵",
+			explanation: "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\"",
+		},
+		{
+			errorOutput: "Error: There is no variable named \"values\"",
+			explanation: "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\"",
+		},
+		{
+			errorOutput: "Error: The input variable \"values\" is not declared in the root module on variables.tf line 3:    3:   default     = var.values.environment  Input variables can only be referenced from the same module where they are declared.╵",
+			explanation: "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\"",
+		},
+		{
+			errorOutput: " Error: Reference to undeclared input variable   on services/main.tf line 5, in module \"app\":    5:   environment = var.values.environment An input variable with the name \"values\" has not been declared.",
+			explanation: "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\"",
+		},
 	}
 
 	for _, tt := range testCases {
