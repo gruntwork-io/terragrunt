@@ -65,5 +65,5 @@ func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntO
 		}
 	}
 
-	return srcRemoteState.Migrate(ctx, dstRemoteState.BackendConfig, opts)
+	return srcRemoteState.Migrate(ctx, srcModule.TerragruntOptions, dstModule.TerragruntOptions, dstRemoteState)
 }

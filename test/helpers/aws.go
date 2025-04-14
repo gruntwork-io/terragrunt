@@ -1,4 +1,4 @@
-//go:build aws
+//go:build aws || awsgcp
 
 // Package helpers provides helper functions for tests.
 package helpers

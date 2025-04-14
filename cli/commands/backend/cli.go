@@ -5,6 +5,7 @@ import (
 	// "github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/bootstrap"
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/delete"
+	"github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -20,11 +21,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Subcommands: cli.Commands{
 			bootstrap.NewCommand(opts),
 			delete.NewCommand(opts),
-			// NOTE: This has been backed out pending resolution of
-			// some fallback behavior for use-cases with mixed
-			// and unsupported backend types.
-			//
-			// migrate.NewCommand(opts),
+			migrate.NewCommand(opts),
 		},
 		ErrorOnUndefinedFlag: true,
 		Before: func(ctx *cli.Context) error {
