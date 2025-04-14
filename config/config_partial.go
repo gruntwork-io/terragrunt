@@ -536,7 +536,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				ok := errors.As(err, &diagErr)
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
-				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
+				if !ok || !isRenderJSONCommand(ctx) || !isRenderCommand(ctx) || !isAttributeAccessError(diagErr) {
 					return nil, err
 				}
 

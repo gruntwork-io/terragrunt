@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
+	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
@@ -53,6 +54,7 @@ func subCommands(opts *options.TerragruntOptions) cli.Commands {
 		validateinputs.NewCommand(opts),    // validate-inputs
 		graphdependencies.NewCommand(opts), // graph-dependencies
 		hclfmt.NewCommand(opts),            // hclfmt
+		render.NewCommand(opts),            // render
 		renderjson.NewCommand(opts),        // render-json
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}

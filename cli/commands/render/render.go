@@ -24,12 +24,12 @@ func Run(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	target := run.NewTarget(run.TargetPointParseConfig, runRender(opts))
+	target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(opts))
 
 	return run.RunWithTarget(ctx, opts.TerragruntOptions, target)
 }
 
-func runRender(opts *Options) func(ctx context.Context, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func newRunRenderFunc(opts *Options) func(ctx context.Context, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	return func(ctx context.Context, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 		if cfg == nil {
 			return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
@@ -45,7 +45,7 @@ func runRender(opts *Options) func(ctx context.Context, terragruntOpts *options.
 }
 
 func renderJSON(ctx context.Context, opts *Options, cfg *config.TerragruntConfig) error {
-	if !opts.JSONDisableDependentModules {
+	if !opts.DisableDependentModules {
 		dependentModules := configstack.FindWhereWorkingDirIsIncluded(ctx, opts.TerragruntOptions, cfg)
 
 		var dependentModulesPath []*string
@@ -59,7 +59,7 @@ func renderJSON(ctx context.Context, opts *Options, cfg *config.TerragruntConfig
 
 	var terragruntConfigCty cty.Value
 
-	if opts.RenderJSONWithMetadata {
+	if opts.RenderMetadata {
 		cty, err := config.TerragruntConfigAsCtyWithMetadata(cfg)
 		if err != nil {
 			return err
@@ -84,6 +84,8 @@ func renderJSON(ctx context.Context, opts *Options, cfg *config.TerragruntConfig
 		return writeRendered(opts, jsonBytes)
 	}
 
+	opts.Logger.Infof("Rendering config %s", opts.TerragruntConfigPath)
+
 	_, err = opts.Writer.Write(jsonBytes)
 	if err != nil {
 		return errors.New(err)
@@ -93,20 +95,20 @@ func renderJSON(ctx context.Context, opts *Options, cfg *config.TerragruntConfig
 }
 
 func writeRendered(opts *Options, data []byte) error {
-	jsonOutPath := opts.JSONOut
-	if !filepath.IsAbs(jsonOutPath) {
+	outPath := opts.OutputPath
+	if !filepath.IsAbs(outPath) {
 		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
-		jsonOutPath = filepath.Join(terragruntConfigDir, jsonOutPath)
+		outPath = filepath.Join(terragruntConfigDir, outPath)
 	}
 
-	if err := util.EnsureDirectory(filepath.Dir(jsonOutPath)); err != nil {
+	if err := util.EnsureDirectory(filepath.Dir(outPath)); err != nil {
 		return err
 	}
 
-	opts.Logger.Debugf("Rendering config %s to JSON %s", opts.TerragruntConfigPath, jsonOutPath)
+	opts.Logger.Debugf("Rendering config %s to %s", opts.TerragruntConfigPath, outPath)
 
 	const ownerWriteGlobalReadPerms = 0644
-	if err := os.WriteFile(jsonOutPath, data, ownerWriteGlobalReadPerms); err != nil {
+	if err := os.WriteFile(outPath, data, ownerWriteGlobalReadPerms); err != nil {
 		return errors.New(err)
 	}
 
@@ -128,10 +130,12 @@ func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 		return nil, errors.New(err)
 	}
 
-	jsonBytes, err := json.MarshalIndent(ctyJSONOutput.Value, "", "  ")
+	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
 	if err != nil {
 		return nil, errors.New(err)
 	}
+
+	jsonBytes = append(jsonBytes, '\n')
 
 	return jsonBytes, nil
 }

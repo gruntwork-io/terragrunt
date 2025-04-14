@@ -6,6 +6,9 @@ import (
 )
 
 const (
+	// FormatHCL outputs the config in HCL format.
+	FormatHCL = "hcl"
+
 	// FormatJSON outputs the config in JSON format.
 	FormatJSON = "json"
 )
@@ -16,26 +19,39 @@ type Options struct {
 	// Format determines the format of the output.
 	Format string
 
+	// OutputPath is the path to the file to write the rendered config to.
+	// This configuration is relative to the Terragrunt config path.
+	OutputPath string
+
 	// Write the rendered config to a file.
 	Write bool
+
+	// RenderMetadata adds metadata to the rendered config.
+	RenderMetadata bool
+
+	// DisableDependentModules disables the identification of dependent modules when rendering config.
+	DisableDependentModules bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
-		TerragruntOptions: opts,
-		Format:            FormatJSON,
-		Write:             false,
+		TerragruntOptions:       opts,
+		Format:                  FormatHCL,
+		Write:                   false,
+		RenderMetadata:          false,
+		DisableDependentModules: false,
 	}
 }
 
-func (o *Options) WithWrite() *Options {
-	o.Write = true
-	return o
-}
-
-func (o *Options) WithFormat(format string) *Options {
-	o.Format = format
-	return o
+func (o *Options) Clone() *Options {
+	return &Options{
+		TerragruntOptions:       o.TerragruntOptions.Clone(),
+		Format:                  o.Format,
+		OutputPath:              o.OutputPath,
+		Write:                   o.Write,
+		RenderMetadata:          o.RenderMetadata,
+		DisableDependentModules: o.DisableDependentModules,
+	}
 }
 
 func (o *Options) Validate() error {
@@ -48,6 +64,8 @@ func (o *Options) Validate() error {
 
 func (o *Options) validateFormat() error {
 	switch o.Format {
+	case FormatHCL:
+		return errors.New("the HCL format will be implemented in a future version, but is not yet supported. Use --format json to render the config in JSON format.")
 	case FormatJSON:
 		return nil
 	default:

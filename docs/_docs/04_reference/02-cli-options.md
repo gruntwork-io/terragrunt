@@ -1131,6 +1131,50 @@ This may produce output such as:
 }
 ```
 
+#### render
+
+Render the Terragrunt configuration in the current working directory, with as much work done as possible beforehand (that is, with all includes merged, dependencies resolved/interpolated, function calls executed, etc).
+
+The only supported format at the moment is JSON, but support for HCL will be added in a future version.
+
+Example:
+
+The following `terragrunt.hcl`:
+
+```hcl
+locals {
+  aws_region = "us-east-1"
+}
+
+inputs = {
+  aws_region = local.aws_region
+}
+```
+
+Renders to the following JSON:
+
+```bash
+$ terragrunt render --format json
+{
+  "locals": { "aws_region": "us-east-1" },
+  "inputs": { "aws_region": "us-east-1" }
+  // NOTE: other attributes are omitted for brevity
+}
+```
+
+You can also use the `--write` flag to write the rendered configuration to a canonically named file in the same working directory as the `terragrunt.hcl` file.
+
+Example:
+
+```bash
+# Note the use of the `--json` shortcut flag. The `--write` flag also has a shorter alias of `-w`.
+terragrunt render --json --write
+```
+
+This will write the rendered configuration to `terragrunt.rendered.json` in the current working directory.
+
+This can be useful when rendering many configurations in a given directory, and you want to keep the rendered configurations in the same directory as the original configurations, without leveraging external tools or scripts.
+
 #### render-json
 
 Render out the final interpreted `terragrunt.hcl` file (that is, with all the includes merged, dependencies
@@ -1359,6 +1403,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [hclfmt](#hclfmt)
     - [hclvalidate](#hclvalidate)
     - [output-module-groups](#output-module-groups)
+    - [render](#render)
     - [render-json](#render-json)
     - [info](#info)
       - [Strict command](#strict-command)
