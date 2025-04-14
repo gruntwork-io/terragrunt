@@ -586,7 +586,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 		},
 		{
 			"run-all ren",
-			[]string{"render-json"},
+			[]string{"render", "render-json"},
 		},
 	}
 
