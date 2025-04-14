@@ -1,4 +1,6 @@
 // Package renderjson provides the command to render the final terragrunt config, with all variables, includes, and functions resolved, as json.
+// Deprecated: This package is deprecated and will be removed in a future version.
+// Use the 'terragrunt render' command instead.
 package renderjson
 
 import (

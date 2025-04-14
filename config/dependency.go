@@ -39,7 +39,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const renderJSONCommand = "render-json"
+const (
+	renderJSONCommand = "render-json"
+	renderCommand     = "render"
+)
 
 type Dependencies []Dependency
 
@@ -541,7 +544,7 @@ func (dep Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
 			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
 
-	return defaultOutputsSet && allowedCommand || isRenderJSONCommand(ctx)
+	return defaultOutputsSet && allowedCommand || isRenderJSONCommand(ctx) || isRenderCommand(ctx)
 }
 
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
@@ -556,7 +559,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, targetConfigPath)
 	if err != nil {
-		if !isRenderJSONCommand(ctx) && !isAwsS3NoSuchKey(err) {
+		if !isRenderJSONCommand(ctx) && !isRenderCommand(ctx) && !isAwsS3NoSuchKey(err) {
 			return nil, true, err
 		}
 
@@ -596,6 +599,11 @@ func isAwsS3NoSuchKey(err error) bool {
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
 func isRenderJSONCommand(ctx *ParsingContext) bool {
 	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderJSONCommand)
+}
+
+// isRenderCommand will return true if terragrunt was invoked with render
+func isRenderCommand(ctx *ParsingContext) bool {
+	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderCommand)
 }
 
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.

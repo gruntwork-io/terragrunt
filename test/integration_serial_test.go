@@ -743,13 +743,14 @@ func TestParseTFLog(t *testing.T) {
 	}
 }
 
-// This test is flacky when run in parallel. Need to figure it out. Most likely after these changes
+// This test is flaky when run in parallel. Need to figure it out. Most likely after these changes
 // https://github.com/gruntwork-io/terragrunt/issues/3864 or because of global variables in codes.
 func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 	testCases := []struct {
 		args string
 	}{
 		{"graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
+		// NOTE: This command doesn't have an equivalent in the new CLI redesign, as it doesn't really make sense to support a `graph` flag for the `render` command.
 		{"render-json --graph --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
 	}
 
