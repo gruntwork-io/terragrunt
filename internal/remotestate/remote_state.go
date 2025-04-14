@@ -166,7 +166,7 @@ func (remote *RemoteState) pullState(ctx context.Context, opts *options.Terragru
 	}()
 
 	if _, err := file.Write(output.Stdout.Bytes()); err != nil {
-		return "", errors.New(err)
+		return file.Name(), errors.New(err)
 	}
 
 	return file.Name(), nil
