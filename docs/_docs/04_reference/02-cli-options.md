@@ -57,6 +57,7 @@ The commands used for managing Terragrunt configuration itself are:
   - [output-module-groups](#output-module-groups)
   - [render-json](#render-json)
   - [info](#info)
+  - [dag](#dag)
   - [terragrunt-info](#terragrunt-info)
   - [validate-inputs](#validate-inputs)
 
@@ -1238,6 +1239,28 @@ Example output:
 }
 ```
 
+#### dag
+
+The `dag` command is used to interact with the Directed Acyclic Graph.
+
+It will soon replace the [`graph-dependencies`](#graph-dependencies) command. See the [CLI Redesign](/docs/reference/experiments/#cli-redesign) documentation for more information.
+
+##### Print graph
+
+Print a visual representation of the Terragrunt dependency graph in DOT language format. This command analyzes your Terragrunt configuration and outputs a directed acyclic graph (DAG) showing the relationships and dependencies between your Terraform modules.
+
+Example usage:
+
+```bash
+terragrunt dag graph 
+```
+
+The output can be piped to Graphviz tools to generate visual diagrams:
+
+```bash
+terragrunt dag graph  | dot -Tpng > graph.png
+```
+
 #### terragrunt-info
 
 Emits limited terragrunt state on `stdout` in a JSON format and exits.
@@ -1361,6 +1384,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [output-module-groups](#output-module-groups)
     - [render-json](#render-json)
     - [info](#info)
+    - [dag](#dag)
       - [Strict command](#strict-command)
       - [Print command](#print-command)
     - [terragrunt-info](#terragrunt-info)
