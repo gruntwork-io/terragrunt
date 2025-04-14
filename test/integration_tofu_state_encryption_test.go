@@ -78,16 +78,13 @@ func TestTofuStateEncryptionAWSKMS(t *testing.T) {
 func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
-	require.NoError(t, err)
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	defer os.RemoveAll(tmpDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONWithEncryption)
+	workDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONWithEncryption)
+	mainPath := util.JoinPath(workDir, "main")
+	jsonOut := filepath.Join(mainPath, "terragrunt_rendered.json")
 
-	helpers.CleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
-	helpers.CleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
-
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+testFixtureRenderJSONWithEncryption)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-json-out %s", testFixtureRenderJSONWithEncryptionMainModulePath, jsonOut))
+	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --non-interactive --log-level trace --working-dir "+workDir)
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --non-interactive --log-level trace --working-dir %s --json-out %s", mainPath, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -195,16 +192,13 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
-	require.NoError(t, err)
-	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
-	defer os.RemoveAll(tmpDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRenderJSONWithEncryption)
+	workDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONWithEncryption)
+	mainPath := util.JoinPath(workDir, "main")
+	jsonOut := filepath.Join(mainPath, "terragrunt.rendered.json")
 
-	helpers.CleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
-	helpers.CleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
-
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+testFixtureRenderJSONWithEncryption)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --experiment cli-redesign --json  -w --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-json-out %s", testFixtureRenderJSONWithEncryptionMainModulePath, jsonOut))
+	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --non-interactive --log-level trace --working-dir "+workDir)
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --experiment cli-redesign --json  -w --non-interactive --log-level trace --working-dir %s --out %s", mainPath, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
