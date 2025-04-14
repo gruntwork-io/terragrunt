@@ -144,10 +144,7 @@ func (cache *ProviderCache) TerraformCommandHook(
 		cliConfigFilename = absPath
 	}
 
-	var (
-		env                  = providerCacheEnvironment(opts, cliConfigFilename)
-		skipRunTargetCommand bool
-	)
+	var skipRunTargetCommand bool
 
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 	switch {
@@ -161,6 +158,8 @@ func (cache *ProviderCache) TerraformCommandHook(
 		// skip cache creation for all other commands
 		return tf.RunCommandWithOutput(ctx, opts, args...)
 	}
+
+	env := providerCacheEnvironment(opts, cliConfigFilename)
 
 	if output, err := cache.warmUpCache(ctx, opts, cliConfigFilename, args, env); err != nil {
 		return output, err
