@@ -1167,13 +1167,22 @@ You can also use the `--write` flag to write the rendered configuration to a can
 Example:
 
 ```bash
-# Note the use of the `--json` shortcut flag. The `--write` flag also has a shorter alias of `-w`.
+# Note the use of the `--json` shortcut flag.
 terragrunt render --json --write
 ```
 
 This will write the rendered configuration to `terragrunt.rendered.json` in the current working directory.
 
 This can be useful when rendering many configurations in a given directory, and you want to keep the rendered configurations in the same directory as the original configurations, without leveraging external tools or scripts.
+
+This is also useful when combined with the `--all` flag, which will render all configurations discovered from the current working directory.
+
+```bash
+# Note the use of the `-w` alias for the `--write` flag.
+terragrunt render --all --json -w
+```
+
+This will render all configurations discovered from the current working directory and write the rendered configurations to `terragrunt.rendered.json` files adjacent to the configurations they are derived from.
 
 #### render-json
 
