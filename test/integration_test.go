@@ -16,8 +16,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
-	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -149,6 +149,51 @@ func TestCLIFlagHints(t *testing.T) {
 
 			_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --working-dir "+rootPath)
 			assert.EqualError(t, err, tc.expectedError.Error())
+		})
+	}
+}
+
+func TestGlobalFlagMoveStrictControl(t *testing.T) {
+	t.Parallel()
+
+	tfPath := os.Getenv("TG_TF_PATH")
+
+	testCases := []struct {
+		containsLogMsg    string
+		notContainsLogMsg string
+		args              string
+	}{
+		{
+			notContainsLogMsg: "The global `--tf-path` flag has moved",
+			args:              "-tf-path=" + tfPath + " init",
+		},
+		{
+			containsLogMsg: "The global `--tf-path` flag has moved",
+			args:           "--experiment cli-redesign -tf-path=" + tfPath + " init",
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureCLIFlagHints)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
+
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureCLIFlagHints)
+			rootPath, err := filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --working-dir "+rootPath+" "+tc.args)
+			require.NoError(t, err)
+
+			if tc.containsLogMsg != "" {
+				assert.Contains(t, stderr, tc.containsLogMsg)
+			}
+
+			if tc.notContainsLogMsg != "" {
+				assert.NotContains(t, stderr, tc.notContainsLogMsg)
+			}
 		})
 	}
 }
@@ -904,7 +949,7 @@ func TestTerragruntGraphDependenciesCommand(t *testing.T) {
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt graph-dependencies --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
+	helpers.RunTerragruntRedirectOutput(t, "terragrunt dag graph --working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 	assert.Contains(t, output, strings.TrimSpace(`
 digraph {
@@ -3740,11 +3785,11 @@ func TestTerragruntInfoError(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.Error(t, err)
+	err := helpers.RunTerragruntCommand(t, "terragrunt info print --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	require.NoError(t, err)
 
-	// parse stdout json as TerragruntInfoGroup
-	var output terragruntinfo.TerragruntInfoGroup
+	// parse stdout json as InfoOutput
+	var output print.InfoOutput
 	err = json.Unmarshal(stdout.Bytes(), &output)
 	require.NoError(t, err)
 }

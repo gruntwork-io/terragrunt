@@ -200,8 +200,11 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	opts.RootWorkingDir = internalDir
 
 	tests := []struct {
-		name          string
-		discovery     *discovery.Discovery
+		name      string
+		discovery *discovery.Discovery
+		// Note that when comparing against this,
+		// we'll nil out the parsed configurations,
+		// as it doesn't matter for this test
 		wantDiscovery discovery.DiscoveredConfigs
 		errorExpected bool
 	}{
@@ -275,6 +278,11 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				for _, dep := range cfg.Dependencies {
 					dep.Dependencies = dep.Dependencies.Sort()
 				}
+			}
+
+			// nil out the parsed configurations, as it doesn't matter for this test
+			for _, cfg := range configs {
+				cfg.Parsed = nil
 			}
 
 			assert.Equal(t, tt.wantDiscovery, configs)
@@ -387,5 +395,85 @@ func TestDiscoveredConfigsCycleCheck(t *testing.T) {
 				assert.Nil(t, cfg)
 			}
 		})
+	}
+}
+
+func TestDiscoveryWithExclude(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test directory structure
+	testDirs := []string{
+		"unit1",
+		"unit2",
+		"unit3",
+	}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	// Create test files with exclude configurations
+	testFiles := map[string]string{
+		"unit1/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["plan"]
+}`,
+		"unit2/terragrunt.hcl": `
+exclude {
+  if      = true
+  actions = ["apply"]
+}`,
+		"unit3/terragrunt.hcl": "",
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.Logger.Formatter().SetDisabledColors(true)
+
+	// Test discovery with exclude parsing
+	d := discovery.NewDiscovery(tmpDir).WithParseExclude()
+
+	cfgs, err := d.Discover(context.Background(), tgOpts)
+	require.NoError(t, err)
+
+	// Verify we found all configurations
+	assert.Len(t, cfgs, 3)
+
+	// Helper to find config by path
+	findConfig := func(path string) *discovery.DiscoveredConfig {
+		for _, cfg := range cfgs {
+			if filepath.Base(cfg.Path) == path {
+				return cfg
+			}
+		}
+		return nil
+	}
+
+	// Verify exclude configurations were parsed correctly
+	unit1 := findConfig("unit1")
+	require.NotNil(t, unit1)
+	require.NotNil(t, unit1.Parsed)
+	require.NotNil(t, unit1.Parsed.Exclude)
+	assert.Contains(t, unit1.Parsed.Exclude.Actions, "plan")
+
+	unit2 := findConfig("unit2")
+	require.NotNil(t, unit2)
+	require.NotNil(t, unit2.Parsed)
+	require.NotNil(t, unit2.Parsed.Exclude)
+	assert.Contains(t, unit2.Parsed.Exclude.Actions, "apply")
+
+	unit3 := findConfig("unit3")
+	require.NotNil(t, unit3)
+	if unit3.Parsed != nil {
+		assert.Nil(t, unit3.Parsed.Exclude)
 	}
 }

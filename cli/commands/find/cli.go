@@ -24,6 +24,10 @@ const (
 	HiddenFlagName = "hidden"
 	Dependencies   = "dependencies"
 	External       = "external"
+	Exclude        = "exclude"
+
+	QueueConstructAsFlagName  = "queue-construct-as"
+	QueueConstructAsFlagAlias = "as"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
@@ -63,10 +67,23 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Include dependencies in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
+			Name:        Exclude,
+			EnvVars:     tgPrefix.EnvVars(Exclude),
+			Destination: &opts.Exclude,
+			Usage:       "Display exclude configurations in the results (only when using --format=json).",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        External,
 			EnvVars:     tgPrefix.EnvVars(External),
 			Destination: &opts.External,
 			Usage:       "Discover external dependencies from initial results, and add them to top-level results.",
+		}),
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        QueueConstructAsFlagName,
+			EnvVars:     tgPrefix.EnvVars(QueueConstructAsFlagName),
+			Destination: &opts.QueueConstructAs,
+			Usage:       "Construct the queue as if a specific command was run.",
+			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
 	}
 }
@@ -90,6 +107,12 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if cmdOpts.DAG {
+				cmdOpts.Mode = ModeDAG
+			}
+
+			// Requesting a specific command to be used for queue construction
+			// implies DAG mode.
+			if cmdOpts.QueueConstructAs != "" {
 				cmdOpts.Mode = ModeDAG
 			}
 

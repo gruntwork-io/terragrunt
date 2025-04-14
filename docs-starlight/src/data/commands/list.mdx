@@ -65,6 +65,22 @@ examples:
       unit  b-dependency
       unit  a-dependent   b-dependency
 
+  - description: |
+      List all units in dependency order as if running plan command.
+    code: |
+      $ terragrunt list --queue-construct-as=plan
+      stacks/live/dev      stacks/live/prod     units/live/dev/vpc
+      units/live/prod/vpc  units/live/dev/db    units/live/prod/db
+      units/live/dev/ec2   units/live/prod/ec2
+
+  - description: |
+      List all units in dependency order as if running destroy command.
+    code: |
+      $ terragrunt list --queue-construct-as=destroy
+      stacks/live/dev      stacks/live/prod     units/live/dev/ec2
+      units/live/prod/ec2  units/live/dev/db    units/live/prod/db
+      units/live/dev/vpc   units/live/prod/vpc
+
 flags:
   - list-format
   - list-hidden
@@ -73,6 +89,7 @@ flags:
   - list-tree
   - list-long
   - list-dag
+  - queue-construct-as
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -148,6 +165,34 @@ $ terragrunt list --tree --dag
     │   ╰── live/prod/ec2
     ╰── live/prod/ec2
 ```
+
+## Queue Construct As
+
+The `list` command supports the `--queue-construct-as` flag (or its shorter alias `--as`) to sort output based on the dependency graph, as if a particular command was run.
+
+For example, when using the `plan` command:
+
+```bash
+$ terragrunt list --queue-construct-as=plan
+stacks/live/dev      stacks/live/prod     units/live/dev/vpc
+units/live/prod/vpc  units/live/dev/db    units/live/prod/db
+units/live/dev/ec2   units/live/prod/ec2
+```
+
+This will sort the output based on the dependency graph, as if the `plan` command was run. All dependent units will appear *after* the units they depend on.
+
+When using the `destroy` command:
+
+```bash
+$ terragrunt list --queue-construct-as=destroy
+stacks/live/dev      stacks/live/prod     units/live/dev/ec2
+units/live/prod/ec2  units/live/dev/db    units/live/prod/db
+units/live/dev/vpc   units/live/prod/vpc
+```
+
+This will sort the output based on the dependency graph, as if the `destroy` command was run. All dependent units will appear *before* the units they depend on.
+
+**Note:** The `--queue-construct-as` flag implies the `--dag` flag.
 
 ## Dependencies and Discovery
 

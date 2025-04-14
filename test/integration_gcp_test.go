@@ -1,4 +1,4 @@
-//go:build gcp
+//go:build gcp || awsgcp
 
 package test_test
 

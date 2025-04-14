@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -30,9 +31,20 @@ func Run(ctx context.Context, opts *Options) error {
 		d = d.WithDiscoverExternalDependencies()
 	}
 
+	if opts.Exclude {
+		d = d.WithParseExclude()
+	}
+
+	if opts.QueueConstructAs != "" {
+		d = d.WithParseExclude()
+		d = d.WithDiscoveryContext(&discovery.DiscoveryContext{
+			Cmd: opts.QueueConstructAs,
+		})
+	}
+
 	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
 	if err != nil {
-		opts.Logger.Warnf("Error discovering configurations:\n%s", err)
+		opts.Logger.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
 
 	switch opts.Mode {
@@ -44,7 +56,7 @@ func Run(ctx context.Context, opts *Options) error {
 			return errors.New(err)
 		}
 
-		cfgs = q.Entries()
+		cfgs = q.Configs()
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -74,6 +86,8 @@ type FoundConfig struct {
 	Type discovery.ConfigType `json:"type"`
 	Path string               `json:"path"`
 
+	Exclude *config.ExcludeConfig `json:"exclude,omitempty"`
+
 	Dependencies []string `json:"dependencies,omitempty"`
 }
 
@@ -86,6 +100,14 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 			continue
 		}
 
+		if opts.QueueConstructAs != "" {
+			if config.Parsed != nil && config.Parsed.Exclude != nil {
+				if config.Parsed.Exclude.IsActionListed(opts.QueueConstructAs) {
+					continue
+				}
+			}
+		}
+
 		relPath, err := filepath.Rel(opts.WorkingDir, config.Path)
 		if err != nil {
 			errs = append(errs, errors.New(err))
@@ -96,6 +118,10 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 		foundCfg := &FoundConfig{
 			Type: config.Type,
 			Path: relPath,
+		}
+
+		if opts.Exclude && config.Parsed != nil && config.Parsed.Exclude != nil {
+			foundCfg.Exclude = config.Parsed.Exclude.Clone()
 		}
 
 		if !opts.Dependencies || len(config.Dependencies) == 0 {

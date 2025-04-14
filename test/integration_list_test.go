@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFixtureListBasic = "fixtures/list/basic"
+	testFixtureListDag   = "fixtures/list/dag"
+)
+
 func TestListCommand(t *testing.T) {
 	t.Parallel()
 
@@ -20,13 +25,13 @@ func TestListCommand(t *testing.T) {
 	}{
 		{
 			name:           "Basic list with default format",
-			workingDir:     "fixtures/list/basic",
+			workingDir:     testFixtureListBasic,
 			args:           []string{"list"},
 			expectedOutput: "a-unit  b-unit  \n",
 		},
 		{
 			name:       "List with long format",
-			workingDir: "fixtures/list/basic",
+			workingDir: testFixtureListBasic,
 			args:       []string{"list", "--long"},
 			expectedOutput: `Type  Path
 unit  a-unit
@@ -35,7 +40,7 @@ unit  b-unit
 		},
 		{
 			name:       "List with tree format",
-			workingDir: "fixtures/list/basic",
+			workingDir: testFixtureListBasic,
 			args:       []string{"list", "--tree"},
 			expectedOutput: `.
 ├── a-unit
@@ -74,7 +79,7 @@ func TestListCommandWithDependencies(t *testing.T) {
 	}{
 		{
 			name:       "List with dependencies in tree format",
-			workingDir: "fixtures/list/dag",
+			workingDir: testFixtureListDag,
 			args:       []string{"list", "--tree", "--dag"},
 			expected: `.
 ├── stacks/live/dev
@@ -91,7 +96,7 @@ func TestListCommandWithDependencies(t *testing.T) {
 		},
 		{
 			name:       "List with dependencies in long format",
-			workingDir: "fixtures/list/dag",
+			workingDir: testFixtureListDag,
 			args:       []string{"list", "--long", "--dependencies"},
 			expected: `Type  Path                 Dependencies
 stack stacks/live/dev
@@ -121,6 +126,60 @@ unit  units/live/prod/vpc
 			require.Empty(t, stderr)
 
 			assert.Equal(t, tc.expected, stdout)
+		})
+	}
+}
+
+func TestListCommandWithExclude(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		expectedOutput string
+		args           []string
+	}{
+		{
+			name:           "List with queue-construct-as plan",
+			args:           []string{"list", "--queue-construct-as", "plan"},
+			expectedOutput: "unit2  unit3  \n",
+		},
+		{
+			name:           "List with queue-construct-as apply",
+			args:           []string{"list", "--queue-construct-as", "apply"},
+			expectedOutput: "unit1  unit3  \n",
+		},
+		{
+			name: "List with queue-construct-as plan in long format",
+			args: []string{"list", "--queue-construct-as", "plan", "--long"},
+			expectedOutput: `Type  Path
+unit  unit2
+unit  unit3
+`,
+		},
+		{
+			name: "List with queue-construct-as apply in tree format",
+			args: []string{"list", "--queue-construct-as", "apply", "--tree"},
+			expectedOutput: `.
+├── unit1
+╰── unit3
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFindExclude)
+
+			args := []string{"terragrunt", "--no-color", "--experiment", "cli-redesign"}
+			args = append(args, tc.args...)
+			args = append(args, "--working-dir", testFixtureFindExclude)
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, strings.Join(args, " "))
+			require.NoError(t, err)
+			require.Empty(t, stderr)
+			assert.Equal(t, tc.expectedOutput, stdout)
 		})
 	}
 }

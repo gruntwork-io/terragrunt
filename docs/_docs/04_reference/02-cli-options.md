@@ -57,6 +57,7 @@ The commands used for managing Terragrunt configuration itself are:
   - [output-module-groups](#output-module-groups)
   - [render-json](#render-json)
   - [info](#info)
+  - [dag](#dag)
   - [terragrunt-info](#terragrunt-info)
   - [validate-inputs](#validate-inputs)
 
@@ -802,6 +803,41 @@ unitC # depends on unitA
 unitD # depends on unitC
 ```
 
+##### Find Queue Construct As
+
+The `find` command supports the `--queue-construct-as` flag to sort output based on the dependency graph, as if a particular command was run.
+
+```bash
+$ terragrunt find --queue-construct-as=plan
+stacks/live/dev
+stacks/live/prod
+units/live/dev/vpc
+units/live/prod/vpc
+units/live/dev/db
+units/live/prod/db
+units/live/dev/ec2
+units/live/prod/ec2
+```
+
+This will sort the output based on the dependency graph, as if the `plan` command was run. Meaning that all dependent units will appear _after_ the units they depend on.
+
+```bash
+# Note that you can also use the shorter alias of the flag, `--as`.
+$ terragrunt find --as=destroy
+stacks/live/dev
+stacks/live/prod
+units/live/dev/ec2
+units/live/prod/ec2
+units/live/dev/db
+units/live/prod/db
+units/live/dev/vpc
+units/live/prod/vpc
+```
+
+This will sort the output based on the dependency graph, as if the `destroy` command was run. Meaning that all dependent units will appear _before_ the units they depend on.
+
+**Note:** The `--queue-construct-as` flag implies the `--dag` flag.
+
 ##### Find Dependencies
 
 You can include dependency information in the output using the `--dependencies` flag. When enabled, the JSON output will include the dependency relationships between configurations:
@@ -821,6 +857,70 @@ $ terragrunt find --dependencies --format=json | jq
   }
 ]
 ```
+
+##### Find Exclude
+
+You can also include exclude configuration in the output using the `--exclude` flag. When enabled, the JSON output will include the configurations of the `exclude` block in the discovered units.
+
+```bash
+$ terragrunt find --exclude --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "action/exclude-apply",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "apply"
+      ],
+      "if": true
+    }
+  },
+  {
+    "type": "unit",
+    "path": "action/exclude-plan",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "plan"
+      ],
+      "if": true
+    }
+  },
+  {
+    "type": "unit",
+    "path": "all-except-output/app1",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "all_except_output"
+      ],
+      "if": true
+    }
+  }
+]
+```
+
+Note that you can combine this with the `--queue-construct-as` flag to dry-run behavior relevant to excludes.
+
+```bash
+$ terragrunt find --exclude --queue-construct-as=plan --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "action/exclude-apply",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "apply"
+      ],
+      "if": true
+    }
+  }
+]
+```
+
+`find` will remove any units that would match the exclude configuration.
 
 ##### Find External Dependencies
 
@@ -956,6 +1056,30 @@ $ terragrunt list --tree --dag
     ╰── live/prod/ec2
 
 ```
+
+##### List Queue Construct As
+
+Just like the `find` command, the `list` command supports the `--queue-construct-as` flag to sort output based on the dependency graph, as if a particular command was run.
+
+```bash
+$ terragrunt list --queue-construct-as=plan
+stacks/live/dev      stacks/live/prod     units/live/dev/vpc
+units/live/prod/vpc  units/live/dev/db    units/live/prod/db
+units/live/dev/ec2   units/live/prod/ec2
+```
+
+This will sort the output based on the dependency graph, as if the `plan` command was run. Meaning that all dependent units will appear _after_ the units they depend on.
+
+```bash
+$ terragrunt list --queue-construct-as=destroy
+stacks/live/dev      stacks/live/prod     units/live/dev/ec2
+units/live/prod/ec2  units/live/dev/db    units/live/prod/db
+units/live/dev/vpc   units/live/prod/vpc
+```
+
+This will sort the output based on the dependency graph, as if the `destroy` command was run. Meaning that all dependent units will appear _before_ the units they depend on.
+
+**Note:** The `--queue-construct-as` flag implies the `--dag` flag.
 
 ### Configuration commands
 
@@ -1160,6 +1284,54 @@ Example:
 terragrunt info strict deprecated-flags
 ```
 
+##### Print command
+
+Print out a short description of the current Terragrunt context.
+
+Example:
+
+```bash
+terragrunt info print
+```
+
+This command outputs a JSON object that includes useful contextual information such as the path to the configuration file,
+working directory, download cache location, the IAM role in use, and the Terraform (or Tofu) binary being invoked.
+
+Example output:
+
+```json
+{
+  "config_path": "/example/path/terragrunt.hcl",
+  "download_dir": "/example/path/.terragrunt-cache",
+  "iam_role": "",
+  "terraform_binary": "tofu",
+  "terraform_command": "print",
+  "working_dir": "/example/path"
+}
+```
+
+#### dag
+
+The `dag` command is used to interact with the Directed Acyclic Graph.
+
+It will soon replace the [`graph-dependencies`](#graph-dependencies) command. See the [CLI Redesign](/docs/reference/experiments/#cli-redesign) documentation for more information.
+
+##### Print graph
+
+Print a visual representation of the Terragrunt dependency graph in DOT language format. This command analyzes your Terragrunt configuration and outputs a directed acyclic graph (DAG) showing the relationships and dependencies between your Terraform modules.
+
+Example usage:
+
+```bash
+terragrunt dag graph 
+```
+
+The output can be piped to Graphviz tools to generate visual diagrams:
+
+```bash
+terragrunt dag graph  | dot -Tpng > graph.png
+```
+
 #### terragrunt-info
 
 Emits limited terragrunt state on `stdout` in a JSON format and exits.
@@ -1265,7 +1437,9 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [find](#find)
       - [Find Output Format](#find-output-format)
       - [Find DAG Mode](#find-dag-mode)
+      - [Find Queue Construct As](#find-queue-construct-as)
       - [Find Dependencies](#find-dependencies)
+      - [Find Exclude](#find-exclude)
       - [Find External Dependencies](#find-external-dependencies)
       - [Find Hidden Configurations](#find-hidden-configurations)
     - [list](#list)
@@ -1274,6 +1448,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
         - [Long Format](#long-format)
         - [Tree Format](#tree-format)
       - [DAG Mode](#dag-mode)
+      - [List Queue Construct As](#list-queue-construct-as)
   - [Configuration commands](#configuration-commands)
     - [graph-dependencies](#graph-dependencies)
     - [hclfmt](#hclfmt)
@@ -1281,7 +1456,9 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [output-module-groups](#output-module-groups)
     - [render-json](#render-json)
     - [info](#info)
+    - [dag](#dag)
       - [Strict command](#strict-command)
+      - [Print command](#print-command)
     - [terragrunt-info](#terragrunt-info)
     - [validate-inputs](#validate-inputs)
 - [Flags](#flags)

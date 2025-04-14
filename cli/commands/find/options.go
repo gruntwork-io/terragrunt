@@ -34,6 +34,9 @@ type Options struct {
 	// Mode determines the mode of the find command.
 	Mode string
 
+	// QueueConstructAs constructs the queue as if a particular command was run.
+	QueueConstructAs string
+
 	// JSON determines if the output should be in JSON format.
 	// Alias for --format=json.
 	JSON bool
@@ -46,6 +49,9 @@ type Options struct {
 
 	// Dependencies determines if dependencies should be included in the output.
 	Dependencies bool
+
+	// Exclude determines if exclude configurations should be included in the output.
+	Exclude bool
 
 	// External determines if external dependencies should be included in the output.
 	External bool

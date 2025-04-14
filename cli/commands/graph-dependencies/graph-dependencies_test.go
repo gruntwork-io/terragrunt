@@ -19,7 +19,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 	cwd, err := os.Getwd()
 	require.NoError(b, err)
 
-	testDir := "../../../test"
+	testDir := "../../../test/fixtures"
 
 	fixtureDirs := []struct {
 		description          string
