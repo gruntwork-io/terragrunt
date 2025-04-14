@@ -1074,7 +1074,7 @@ func TestRenderJsonDependentModulesTerraformExp(t *testing.T) {
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --experiment cli-redesign --json -w --with-metadata --non-interactive --log-level trace --working-dir %s  --out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --experiment cli-redesign --json -w --non-interactive --log-level trace --working-dir %s  --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
