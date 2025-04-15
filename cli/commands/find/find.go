@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -42,7 +44,22 @@ func Run(ctx context.Context, opts *Options) error {
 		})
 	}
 
-	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
+	var cfgs discovery.DiscoveredConfigs
+	var discoverErr error
+
+	// Wrap the d.Discover() call with telemetry
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
+		"working_dir":  opts.WorkingDir,
+		"hidden":       opts.Hidden,
+		"dependencies": opts.Dependencies,
+		"external":     opts.External,
+		"mode":         opts.Mode,
+		"exclude":      opts.Exclude,
+	}, func(ctx context.Context) error {
+		cfgs, discoverErr = d.Discover(ctx, opts.TerragruntOptions)
+		return discoverErr
+	})
+
 	if err != nil {
 		opts.Logger.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
