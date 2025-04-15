@@ -1562,7 +1562,7 @@ inputs = {
 	buf := &bytes.Buffer{}
 	n, err := terragruntConfig.WriteTo(buf)
 	require.NoError(t, err)
-	assert.Greater(t, n, int64(0))
+	assert.Positive(t, n)
 
 	// Parse the written config back
 	rereadConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, buf.String(), nil)

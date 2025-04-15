@@ -208,13 +208,11 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 	}
 
 	f := hclwrite.NewFile()
-
 	rootBody := f.Body()
 
+	// Handle blocks first
 	if len(cfg.Locals) > 0 {
 		localsBlock := hclwrite.NewBlock("locals", nil)
-		localsBlock.SetType("locals")
-
 		localsBody := localsBlock.Body()
 
 		localsAsCty := cfgAsCty.GetAttr("locals")
@@ -226,16 +224,239 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		rootBody.AppendBlock(localsBlock)
 	}
 
-	if cfg.RetryMaxAttempts != nil {
-		retryMaxAttemptsAsCty := cfgAsCty.GetAttr("retry_max_attempts")
+	if cfg.Terraform != nil {
+		terraformBlock := hclwrite.NewBlock("terraform", nil)
+		terraformBody := terraformBlock.Body()
+		terraformAsCty := cfgAsCty.GetAttr("terraform")
 
-		rootBody.SetAttributeValue("retry_max_attempts", retryMaxAttemptsAsCty)
+		// Handle source
+		if cfg.Terraform.Source != nil {
+			terraformBody.SetAttributeValue("source", terraformAsCty.GetAttr("source"))
+		}
+
+		// Handle extra_arguments blocks
+		if len(cfg.Terraform.ExtraArgs) > 0 {
+			extraArgsAsCty := terraformAsCty.GetAttr("extra_arguments")
+
+			for _, arg := range cfg.Terraform.ExtraArgs {
+				extraArgBlock := hclwrite.NewBlock("extra_arguments", []string{arg.Name})
+				extraArgBody := extraArgBlock.Body()
+				argCty := extraArgsAsCty.GetAttr(arg.Name)
+
+				if arg.Commands != nil {
+					extraArgBody.SetAttributeValue("commands", argCty.GetAttr("commands"))
+				}
+
+				if arg.Arguments != nil {
+					extraArgBody.SetAttributeValue("arguments", argCty.GetAttr("arguments"))
+				}
+
+				if arg.RequiredVarFiles != nil {
+					extraArgBody.SetAttributeValue("required_var_files", argCty.GetAttr("required_var_files"))
+				}
+
+				if arg.OptionalVarFiles != nil {
+					extraArgBody.SetAttributeValue("optional_var_files", argCty.GetAttr("optional_var_files"))
+				}
+
+				if arg.EnvVars != nil {
+					extraArgBody.SetAttributeValue("env_vars", argCty.GetAttr("env_vars"))
+				}
+
+				terraformBody.AppendBlock(extraArgBlock)
+			}
+		}
+
+		// Handle hooks
+		for _, beforeHook := range cfg.Terraform.BeforeHooks {
+			beforeHookBlock := hclwrite.NewBlock("before_hook", []string{beforeHook.Name})
+			beforeHookBody := beforeHookBlock.Body()
+
+			beforeHookAsCty := terraformAsCty.GetAttr("before_hook").GetAttr(beforeHook.Name)
+
+			beforeHookBody.SetAttributeValue("commands", beforeHookAsCty.GetAttr("commands"))
+			beforeHookBody.SetAttributeValue("execute", beforeHookAsCty.GetAttr("execute"))
+
+			if beforeHook.WorkingDir != nil {
+				beforeHookBody.SetAttributeValue("working_dir", beforeHookAsCty.GetAttr("working_dir"))
+			}
+
+			terraformBody.AppendBlock(beforeHookBlock)
+		}
+
+		for _, afterHook := range cfg.Terraform.AfterHooks {
+			afterHookBlock := hclwrite.NewBlock("after_hook", []string{afterHook.Name})
+			afterHookBody := afterHookBlock.Body()
+
+			afterHookAsCty := terraformAsCty.GetAttr("after_hook").GetAttr(afterHook.Name)
+
+			afterHookBody.SetAttributeValue("commands", afterHookAsCty.GetAttr("commands"))
+			afterHookBody.SetAttributeValue("execute", afterHookAsCty.GetAttr("execute"))
+
+			if afterHook.WorkingDir != nil {
+				afterHookBody.SetAttributeValue("working_dir", afterHookAsCty.GetAttr("working_dir"))
+			}
+
+			terraformBody.AppendBlock(afterHookBlock)
+		}
+
+		for _, errorHook := range cfg.Terraform.ErrorHooks {
+			errorHookBlock := hclwrite.NewBlock("error_hook", []string{errorHook.Name})
+			errorHookBody := errorHookBlock.Body()
+
+			errorHookAsCty := terraformAsCty.GetAttr("error_hook").GetAttr(errorHook.Name)
+
+			errorHookBody.SetAttributeValue("commands", errorHookAsCty.GetAttr("commands"))
+			errorHookBody.SetAttributeValue("execute", errorHookAsCty.GetAttr("execute"))
+			errorHookBody.SetAttributeValue("on_errors", errorHookAsCty.GetAttr("on_errors"))
+
+			if errorHook.WorkingDir != nil {
+				errorHookBody.SetAttributeValue("working_dir", errorHookAsCty.GetAttr("working_dir"))
+			}
+
+			terraformBody.AppendBlock(errorHookBlock)
+		}
+
+		rootBody.AppendBlock(terraformBlock)
+	}
+
+	if cfg.RemoteState != nil {
+		remoteStateBlock := hclwrite.NewBlock("remote_state", nil)
+		remoteStateBody := remoteStateBlock.Body()
+		remoteStateAsCty := cfgAsCty.GetAttr("remote_state")
+
+		remoteStateBody.SetAttributeValue("backend", remoteStateAsCty.GetAttr("backend"))
+
+		if cfg.RemoteState.Config.DisableInit {
+			remoteStateBody.SetAttributeValue("disable_init", remoteStateAsCty.GetAttr("disable_init"))
+		}
+
+		if cfg.RemoteState.Config.DisableDependencyOptimization {
+			remoteStateBody.SetAttributeValue("disable_dependency_optimization", remoteStateAsCty.GetAttr("disable_dependency_optimization"))
+		}
+
+		if len(cfg.RemoteState.Config.BackendConfig) > 0 {
+			remoteStateBody.SetAttributeValue("config", remoteStateAsCty.GetAttr("config"))
+		}
+
+		rootBody.AppendBlock(remoteStateBlock)
+	}
+
+	if cfg.Dependencies != nil && len(cfg.Dependencies.Paths) > 0 {
+		dependenciesBlock := hclwrite.NewBlock("dependencies", nil)
+		dependenciesBody := dependenciesBlock.Body()
+
+		dependenciesAsCty := cfgAsCty.GetAttr("dependencies")
+
+		dependenciesBody.SetAttributeValue("paths", dependenciesAsCty.GetAttr("paths"))
+		rootBody.AppendBlock(dependenciesBlock)
+	}
+
+	// Handle dependency blocks
+	for _, dep := range cfg.TerragruntDependencies {
+		depBlock := hclwrite.NewBlock("dependency", []string{dep.Name})
+		depBody := depBlock.Body()
+		depAsCty := cfgAsCty.GetAttr("dependency").GetAttr(dep.Name)
+		depBody.SetAttributeValue("config_path", depAsCty.GetAttr("config_path"))
+
+		if dep.SkipOutputs != nil {
+			depBody.SetAttributeValue("skip_outputs", depAsCty.GetAttr("skip_outputs"))
+		}
+
+		if dep.MockOutputs != nil {
+			depBody.SetAttributeValue("mock_outputs", depAsCty.GetAttr("mock_outputs"))
+		}
+
+		rootBody.AppendBlock(depBlock)
+	}
+
+	// Handle generate blocks
+	for name, gen := range cfg.GenerateConfigs {
+		genBlock := hclwrite.NewBlock("generate", []string{name})
+		genBody := genBlock.Body()
+		genBody.SetAttributeValue("path", gostringToCty(gen.Path))
+		genBody.SetAttributeValue("if_exists", gostringToCty(gen.IfExistsStr))
+		genBody.SetAttributeValue("contents", gostringToCty(gen.Contents))
+
+		if gen.CommentPrefix != codegen.DefaultCommentPrefix {
+			genBody.SetAttributeValue("comment_prefix", gostringToCty(gen.CommentPrefix))
+		}
+
+		if gen.DisableSignature {
+			genBody.SetAttributeValue("disable_signature", goboolToCty(gen.DisableSignature))
+		}
+
+		if gen.Disable {
+			genBody.SetAttributeValue("disable", goboolToCty(gen.Disable))
+		}
+
+		rootBody.AppendBlock(genBlock)
+	}
+
+	// Handle feature flags
+	for _, flag := range cfg.FeatureFlags {
+		flagBlock := hclwrite.NewBlock("feature", []string{flag.Name})
+		flagBody := flagBlock.Body()
+		flagAsCty := cfgAsCty.GetAttr("feature").GetAttr(flag.Name)
+
+		if flag.Default != nil {
+			flagBody.SetAttributeValue("default", flagAsCty.GetAttr("default"))
+		}
+
+		rootBody.AppendBlock(flagBlock)
+	}
+
+	// Handle attributes
+	if cfg.TerraformBinary != "" {
+		rootBody.SetAttributeValue("terraform_binary", cfgAsCty.GetAttr("terraform_binary"))
+	}
+
+	if cfg.TerraformVersionConstraint != "" {
+		rootBody.SetAttributeValue("terraform_version_constraint", cfgAsCty.GetAttr("terraform_version_constraint"))
+	}
+
+	if cfg.TerragruntVersionConstraint != "" {
+		rootBody.SetAttributeValue("terragrunt_version_constraint", cfgAsCty.GetAttr("terragrunt_version_constraint"))
+	}
+
+	if cfg.DownloadDir != "" {
+		rootBody.SetAttributeValue("download_dir", cfgAsCty.GetAttr("download_dir"))
+	}
+
+	if cfg.PreventDestroy != nil {
+		rootBody.SetAttributeValue("prevent_destroy", cfgAsCty.GetAttr("prevent_destroy"))
+	}
+
+	if cfg.Skip != nil {
+		rootBody.SetAttributeValue("skip", cfgAsCty.GetAttr("skip"))
+	}
+
+	if cfg.IamRole != "" {
+		rootBody.SetAttributeValue("iam_role", cfgAsCty.GetAttr("iam_role"))
+	}
+
+	if cfg.IamAssumeRoleDuration != nil {
+		rootBody.SetAttributeValue("iam_assume_role_duration", cfgAsCty.GetAttr("iam_assume_role_duration"))
+	}
+
+	if cfg.IamAssumeRoleSessionName != "" {
+		rootBody.SetAttributeValue("iam_assume_role_session_name", cfgAsCty.GetAttr("iam_assume_role_session_name"))
+	}
+
+	if cfg.RetryMaxAttempts != nil {
+		rootBody.SetAttributeValue("retry_max_attempts", cfgAsCty.GetAttr("retry_max_attempts"))
+	}
+
+	if cfg.RetrySleepIntervalSec != nil {
+		rootBody.SetAttributeValue("retry_sleep_interval_sec", cfgAsCty.GetAttr("retry_sleep_interval_sec"))
+	}
+
+	if len(cfg.RetryableErrors) > 0 {
+		rootBody.SetAttributeValue("retryable_errors", cfgAsCty.GetAttr("retryable_errors"))
 	}
 
 	if len(cfg.Inputs) > 0 {
-		inputsAsCty := cfgAsCty.GetAttr("inputs")
-
-		rootBody.SetAttributeValue("inputs", inputsAsCty)
+		rootBody.SetAttributeValue("inputs", cfgAsCty.GetAttr("inputs"))
 	}
 
 	return f.WriteTo(w)
