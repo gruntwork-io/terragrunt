@@ -65,7 +65,7 @@ func (o *Options) Validate() error {
 func (o *Options) validateFormat() error {
 	switch o.Format {
 	case FormatHCL:
-		return errors.New("the HCL format will be implemented in a future version, but is not yet supported. Use --format json to render the config in JSON format.")
+		return nil
 	case FormatJSON:
 		return nil
 	default:

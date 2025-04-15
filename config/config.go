@@ -4,6 +4,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -197,6 +198,47 @@ func (cfg *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 	}
 
 	return configIAMRoleOptions
+}
+
+// WriteTo writes the terragrunt config to a writer
+func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
+	cfgAsCty, err := TerragruntConfigAsCty(cfg)
+	if err != nil {
+		return 0, err
+	}
+
+	f := hclwrite.NewFile()
+
+	rootBody := f.Body()
+
+	if len(cfg.Locals) > 0 {
+		localsBlock := hclwrite.NewBlock("locals", nil)
+		localsBlock.SetType("locals")
+
+		localsBody := localsBlock.Body()
+
+		localsAsCty := cfgAsCty.GetAttr("locals")
+
+		for k := range cfg.Locals {
+			localsBody.SetAttributeValue(k, localsAsCty.GetAttr(k))
+		}
+
+		rootBody.AppendBlock(localsBlock)
+	}
+
+	if cfg.RetryMaxAttempts != nil {
+		retryMaxAttemptsAsCty := cfgAsCty.GetAttr("retry_max_attempts")
+
+		rootBody.SetAttributeValue("retry_max_attempts", retryMaxAttemptsAsCty)
+	}
+
+	if len(cfg.Inputs) > 0 {
+		inputsAsCty := cfgAsCty.GetAttr("inputs")
+
+		rootBody.SetAttributeValue("inputs", inputsAsCty)
+	}
+
+	return f.WriteTo(w)
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.

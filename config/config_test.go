@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -689,7 +690,6 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	}
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
-
 	ctx := config.NewParsingContext(context.Background(), opts)
 
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
@@ -1531,4 +1531,45 @@ dependency "dep" {
 			},
 		},
 	}, terragruntConfig)
+}
+
+func TestWriteTo(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+	string = "value"
+	bool   = true
+	number = 123
+	list   = ["a", "b", "c"]
+}
+
+retry_max_attempts = 5
+
+inputs = {
+	string = "value"
+	bool   = true
+	number = 123
+	list   = ["a", "b", "c"]
+}
+`
+
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	// Write the config to a buffer
+	buf := &bytes.Buffer{}
+	n, err := terragruntConfig.WriteTo(buf)
+	require.NoError(t, err)
+	assert.Greater(t, n, int64(0))
+
+	// Parse the written config back
+	rereadConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, buf.String(), nil)
+	require.NoError(t, err)
+
+	// Verify the configs match
+	assert.Equal(t, terragruntConfig.Locals, rereadConfig.Locals)
+	assert.Equal(t, terragruntConfig.RetryMaxAttempts, rereadConfig.RetryMaxAttempts)
+	assert.Equal(t, terragruntConfig.Inputs, rereadConfig.Inputs)
 }
