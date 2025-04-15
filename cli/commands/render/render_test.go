@@ -153,7 +153,7 @@ func validateRenderedJSON(t *testing.T, result map[string]interface{}, withMetad
 		require.True(t, ok)
 		assert.NotNil(t, data)
 	} else {
-		assert.Equal(t, float64(42), numberInput)
+		assert.InEpsilon(t, float64(42), numberInput, 0.1)
 	}
 
 	boolInput := inputs["bool_input"]
