@@ -47,7 +47,7 @@ func newRunRenderFunc(opts *Options) func(ctx context.Context, terragruntOpts *o
 	}
 }
 
-func renderHCL(ctx context.Context, opts *Options, cfg *config.TerragruntConfig) error {
+func renderHCL(_ context.Context, opts *Options, cfg *config.TerragruntConfig) error {
 	if opts.Write {
 		buf := new(bytes.Buffer)
 
