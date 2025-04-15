@@ -1544,13 +1544,109 @@ locals {
 	list   = ["a", "b", "c"]
 }
 
+terraform {
+	source = "git::git@github.com:org/repo.git//modules/test?ref=v0.1.0"
+
+	extra_arguments "secrets" {
+		commands = ["plan", "apply"]
+		arguments = ["-var-file=secrets.tfvars"]
+		required_var_files = ["common.tfvars"]
+		optional_var_files = ["optional.tfvars"]
+		env_vars = {
+			TEST_VAR = "value"
+		}
+	}
+
+	before_hook "before" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "before"]
+		working_dir = "before_dir"
+	}
+
+	after_hook "after" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "after"]
+		working_dir = "after_dir"
+	}
+
+	error_hook "error" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "error"]
+		on_errors = [
+			".*Error.*",
+			".*Exception.*"
+		]
+		working_dir = "error_dir"
+	}
+}
+
+remote_state {
+	backend = "s3"
+	disable_init = true
+	disable_dependency_optimization = true
+	config = {
+		bucket = "my-bucket"
+		key    = "terraform.tfstate"
+		region = "us-east-1"
+	}
+}
+
+// These aren't worth testing because they require filesystem operations
+// as currently implemented, and we don't want to do that in this test.
+//
+// dependencies {
+// 	paths = ["../vpc", "../database"]
+// }
+
+// dependency "vpc" {
+// 	config_path = "../vpc"
+// 	skip_outputs = true
+// 	mock_outputs = {
+// 		vpc_id = "mock-vpc-id"
+// 	}
+// }
+
+generate "provider" {
+	path = "provider.tf"
+	if_exists = "overwrite"
+	contents = <<EOF
+provider "aws" {
+	region = "us-east-1"
+}
+EOF
+	comment_prefix = "//"
+	disable_signature = true
+	disable = false
+}
+
+feature "test_feature" {
+	default = true
+}
+
+terraform_binary = "terraform"
+terraform_version_constraint = ">= 1.0.0"
+terragrunt_version_constraint = ">= 0.36.0"
+download_dir = ".terragrunt-cache"
+prevent_destroy = true
+skip = false
+iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+iam_assume_role_duration = 3600
+iam_assume_role_session_name = "terragrunt"
 retry_max_attempts = 5
+retry_sleep_interval_sec = 5
+retryable_errors = [
+	".*timeout.*",
+	".*connection reset.*"
+]
 
 inputs = {
 	string = "value"
 	bool   = true
 	number = 123
 	list   = ["a", "b", "c"]
+	map    = {
+		key = "value"
+	}
 }
 `
 
@@ -1570,6 +1666,30 @@ inputs = {
 
 	// Verify the configs match
 	assert.Equal(t, terragruntConfig.Locals, rereadConfig.Locals)
+	assert.Equal(t, terragruntConfig.Terraform.Source, rereadConfig.Terraform.Source)
+	assert.Equal(t, terragruntConfig.Terraform.ExtraArgs, rereadConfig.Terraform.ExtraArgs)
+	assert.Equal(t, terragruntConfig.Terraform.BeforeHooks, rereadConfig.Terraform.BeforeHooks)
+	assert.Equal(t, terragruntConfig.Terraform.AfterHooks, rereadConfig.Terraform.AfterHooks)
+	assert.Equal(t, terragruntConfig.Terraform.ErrorHooks, rereadConfig.Terraform.ErrorHooks)
+	assert.Equal(t, terragruntConfig.RemoteState.BackendName, rereadConfig.RemoteState.BackendName)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableInit, rereadConfig.RemoteState.Config.DisableInit)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableDependencyOptimization, rereadConfig.RemoteState.Config.DisableDependencyOptimization)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.BackendConfig, rereadConfig.RemoteState.Config.BackendConfig)
+	// assert.Equal(t, terragruntConfig.Dependencies.Paths, rereadConfig.Dependencies.Paths)
+	// assert.Equal(t, terragruntConfig.TerragruntDependencies, rereadConfig.TerragruntDependencies)
+	assert.Equal(t, terragruntConfig.GenerateConfigs, rereadConfig.GenerateConfigs)
+	assert.Equal(t, terragruntConfig.FeatureFlags, rereadConfig.FeatureFlags)
+	assert.Equal(t, terragruntConfig.TerraformBinary, rereadConfig.TerraformBinary)
+	assert.Equal(t, terragruntConfig.TerraformVersionConstraint, rereadConfig.TerraformVersionConstraint)
+	assert.Equal(t, terragruntConfig.TerragruntVersionConstraint, rereadConfig.TerragruntVersionConstraint)
+	assert.Equal(t, terragruntConfig.DownloadDir, rereadConfig.DownloadDir)
+	assert.Equal(t, terragruntConfig.PreventDestroy, rereadConfig.PreventDestroy)
+	assert.Equal(t, terragruntConfig.Skip, rereadConfig.Skip)
+	assert.Equal(t, terragruntConfig.IamRole, rereadConfig.IamRole)
+	assert.Equal(t, terragruntConfig.IamAssumeRoleDuration, rereadConfig.IamAssumeRoleDuration)
+	assert.Equal(t, terragruntConfig.IamAssumeRoleSessionName, rereadConfig.IamAssumeRoleSessionName)
 	assert.Equal(t, terragruntConfig.RetryMaxAttempts, rereadConfig.RetryMaxAttempts)
+	assert.Equal(t, terragruntConfig.RetrySleepIntervalSec, rereadConfig.RetrySleepIntervalSec)
+	assert.Equal(t, terragruntConfig.RetryableErrors, rereadConfig.RetryableErrors)
 	assert.Equal(t, terragruntConfig.Inputs, rereadConfig.Inputs)
 }

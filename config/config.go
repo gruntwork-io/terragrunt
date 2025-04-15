@@ -236,12 +236,12 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 		// Handle extra_arguments blocks
 		if len(cfg.Terraform.ExtraArgs) > 0 {
-			extraArgsAsCty := terraformAsCty.GetAttr("extra_arguments")
+			extraArgsAsCty := terraformAsCty.GetAttr("extra_arguments").AsValueMap()
 
 			for _, arg := range cfg.Terraform.ExtraArgs {
 				extraArgBlock := hclwrite.NewBlock("extra_arguments", []string{arg.Name})
 				extraArgBody := extraArgBlock.Body()
-				argCty := extraArgsAsCty.GetAttr(arg.Name)
+				argCty := extraArgsAsCty[arg.Name]
 
 				if arg.Commands != nil {
 					extraArgBody.SetAttributeValue("commands", argCty.GetAttr("commands"))
@@ -272,7 +272,7 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			beforeHookBlock := hclwrite.NewBlock("before_hook", []string{beforeHook.Name})
 			beforeHookBody := beforeHookBlock.Body()
 
-			beforeHookAsCty := terraformAsCty.GetAttr("before_hook").GetAttr(beforeHook.Name)
+			beforeHookAsCty := terraformAsCty.GetAttr("before_hook").AsValueMap()[beforeHook.Name]
 
 			beforeHookBody.SetAttributeValue("commands", beforeHookAsCty.GetAttr("commands"))
 			beforeHookBody.SetAttributeValue("execute", beforeHookAsCty.GetAttr("execute"))
@@ -288,7 +288,7 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			afterHookBlock := hclwrite.NewBlock("after_hook", []string{afterHook.Name})
 			afterHookBody := afterHookBlock.Body()
 
-			afterHookAsCty := terraformAsCty.GetAttr("after_hook").GetAttr(afterHook.Name)
+			afterHookAsCty := terraformAsCty.GetAttr("after_hook").AsValueMap()[afterHook.Name]
 
 			afterHookBody.SetAttributeValue("commands", afterHookAsCty.GetAttr("commands"))
 			afterHookBody.SetAttributeValue("execute", afterHookAsCty.GetAttr("execute"))
@@ -304,7 +304,7 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			errorHookBlock := hclwrite.NewBlock("error_hook", []string{errorHook.Name})
 			errorHookBody := errorHookBlock.Body()
 
-			errorHookAsCty := terraformAsCty.GetAttr("error_hook").GetAttr(errorHook.Name)
+			errorHookAsCty := terraformAsCty.GetAttr("error_hook").AsValueMap()[errorHook.Name]
 
 			errorHookBody.SetAttributeValue("commands", errorHookAsCty.GetAttr("commands"))
 			errorHookBody.SetAttributeValue("execute", errorHookAsCty.GetAttr("execute"))
