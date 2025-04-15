@@ -47,7 +47,6 @@ func Run(ctx context.Context, opts *Options) error {
 	var cfgs discovery.DiscoveredConfigs
 	var discoverErr error
 
-	// Wrap the d.Discover() call with telemetry
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"hidden":       opts.Hidden,
