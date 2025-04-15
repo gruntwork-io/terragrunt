@@ -107,7 +107,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	err := render.Run(context.Background(), opts)
 	require.NoError(t, err)
 
-	assert.Equal(t, renderedBuffer.String(), testTerragruntConfigFixture)
+	assert.Equal(t, testTerragruntConfigFixture, renderedBuffer.String())
 }
 
 // setupTest creates a temporary directory with a terragrunt config file and returns the necessary test setup
