@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
@@ -89,6 +90,7 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		validateinputs.NewCommand(opts),     // validate-inputs
 		hclvalidate.NewCommand(opts),        // hclvalidate
 		hclfmt.NewCommand(opts),             // hclfmt
+		hcl.NewCommand(opts),                // hcl
 		info.NewCommand(opts),               // info
 		dag.NewCommand(opts),                // dag
 		terragruntinfo.NewCommand(opts),     // terragrunt-info
