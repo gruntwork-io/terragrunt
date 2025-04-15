@@ -1,8 +1,7 @@
-// `validate-inputs` command collects all the terraform variables defined in the target module, and the terragrunt
+// Package validate-inputs collects all the terraform variables defined in the target module, and the terragrunt
 // inputs that are configured, and compare the two to determine if there are any unused inputs or undefined required
 // inputs.
-
-package validateinputs
+package validate
 
 import (
 	"context"
@@ -13,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/google/shlex"
+	"golang.org/x/exp/slices"
 
 	"maps"
 
@@ -48,7 +48,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	unusedVars := []string{}
 
 	for _, varName := range allInputs {
-		if !util.ListContainsElement(allVars, varName) {
+		if !slices.Contains(allVars, varName) {
 			unusedVars = append(unusedVars, varName)
 		}
 	}
@@ -57,7 +57,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	missingVars := []string{}
 
 	for _, varName := range required {
-		if !util.ListContainsElement(allInputs, varName) {
+		if !slices.Contains(allInputs, varName) {
 			missingVars = append(missingVars, varName)
 		}
 	}

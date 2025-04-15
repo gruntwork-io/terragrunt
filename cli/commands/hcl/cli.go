@@ -5,6 +5,7 @@ import (
 	// "github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -20,6 +21,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Description: "Interact with Terragrunt files written in HashiCorp Configuration Language (HCL).",
 		Subcommands: cli.Commands{
 			format.NewCommand(opts),
+			validate.NewCommand(opts),
 		},
 		ErrorOnUndefinedFlag: true,
 		Before: func(ctx *cli.Context) error {

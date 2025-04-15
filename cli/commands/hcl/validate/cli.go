@@ -9,6 +9,11 @@ import (
 
 const (
 	CommandName = "validate"
+
+	StrictFlagName = "strict"
+	InputFlagName  = "input"
+
+	DeprecatedStrictValidateFlagName = "strict-validate"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -16,7 +21,23 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
-	flags := cli.Flags{}
+	flags := cli.Flags{
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        StrictFlagName,
+			EnvVars:     tgPrefix.EnvVars(StrictFlagName),
+			Destination: &opts.ValidateStrict,
+			Usage:       "Sets strict mode. By default, strict mode is off.",
+		},
+			flags.WithDeprecatedNames(tgPrefix.FlagNames(DeprecatedStrictValidateFlagName), terragruntPrefixControl),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictValidateFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        InputFlagName,
+			EnvVars:     tgPrefix.EnvVars(InputFlagName),
+			Destination: &opts.ValidateStrict,
+			Usage:       "Sets strict mode. By default, strict mode is off.",
+		}),
+	}
 
 	return flags
 }

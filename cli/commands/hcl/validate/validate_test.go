@@ -1,10 +1,10 @@
-package validateinputs_test
+package validate_test
 
 import (
 	"sort"
 	"testing"
 
-	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,7 +54,7 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			vars, varFiles, err := validateinputs.GetVarFlagsFromArgList(tc.args)
+			vars, varFiles, err := validate.GetVarFlagsFromArgList(tc.args)
 			require.NoError(t, err)
 			sort.Strings(vars)
 			sort.Strings(varFiles)
