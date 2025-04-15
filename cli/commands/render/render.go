@@ -2,6 +2,7 @@
 package render
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
@@ -48,57 +48,22 @@ func newRunRenderFunc(opts *Options) func(ctx context.Context, terragruntOpts *o
 }
 
 func renderHCL(ctx context.Context, opts *Options, cfg *config.TerragruntConfig) error {
-	if !opts.DisableDependentModules {
-		dependentModules := configstack.FindWhereWorkingDirIsIncluded(ctx, opts.TerragruntOptions, cfg)
-
-		var dependentModulesPath []*string
-		for _, module := range dependentModules {
-			dependentModulesPath = append(dependentModulesPath, &module.Path)
-		}
-
-		cfg.DependentModulesPath = dependentModulesPath
-		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]any{config.FoundInFile: opts.TerragruntConfigPath})
-	}
-
-	var terragruntConfigCty cty.Value
-
-	if opts.RenderMetadata {
-		cty, err := config.TerragruntConfigAsCtyWithMetadata(cfg)
-		if err != nil {
-			return err
-		}
-
-		terragruntConfigCty = cty
-	} else {
-		cty, err := config.TerragruntConfigAsCty(cfg)
-		if err != nil {
-			return err
-		}
-
-		terragruntConfigCty = cty
-	}
-
-	// Create a new empty HCL file
-	f := hclwrite.NewEmptyFile()
-	rootBody := f.Body()
-
-	// Convert the cty value to HCL tokens and write them to the file
-	for key, val := range terragruntConfigCty.AsValueMap() {
-		rootBody.SetAttributeRaw(key, hclwrite.TokensForValue(val))
-	}
-
-	// Format the HCL
-	hclBytes := f.Bytes()
-
 	if opts.Write {
-		return writeRendered(opts, hclBytes)
+		buf := new(bytes.Buffer)
+
+		_, err := cfg.WriteTo(buf)
+		if err != nil {
+			return err
+		}
+
+		return writeRendered(opts, buf.Bytes())
 	}
 
 	opts.Logger.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err := opts.Writer.Write(hclBytes)
+	_, err := cfg.WriteTo(opts.Writer)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
