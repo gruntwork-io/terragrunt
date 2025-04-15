@@ -360,7 +360,7 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		depBody.SetAttributeValue("config_path", depAsCty.GetAttr("config_path"))
 
 		if dep.SkipOutputs != nil {
-			depBody.SetAttributeValue("skip_outputs", depAsCty.GetAttr("skip_outputs"))
+			depBody.SetAttributeValue("skip_outputs", goboolToCty(*dep.SkipOutputs))
 		}
 
 		if dep.MockOutputs != nil {

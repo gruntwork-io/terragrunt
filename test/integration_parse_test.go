@@ -1,4 +1,4 @@
-//go:build parse
+// //go:build parse
 
 // These tests consume so much memory that they cause the CI runner to crash.
 // As a result, we have to run them on their own.
@@ -62,6 +62,58 @@ func TestParseAllFixtureFiles(t *testing.T) {
 			}
 
 			assert.NotNil(t, cfg)
+
+			// Suggest garbage collection to free up memory.
+			// Parsing config files can be memory intensive, and we don't need the config
+			// files in memory after we've parsed them.
+			runtime.GC()
+		})
+	}
+}
+
+func TestRenderAllFixtureFiles(t *testing.T) {
+	t.Parallel()
+
+	files := helpers.HCLFilesInDir(t, "fixtures")
+
+	for _, file := range files {
+		if !strings.HasSuffix(file, "terragrunt.hcl") {
+			continue
+		}
+
+		if strings.Contains(file, ".terragrunt-cache") {
+			continue
+		}
+
+		if slices.Contains(knownBadFiles, file) {
+			continue
+		}
+
+		t.Run(file, func(t *testing.T) {
+			// t.Parallel()
+
+			dir := filepath.Dir(file)
+
+			opts, err := options.NewTerragruntOptionsForTest(dir)
+			require.NoError(t, err)
+
+			parsingCtx := config.NewParsingContext(context.Background(), opts)
+			cfg, err := config.ParseConfigFile(parsingCtx, file, nil)
+			require.NoError(t, err)
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt render --experiment cli-redesign --working-dir "+dir,
+			)
+			require.NoError(t, err)
+
+			assert.NotEmpty(t, stderr)
+			assert.NotEmpty(t, stdout)
+
+			renderedCfg, err := config.ParseConfigString(parsingCtx, file, stdout, nil)
+			require.NoError(t, err)
+
+			assert.Equal(t, cfg, renderedCfg)
 
 			// Suggest garbage collection to free up memory.
 			// Parsing config files can be memory intensive, and we don't need the config
