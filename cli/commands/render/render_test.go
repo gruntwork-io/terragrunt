@@ -101,9 +101,13 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	opts, _ := setupTest(t)
 	opts.Format = render.FormatHCL
 
+	var renderedBuffer bytes.Buffer
+	opts.TerragruntOptions.Writer = &renderedBuffer
+
 	err := render.Run(context.Background(), opts)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "the HCL format will be implemented in a future version")
+	require.NoError(t, err)
+
+	assert.Equal(t, renderedBuffer.String(), testTerragruntConfigFixture)
 }
 
 // setupTest creates a temporary directory with a terragrunt config file and returns the necessary test setup
@@ -190,14 +194,13 @@ func validateRenderedJSON(t *testing.T, result map[string]interface{}, withMetad
 const testTerragruntConfigFixture = `terraform {
   source = "test"
 }
-
 inputs = {
-  string_input = "test"
-  number_input = 42
-  bool_input   = true
-  list_input   = ["item1", "item2"]
-  map_input    = {
+  bool_input = true
+  list_input = ["item1", "item2"]
+  map_input = {
     key = "value"
   }
+  number_input = 42
+  string_input = "test"
 }
 `
