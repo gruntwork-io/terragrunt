@@ -66,21 +66,46 @@ func Run(ctx context.Context, opts *Options) error {
 
 	switch opts.Mode {
 	case ModeNormal:
-		cfgs = cfgs.Sort()
-	case ModeDAG:
-		q, err := queue.NewQueue(cfgs)
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_normal", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"config_count": len(cfgs),
+		}, func(ctx context.Context) error {
+			cfgs = cfgs.Sort()
+			return nil
+		})
 		if err != nil {
 			return errors.New(err)
 		}
-
-		cfgs = q.Configs()
+	case ModeDAG:
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_dag", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"config_count": len(cfgs),
+		}, func(ctx context.Context) error {
+			q, queueErr := queue.NewQueue(cfgs)
+			if queueErr != nil {
+				return queueErr
+			}
+			cfgs = q.Configs()
+			return nil
+		})
+		if err != nil {
+			return errors.New(err)
+		}
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
 		return errors.New("invalid mode: " + opts.Mode)
 	}
 
-	foundCfgs, err := discoveredToFound(cfgs, opts)
+	var foundCfgs FoundConfigs
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discovered_to_found", map[string]any{
+		"working_dir":  opts.WorkingDir,
+		"config_count": len(cfgs),
+	}, func(ctx context.Context) error {
+		var convErr error
+		foundCfgs, convErr = discoveredToFound(cfgs, opts)
+		return convErr
+	})
 	if err != nil {
 		return errors.New(err)
 	}
