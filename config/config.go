@@ -268,11 +268,19 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		}
 
 		// Handle hooks
-		for _, beforeHook := range cfg.Terraform.BeforeHooks {
+		for _, beforeHook := range cfg.Terraform.BeforeHooks { //nolint:dupl
 			beforeHookBlock := hclwrite.NewBlock("before_hook", []string{beforeHook.Name})
 			beforeHookBody := beforeHookBlock.Body()
 
 			beforeHookAsCty := terraformAsCty.GetAttr("before_hook").AsValueMap()[beforeHook.Name]
+
+			if beforeHook.If != nil {
+				beforeHookBody.SetAttributeValue("if", beforeHookAsCty.GetAttr("if"))
+			}
+
+			if beforeHook.RunOnError != nil {
+				beforeHookBody.SetAttributeValue("run_on_error", beforeHookAsCty.GetAttr("run_on_error"))
+			}
 
 			beforeHookBody.SetAttributeValue("commands", beforeHookAsCty.GetAttr("commands"))
 			beforeHookBody.SetAttributeValue("execute", beforeHookAsCty.GetAttr("execute"))
@@ -284,11 +292,19 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			terraformBody.AppendBlock(beforeHookBlock)
 		}
 
-		for _, afterHook := range cfg.Terraform.AfterHooks {
+		for _, afterHook := range cfg.Terraform.AfterHooks { //nolint:dupl
 			afterHookBlock := hclwrite.NewBlock("after_hook", []string{afterHook.Name})
 			afterHookBody := afterHookBlock.Body()
 
 			afterHookAsCty := terraformAsCty.GetAttr("after_hook").AsValueMap()[afterHook.Name]
+
+			if afterHook.If != nil {
+				afterHookBody.SetAttributeValue("if", afterHookAsCty.GetAttr("if"))
+			}
+
+			if afterHook.RunOnError != nil {
+				afterHookBody.SetAttributeValue("run_on_error", afterHookAsCty.GetAttr("run_on_error"))
+			}
 
 			afterHookBody.SetAttributeValue("commands", afterHookAsCty.GetAttr("commands"))
 			afterHookBody.SetAttributeValue("execute", afterHookAsCty.GetAttr("execute"))
@@ -335,7 +351,7 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			remoteStateBody.SetAttributeValue("disable_dependency_optimization", remoteStateAsCty.GetAttr("disable_dependency_optimization"))
 		}
 
-		if len(cfg.RemoteState.Config.BackendConfig) > 0 {
+		if cfg.RemoteState.Config.BackendConfig != nil {
 			remoteStateBody.SetAttributeValue("config", remoteStateAsCty.GetAttr("config"))
 		}
 
@@ -359,12 +375,24 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		depAsCty := cfgAsCty.GetAttr("dependency").GetAttr(dep.Name)
 		depBody.SetAttributeValue("config_path", depAsCty.GetAttr("config_path"))
 
+		if dep.Enabled != nil {
+			depBody.SetAttributeValue("enabled", goboolToCty(*dep.Enabled))
+		}
+
 		if dep.SkipOutputs != nil {
 			depBody.SetAttributeValue("skip_outputs", goboolToCty(*dep.SkipOutputs))
 		}
 
 		if dep.MockOutputs != nil {
 			depBody.SetAttributeValue("mock_outputs", depAsCty.GetAttr("mock_outputs"))
+		}
+
+		if dep.MockOutputsAllowedTerraformCommands != nil {
+			depBody.SetAttributeValue("mock_outputs_allowed_terraform_commands", depAsCty.GetAttr("mock_outputs_allowed_terraform_commands"))
+		}
+
+		if dep.MockOutputsMergeStrategyWithState != nil {
+			depBody.SetAttributeValue("mock_outputs_merge_strategy_with_state", depAsCty.GetAttr("mock_outputs_merge_strategy_with_state"))
 		}
 
 		rootBody.AppendBlock(depBlock)
@@ -376,6 +404,7 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		genBody := genBlock.Body()
 		genBody.SetAttributeValue("path", gostringToCty(gen.Path))
 		genBody.SetAttributeValue("if_exists", gostringToCty(gen.IfExistsStr))
+		genBody.SetAttributeValue("if_disabled", gostringToCty(gen.IfDisabledStr))
 		genBody.SetAttributeValue("contents", gostringToCty(gen.Contents))
 
 		if gen.CommentPrefix != codegen.DefaultCommentPrefix {
