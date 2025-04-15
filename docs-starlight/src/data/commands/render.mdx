@@ -39,7 +39,22 @@ inputs = {
 }
 ```
 
-Renders to the following JSON:
+
+Renders to the following HCL by default:
+
+```bash
+$ terragrunt render
+locals {
+  aws_region = "us-east-1"
+}
+inputs = {
+  aws_region = "us-east-1"
+}
+```
+
+Note the resolution of the `aws_region` local, making it easier to read the final evaluated configuration at a glance.
+
+Renders to the following JSON when the `--format json` flag is used:
 
 ```bash
 $ terragrunt render --format json

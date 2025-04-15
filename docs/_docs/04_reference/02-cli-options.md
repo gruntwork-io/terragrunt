@@ -1207,8 +1207,6 @@ This may produce output such as:
 
 Render the Terragrunt configuration in the current working directory, with as much work done as possible beforehand (that is, with all includes merged, dependencies resolved/interpolated, function calls executed, etc).
 
-The only supported format at the moment is JSON, but support for HCL will be added in a future version.
-
 Example:
 
 The following `terragrunt.hcl`:
@@ -1223,7 +1221,21 @@ inputs = {
 }
 ```
 
-Renders to the following JSON:
+Renders to the following HCL by default:
+
+```bash
+$ terragrunt render
+locals {
+  aws_region = "us-east-1"
+}
+inputs = {
+  aws_region = "us-east-1"
+}
+```
+
+Note the resolution of the `aws_region` local, making it easier to read the final evaluated configuration at a glance.
+
+Renders to the following JSON when the `--format json` flag is used:
 
 ```bash
 $ terragrunt render --format json
@@ -1376,7 +1388,7 @@ Print a visual representation of the Terragrunt dependency graph in DOT language
 Example usage:
 
 ```bash
-terragrunt dag graph 
+terragrunt dag graph
 ```
 
 The output can be piped to Graphviz tools to generate visual diagrams:
@@ -1510,9 +1522,10 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [render](#render)
     - [render-json](#render-json)
     - [info](#info)
-    - [dag](#dag)
       - [Strict command](#strict-command)
       - [Print command](#print-command)
+    - [dag](#dag)
+      - [Print graph](#print-graph)
     - [terragrunt-info](#terragrunt-info)
     - [validate-inputs](#validate-inputs)
 - [Flags](#flags)
