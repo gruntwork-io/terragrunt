@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -73,6 +74,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 
 	cmd = runall.WrapCommand(opts, cmd)
+	cmd = graph.WrapCommand(opts, cmd)
 
 	return cmd
 }

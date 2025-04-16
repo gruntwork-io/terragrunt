@@ -17,9 +17,9 @@ const (
 	DiffFlagName       = "diff"
 	StdinFlagName      = "stdin"
 
-	DeprecatedHclfmtFileFlagName        = "format-file"
-	DeprecatedHclfmtcExcludeDirFlagName = "format-exclude-dir"
-	DeprecatedHclfmtStdinFlagName       = "format-stdin"
+	DeprecatedHclfmtFileFlagName        = "hclfmt-file"
+	DeprecatedHclfmtcExcludeDirFlagName = "hclfmt-exclude-dir"
+	DeprecatedHclfmtStdinFlagName       = "hclfmt-stdin"
 	DeprecatedCheckFlagName             = "check"
 	DeprecatedDiffFlagName              = "diff"
 )
