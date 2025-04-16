@@ -65,16 +65,7 @@ func Run(ctx context.Context, opts *Options) error {
 
 	switch opts.Mode {
 	case ModeNormal:
-		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_normal", map[string]any{
-			"working_dir":  opts.WorkingDir,
-			"config_count": len(cfgs),
-		}, func(ctx context.Context) error {
-			cfgs = cfgs.Sort()
-			return nil
-		})
-		if err != nil {
-			return errors.New(err)
-		}
+		cfgs = cfgs.Sort()
 	case ModeDAG:
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_dag", map[string]any{
 			"working_dir":  opts.WorkingDir,
