@@ -10,10 +10,14 @@ import (
 const (
 	CommandName = "validate"
 
-	StrictFlagName = "strict"
-	InputFlagName  = "input"
+	StrictFlagName         = "strict"
+	InputFlagName          = "input"
+	ShowConfigPathFlagName = "show-config-path"
+	JSONFlagName           = "json"
 
-	DeprecatedStrictValidateFlagName = "strict-validate"
+	DeprecatedHclvalidateShowConfigPathFlagName = "hclvalidate-show-config-path"
+	DeprecatedHclvalidateJSONFlagName           = "hclvalidate-json"
+	DeprecatedStrictValidateFlagName            = "strict-validate"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -25,7 +29,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        StrictFlagName,
 			EnvVars:     tgPrefix.EnvVars(StrictFlagName),
-			Destination: &opts.ValidateStrict,
+			Destination: &opts.HCLValidateStrict,
 			Usage:       "Sets strict mode. By default, strict mode is off.",
 		},
 			flags.WithDeprecatedNames(tgPrefix.FlagNames(DeprecatedStrictValidateFlagName), terragruntPrefixControl),
@@ -34,9 +38,24 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InputFlagName,
 			EnvVars:     tgPrefix.EnvVars(InputFlagName),
-			Destination: &opts.ValidateStrict,
-			Usage:       "Sets strict mode. By default, strict mode is off.",
+			Destination: &opts.HCLValidateInput,
+			Usage:       "Checks if the terragrunt configured inputs align with the terraform defined variables.",
 		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        ShowConfigPathFlagName,
+			EnvVars:     tgPrefix.EnvVars(ShowConfigPathFlagName),
+			Usage:       "Show a list of files with invalid configuration.",
+			Destination: &opts.HCLValidateShowConfigPath,
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateShowConfigPathFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        JSONFlagName,
+			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
+			Destination: &opts.HCLValidateJSONOutput,
+			Usage:       "Output the result in JSON format.",
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateJSONFlagName), terragruntPrefixControl)),
 	}
 
 	return flags

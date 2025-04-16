@@ -9,15 +9,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/google/shlex"
+	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/exp/slices"
 
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/view"
+	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -26,6 +33,87 @@ import (
 const splitCount = 2
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+	if opts.HCLValidateInput {
+		if opts.HCLValidateShowConfigPath {
+			return errors.Errorf("specifying both -%s and -%s flags is not supported yet", ShowConfigPathFlagName, InputFlagName)
+		}
+
+		if opts.HCLValidateJSONOutput {
+			return errors.Errorf("specifying both -%s and -%s flags is not supported yet", JSONFlagName, InputFlagName)
+		}
+
+		return RunValidateInputs(ctx, opts)
+	}
+
+	if opts.HCLValidateStrict {
+		return errors.Errorf("specifying -%s flag without -%s is not supported yet", StrictFlagName, InputFlagName)
+	}
+
+	return RunValidate(ctx, opts)
+}
+
+func RunValidate(ctx context.Context, opts *options.TerragruntOptions) error {
+	var diags diagnostic.Diagnostics
+
+	parseOptions := []hclparse.Option{
+		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
+			for _, hclDiag := range hclDiags {
+				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
+				if !diags.Contains(newDiag) {
+					diags = append(diags, newDiag)
+				}
+			}
+			return nil, nil
+		}),
+	}
+
+	opts.SkipOutput = true
+	opts.NonInteractive = true
+	opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
+		_, err := config.ReadTerragruntConfig(ctx, opts, parseOptions)
+		return err
+	}
+
+	stack, err := configstack.FindStackInSubfolders(ctx, opts, configstack.WithParseOptions(parseOptions))
+	if err != nil {
+		return err
+	}
+
+	stackErr := stack.Run(ctx, opts)
+
+	if len(diags) > 0 {
+		sort.Slice(diags, func(i, j int) bool {
+			if diags[i].Range != nil && diags[j].Range != nil && diags[i].Range.Filename > diags[j].Range.Filename {
+				return false
+			}
+
+			return true
+		})
+
+		if err := writeDiagnostics(opts, diags); err != nil {
+			return err
+		}
+	}
+
+	return stackErr
+}
+
+func writeDiagnostics(opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
+	render := view.NewHumanRender(opts.Logger.Formatter().DisabledColors())
+	if opts.HCLValidateJSONOutput {
+		render = view.NewJSONRender()
+	}
+
+	writer := view.NewWriter(opts.Writer, render)
+
+	if opts.HCLValidateShowConfigPath {
+		return writer.ShowConfigPath(diags)
+	}
+
+	return writer.Diagnostics(diags)
+}
+
+func RunValidateInputs(ctx context.Context, opts *options.TerragruntOptions) error {
 	target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
 
 	return run.RunWithTarget(ctx, opts, target)
@@ -73,7 +161,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 		opts.Logger.Warn("")
 	} else {
 		opts.Logger.Info("All variables passed in by terragrunt are in use.")
-		opts.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.ValidateStrict))
+		opts.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.HCLValidateStrict))
 	}
 
 	if len(missingVars) > 0 {
@@ -86,14 +174,14 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 		opts.Logger.Error("")
 	} else {
 		opts.Logger.Info("All required inputs are passed in by terragrunt")
-		opts.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.ValidateStrict))
+		opts.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.HCLValidateStrict))
 	}
 
 	// Return an error when there are misaligned inputs. Terragrunt strict mode defaults to false. When it is false,
 	// an error will only be returned if required inputs are missing. When strict mode is true, an error will be
 	// returned if required inputs are missing OR if any unused variables are passed
-	if len(missingVars) > 0 || len(unusedVars) > 0 && opts.ValidateStrict {
-		return fmt.Errorf("terragrunt configuration has misaligned inputs. Strict mode enabled: %t", opts.ValidateStrict)
+	if len(missingVars) > 0 || len(unusedVars) > 0 && opts.HCLValidateStrict {
+		return fmt.Errorf("terragrunt configuration has misaligned inputs. Strict mode enabled: %t", opts.HCLValidateStrict)
 	} else if len(unusedVars) > 0 {
 		opts.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}

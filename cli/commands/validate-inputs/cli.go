@@ -17,10 +17,14 @@ const (
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
-		Name:   CommandName,
-		Usage:  "Checks if the terragrunt configured inputs align with the terraform defined variables.",
-		Flags:  append(run.NewFlags(opts, nil), validate.NewFlags(opts, nil).Filter(validate.StrictFlagName)...),
-		Action: func(ctx *cli.Context) error { return validate.Run(ctx, opts.OptionsFromContext(ctx)) },
+		Name:  CommandName,
+		Usage: "Checks if the terragrunt configured inputs align with the terraform defined variables.",
+		Flags: append(run.NewFlags(opts, nil), validate.NewFlags(opts, nil).Filter(validate.StrictFlagName)...),
+		Action: func(ctx *cli.Context) error {
+			opts.HCLValidateInput = true
+
+			return validate.Run(ctx, opts.OptionsFromContext(ctx))
+		},
 	}
 
 	cmd = runall.WrapCommand(opts, cmd)
