@@ -1580,6 +1580,51 @@ terraform {
 	}
 }
 
+engine {
+	source = "github.com/gruntwork-io/terragrunt"
+	version = "v0.1.0"
+	type = "rpc"
+	meta = {
+		key = "value"
+	}
+}
+
+exclude {
+	exclude_dependencies = true
+	actions = ["init", "plan"]
+	if = true
+}
+
+errors {
+	retry "test_retry" {
+		max_attempts = 3
+		sleep_interval_sec = 5
+		retryable_errors = [
+			".*Error.*",
+			".*Exception.*"
+		]
+	}
+
+	ignore "test_ignore" {
+		ignorable_errors = [
+			".*Warning.*",
+			".*Deprecated.*"
+		]
+		message = "Ignoring warning messages"
+		signals = {
+			key = "value"
+		}
+	}
+}
+
+catalog {
+	default_template = "default.hcl"
+	urls = [
+		"github.com/org/repo//templates/template1.hcl",
+		"github.com/org/repo//templates/template2.hcl"
+	]
+}
+
 remote_state {
 	backend = "s3"
 	disable_init = true
@@ -1671,12 +1716,47 @@ inputs = {
 	assert.Equal(t, terragruntConfig.Terraform.BeforeHooks, rereadConfig.Terraform.BeforeHooks)
 	assert.Equal(t, terragruntConfig.Terraform.AfterHooks, rereadConfig.Terraform.AfterHooks)
 	assert.Equal(t, terragruntConfig.Terraform.ErrorHooks, rereadConfig.Terraform.ErrorHooks)
+
+	// Test engine block
+	assert.Equal(t, terragruntConfig.Engine.Source, rereadConfig.Engine.Source)
+	assert.Equal(t, terragruntConfig.Engine.Version, rereadConfig.Engine.Version)
+	assert.Equal(t, terragruntConfig.Engine.Type, rereadConfig.Engine.Type)
+	assert.Equal(t, terragruntConfig.Engine.Meta, rereadConfig.Engine.Meta)
+
+	// Test exclude block
+	assert.Equal(t, terragruntConfig.Exclude.ExcludeDependencies, rereadConfig.Exclude.ExcludeDependencies)
+	assert.Equal(t, terragruntConfig.Exclude.Actions, rereadConfig.Exclude.Actions)
+	assert.Equal(t, terragruntConfig.Exclude.If, rereadConfig.Exclude.If)
+
+	// Test errors block
+	assert.Equal(t, len(terragruntConfig.Errors.Retry), len(rereadConfig.Errors.Retry))
+	if len(terragruntConfig.Errors.Retry) > 0 {
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].Label, rereadConfig.Errors.Retry[0].Label)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].MaxAttempts, rereadConfig.Errors.Retry[0].MaxAttempts)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].SleepIntervalSec, rereadConfig.Errors.Retry[0].SleepIntervalSec)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].RetryableErrors, rereadConfig.Errors.Retry[0].RetryableErrors)
+	}
+	assert.Equal(t, len(terragruntConfig.Errors.Ignore), len(rereadConfig.Errors.Ignore))
+	if len(terragruntConfig.Errors.Ignore) > 0 {
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Label, rereadConfig.Errors.Ignore[0].Label)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].IgnorableErrors, rereadConfig.Errors.Ignore[0].IgnorableErrors)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Message, rereadConfig.Errors.Ignore[0].Message)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Signals, rereadConfig.Errors.Ignore[0].Signals)
+	}
+
+	// Test catalog block
+	assert.Equal(t, terragruntConfig.Catalog.DefaultTemplate, rereadConfig.Catalog.DefaultTemplate)
+	assert.Equal(t, terragruntConfig.Catalog.URLs, rereadConfig.Catalog.URLs)
+
 	assert.Equal(t, terragruntConfig.RemoteState.BackendName, rereadConfig.RemoteState.BackendName)
 	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableInit, rereadConfig.RemoteState.Config.DisableInit)
 	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableDependencyOptimization, rereadConfig.RemoteState.Config.DisableDependencyOptimization)
 	assert.Equal(t, terragruntConfig.RemoteState.Config.BackendConfig, rereadConfig.RemoteState.Config.BackendConfig)
+
+	// We don't test dependencies here because they require filesystem operations.
 	// assert.Equal(t, terragruntConfig.Dependencies.Paths, rereadConfig.Dependencies.Paths)
 	// assert.Equal(t, terragruntConfig.TerragruntDependencies, rereadConfig.TerragruntDependencies)
+
 	assert.Equal(t, terragruntConfig.GenerateConfigs, rereadConfig.GenerateConfigs)
 	assert.Equal(t, terragruntConfig.FeatureFlags, rereadConfig.FeatureFlags)
 	assert.Equal(t, terragruntConfig.TerraformBinary, rereadConfig.TerraformBinary)

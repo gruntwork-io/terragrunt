@@ -435,6 +435,122 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		rootBody.AppendBlock(flagBlock)
 	}
 
+	// Handle engine block
+	if cfg.Engine != nil {
+		engineBlock := hclwrite.NewBlock("engine", nil)
+		engineBody := engineBlock.Body()
+		engineAsCty := cfgAsCty.GetAttr("engine")
+
+		if cfg.Engine.Source != "" {
+			engineBody.SetAttributeValue("source", engineAsCty.GetAttr("source"))
+		}
+
+		if cfg.Engine.Version != nil {
+			engineBody.SetAttributeValue("version", engineAsCty.GetAttr("version"))
+		}
+
+		if cfg.Engine.Type != nil {
+			engineBody.SetAttributeValue("type", engineAsCty.GetAttr("type"))
+		}
+
+		if cfg.Engine.Meta != nil {
+			engineBody.SetAttributeValue("meta", engineAsCty.GetAttr("meta"))
+		}
+
+		rootBody.AppendBlock(engineBlock)
+	}
+
+	// Handle exclude block
+	if cfg.Exclude != nil {
+		excludeBlock := hclwrite.NewBlock("exclude", nil)
+		excludeBody := excludeBlock.Body()
+		excludeAsCty := cfgAsCty.GetAttr("exclude")
+
+		if cfg.Exclude.ExcludeDependencies != nil {
+			excludeBody.SetAttributeValue("exclude_dependencies", excludeAsCty.GetAttr("exclude_dependencies"))
+		}
+
+		if len(cfg.Exclude.Actions) > 0 {
+			excludeBody.SetAttributeValue("actions", excludeAsCty.GetAttr("actions"))
+		}
+
+		excludeBody.SetAttributeValue("if", excludeAsCty.GetAttr("if"))
+
+		rootBody.AppendBlock(excludeBlock)
+	}
+
+	// Handle errors block
+	if cfg.Errors != nil {
+		errorsBlock := hclwrite.NewBlock("errors", nil)
+		errorsBody := errorsBlock.Body()
+		errorsAsCty := cfgAsCty.GetAttr("errors")
+
+		// Handle retry blocks
+		if len(cfg.Errors.Retry) > 0 {
+			for _, retryConfig := range cfg.Errors.Retry {
+				retryBlock := hclwrite.NewBlock("retry", []string{retryConfig.Label})
+				retryBody := retryBlock.Body()
+				retryCty := errorsAsCty.GetAttr("retry").AsValueMap()[retryConfig.Label]
+
+				if retryConfig.MaxAttempts > 0 {
+					retryBody.SetAttributeValue("max_attempts", retryCty.GetAttr("max_attempts"))
+				}
+
+				if retryConfig.SleepIntervalSec > 0 {
+					retryBody.SetAttributeValue("sleep_interval_sec", retryCty.GetAttr("sleep_interval_sec"))
+				}
+
+				if len(retryConfig.RetryableErrors) > 0 {
+					retryBody.SetAttributeValue("retryable_errors", retryCty.GetAttr("retryable_errors"))
+				}
+
+				errorsBody.AppendBlock(retryBlock)
+			}
+		}
+
+		// Handle ignore blocks
+		if len(cfg.Errors.Ignore) > 0 {
+			for _, ignoreConfig := range cfg.Errors.Ignore {
+				ignoreBlock := hclwrite.NewBlock("ignore", []string{ignoreConfig.Label})
+				ignoreBody := ignoreBlock.Body()
+				ignoreCty := errorsAsCty.GetAttr("ignore").AsValueMap()[ignoreConfig.Label]
+
+				if len(ignoreConfig.IgnorableErrors) > 0 {
+					ignoreBody.SetAttributeValue("ignorable_errors", ignoreCty.GetAttr("ignorable_errors"))
+				}
+
+				if ignoreConfig.Message != "" {
+					ignoreBody.SetAttributeValue("message", ignoreCty.GetAttr("message"))
+				}
+
+				if ignoreConfig.Signals != nil {
+					ignoreBody.SetAttributeValue("signals", ignoreCty.GetAttr("signals"))
+				}
+
+				errorsBody.AppendBlock(ignoreBlock)
+			}
+		}
+
+		rootBody.AppendBlock(errorsBlock)
+	}
+
+	// Handle catalog block
+	if cfg.Catalog != nil {
+		catalogBlock := hclwrite.NewBlock("catalog", nil)
+		catalogBody := catalogBlock.Body()
+		catalogAsCty := cfgAsCty.GetAttr("catalog")
+
+		if cfg.Catalog.DefaultTemplate != "" {
+			catalogBody.SetAttributeValue("default_template", catalogAsCty.GetAttr("default_template"))
+		}
+
+		if len(cfg.Catalog.URLs) > 0 {
+			catalogBody.SetAttributeValue("urls", catalogAsCty.GetAttr("urls"))
+		}
+
+		rootBody.AppendBlock(catalogBlock)
+	}
+
 	// Handle attributes
 	if cfg.TerraformBinary != "" {
 		rootBody.SetAttributeValue("terraform_binary", cfgAsCty.GetAttr("terraform_binary"))
