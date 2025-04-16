@@ -360,6 +360,7 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 			}
 
 			cfgs = dependencyDiscovery.cfgs
+
 			return nil
 		})
 		if err != nil {
@@ -380,6 +381,7 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 					errs = append(errs, errors.New(err))
 				}
 			}
+
 			return nil
 		})
 		if err != nil {

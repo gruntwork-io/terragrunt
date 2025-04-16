@@ -45,6 +45,7 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 
 	var cfgs discovery.DiscoveredConfigs
+
 	var discoverErr error
 
 	// Wrap discovery with telemetry
@@ -74,9 +75,12 @@ func Run(ctx context.Context, opts *Options) error {
 			if queueErr != nil {
 				return queueErr
 			}
+
 			cfgs = q.Configs()
+
 			return nil
 		})
+
 		if err != nil {
 			return errors.New(err)
 		}
@@ -87,14 +91,18 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 
 	var listedCfgs ListedConfigs
+
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discovered_to_listed", map[string]any{
 		"working_dir":  opts.WorkingDir,
 		"config_count": len(cfgs),
 	}, func(ctx context.Context) error {
 		var convErr error
+
 		listedCfgs, convErr = discoveredToListed(cfgs, opts)
+
 		return convErr
 	})
+
 	if err != nil {
 		return errors.New(err)
 	}
