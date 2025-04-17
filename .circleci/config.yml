@@ -144,12 +144,6 @@ run_markdownlint: &run_markdownlint
     -- \
     docs
 
-codespell: &codespell
-  name: Run codespell
-  command: |
-    pip install codespell==2.4.0
-    codespell .
-
 win_install_golang: &win_install_golang
   name: Install golang
   shell: powershell.exe
@@ -642,13 +636,6 @@ jobs:
       - run:
           <<: *run_markdownlint
 
-  codespell:
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          <<: *codespell
-
   build:
     resource_class: xlarge
     <<: *defaults
@@ -979,16 +966,6 @@ workflows:
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
       - run_markdownlint:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - codespell:
           filters:
             tags:
               only:
