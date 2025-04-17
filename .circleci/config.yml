@@ -136,14 +136,6 @@ run_terratest_log_parser: &run_terratest_log_parser
     terratest_log_parser --testlog logs/test-results.log --outputdir logs
   when: always
 
-run_markdownlint: &run_markdownlint
-  name: Run markdownlint
-  command: |
-    markdownlint \
-    --disable MD013 MD024 \
-    -- \
-    docs
-
 codespell: &codespell
   name: Run codespell
   command: |
@@ -635,13 +627,6 @@ jobs:
       - store_test_results:
           path: logs
 
-  run_markdownlint:
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          <<: *run_markdownlint
-
   codespell:
     <<: *defaults
     steps:
@@ -966,16 +951,6 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
-      - run_markdownlint:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
       - codespell:
           filters:
             tags:
