@@ -39,7 +39,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		}
 
 		if opts.HCLValidateJSONOutput {
-			return errors.Errorf("specifying both -%s and -%s flags is not supported yet", JSONFlagName, InputFlagName)
+			return errors.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputFlagName)
 		}
 
 		return RunValidateInputs(ctx, opts)
