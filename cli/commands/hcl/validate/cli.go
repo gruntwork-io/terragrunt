@@ -45,7 +45,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
 			EnvVars:     tgPrefix.EnvVars(ShowConfigPathFlagName),
-			Usage:       "Show a list of files with invalid configuration.",
+			Usage:       "Emit a list of files with invalid configurations after validating all configurations.",
 			Destination: &opts.HCLValidateShowConfigPath,
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateShowConfigPathFlagName), terragruntPrefixControl)),
