@@ -1725,13 +1725,7 @@ inputs = {
 	assert.Equal(t, terragruntConfig.Engine.Source, rereadConfig.Engine.Source)
 	assert.Equal(t, terragruntConfig.Engine.Version, rereadConfig.Engine.Version)
 	assert.Equal(t, terragruntConfig.Engine.Type, rereadConfig.Engine.Type)
-
-	// When converting to cty, the meta attribute is lost.
-	// I believe this has to do with the fact that the meta field
-	// of the engine config doesn't properly tag the value as `json`,
-	// but that's not a problem for this test.
-	//
-	// assert.Equal(t, terragruntConfig.Engine.Meta, rereadConfig.Engine.Meta)
+	assert.Equal(t, terragruntConfig.Engine.Meta, rereadConfig.Engine.Meta)
 
 	// Test exclude block
 	assert.Equal(t, terragruntConfig.Exclude.ExcludeDependencies, rereadConfig.Exclude.ExcludeDependencies)
