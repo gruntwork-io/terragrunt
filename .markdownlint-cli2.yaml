@@ -1,0 +1,6 @@
+config:
+  # Disable line length limit
+  MD013: false
+
+  # Disable multiple headers with the same content
+  MD024: false
