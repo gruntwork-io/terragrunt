@@ -46,7 +46,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	}
 
 	if opts.HCLValidateStrict {
-		return errors.Errorf("specifying -%s without -%s is invalid, StrictFlagName, InputFlagName")
+		return errors.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputFlagName)
 	}
 
 	return RunValidate(ctx, opts)
