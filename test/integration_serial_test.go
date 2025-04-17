@@ -520,6 +520,40 @@ func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
 	assert.Contains(t, output, "\"Name\":\"stack_generate\"")
 }
 
+func TestTerragruntFindProduceTelemetryTraces(t *testing.T) {
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
+
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// check that output have Telemetry json output
+	assert.Contains(t, output, "\"SpanContext\":")
+	assert.Contains(t, output, "\"TraceID\":")
+	assert.Contains(t, output, "\"Name\":\"find_discover\"")
+	assert.Contains(t, output, "\"Name\":\"find_discovered_to_found\"")
+}
+
+func TestTerragruntListProduceTelemetryTraces(t *testing.T) {
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
+
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt list --experiment cli-redesign --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// check that output have Telemetry json output
+	assert.Contains(t, output, "\"SpanContext\":")
+	assert.Contains(t, output, "\"TraceID\":")
+	assert.Contains(t, output, "\"Name\":\"list_discover\"")
+	assert.Contains(t, output, "\"Name\":\"list_discovered_to_listed\"")
+}
+
 func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_METRIC_EXPORTER", "console")
 
