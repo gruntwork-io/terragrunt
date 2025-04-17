@@ -18,10 +18,5 @@ jobs:
       - name: Run markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v15
         with:
-          config: |
-            {
-              "MD013": false,
-              "MD024": false
-            }
           globs: |
             docs/**/*.md
