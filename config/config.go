@@ -483,25 +483,29 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 	if cfg.Errors != nil {
 		errorsBlock := hclwrite.NewBlock("errors", nil)
 		errorsBody := errorsBlock.Body()
-		errorsAsCty := cfgAsCty.GetAttr("errors")
 
 		// Handle retry blocks
 		if len(cfg.Errors.Retry) > 0 {
 			for _, retryConfig := range cfg.Errors.Retry {
 				retryBlock := hclwrite.NewBlock("retry", []string{retryConfig.Label})
 				retryBody := retryBlock.Body()
-				retryCty := errorsAsCty.GetAttr("retry").AsValueMap()[retryConfig.Label]
 
 				if retryConfig.MaxAttempts > 0 {
-					retryBody.SetAttributeValue("max_attempts", retryCty.GetAttr("max_attempts"))
+					retryBody.SetAttributeValue("max_attempts", cty.NumberIntVal(int64(retryConfig.MaxAttempts)))
 				}
 
 				if retryConfig.SleepIntervalSec > 0 {
-					retryBody.SetAttributeValue("sleep_interval_sec", retryCty.GetAttr("sleep_interval_sec"))
+					retryBody.SetAttributeValue("sleep_interval_sec", cty.NumberIntVal(int64(retryConfig.SleepIntervalSec)))
 				}
 
 				if len(retryConfig.RetryableErrors) > 0 {
-					retryBody.SetAttributeValue("retryable_errors", retryCty.GetAttr("retryable_errors"))
+					retryableErrors := make([]cty.Value, len(retryConfig.RetryableErrors))
+
+					for i, err := range retryConfig.RetryableErrors {
+						retryableErrors[i] = cty.StringVal(err)
+					}
+
+					retryBody.SetAttributeValue("retryable_errors", cty.ListVal(retryableErrors))
 				}
 
 				errorsBody.AppendBlock(retryBlock)
@@ -513,18 +517,23 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			for _, ignoreConfig := range cfg.Errors.Ignore {
 				ignoreBlock := hclwrite.NewBlock("ignore", []string{ignoreConfig.Label})
 				ignoreBody := ignoreBlock.Body()
-				ignoreCty := errorsAsCty.GetAttr("ignore").AsValueMap()[ignoreConfig.Label]
 
 				if len(ignoreConfig.IgnorableErrors) > 0 {
-					ignoreBody.SetAttributeValue("ignorable_errors", ignoreCty.GetAttr("ignorable_errors"))
+					ignorableErrors := make([]cty.Value, len(ignoreConfig.IgnorableErrors))
+
+					for i, err := range ignoreConfig.IgnorableErrors {
+						ignorableErrors[i] = cty.StringVal(err)
+					}
+
+					ignoreBody.SetAttributeValue("ignorable_errors", cty.ListVal(ignorableErrors))
 				}
 
 				if ignoreConfig.Message != "" {
-					ignoreBody.SetAttributeValue("message", ignoreCty.GetAttr("message"))
+					ignoreBody.SetAttributeValue("message", cty.StringVal(ignoreConfig.Message))
 				}
 
 				if ignoreConfig.Signals != nil {
-					ignoreBody.SetAttributeValue("signals", ignoreCty.GetAttr("signals"))
+					ignoreBody.SetAttributeValue("signals", cty.MapVal(ignoreConfig.Signals))
 				}
 
 				errorsBody.AppendBlock(ignoreBlock)
