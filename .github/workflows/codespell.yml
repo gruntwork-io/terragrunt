@@ -1,0 +1,28 @@
+name: Codespell
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  codespell:
+    name: Check Spelling
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          mise_toml: |
+            [tools]
+            python = "3.13.3"
+
+      - name: Install codespell
+        run: pip install codespell==2.4.0
+
+      - name: Run codespell
+        run: codespell .
