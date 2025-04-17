@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/charmbracelet/x/term"
@@ -42,7 +44,21 @@ func Run(ctx context.Context, opts *Options) error {
 		})
 	}
 
-	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
+	var cfgs discovery.DiscoveredConfigs
+
+	var discoverErr error
+
+	// Wrap discovery with telemetry
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
+		"working_dir":  opts.WorkingDir,
+		"hidden":       opts.Hidden,
+		"dependencies": shouldDiscoverDependencies(opts),
+		"external":     opts.External,
+	}, func(ctx context.Context) error {
+		cfgs, discoverErr = d.Discover(ctx, opts.TerragruntOptions)
+		return discoverErr
+	})
+
 	if err != nil {
 		opts.Logger.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
@@ -51,19 +67,42 @@ func Run(ctx context.Context, opts *Options) error {
 	case ModeNormal:
 		cfgs = cfgs.Sort()
 	case ModeDAG:
-		q, err := queue.NewQueue(cfgs)
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_mode_dag", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"config_count": len(cfgs),
+		}, func(ctx context.Context) error {
+			q, queueErr := queue.NewQueue(cfgs)
+			if queueErr != nil {
+				return queueErr
+			}
+
+			cfgs = q.Configs()
+
+			return nil
+		})
+
 		if err != nil {
 			return errors.New(err)
 		}
-
-		cfgs = q.Configs()
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
 		return errors.New("invalid mode: " + opts.Mode)
 	}
 
-	listedCfgs, err := discoveredToListed(cfgs, opts)
+	var listedCfgs ListedConfigs
+
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discovered_to_listed", map[string]any{
+		"working_dir":  opts.WorkingDir,
+		"config_count": len(cfgs),
+	}, func(ctx context.Context) error {
+		var convErr error
+
+		listedCfgs, convErr = discoveredToListed(cfgs, opts)
+
+		return convErr
+	})
+
 	if err != nil {
 		return errors.New(err)
 	}
