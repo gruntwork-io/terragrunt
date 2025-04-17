@@ -151,5 +151,84 @@ func TestBuildRequestUrlRelativePath(t *testing.T) {
 	requestURL, err := tf.BuildRequestURL("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
 	require.NoError(t, err)
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestURL.String())
+}
 
+func TestGetTargetVersion(t *testing.T) {
+	t.Parallel()
+	registryDomain := "registry.terraform.io"
+	moduleRegistryBasePath := "/v1/modules/"
+	tc := []struct {
+		name           string
+		modulePath     string
+		versionQuery   string
+		expectedResult string
+	}{
+		{
+			name:           "FixedVersion",
+			modulePath:     "/terraform-aws-modules/iam/aws",
+			versionQuery:   "3.3.0",
+			expectedResult: "3.3.0",
+		},
+		{
+			name:           "PessimisticPatchVersion",
+			modulePath:     "/terraform-aws-modules/iam/aws",
+			versionQuery:   "~> 0.0.1",
+			expectedResult: "0.0.7",
+		},
+		{
+			name:           "PessimisticMinorVersion",
+			modulePath:     "/terraform-aws-modules/iam/aws",
+			versionQuery:   "~> 3.3",
+			expectedResult: "3.16.0",
+		},
+		{
+			name:           "ComplexConstraint",
+			modulePath:     "/terraform-aws-modules/iam/aws",
+			versionQuery:   ">= 3.3.0, <5.0.0,!= 4.24.1,!=4.24.0",
+			expectedResult: "4.23.0",
+		},
+		{
+			name:           "InvalidConstraint",
+			modulePath:     "/terraform-aws-modules/iam/aws",
+			versionQuery:   ">= 3.3.0 and >4.24.1",
+			expectedResult: "",
+		},
+		{
+			name:           "UnsatisfiableConstraint",
+			modulePath:     "/terraform-aws-modules/iam/aws",
+			versionQuery:   ">= 3.3.0, <3.2.0",
+			expectedResult: "",
+		},
+		{
+			name:           "InvalidVersion",
+			modulePath:     "/terraform-aws-modules/iam/aws",
+			versionQuery:   "~> a.b.c",
+			expectedResult: "",
+		},
+		{
+			name:           "NotExistingModule",
+			modulePath:     "/terraform-not-existing-modules/not-existing-module",
+			versionQuery:   "3.3.0",
+			expectedResult: "",
+		},
+	}
+
+	for _, tt := range tc {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			moduleVersionsURL, err := tf.BuildModuleVersionsURL(registryDomain, moduleRegistryBasePath, tt.modulePath)
+			require.NoError(t, err)
+
+			targetVersion, err := tf.GetTargetVersion(context.Background(), log.New(), *moduleVersionsURL, tt.versionQuery)
+			if tt.expectedResult == "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedResult, targetVersion)
+			}
+		})
+	}
 }
