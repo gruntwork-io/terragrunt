@@ -43,4 +43,4 @@ jobs:
         key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
 
     - name: Lint
-      run: golangci-lint run -v --timeout=10m -c .strict.golangci.yml --new-from-rev origin/main ./...
+      run: make run-strict-lint

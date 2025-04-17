@@ -43,4 +43,4 @@ jobs:
         key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
 
     - name: Lint
-      run: golangci-lint run ./...
+      run: make run-lint
