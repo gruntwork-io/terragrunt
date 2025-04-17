@@ -19,10 +19,10 @@ func TestRunShellCommand(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	cmd := shell.RunCommand(context.Background(), terragruntOptions, "terraform", "--version")
+	cmd := shell.RunCommand(context.Background(), terragruntOptions, "tofu", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunCommand(context.Background(), terragruntOptions, "terraform", "not-a-real-command")
+	cmd = shell.RunCommand(context.Background(), terragruntOptions, "tofu", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -38,10 +38,10 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stdout
 	terragruntOptions.ErrWriter = stderr
 
-	cmd := shell.RunCommand(context.Background(), terragruntOptions, "terraform", "--version")
+	cmd := shell.RunCommand(context.Background(), terragruntOptions, "tofu", "--version")
 	require.NoError(t, cmd)
 
-	assert.Contains(t, stdout.String(), "Terraform", "Output directed to stdout")
+	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
 	assert.Empty(t, stderr.String(), "No output to stderr")
 
 	stdout = new(bytes.Buffer)
@@ -51,10 +51,10 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stderr
 	terragruntOptions.ErrWriter = stderr
 
-	cmd = shell.RunCommand(context.Background(), terragruntOptions, "terraform", "--version")
+	cmd = shell.RunCommand(context.Background(), terragruntOptions, "tofu", "--version")
 	require.NoError(t, cmd)
 
-	assert.Contains(t, stderr.String(), "Terraform", "Output directed to stderr")
+	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")
 	assert.Empty(t, stdout.String(), "No output to stdout")
 }
 
