@@ -50,7 +50,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        CheckFlagName,
 			EnvVars:     tgPrefix.EnvVars(CheckFlagName),
 			Destination: &opts.Check,
-			Usage:       "Enable check mode.",
+			Usage:       "Return a status code of zero when all files are formatted correctly, and a status code of one when they aren't.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedCheckFlagName), terragruntPrefixControl)),
 
