@@ -13,6 +13,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Create default packages file
+        run: |
+          cat <<EOF > .mise-python-default-packages
+          codespell==2.4.0
+          EOF
+
+          echo "MISE_PYTHON_DEFAULT_PACKAGES_FILE=.mise-python-default-packages" >> "$GITHUB_ENV"
+
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
         with:
@@ -20,9 +28,6 @@ jobs:
           mise_toml: |
             [tools]
             python = "3.13.3"
-
-      - name: Install codespell
-        run: pip install codespell==2.4.0
 
       - name: Run codespell
         run: codespell .
