@@ -269,7 +269,7 @@ type TerragruntOptions struct {
 	RunAllAutoApprove bool
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
-	// HCLValidateStrict is a strict mode for HCL validatation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.",
+	// HCLValidateStrict is a strict mode for HCL validation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.",
 	HCLValidateStrict bool
 	// HCLValidateInput checks if the terragrunt configured inputs align with the terraform defined variables.
 	HCLValidateInput bool

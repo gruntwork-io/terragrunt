@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"golang.org/x/exp/slices"
@@ -26,6 +27,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+var excludePathes = []string{
+	util.TerragruntCacheDir,
+	util.DefaultBoilerplateDir,
+	config.StackDir,
+}
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
@@ -64,12 +71,12 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		skipFile := false
 		// Ignore any files that are in the cache or scaffold dir
 		pathList := strings.Split(fname, "/")
-		if slices.Contains(pathList, util.TerragruntCacheDir) {
-			skipFile = true
-		}
 
-		if slices.Contains(pathList, util.DefaultBoilerplateDir) {
-			skipFile = true
+		for _, excludePath := range excludePathes {
+			if slices.Contains(pathList, excludePath) {
+				skipFile = true
+				break
+			}
 		}
 
 		for _, excludeDir := range opts.HclExclude {

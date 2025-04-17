@@ -26,7 +26,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
-	flags := cli.Flags{
+	flagSet := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        StrictFlagName,
 			EnvVars:     tgPrefix.EnvVars(StrictFlagName),
@@ -59,7 +59,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateJSONFlagName), terragruntPrefixControl)),
 	}
 
-	return flags
+	return flagSet
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {

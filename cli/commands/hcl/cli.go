@@ -2,8 +2,6 @@
 package hcl
 
 import (
-	// "github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
-
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
