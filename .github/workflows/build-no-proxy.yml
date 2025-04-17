@@ -1,0 +1,54 @@
+name: Build Without Go Proxy
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'alpha*'
+  pull_request:
+
+jobs:
+  build-no-proxy:
+    name: Build Without Go Proxy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+      - name: Go Build Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+
+      - name: Go Mod Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+
+      - name: Build Terragrunt without Go proxy
+        env:
+          GOPROXY: direct
+        run: |
+          go build -o bin/terragrunt \
+            -ldflags "-X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
+            .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terragrunt-binary
+          path: bin/terragrunt
+          retention-days: 3
