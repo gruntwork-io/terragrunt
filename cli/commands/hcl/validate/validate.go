@@ -35,7 +35,7 @@ const splitCount = 2
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInput {
 		if opts.HCLValidateShowConfigPath {
-			return errors.Errorf("specifying both -%s and -%s flags is not supported yet", ShowConfigPathFlagName, InputFlagName)
+			return errors.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputFlagName)
 		}
 
 		if opts.HCLValidateJSONOutput {
