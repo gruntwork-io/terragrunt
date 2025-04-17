@@ -34,7 +34,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        FileFlagName,
 			EnvVars:     tgPrefix.EnvVars(FileFlagName),
 			Destination: &opts.HclFile,
-			Usage:       "The path to a single hcl file that the command should run on.",
+			Usage:       "The path to a single HCL file that the command should run on.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclfmtFileFlagName), terragruntPrefixControl)),
 
