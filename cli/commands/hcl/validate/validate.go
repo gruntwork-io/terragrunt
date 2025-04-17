@@ -181,7 +181,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	// an error will only be returned if required inputs are missing. When strict mode is true, an error will be
 	// returned if required inputs are missing OR if any unused variables are passed
 	if len(missingVars) > 0 || len(unusedVars) > 0 && opts.HCLValidateStrict {
-		return fmt.Errorf("terragrunt configuration has misaligned inputs. Strict mode enabled: %t", opts.HCLValidateStrict)
+		return fmt.Errorf("terragrunt configuration has inputs that are not defined in the OpenTofu/Terraform module. This is not allowed when strict mode is enabled")
 	} else if len(unusedVars) > 0 {
 		opts.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}
