@@ -1525,7 +1525,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
       - [Strict command](#strict-command)
       - [Print command](#print-command)
     - [dag](#dag)
-      - [Print graph](#print-graph)
+      - [dag graph](#dag-graph)
     - [terragrunt-info](#terragrunt-info)
     - [validate-inputs](#validate-inputs)
 - [Flags](#flags)
