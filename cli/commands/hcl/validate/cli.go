@@ -54,7 +54,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        JSONFlagName,
 			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
 			Destination: &opts.HCLValidateJSONOutput,
-			Usage:       "Output the result in JSON format.",
+			Usage:       "Format results in JSON format.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateJSONFlagName), terragruntPrefixControl)),
 	}
