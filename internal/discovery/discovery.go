@@ -272,46 +272,47 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
 	var cfgs DiscoveredConfigs
 
-	walkFn := func(path string, e fs.DirEntry, err error) error {
-		if err != nil {
-			return errors.New(err)
-		}
+	walkFn :=
+		func(path string, e fs.DirEntry, err error) error {
+			if err != nil {
+				return errors.New(err)
+			}
 
-		if e.IsDir() {
+			if e.IsDir() {
+				return nil
+			}
+
+			if !d.hidden && d.isInHiddenDirectory(path) {
+				return nil
+			}
+
+			switch filepath.Base(path) {
+			case config.DefaultTerragruntConfigPath:
+				cfg := &DiscoveredConfig{
+					Type: ConfigTypeUnit,
+					Path: filepath.Dir(path),
+				}
+
+				if d.discoveryContext != nil {
+					cfg.DiscoveryContext = d.discoveryContext
+				}
+
+				cfgs = append(cfgs, cfg)
+			case config.DefaultStackFile:
+				cfg := &DiscoveredConfig{
+					Type: ConfigTypeStack,
+					Path: filepath.Dir(path),
+				}
+
+				if d.discoveryContext != nil {
+					cfg.DiscoveryContext = d.discoveryContext
+				}
+
+				cfgs = append(cfgs, cfg)
+			}
+
 			return nil
 		}
-
-		if !d.hidden && d.isInHiddenDirectory(path) {
-			return nil
-		}
-
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
-			cfg := &DiscoveredConfig{
-				Type: ConfigTypeUnit,
-				Path: filepath.Dir(path),
-			}
-
-			if d.discoveryContext != nil {
-				cfg.DiscoveryContext = d.discoveryContext
-			}
-
-			cfgs = append(cfgs, cfg)
-		case config.DefaultStackFile:
-			cfg := &DiscoveredConfig{
-				Type: ConfigTypeStack,
-				Path: filepath.Dir(path),
-			}
-
-			if d.discoveryContext != nil {
-				cfg.DiscoveryContext = d.discoveryContext
-			}
-
-			cfgs = append(cfgs, cfg)
-		}
-
-		return nil
-	}
 
 	if err := filepath.WalkDir(d.workingDir, walkFn); err != nil {
 		return cfgs, errors.New(err)
