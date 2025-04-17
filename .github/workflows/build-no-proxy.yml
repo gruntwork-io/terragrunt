@@ -1,11 +1,8 @@
 name: Build Without Go Proxy
 
 on:
-  push:
-    tags:
-      - 'v*'
-      - 'alpha*'
   pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   build-no-proxy:
