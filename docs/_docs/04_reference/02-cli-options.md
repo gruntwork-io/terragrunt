@@ -1381,7 +1381,7 @@ The `dag` command is used to interact with the Directed Acyclic Graph.
 
 It will soon replace the [`graph-dependencies`](#graph-dependencies) command. See the [CLI Redesign](/docs/reference/experiments/#cli-redesign) documentation for more information.
 
-##### Print graph
+##### dag graph
 
 Print a visual representation of the Terragrunt dependency graph in DOT language format. This command analyzes your Terragrunt configuration and outputs a directed acyclic graph (DAG) showing the relationships and dependencies between your Terraform modules.
 

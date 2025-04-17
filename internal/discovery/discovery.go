@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -330,43 +332,65 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 	}
 
 	if d.discoverDependencies {
-		dependencyDiscovery := NewDependencyDiscovery(cfgs, d.maxDependencyDepth)
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{
+			"working_dir":                    d.workingDir,
+			"config_count":                   len(cfgs),
+			"discover_external_dependencies": d.discoverExternalDependencies,
+			"max_dependency_depth":           d.maxDependencyDepth,
+		}, func(ctx context.Context) error {
+			dependencyDiscovery := NewDependencyDiscovery(cfgs, d.maxDependencyDepth)
 
-		if d.discoveryContext != nil {
-			dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
-		}
-
-		if d.discoverExternalDependencies {
-			dependencyDiscovery = dependencyDiscovery.WithDiscoverExternalDependencies()
-		}
-
-		if d.suppressParseErrors {
-			dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
-		}
-
-		err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
-		if err != nil {
-			opts.Logger.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
-
-			opts.Logger.Debugf("Errors: %w", err)
-		}
-
-		cfgs = dependencyDiscovery.cfgs
-
-		if _, err := cfgs.CycleCheck(); err != nil {
-			opts.Logger.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
-
-			opts.Logger.Debugf("Cycle: %w", err)
-
-			cfgs, err = cfgs.RemoveCycles()
-			if err != nil {
-				errs = append(errs, errors.New(err))
+			if d.discoveryContext != nil {
+				dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
 			}
+
+			if d.discoverExternalDependencies {
+				dependencyDiscovery = dependencyDiscovery.WithDiscoverExternalDependencies()
+			}
+
+			if d.suppressParseErrors {
+				dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
+			}
+
+			err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
+			if err != nil {
+				opts.Logger.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
+
+				opts.Logger.Debugf("Errors: %w", err)
+			}
+
+			cfgs = dependencyDiscovery.cfgs
+
+			return nil
+		})
+		if err != nil {
+			return cfgs, errors.New(err)
 		}
 
-		if len(errs) > 0 {
-			return cfgs, errors.Join(errs...)
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{
+			"working_dir":  d.workingDir,
+			"config_count": len(cfgs),
+		}, func(ctx context.Context) error {
+			if _, err := cfgs.CycleCheck(); err != nil {
+				opts.Logger.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+
+				opts.Logger.Debugf("Cycle: %w", err)
+
+				cfgs, err = cfgs.RemoveCycles()
+				if err != nil {
+					errs = append(errs, errors.New(err))
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			return cfgs, errors.New(err)
 		}
+	}
+
+	if len(errs) > 0 {
+		return cfgs, errors.Join(errs...)
 	}
 
 	return cfgs, nil

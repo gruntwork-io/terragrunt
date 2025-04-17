@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -42,7 +44,22 @@ func Run(ctx context.Context, opts *Options) error {
 		})
 	}
 
-	cfgs, err := d.Discover(ctx, opts.TerragruntOptions)
+	var cfgs discovery.DiscoveredConfigs
+
+	var discoverErr error
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
+		"working_dir":  opts.WorkingDir,
+		"hidden":       opts.Hidden,
+		"dependencies": opts.Dependencies,
+		"external":     opts.External,
+		"mode":         opts.Mode,
+		"exclude":      opts.Exclude,
+	}, func(ctx context.Context) error {
+		cfgs, discoverErr = d.Discover(ctx, opts.TerragruntOptions)
+		return discoverErr
+	})
+
 	if err != nil {
 		opts.Logger.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
@@ -51,19 +68,39 @@ func Run(ctx context.Context, opts *Options) error {
 	case ModeNormal:
 		cfgs = cfgs.Sort()
 	case ModeDAG:
-		q, err := queue.NewQueue(cfgs)
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_dag", map[string]any{
+			"working_dir":  opts.WorkingDir,
+			"config_count": len(cfgs),
+		}, func(ctx context.Context) error {
+			q, queueErr := queue.NewQueue(cfgs)
+			if queueErr != nil {
+				return queueErr
+			}
+
+			cfgs = q.Configs()
+
+			return nil
+		})
 		if err != nil {
 			return errors.New(err)
 		}
-
-		cfgs = q.Configs()
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
 		return errors.New("invalid mode: " + opts.Mode)
 	}
 
-	foundCfgs, err := discoveredToFound(cfgs, opts)
+	var foundCfgs FoundConfigs
+
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discovered_to_found", map[string]any{
+		"working_dir":  opts.WorkingDir,
+		"config_count": len(cfgs),
+	}, func(ctx context.Context) error {
+		var convErr error
+		foundCfgs, convErr = discoveredToFound(cfgs, opts)
+
+		return convErr
+	})
 	if err != nil {
 		return errors.New(err)
 	}
