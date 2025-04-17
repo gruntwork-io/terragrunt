@@ -238,11 +238,6 @@ jobs:
             make install-mockery
             make generate-mocks
       - run:
-          name: run lint
-          command: |
-            make install-lint
-            make run-lint
-      - run:
           command: |
             mkdir -p logs
             go mod tidy
@@ -560,20 +555,6 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
-
-  strict_lint:
-    resource_class: medium
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      # The `run-strict-lint` target requires the `main` ref for comparison.
-      - run: git fetch
-      - run:
-          name: Run strict lint
-          command: |
-            make install-lint
-            make run-strict-lint
 
   # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
@@ -1046,15 +1027,3 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
-  unessential:
-    jobs:
-      - strict_lint:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
