@@ -31,7 +31,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        StrictFlagName,
 			EnvVars:     tgPrefix.EnvVars(StrictFlagName),
 			Destination: &opts.HCLValidateStrict,
-			Usage:       "Sets strict mode. By default, strict mode is off.",
+			Usage:       "Enables strict mode. <explanation of what strict mode means>",
 		},
 			flags.WithDeprecatedNames(tgPrefix.FlagNames(DeprecatedStrictValidateFlagName), terragruntPrefixControl),
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictValidateFlagName), terragruntPrefixControl)),
