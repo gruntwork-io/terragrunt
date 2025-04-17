@@ -1,12 +1,15 @@
 name: Build Without Go Proxy
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     types: [opened, synchronize, reopened]
 
 jobs:
   build-no-proxy:
-    name: Build Without Go Proxy (${{ matrix.os }}/${{ matrix.arch }})
+    name: Build (${{ matrix.os }}/${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
