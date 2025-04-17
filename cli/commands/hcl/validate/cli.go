@@ -40,7 +40,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        InputFlagName,
 			EnvVars:     tgPrefix.EnvVars(InputFlagName),
 			Destination: &opts.HCLValidateInput,
-			Usage:       "Checks if the terragrunt configured inputs align with the terraform defined variables.",
+			Usage:       "Checks if the Terragrunt configured inputs align with OpenTofu/Terraform defined variables.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
