@@ -28,8 +28,6 @@ const (
 	awsKMSKeyRegion                      = "us-east-1"
 )
 
-var testFixtureRenderJSONWithEncryptionMainModulePath = filepath.Join(testFixtureRenderJSONWithEncryption, "main")
-
 func TestTofuStateEncryptionPBKDF2(t *testing.T) {
 	t.Parallel()
 

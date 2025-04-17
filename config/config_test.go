@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -689,7 +690,6 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	}
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
-
 	ctx := config.NewParsingContext(context.Background(), opts)
 
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
@@ -1531,4 +1531,252 @@ dependency "dep" {
 			},
 		},
 	}, terragruntConfig)
+}
+
+func TestWriteTo(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+	string = "value"
+	bool   = true
+	number = 123
+	list   = ["a", "b", "c"]
+}
+
+terraform {
+	source = "git::git@github.com:org/repo.git//modules/test?ref=v0.1.0"
+
+	extra_arguments "secrets" {
+		commands = ["plan", "apply"]
+		arguments = ["-var-file=secrets.tfvars"]
+		required_var_files = ["common.tfvars"]
+		optional_var_files = ["optional.tfvars"]
+		env_vars = {
+			TEST_VAR = "value"
+		}
+	}
+
+	before_hook "before" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "before"]
+		working_dir = "before_dir"
+	}
+
+	after_hook "after" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "after"]
+		working_dir = "after_dir"
+	}
+
+	error_hook "error" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "error"]
+		on_errors = [
+			".*Error.*",
+			".*Exception.*"
+		]
+		working_dir = "error_dir"
+	}
+}
+
+engine {
+	source = "github.com/gruntwork-io/terragrunt"
+	version = "v0.1.0"
+	type = "rpc"
+	meta = {
+		key = "value"
+	}
+}
+
+exclude {
+	exclude_dependencies = true
+	actions = ["init", "plan"]
+	if = true
+}
+
+errors {
+	retry "test_retry" {
+		max_attempts = 3
+		sleep_interval_sec = 5
+		retryable_errors = [
+			".*Error.*",
+			".*Exception.*"
+		]
+	}
+
+	ignore "test_ignore" {
+		ignorable_errors = [
+			".*Warning.*",
+			".*Deprecated.*"
+		]
+		message = "Ignoring warning messages"
+		signals = {
+			key = "value"
+		}
+	}
+}
+
+// The catalog block won't actually show up when using
+// ParseConfigString. It probably should, but that's not
+// a problem for this test.
+//
+// catalog {
+// 	default_template = "default.hcl"
+// 	urls = [
+// 		"github.com/org/repo//templates/template1.hcl",
+// 		"github.com/org/repo//templates/template2.hcl"
+// 	]
+// }
+
+remote_state {
+	backend = "s3"
+	disable_init = true
+	disable_dependency_optimization = true
+	config = {
+		bucket = "my-bucket"
+		key    = "terraform.tfstate"
+		region = "us-east-1"
+	}
+}
+
+// These aren't worth testing because they require filesystem operations
+// as currently implemented, and we don't want to do that in this test.
+//
+// dependencies {
+// 	paths = ["../vpc", "../database"]
+// }
+
+// dependency "vpc" {
+// 	config_path = "../vpc"
+// 	skip_outputs = true
+// 	mock_outputs = {
+// 		vpc_id = "mock-vpc-id"
+// 	}
+// }
+
+generate "provider" {
+	path = "provider.tf"
+	if_exists = "overwrite"
+	contents = <<EOF
+provider "aws" {
+	region = "us-east-1"
+}
+EOF
+	comment_prefix = "//"
+	disable_signature = true
+	disable = false
+}
+
+feature "test_feature" {
+	default = true
+}
+
+terraform_binary = "terraform"
+terraform_version_constraint = ">= 1.0.0"
+terragrunt_version_constraint = ">= 0.36.0"
+download_dir = ".terragrunt-cache"
+prevent_destroy = true
+skip = false
+iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+iam_assume_role_duration = 3600
+iam_assume_role_session_name = "terragrunt"
+retry_max_attempts = 5
+retry_sleep_interval_sec = 5
+retryable_errors = [
+	".*timeout.*",
+	".*connection reset.*"
+]
+
+inputs = {
+	string = "value"
+	bool   = true
+	number = 123
+	list   = ["a", "b", "c"]
+	map    = {
+		key = "value"
+	}
+}
+`
+
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	// Write the config to a buffer
+	buf := &bytes.Buffer{}
+	n, err := terragruntConfig.WriteTo(buf)
+	require.NoError(t, err)
+	assert.Positive(t, n)
+
+	// Parse the written config back
+	rereadConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, buf.String(), nil)
+	require.NoError(t, err)
+
+	// Verify the configs match
+	assert.Equal(t, terragruntConfig.Locals, rereadConfig.Locals)
+	assert.Equal(t, terragruntConfig.Terraform.Source, rereadConfig.Terraform.Source)
+	assert.Equal(t, terragruntConfig.Terraform.ExtraArgs, rereadConfig.Terraform.ExtraArgs)
+	assert.Equal(t, terragruntConfig.Terraform.BeforeHooks, rereadConfig.Terraform.BeforeHooks)
+	assert.Equal(t, terragruntConfig.Terraform.AfterHooks, rereadConfig.Terraform.AfterHooks)
+	assert.Equal(t, terragruntConfig.Terraform.ErrorHooks, rereadConfig.Terraform.ErrorHooks)
+
+	// Test engine block
+	assert.Equal(t, terragruntConfig.Engine.Source, rereadConfig.Engine.Source)
+	assert.Equal(t, terragruntConfig.Engine.Version, rereadConfig.Engine.Version)
+	assert.Equal(t, terragruntConfig.Engine.Type, rereadConfig.Engine.Type)
+	assert.Equal(t, terragruntConfig.Engine.Meta, rereadConfig.Engine.Meta)
+
+	// Test exclude block
+	assert.Equal(t, terragruntConfig.Exclude.ExcludeDependencies, rereadConfig.Exclude.ExcludeDependencies)
+	assert.Equal(t, terragruntConfig.Exclude.Actions, rereadConfig.Exclude.Actions)
+	assert.Equal(t, terragruntConfig.Exclude.If, rereadConfig.Exclude.If)
+
+	// Test errors block
+	assert.Equal(t, len(terragruntConfig.Errors.Retry), len(rereadConfig.Errors.Retry))
+	if len(terragruntConfig.Errors.Retry) > 0 {
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].Label, rereadConfig.Errors.Retry[0].Label)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].MaxAttempts, rereadConfig.Errors.Retry[0].MaxAttempts)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].SleepIntervalSec, rereadConfig.Errors.Retry[0].SleepIntervalSec)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].RetryableErrors, rereadConfig.Errors.Retry[0].RetryableErrors)
+	}
+	assert.Equal(t, len(terragruntConfig.Errors.Ignore), len(rereadConfig.Errors.Ignore))
+	if len(terragruntConfig.Errors.Ignore) > 0 {
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Label, rereadConfig.Errors.Ignore[0].Label)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].IgnorableErrors, rereadConfig.Errors.Ignore[0].IgnorableErrors)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Message, rereadConfig.Errors.Ignore[0].Message)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Signals, rereadConfig.Errors.Ignore[0].Signals)
+	}
+
+	// The catalog block won't actually show up when using
+	// ParseConfigString. It probably should, but that's not
+	// a problem for this test.
+	//
+	// assert.Equal(t, terragruntConfig.Catalog.DefaultTemplate, rereadConfig.Catalog.DefaultTemplate)
+	// assert.Equal(t, terragruntConfig.Catalog.URLs, rereadConfig.Catalog.URLs)
+
+	assert.Equal(t, terragruntConfig.RemoteState.BackendName, rereadConfig.RemoteState.BackendName)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableInit, rereadConfig.RemoteState.Config.DisableInit)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableDependencyOptimization, rereadConfig.RemoteState.Config.DisableDependencyOptimization)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.BackendConfig, rereadConfig.RemoteState.Config.BackendConfig)
+
+	// We don't test dependencies here because they require filesystem operations.
+	// assert.Equal(t, terragruntConfig.Dependencies.Paths, rereadConfig.Dependencies.Paths)
+	// assert.Equal(t, terragruntConfig.TerragruntDependencies, rereadConfig.TerragruntDependencies)
+
+	assert.Equal(t, terragruntConfig.GenerateConfigs, rereadConfig.GenerateConfigs)
+	assert.Equal(t, terragruntConfig.FeatureFlags, rereadConfig.FeatureFlags)
+	assert.Equal(t, terragruntConfig.TerraformBinary, rereadConfig.TerraformBinary)
+	assert.Equal(t, terragruntConfig.TerraformVersionConstraint, rereadConfig.TerraformVersionConstraint)
+	assert.Equal(t, terragruntConfig.TerragruntVersionConstraint, rereadConfig.TerragruntVersionConstraint)
+	assert.Equal(t, terragruntConfig.DownloadDir, rereadConfig.DownloadDir)
+	assert.Equal(t, terragruntConfig.PreventDestroy, rereadConfig.PreventDestroy)
+	assert.Equal(t, terragruntConfig.Skip, rereadConfig.Skip)
+	assert.Equal(t, terragruntConfig.IamRole, rereadConfig.IamRole)
+	assert.Equal(t, terragruntConfig.IamAssumeRoleDuration, rereadConfig.IamAssumeRoleDuration)
+	assert.Equal(t, terragruntConfig.IamAssumeRoleSessionName, rereadConfig.IamAssumeRoleSessionName)
+	assert.Equal(t, terragruntConfig.RetryMaxAttempts, rereadConfig.RetryMaxAttempts)
+	assert.Equal(t, terragruntConfig.RetrySleepIntervalSec, rereadConfig.RetrySleepIntervalSec)
+	assert.Equal(t, terragruntConfig.RetryableErrors, rereadConfig.RetryableErrors)
+	assert.Equal(t, terragruntConfig.Inputs, rereadConfig.Inputs)
 }

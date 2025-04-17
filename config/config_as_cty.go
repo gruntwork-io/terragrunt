@@ -505,11 +505,6 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 		return cty.NilVal, nil
 	}
 
-	ctyMetaVal, err := convertToCtyWithJSON(config.Meta)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
 	var v, t string
 	if config.Version != nil {
 		v = *config.Version
@@ -523,7 +518,10 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 		Source:  config.Source,
 		Version: v,
 		Type:    t,
-		Meta:    ctyMetaVal,
+	}
+
+	if config.Meta != nil {
+		configCty.Meta = *config.Meta
 	}
 
 	return goTypeToCty(configCty)
