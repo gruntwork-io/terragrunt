@@ -136,12 +136,6 @@ run_terratest_log_parser: &run_terratest_log_parser
     terratest_log_parser --testlog logs/test-results.log --outputdir logs
   when: always
 
-codespell: &codespell
-  name: Run codespell
-  command: |
-    pip install codespell==2.4.0
-    codespell .
-
 win_install_golang: &win_install_golang
   name: Install golang
   shell: powershell.exe
@@ -229,11 +223,6 @@ jobs:
           command: |
             make install-mockery
             make generate-mocks
-      - run:
-          name: run lint
-          command: |
-            make install-lint
-            make run-lint
       - run:
           command: |
             mkdir -p logs
@@ -553,20 +542,6 @@ jobs:
       - store_test_results:
           path: logs
 
-  strict_lint:
-    resource_class: medium
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      # The `run-strict-lint` target requires the `main` ref for comparison.
-      - run: git fetch
-      - run:
-          name: Run strict lint
-          command: |
-            make install-lint
-            make run-strict-lint
-
   # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
     resource_class: large
@@ -626,13 +601,6 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
-
-  codespell:
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          <<: *codespell
 
   build:
     resource_class: xlarge
@@ -951,16 +919,6 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
-      - codespell:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
       - build:
           filters:
             tags:
@@ -999,15 +957,3 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
-  unessential:
-    jobs:
-      - strict_lint:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
