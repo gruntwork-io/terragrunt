@@ -10,6 +10,8 @@ order: 406
 nav_title: Documentation
 nav_title_link: /docs/
 slug: experiments
+redirect_from:
+    - /docs/reference/experiment-mode/
 ---
 
 Terragrunt supports operating in a mode referred to as "Experiment Mode".
