@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
@@ -1445,6 +1446,71 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
 	assert.True(t, util.FileNotExists(util.JoinPath(testFixtureReadIamRole, identityArn+".txt")))
+}
+
+func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
+	t.Parallel()
+
+	childPath := util.JoinPath(includeFixturePath, includeShallowFixturePath)
+	helpers.CleanupTerraformFolder(t, childPath)
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
+
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+	validateIncludeRemoteStateReflection(t, s3BucketName, includeShallowFixturePath, tmpTerragruntConfigPath, childPath)
+}
+
+func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
+	t.Parallel()
+
+	childPath := util.JoinPath(includeFixturePath, includeNoMergeFixturePath)
+	helpers.CleanupTerraformFolder(t, childPath)
+
+	// We deliberately pick an s3 bucket name that is invalid, as we don't expect to create this s3 bucket.
+	s3BucketName := "__INVALID_NAME__"
+
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeNoMergeFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
+
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
+	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)
+}
+
+func TestErrorExplaining(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
+	initTestCase := util.JoinPath(tmpEnvPath, testFixtureInitError)
+
+	helpers.CleanupTerraformFolder(t, initTestCase)
+	helpers.CleanupTerragruntFolder(t, initTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt init -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr)
+	require.Error(t, err)
+
+	explanation := shell.ExplainError(err)
+	assert.Contains(t, explanation, "Check your credentials and permissions")
+}
+
+func TestTerragruntInvokeTerraformTests(t *testing.T) {
+	t.Parallel()
+	if isTerraform() {
+		t.Skip("Not compatible with Terraform 1.5.x")
+		return
+	}
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTfTest)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureTfTest)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt test --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+testPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "1 passed, 0 failed")
 }
 
 func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit bool, expectedOutputLogs []string) {
