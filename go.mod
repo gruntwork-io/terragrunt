@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/storage v1.51.0
 	dario.cat/mergo v1.0.1
 	github.com/NYTimes/gziphandler v1.1.1
-	github.com/ProtonMail/go-crypto v1.1.6
+	github.com/ProtonMail/go-crypto v1.2.0
 	github.com/aws/aws-sdk-go v1.55.6
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/charmbracelet/bubbles v0.20.0
