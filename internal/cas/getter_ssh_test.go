@@ -44,6 +44,11 @@ func TestSSHCASGetterGet(t *testing.T) {
 		expectRef string
 	}{
 		{
+			name:      "Basic URL without ref",
+			url:       "github.com/gruntwork-io/terragrunt",
+			expectRef: "",
+		},
+		{
 			name:      "URL as SSH",
 			url:       "git@github.com:gruntwork-io/terragrunt.git",
 			expectRef: "",

@@ -95,11 +95,6 @@ func TestCASGetterGet(t *testing.T) {
 		expectRef string
 	}{
 		{
-			name:      "Basic URL without ref",
-			url:       "github.com/gruntwork-io/terragrunt",
-			expectRef: "",
-		},
-		{
 			name:      "URL with ref parameter",
 			url:       "github.com/gruntwork-io/terragrunt?ref=v0.75.0",
 			expectRef: "v0.75.0",
