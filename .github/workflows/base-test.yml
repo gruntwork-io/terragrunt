@@ -46,3 +46,6 @@ jobs:
       - name: Run Tests
         run: go test ./...
         shell: bash
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
