@@ -1,5 +1,5 @@
 // Package experiment provides utilities used by Terragrunt to support an "experiment" mode.
-// By default experiment mode is disabled, but when enabled, experimental features can be enabled.
+// By default, experiment mode is disabled, but when enabled, experimental features can be enabled.
 // These features are not yet stable and may change in the future.
 //
 // Note that any behavior outlined here should be documented in /docs/_docs/04_reference/experiments.md

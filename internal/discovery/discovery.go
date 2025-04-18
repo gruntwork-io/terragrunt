@@ -4,11 +4,13 @@ package discovery
 import (
 	"context"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -272,12 +274,12 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
 	var cfgs DiscoveredConfigs
 
-	walkFn := func(path string, e fs.DirEntry, err error) error {
+	processFn := func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return errors.New(err)
 		}
 
-		if e.IsDir() {
+		if info.IsDir() {
 			return nil
 		}
 
@@ -313,7 +315,12 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 		return nil
 	}
 
-	if err := filepath.WalkDir(d.workingDir, walkFn); err != nil {
+	walkFn := filepath.Walk
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		walkFn = util.WalkWithSymlinks
+	}
+
+	if err := walkFn(d.workingDir, processFn); err != nil {
 		return cfgs, errors.New(err)
 	}
 
