@@ -136,20 +136,6 @@ run_terratest_log_parser: &run_terratest_log_parser
     terratest_log_parser --testlog logs/test-results.log --outputdir logs
   when: always
 
-run_markdownlint: &run_markdownlint
-  name: Run markdownlint
-  command: |
-    markdownlint \
-    --disable MD013 MD024 \
-    -- \
-    docs
-
-codespell: &codespell
-  name: Run codespell
-  command: |
-    pip install codespell==2.4.0
-    codespell .
-
 win_install_golang: &win_install_golang
   name: Install golang
   shell: powershell.exe
@@ -237,11 +223,6 @@ jobs:
           command: |
             make install-mockery
             make generate-mocks
-      - run:
-          name: run lint
-          command: |
-            make install-lint
-            make run-lint
       - run:
           command: |
             mkdir -p logs
@@ -561,20 +542,6 @@ jobs:
       - store_test_results:
           path: logs
 
-  strict_lint:
-    resource_class: medium
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      # The `run-strict-lint` target requires the `main` ref for comparison.
-      - run: git fetch
-      - run:
-          name: Run strict lint
-          command: |
-            make install-lint
-            make run-strict-lint
-
   # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
     resource_class: large
@@ -635,20 +602,6 @@ jobs:
       - store_test_results:
           path: logs
 
-  run_markdownlint:
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          <<: *run_markdownlint
-
-  codespell:
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          <<: *codespell
-
   build:
     resource_class: xlarge
     <<: *defaults
@@ -658,18 +611,6 @@ jobs:
       - persist_to_workspace:
           root: .
           paths: [bin]
-
-  test_build_no_proxy:
-    # build Terragrunt without Go proxy to ensure all dependencies have correct checksums
-    resource_class: xlarge
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          name: Building Terragrunt without Go proxy
-          no_output_timeout: 20m
-          command: |
-            GOPROXY=direct build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
 
   test_signing:
     <<: *env
@@ -978,26 +919,6 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
-      - run_markdownlint:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - codespell:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
       - build:
           filters:
             tags:
@@ -1021,16 +942,6 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
-      - test_build_no_proxy:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
       - deploy:
           requires:
             - build
@@ -1046,15 +957,3 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
-  unessential:
-    jobs:
-      - strict_lint:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci

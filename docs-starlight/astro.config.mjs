@@ -102,6 +102,7 @@ export default defineConfig({
 		"/docs/reference/strict-mode/": "/docs/reference/strict-controls/",
 		"/docs/reference/log-formatting/": "/docs/reference/logging/formatting/",
 		"/docs/features/aws-authentication/": "/docs/features/authentication/",
+		"/docs/reference/experiment-mode/": "/docs/reference/experiments/",
 
 		// Support old doc structure paths
 		"/docs/": "/docs/getting-started/quick-start/",

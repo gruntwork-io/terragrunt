@@ -2,6 +2,7 @@
 package render
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -38,10 +39,34 @@ func newRunRenderFunc(opts *Options) func(ctx context.Context, terragruntOpts *o
 		switch opts.Format {
 		case FormatJSON:
 			return renderJSON(ctx, opts, cfg)
+		case FormatHCL:
+			return renderHCL(ctx, opts, cfg)
 		default:
 			return fmt.Errorf("unsupported render format: %s", opts.Format)
 		}
 	}
+}
+
+func renderHCL(_ context.Context, opts *Options, cfg *config.TerragruntConfig) error {
+	if opts.Write {
+		buf := new(bytes.Buffer)
+
+		_, err := cfg.WriteTo(buf)
+		if err != nil {
+			return err
+		}
+
+		return writeRendered(opts, buf.Bytes())
+	}
+
+	opts.Logger.Infof("Rendering config %s", opts.TerragruntConfigPath)
+
+	_, err := cfg.WriteTo(opts.Writer)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func renderJSON(ctx context.Context, opts *Options, cfg *config.TerragruntConfig) error {

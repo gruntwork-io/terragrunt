@@ -51,8 +51,8 @@ type model struct {
 	buttonBar         *buttonbar.ButtonBar
 	releaseNotesURL   string
 	pagerKeys         pagerKeyMap
-	viewport          viewport.Model
 	listKeys          list.KeyMap
+	viewport          viewport.Model
 	activeButton      button
 	state             sessionState
 	height            int

@@ -27,10 +27,13 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	mockOutputs := cty.Zero
 	mockOutputsAllowedTerraformCommands := []string{"init"}
 	dependentModulesPath := []*string{&testSource}
+	metaVal := cty.MapVal(map[string]cty.Value{
+		"foo": cty.StringVal("bar"),
+	})
 	testConfig := config.TerragruntConfig{
 		Engine: &config.EngineConfig{
 			Source: "github.com/acme/terragrunt-plugin-custom-opentofu",
-			Meta:   &cty.Value{},
+			Meta:   &metaVal,
 		},
 		Catalog: &config.CatalogConfig{
 			URLs: []string{
