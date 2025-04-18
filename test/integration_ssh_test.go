@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSourceMapWithSlashInRef(t *testing.T) {
+func TestSSHSourceMapWithSlashInRef(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
@@ -33,7 +33,7 @@ func TestSourceMapWithSlashInRef(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTerragruntNoWarningRemotePath(t *testing.T) {
+func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoSubmodules)
@@ -48,7 +48,7 @@ func TestTerragruntNoWarningRemotePath(t *testing.T) {
 	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
 
-func TestDownloadSourceWithRef(t *testing.T) {
+func TestSSHDownloadSourceWithRef(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRefSource)
