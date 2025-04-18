@@ -20,6 +20,7 @@ The following configuration blocks have been designed to work together in concer
 - [Feature Flags](#feature-flags)
 - [Errors](#errors)
 - [Excludes](#excludes)
+  - [Exclusion from the Run Queue](#exclusion-from-the-run-queue)
 
 ## Feature Flags
 
@@ -85,7 +86,7 @@ errors {
 }
 ```
 
-This configuration allows for control over how Terragrunt hanldles errors at runtime.
+This configuration allows for control over how Terragrunt handles errors at runtime.
 
 In the example above, Terragrunt will retry up to three times with a five-second pause between each retry for any error that matches the regex `.*Error: transient network issue.*`.
 
