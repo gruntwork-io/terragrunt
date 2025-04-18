@@ -74,6 +74,10 @@ func RunCommandWithOutput(ctx context.Context, opts *options.TerragruntOptions, 
 		if code != 1 {
 			return output, nil
 		}
+	} else {
+		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {
+			exitCode.Set(0)
+		}
 	}
 
 	return output, err

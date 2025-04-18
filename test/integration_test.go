@@ -254,10 +254,12 @@ func TestDetailedExitCodeError(t *testing.T) {
 	ctx := context.Background()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
 	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
 	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
-	assert.Equal(t, 1, exitCode.Get())
+	assert.Equal(t, 2, exitCode.Get())
 }
 
 func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
@@ -276,6 +278,23 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Equal(t, 2, exitCode.Get())
+}
+
+func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+
+	var exitCode tf.DetailedExitCode
+	ctx := context.Background()
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+util.JoinPath(tmpEnvPath, testFixturePath))
+	require.NoError(t, err)
+	assert.Equal(t, 0, exitCode.Get())
 }
 
 func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
