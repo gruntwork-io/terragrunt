@@ -28,7 +28,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-var excludePathes = []string{
+var excludePaths = []string{
 	util.TerragruntCacheDir,
 	util.DefaultBoilerplateDir,
 	config.StackDir,
@@ -72,7 +72,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		// Ignore any files that are in the cache or scaffold dir
 		pathList := strings.Split(fname, "/")
 
-		for _, excludePath := range excludePathes {
+		for _, excludePath := range excludePaths {
 			if slices.Contains(pathList, excludePath) {
 				skipFile = true
 				break

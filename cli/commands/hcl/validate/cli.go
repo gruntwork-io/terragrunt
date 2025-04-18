@@ -27,7 +27,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        StrictFlagName,
 			EnvVars:     tgPrefix.EnvVars(StrictFlagName),
 			Destination: &opts.HCLValidateStrict,
-			Usage:       "Enables strict mode. <explanation of what strict mode means>",
+			Usage:       "Enables strict mode. When used in combination with the `--inputs` flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
 		},
 			flags.WithDeprecatedNames(tgPrefix.FlagNames("strict-validate"), terragruntPrefixControl),
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("strict-validate"), terragruntPrefixControl)),
