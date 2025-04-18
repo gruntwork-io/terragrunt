@@ -5,6 +5,7 @@
 package hclvalidate
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -12,47 +13,16 @@ import (
 
 const (
 	CommandName = "hclvalidate"
-
-	ShowConfigPathFlagName = "show-config-path"
-	JSONFlagName           = "json"
-
-	DeprecatedHclvalidateShowConfigPathFlagName = "hclvalidate-show-config-path"
-	DeprecatedHclvalidateJSONFlagName           = "hclvalidate-json"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
-
-	return cli.Flags{
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        ShowConfigPathFlagName,
-			EnvVars:     tgPrefix.EnvVars(ShowConfigPathFlagName),
-			Usage:       "Show a list of files with invalid configuration.",
-			Destination: &opts.ShowConfigPath,
-		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateShowConfigPathFlagName), terragruntPrefixControl)),
-
-		flags.NewFlag(&cli.BoolFlag{
-			Name:        JSONFlagName,
-			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
-			Destination: &opts.JSONOutput,
-			Usage:       "Output the result in JSON format.",
-		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateJSONFlagName), terragruntPrefixControl)),
-	}
-}
-
-func NewCommand(generalOpts *options.TerragruntOptions) *cli.Command {
-	opts := NewOptions(generalOpts)
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	prefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Find all hcl files from the config stack and validate them.",
-		Flags:                NewFlags(opts, prefix),
+		Flags:                validate.NewFlags(opts, prefix).Filter(validate.ShowConfigPathFlagName, validate.JSONFlagName),
 		ErrorOnUndefinedFlag: true,
-		Action:               func(ctx *cli.Context) error { return Run(ctx, opts) },
+		Action:               func(ctx *cli.Context) error { return validate.Run(ctx, opts) },
 	}
 }

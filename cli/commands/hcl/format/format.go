@@ -1,11 +1,11 @@
-// `hclFmt` command recursively looks for hcl files in the directory tree starting at workingDir, and formats them
+// Package format recursively looks for hcl files in the directory tree starting at workingDir, and formats them
 // based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.
-
-package hclfmt
+package format
 
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -13,8 +13,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+	"golang.org/x/exp/slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
@@ -26,7 +28,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(opts *options.TerragruntOptions) error {
+var excludePaths = []string{
+	util.TerragruntCacheDir,
+	util.DefaultBoilerplateDir,
+	config.StackDir,
+}
+
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
 	stdIn := opts.HclFromStdin
@@ -63,16 +71,16 @@ func Run(opts *options.TerragruntOptions) error {
 		skipFile := false
 		// Ignore any files that are in the cache or scaffold dir
 		pathList := strings.Split(fname, "/")
-		if util.ListContainsElement(pathList, util.TerragruntCacheDir) {
-			skipFile = true
-		}
 
-		if util.ListContainsElement(pathList, util.DefaultBoilerplateDir) {
-			skipFile = true
+		for _, excludePath := range excludePaths {
+			if slices.Contains(pathList, excludePath) {
+				skipFile = true
+				break
+			}
 		}
 
 		for _, excludeDir := range opts.HclExclude {
-			if util.ListContainsElement(pathList, excludeDir) {
+			if slices.Contains(pathList, excludeDir) {
 				skipFile = true
 				break
 			}

@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	stackDir          = ".terragrunt-stack"
+	StackDir          = ".terragrunt-stack"
 	valuesFile        = "terragrunt.values.hcl"
 	manifestName      = ".terragrunt-stack-manifest"
 	defaultStackFile  = "terragrunt.stack.hcl"
@@ -184,7 +184,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 		parsedStackFiles[path] = stackFile
 
-		targetDir := filepath.Join(dir, stackDir)
+		targetDir := filepath.Join(dir, StackDir)
 
 		for _, stack := range stackFile.Stacks {
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
@@ -192,7 +192,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 		}
 
 		for _, unit := range stackFile.Units {
-			unitDir := filepath.Join(dir, stackDir, unit.Path)
+			unitDir := filepath.Join(dir, StackDir, unit.Path)
 
 			var output map[string]cty.Value
 
@@ -355,7 +355,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 		return errors.Errorf("Failed to read stack file %s in %s %w", stackFilePath, stackSourceDir, err)
 	}
 
-	stackTargetDir := filepath.Join(stackSourceDir, stackDir)
+	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
 	if err := generateUnits(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err

@@ -74,7 +74,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"apply", doubleDashed(terragruntPrefix.FlagName(run.DeprecatedIncludeExternalDependenciesFlagName))},
+			args:            []string{"apply", doubleDashed(terragruntPrefix.FlagName("include-external-dependencies"))},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"apply"}, false, "", false, true, defaultLogLevel, false),
 		},
 
@@ -104,12 +104,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName(run.DeprecatedIgnoreExternalDependenciesFlagName))},
+			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("ignore-external-dependencies"))},
 			expectedOptions: mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, false, defaultLogLevel, false),
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName(run.DeprecatedIAMRoleFlagName)), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
+			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("iam-role")), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
 			expectedOptions: mockOptionsWithIamRole(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
 		},
 
@@ -124,7 +124,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName(run.DeprecatedIAMWebIdentityTokenFlagName)), "web-identity-token"},
+			args:            []string{"plan", doubleDashed(terragruntPrefix.FlagName("iam-web-identity-token")), "web-identity-token"},
 			expectedOptions: mockOptionsWithIamWebIdentityToken(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"plan"}, false, "", false, "web-identity-token"),
 		},
 

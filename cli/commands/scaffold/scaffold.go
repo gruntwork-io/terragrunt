@@ -8,12 +8,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/tf"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	boilerplate_options "github.com/gruntwork-io/boilerplate/options"
@@ -212,7 +212,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 
 	opts.Logger.Infof("Running fmt on generated code %s", outputDir)
 
-	if err := hclfmt.Run(opts); err != nil {
+	if err := format.Run(ctx, opts); err != nil {
 		return errors.New(err)
 	}
 

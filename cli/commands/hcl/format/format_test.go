@@ -1,6 +1,7 @@
-package hclfmt_test
+package format_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -34,7 +35,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
-	err = hclfmt.Run(tgOptions)
+	err = format.Run(context.Background(), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -97,7 +98,7 @@ func TestHCLFmt(t *testing.T) {
 func TestHCLFmtErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixtures/hclfmt-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-errors", t.Name(), func(path string) bool { return true })
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
 	})
@@ -124,7 +125,7 @@ func TestHCLFmtErrors(t *testing.T) {
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = hclfmt.Run(newTgOptions)
+			err = format.Run(context.Background(), newTgOptions)
 			require.Error(t, err)
 		})
 	}
@@ -133,7 +134,7 @@ func TestHCLFmtErrors(t *testing.T) {
 func TestHCLFmtCheck(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixtures/hclfmt-check", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-check", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -141,7 +142,7 @@ func TestHCLFmtCheck(t *testing.T) {
 
 	require.NoError(t, err)
 
-	expected, err := os.ReadFile("../../../test/fixtures/hclfmt-check/expected.hcl")
+	expected, err := os.ReadFile("../../../../test/fixtures/hclfmt-check/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -150,7 +151,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = hclfmt.Run(tgOptions)
+	err = format.Run(context.Background(), tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -179,7 +180,7 @@ func TestHCLFmtCheck(t *testing.T) {
 func TestHCLFmtCheckErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixtures/hclfmt-check-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-check-errors", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -187,7 +188,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 
 	require.NoError(t, err)
 
-	expected, err := os.ReadFile("../../../test/fixtures/hclfmt-check-errors/expected.hcl")
+	expected, err := os.ReadFile("../../../../test/fixtures/hclfmt-check-errors/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -196,7 +197,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = hclfmt.Run(tgOptions)
+	err = format.Run(context.Background(), tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -242,7 +243,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = hclfmt.Run(tgOptions)
+	err = format.Run(context.Background(), tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -294,11 +295,11 @@ func TestHCLFmtStdin(t *testing.T) {
 	os.Stdout = tempStdoutFile
 	defer func() { os.Stdout = realStdout }()
 
-	os.Stdin, err = os.Open("../../../test/fixtures/hclfmt-stdin/terragrunt.hcl")
+	os.Stdin, err = os.Open("../../../../test/fixtures/hclfmt-stdin/terragrunt.hcl")
 	defer func() { os.Stdin = realStdin }()
 	require.NoError(t, err)
 
-	expected, err := os.ReadFile("../../../test/fixtures/hclfmt-stdin/expected.hcl")
+	expected, err := os.ReadFile("../../../../test/fixtures/hclfmt-stdin/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -306,7 +307,7 @@ func TestHCLFmtStdin(t *testing.T) {
 
 	// format hcl from stdin
 	tgOptions.HclFromStdin = true
-	err = hclfmt.Run(tgOptions)
+	err = format.Run(context.Background(), tgOptions)
 	require.NoError(t, err)
 
 	formatted, err := os.ReadFile(tempStdoutFile.Name())
@@ -317,11 +318,11 @@ func TestHCLFmtStdin(t *testing.T) {
 func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixtures/hclfmt-heredoc", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-heredoc", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 
-	expected, err := os.ReadFile("../../../test/fixtures/hclfmt-heredoc/expected.hcl")
+	expected, err := os.ReadFile("../../../../test/fixtures/hclfmt-heredoc/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -329,7 +330,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = hclfmt.Run(tgOptions)
+	err = format.Run(context.Background(), tgOptions)
 	require.NoError(t, err)
 
 	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")

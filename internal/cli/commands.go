@@ -2,6 +2,7 @@ package cli
 
 import (
 	"sort"
+	"strings"
 
 	"slices"
 )
@@ -83,7 +84,9 @@ func (commands Commands) VisibleCommands() Commands {
 		}
 
 		if cmd.HelpName == "" {
-			cmd.HelpName = cmd.Name
+			names := append([]string{cmd.Name}, cmd.Aliases...)
+
+			cmd.HelpName = strings.Join(names, ", ")
 		}
 
 		visible = append(visible, cmd)
