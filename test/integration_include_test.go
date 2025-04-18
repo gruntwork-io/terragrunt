@@ -221,34 +221,3 @@ func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]helpers.
 		outputs["dep_out"].Value.(map[string]any),
 	)
 }
-
-func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, keyPath string, configPath string, workingDir string) {
-	t.Helper()
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-config %s --terragrunt-working-dir %s", configPath, workingDir), &stdout, &stderr)
-	require.NoError(t, err)
-
-	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	remoteStateOut := map[string]any{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["reflect"].Value.(string)), &remoteStateOut))
-	assert.Equal(
-		t,
-		map[string]any{
-			"backend":                         "s3",
-			"disable_init":                    false,
-			"disable_dependency_optimization": false,
-			"generate":                        nil,
-			"config": map[string]any{
-				"encrypt": true,
-				"bucket":  s3BucketName,
-				"key":     keyPath + "/terraform.tfstate",
-				"region":  "us-west-2",
-			},
-			"encryption": nil,
-		},
-		remoteStateOut,
-	)
-}
