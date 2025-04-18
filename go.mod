@@ -84,7 +84,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.78.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.2
 	github.com/charmbracelet/x/term v0.2.1
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 )
