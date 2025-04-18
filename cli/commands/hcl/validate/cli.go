@@ -15,10 +15,6 @@ const (
 	InputFlagName          = "input"
 	ShowConfigPathFlagName = "show-config-path"
 	JSONFlagName           = "json"
-
-	DeprecatedHclvalidateShowConfigPathFlagName = "hclvalidate-show-config-path"
-	DeprecatedHclvalidateJSONFlagName           = "hclvalidate-json"
-	DeprecatedStrictValidateFlagName            = "strict-validate"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -33,8 +29,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HCLValidateStrict,
 			Usage:       "Enables strict mode. <explanation of what strict mode means>",
 		},
-			flags.WithDeprecatedNames(tgPrefix.FlagNames(DeprecatedStrictValidateFlagName), terragruntPrefixControl),
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictValidateFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(tgPrefix.FlagNames("strict-validate"), terragruntPrefixControl),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("strict-validate"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InputFlagName,
@@ -48,7 +44,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:       "Emit a list of files with invalid configurations after validating all configurations.",
 			Destination: &opts.HCLValidateShowConfigPath,
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateShowConfigPathFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclvalidate-show-config-path"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
@@ -56,7 +52,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HCLValidateJSONOutput,
 			Usage:       "Format results in JSON format.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateJSONFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclvalidate-json"), terragruntPrefixControl)),
 	}
 
 	return flagSet

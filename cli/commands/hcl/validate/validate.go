@@ -83,11 +83,17 @@ func RunValidate(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	if len(diags) > 0 {
 		sort.Slice(diags, func(i, j int) bool {
-			if diags[i].Range != nil && diags[j].Range != nil && diags[i].Range.Filename > diags[j].Range.Filename {
-				return false
+			var a, b string
+
+			if diags[i].Range != nil {
+				a = diags[i].Range.Filename
 			}
 
-			return true
+			if diags[j].Range != nil {
+				b = diags[j].Range.Filename
+			}
+
+			return a < b
 		})
 
 		if err := writeDiagnostics(opts, diags); err != nil {

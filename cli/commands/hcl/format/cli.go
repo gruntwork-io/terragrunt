@@ -16,12 +16,6 @@ const (
 	CheckFlagName      = "check"
 	DiffFlagName       = "diff"
 	StdinFlagName      = "stdin"
-
-	DeprecatedHclfmtFileFlagName        = "hclfmt-file"
-	DeprecatedHclfmtcExcludeDirFlagName = "hclfmt-exclude-dir"
-	DeprecatedHclfmtStdinFlagName       = "hclfmt-stdin"
-	DeprecatedCheckFlagName             = "check"
-	DeprecatedDiffFlagName              = "diff"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -36,7 +30,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HclFile,
 			Usage:       "The path to a single HCL file that the command should run on.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclfmtFileFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-file"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:        ExcludeDirFlagName,
@@ -44,7 +38,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HclExclude,
 			Usage:       "Skip HCL formatting in given directories.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclfmtcExcludeDirFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-exclude-dir"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        CheckFlagName,
@@ -52,7 +46,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Check,
 			Usage:       "Return a status code of zero when all files are formatted correctly, and a status code of one when they aren't.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedCheckFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("check"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DiffFlagName,
@@ -60,7 +54,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Diff,
 			Usage:       "Print diff between original and modified file versions.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedDiffFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("diff"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        StdinFlagName,
@@ -68,7 +62,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HclFromStdin,
 			Usage:       "Format HCL from stdin and print result to stdout.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclfmtStdinFlagName), terragruntPrefixControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-stdin"), terragruntPrefixControl)),
 	}
 
 	return flags
