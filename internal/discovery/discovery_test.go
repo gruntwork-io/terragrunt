@@ -77,7 +77,10 @@ func TestDiscovery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			configs, err := tt.discovery.Discover(context.Background(), nil)
+			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+			require.NoError(t, err)
+
+			configs, err := tt.discovery.Discover(context.Background(), opts)
 			if !tt.errorExpected {
 				require.NoError(t, err)
 			}
