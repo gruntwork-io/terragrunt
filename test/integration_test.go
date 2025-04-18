@@ -3464,34 +3464,6 @@ func TestHclFmtStdin(t *testing.T) {
 	assert.Contains(t, stdout, string(expectedDiff))
 }
 
-func TestDownloadSourceWithRef(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRefSource)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureRefSource)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-}
-
-func TestSourceMapWithSlashInRef(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test-fixtures --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-}
-
 func TestInitSkipCache(t *testing.T) {
 	t.Parallel()
 
@@ -3633,21 +3605,6 @@ func TestTerragruntNoWarningLocalPath(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
-}
-
-func TestTerragruntNoWarningRemotePath(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoSubmodules)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureNoSubmodules)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt init --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }

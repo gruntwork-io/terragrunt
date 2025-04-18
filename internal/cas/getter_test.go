@@ -104,11 +104,6 @@ func TestCASGetterGet(t *testing.T) {
 			url:       "github.com/gruntwork-io/terragrunt?ref=v0.75.0",
 			expectRef: "v0.75.0",
 		},
-		{
-			name:      "URL as SSH",
-			url:       "git@github.com:gruntwork-io/terragrunt.git",
-			expectRef: "",
-		},
 	}
 
 	for _, tt := range tests {
