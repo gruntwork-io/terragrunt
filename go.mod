@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/storage v1.51.0
 	dario.cat/mergo v1.0.1
 	github.com/NYTimes/gziphandler v1.1.1
-	github.com/ProtonMail/go-crypto v1.1.6
+	github.com/ProtonMail/go-crypto v1.2.0
 	github.com/aws/aws-sdk-go v1.55.6
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/charmbracelet/bubbles v0.20.0
@@ -75,7 +75,7 @@ require (
 	golang.org/x/oauth2 v0.29.0
 	golang.org/x/sync v0.12.0
 	golang.org/x/sys v0.32.0
-	golang.org/x/term v0.30.0
+	golang.org/x/term v0.31.0
 	golang.org/x/text v0.23.0
 	google.golang.org/api v0.228.0
 	google.golang.org/grpc v1.71.1
@@ -84,7 +84,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.78.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.2
 	github.com/charmbracelet/x/term v0.2.1
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 )
