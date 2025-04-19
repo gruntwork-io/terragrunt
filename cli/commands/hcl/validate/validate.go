@@ -33,20 +33,20 @@ import (
 const splitCount = 2
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	if opts.HCLValidateInput {
+	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
-			return errors.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputFlagName)
+			return errors.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
 		}
 
 		if opts.HCLValidateJSONOutput {
-			return errors.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputFlagName)
+			return errors.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputsFlagName)
 		}
 
 		return RunValidateInputs(ctx, opts)
 	}
 
 	if opts.HCLValidateStrict {
-		return errors.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputFlagName)
+		return errors.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
 	}
 
 	return RunValidate(ctx, opts)

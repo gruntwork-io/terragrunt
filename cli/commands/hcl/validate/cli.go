@@ -12,7 +12,7 @@ const (
 	CommandName = "validate"
 
 	StrictFlagName         = "strict"
-	InputFlagName          = "input"
+	InputsFlagName         = "inputs"
 	ShowConfigPathFlagName = "show-config-path"
 	JSONFlagName           = "json"
 )
@@ -33,9 +33,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("strict-validate"), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        InputFlagName,
-			EnvVars:     tgPrefix.EnvVars(InputFlagName),
-			Destination: &opts.HCLValidateInput,
+			Name:        InputsFlagName,
+			EnvVars:     tgPrefix.EnvVars(InputsFlagName),
+			Destination: &opts.HCLValidateInputs,
 			Usage:       "Checks if the Terragrunt configured inputs align with OpenTofu/Terraform defined variables.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
