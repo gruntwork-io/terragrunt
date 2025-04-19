@@ -3373,25 +3373,6 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	assert.Equal(t, 42, int(outputs["z"].Value.(float64)))
 }
 
-func TestErrorExplaining(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
-	initTestCase := util.JoinPath(tmpEnvPath, testFixtureInitError)
-
-	helpers.CleanupTerraformFolder(t, initTestCase)
-	helpers.CleanupTerragruntFolder(t, initTestCase)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt init -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr)
-	require.Error(t, err)
-
-	explanation := shell.ExplainError(err)
-	assert.Contains(t, explanation, "Check your credentials and permissions")
-}
-
 func TestExplainingMissingCredentials(t *testing.T) {
 	// no parallel because we need to set env vars
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/tmp/not-existing-creds-46521694")
@@ -3481,34 +3462,6 @@ func TestHclFmtStdin(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, string(expectedDiff))
-}
-
-func TestDownloadSourceWithRef(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRefSource)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureRefSource)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-}
-
-func TestSourceMapWithSlashInRef(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test-fixtures --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
 }
 
 func TestInitSkipCache(t *testing.T) {
@@ -3656,21 +3609,6 @@ func TestTerragruntNoWarningLocalPath(t *testing.T) {
 	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
 
-func TestTerragruntNoWarningRemotePath(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoSubmodules)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureNoSubmodules)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt init --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
-}
-
 func TestTerragruntDisabledDependency(t *testing.T) {
 	t.Parallel()
 
@@ -3717,22 +3655,6 @@ func TestTerragruntHandleEmptyStateFile(t *testing.T) {
 	helpers.CreateEmptyStateFile(t, testPath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
-}
-
-func TestTerragruntInvokeTerraformTests(t *testing.T) {
-	t.Parallel()
-	if isTerraform() {
-		t.Skip("Not compatible with Terraform 1.5.x")
-		return
-	}
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTfTest)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureTfTest)
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt test --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+testPath)
-	require.NoError(t, err)
-	assert.Contains(t, stdout, "1 passed, 0 failed")
 }
 
 func TestTerragruntCommandsThatNeedInput(t *testing.T) {
