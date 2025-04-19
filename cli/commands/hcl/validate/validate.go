@@ -33,7 +33,7 @@ import (
 const splitCount = 2
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	if opts.HCLValidateInput {
+	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return errors.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputFlagName)
 		}
