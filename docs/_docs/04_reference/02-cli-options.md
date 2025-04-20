@@ -36,6 +36,12 @@ The commands relevant to managing OpenTofu/Terraform state backends are:
   - [backend bootstrap](#backend-bootstrap)
   - [backend delete](#backend-delete)
 
+The commands for interacting with Terragrunt files, written in HashiCorp Configuration Language (HCL):
+
+- [HCL commands](#hcl-commands)
+  - [hcl validate](#hcl-validate)
+  - [hcl format](#hcl-format)
+
 The commands relevant to managing an IaC catalog are:
 
 - [Catalog commands](#catalog-commands)
@@ -697,6 +703,106 @@ Terragrunt performs migrations in one of two ways, depending on the level of sup
 - `--config`: Path to the Terragrunt configuration file to use to migrate the resources.
 - `--download-dir`: Path to download OpenTofu/Terraform modules into. The default is `.terragrunt-cache`.
 - `--force`: Force the migration of the backend state file. By default, Terragrunt will refuse to migrate the backend state file if the source bucket does not have versioning enabled.
+
+### HCL commands
+
+#### hcl validate
+
+Find all hcl files from the configuration stack and validate them.
+
+Example:
+
+```bash
+terragrunt hcl validate
+```
+
+This will search all hcl files from the configuration stack in the current working directory and run the equivalent
+of `tofu validate`/`terraform validate` on them.
+
+For convenience in programmatically parsing these findings, you can also pass the `--json` flag to output the results in JSON format.
+
+Example:
+
+```bash
+terragrunt hcl validate --json
+```
+
+In addition, you can pass the `--show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [queue-excludes-file](#queue-excludes-file) flag.
+
+Example:
+
+```bash
+terragrunt hcl validate --show-config-path
+
+```
+
+Using the `--inputs` flag helps emit information about the input variables that are
+configured with the given terragrunt configuration. The flag will print out unused
+inputs (inputs that are not defined as an OpenTofu/Terraform variable in the
+corresponding module) and undefined required inputs (required OpenTofu/Terraform
+variables that are not currently being passed in).
+
+Example:
+
+```bash
+> terragrunt hcl validate --inputs
+The following inputs passed in by terragrunt are unused:
+
+    - foo
+    - bar
+
+
+The following required inputs are missing:
+
+    - baz
+
+```
+
+Note that this only checks for variables passed in in the following ways:
+
+- Configured `inputs` attribute.
+
+- var files defined on `terraform.extra_arguments` blocks using `required_var_files` and `optional_var_files`.
+
+- `-var-file` and `-var` CLI arguments defined on `terraform.extra_arguments` using `arguments`.
+
+- `-var-file` and `-var` CLI arguments passed to terragrunt.
+
+- Automatically loaded var files (`terraform.tfvars`, `terraform.tfvars.json`, `*.auto.tfvars`, `*.auto.tfvars.json`)
+
+- `TF_VAR` environment variables defined on `terraform.extra_arguments` blocks.
+
+- `TF_VAR` environment variables defined in the environment.
+
+Be aware that other ways to pass variables to `tofu`/`terraform` are not checked by this command.
+
+Additionally, there are **two modes** in which the `hcl validate --inputs` command can be run: **relaxed** (default) and **strict**.
+
+If you run the `hcl validate --inputs` command without `--strict` flag, relaxed mode will be enabled by default. In relaxed mode, any unused variables
+that are passed, but not used by the underlying OpenTofu/Terraform configuration, will generate a warning, but not an error. Missing required variables will _always_ return an error, whether `hcl validate --inputs` is running in relaxed or strict mode.
+
+To enable strict mode, you can pass the `--strict` flag like so:
+
+```bash
+terragrunt hcl validate --inputs --strict
+```
+
+When running in strict mode, `hcl validate --inputs` will return an error if there are unused inputs.
+
+This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
+
+#### hcl format
+
+Recursively find hcl files and rewrite them into a canonical format.
+
+Example:
+
+```bash
+terragrunt hcl fmt
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt configuration files
+and run the equivalent of `tofu fmt`/`terraform fmt` on them.
 
 ### Catalog commands
 
@@ -1495,6 +1601,9 @@ This command will exit with an error if terragrunt detects any unused inputs or 
     - [backend bootstrap](#backend-bootstrap)
     - [backend delete](#backend-delete)
     - [backend migrate](#backend-migrate)
+  - [HCL commands](#hcl-commands)
+    - [hcl validate](#hcl-validate)
+    - [hcl format](#hcl-format)
   - [Catalog commands](#catalog-commands)
     - [catalog](#catalog)
     - [scaffold](#scaffold)

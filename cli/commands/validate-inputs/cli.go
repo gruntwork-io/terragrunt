@@ -21,7 +21,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage: "Checks if the terragrunt configured inputs align with the terraform defined variables.",
 		Flags: append(run.NewFlags(opts, nil), validate.NewFlags(opts, nil).Filter(validate.StrictFlagName)...),
 		Action: func(ctx *cli.Context) error {
-			opts.HCLValidateInput = true
+			opts.HCLValidateInputs = true
 
 			return validate.Run(ctx, opts.OptionsFromContext(ctx))
 		},
