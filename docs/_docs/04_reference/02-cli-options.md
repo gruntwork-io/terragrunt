@@ -736,7 +736,7 @@ terragrunt hcl validate --show-config-path
 
 ```
 
-Using the `--input` flag helps emit information about the input variables that are
+Using the `--inputs` flag helps emit information about the input variables that are
 configured with the given terragrunt configuration. The flag will print out unused
 inputs (inputs that are not defined as an OpenTofu/Terraform variable in the
 corresponding module) and undefined required inputs (required OpenTofu/Terraform
