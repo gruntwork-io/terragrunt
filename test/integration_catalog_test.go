@@ -96,6 +96,8 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	require.NoError(t, err)
 	var auroraModule *module.Module
 	for _, m := range modules {
+		// print all module titles
+		t.Logf("Module title: %s", m.Title())
 		if m.Title() == "Terraform Fake AWS Aurora Module" {
 			auroraModule = m
 		}
