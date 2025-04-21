@@ -20,6 +20,8 @@ func TestConfig(t *testing.T) {
 	)
 
 	tempCacheDir := t.TempDir()
+	// Normalize paths to forward slashes for consistent comparison across platforms
+	normalizedTempCacheDir := filepath.ToSlash(tempCacheDir)
 
 	testCases := []struct {
 		expectedHCL                 string
@@ -46,7 +48,7 @@ provider_installation {
    "filesystem_mirror" {
     include = ["registry.terraform.io/*/*"]
     exclude = ["registry.opentofu.org/*/*"]
-    path    = "` + tempCacheDir + `"
+    path    = "` + normalizedTempCacheDir + `"
   }
    "network_mirror" {
     include = ["registry.terraform.io/*/*"]
@@ -80,7 +82,7 @@ disable_checkpoint_signature = false
 provider_installation {
 }
 
-plugin_cache_dir             = "` + tempCacheDir + `"
+plugin_cache_dir             = "` + normalizedTempCacheDir + `"
 disable_checkpoint           = false
 disable_checkpoint_signature = false
 `,
@@ -105,7 +107,9 @@ disable_checkpoint_signature = false
 			hclBytes, err := os.ReadFile(configFile)
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.expectedHCL, string(hclBytes))
+			// Normalize the actual output paths to forward slashes for comparison
+			actualHCL := filepath.ToSlash(string(hclBytes))
+			assert.Equal(t, tc.expectedHCL, actualHCL)
 		})
 	}
 }
