@@ -472,7 +472,7 @@ func TestEmptyDir(t *testing.T) {
 //nolint:funlen
 func TestWalkWithSimpleSymlinks(t *testing.T) {
 	t.Parallel()
-	// Create temporary test directory structure
+	// Create a temporary test directory structure
 	tempDir := t.TempDir()
 	tempDir, err := filepath.EvalSymlinks(tempDir)
 	require.NoError(t, err)
@@ -501,7 +501,8 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		paths = append(paths, relPath)
+		// Normalize path separators to forward slashes for cross-platform compatibility
+		paths = append(paths, filepath.ToSlash(relPath))
 
 		return nil
 	})
