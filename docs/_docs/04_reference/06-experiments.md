@@ -121,7 +121,6 @@ To transition the `stacks` feature to a stable release, the following must be ad
 - [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
 - [x] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
 
-
 ### `cas`
 
 Support for Terragrunt Content Addressable Storage (CAS).
