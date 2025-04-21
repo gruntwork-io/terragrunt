@@ -43,7 +43,8 @@ func NewExperiments() Experiments {
 			Name: Symlinks,
 		},
 		{
-			Name: CLIRedesign,
+			Name:   CLIRedesign,
+			Status: StatusCompleted,
 		},
 		{
 			Name: Stacks,
