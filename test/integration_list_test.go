@@ -18,10 +18,11 @@ func TestListCommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name           string
-		workingDir     string
-		expectedOutput string
-		args           []string
+		name                      string
+		workingDir                string
+		expectedOutput            string
+		args                      []string
+		unnecessaryExperimentFlag bool
 	}{
 		{
 			name:           "Basic list with default format",
@@ -47,6 +48,12 @@ unit  b-unit
 ╰── b-unit
 `,
 		},
+		{
+			name:           "Basic list with default format",
+			workingDir:     testFixtureListBasic,
+			args:           []string{"list"},
+			expectedOutput: "a-unit  b-unit  \n",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -55,14 +62,21 @@ unit  b-unit
 
 			helpers.CleanupTerraformFolder(t, tc.workingDir)
 
-			args := []string{"terragrunt", "--no-color", "--experiment", "cli-redesign"}
+			args := []string{"terragrunt", "--no-color"}
+			if tc.unnecessaryExperimentFlag {
+				args = append(args, "--experiment", "cli-redesign")
+			}
 			args = append(args, tc.args...)
 			args = append(args, "--working-dir", tc.workingDir)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, strings.Join(args, " "))
 
 			require.NoError(t, err)
-			require.Empty(t, stderr)
+			if tc.unnecessaryExperimentFlag {
+				require.Contains(t, stderr, "The following experiment(s) are already completed: cli-redesign. Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments")
+			} else {
+				require.Empty(t, stderr)
+			}
 			assert.Equal(t, tc.expectedOutput, stdout)
 		})
 	}

@@ -124,7 +124,7 @@ func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 		return
 	}
 
-	logger.Warnf(NewCompletedExperimentsError(completed.Names()).Error())
+	logger.Warnf(NewCompletedExperimentsWarning(completed.Names()).String())
 }
 
 // Evaluate returns true if the experiment is found and enabled otherwise returns false.
