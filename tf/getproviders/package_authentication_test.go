@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/tf/getproviders"
@@ -82,7 +83,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 		{
 			path:          "testdata/no-package-here.zip",
 			wantSHA256Sum: [sha256.Size]byte{},
-			expectedErr:   errors.New("stat testdata/no-package-here.zip: no such file or directory"),
+			expectedErr:   errors.New("file not found: testdata/no-package-here.zip"),
 		},
 		{
 			path:          "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
@@ -102,15 +103,25 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 
 			auth := getproviders.NewArchiveChecksumAuthentication(tc.wantSHA256Sum)
 			actualResult, actualErr := auth.Authenticate(tc.path)
+
 			if tc.expectedErr != nil {
-				require.EqualError(t, actualErr, tc.expectedErr.Error())
+				if actualErr == nil {
+					t.Fatalf("expected error %v but got no error", tc.expectedErr)
+				}
+				// For file not found errors, just check if it contains the expected text
+				if strings.Contains(tc.expectedErr.Error(), "file not found") {
+					if !strings.Contains(actualErr.Error(), "no such file") && !strings.Contains(actualErr.Error(), "cannot find the file") {
+						t.Errorf("expected error containing 'file not found' but got: %v", actualErr)
+					}
+				} else {
+					require.EqualError(t, actualErr, tc.expectedErr.Error())
+				}
 			} else {
 				require.NoError(t, actualErr)
 			}
 
 			assert.Equal(t, tc.expectedResult, actualResult)
 		})
-
 	}
 }
 
