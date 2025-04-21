@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -31,8 +30,6 @@ var (
 )
 
 func NewShortcutsCommands(opts *options.TerragruntOptions) cli.Commands {
-	// Note: Some functionality is gated behind the CLIRedesign experiment.
-	// This experiment controls the deprecation warnings for non-shortcut commands.
 	var (
 		runCmd       = run.NewCommand(opts)
 		cmds         = make(cli.Commands, len(runCmd.Subcommands))
@@ -58,7 +55,7 @@ func NewShortcutsCommands(opts *options.TerragruntOptions) cli.Commands {
 			Flags:      runCmd.Flags,
 			CustomHelp: runSubCmd.CustomHelp,
 			Action: func(ctx *cli.Context) error {
-				if isNotShortcutCmd && opts.Experiments.Evaluate(experiment.CLIRedesign) {
+				if isNotShortcutCmd {
 					if err := control.Evaluate(ctx); err != nil {
 						return cli.NewExitError(err, cli.ExitCodeGeneralError)
 					}

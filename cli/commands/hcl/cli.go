@@ -5,8 +5,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -22,13 +20,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			validate.NewCommand(opts),
 		},
 		ErrorOnUndefinedFlag: true,
-		Before: func(ctx *cli.Context) error {
-			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
-				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
-			}
-
-			return nil
-		},
-		Action: cli.ShowCommandHelp,
+		Action:               cli.ShowCommandHelp,
 	}
 }

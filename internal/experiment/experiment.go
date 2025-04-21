@@ -43,7 +43,8 @@ func NewExperiments() Experiments {
 			Name: Symlinks,
 		},
 		{
-			Name: CLIRedesign,
+			Name:   CLIRedesign,
+			Status: StatusCompleted,
 		},
 		{
 			Name: Stacks,
@@ -123,7 +124,7 @@ func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 		return
 	}
 
-	logger.Warnf(NewCompletedExperimentsError(completed.Names()).Error())
+	logger.Warnf(NewCompletedExperimentsWarning(completed.Names()).String())
 }
 
 // Evaluate returns true if the experiment is found and enabled otherwise returns false.
@@ -151,6 +152,8 @@ func (exps Experiment) String() string {
 }
 
 // Evaluate returns true the experiment is enabled.
+//
+// If the experiment is completed, consider it permanently enabled.
 func (exps Experiment) Evaluate() bool {
-	return exps.Enabled
+	return exps.Enabled || exps.Status == StatusCompleted
 }

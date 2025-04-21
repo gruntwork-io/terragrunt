@@ -99,8 +99,6 @@ If you want to run a command that doesn't have a shortcut in Terragrunt, you can
 
 #### run
 
-**[NOTE] The `run` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
-
 Run the provided OpenTofu/Terraform command against the unit in the current working directory.
 
 Example:
@@ -125,8 +123,6 @@ terragrunt run -- plan -no-color
 ```
 
 #### exec
-
-**[NOTE] The `exec` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
 
 Execute an arbitrary command orchestrated by Terragrunt.
 
@@ -822,8 +818,6 @@ More details in [scaffold section](https://terragrunt.gruntwork.io/docs/features
 
 #### find
 
-**[NOTE] The `find` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
-
 Find Terragrunt configurations in your codebase.
 
 ```bash
@@ -1062,8 +1056,6 @@ terragrunt find --hidden
 ```
 
 #### list
-
-**[NOTE] The `list` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
 
 List Terragrunt configurations in your codebase.
 
@@ -1728,8 +1720,6 @@ This command will exit with an error if terragrunt detects any unused inputs or 
 
 This is equivalent to the soon to be deprecated `run-all` command.
 
-**[NOTE] The `all` flag is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
-
 Runs the provided OpenTofu/Terraform command against a [stack](/docs/getting-started/terminology/#stack).
 The command will recursively find terragrunt [units](/docs/getting-started/terminology/#unit) in the current directory
 tree and run the OpenTofu/Terraform command in dependency order (unless the command is destroy,
@@ -1782,8 +1772,6 @@ The algorithm for determining the aggregate exit code is as follows:
 **Environment Variable**: `TG_GRAPH`<br/>
 
 This is equivalent to the soon to be deprecated `graph` command.
-
-**[NOTE] The `graph` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
 
 Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory. The graph consists of all units that depend on the unit in the current working directory via a `dependency` or `dependencies` blocks, plus all the units that depend on those units, and all the units that depend on those units, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
 

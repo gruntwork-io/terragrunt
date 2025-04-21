@@ -456,9 +456,9 @@ func TestRenderJSONConfigRunAllWithCLIRedesign(t *testing.T) {
 	defer os.Remove(bazJSONOut)
 	defer os.Remove(rootChildJSONOut)
 
-	helpers.RunTerragrunt(t, "terragrunt run --experiment cli-redesign --all apply --non-interactive --log-level trace --working-dir "+workDir)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --log-level trace --working-dir "+workDir)
 
-	helpers.RunTerragrunt(t, "terragrunt render --experiment cli-redesign --all --json -w --non-interactive --log-level trace --working-dir "+workDir)
+	helpers.RunTerragrunt(t, "terragrunt render --all --json -w --non-interactive --log-level trace --working-dir "+workDir)
 
 	bazJSONBytes, err := os.ReadFile(bazJSONOut)
 	require.NoError(t, err)

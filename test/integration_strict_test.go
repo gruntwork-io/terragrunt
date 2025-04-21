@@ -117,7 +117,7 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 				args = " --strict-control " + control + " " + args
 			}
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --experiment cli-redesign "+args+" -- plan")
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run "+args+" -- plan")
 
 			if tc.expectedError != nil {
 				require.Error(t, err)

@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -115,7 +114,7 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 
 			// Disable strcit control evaluation of moves global flags for the experimental `run` command if the `cli-redesign` experiment is not enabled.
 			evaluateWrapper := func(ctx context.Context, evalFn func(ctx context.Context) error) error {
-				if opts.Experiments.Evaluate(experiment.CLIRedesign) && slices.Contains(experimentalCommands, cmd.Name) {
+				if slices.Contains(experimentalCommands, cmd.Name) {
 					return evalFn(ctx)
 				}
 
