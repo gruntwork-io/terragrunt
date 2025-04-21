@@ -131,7 +131,7 @@ unit  units/live/prod/vpc
 
 			helpers.CleanupTerraformFolder(t, tc.workingDir)
 
-			args := []string{"terragrunt", "--no-color", "--experiment", "cli-redesign"}
+			args := []string{"terragrunt", "--no-color"}
 			args = append(args, tc.args...)
 			args = append(args, "--working-dir", tc.workingDir)
 
@@ -186,7 +186,7 @@ unit  unit3
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindExclude)
 
-			args := []string{"terragrunt", "--no-color", "--experiment", "cli-redesign"}
+			args := []string{"terragrunt", "--no-color"}
 			args = append(args, tc.args...)
 			args = append(args, "--working-dir", testFixtureFindExclude)
 
