@@ -152,6 +152,8 @@ func (exps Experiment) String() string {
 }
 
 // Evaluate returns true the experiment is enabled.
+//
+// If the experiment is completed, consider it permanently enabled.
 func (exps Experiment) Evaluate() bool {
-	return exps.Enabled
+	return exps.Enabled || exps.Status == StatusCompleted
 }
