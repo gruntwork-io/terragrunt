@@ -121,30 +121,54 @@ To transition the `stacks` feature to a stable release, the following must be ad
 - [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
 - [x] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
 
+
+### `cas`
+
+Support for Terragrunt Content Addressable Storage (CAS).
+
+#### `cas` - What it does
+
+Allow Terragrunt to store and retrieve state files from a Content Addressable Storage (CAS) system.
+
+At the moment, the CAS is only used to speed up catalog cloning, but in the future, it can be used to store more content.
+
+#### `cas` - How to provide feedback
+
+Share your experience with this feature in the [CAS](https://github.com/gruntwork-io/terragrunt/discussions/3939) Feedback GitHub Discussion.
+Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
+
+- Any bugs or issues encountered (including logs or stack traces if possible).
+- Suggestions for additional improvements or enhancements.
+
+#### `cas` - Criteria for stabilization
+
+To transition the `cas` feature to a stable release, the following must be addressed:
+
+- [x] Add support for storing and retrieving catalog repositories from the CAS.
+- [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
+- [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
+
+## Completed Experiments
+
+- [cli-redesign](#cli-redesign)
+
 ### `cli-redesign`
 
 Support for the new Terragrunt CLI design.
 
 #### `cli-redesign` - What it does
 
-Enable features from the CLI Redesign RFC.
+Enabled features from the CLI Redesign RFC.
 
-This includes:
-
-- Addition of the `run` command.
-- Addition of the `exec` command.
+This experiment flag is no longer needed, as the CLI Redesign is now the default.
 
 #### `cli-redesign` - How to provide feedback
 
-Share your experience with these features in the [CLI Redesign](https://github.com/gruntwork-io/terragrunt/issues/3445) RFC.
-Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
-
-- Any bugs or issues encountered (including logs or stack traces if possible).
-- Suggestions for additional improvements or enhancements.
+Now that the CLI Redesign experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
 
 #### `cli-redesign` - Criteria for stabilization
 
-To transition `cli-redesign` features to a stable release, the following must be addressed:
+To transition `cli-redesign` features to a stable the following have been completed:
 
 - [x] Add support for `run` command.
   - [x] Add support for basic usage of the `run` command (e.g., `terragrunt run plan`, `terragrunt run -- plan -no-color`).
@@ -185,29 +209,3 @@ To transition `cli-redesign` features to a stable release, the following must be
   - [x] Add integration with `symlinks` experiment to support listing units/stacks via symlinks.
   - [x] Add handling of broken configurations or configurations requiring authentication.
   - [x] Add integration test for `list` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
-
-### `cas`
-
-Support for Terragrunt Content Addressable Storage (CAS).
-
-#### `cas` - What it does
-
-Allow Terragrunt to store and retrieve state files from a Content Addressable Storage (CAS) system.
-
-At the moment, the CAS is only used to speed up catalog cloning, but in the future, it can be used to store more content.
-
-#### `cas` - How to provide feedback
-
-Share your experience with this feature in the [CAS](https://github.com/gruntwork-io/terragrunt/discussions/3939) Feedback GitHub Discussion.
-Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
-
-- Any bugs or issues encountered (including logs or stack traces if possible).
-- Suggestions for additional improvements or enhancements.
-
-#### `cas` - Criteria for stabilization
-
-To transition the `cas` feature to a stable release, the following must be addressed:
-
-- [x] Add support for storing and retrieving catalog repositories from the CAS.
-- [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
-- [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
