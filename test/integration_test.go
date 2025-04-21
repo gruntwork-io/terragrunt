@@ -169,7 +169,7 @@ func TestGlobalFlagMoveStrictControl(t *testing.T) {
 		},
 		{
 			containsLogMsg: "The global `--tf-path` flag has moved",
-			args:           "--experiment cli-redesign -tf-path=" + tfPath + " init",
+			args:           "-tf-path=" + tfPath + " init",
 		},
 	}
 
@@ -234,7 +234,7 @@ func TestExecCommand(t *testing.T) {
 			err = os.Mkdir(downloadDirPath, os.ModePerm)
 			require.NoError(t, err)
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --experiment cli-redesign --working-dir "+rootPath+" "+strings.Join(tc.args, " ")+" -- "+scriptPath)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --working-dir "+rootPath+" "+strings.Join(tc.args, " ")+" -- "+scriptPath)
 			require.NoError(t, err)
 			assert.Contains(t, stdout, "The first arg is arg1. The second arg is arg2. The script is running in the directory "+util.JoinPath(rootPath, tc.runInDir))
 		})
@@ -1149,7 +1149,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		cmd := fmt.Sprintf("terragrunt run --experiment cli-redesign --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s %s", testFixtureExtraArgsPath, strings.Join(tc.command, " "))
+		cmd := fmt.Sprintf("terragrunt run --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s %s", testFixtureExtraArgsPath, strings.Join(tc.command, " "))
 
 		var (
 			stdout bytes.Buffer
@@ -1253,11 +1253,11 @@ func TestRunCommand(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
-	helpers.RunTerragrunt(t, "terragrunt run --experiment cli-redesign --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, "terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --experiment cli-redesign -no-color --non-interactive --working-dir "+rootPath+" -- output -json", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run -no-color --non-interactive --working-dir "+rootPath+" -- output -json", &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -3867,10 +3867,10 @@ func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 		args string
 	}{
 		{"run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir test --terragrunt-json-out-dir json"},
-		{"run --all plan --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
-		{"run plan --all --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
-		{"run plan -a --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
-		{"run --all --experiment cli-redesign --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json -- plan"},
+		{"run --all plan --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
+		{"run plan --all --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
+		{"run plan -a --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json"},
+		{"run --all --non-interactive --log-level trace --working-dir %s --out-dir test --json-out-dir json -- plan"},
 	}
 
 	for _, tc := range testCases {
@@ -4234,7 +4234,7 @@ func TestTfPath(t *testing.T) {
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --experiment cli-redesign --working-dir "+workingDir)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --working-dir "+workingDir)
 	require.NoError(t, err)
 
 	assert.Regexp(t, "(?i)(terraform|opentofu)", stdout+stderr)

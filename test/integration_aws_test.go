@@ -130,7 +130,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 			helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath)
 
 			tc.checkExpectedResultFn(t, err, stdout+stderr, s3BucketName, dynamoDBName)
 		})
@@ -157,7 +157,7 @@ func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" apply")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" apply")
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
@@ -174,7 +174,7 @@ func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
 
 	// Users should only see the warning if the backend is actually being
 	// bootstrapped automatically.
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" apply")
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" apply")
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.")
@@ -200,16 +200,16 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
 	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
 	require.Error(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all --force")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all --force")
 	require.NoError(t, err)
 }
 
@@ -234,16 +234,16 @@ func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true --backend-bootstrap apply -- -auto-approve")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+unitPath+" --feature disable_versioning=true --backend-bootstrap apply -- -auto-approve")
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
 	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend migrate unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend migrate unit1 unit2")
 	require.Error(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend migrate --force unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend migrate --force unit1 unit2")
 	require.NoError(t, err)
 }
 
@@ -267,7 +267,7 @@ func TestAwsDeleteBackend(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	remoteStateKeys := []string{
@@ -282,7 +282,7 @@ func TestAwsDeleteBackend(t *testing.T) {
 		assert.True(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, tableKey), "DynamoDB table key %s must exist", tableKey)
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend delete --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend delete --all --non-interactive --log-level debug --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, key := range remoteStateKeys {
@@ -324,7 +324,7 @@ func TestAwsMigrateBackend(t *testing.T) {
 
 	// Bootstrap backend and create remote state for unit1.
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit1Path+" -- -auto-approve")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit1Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Changes to Outputs")
 
@@ -336,7 +336,7 @@ func TestAwsMigrateBackend(t *testing.T) {
 	assert.False(t, doesDynamoDBTableItemExist(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, unit2TableKey), "DynamoDB table key %s must not exist", unit2TableKey)
 
 	// Migrate remote state from unit1 to unit2.
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --experiment cli-redesign --working-dir "+rootPath+" unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --working-dir "+rootPath+" unit1 unit2")
 	require.NoError(t, err)
 
 	// Check for remote states after migration.
@@ -347,7 +347,7 @@ func TestAwsMigrateBackend(t *testing.T) {
 
 	// Run `tofu apply` for unit2 with migrated remote state from unit1.
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit2Path+" -- -auto-approve")
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit2Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "No changes")
 }

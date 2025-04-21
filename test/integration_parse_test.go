@@ -78,8 +78,8 @@ func TestParseFindListAllComponents(t *testing.T) {
 		name    string
 		command string
 	}{
-		{name: "find", command: "terragrunt find --experiment cli-redesign --no-color"},
-		{name: "list", command: "terragrunt list --experiment cli-redesign --no-color"},
+		{name: "find", command: "terragrunt find --no-color"},
+		{name: "list", command: "terragrunt list --no-color"},
 	}
 
 	for _, tt := range tc {
@@ -122,8 +122,8 @@ func TestParseFindListAllComponentsWithDAG(t *testing.T) {
 		name    string
 		command string
 	}{
-		{name: "find", command: "terragrunt find --experiment cli-redesign --no-color --dag"},
-		{name: "list", command: "terragrunt list --experiment cli-redesign --no-color --dag"},
+		{name: "find", command: "terragrunt find --no-color --dag"},
+		{name: "list", command: "terragrunt list --no-color --dag"},
 	}
 
 	for _, tt := range tc {
@@ -166,8 +166,8 @@ func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 		name    string
 		command string
 	}{
-		{name: "find", command: "terragrunt find --experiment cli-redesign --no-color --dag --external"},
-		{name: "list", command: "terragrunt list --experiment cli-redesign --no-color --dag --external"},
+		{name: "find", command: "terragrunt find --no-color --dag --external"},
+		{name: "list", command: "terragrunt list --no-color --dag --external"},
 	}
 
 	for _, tt := range tc {

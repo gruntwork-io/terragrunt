@@ -49,21 +49,21 @@ func TestAwsGcpMigrateBetweenDifferentBackends(t *testing.T) {
 
 	// Bootstrap backend and create remote state for unit1.
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit1Path+" -- -auto-approve")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit1Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Changes to Outputs")
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run plan --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit2Path+"")
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run plan --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit2Path+"")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Changes to Outputs")
 
 	// Migrate remote state from unit1 to unit2.
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --experiment cli-redesign --working-dir "+rootPath+" unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --working-dir "+rootPath+" unit1 unit2")
 	require.NoError(t, err)
 
 	// Run `tofu apply` for unit2 with migrated remote state from unit1.
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit2Path+" -- -auto-approve")
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit2Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "No changes")
 }

@@ -95,13 +95,13 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
 		},
 		{
-			args:               "run --graph apply --experiment cli-redesign --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s",
+			args:               "run --graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s",
 			path:               "lambda",
 			expectedModules:    []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
 			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
 		},
 		{
-			args:               "run apply --graph --experiment cli-redesign --non-interactive --working-dir %s --graph-root %s",
+			args:               "run apply --graph --non-interactive --working-dir %s --graph-root %s",
 			path:               "services/eks-service-5",
 			expectedModules:    []string{"services/eks-service-5"},
 			notExpectedModules: []string{"eks", "lambda", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},

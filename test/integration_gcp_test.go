@@ -89,7 +89,7 @@ func TestGcpBootstrapBackend(t *testing.T) {
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 			copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath)
 
 			tc.checkExpectedResultFn(t, err, gcsBucketName)
 		})
@@ -113,15 +113,15 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
 	require.NoError(t, err)
 
 	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
 	require.Error(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all --force")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all --force")
 	require.NoError(t, err)
 }
 
@@ -143,15 +143,15 @@ func TestGcpMigrateBackendWithoutVersioning(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --log-level debug --strict-control require-explicit-bootstrap --experiment cli-redesign --working-dir "+unitPath+" --feature disable_versioning=true --backend-bootstrap apply -- -auto-approve")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+unitPath+" --feature disable_versioning=true --backend-bootstrap apply -- -auto-approve")
 	require.NoError(t, err)
 
 	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend migrate unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend migrate unit1 unit2")
 	require.Error(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath+" --feature disable_versioning=true backend migrate --force unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend migrate --force unit1 unit2")
 	require.NoError(t, err)
 }
 
@@ -172,7 +172,7 @@ func TestGcpDeleteBackend(t *testing.T) {
 	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 	copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --all --non-interactive --log-level debug --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	remoteStateObjectNames := []string{
@@ -184,7 +184,7 @@ func TestGcpDeleteBackend(t *testing.T) {
 		assert.True(t, doesGCSBucketObjectExist(t, gcsBucketName, objectName), "GCS bucket object %s must exist", objectName)
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend delete --all --non-interactive --log-level debug --experiment cli-redesign --working-dir "+rootPath)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend delete --all --non-interactive --log-level debug --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, objectName := range remoteStateObjectNames {
@@ -217,7 +217,7 @@ func TestGcpMigrateBackend(t *testing.T) {
 
 	// Bootstrap backend and create remote state for unit1.
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit1Path+" -- -auto-approve")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit1Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Changes to Outputs")
 
@@ -227,7 +227,7 @@ func TestGcpMigrateBackend(t *testing.T) {
 	assert.False(t, doesGCSBucketObjectExist(t, gcsBucketName, unit2BackendKey), "GCS bucket object %s must not exist", unit2BackendKey)
 
 	// Migrate remote state from unit1 to unit2.
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --experiment cli-redesign --working-dir "+rootPath+" unit1 unit2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend migrate --log-level debug --working-dir "+rootPath+" unit1 unit2")
 	require.NoError(t, err)
 
 	// Check for remote states after migration.
@@ -236,7 +236,7 @@ func TestGcpMigrateBackend(t *testing.T) {
 
 	// Run `tofu apply` for unit2 with migrated remote state from unit1.
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --experiment cli-redesign --working-dir "+unit2Path+" -- -auto-approve")
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+unit2Path+" -- -auto-approve")
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "No changes")
 }

@@ -26,7 +26,7 @@ func TestFindBasic(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindBasic)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+testFixtureFindBasic)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+testFixtureFindBasic)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -38,7 +38,7 @@ func TestFindBasicJSON(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindBasic)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+testFixtureFindBasic+" --json")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+testFixtureFindBasic+" --json")
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -70,7 +70,7 @@ func TestFindHidden(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindHidden)
 
-			cmd := "terragrunt find --experiment cli-redesign --no-color --working-dir " + testFixtureFindHidden
+			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindHidden
 
 			if tc.hidden {
 				cmd += " --hidden"
@@ -103,7 +103,7 @@ func TestFindDAG(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
 
-			cmd := "terragrunt find --experiment cli-redesign --no-color --working-dir " + testFixtureFindDAG
+			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindDAG
 
 			if tc.sort == "dag" {
 				cmd += " --dag"
@@ -125,13 +125,13 @@ func TestFindExternalDependencies(t *testing.T) {
 
 	internalDir := filepath.Join(testFixtureFindInternalVExternal, "internal")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+internalDir+" --dependencies --external")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies --external")
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
 	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", stdout)
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --no-color --working-dir "+internalDir+" --dependencies")
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies")
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -175,7 +175,7 @@ func TestFindExclude(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindExclude)
 
-			cmd := fmt.Sprintf("terragrunt find --experiment cli-redesign --no-color --working-dir %s %s", testFixtureFindExclude, tc.args)
+			cmd := fmt.Sprintf("terragrunt find --no-color --working-dir %s %s", testFixtureFindExclude, tc.args)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 			assert.Empty(t, stderr)
@@ -258,7 +258,7 @@ func TestFindQueueConstructAs(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureListDag)
 
-			cmd := fmt.Sprintf("terragrunt find --json --experiment cli-redesign --no-color --working-dir %s %s", testFixtureListDag, tc.args)
+			cmd := fmt.Sprintf("terragrunt find --json --no-color --working-dir %s %s", testFixtureListDag, tc.args)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 			assert.Empty(t, stderr)

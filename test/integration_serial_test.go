@@ -527,7 +527,7 @@ func TestTerragruntFindProduceTelemetryTraces(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
 
-	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --experiment cli-redesign --working-dir "+rootPath)
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	// check that output have Telemetry json output
@@ -544,7 +544,7 @@ func TestTerragruntListProduceTelemetryTraces(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
 
-	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt list --experiment cli-redesign --working-dir "+rootPath)
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt list --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	// check that output have Telemetry json output
