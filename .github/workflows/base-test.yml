@@ -20,6 +20,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Enable Windows long paths
+        if: matrix.os == 'windows'
+        run: |
+          git config --global core.compression 0
+          git config --global gc.auto 0
+          git config --system core.longpaths true
+          git config --global core.longpaths true
+          git config --local core.longpaths true
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -Value 1
+          reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+        shell: pwsh
+
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
         with:
