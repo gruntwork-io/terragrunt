@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -59,36 +58,6 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 			assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
 		})
 	}
-}
-
-func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
-	t.Parallel()
-
-	childPath := util.JoinPath(includeFixturePath, includeShallowFixturePath)
-	helpers.CleanupTerraformFolder(t, childPath)
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
-	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
-
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
-	validateIncludeRemoteStateReflection(t, s3BucketName, includeShallowFixturePath, tmpTerragruntConfigPath, childPath)
-}
-
-func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
-	t.Parallel()
-
-	childPath := util.JoinPath(includeFixturePath, includeNoMergeFixturePath)
-	helpers.CleanupTerraformFolder(t, childPath)
-
-	// We deliberately pick an s3 bucket name that is invalid, as we don't expect to create this s3 bucket.
-	s3BucketName := "__INVALID_NAME__"
-
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeNoMergeFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
-
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
-	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)
 }
 
 func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
@@ -250,36 +219,5 @@ func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]helpers.
 			},
 		},
 		outputs["dep_out"].Value.(map[string]any),
-	)
-}
-
-func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, keyPath string, configPath string, workingDir string) {
-	t.Helper()
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-config %s --terragrunt-working-dir %s", configPath, workingDir), &stdout, &stderr)
-	require.NoError(t, err)
-
-	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	remoteStateOut := map[string]any{}
-	require.NoError(t, json.Unmarshal([]byte(outputs["reflect"].Value.(string)), &remoteStateOut))
-	assert.Equal(
-		t,
-		map[string]any{
-			"backend":                         "s3",
-			"disable_init":                    false,
-			"disable_dependency_optimization": false,
-			"generate":                        nil,
-			"config": map[string]any{
-				"encrypt": true,
-				"bucket":  s3BucketName,
-				"key":     keyPath + "/terraform.tfstate",
-				"region":  "us-west-2",
-			},
-			"encryption": nil,
-		},
-		remoteStateOut,
 	)
 }

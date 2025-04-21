@@ -1,3 +1,13 @@
+//go:build sops
+
+// sops tests assume that you're going to import the test_pgp_key.asc file into your GPG keyring before
+// running the tests. We're not gonna assume that everyone is going to do this, so we're going to skip
+// these tests by default.
+//
+// You can import the key by running the following command:
+//
+//	gpg --import --no-tty --batch --yes ./test/fixtures/sops/test_pgp_key.asc
+
 package test_test
 
 import (
