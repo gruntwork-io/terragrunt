@@ -18,8 +18,10 @@ func TestCommandHelpTemplate(t *testing.T) {
 
 	// Set environment variable format based on OS
 	envVarChar := "$"
+	closeEnvVarChar := ""
 	if runtime.GOOS == "windows" {
 		envVarChar = "%"
+		closeEnvVarChar = "%"
 	}
 
 	tgPrefix := flags.Prefix{flags.TgPrefix}
@@ -105,14 +107,14 @@ Commands:
    validate   Find all hcl files from the config stack and validate them.
 
 Options:
-   --all, -a  Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory. [%sTG_ALL]
-   --graph    Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies. [%sTG_GRAPH]
+   --all, -a  Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory. [%sTG_ALL%s]
+   --graph    Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies. [%sTG_GRAPH%s]
 
 Global Options:
-   --log-disable        Disable logging. [%sTG_LOG_DISABLE]
-   --working-dir value  The path to the directory of Terragrunt configurations. Default is current directory. [%sTG_WORKING_DIR]
+   --log-disable        Disable logging. [%sTG_LOG_DISABLE%s]
+   --working-dir value  The path to the directory of Terragrunt configurations. Default is current directory. [%sTG_WORKING_DIR%s]
 
-`, envVarChar, envVarChar, envVarChar, envVarChar)
+`, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar)
 
 	assert.Equal(t, expectedOutput, out.String())
 }
