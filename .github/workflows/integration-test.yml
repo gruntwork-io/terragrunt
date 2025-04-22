@@ -1,0 +1,52 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    name: Test (${{ matrix.integration.name}})
+    runs-on: ${{ matrix.integration.os }}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        integration:
+            - name: Ubuntu
+              os: ubuntu
+              target: ./test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Go Build Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-integration-test-${{ matrix.integration.name }}-${{ hashFiles('**/go.sum') }}
+
+      - name: Run Tests
+        run: go test "${TAGS:+--tags $TAGS}" "${TARGET}"
+        shell: bash
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ matrix.integration.target }}
+          TAGS: ${{ matrix.integration.tags }}
