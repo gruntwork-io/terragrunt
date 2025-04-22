@@ -30,7 +30,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HclFile,
 			Usage:       "The path to a single HCL file that the command should run on.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-file"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-file"), terragruntPrefixControl),         // `TG_HCLFMT_FILE`
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-file"), terragruntPrefixControl), // `--terragrunt-hclfmt-file`, `TERRAGRUNT_HCLFMT_FILE`
+		),
 
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:        ExcludeDirFlagName,
@@ -38,7 +40,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HclExclude,
 			Usage:       "Skip HCL formatting in given directories.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-exclude-dir"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-exclude-dir"), terragruntPrefixControl),         // `TG_HCLFMT_EXCLUDE_DIR`
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-exclude-dir"), terragruntPrefixControl), // `--terragrunt-hclfmt-exclude-dir`, `TERRAGRUNT_EXCLUDE_DIR`
+		),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        CheckFlagName,
@@ -46,7 +50,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Check,
 			Usage:       "Return a status code of zero when all files are formatted correctly, and a status code of one when they aren't.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("check"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("check"), terragruntPrefixControl),         // `TG_HCLFMT_CHECK`
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("check"), terragruntPrefixControl), // `--terragrunt-check`, `TERRAGRUNT_CHECK`
+		),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DiffFlagName,
@@ -54,7 +60,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Diff,
 			Usage:       "Print diff between original and modified file versions.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("diff"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("diff"), terragruntPrefixControl),         // `TG_HCLFMT_DIFF`
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("diff"), terragruntPrefixControl), // `--terragrunt-diff`, `TERRAGRUNT_DIFF`
+		),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        StdinFlagName,
@@ -62,7 +70,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HclFromStdin,
 			Usage:       "Format HCL from stdin and print result to stdout.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-stdin"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("diff"), terragruntPrefixControl),                 // `TG_HCLFMT_STDIN`
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-stdin"), terragruntPrefixControl), // `--terragrunt-hclfmt-stdin`, `TERRAGRUNT_HCLFMT_STDIN`
+		),
 	}
 
 	return flags

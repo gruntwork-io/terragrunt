@@ -124,7 +124,7 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 	app.SkipFlagParsing = true
 	app.Authors = []*cli.Author{{Name: app.Author}}
 	app.App.Action = func(parentCtx *cli.Context) error {
-		cmd := app.newRootCommand()
+		cmd := app.NewRootCommand()
 
 		args := Args(parentCtx.Args().Slice())
 		ctx := NewAppContext(parentCtx.Context, app, args)
@@ -164,7 +164,7 @@ func (app *App) VisibleCommands() Commands {
 	return app.Commands.Sort().VisibleCommands()
 }
 
-func (app *App) newRootCommand() *Command {
+func (app *App) NewRootCommand() *Command {
 	return &Command{
 		Name:                 app.Name,
 		Before:               app.Before,

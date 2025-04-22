@@ -8,11 +8,9 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
-	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -49,9 +47,7 @@ func action(opts *options.TerragruntOptions) cli.ActionFunc {
 func subCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		terragruntinfo.NewCommand(opts),    // terragrunt-info
-		validateinputs.NewCommand(opts),    // validate-inputs
 		graphdependencies.NewCommand(opts), // graph-dependencies
-		hclfmt.NewCommand(opts),            // hclfmt
 		renderjson.NewCommand(opts),        // render-json
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}

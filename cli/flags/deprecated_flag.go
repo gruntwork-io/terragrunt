@@ -36,19 +36,11 @@ func (flag *DeprecatedFlag) AllowedSubcommandScope() bool {
 
 // GetEnvVars implements `cli.Flag` interface.
 func (flag *DeprecatedFlag) GetEnvVars() []string {
-	if len(flag.envVars) == 0 && flag.Flag != nil {
-		return flag.Flag.GetEnvVars()
-	}
-
 	return flag.envVars
 }
 
 // Names implements `cli.Flag` interface.
 func (flag *DeprecatedFlag) Names() []string {
-	if len(flag.names) == 0 && flag.Flag != nil {
-		return flag.Flag.Names()
-	}
-
 	return flag.names
 }
 

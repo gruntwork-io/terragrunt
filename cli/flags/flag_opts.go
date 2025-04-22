@@ -152,6 +152,41 @@ func WithDeprecatedNamesEnvVars(flagNames, envVars []string, regControlsFn Regis
 	}
 }
 
+// WithDeprecatedEnvVars returns an `Option` that will create a flag with the given depreacted env vars.
+func WithDeprecatedEnvVars(envVars []string, regControlsFn RegisterStrictControlsFunc) Option {
+	return func(newFlag *Flag) {
+		deprecatedFlag := &DeprecatedFlag{
+			Flag:                   newFlag.Flag,
+			envVars:                envVars,
+			allowedSubcommandScope: true,
+		}
+		deprecatedFlag.SetStrictControls(newFlag, regControlsFn)
+
+		newFlag.deprecatedFlags = append(newFlag.deprecatedFlags, deprecatedFlag)
+	}
+}
+
+// WithDeprecatedFlagNames returns an `Option` that will create a flag with the given depreacted flag names.
+func WithDeprecatedFlagNames(flagNames []string, regControlsFn RegisterStrictControlsFunc) Option {
+	return func(newFlag *Flag) {
+		deprecatedFlag := &DeprecatedFlag{
+			Flag:                   newFlag.Flag,
+			names:                  flagNames,
+			allowedSubcommandScope: true,
+		}
+		deprecatedFlag.SetStrictControls(newFlag, regControlsFn)
+
+		newFlag.deprecatedFlags = append(newFlag.deprecatedFlags, deprecatedFlag)
+	}
+}
+
+// WithDeprecatedFlagName does the same as `WithDeprecatedFlagNames`, but with a single name.
+func WithDeprecatedFlagName(flagName string, regControlsFn RegisterStrictControlsFunc) Option {
+	return func(newFlag *Flag) {
+		WithDeprecatedFlagNames([]string{flagName}, regControlsFn)(newFlag)
+	}
+}
+
 // WithEvaluateWrapper returns an Option that wraps the strict control `Evaluate(ctx context.Context)` function.
 func WithEvaluateWrapper(fn EvaluateWrapperFunc) Option {
 	return func(newFlag *Flag) {
