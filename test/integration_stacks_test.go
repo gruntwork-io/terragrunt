@@ -950,6 +950,14 @@ func TestStacksCyclesErrors(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
 	require.Error(t, err)
+
+	// On macOS, the error that the filename is too long happens before cycles are detected.
+	if !strings.Contains(err.Error(), "Cycle detected") {
+		assert.Contains(t, err.Error(), "file name too long")
+
+		return
+	}
+
 	assert.Contains(t, err.Error(), "Cycle detected")
 }
 

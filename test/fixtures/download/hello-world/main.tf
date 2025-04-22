@@ -29,6 +29,6 @@ output "test" {
 }
 
 module "remote" {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-download/hello-world?ref=v0.9.9"
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/download/hello-world-no-remote?ref=v0.77.22"
   name   = var.name
 }
