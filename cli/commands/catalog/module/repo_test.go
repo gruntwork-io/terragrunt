@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
@@ -72,7 +73,7 @@ func TestFindModules(t *testing.T) {
 			for _, module := range modules {
 
 				realData = append(realData, moduleData{
-					title:       module.Title(),
+					title:       strings.TrimSpace(module.Title()),
 					description: module.Description(),
 					url:         module.URL(),
 					moduleDir:   module.ModuleDir(),

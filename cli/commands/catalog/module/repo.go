@@ -110,9 +110,13 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 					return nil
 				}
 
-				moduleDir, err := filepath.Rel(repo.path, dir)
-				if err != nil {
-					return errors.New(err)
+				// set moduleDir to the path relative to the repo path is local
+				moduleDir := repo.path + "/" + dir
+				if filepath.IsLocal(repo.path) {
+					moduleDir, err = filepath.Rel(repo.path, dir)
+					if err != nil {
+						return errors.New(err)
+					}
 				}
 
 				if module, err := NewModule(repo, moduleDir); err != nil {
