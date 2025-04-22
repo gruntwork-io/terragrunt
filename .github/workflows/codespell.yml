@@ -31,6 +31,9 @@ jobs:
           mise_toml: |
             [tools]
             python = "3.13.3"
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run codespell
         run: codespell .

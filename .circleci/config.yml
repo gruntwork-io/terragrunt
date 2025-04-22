@@ -224,6 +224,8 @@ jobs:
             make install-mockery
             make generate-mocks
       - run:
+          <<: *install_tofu
+      - run:
           command: |
             mkdir -p logs
             go mod tidy
