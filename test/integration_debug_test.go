@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -47,7 +48,12 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	debugFile := util.JoinPath(rootPath, helpers.TerragruntDebugFile)
 	assert.True(t, util.FileExists(debugFile))
 
-	assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", getPathRelativeTo(t, rootPath, rootPath)))
+	if runtime.GOOS == "windows" {
+		// absolute path test on Windows
+		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
+	} else {
+		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", getPathRelativeTo(t, rootPath, rootPath)))
+	}
 
 	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
 	// without going through terragrunt.
