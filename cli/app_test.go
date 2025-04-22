@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
@@ -285,8 +284,8 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{"plan", doubleDashed(global.NonInteractiveFlagName)}, []string{"plan"}},
 		{[]string{"plan", doubleDashed(run.InputsDebugFlagName)}, []string{"plan"}},
 		{[]string{"plan", doubleDashed(global.NonInteractiveFlagName), "-bar", doubleDashed(global.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"plan", "-bar", "-baz"}},
-		{[]string{commands.CommandNameApplyAll, "plan", "bar"}, []string{tf.CommandNameApply, "plan", "bar"}},
-		{[]string{commands.CommandNameDestroyAll, "plan", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"}},
+		{[]string{commands.CommandApplyAllName, "plan", "bar"}, []string{tf.CommandNameApply, "plan", "bar"}},
+		{[]string{commands.CommandDestroyAllName, "plan", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"}},
 	}
 
 	for i, tc := range testCases {
@@ -312,22 +311,22 @@ func TestParseMultiStringArg(t *testing.T) {
 		expectedVals []string
 	}{
 		{
-			args:         []string{commands.CommandNameApplyAll, flagName, "bar"},
+			args:         []string{commands.CommandApplyAllName, flagName, "bar"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"bar"},
 		},
 		{
-			args:         []string{commands.CommandNameApplyAll, "--test", "bar"},
+			args:         []string{commands.CommandApplyAllName, "--test", "bar"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"default_bar"},
 		},
 		{
-			args:         []string{commands.CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName, "bar2"},
+			args:         []string{commands.CommandPlanAllName, "--test", "value", flagName, "bar1", flagName, "bar2"},
 			defaultValue: []string{"default_bar"},
 			expectedVals: []string{"bar1", "bar2"},
 		},
 		{
-			args:         []string{commands.CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName},
+			args:         []string{commands.CommandPlanAllName, "--test", "value", flagName, "bar1", flagName},
 			defaultValue: []string{"default_bar"},
 			expectedErr:  argMissingValueError(run.UnitsThatIncludeFlagName),
 		},
@@ -465,10 +464,10 @@ func TestTerragruntHelp(t *testing.T) {
 		{
 			args:        []string{"terragrunt", awsproviderpatch.CommandName, "-h"},
 			expected:    run.ConfigFlagName,
-			notExpected: hclfmt.CommandName,
+			notExpected: commands.CommandHCLFmtName,
 		},
 		{
-			args:     []string{"terragrunt", commands.CommandNamePlanAll, "--help"},
+			args:     []string{"terragrunt", commands.CommandPlanAllName, "--help"},
 			expected: runall.CommandName,
 		},
 	}

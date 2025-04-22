@@ -152,7 +152,7 @@ func WithDeprecatedNamesEnvVars(flagNames, envVars []string, regControlsFn Regis
 	}
 }
 
-// WithDeprecatedEnvVars returns an `Option` that will create a flag with the given depreacted env vars.
+// WithDeprecatedEnvVars returns an `Option` that will create a flag with the given deprecated env vars.
 func WithDeprecatedEnvVars(envVars []string, regControlsFn RegisterStrictControlsFunc) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
@@ -166,7 +166,7 @@ func WithDeprecatedEnvVars(envVars []string, regControlsFn RegisterStrictControl
 	}
 }
 
-// WithDeprecatedFlagNames returns an `Option` that will create a flag with the given depreacted flag names.
+// WithDeprecatedFlagNames returns an `Option` that will create a flag with the given deprecated flag names.
 func WithDeprecatedFlagNames(flagNames []string, regControlsFn RegisterStrictControlsFunc) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
