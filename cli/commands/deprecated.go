@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
+	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -28,6 +29,7 @@ const (
 	CommandHCLFmtName         = "hclfmt"
 	CommandHCLValidateName    = "hclvalidate"
 	CommandValidateInputsName = "validate-inputs"
+	CommandRenderJSONName     = "render-json"
 )
 
 // deprecatedCommands is a map of deprecated commands to a handler that knows how to convert the command to the known
@@ -44,6 +46,7 @@ var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType
 	CommandHCLFmtName:         replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, format.CommandName}),
 	CommandHCLValidateName:    replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, validate.CommandName}),
 	CommandValidateInputsName: replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, validate.CommandName, "--" + validate.InputsFlagName}),
+	CommandRenderJSONName:     replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{render.CommandName, render.JSONFlagName, render.WriteFlagName}),
 }
 
 type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions, deprecatedCommandName string) cli.ActionFunc

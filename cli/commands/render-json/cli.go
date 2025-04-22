@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -60,6 +61,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
 		Flags:       append(run.NewFlags(opts, nil), NewFlags(opts, prefix)...),
 		Action:      func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
+		Before: func(ctx *cli.Context) error {
+			control := opts.StrictControls.Find(controls.CLIRedesign)
+			return control.Evaluate(ctx)
+		},
 	}
 
 	cmd = runall.WrapCommand(opts, cmd)
