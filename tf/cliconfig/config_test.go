@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
@@ -21,8 +22,9 @@ func TestConfig(t *testing.T) {
 
 	tempCacheDir := t.TempDir()
 	// Normalize paths to forward slashes for consistent comparison across platforms
-	normalizedTempCacheDir := filepath.ToSlash(tempCacheDir)
-
+	normalizedTempCacheDir := filepath.Clean(tempCacheDir)
+	// replace backslashes with double forward slashes to match windows HCL representation
+	normalizedTempCacheDir = strings.ReplaceAll(normalizedTempCacheDir, "\\", "//")
 	testCases := []struct {
 		expectedHCL                 string
 		providerInstallationMethods []cliconfig.ProviderInstallationMethod
