@@ -4,6 +4,9 @@ package commands
 import (
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -14,49 +17,53 @@ import (
 
 // The following commands are DEPRECATED
 const (
-	CommandNameSpinUp      = "spin-up"
-	CommandNameTearDown    = "tear-down"
-	CommandNamePlanAll     = "plan-all"
-	CommandNameApplyAll    = "apply-all"
-	CommandNameDestroyAll  = "destroy-all"
-	CommandNameOutputAll   = "output-all"
-	CommandNameValidateAll = "validate-all"
+	CommandSpinUpName      = "spin-up"
+	CommandTearDownName    = "tear-down"
+	CommandPlanAllName     = "plan-all"
+	CommandApplyAllName    = "apply-all"
+	CommandDestroyAllName  = "destroy-all"
+	CommandOutputAllName   = "output-all"
+	CommandValidateAllName = "validate-all"
+
+	CommandHCLFmtName         = "hclfmt"
+	CommandHCLValidateName    = "hclvalidate"
+	CommandValidateInputsName = "validate-inputs"
 )
 
 // deprecatedCommands is a map of deprecated commands to a handler that knows how to convert the command to the known
 // alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
 // string.
 var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType{
-	CommandNameSpinUp:      replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameApply),
-	CommandNameTearDown:    replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameDestroy),
-	CommandNameApplyAll:    replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameApply),
-	CommandNameDestroyAll:  replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameDestroy),
-	CommandNamePlanAll:     replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNamePlan),
-	CommandNameValidateAll: replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameValidate),
-	CommandNameOutputAll:   replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameOutput),
+	CommandSpinUpName:         replaceDeprecatedCommandFunc(controls.LegacyAll, cli.Args{runall.CommandName, tf.CommandNameApply}),
+	CommandTearDownName:       replaceDeprecatedCommandFunc(controls.LegacyAll, cli.Args{runall.CommandName, tf.CommandNameDestroy}),
+	CommandApplyAllName:       replaceDeprecatedCommandFunc(controls.LegacyAll, cli.Args{runall.CommandName, tf.CommandNameApply}),
+	CommandDestroyAllName:     replaceDeprecatedCommandFunc(controls.LegacyAll, cli.Args{runall.CommandName, tf.CommandNameDestroy}),
+	CommandPlanAllName:        replaceDeprecatedCommandFunc(controls.LegacyAll, cli.Args{runall.CommandName, tf.CommandNamePlan}),
+	CommandValidateAllName:    replaceDeprecatedCommandFunc(controls.LegacyAll, cli.Args{runall.CommandName, tf.CommandNameValidate}),
+	CommandOutputAllName:      replaceDeprecatedCommandFunc(controls.LegacyAll, cli.Args{runall.CommandName, tf.CommandNameOutput}),
+	CommandHCLFmtName:         replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, format.CommandName}),
+	CommandHCLValidateName:    replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, validate.CommandName}),
+	CommandValidateInputsName: replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, validate.CommandName, "--" + validate.InputsFlagName}),
 }
 
 type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions, deprecatedCommandName string) cli.ActionFunc
 
 // replaceDeprecatedCommandFunc returns the `Action` function of the replacement command that is assigned to the deprecated command.
-func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName string) replaceDeprecatedCommandFuncType {
+func replaceDeprecatedCommandFunc(strictControlName string, args cli.Args) replaceDeprecatedCommandFuncType {
 	return func(opts *options.TerragruntOptions, deprecatedCommandName string) cli.ActionFunc {
-		newCommandFriendly := fmt.Sprintf("terragrunt %s %s", terragruntCommandName, terraformCommandName)
+		newCommandName := fmt.Sprintf("terragrunt %s", args)
 
-		control := controls.NewDeprecatedCommand(deprecatedCommandName, newCommandFriendly)
-		opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.LegacyAll, deprecatedCommandName).AddSubcontrolsToCategory(controls.RunAllCommandsCategoryName, control)
+		control := controls.NewDeprecatedCommand(deprecatedCommandName, newCommandName)
+		opts.StrictControls.FilterByNames(controls.DeprecatedCommands, strictControlName, deprecatedCommandName).AddSubcontrolsToCategory(controls.RunAllCommandsCategoryName, control)
 
 		return func(ctx *cli.Context) error {
-			command := ctx.App.Commands.Get(terragruntCommandName)
-			args := append([]string{terraformCommandName}, ctx.Args().Slice()...)
-
 			if err := control.Evaluate(ctx); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
 
-			err := command.Run(ctx, args)
+			args := append(args, ctx.Args().Slice()...)
 
-			return err
+			return ctx.App.NewRootCommand().Run(ctx, args)
 		}
 	}
 }

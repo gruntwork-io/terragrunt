@@ -91,7 +91,7 @@ As an end user, you're advised to use the following tools to get a better unders
 
 #### OpenTelemetry
 
-Use [OpenTelemetry](./02-open-telemetry.md) to collect traces from Terragrunt runs so that you can analyze the performance of individual operations when using Terragrunt.
+Use [OpenTelemetry](/docs/troubleshooting/open-telemetry) to collect traces from Terragrunt runs so that you can analyze the performance of individual operations when using Terragrunt.
 
 This can be useful both to identify bottlenecks in Terragrunt, and to understand when performance changes can be attributed to integrations with other tools, like OpenTofu or Terraform.
 

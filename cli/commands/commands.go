@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
 	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
 	versionCmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
 
@@ -23,13 +22,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
 	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
-	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
-	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 )
 
@@ -87,9 +84,6 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 	configurationCommands := cli.Commands{
 		graphdependencies.NewCommand(opts),  // graph-dependencies
 		outputmodulegroups.NewCommand(opts), // output-module-groups
-		validateinputs.NewCommand(opts),     // validate-inputs
-		hclvalidate.NewCommand(opts),        // hclvalidate
-		hclfmt.NewCommand(opts),             // hclfmt
 		hcl.NewCommand(opts),                // hcl
 		info.NewCommand(opts),               // info
 		dag.NewCommand(opts),                // dag
