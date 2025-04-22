@@ -103,7 +103,7 @@ func New() strict.Controls {
 		requireExplicitBootstrapControl,
 		&Control{
 			Name:        CLIRedesign,
-			Description: "Prevents deprecated commands from being used.",
+			Description: "Prevents deprecated commands that are being replaced as part of the CLI redesign effort.",
 			Category:    stageCategory,
 		},
 		&Control{
