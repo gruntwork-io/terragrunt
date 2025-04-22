@@ -23,7 +23,6 @@ import (
 	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
-	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
@@ -88,7 +87,6 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		info.NewCommand(opts),               // info
 		dag.NewCommand(opts),                // dag
 		terragruntinfo.NewCommand(opts),     // terragrunt-info
-		renderjson.NewCommand(opts),         // render-json
 		render.NewCommand(opts),             // render
 		helpCmd.NewCommand(opts),            // help (hidden)
 		versionCmd.NewCommand(opts),         // version (hidden)
