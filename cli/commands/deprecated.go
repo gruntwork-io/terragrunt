@@ -46,7 +46,7 @@ var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType
 	CommandHCLFmtName:         replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, format.CommandName}),
 	CommandHCLValidateName:    replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, validate.CommandName}),
 	CommandValidateInputsName: replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{hcl.CommandName, validate.CommandName, "--" + validate.InputsFlagName}),
-	CommandRenderJSONName:     replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{render.CommandName, render.JSONFlagName, render.WriteFlagName}),
+	CommandRenderJSONName:     replaceDeprecatedCommandFunc(controls.CLIRedesign, cli.Args{render.CommandName, "--" + render.JSONFlagName, "--" + render.WriteFlagName}),
 }
 
 type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions, deprecatedCommandName string) cli.ActionFunc
@@ -65,7 +65,6 @@ func replaceDeprecatedCommandFunc(strictControlName string, args cli.Args) repla
 			}
 
 			args := append(args, ctx.Args().Slice()...)
-
 			return ctx.App.NewRootCommand().Run(ctx, args)
 		}
 	}
@@ -76,10 +75,11 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 
 	for commandName, runFunc := range replaceDeprecatedCommandsFuncs {
 		command := &cli.Command{
-			Name:   commandName,
-			Hidden: true,
-			Action: runFunc(opts, commandName),
-			Flags:  run.NewFlags(opts, nil),
+			Name:       commandName,
+			Hidden:     true,
+			CustomHelp: cli.ShowAppHelp,
+			Action:     runFunc(opts, commandName),
+			Flags:      run.NewFlags(opts, nil),
 		}
 		commands = append(commands, command)
 	}
