@@ -50,7 +50,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Check,
 			Usage:       "Return a status code of zero when all files are formatted correctly, and a status code of one when they aren't.",
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("check"), terragruntPrefixControl),         // `TG_HCLFMT_CHECK`
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-check"), terragruntPrefixControl),  // `TG_HCLFMT_CHECK`
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("check"), terragruntPrefixControl), // `--terragrunt-check`, `TERRAGRUNT_CHECK`
 		),
 
@@ -60,7 +60,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.Diff,
 			Usage:       "Print diff between original and modified file versions.",
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("diff"), terragruntPrefixControl),         // `TG_HCLFMT_DIFF`
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-diff"), terragruntPrefixControl),  // `TG_HCLFMT_DIFF`
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("diff"), terragruntPrefixControl), // `--terragrunt-diff`, `TERRAGRUNT_DIFF`
 		),
 
@@ -70,7 +70,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HclFromStdin,
 			Usage:       "Format HCL from stdin and print result to stdout.",
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("diff"), terragruntPrefixControl),                 // `TG_HCLFMT_STDIN`
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-diff"), terragruntPrefixControl),          // `TG_HCLFMT_STDIN`
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-stdin"), terragruntPrefixControl), // `--terragrunt-hclfmt-stdin`, `TERRAGRUNT_HCLFMT_STDIN`
 		),
 	}
