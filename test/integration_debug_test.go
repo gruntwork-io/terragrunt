@@ -198,8 +198,11 @@ func TestRenderJSONConfig(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
+	// clean jsonBytes to remove any trailing newlines
+	cleanString := util.CleanString(string(jsonBytes))
+
 	var rendered map[string]any
-	require.NoError(t, json.Unmarshal(jsonBytes, &rendered))
+	require.NoError(t, json.Unmarshal([]byte(cleanString), &rendered))
 
 	// Make sure all terraform block is visible
 	terraformBlock, hasTerraform := rendered["terraform"]

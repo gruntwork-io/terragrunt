@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/gruntwork-io/terragrunt/util"
 	"strings"
 	"testing"
 
@@ -130,8 +131,8 @@ digraph {
 `)
 
 	// clean string to work in cross-platform way
-	actual := strings.ReplaceAll(stdout.String(), "\r\n", "\n")
-	expected = strings.ReplaceAll(expected, "\r\n", "\n")
+	actual := util.CleanString(stdout.String())
+	expected = util.CleanString(expected)
 
 	assert.Contains(t, actual, expected)
 }
