@@ -487,6 +487,9 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsError(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTraces(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
