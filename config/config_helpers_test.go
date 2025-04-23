@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -146,6 +147,10 @@ func TestPathRelativeFromInclude(t *testing.T) {
 
 func TestRunCommand(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows because it doesn't support bash")
+	}
 
 	homeDir := os.Getenv("HOME")
 	testCases := []struct {
