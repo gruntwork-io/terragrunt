@@ -729,7 +729,7 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 1 --experiment stacks --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Module "+filepath.FromSlash("./.terragrunt-stack/app-with-dependency"))
+	assert.Contains(t, stderr, "Module "+filepath.FromSlash(".terragrunt-stack/app-with-dependency"))
 
 	// check that test
 	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
