@@ -32,10 +32,24 @@ jobs:
               run: '^TestSOPS'
               requires_setup: true
               setup_script: .github/scripts/setup/sops.sh
+            - name: Tflint
+              os: ubuntu
+              target: ./...
+              tags: tflint
+              run: '^TestTflint'
+              requires_setup: true
+              setup_script: .github/scripts/setup/tflint.sh
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup
+        if: ${{ matrix.integration.requires_setup }}
+        run: "${SCRIPT_PATH}"
+        env:
+          SCRIPT_PATH: ${{ matrix.integration.setup_script }}
+          SSH_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -55,13 +69,6 @@ jobs:
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-integration-test-${{ matrix.integration.name }}-${{ hashFiles('**/go.sum') }}
-
-      - name: Setup
-        if: ${{ matrix.integration.requires_setup }}
-        run: "${SCRIPT_PATH}"
-        env:
-          SCRIPT_PATH: ${{ matrix.integration.setup_script }}
-          SSH_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
 
       - name: Run Tests
         run: |

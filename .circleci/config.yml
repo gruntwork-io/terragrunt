@@ -196,48 +196,6 @@ jobs:
           command: |
             go test -tags windows -v -run ^TestWindows ./... -timeout 45m
 
-  # We're running unit tests separately from integration tests - with no parallelization.
-  # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
-  # instability with the tests. The unit tests are fast to execute, so there is negligible
-  # performance penalty.
-  unit_test:
-    resource_class: large
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      # Run pre-commit hooks and fail the build if any hook finds required changes.
-      - run:
-          name: run precommit
-          command: |
-            # Oct 26, 2019: Install the last known working version of pre-commit. Also, we have to pin the version of
-            # transitive dependencies that are being pulled in which released new versions that are no longer compatible
-            # with any python < 3.6.
-            pip3 install pre-commit==1.21.0 cfgv==2.0.1 zipp==1.1.0
-            go install golang.org/x/tools/cmd/goimports@latest
-            export GOPATH=~/go/bin && export PATH=$PATH:$GOPATH
-            pre-commit install
-            pre-commit run --all-files
-      - run:
-          name: generate mocks
-          command: |
-            make install-mockery
-            make generate-mocks
-      - run:
-          <<: *install_tofu
-      - run:
-          command: |
-            mkdir -p logs
-            go mod tidy
-            run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/test-results.log
-            go test -run=TestParseDependencyBlockMultiple -race ./config | tee -a logs/block-multiple-test-results.log
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   integration_test_terraform_1_5:
     resource_class: xlarge
     <<: *defaults
@@ -710,16 +668,6 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - test_windows_tofu:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - unit_test:
           filters:
             tags:
               only:
