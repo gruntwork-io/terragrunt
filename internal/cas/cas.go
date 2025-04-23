@@ -437,7 +437,7 @@ func (c *CAS) ensureBlob(ctx context.Context, hash string) (err error) {
 		return err
 	}
 
-	if err = renameWithRetry(tmpPath, content.getPath(hash)); err != nil {
+	if err = os.Rename(tmpPath, content.getPath(hash)); err != nil {
 		return err
 	}
 
