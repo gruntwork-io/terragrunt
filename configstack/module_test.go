@@ -128,7 +128,12 @@ digraph {
 	"h" -> "c";
 }
 `)
-	assert.Contains(t, stdout.String(), expected)
+
+	// clean string to work in cross-platform way
+	actual := strings.ReplaceAll(stdout.String(), "\r\n", "\n")
+	expected = strings.ReplaceAll(expected, "\r\n", "\n")
+
+	assert.Contains(t, actual, expected)
 }
 
 func TestCheckForCycles(t *testing.T) {
