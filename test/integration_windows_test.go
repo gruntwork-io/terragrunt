@@ -105,7 +105,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 			fixtureSourceMapPath := "fixtures/source-map"
 			helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
 			targetPath := "C:\\test\\infrastructure-modules/"
-			CopyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
+			copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 			rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 
 			t.Setenv(
@@ -223,7 +223,7 @@ func TestWindowsScaffoldRef(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
+func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	if err := os.MkdirAll(targetPath, 0777); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
 	}
