@@ -15,3 +15,5 @@ mkdir C:\bin
 cmd /c mklink C:\bin\sh.exe "C:\Program Files\Git\usr\bin\bash.exe"
 cmd /c mklink C:\bin\bash.exe "C:\Program Files\Git\usr\bin\bash.exe"
 echo "C:\bin" | Out-File -Append -FilePath $env:GITHUB_PATH
+echo "C:\bin" | Out-File -Append -FilePath $env:PATH
+echo "C:\Program Files\Git\usr\bin" | Out-File -Append -FilePath $env:PATH
