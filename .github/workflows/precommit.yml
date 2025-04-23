@@ -8,30 +8,35 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  build-no-proxy:
-    name: Build (${{ matrix.os }}/${{ matrix.arch }})
+  precommit:
+    name: Run pre-commit hooks
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - os: darwin
-            arch: amd64
-          - os: darwin
-            arch: arm64
-          - os: linux
-            arch: "386"
-          - os: linux
-            arch: amd64
-          - os: linux
-            arch: arm64
-          - os: windows
-            arch: "386"
-          - os: windows
-            arch: amd64
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Append python to mise.toml
+        run: |
+          echo "python = \"3.13.3\"" >> mise.toml
+
+      - name: Create default packages file
+        run: |
+          # Unlike the Python one below, this one can't be at
+          # a configurable location, so we always write it to the home dir.
+          cat <<EOF > ~/.default-go-packages
+          golang.org/x/tools/cmd/goimports@latest
+          EOF
+
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+
+          cat <<EOF > .mise-python-default-packages
+          pre-commit==1.21.0
+          cfgv==2.0.1
+          zipp==1.1.0
+          EOF
+
+          echo "MISE_PYTHON_DEFAULT_PACKAGES_FILE=.mise-python-default-packages" >> "$GITHUB_ENV"
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -51,16 +56,11 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
 
-      - name: Build Terragrunt without Go proxy
+      - name: Run pre-commit hooks
         env:
           GOPROXY: direct
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          OUTPUT="bin/terragrunt-${GOOS}-${GOARCH}"
-          if [ "${GOOS}" = "windows" ]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          go build -o "${OUTPUT}" \
-            -ldflags "-X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
-            .
+          pre-commit install
+          pre-commit run --all-files
