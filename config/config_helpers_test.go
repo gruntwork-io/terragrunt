@@ -131,7 +131,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 				"child": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath},
 			},
 			params:            []string{"child"},
-			terragruntOptions: terragruntOptionsForTest(t, "../child/sub-child/"+config.DefaultTerragruntConfigPath),
+			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
 			expectedPath:      "../../other-child",
 		},
 	}
@@ -224,7 +224,9 @@ func absPath(t *testing.T, path string) string {
 
 	out, err := filepath.Abs(path)
 	require.NoError(t, err)
-	return out
+	// Convert the path to use forward slashes for consistency with the FindInParentFolders function
+	// which uses filepath.ToSlash internally
+	return filepath.ToSlash(out)
 }
 
 func TestFindInParentFolders(t *testing.T) {
