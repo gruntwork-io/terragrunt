@@ -59,7 +59,7 @@ func TestScaffoldGitModule(t *testing.T) {
 	require.NoError(t, err)
 	var auroraModule *module.Module
 	for _, m := range modules {
-		if m.Title() == "Terraform Fake AWS Aurora Module" {
+		if strings.TrimSpace(m.Title()) == "Terraform Fake AWS Aurora Module" {
 			auroraModule = m
 		}
 	}
