@@ -18,7 +18,7 @@ jobs:
 
       - name: Append python to mise.toml
         run: |
-          echo "python = \"3.13.3\"" >> mise.toml
+          echo "pre-commit = \"4.2.0\"" >> mise.toml
 
       - name: Create default packages file
         run: |
@@ -29,12 +29,6 @@ jobs:
           EOF
 
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
-
-          cat <<EOF > .mise-python-default-packages
-          pre-commit==4.2.0
-          EOF
-
-          echo "MISE_PYTHON_DEFAULT_PACKAGES_FILE=.mise-python-default-packages" >> "$GITHUB_ENV"
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
