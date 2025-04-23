@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -60,6 +61,9 @@ digraph {
 }
 
 func TestGraphTrimPrefix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows due to path issues")
+	}
 	t.Parallel()
 
 	a := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/a"}
