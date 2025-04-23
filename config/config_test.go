@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -695,13 +696,13 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
 
-	expectedErr := config.TooManyLevelsOfInheritanceError{
-		ConfigPath:             configPath,
-		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
-		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
-	}
+	errStr := actualErr.Error()
 
-	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
+	expectedErrPath := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName))
+	expectedErrStr := fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.",
+		configPath, expectedErrPath, expectedErrPath)
+
+	assert.Contains(t, errStr, expectedErrStr)
 }
 
 func TestParseTerragruntConfigThreeLevels(t *testing.T) {
@@ -719,13 +720,17 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
 
-	expectedErr := config.TooManyLevelsOfInheritanceError{
-		ConfigPath:             configPath,
-		FirstLevelIncludePath:  absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
-		SecondLevelIncludePath: absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
-	}
+	// Convert the error paths to forward slashes for cross-platform compatibility
+	errStr := actualErr.Error()
+	errStr = strings.ReplaceAll(errStr, "\\", "/")
 
-	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
+	// Build expected error string
+	expectedErrPath1 := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName))
+	expectedErrPath2 := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName))
+	expectedErrStr := fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.",
+		configPath, expectedErrPath1, expectedErrPath2)
+
+	assert.Contains(t, errStr, expectedErrStr)
 }
 
 func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
