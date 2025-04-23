@@ -558,6 +558,9 @@ func TestTerragruntListProduceTelemetryTraces(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 	t.Setenv("TG_TELEMETRY_METRIC_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
@@ -577,6 +580,10 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
@@ -597,6 +604,9 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
