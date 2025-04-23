@@ -5,7 +5,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -77,7 +79,7 @@ func (c *Content) Link(hash, targetPath string) error {
 		}
 
 		// Rename to final path
-		if err := os.Rename(tempPath, targetPath); err != nil {
+		if err := renameWithRetry(tempPath, targetPath); err != nil {
 			return &WrappedError{
 				Op:   "rename_target",
 				Path: tempPath,
@@ -156,6 +158,17 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 		return wrapError("flush_buffer", tempPath, err)
 	}
 
+	// For Windows, ensure data is synchronized to disk
+	if runtime.GOOS == "windows" {
+		if err := f.Sync(); err != nil {
+			f.Close()
+			if err := os.Remove(tempPath); err != nil {
+				(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+			}
+			return wrapError("sync_file", tempPath, err)
+		}
+	}
+
 	if err := f.Close(); err != nil {
 		if err := os.Remove(tempPath); err != nil {
 			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
@@ -173,8 +186,8 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 		return wrapError("chmod_temp_file", tempPath, err)
 	}
 
-	// Atomic rename
-	if err := os.Rename(tempPath, path); err != nil {
+	// Atomic rename with retry for Windows
+	if err := renameWithRetry(tempPath, path); err != nil {
 		if err := os.Remove(tempPath); err != nil {
 			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
@@ -183,6 +196,33 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	}
 
 	return nil
+}
+
+// renameWithRetry attempts to rename a file and retries on failure
+// This is particularly important on Windows where files may be locked
+// for longer periods by the OS
+func renameWithRetry(src, dst string) error {
+	const (
+		maxRetries = 3
+		retryDelay = 100 * time.Millisecond
+	)
+
+	var err error
+	for i := 0; i < maxRetries; i++ {
+		err = os.Rename(src, dst)
+		if err == nil {
+			return nil
+		}
+
+		// On non-Windows platforms, don't retry
+		if runtime.GOOS != "windows" {
+			break
+		}
+
+		time.Sleep(retryDelay)
+	}
+
+	return err
 }
 
 // Ensure ensures that a content item exists in the store

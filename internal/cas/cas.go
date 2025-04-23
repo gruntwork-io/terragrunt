@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -425,11 +426,18 @@ func (c *CAS) ensureBlob(ctx context.Context, hash string) (err error) {
 		return err
 	}
 
+	// For Windows, ensure data is synchronized to disk
+	if runtime.GOOS == "windows" {
+		if err = tmpHandle.Sync(); err != nil {
+			return err
+		}
+	}
+
 	if err = tmpHandle.Close(); err != nil {
 		return err
 	}
 
-	if err = os.Rename(tmpPath, content.getPath(hash)); err != nil {
+	if err = renameWithRetry(tmpPath, content.getPath(hash)); err != nil {
 		return err
 	}
 
