@@ -15,6 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu, macos, windows]
+        include:
+          - os: windows
+            runner-size: large
 
     steps:
       - name: Checkout code
