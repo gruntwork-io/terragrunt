@@ -29,7 +29,7 @@ const (
 	testFixtureSopsMissing = "fixtures/sops-missing"
 )
 
-func TestSopsDecryptedCorrectly(t *testing.T) {
+func TestSOPSDecryptedCorrectly(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
@@ -62,7 +62,7 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
 }
 
-func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
+func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
@@ -95,7 +95,7 @@ func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
 	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
 }
 
-func TestTerragruntLogSopsErrors(t *testing.T) {
+func TestSOPSTerragruntLogSopsErrors(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
@@ -111,7 +111,7 @@ func TestTerragruntLogSopsErrors(t *testing.T) {
 	assert.Contains(t, errorOut, "error base64-decoding encrypted data key: illegal base64 data at input byte")
 }
 
-func TestSopsDecryptOnMissing(t *testing.T) {
+func TestSOPSDecryptOnMissing(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureSopsMissing)
@@ -126,5 +126,4 @@ func TestSopsDecryptOnMissing(t *testing.T) {
 
 	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
 	assert.Regexp(t, `\./missing\.yaml:.+no such file`, errorOut)
-
 }

@@ -25,6 +25,13 @@ jobs:
               run: '^TestSSH'
               requires_setup: true
               setup_script: .github/scripts/setup/ssh.sh
+            - name: SOPS
+              os: ubuntu
+              target: ./...
+              tags: sops
+              run: '^TestSOPS'
+              requires_setup: true
+              setup_script: .github/scripts/setup/sops.sh
 
     steps:
       - name: Checkout code
