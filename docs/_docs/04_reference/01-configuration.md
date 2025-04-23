@@ -90,9 +90,9 @@ When multiple units, each with their own `terragrunt.hcl` file exist in child di
 
 To make it easier to generate configurations like this, Terragrunt has special tooling in the form of `terragrunt.stack.hcl` files. `terragrunt.stack.hcl` files support all the same HCL functions as `terragrunt.hcl` files, however, they don't support any top-level attributes, and the configuration blocks they support are limited to the following:
 
-- [unit](/docs/reference/hcl/config-blocks-and-attributes#unit)
-- [stack](/docs/reference/hcl/config-blocks-and-attributes#stack)
-- [locals](/docs/reference/hcl/config-blocks-and-attributes#locals)
+- [unit](/docs/reference/config-blocks-and-attributes/#unit)
+- [stack](/docs/reference/config-blocks-and-attributes/#stack)
+- [locals](/docs/reference/config-blocks-and-attributes/#locals)
 
 These special configurations are used by the [stack generate command](/docs/reference/cli/commands/stack/generate) (and all the other `stack` prefixed commands) to generate units programmatically, on demand. The units they generate are valid unit configurations, and can be read and used as if they were manually authored.
 
