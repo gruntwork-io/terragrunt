@@ -162,9 +162,11 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	if runtime.GOOS == "windows" {
 		if err := f.Sync(); err != nil {
 			f.Close()
+
 			if err := os.Remove(tempPath); err != nil {
 				(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
 			}
+
 			return wrapError("sync_file", tempPath, err)
 		}
 	}
