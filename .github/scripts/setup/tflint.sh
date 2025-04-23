@@ -2,4 +2,4 @@
 
 set -euo pipefail
 
-mise use tflint@0.47.0
+echo 'tflint = "0.47.0"' >> mise.toml
