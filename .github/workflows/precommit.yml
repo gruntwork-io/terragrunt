@@ -1,4 +1,4 @@
-name: Build Without Go Proxy
+name: Pre-commit
 
 on:
   push:
@@ -31,9 +31,7 @@ jobs:
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
           cat <<EOF > .mise-python-default-packages
-          pre-commit==1.21.0
-          cfgv==2.0.1
-          zipp==1.1.0
+          pre-commit==4.2.0
           EOF
 
           echo "MISE_PYTHON_DEFAULT_PACKAGES_FILE=.mise-python-default-packages" >> "$GITHUB_ENV"
