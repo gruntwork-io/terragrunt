@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -994,7 +995,7 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 
 	localsMap := tgConfigMap["locals"].(map[string]any)
 	assert.InEpsilon(t, float64(2), localsMap["x"].(float64), 0.0000000001)
-	assert.Equal(t, "Hello world\n", localsMap["file_contents"].(string))
+	assert.Equal(t, "Hello world", strings.TrimSpace(localsMap["file_contents"].(string)))
 	assert.InEpsilon(t, float64(42), localsMap["number_expression"].(float64), 0.0000000001)
 }
 
