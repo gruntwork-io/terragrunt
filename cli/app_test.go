@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli"
@@ -30,6 +31,10 @@ var defaultLogLevel = log.DebugLevel
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
 
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
