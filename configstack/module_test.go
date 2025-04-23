@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/gruntwork-io/terragrunt/util"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -51,7 +52,11 @@ digraph {
 	"h" -> "c";
 }
 `)
-	assert.Contains(t, stdout.String(), expected)
+	// clean string to work in cross-platform way
+	actual := util.CleanString(stdout.String())
+	expected = util.CleanString(expected)
+
+	assert.Contains(t, actual, expected)
 }
 
 func TestGraphTrimPrefix(t *testing.T) {
@@ -90,7 +95,11 @@ digraph {
 	"alpha/beta/h" -> "c";
 }
 `)
-	assert.Contains(t, stdout.String(), expected)
+	// clean string to work in cross-platform way
+	actual := util.CleanString(stdout.String())
+	expected = util.CleanString(expected)
+
+	assert.Contains(t, actual, expected)
 }
 
 func TestGraphFlagExcluded(t *testing.T) {
