@@ -47,9 +47,9 @@ jobs:
           key: ${{ runner.os }}-go-mod-base-test-${{ hashFiles('**/go.sum') }}
 
       - name: Run Tests (Non-Windows)
-        if: matrix.os != 'windows'
         run: |
           go test -v ./... -timeout 45m
         shell: bash
         env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
