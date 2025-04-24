@@ -1,0 +1,64 @@
+// Tests specific to race conditions are verified here
+
+package cas_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/go-getter/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestCASGetterGetWithRacing(t *testing.T) {
+	t.Parallel()
+
+	c, err := cas.New(cas.Options{})
+	require.NoError(t, err)
+
+	opts := &cas.CloneOptions{
+		Branch: "main",
+	}
+
+	l := log.New()
+
+	g := cas.NewCASGetter(&l, c, opts)
+	client := getter.Client{
+		Getters: []getter.Getter{g},
+	}
+
+	tests := []struct {
+		name      string
+		url       string
+		queryRef  string
+		expectRef string
+	}{
+		{
+			name:      "URL with ref parameter",
+			url:       "github.com/gruntwork-io/terragrunt?ref=v0.75.0",
+			expectRef: "v0.75.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+
+			res, err := client.Get(
+				context.TODO(),
+				&getter.Request{
+					Src: tt.url,
+					Dst: tmpDir,
+				},
+			)
+			require.NoError(t, err)
+
+			assert.Equal(t, tmpDir, res.Dst)
+		})
+	}
+}
