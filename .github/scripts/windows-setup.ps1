@@ -1,10 +1,4 @@
 git config --global core.compression 9
-git config --global gc.auto 0
-git config --global http.postBuffer 2147483648
-git config --global core.packedGitLimit 2048m
-git config --global core.packedGitWindowSize 2048m
-git config --global pack.windowMemory 2048m
-git config --global pack.packSizeLimit 2048m
 git config --system core.longpaths true
 git config --global core.longpaths true
 git config --local core.longpaths true
