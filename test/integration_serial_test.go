@@ -292,39 +292,33 @@ func TestTerragruntDownloadDir(t *testing.T) {
 		downloadDirReference string // the expected result
 	}{
 		{
-			"download dir not set",
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set"),
-			"", // env
-			"", // flag
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set", helpers.TerragruntCache),
+			name:                 "download dir not set",
+			rootPath:             util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set"),
+			downloadDirReference: util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set", helpers.TerragruntCache),
 		},
 		{
-			"download dir set in config",
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
-			"", // env
-			"", // flag
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".download"),
+			name:                 "download dir set in config",
+			rootPath:             util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
+			downloadDirReference: util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".download"),
 		},
 		{
-			"download dir set in config and in env var",
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
-			"", // flag
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
+			name:                 "download dir set in config and in env var",
+			rootPath:             util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
+			downloadDirEnv:       util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
+			downloadDirReference: util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
 		},
 		{
-			"download dir set in config and as a flag",
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
-			"", // env
-			"--download-dir " + util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
+			name:                 "download dir set in config and as a flag",
+			rootPath:             util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
+			downloadDirFlag:      "--download-dir " + util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
+			downloadDirReference: util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
 		},
 		{
-			"download dir set in config env and as a flag",
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
-			"--download-dir " + util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
+			name:                 "download dir set in config env and as a flag",
+			rootPath:             util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
+			downloadDirEnv:       util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
+			downloadDirFlag:      "--download-dir " + util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
+			downloadDirReference: util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
 		},
 	}
 
@@ -338,7 +332,8 @@ func TestTerragruntDownloadDir(t *testing.T) {
 			}
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt info print %s --non-interactive --working-dir %s", tc.downloadDirFlag, tc.rootPath), &stdout, &stderr)
+			cmd := fmt.Sprintf("terragrunt info print %s --non-interactive --working-dir %s", tc.downloadDirFlag, tc.rootPath)
+			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 			helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 			helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 			require.NoError(t, err)
