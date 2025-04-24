@@ -89,7 +89,7 @@ terragrunt plan --strict-control=root-terragrunt-hcl
 Or:
 
 ```bash
-TERRAGRUNT_STRICT_CONTROL=root-terragrunt-hcl terragrunt plan
+TG_STRICT_CONTROL=root-terragrunt-hcl terragrunt plan
 ```
 
 By enabling the strict control, you will also have the default behavior of `scaffold` and `catalog` commands changed to use `root.hcl` as the default root configuration file name if none are provided.

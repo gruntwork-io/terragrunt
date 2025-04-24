@@ -264,17 +264,17 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	cmdParts := []string{
 		"terragrunt", "run-all", "validate",
-		"--terragrunt-non-interactive",
-		"--terragrunt-log-level", "debug",
-		"--terragrunt-working-dir", rootModulePath,
+		"--non-interactive",
+		"--log-level", "debug",
+		"--working-dir", rootModulePath,
 	}
 
 	for _, module := range includeModulePaths {
-		cmdParts = append(cmdParts, "--terragrunt-include-dir", module)
+		cmdParts = append(cmdParts, "--queue-include-dirr", module)
 	}
 
 	if strictInclude {
-		cmdParts = append(cmdParts, "--terragrunt-strict-include")
+		cmdParts = append(cmdParts, "--queue-strict-include")
 	}
 
 	cmd := strings.Join(cmdParts, " ")
@@ -866,7 +866,7 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 		moduleDir = maybeNested
 	}
 
-	cmd := fmt.Sprintf("terragrunt validate-inputs %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(extraArgs, " "), moduleDir)
+	cmd := fmt.Sprintf("terragrunt hcl validate --inputs %s --log-level trace --non-interactive --working-dir %s", strings.Join(extraArgs, " "), moduleDir)
 	t.Logf("Command: %s", cmd)
 	_, _, err := RunTerragruntCommandWithOutput(t, cmd)
 

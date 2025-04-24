@@ -35,6 +35,7 @@ The commands relevant to managing OpenTofu/Terraform state backends are:
 - [Backend commands](#backend-commands)
   - [backend bootstrap](#backend-bootstrap)
   - [backend delete](#backend-delete)
+  - [backend migrate](#backend-migrate)
 
 The commands for interacting with Terragrunt files, written in HashiCorp Configuration Language (HCL):
 

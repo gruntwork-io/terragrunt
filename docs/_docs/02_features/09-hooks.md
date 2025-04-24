@@ -104,7 +104,7 @@ aws s3 ls "s3://$BUCKET_NAME"
 ```
 
 Note that the `TG_CTX_TF_PATH` environment variable is used here to ensure compatibility, regardless of the
-value of [terragrunt-tfpath](/docs/reference/cli-options/#terragrunt-tfpath). This can be a useful practice
+value of [tf-path](/docs/reference/cli-options/#tf-path). This can be a useful practice
 if you are migrating between OpenTofu or Terraform.
 
 You will also have access to all the `inputs` set in the `terragrunt.hcl` file as environment variables prefixed
