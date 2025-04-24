@@ -1,4 +1,4 @@
-git config --global core.compression 0
+git config --global core.compression 9
 git config --global gc.auto 0
 git config --global http.postBuffer 2147483648
 git config --global core.packedGitLimit 2048m
