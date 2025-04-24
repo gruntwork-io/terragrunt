@@ -209,7 +209,7 @@ func TestDetailedExitCodeError(t *testing.T) {
 	ctx := context.Background()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all plan --log-level trace --non-interactive -detailed-exitcode --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all plan --log-level trace --non-interactive --working-dir "+rootPath+" -- -detailed-exitcode")
 	require.Error(t, err)
 	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
 	assert.Equal(t, 1, exitCode.Get())
@@ -228,7 +228,7 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 	ctx := context.Background()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all plan --log-level trace --non-interactive -detailed-exitcode --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all plan --log-level trace --non-interactive --working-dir "+rootPath+" -- -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 2, exitCode.Get())
 }
@@ -249,7 +249,7 @@ func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+filepath.Join(rootPath, "app1"))
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all plan --log-level trace --non-interactive -detailed-exitcode --working-dir "+rootPath)
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all plan --log-level trace --non-interactive --working-dir "+rootPath+" -- -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 2, exitCode.Get())
 }
@@ -270,7 +270,7 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all plan --log-level trace --non-interactive -detailed-exitcode --working-dir "+rootPath)
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all plan --log-level trace --non-interactive --working-dir "+rootPath+" -- -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode.Get())
 }
@@ -403,10 +403,10 @@ func TestBufferModuleOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBufferModuleOutput)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureBufferModuleOutput)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan -out planfile --log-disable --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all  --log-disable --working-dir "+rootPath+" -- plan -out planfile")
 	require.NoError(t, err)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all show -json planfile --non-interactive --log-disable --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-disable --working-dir "+rootPath+" -- show -json planfile")
 	require.NoError(t, err)
 
 	for _, stdout := range strings.Split(stdout, "\n") {
@@ -752,7 +752,7 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 		platformsArgs = append(platformsArgs, "-platform="+platform)
 	}
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all providers lock %s  --no-auto-init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", strings.Join(platformsArgs, " "), providerCacheDir, rootPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all --no-auto-init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s -- providers lock %s", providerCacheDir, rootPath, strings.Join(platformsArgs, " ")))
 
 	providers := []string{
 		"hashicorp/aws/5.36.0",
@@ -3024,7 +3024,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntVersionCommand(t, "0.21.23", "terragrunt apply -auto-approve --non-interactive --working-dir "+fixturePath, &stdout, &stderr)
+	err := helpers.RunTerragruntVersionCommand(t, "0.21.23", "terragrunt --non-interactive --working-dir "+fixturePath+" -- apply -auto-approve", &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 
@@ -3045,7 +3045,7 @@ func TestLogFailingDependencies(t *testing.T) {
 
 	path := filepath.Join(testFixtureBrokenDependency, "app")
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --log-level trace", path), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt --non-interactive --working-dir %s --log-level trace -- apply -auto-approve", path), &stdout, &stderr)
 	require.Error(t, err)
 
 	testdataDir, err := filepath.Abs(testFixtureBrokenDependency)
@@ -3059,7 +3059,7 @@ func TestDependenciesOptimisation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependenciesOptimisation)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply -auto-approve --non-interactive --log-level trace --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- apply -auto-approve")
 	require.NoError(t, err)
 
 	assert.NotContains( // Check that we're getting a warning for usage of deprecated functionality.
@@ -3072,7 +3072,7 @@ func TestDependenciesOptimisation(t *testing.T) {
 
 	moduleC := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
 	t.Setenv("TERRAGRUNT_STRICT_CONTROL", "skip-dependencies-inputs")
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+moduleC)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level trace --working-dir "+moduleC+" -- apply -auto-approve")
 	require.NoError(t, err)
 
 	// checking that dependencies optimisation is working and outputs from module-a are not retrieved

@@ -48,9 +48,9 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDestroyOrder, "app")
 
-	helpers.RunTerragrunt(t, "terragrunt run-all apply --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --tf-forward-stdout --working-dir "+rootPath+" -- apply -destroy ")
 	require.NoError(t, err)
 	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
 }
