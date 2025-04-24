@@ -63,7 +63,7 @@ jobs:
         if: matrix.os == 'windows'
         run: |
           # Run Windows-specific tests
-          go test -v -tags windows $(go list ./... | grep -v "/test/") -timeout 45m
+          go test -v -p 1 -tags windows $(go list ./... | grep -v "/test/") -timeout 45m
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
