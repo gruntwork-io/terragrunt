@@ -80,7 +80,9 @@ func TestFindHidden(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
-			assert.Equal(t, tc.expected, stdout)
+			// Normalize path separators in the output for cross-platform compatibility
+			normalizedStdout := filepath.ToSlash(stdout)
+			assert.Equal(t, tc.expected, normalizedStdout)
 		})
 	}
 }
