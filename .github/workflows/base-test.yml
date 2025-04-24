@@ -51,6 +51,11 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-base-test-${{ hashFiles('**/go.sum') }}
 
+      - name: Go mod tidy
+        run: |
+          go mod tidy
+        shell: bash
+
       - name: Run Tests (Non-Windows)
         if: matrix.os != 'windows'
         run: |
