@@ -76,8 +76,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
-	t.Parallel()
-
 	rootPath := helpers.CopyEnvironment(t, testFixtureDownloadPath)
 	modulePath := util.JoinPath(rootPath, testFixtureLocalRelativeArgsWindowsDownloadPath)
 

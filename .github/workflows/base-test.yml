@@ -10,7 +10,7 @@ on:
 jobs:
   test:
     name: Test (${{ matrix.os }})
-    runs-on: ${{ matrix.os == 'windows' && 'windows-latest-8-cores' || format('{0}-latest', matrix.os) }}
+    runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: false
       matrix:
