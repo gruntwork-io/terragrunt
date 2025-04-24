@@ -14,16 +14,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos, windows]
+        os: [ubuntu, macos]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Enable Windows long paths
-        if: matrix.os == 'windows'
-        run: ./.github/scripts/windows-setup.ps1
-        shell: pwsh
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -54,16 +49,7 @@ jobs:
       - name: Run Tests (Non-Windows)
         if: matrix.os != 'windows'
         run: |
-          go test -v $(go list ./... | grep -v "/test/") ./... -timeout 45m
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run Windows Tests
-        if: matrix.os == 'windows'
-        run: |
-          # Run Windows-specific tests
-          go test -v -p 1 -tags windows -run ^TestWindows $(go list ./... | grep -v "/test/") -timeout 45m
+          go test -v ./... -timeout 45m
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -487,7 +487,7 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsError(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTraces(t *testing.T) {
-	if isWindows() {
+	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")
 	}
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
@@ -558,7 +558,7 @@ func TestTerragruntListProduceTelemetryTraces(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
-	if isWindows() {
+	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")
 	}
 	t.Setenv("TG_TELEMETRY_METRIC_EXPORTER", "console")
@@ -580,7 +580,7 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
-	if isWindows() {
+	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")
 	}
 
@@ -604,7 +604,7 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
-	if isWindows() {
+	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")
 	}
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")

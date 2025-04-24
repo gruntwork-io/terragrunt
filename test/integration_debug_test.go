@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -48,7 +47,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	debugFile := util.JoinPath(rootPath, helpers.TerragruntDebugFile)
 	assert.True(t, util.FileExists(debugFile))
 
-	if isWindows() {
+	if helpers.IsWindows() {
 		// absolute path test on Windows
 		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
 	} else {
@@ -524,8 +523,4 @@ func TestDependencyGraphWithMultiInclude(t *testing.T) {
 	assert.Contains(t, stdoutStr, `"main" -> "depa";`)
 	assert.Contains(t, stdoutStr, `"main" -> "depb";`)
 	assert.Contains(t, stdoutStr, `"main" -> "depc";`)
-}
-
-func isWindows() bool {
-	return runtime.GOOS == "windows"
 }
