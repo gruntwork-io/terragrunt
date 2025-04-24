@@ -270,7 +270,7 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 	}
 
 	for _, module := range includeModulePaths {
-		cmdParts = append(cmdParts, "--queue-include-dirr", module)
+		cmdParts = append(cmdParts, "--queue-include-dir", module)
 	}
 
 	if strictInclude {

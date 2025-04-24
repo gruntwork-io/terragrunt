@@ -593,7 +593,7 @@ func TestTerragruntExcludesFile(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureExcludesFile)
 
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all apply -auto-approve --non-interactive --working-dir %s %s", rootPath, tc.flags))
+			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --working-dir %s %s", rootPath, tc.flags))
 
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all output --non-interactive --working-dir %s %s", rootPath, tc.flags))
 			require.NoError(t, err)
@@ -2325,7 +2325,7 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	depPathAbs := filepath.Join(rootPathAbs, "dep")
 
 	// Run apply on the dependency module and make sure we get the outputs we expect
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+depPathAbs)
+	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --working-dir "+depPathAbs)
 
 	depStdout := bytes.Buffer{}
 	depStderr := bytes.Buffer{}
@@ -2344,7 +2344,7 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	assert.Equal(t, depPathAbs, depOutputs["bar_original_terragrunt_dir"].Value)
 
 	// Run apply on the root module and make sure we get the expected outputs
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --working-dir "+rootPath)
 
 	rootStdout := bytes.Buffer{}
 	rootStderr := bytes.Buffer{}
@@ -2365,7 +2365,7 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	assert.Equal(t, depPathAbs, rootOutputs["dep_bar_original_terragrunt_dir"].Value)
 
 	// Run 'run --all apply' and make sure all the outputs are identical in the root module and the dependency module
-	helpers.RunTerragrunt(t, "terragrunt run --all apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	runAllRootStdout := bytes.Buffer{}
 	runAllRootStderr := bytes.Buffer{}
@@ -2968,7 +2968,7 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := util.JoinPath(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt run --all apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`, rootPath, mockAuthCmd))
+	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt run --all apply --non-interactive --working-dir %s --auth-provider-cmd %s`, rootPath, mockAuthCmd))
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --working-dir %s --auth-provider-cmd %s", appPath, mockAuthCmd))
 	require.NoError(t, err)
@@ -3856,20 +3856,25 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir))
+	cmd := fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir)
+	helpers.RunTerragrunt(t, cmd)
 
 	// run plan and apply
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	cmd = fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	cmd = fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
 	// run new plan and show
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	cmd = fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all show --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --out-dir %s -no-color", testPath, tmpDir))
+	cmd = fmt.Sprintf("terragrunt run --all show --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --out-dir %s -no-color", testPath, tmpDir)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
 	// Verify that output contains the plan and not plain the actual state output
