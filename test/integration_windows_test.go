@@ -233,7 +233,11 @@ func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 }
 
 func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
+	currentDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+	tmpDir, err := os.MkdirTemp(currentDir, "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
