@@ -51,9 +51,21 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-base-test-${{ hashFiles('**/go.sum') }}
 
-      - name: Run Tests
-        run: go test ./...
+      - name: Run Tests (Non-Windows)
+        if: matrix.os != 'windows'
+        run: |
+          go test $(go list ./... | grep -v "/test/") ./...
         shell: bash
         env:
-          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Windows Tests
+        if: matrix.os == 'windows'
+        run: |
+          # Run Windows-specific tests
+          go test -tags windows -v -run ^TestWindows ./... -timeout 45m
+          # Run all tests except those in test directory
+          go test -tags windows $(go list ./... | grep -v "/test/") -timeout 45m
+        shell: bash
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
