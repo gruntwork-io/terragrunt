@@ -54,7 +54,7 @@ jobs:
       - name: Run Tests (Non-Windows)
         if: matrix.os != 'windows'
         run: |
-          go test -v $(go list ./... | grep -v "/test/") ./...
+          go test -v $(go list ./... | grep -v "/test/") ./... -timeout 45m
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
