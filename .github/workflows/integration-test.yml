@@ -72,7 +72,7 @@ jobs:
 
       - name: Run Tests
         run: |
-            go test "${TAGS:+-tags $TAGS}" "${RUN:+-run $RUN}" "${TARGET}"
+            go test -v "${TAGS:+-tags $TAGS}" "${RUN:+-run $RUN}" "${TARGET}"
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
