@@ -76,6 +76,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
+	t.Parallel()
+
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureDownloadPath)
 	modulePath := util.JoinPath(rootPath, testFixtureLocalRelativeArgsWindowsDownloadPath)
 
