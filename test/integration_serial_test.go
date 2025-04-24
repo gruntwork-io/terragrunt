@@ -331,10 +331,10 @@ func TestTerragruntDownloadDir(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.downloadDirEnv != "" {
-				t.Setenv("TG_DOWNLOAD", tc.downloadDirEnv)
+				t.Setenv("TG_DOWNLOAD_DIR", tc.downloadDirEnv)
 			} else {
 				// Clear the variable if it's not set. This is clearing the variable in case the variable is set outside the test process.
-				require.NoError(t, os.Unsetenv("TG_DOWNLOAD"))
+				require.NoError(t, os.Unsetenv("TG_DOWNLOAD_DIR"))
 			}
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
