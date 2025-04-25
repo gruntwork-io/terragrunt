@@ -2,6 +2,7 @@
 package render
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -126,10 +127,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			return Run(ctx, renderOpts)
 		},
-		ErrorOnUndefinedFlag: true,
 	}
 
 	cmd = runall.WrapCommand(opts, cmd)
+	cmd = graph.WrapCommand(opts, cmd)
 
 	return cmd
 }

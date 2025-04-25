@@ -62,11 +62,12 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
-		Name:   CommandName,
-		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
-		Hidden: true,
-		Flags:  append(run.NewFlags(opts, nil), NewFlags(opts, nil)...),
-		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
+		Name:                         CommandName,
+		Usage:                        "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
+		Hidden:                       true,
+		Flags:                        append(run.NewFlags(opts, nil), NewFlags(opts, nil)...),
+		Action:                       func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
+		DisabledErrorOnUndefinedFlag: true,
 	}
 
 	cmd = runall.WrapCommand(opts, cmd)

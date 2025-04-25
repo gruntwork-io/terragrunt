@@ -22,7 +22,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Subcommands: cli.Commands{
 			graph.NewCommand(opts, prefix),
 		},
-		ErrorOnUndefinedFlag: true,
-		Action:               cli.ShowCommandHelp,
+		Action: cli.ShowCommandHelp,
 	}
 }

@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	DefaultCommandsCategoryName = "Default commands"
-	RunAllCommandsCategoryName  = "`*-all` commands"
+	DefaultCommandsCategoryName     = "Default commands"
+	RunAllCommandsCategoryName      = "`*-all` commands"
+	CLIRedesignCommandsCategoryName = "CLI redesign commands"
 )
 
 // NewDeprecatedCommand declares the deprecated command.

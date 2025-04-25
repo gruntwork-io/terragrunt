@@ -80,11 +80,10 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
-		Name:                 CommandName,
-		Aliases:              []string{CommandNameAlias},
-		Usage:                "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
-		Flags:                NewFlags(opts, nil),
-		ErrorOnUndefinedFlag: true,
+		Name:    CommandName,
+		Aliases: []string{CommandNameAlias},
+		Usage:   "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
+		Flags:   NewFlags(opts, nil),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))
 		},

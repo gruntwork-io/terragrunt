@@ -116,7 +116,7 @@ func (flag *flagValueGetter) EnvSet(val string) error {
 		flag.value.Reset()
 		flag.envHasBeenSet = true
 	} else if !flag.multipleSet {
-		return errors.Errorf("setting the env var multiple times")
+		return errors.New(ErrMultipleTimesSettingEnvVar)
 	}
 
 	flag.flagValue.name = flag.valueName
@@ -130,7 +130,7 @@ func (flag *flagValueGetter) Set(val string) error {
 		flag.value.Reset()
 		flag.hasBeenSet = true
 	} else if !flag.multipleSet {
-		return errors.Errorf("setting the flag multiple times")
+		return errors.New(ErrMultipleTimesSettingFlag)
 	}
 
 	flag.flagValue.name = flag.valueName

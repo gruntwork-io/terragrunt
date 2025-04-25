@@ -166,19 +166,18 @@ func (app *App) VisibleCommands() Commands {
 
 func (app *App) NewRootCommand() *Command {
 	return &Command{
-		Name:                 app.Name,
-		Before:               app.Before,
-		After:                app.After,
-		Action:               app.Action,
-		Usage:                app.Usage,
-		UsageText:            app.UsageText,
-		Description:          app.Description,
-		Examples:             app.Examples,
-		Flags:                app.Flags,
-		Subcommands:          app.Commands,
-		Complete:             app.Complete,
-		IsRoot:               true,
-		ErrorOnUndefinedFlag: true,
+		Name:        app.Name,
+		Before:      app.Before,
+		After:       app.After,
+		Action:      app.Action,
+		Usage:       app.Usage,
+		UsageText:   app.UsageText,
+		Description: app.Description,
+		Examples:    app.Examples,
+		Flags:       app.Flags,
+		Subcommands: app.Commands,
+		Complete:    app.Complete,
+		IsRoot:      true,
 	}
 }
 

@@ -149,3 +149,14 @@ func (commands Commands) GetCategories() Categories {
 func (commands Commands) Merge(cmds ...*Command) Commands {
 	return append(commands, cmds...)
 }
+
+// DisableErrorOnMultipleSetFlag returns a cloned command with disabled the check for multiple values set for the same flag.
+func (commands Commands) DisableErrorOnMultipleSetFlag() Commands {
+	var newCommands = make(Commands, len(commands))
+
+	for i := range commands {
+		newCommands[i] = commands[i].DisableErrorOnMultipleSetFlag()
+	}
+
+	return newCommands
+}

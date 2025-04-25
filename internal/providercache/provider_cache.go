@@ -1,4 +1,4 @@
-package cli
+package providercache
 
 import (
 	"context"
@@ -60,7 +60,7 @@ type ProviderCache struct {
 	providerService *services.ProviderService
 }
 
-func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
+func InitServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
 	if opts.ProviderCacheDir == "" {
