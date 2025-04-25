@@ -12,7 +12,6 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -467,8 +466,8 @@ func TestTerragruntHelp(t *testing.T) {
 			notExpected: commands.CommandHCLFmtName,
 		},
 		{
-			args:     []string{"terragrunt", commands.CommandPlanAllName, "--help"},
-			expected: runall.CommandName,
+			args:     []string{"terragrunt", run.CommandName, "--help"},
+			expected: run.CommandName,
 		},
 	}
 
@@ -544,7 +543,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app.Flags = append(global.NewFlags(opts, nil), run.NewFlags(opts, nil)...)
 	app.Commands = append(
 		commands.NewDeprecatedCommands(opts),
-		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))
+		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(opts))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx *clipkg.Context) error {
 		opts.TerraformCliArgs = append(opts.TerraformCliArgs, ctx.Args()...)

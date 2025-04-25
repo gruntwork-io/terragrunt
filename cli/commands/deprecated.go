@@ -140,8 +140,10 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 
 func newDeprecatedLegacyAllCommand(deprecatedCommandName, tfCommandName string) *DeprecatedCommand {
 	return &DeprecatedCommand{
-		commandName:     deprecatedCommandName,
-		replaceWithArgs: cli.Args{run.CommandName, "--" + runall.AllFlagName, tfCommandName},
+		commandName: deprecatedCommandName,
+		// we can't recoomand to use `run --all plan/apply/...` as alternative for `*-all` commands
+		// because `run` command doesn't allow TF flags to be specified before `--` separator.
+		replaceWithArgs: cli.Args{tfCommandName, "--" + runall.AllFlagName},
 		controlName:     controls.LegacyAll,
 		controlCategory: controls.RunAllCommandsCategoryName,
 	}
@@ -209,11 +211,11 @@ func (deps DeprecatedCommands) CLICommands(opts *options.TerragruntOptions) cli.
 }
 
 type DeprecatedCommand struct {
-	subcommands     DeprecatedCommands
 	commandName     string
-	replaceWithArgs cli.Args
 	controlName     string
 	controlCategory string
+	subcommands     DeprecatedCommands
+	replaceWithArgs cli.Args
 }
 
 func (dep DeprecatedCommand) CLICommand(opts *options.TerragruntOptions) *cli.Command {
