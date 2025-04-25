@@ -201,6 +201,8 @@ func TestFileManifest(t *testing.T) {
 		// create temp files in the dir
 		f, err := os.CreateTemp(dir, file)
 		require.NoError(t, err)
+		// Close the file handle immediately after creation
+		require.NoError(t, f.Close())
 		testfiles = append(testfiles, f.Name())
 	}
 	// will later test if the file already doesn't exist
@@ -217,12 +219,14 @@ func TestFileManifest(t *testing.T) {
 	// check for a non-existent directory as well
 	assert.NoError(t, manifest.AddDirectory(path.Join(dir, "ephemeral-directory-that-doesnt-exist")))
 
+	// Close the manifest file handle before cleaning
+	require.NoError(t, manifest.Close())
+
 	assert.NoError(t, manifest.Clean())
 	// test if the files have been deleted
 	for _, file := range testfiles {
 		assert.False(t, util.FileExists(file))
 	}
-
 }
 
 func TestSplitPath(t *testing.T) {
@@ -472,7 +476,7 @@ func TestEmptyDir(t *testing.T) {
 //nolint:funlen
 func TestWalkWithSimpleSymlinks(t *testing.T) {
 	t.Parallel()
-	// Create temporary test directory structure
+	// Create a temporary test directory structure
 	tempDir := t.TempDir()
 	tempDir, err := filepath.EvalSymlinks(tempDir)
 	require.NoError(t, err)
@@ -501,7 +505,8 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		paths = append(paths, relPath)
+		// Normalize path separators to forward slashes for cross-platform compatibility
+		paths = append(paths, filepath.ToSlash(relPath))
 
 		return nil
 	})
@@ -576,7 +581,8 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		paths = append(paths, relPath)
+		// Normalize path separators to forward slashes for cross-platform compatibility
+		paths = append(paths, filepath.ToSlash(relPath))
 
 		return nil
 	})

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -694,13 +696,13 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
 
-	expectedErr := config.TooManyLevelsOfInheritanceError{
-		ConfigPath:             configPath,
-		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
-		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
-	}
+	errStr := actualErr.Error()
 
-	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
+	expectedErrPath := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName))
+	expectedErrStr := fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.",
+		configPath, expectedErrPath, expectedErrPath)
+
+	assert.Contains(t, errStr, expectedErrStr)
 }
 
 func TestParseTerragruntConfigThreeLevels(t *testing.T) {
@@ -714,18 +716,21 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	}
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
-
 	ctx := config.NewParsingContext(context.Background(), opts)
 
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
 
-	expectedErr := config.TooManyLevelsOfInheritanceError{
-		ConfigPath:             configPath,
-		FirstLevelIncludePath:  absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
-		SecondLevelIncludePath: absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
-	}
+	// Convert the error paths to forward slashes for cross-platform compatibility
+	errStr := actualErr.Error()
+	errStr = strings.ReplaceAll(errStr, "\\", "/")
 
-	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
+	// Build expected error string
+	expectedErrPath1 := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName))
+	expectedErrPath2 := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName))
+	expectedErrStr := fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.",
+		configPath, expectedErrPath1, expectedErrPath2)
+
+	assert.Contains(t, errStr, expectedErrStr)
 }
 
 func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
@@ -1127,20 +1132,38 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	expected := []string{
-		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
-		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
-		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
-	}
 	workingDir := filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/")
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
 	require.NoError(t, err)
 	terragruntOptions.Env["TF_DATA_DIR"] = filepath.Join(workingDir, ".tf_data")
 
 	actual, err := config.FindConfigFilesInPath(workingDir, terragruntOptions)
-
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+
+	// Create expected paths using filepath.Join for cross-platform compatibility
+	expected := []string{
+		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
+	}
+
+	// Sort both slices to ensure consistent order for comparison
+	sort.Strings(actual)
+	sort.Strings(expected)
+
+	// Compare the paths using filepath.Clean to normalize them
+	normalizedActual := make([]string, len(actual))
+	normalizedExpected := make([]string, len(expected))
+
+	for i, path := range actual {
+		normalizedActual[i] = filepath.Clean(path)
+	}
+
+	for i, path := range expected {
+		normalizedExpected[i] = filepath.Clean(path)
+	}
+
+	assert.Equal(t, normalizedExpected, normalizedActual)
 }
 
 func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {

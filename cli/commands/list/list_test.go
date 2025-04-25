@@ -81,6 +81,11 @@ func TestBasicDiscovery(t *testing.T) {
 	// Split output into fields and trim whitespace
 	fields := strings.Fields(string(output))
 
+	// Normalize path separators in the output fields
+	for i, field := range fields {
+		fields[i] = filepath.ToSlash(field)
+	}
+
 	// Verify we have the expected number of lines
 	assert.Len(t, fields, len(expectedPaths))
 
@@ -158,6 +163,11 @@ func TestHiddenDiscovery(t *testing.T) {
 
 	// Split output into fields and trim whitespace
 	fields := strings.Fields(string(output))
+
+	// Normalize path separators in the output fields
+	for i, field := range fields {
+		fields[i] = filepath.ToSlash(field)
+	}
 
 	// Verify we have the expected number of lines
 	assert.Len(t, fields, len(expectedPaths))
