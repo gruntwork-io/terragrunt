@@ -32,18 +32,16 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	return run.NewFlags(opts, prefix)
 }
 
 func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
-	prefix = prefix.Append(CommandName)
-
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Print out a short description of Terragrunt context.",
 		UsageText:            "terragrunt info print",
-		Flags:                NewListFlags(opts, prefix),
+		Flags:                NewFlags(opts, prefix),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)

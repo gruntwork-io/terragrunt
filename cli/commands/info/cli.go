@@ -14,14 +14,14 @@ const (
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	prefix := flags.Prefix{CommandName}
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "List of commands to display Terragrunt settings.",
 		Subcommands: cli.Commands{
-			strict.NewCommand(opts, prefix),
-			print.NewCommand(opts, prefix),
+			strict.NewCommand(opts, tgPrefix),
+			print.NewCommand(opts, tgPrefix),
 		},
 		ErrorOnUndefinedFlag: true,
 		Action:               cli.ShowCommandHelp,
