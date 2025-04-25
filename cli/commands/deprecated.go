@@ -43,7 +43,7 @@ const (
 	CommandGraphDependenciesName  = "graph-dependencies"
 )
 
-// NewDeprecatedCommands retruns a slice of deprecated commands to convert the command to the known alternative.
+// NewDeprecatedCommands returns a slice of deprecated commands to convert the command to the known alternative.
 func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	deprecatedCommands := DeprecatedCommands{
 		// legacy-all commands
@@ -78,57 +78,63 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			"--" + render.WriteFlagName,
 			"--" + render.OutFlagName, "terragrunt_rendered.json"}),
 
-		// `run-all plan/apply/...`
-		newDeprecatedCLIRedesignCommand(CommandRunAllName, cli.Args{
-			run.CommandName, "--" + runall.AllFlagName},
-			// `run-all hclfmt`
-			newDeprecatedCLIRedesignCommand(CommandHCLFmtName,
-				cli.Args{hcl.CommandName, format.CommandName,
+		newDeprecatedCLIRedesignCommand(CommandRunAllName, cli.Args{},
+			append(DeprecatedCommands{
+				// `run-all hclfmt`
+				newDeprecatedCLIRedesignCommand(CommandHCLFmtName,
+					cli.Args{hcl.CommandName, format.CommandName,
+						"--" + runall.AllFlagName}),
+				// `run-all hclvalidate`
+				newDeprecatedCLIRedesignCommand(CommandHCLValidateName, cli.Args{
+					hcl.CommandName, validate.CommandName,
 					"--" + runall.AllFlagName}),
-			// `run-all hclvalidate`
-			newDeprecatedCLIRedesignCommand(CommandHCLValidateName, cli.Args{
-				hcl.CommandName, validate.CommandName,
-				"--" + runall.AllFlagName}),
-			// `run-all validate-inputs`
-			newDeprecatedCLIRedesignCommand(CommandValidateInputsName, cli.Args{
-				hcl.CommandName, validate.CommandName,
-				"--" + runall.AllFlagName,
-				"--" + validate.InputsFlagName}),
-			// `run-all render-json`
-			newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
-				render.CommandName,
-				"--" + runall.AllFlagName,
-				"--" + render.JSONFlagName,
-				"--" + render.WriteFlagName,
-				"--" + render.OutFlagName, "terragrunt_rendered.json"}),
-			// `run-all render`
-			newDeprecatedCLIRedesignCommand(render.CommandName, cli.Args{
-				render.CommandName,
-				"--" + runall.AllFlagName}),
-			// `run-all aws-provider-patch`
-			newDeprecatedCLIRedesignCommand(awsproviderpatch.CommandName, cli.Args{
-				awsproviderpatch.CommandName,
-				"--" + runall.AllFlagName}),
-			// `run-all graph-dependencies`
-			newDeprecatedCLIRedesignCommand(CommandGraphDependenciesName, cli.Args{
-				dag.CommandName, daggraph.CommandName,
-				"--" + runall.AllFlagName}),
+				// `run-all validate-inputs`
+				newDeprecatedCLIRedesignCommand(CommandValidateInputsName, cli.Args{
+					hcl.CommandName, validate.CommandName,
+					"--" + runall.AllFlagName,
+					"--" + validate.InputsFlagName}),
+				// `run-all render-json`
+				newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
+					render.CommandName,
+					"--" + runall.AllFlagName,
+					"--" + render.JSONFlagName,
+					"--" + render.WriteFlagName,
+					"--" + render.OutFlagName, "terragrunt_rendered.json"}),
+				// `run-all render`
+				newDeprecatedCLIRedesignCommand(render.CommandName, cli.Args{
+					render.CommandName,
+					"--" + runall.AllFlagName}),
+				// `run-all aws-provider-patch`
+				newDeprecatedCLIRedesignCommand(awsproviderpatch.CommandName, cli.Args{
+					awsproviderpatch.CommandName,
+					"--" + runall.AllFlagName}),
+				// `run-all graph-dependencies`
+				newDeprecatedCLIRedesignCommand(CommandGraphDependenciesName, cli.Args{
+					dag.CommandName, daggraph.CommandName,
+					"--" + runall.AllFlagName}),
+			},
+				// `run-all plan/apply/...`
+				newDeprecatedCLIRedesignTFCommands(cli.Args{"--" + runall.AllFlagName})...,
+			)...,
 		),
 
-		// `graph plan/apply/...`
-		newDeprecatedCLIRedesignCommand(CommandGraphName, cli.Args{
-			run.CommandName, "--" + graph.GraphFlagName},
-			// `graph render-json`
-			newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
-				render.CommandName,
-				"--" + graph.GraphFlagName,
-				"--" + render.JSONFlagName,
-				"--" + render.WriteFlagName,
-				"--" + render.OutFlagName, "terragrunt_rendered.json"}),
-			// `graph render`
-			newDeprecatedCLIRedesignCommand(render.CommandName, cli.Args{
-				render.CommandName,
-				"--" + graph.GraphFlagName}),
+		newDeprecatedCLIRedesignCommand(CommandGraphName, cli.Args{},
+			append(DeprecatedCommands{
+				// `graph render-json`
+				newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
+					render.CommandName,
+					"--" + graph.GraphFlagName,
+					"--" + render.JSONFlagName,
+					"--" + render.WriteFlagName,
+					"--" + render.OutFlagName, "terragrunt_rendered.json"}),
+				// `graph render`
+				newDeprecatedCLIRedesignCommand(render.CommandName, cli.Args{
+					render.CommandName,
+					"--" + graph.GraphFlagName}),
+			},
+				// `graph plan/apply/...`
+				newDeprecatedCLIRedesignTFCommands(cli.Args{"--" + graph.GraphFlagName})...,
+			)...,
 		),
 	}
 
@@ -157,6 +163,21 @@ func newDeprecatedCLIRedesignCommand(deprecatedCommandName string, replaceWithAr
 		controlName:     controls.CLIRedesign,
 		controlCategory: controls.CLIRedesignCommandsCategoryName,
 	}
+}
+
+func newDeprecatedCLIRedesignTFCommands(args cli.Args) DeprecatedCommands {
+	var cmds = make(DeprecatedCommands, len(tf.CommandNames))
+
+	for i, tfCommandName := range tf.CommandNames {
+		cmds[i] = &DeprecatedCommand{
+			commandName:     tfCommandName,
+			replaceWithArgs: append(cli.Args{tfCommandName}, args...),
+			controlName:     controls.CLIRedesign,
+			controlCategory: controls.CLIRedesignCommandsCategoryName,
+		}
+	}
+
+	return cmds
 }
 
 func newDeprecatedDefaultCommands(opts *options.TerragruntOptions) cli.Commands {
