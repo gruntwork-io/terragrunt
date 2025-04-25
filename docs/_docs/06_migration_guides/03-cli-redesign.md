@@ -21,10 +21,10 @@ The high-level changes made as a part of that RFC that require migration for cur
 
 - The `terragrunt-` prefix has been removed from all flags.
 - All environment variables have had their prefixes renamed to `TG_` instead of `TERRAGRUNT_`.
-- **WIP:** A new `run` command has been introduced to the CLI that also handles the responsibilities of deprecated `run-all` and `graph` commands.
+- A new `run` command has been introduced to the CLI that also handles the responsibilities of deprecated `run-all` and `graph` commands.
+- A new `backend` command has been introduced to support users in interacting with backends.
+- Infrequently used commands have been reorganized into a structure that makes it easier to find them.
 - **WIP:** Arguments are no longer sent to `tofu` / `terraform` by default.
-- **WIP:** A new `backend` command has been introduced to support users in interacting with backends.
-- **WIP:** Infrequently used commands have been reorganized into a structure that makes it easier to find them.
 
 ## Migration guide
 
