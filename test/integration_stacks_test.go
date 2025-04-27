@@ -72,7 +72,15 @@ func TestNestedStacksGenerate(t *testing.T) {
 	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
 	helpers.CreateGitRepo(t, gitPath)
 	rootPath := util.JoinPath(gitPath, "live")
-	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// Check that logs contain stack generation messages
+	assert.Contains(t, stderr, "Generating stack from ./terragrunt.stack.hcl")
+	assert.Contains(t, stderr, "Generating stack from ./.terragrunt-stack/prod/terragrunt.stack.hcl")
+	assert.Contains(t, stderr, "Processing unit prod-api from ./.terragrunt-stack/prod/terragrunt.stack.hcl")
+	assert.Contains(t, stderr, "Processing stack prod from ./terragrunt.stack.hcl")
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
