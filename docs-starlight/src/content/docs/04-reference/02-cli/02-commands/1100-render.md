@@ -4,9 +4,6 @@ description: Render a simplified, but equivalent Terragrunt config.
 slug: docs/reference/cli/commands/render
 sidebar:
   order: 1100
-  badge:
-    text: exp
-    variant: tip
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->
