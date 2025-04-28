@@ -37,8 +37,6 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 		return nil
 	}
 
-	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
-
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
