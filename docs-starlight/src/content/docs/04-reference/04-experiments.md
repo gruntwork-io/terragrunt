@@ -54,7 +54,7 @@ TG_EXPERIMENT='symlinks' terragrunt plan
 You can also enable multiple experiments at once.
 
 ```bash
-terragrunt --experiment symlinks --experiment stacks plan
+terragrunt --experiment symlinks plan
 ```
 
 Including the environment variable:

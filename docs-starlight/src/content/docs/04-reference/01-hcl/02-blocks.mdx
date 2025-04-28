@@ -1661,10 +1661,6 @@ errors {
 
 ## unit
 
-<Aside type="tip" title="Stacks">
-      The <code dir="auto">unit</code> block is experimental, usage requires the <a href="/docs/reference/experiments#stacks"><code dir="auto">--experiment stacks</code></a> flag.
-</Aside>
-
 The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
 
 The `unit` block supports the following arguments:
@@ -1772,11 +1768,6 @@ The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**,
 The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
 ## stack
-
-<Aside type="tip" title="Stacks">
-    The <code dir="auto">stack</code> block is experimental, usage requires the <a href="/docs/reference/experiments#stacks"><code dir="auto">--experiment stacks</code></a> flag.
-</Aside>
-
 
 The `stack` block is used to define a stack of deployment units in a Terragrunt configuration file (`terragrunt.stack.hcl`).
 Stacks allow for nesting, enabling the organization of infrastructure components into modular, reusable groups, reducing redundancy and improving maintainability.
