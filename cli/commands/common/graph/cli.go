@@ -41,8 +41,10 @@ func WrapCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command
 		}
 
 		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
-			cliCtx := cliCtx.WithValue(options.ContextKey, opts)
-			return action(cliCtx)
+			newCtx := *cliCtx
+			newCtx.Context = opts.ContextWithOptions(ctx)
+
+			return action(&newCtx)
 		}
 
 		return Run(cliCtx, opts.OptionsFromContext(cliCtx))
