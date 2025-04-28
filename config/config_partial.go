@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -370,14 +369,12 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 	ctx = ctx.WithTrackInclude(nil)
 
 	// read unit files and add to context
-	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.Stacks) {
-		unitValues, err := ReadValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
-		if err != nil {
-			return nil, err
-		}
-
-		ctx = ctx.WithValues(unitValues)
+	unitValues, err := ReadValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+	if err != nil {
+		return nil, err
 	}
+
+	ctx = ctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.

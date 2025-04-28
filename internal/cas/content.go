@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -76,7 +77,7 @@ func (c *Content) Link(hash, targetPath string) error {
 			}
 		}
 
-		// Rename to final path
+		// Rename to a final path
 		if err := os.Rename(tempPath, targetPath); err != nil {
 			return &WrappedError{
 				Op:   "rename_target",
@@ -173,6 +174,17 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 		return wrapError("chmod_temp_file", tempPath, err)
 	}
 
+	// For Windows, handle readonly attributes specifically
+	if runtime.GOOS == "windows" {
+		// Check if a destination file exists and is read-only
+		if _, err := os.Stat(path); err == nil {
+			// File exists, make it writable before rename operation
+			if err := os.Chmod(path, RegularFilePerms); err != nil {
+				(*l).Warnf("failed to make destination file writable %s: %v", path, err)
+			}
+		}
+	}
+
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
 		if err := os.Remove(tempPath); err != nil {
@@ -180,6 +192,14 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 		}
 
 		return wrapError("finalize_store", path, err)
+	}
+
+	// For Windows, we need to set the permissions again after rename
+	if runtime.GOOS == "windows" {
+		// Ensure the file has read-only permissions after rename
+		if err := os.Chmod(path, StoredFilePerms); err != nil {
+			return wrapError("chmod_final_file", path, err)
+		}
 	}
 
 	return nil

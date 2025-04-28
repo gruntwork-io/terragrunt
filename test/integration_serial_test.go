@@ -487,6 +487,9 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsError(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTraces(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
@@ -496,7 +499,7 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	// check that output have Telemetry json output
+	// check that output has Telemetry JSON traces
 	assert.Contains(t, output, "\"SpanContext\":")
 	assert.Contains(t, output, "\"TraceID\":")
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_1\"")
@@ -510,10 +513,10 @@ func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	// check that output have Telemetry json output
+	// check that output has Telemetry JSON traces
 	assert.Contains(t, output, "\"SpanContext\":")
 	assert.Contains(t, output, "\"TraceID\":")
 	assert.Contains(t, output, "\"Name\":\"stack_generate_unit\"")
@@ -555,6 +558,9 @@ func TestTerragruntListProduceTelemetryTraces(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 	t.Setenv("TG_TELEMETRY_METRIC_EXPORTER", "console")
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
@@ -574,6 +580,10 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
+
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
@@ -594,6 +604,9 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 }
 
 func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows since bash script execution is not supported")
+	}
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 

@@ -115,6 +115,8 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 					return errors.New(err)
 				}
 
+				moduleDir = filepath.ToSlash(moduleDir)
+
 				if module, err := NewModule(repo, moduleDir); err != nil {
 					return err
 				} else if module != nil {

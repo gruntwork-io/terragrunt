@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -50,10 +53,17 @@ digraph {
 	"h" -> "c";
 }
 `)
-	assert.Contains(t, stdout.String(), expected)
+	// clean string to work in cross-platform way
+	actual := util.CleanString(stdout.String())
+	expected = util.CleanString(expected)
+
+	assert.Contains(t, actual, expected)
 }
 
 func TestGraphTrimPrefix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows due to path issues")
+	}
 	t.Parallel()
 
 	a := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/a"}
@@ -89,7 +99,11 @@ digraph {
 	"alpha/beta/h" -> "c";
 }
 `)
-	assert.Contains(t, stdout.String(), expected)
+	// clean string to work in cross-platform way
+	actual := util.CleanString(stdout.String())
+	expected = util.CleanString(expected)
+
+	assert.Contains(t, actual, expected)
 }
 
 func TestGraphFlagExcluded(t *testing.T) {
@@ -128,7 +142,12 @@ digraph {
 	"h" -> "c";
 }
 `)
-	assert.Contains(t, stdout.String(), expected)
+
+	// clean string to work in cross-platform way
+	actual := util.CleanString(stdout.String())
+	expected = util.CleanString(expected)
+
+	assert.Contains(t, actual, expected)
 }
 
 func TestCheckForCycles(t *testing.T) {

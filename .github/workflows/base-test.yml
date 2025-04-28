@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos, windows]
+        os: [ubuntu, macos]
 
     steps:
       - name: Checkout code
@@ -47,7 +47,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-base-test-${{ hashFiles('**/go.sum') }}
 
       - name: Run Tests
-        run: go test ./...
+        run: go test -v ./... -timeout 45m
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.

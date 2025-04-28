@@ -80,7 +80,9 @@ func TestFindHidden(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
-			assert.Equal(t, tc.expected, stdout)
+			// Normalize path separators in the output for cross-platform compatibility
+			normalizedStdout := filepath.ToSlash(stdout)
+			assert.Equal(t, tc.expected, normalizedStdout)
 		})
 	}
 }
@@ -129,7 +131,9 @@ func TestFindExternalDependencies(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", stdout)
+	// Normalize path separators in the output for cross-platform compatibility
+	normalizedStdout := filepath.ToSlash(stdout)
+	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", normalizedStdout)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies")
 	require.NoError(t, err)
@@ -269,7 +273,8 @@ func TestFindQueueConstructAs(t *testing.T) {
 
 			var paths []string
 			for _, config := range configs {
-				paths = append(paths, config.Path)
+				// Normalize path separators for cross-platform compatibility
+				paths = append(paths, filepath.ToSlash(config.Path))
 			}
 
 			assert.Equal(t, tc.expectedPaths, paths)

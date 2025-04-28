@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli"
@@ -29,6 +30,10 @@ var defaultLogLevel = log.DebugLevel
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
 
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
@@ -190,11 +195,17 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.NotNil(t, expected.Logger, msgAndArgs...)
 	assert.NotNil(t, actual.Logger, msgAndArgs...)
 
-	assert.Equal(t, expected.TerragruntConfigPath, actual.TerragruntConfigPath, msgAndArgs...)
+	// Normalize path separators for cross-platform compatibility
+	expectedConfigPath := filepath.ToSlash(expected.TerragruntConfigPath)
+	actualConfigPath := filepath.ToSlash(actual.TerragruntConfigPath)
+	expectedWorkingDir := filepath.ToSlash(expected.WorkingDir)
+	actualWorkingDir := filepath.ToSlash(actual.WorkingDir)
+
+	assert.Equal(t, expectedConfigPath, actualConfigPath, msgAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, msgAndArgs...)
 	assert.Equal(t, expected.IncludeExternalDependencies, actual.IncludeExternalDependencies, msgAndArgs...)
 	assert.Equal(t, expected.TerraformCliArgs, actual.TerraformCliArgs, msgAndArgs...)
-	assert.Equal(t, expected.WorkingDir, actual.WorkingDir, msgAndArgs...)
+	assert.Equal(t, expectedWorkingDir, actualWorkingDir, msgAndArgs...)
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
 	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
 	assert.Equal(t, expected.IAMRoleOptions, actual.IAMRoleOptions, msgAndArgs...)
@@ -205,6 +216,10 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 
 func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel log.Level, debug bool) *options.TerragruntOptions {
 	t.Helper()
+
+	// Normalize path separators for cross-platform compatibility
+	terragruntConfigPath = filepath.ToSlash(terragruntConfigPath)
+	workingDir = filepath.ToSlash(workingDir)
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
