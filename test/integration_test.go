@@ -2325,7 +2325,7 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	depPathAbs := filepath.Join(rootPathAbs, "dep")
 
 	// Run apply on the dependency module and make sure we get the outputs we expect
-	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --working-dir "+depPathAbs)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --working-dir "+depPathAbs)
 
 	depStdout := bytes.Buffer{}
 	depStderr := bytes.Buffer{}
@@ -2344,7 +2344,7 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	assert.Equal(t, depPathAbs, depOutputs["bar_original_terragrunt_dir"].Value)
 
 	// Run apply on the root module and make sure we get the expected outputs
-	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --working-dir "+rootPath)
 
 	rootStdout := bytes.Buffer{}
 	rootStderr := bytes.Buffer{}
@@ -3856,7 +3856,7 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
-	cmd := fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir)
+	cmd := fmt.Sprintf("terragrunt apply -auto-approve --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir)
 	helpers.RunTerragrunt(t, cmd)
 
 	// run plan and apply
