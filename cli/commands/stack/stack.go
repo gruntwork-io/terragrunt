@@ -39,7 +39,6 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // Run execute stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
