@@ -180,7 +180,6 @@ To transition `cli-redesign` features to a stable the following have been comple
   - [x] Add handling of broken configurations or configurations requiring authentication.
   - [x] Add integration test for `list` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
 
-
 ### `stacks`
 
 Support for Terragrunt stacks.
