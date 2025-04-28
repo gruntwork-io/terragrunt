@@ -27,9 +27,6 @@ var terraformErrorsMatcher = map[string]string{
 	"(?s).*NoCredentialProviders(?s).*":                                                   "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*client: no valid credential sources(?s).*":                                     "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*exec: \"(tofu|terraform)\": executable file not found(?s).*":                   "The executables 'terraform' and 'tofu' are missing from your $PATH. Please add at least one of these to your $PATH.",
-	"(?s).*There is no variable named \"values\"(?s).*":                                   "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\".",
-	"(?s).*Error: Reference to undeclared input variable(?s).*values(?s).*":               "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\".",
-	"(?s).*The input variable \"values\" is not declared in the root module(?s).*":        "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\".",
 }
 
 // ExplainError will try to explain the error to the user, if we know how to do so.
