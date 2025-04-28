@@ -59,7 +59,7 @@ After:
 terragrunt plan --inputs-debug
 ```
 
-You can find the new flag names in the [CLI reference](/docs/reference/cli/overview/) (including the deprecated flags they replace).
+You can find the new flag names in the [CLI reference](/docs/reference/cli/) (including the deprecated flags they replace).
 
 ### Update environment variables
 
@@ -95,7 +95,7 @@ After:
 export TG_INPUTS_DEBUG=true
 ```
 
-You can find the new environment variable names in the [CLI reference](/docs/reference/cli/overview/) (including the deprecated environment variables they replace).
+You can find the new environment variable names in the [CLI reference](/docs/reference/cli/) (including the deprecated environment variables they replace).
 
 ### Use the new `run` command
 
@@ -191,7 +191,7 @@ This offers a flexible way to integrate Terragrunt with other tools, besides jus
 
 ### Use the new `backend` capabilities
 
-Previously, Terragrunt would automatically provision any backend resources defined in the [remote_state](/docs/reference/hcl/blocks#remote_state/) block of a `terragrunt.hcl` file.
+Previously, Terragrunt would automatically provision any backend resources defined in the [remote_state](/docs/reference/hcl/blocks#remote_state) block of a `terragrunt.hcl` file.
 
 This was a source of confusion for many users, as it was potentially performing additional actions that users did not intend without asking for it.
 
