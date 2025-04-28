@@ -188,14 +188,6 @@ Support for Terragrunt stacks.
 
 Enable `stack` command to manage Terragrunt stacks.
 
-#### stacks - How to provide feedback
-
-Share your experience with the `stack` command in the [Stacks](https://github.com/gruntwork-io/terragrunt/issues/3313) RFC.
-Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
-
-- Any bugs or issues encountered (including logs or stack traces if possible).
-- Suggestions for additional improvements or enhancements.
-
 #### stacks - Criteria for stabilization
 
 To transition the `stacks` feature to a stable release, the following must be addressed:
