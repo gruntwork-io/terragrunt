@@ -18,11 +18,6 @@ func ErrorHandler(commands cli.Commands) cli.FlagErrHandlerFunc {
 			return err
 		}
 
-		cmdName := ctx.Args().CommandName()
-		if cmdName == "" {
-			cmdName = ctx.Args().CommandName()
-		}
-
 		undefFlag := string(undefinedFlagErr)
 
 		if cmds, flag := findFlagInCommands(commands, undefFlag); cmds != nil {
@@ -31,8 +26,8 @@ func ErrorHandler(commands cli.Commands) cli.FlagErrHandlerFunc {
 				cmdHint  = strings.Join(cmds.Names(), " ")
 			)
 
-			if cmdName != "" {
-				return NewCommandFlagHintError(cmdName, undefFlag, cmdHint, flagHint)
+			if ctx.Parent().Command != nil {
+				return NewCommandFlagHintError(ctx.Command.Name, undefFlag, cmdHint, flagHint)
 			}
 
 			return NewGlobalFlagHintError(undefFlag, cmdHint, flagHint)

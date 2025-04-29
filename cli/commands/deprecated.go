@@ -78,7 +78,8 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			"--" + render.WriteFlagName,
 			"--" + render.OutFlagName, "terragrunt_rendered.json"}),
 
-		newDeprecatedCLIRedesignCommand(CommandRunAllName, cli.Args{},
+		// `run-all` commands
+		newDeprecatedCLIRedesignCommand(CommandRunAllName, cli.Args{run.CommandName, "--" + runall.AllFlagName},
 			append(DeprecatedCommands{
 				// `run-all hclfmt`
 				newDeprecatedCLIRedesignCommand(CommandHCLFmtName,
@@ -118,7 +119,8 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			)...,
 		),
 
-		newDeprecatedCLIRedesignCommand(CommandGraphName, cli.Args{},
+		// `graphs` commands
+		newDeprecatedCLIRedesignCommand(CommandGraphName, cli.Args{run.CommandName, "--" + render.JSONFlagName},
 			append(DeprecatedCommands{
 				// `graph render-json`
 				newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
@@ -156,13 +158,19 @@ func newDeprecatedLegacyAllCommand(deprecatedCommandName, tfCommandName string) 
 }
 
 func newDeprecatedCLIRedesignCommand(deprecatedCommandName string, replaceWithArgs cli.Args, subcommands ...*DeprecatedCommand) *DeprecatedCommand {
-	return &DeprecatedCommand{
+	cmd := &DeprecatedCommand{
 		subcommands:     subcommands,
 		commandName:     deprecatedCommandName,
 		replaceWithArgs: replaceWithArgs,
 		controlName:     controls.CLIRedesign,
 		controlCategory: controls.CLIRedesignCommandsCategoryName,
 	}
+
+	for _, subCmd := range subcommands {
+		subCmd.parentCommand = cmd
+	}
+
+	return cmd
 }
 
 func newDeprecatedCLIRedesignTFCommands(args cli.Args) DeprecatedCommands {
@@ -236,13 +244,19 @@ type DeprecatedCommand struct {
 	controlName     string
 	controlCategory string
 	subcommands     DeprecatedCommands
+	parentCommand   *DeprecatedCommand
 	replaceWithArgs cli.Args
 }
 
 func (dep DeprecatedCommand) CLICommand(opts *options.TerragruntOptions) *cli.Command {
 	newCommand := "terragrunt " + dep.replaceWithArgs.String()
+	depCommand := dep.commandName
 
-	control := controls.NewDeprecatedCommand(dep.commandName, newCommand)
+	if dep.parentCommand != nil {
+		depCommand = dep.parentCommand.commandName + " " + depCommand
+	}
+
+	control := controls.NewDeprecatedCommand(depCommand, newCommand)
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, dep.controlName, dep.commandName).AddSubcontrolsToCategory(dep.controlCategory, control)
 
 	return &cli.Command{

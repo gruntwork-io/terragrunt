@@ -178,26 +178,28 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	var undefArgs Args
 
-	errHandler := func(args Args) func(err error) error {
-		return func(err error) error {
-			if cmd.DisabledErrorOnMultipleSetFlag && IsMultipleTimesSettingError(err) {
-				return nil
-			}
-
-			if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
-				err = flagErrHandler(ctx.NewCommandContext(cmd, args), err)
-			}
-
-			return err
+	errHandler := func(err error) error {
+		if err == nil {
+			return nil
 		}
+
+		if cmd.DisabledErrorOnMultipleSetFlag && IsMultipleTimesSettingError(err) {
+			return nil
+		}
+
+		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
+			err = flagErrHandler(ctx.NewCommandContext(cmd, args), err)
+		}
+
+		return err
 	}
 
-	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler(args))
+	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler)
 	if err != nil {
 		return nil, err
 	}
 
-	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name, errHandler(args))
+	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name, errHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -208,26 +210,26 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 
 	args, builtinCmd := args.Split(BuiltinCmdSep)
 
-	for i := 0; ; i++ {
+	for i := 0; len(args) > 0; i++ {
 		if i == 0 {
 			args, err = cmd.flagSetParse(ctx, flagSet, args)
 		} else {
 			args, err = cmd.flagSetParse(ctx, flagSetWithSubcommandScope, args)
 		}
 
-		if err = errHandler(undefArgs)(err); err != nil {
+		if len(args) != 0 {
+			undefArgs = append(undefArgs, args[0])
+			args = args[1:]
+		}
+
+		if err != nil {
 			if !errors.As(err, new(UndefinedFlagError)) ||
 				(cmd.Subcommands.Get(undefArgs.Get(0)) == nil) {
-				return undefArgs, err
+				if err = errHandler(err); err != nil {
+					return undefArgs, err
+				}
 			}
 		}
-
-		if len(args) == 0 {
-			break
-		}
-
-		undefArgs = append(undefArgs, args[0])
-		args = args[1:]
 	}
 
 	if len(builtinCmd) > 0 {
