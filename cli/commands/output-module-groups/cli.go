@@ -18,7 +18,7 @@ const (
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	newCommand := "terragrunt " + find.CommandName + " --" + find.JSONFlagName
 
-	control := controls.NewDeprecatedCommand(CommandName, newCommand)
+	control := controls.NewDeprecatedReplacedCommand(CommandName, newCommand)
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).AddSubcontrolsToCategory(controls.CLIRedesignCommandsCategoryName, control)
 
 	return &cli.Command{

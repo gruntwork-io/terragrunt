@@ -119,7 +119,7 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			)...,
 		),
 
-		// `graphs` commands
+		// `graph` commands
 		newDeprecatedCLIRedesignCommand(CommandGraphName, cli.Args{run.CommandName, "--" + render.JSONFlagName},
 			append(DeprecatedCommands{
 				// `graph render-json`
@@ -201,7 +201,7 @@ func newDeprecatedDefaultCommands(opts *options.TerragruntOptions) cli.Commands 
 		}
 
 		newCommand := "terragrunt " + run.CommandName + " -- " + runSubCmd.Name
-		control := controls.NewDeprecatedCommand(runSubCmd.Name, newCommand)
+		control := controls.NewDeprecatedReplacedCommand(runSubCmd.Name, newCommand)
 		strictGroups.AddSubcontrolsToCategory(controls.DefaultCommandsCategoryName, control)
 
 		cmd := &cli.Command{
@@ -256,7 +256,7 @@ func (dep DeprecatedCommand) CLICommand(opts *options.TerragruntOptions) *cli.Co
 		depCommand = dep.parentCommand.commandName + " " + depCommand
 	}
 
-	control := controls.NewDeprecatedCommand(depCommand, newCommand)
+	control := controls.NewDeprecatedReplacedCommand(depCommand, newCommand)
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, dep.controlName, dep.commandName).AddSubcontrolsToCategory(dep.controlCategory, control)
 
 	return &cli.Command{
