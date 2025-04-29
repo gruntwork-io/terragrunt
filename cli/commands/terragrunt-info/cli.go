@@ -21,8 +21,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 
-	cmd = runall.WrapCommand(opts, cmd)
-	cmd = graph.WrapCommand(opts, cmd)
+	cmd = runall.WrapCommand(opts, cmd, run.Run)
+	cmd = graph.WrapCommand(opts, cmd, run.Run)
 
 	return cmd
 }

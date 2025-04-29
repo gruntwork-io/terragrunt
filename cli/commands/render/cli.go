@@ -117,7 +117,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		ErrorOnUndefinedFlag: true,
 	}
 
-	cmd = runall.WrapCommand(opts, cmd)
+	cmd = runall.WrapCommand(opts, cmd, run.Run)
 
 	return cmd
 }

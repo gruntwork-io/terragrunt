@@ -482,11 +482,6 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	return opts
 }
 
-// ContextWithOptions returns a context containing the value of `TerragruntOptions`.
-func (opts *TerragruntOptions) ContextWithOptions(ctx context.Context) context.Context {
-	return context.WithValue(ctx, ContextKey, opts)
-}
-
 // Clone performs a deep copy of `opts` with shadow copies of: interfaces, and funcs.
 // Fields with "clone" tags can override this behavior.
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {
