@@ -5,6 +5,7 @@ package graph
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -25,8 +26,8 @@ func NewCommand(opts *options.TerragruntOptions, _ flags.Prefix) *cli.Command {
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd)
-	cmd = graph.WrapCommand(opts, cmd)
+	cmd = runall.WrapCommand(opts, cmd, run.Run)
+	cmd = graph.WrapCommand(opts, cmd, run.Run)
 
 	return cmd
 }
