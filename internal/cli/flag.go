@@ -111,43 +111,43 @@ type flagValueGetter struct {
 }
 
 func (flag *flagValueGetter) EnvSet(val string) error {
+	var err error
+
 	if !flag.envHasBeenSet {
 		// may contain a default value or an env var, so it needs to be cleared before the first setting.
 		flag.value.Reset()
 		flag.envHasBeenSet = true
+	} else if !flag.multipleSet {
+		err = errors.New(ErrMultipleTimesSettingEnvVar)
 	}
 
 	flag.flagValue.name = flag.valueName
 
 	if err := flag.flagValue.value.Set(val); err != nil {
-		return nil
+		return err
 	}
 
-	if flag.envHasBeenSet && !flag.multipleSet {
-		return errors.New(ErrMultipleTimesSettingEnvVar)
-	}
-
-	return nil
+	return err
 }
 
 func (flag *flagValueGetter) Set(val string) error {
+	var err error
+
 	if !flag.hasBeenSet {
 		// may contain a default value or an env var, so it needs to be cleared before the first setting.
 		flag.value.Reset()
 		flag.hasBeenSet = true
+	} else if !flag.multipleSet {
+		err = errors.New(ErrMultipleTimesSettingFlag)
 	}
 
 	flag.flagValue.name = flag.valueName
 
 	if err := flag.flagValue.value.Set(val); err != nil {
-		return nil
+		return err
 	}
 
-	if flag.hasBeenSet && !flag.multipleSet {
-		return errors.New(ErrMultipleTimesSettingFlag)
-	}
-
-	return nil
+	return err
 }
 
 type Value interface {
