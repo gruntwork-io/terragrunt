@@ -25,7 +25,6 @@ func (flags Flags) NewFlagSet(cmdName string, errHandler func(err error) error) 
 	flagSet.SetOutput(io.Discard)
 
 	err := flags.Apply(flagSet, errHandler)
-
 	return flagSet, err
 }
 

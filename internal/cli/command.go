@@ -178,24 +178,26 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	var undefArgs Args
 
-	errHandler := func(err error) error {
-		if cmd.DisabledErrorOnMultipleSetFlag && IsMultipleTimesSettingError(err) {
-			return nil
-		}
+	errHandler := func(args Args) func(err error) error {
+		return func(err error) error {
+			if cmd.DisabledErrorOnMultipleSetFlag && IsMultipleTimesSettingError(err) {
+				return nil
+			}
 
-		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
-			err = flagErrHandler(ctx.NewCommandContext(cmd, args), err)
-		}
+			if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
+				err = flagErrHandler(ctx.NewCommandContext(cmd, args), err)
+			}
 
-		return err
+			return err
+		}
 	}
 
-	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler)
+	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler(args))
 	if err != nil {
 		return nil, err
 	}
 
-	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name, errHandler)
+	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name, errHandler(args))
 	if err != nil {
 		return nil, err
 	}
@@ -208,15 +210,15 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 
 	for i := 0; ; i++ {
 		if i == 0 {
-			args, err = cmd.flagSetParse(ctx, flagSet, args, errHandler)
+			args, err = cmd.flagSetParse(ctx, flagSet, args)
 		} else {
-			args, err = cmd.flagSetParse(ctx, flagSetWithSubcommandScope, args, errHandler)
+			args, err = cmd.flagSetParse(ctx, flagSetWithSubcommandScope, args)
 		}
 
-		if err != nil {
+		if err = errHandler(undefArgs)(err); err != nil {
 			if !errors.As(err, new(UndefinedFlagError)) ||
 				(cmd.Subcommands.Get(undefArgs.Get(0)) == nil) {
-				return nil, err
+				return undefArgs, err
 			}
 		}
 
@@ -236,7 +238,7 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	return undefArgs, nil
 }
 
-func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Args, errHandler func(err error) error) ([]string, error) {
+func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Args) ([]string, error) {
 	var (
 		undefArgs []string
 		err       error
@@ -252,11 +254,7 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 		// check if the error is due to an undefArgs flag
 		var undefArg string
 
-		if err = flagSet.Parse(args); err != nil {
-			err = errHandler(err)
-		}
-
-		if err == nil {
+		if err = flagSet.Parse(args); err == nil {
 			break
 		}
 
