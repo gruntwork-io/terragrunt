@@ -24,11 +24,6 @@ const (
 	fixtureRenderJSONRegression   = "fixtures/render-json-regression"
 )
 
-var (
-	fixtureRenderJSONMainModulePath = filepath.Join(fixtureRenderJSON, "main")
-	fixtureRenderJSONDepModulePath  = filepath.Join(fixtureRenderJSON, "dep")
-)
-
 func TestDebugGeneratedInputs(t *testing.T) {
 	t.Parallel()
 
