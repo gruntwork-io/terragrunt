@@ -34,22 +34,26 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.
 }
 
 // WrapCommand appends flags to the given `cmd` and wraps its action.
-func WrapCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
+func WrapCommand(opts *options.TerragruntOptions, cmd *cli.Command, runFn func(ctx context.Context, opts *options.TerragruntOptions) error) *cli.Command {
 	cmd = cmd.WrapAction(func(cliCtx *cli.Context, action cli.ActionFunc) error {
 		if !opts.Graph {
 			return action(cliCtx)
 		}
 
 		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
-			cliCtx := cliCtx.WithValue(options.ContextKey, opts)
-			return action(cliCtx)
+			if opts.TerraformCommand == cmd.Name {
+				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
+
+				return action(cliCtx)
+			}
+
+			return runFn(ctx, opts)
 		}
 
 		return Run(cliCtx, opts.OptionsFromContext(cliCtx))
 	})
 
-	flags := append(cmd.Flags, NewFlags(opts, cmd.Name, nil)...)
-	cmd.Flags = flags.Sort()
+	cmd.Flags = append(cmd.Flags, NewFlags(opts, cmd.Name, nil)...)
 
 	return cmd
 }

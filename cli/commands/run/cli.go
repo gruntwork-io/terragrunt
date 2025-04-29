@@ -41,8 +41,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd)
-	cmd = graph.WrapCommand(opts, cmd)
+	cmd = runall.WrapCommand(opts, cmd, Run)
+	cmd = graph.WrapCommand(opts, cmd, Run)
 
 	return cmd
 }
