@@ -111,17 +111,19 @@ type flagValueGetter struct {
 }
 
 func (flag *flagValueGetter) EnvSet(val string) error {
+	if !flag.envHasBeenSet {
+		// may contain a default value or an env var, so it needs to be cleared before the first setting.
+		flag.value.Reset()
+		flag.envHasBeenSet = true
+	}
+
 	flag.flagValue.name = flag.valueName
 
 	if err := flag.flagValue.value.Set(val); err != nil {
 		return nil
 	}
 
-	if !flag.envHasBeenSet {
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
-		flag.value.Reset()
-		flag.envHasBeenSet = true
-	} else if !flag.multipleSet {
+	if flag.envHasBeenSet && !flag.multipleSet {
 		return errors.New(ErrMultipleTimesSettingEnvVar)
 	}
 
@@ -129,17 +131,19 @@ func (flag *flagValueGetter) EnvSet(val string) error {
 }
 
 func (flag *flagValueGetter) Set(val string) error {
+	if !flag.hasBeenSet {
+		// may contain a default value or an env var, so it needs to be cleared before the first setting.
+		flag.value.Reset()
+		flag.hasBeenSet = true
+	}
+
 	flag.flagValue.name = flag.valueName
 
 	if err := flag.flagValue.value.Set(val); err != nil {
 		return nil
 	}
 
-	if !flag.hasBeenSet {
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
-		flag.value.Reset()
-		flag.hasBeenSet = true
-	} else if !flag.multipleSet {
+	if flag.hasBeenSet && !flag.multipleSet {
 		return errors.New(ErrMultipleTimesSettingFlag)
 	}
 
