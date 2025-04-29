@@ -3,8 +3,10 @@ package remotestate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -130,7 +132,19 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 	var backendConfigArgs = make([]string, 0, len(config))
 
 	for key, value := range config {
-		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
+		var sanitizedValue string
+		if reflect.ValueOf(value).Kind() == reflect.Map {
+			jsonValue, err := json.Marshal(value)
+			if err != nil {
+				// TODO: Log error
+				continue
+			}
+			sanitizedValue = string(jsonValue)
+		} else {
+			sanitizedValue = fmt.Sprintf("%v", value)
+		}
+
+		arg := fmt.Sprintf("-backend-config=%s=%s", key, sanitizedValue)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}
 
