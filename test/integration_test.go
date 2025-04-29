@@ -593,9 +593,9 @@ func TestTerragruntExcludesFile(t *testing.T) {
 
 			helpers.CleanupTerraformFolder(t, testFixtureExcludesFile)
 
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, tc.flags))
+			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run apply --all --terragrunt-non-interactive --terragrunt-working-dir %s %s -- -auto-approve", rootPath, tc.flags))
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, tc.flags))
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run output --all --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, tc.flags))
 			require.NoError(t, err)
 
 			actualOutput := strings.Split(strings.TrimSpace(stdout), "\n")

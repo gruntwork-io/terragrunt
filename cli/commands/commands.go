@@ -300,12 +300,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	if len(opts.ExcludesFile) != 0 {
-		opts.ExcludeDirs, err = util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
-		if err != nil {
-			return err
-		}
+	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
+	if err != nil {
+		return err
 	}
+
+	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
 
 	// --- Terragrunt Version
 	terragruntVersion, err := hashicorpversion.NewVersion(cliCtx.App.Version)
