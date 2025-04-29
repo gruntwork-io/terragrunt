@@ -17,6 +17,7 @@ const (
 	registryFixtureRootShorthandModulePath       = "root-shorthand"
 	registryFixtureSubdirModulePath              = "subdir"
 	registryFixtureSubdirWithReferenceModulePath = "subdir-with-reference"
+	registryFixtureVersion                       = "version"
 )
 
 func TestTerraformRegistryFetchingRootModule(t *testing.T) {
@@ -55,5 +56,14 @@ func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey stri
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	_, hasOutput := outputs[expectedOutputKey]
 	assert.True(t, hasOutput)
+}
 
+func TestTerraformRegistryVersionResolution(t *testing.T) {
+	t.Parallel()
+
+	versionFixture := util.JoinPath(registryFixturePath, registryFixtureVersion)
+	helpers.CleanupTerragruntFolder(t, versionFixture)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --working-dir "+versionFixture)
+	require.NoError(t, err)
 }

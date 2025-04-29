@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -17,6 +18,7 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
+	"github.com/hashicorp/go-version"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -38,6 +40,21 @@ const (
 // RegistryServicePath is a struct for extracting the modules service path in the Registry.
 type RegistryServicePath struct {
 	ModulesPath string `json:"modules.v1"`
+}
+
+// Modules is a struct for extracting the modules list from a versions endpoint in the Registry.
+type Modules struct {
+	Modules []Module `json:"modules"`
+}
+
+// Module is a struct for extracting the module versions from Modules.
+type Module struct {
+	ModuleVersions []ModuleVersion `json:"versions"`
+}
+
+// ModuleVersion is a struct for extracting the module version from Module.
+type ModuleVersion struct {
+	Version string `json:"version"`
 }
 
 // RegistryGetter is a Getter (from go-getter) implementation that will download from the terraform module
@@ -135,17 +152,29 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
 	}
 
-	version := versionList[0]
+	versionQuery := versionList[0]
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.TerragruntOptions.Logger, registryDomain)
 	if err != nil {
 		return err
 	}
 
-	moduleURL, err := BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version)
+	moduleVersionsURL, err := BuildModuleVersionsURL(registryDomain, moduleRegistryBasePath, modulePath)
 	if err != nil {
 		return err
 	}
+
+	targetVersion, err := GetTargetVersion(ctx, tfrGetter.TerragruntOptions.Logger, *moduleVersionsURL, versionQuery)
+	if err != nil {
+		return err
+	}
+
+	moduleURL, err := BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, targetVersion)
+	if err != nil {
+		return err
+	}
+
+	tfrGetter.TerragruntOptions.Logger.Infof("Downloading module from %s", moduleURL.String())
 
 	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.TerragruntOptions.Logger, *moduleURL)
 	if err != nil {
@@ -268,6 +297,39 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 	return respJSON.ModulesPath, nil
 }
 
+// GetTargetVersion retrieves the target version of the module based on the version constraint provided. This function
+// will return the highest version that satisfies the version constraint. If no version satisfies the constraint, an
+// error will be returned.
+func GetTargetVersion(ctx context.Context, logger log.Logger, url url.URL, versionQuery string) (string, error) {
+	body, _, err := httpGETAndGetResponse(ctx, logger, url)
+	if err != nil {
+		return "", errors.New(ModuleVersionsFetchErr{sourceURL: url.String()})
+	}
+
+	var responseJSON Modules
+	if err := json.Unmarshal(body, &responseJSON); err != nil {
+		return "", errors.New(ModuleVersionsFetchErr{sourceURL: url.String()})
+	}
+
+	if len(responseJSON.Modules) == 0 || len(responseJSON.Modules[0].ModuleVersions) == 0 {
+		return "", errors.New(ModuleVersionsFetchErr{sourceURL: url.String()})
+	}
+
+	// Filter the available module versions based on the version constraint to get the compatible versions
+	compatibleVersions, err := getCompatibleVersions(responseJSON.Modules[0].ModuleVersions, versionQuery)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the highest version from the compatible versions
+	targetVersion := getHighestVersion(compatibleVersions)
+	if targetVersion == "" {
+		return "", errors.New(ModuleVersionConstraintErr{versionConstraint: versionQuery})
+	}
+
+	return targetVersion, nil
+}
+
 // GetTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
 // body or the header X-Terraform-Get. This function will return an error if the response does not contain the header.
 func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) (string, error) {
@@ -361,6 +423,26 @@ func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.UR
 	return bodyData, &resp.Header, errors.New(err)
 }
 
+// BuildModuleVersionsURL - create url to fetch module versions using moduleRegistryBasePath.
+func BuildModuleVersionsURL(registryDomain string, moduleRegistryBasePath string, modulePath string) (*url.URL, error) {
+	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+
+	moduleVersionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
+
+	moduleVersionsURL, err := url.Parse(moduleVersionsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if moduleVersionsURL.Scheme != "" {
+		return moduleVersionsURL, nil
+	}
+
+	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleVersionsPath}, nil
+}
+
 // BuildRequestURL - create url to download module using moduleRegistryBasePath
 func BuildRequestURL(registryDomain string, moduleRegistryBasePath string, modulePath string, version string) (*url.URL, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
@@ -379,4 +461,39 @@ func BuildRequestURL(registryDomain string, moduleRegistryBasePath string, modul
 	}
 
 	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleFullPath}, nil
+}
+
+// getHighestVersion returns the highest version from the list of versions, or an empty string if the list is empty.
+func getHighestVersion(availableVersions []*version.Version) string {
+	if len(availableVersions) == 0 {
+		return ""
+	}
+
+	sort.Sort(version.Collection(availableVersions))
+
+	return availableVersions[len(availableVersions)-1].String()
+}
+
+// getCompatibleVersions returns the list of versions within availableVersions that satisfy the version
+// constraint defined by versionQuery.
+func getCompatibleVersions(availableVersions []ModuleVersion, versionQuery string) ([]*version.Version, error) {
+	var compatibleVersions []*version.Version
+
+	versionConstraint, err := version.NewConstraint(versionQuery)
+	if err != nil {
+		return nil, errors.New(ModuleVersionConstraintMalformedErr{versionConstraint: versionQuery})
+	}
+
+	for _, availableVersion := range availableVersions {
+		availableVersionParsed, err := version.NewVersion(availableVersion.Version)
+		if err != nil {
+			return nil, errors.New(ModuleVersionMalformedErr{version: availableVersion.Version})
+		}
+
+		if versionConstraint.Check(availableVersionParsed) {
+			compatibleVersions = append(compatibleVersions, availableVersionParsed)
+		}
+	}
+
+	return compatibleVersions, nil
 }

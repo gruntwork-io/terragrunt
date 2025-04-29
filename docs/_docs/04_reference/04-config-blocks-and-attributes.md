@@ -112,6 +112,8 @@ The `terraform` block supports the following arguments:
   - Refer to [A note about using modules from the
     registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
     information about using modules from the Terraform Registry with Terragrunt.
+  - VERSION can be a specific version number (e.g., `1.2.3`) or a version constraint (e.g., `>= 1.2.3, <=3.2.1`) following syntax
+    defined in the [OpenTofu documentation](https://opentofu.org/docs/language/expressions/version-constraints/).
 
 - `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied into the
   OpenTofu/Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
