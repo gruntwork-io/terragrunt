@@ -18,11 +18,12 @@ const CommandName = "graph"
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:        CommandName,
-		Usage:       "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
-		Flags:       run.NewFlags(opts, nil),
-		Subcommands: subCommands(opts).SkipRunning(),
-		Action:      action(opts),
+		Name:                         CommandName,
+		Usage:                        "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
+		Flags:                        run.NewFlags(opts, nil),
+		Subcommands:                  subCommands(opts).SkipRunning(),
+		Action:                       action(opts),
+		DisabledErrorOnUndefinedFlag: true,
 	}
 }
 

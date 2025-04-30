@@ -197,9 +197,14 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
-	if cmdName == runCmd.CommandName {
+	switch {
+	case cmdName == runCmd.CommandName:
+		fallthrough
+	case cmdName == runall.CommandName:
+		fallthrough
+	case cmdName == graph.CommandName && cliCtx.Parent().Command.IsRoot:
 		cmdName = args.CommandName()
-	} else {
+	default:
 		args = append([]string{cmdName}, args...)
 	}
 

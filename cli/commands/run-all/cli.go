@@ -21,12 +21,13 @@ const (
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:        CommandName,
-		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
-		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
-		Subcommands: subCommands(opts).SkipRunning(),
-		Action:      action(opts),
-		Flags:       run.NewFlags(opts, nil),
+		Name:                         CommandName,
+		Usage:                        "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
+		Description:                  "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
+		Subcommands:                  subCommands(opts).SkipRunning(),
+		Action:                       action(opts),
+		Flags:                        run.NewFlags(opts, nil),
+		DisabledErrorOnUndefinedFlag: true,
 	}
 }
 
