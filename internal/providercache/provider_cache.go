@@ -341,7 +341,11 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
 func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
-	envs := opts.Env
+	// make copy + ensure non-nil
+	envs := make(map[string]string, len(opts.Env))
+	for k, v := range opts.Env {
+		envs[k] = v
+	}
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
