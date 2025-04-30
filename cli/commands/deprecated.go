@@ -2,6 +2,8 @@
 package commands
 
 import (
+	"slices"
+
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
@@ -138,7 +140,10 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 		),
 	}
 
-	return deprecatedCommands.CLICommands(opts)
+	// `push/untaint/...` all TF commands that are not shortcuts
+	deprecatedDefaultCommands := newDeprecatedDefaultCommands(opts)
+
+	return append(deprecatedCommands.CLICommands(opts), deprecatedDefaultCommands...)
 }
 
 func newDeprecatedLegacyAllCommand(deprecatedCommandName, tfCommandName string) *DeprecatedCommand {
@@ -178,6 +183,47 @@ func newDeprecatedCLIRedesignTFCommands(args cli.Args) DeprecatedCommands {
 			controlName:     controls.CLIRedesign,
 			controlCategory: controls.CLIRedesignCommandsCategoryName,
 		}
+	}
+
+	return cmds
+}
+
+func newDeprecatedDefaultCommands(opts *options.TerragruntOptions) cli.Commands {
+	var (
+		runCmd       = run.NewCommand(opts)
+		cmds         = make(cli.Commands, 0, len(runCmd.Subcommands))
+		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.DefaultCommands)
+	)
+
+	for _, runSubCmd := range runCmd.Subcommands {
+		if isShortcutCmd := slices.Contains(shortcutCommandNames, runSubCmd.Name); isShortcutCmd {
+			continue
+		}
+
+		newCommand := "terragrunt " + run.CommandName + " -- " + runSubCmd.Name
+		control := controls.NewDeprecatedReplacedCommand(runSubCmd.Name, newCommand)
+		strictGroups.AddSubcontrolsToCategory(controls.DefaultCommandsCategoryName, control)
+
+		cmd := &cli.Command{
+			Name:       runSubCmd.Name,
+			Usage:      runSubCmd.Usage,
+			Flags:      runCmd.Flags,
+			CustomHelp: runSubCmd.CustomHelp,
+			Before: func(ctx *cli.Context) error {
+				if err := control.Evaluate(ctx); err != nil {
+					return cli.NewExitError(err, cli.ExitCodeGeneralError)
+				}
+
+				return nil
+			},
+			Action: func(ctx *cli.Context) error {
+				return runSubCmd.Action(ctx)
+			},
+			Hidden:                       true,
+			DisabledErrorOnUndefinedFlag: true,
+		}
+
+		cmds = append(cmds, cmd)
 	}
 
 	return cmds
