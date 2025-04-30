@@ -20,7 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
-	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -103,7 +102,6 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		hcl.NewCommand(opts),                // hcl
 		info.NewCommand(opts),               // info
 		dag.NewCommand(opts),                // dag
-		terragruntinfo.NewCommand(opts),     // terragrunt-info
 		render.NewCommand(opts),             // render
 		helpCmd.NewCommand(opts),            // help (hidden)
 		versionCmd.NewCommand(opts),         // version (hidden)

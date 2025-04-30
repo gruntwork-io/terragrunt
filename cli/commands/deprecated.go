@@ -6,6 +6,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
+	"github.com/gruntwork-io/terragrunt/cli/commands/info"
+	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -56,6 +58,9 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 		newDeprecatedCLIRedesignCommand(CommandValidateInputsName, cli.Args{
 			hcl.CommandName, validate.CommandName,
 			"--" + validate.InputsFlagName}),
+		// `terragrunt-info`
+		newDeprecatedCLIRedesignCommand(CommandTerragruntInfoName, cli.Args{
+			info.CommandName, print.CommandName}),
 		// `render-json`
 		newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
 			render.CommandName,
