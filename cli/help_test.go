@@ -73,7 +73,6 @@ func TestCommandHelpTemplate(t *testing.T) {
 				Usage:   "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
 			},
 		},
-		ErrorOnUndefinedFlag: true,
 	}
 
 	var out bytes.Buffer

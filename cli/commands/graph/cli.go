@@ -8,7 +8,6 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
-	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -19,12 +18,11 @@ const CommandName = "graph"
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:                 CommandName,
-		Usage:                "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
-		ErrorOnUndefinedFlag: true,
-		Flags:                run.NewFlags(opts, nil),
-		Subcommands:          subCommands(opts).SkipRunning(),
-		Action:               action(opts),
+		Name:        CommandName,
+		Usage:       "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
+		Flags:       run.NewFlags(opts, nil),
+		Subcommands: subCommands(opts).SkipRunning(),
+		Action:      action(opts),
 	}
 }
 
@@ -48,7 +46,6 @@ func subCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		terragruntinfo.NewCommand(opts),    // terragrunt-info
 		graphdependencies.NewCommand(opts), // graph-dependencies
-		renderjson.NewCommand(opts),        // render-json
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}
 	sort.Sort(cmds)
