@@ -2,6 +2,7 @@
 package commands
 
 import (
+	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
@@ -74,6 +75,47 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			"--" + render.JSONFlagName,
 			"--" + render.WriteFlagName,
 			"--" + render.OutFlagName, "terragrunt_rendered.json"}),
+
+		// `run-all` commands
+		newDeprecatedCLIRedesignCommand(CommandRunAllName, cli.Args{run.CommandName, "--" + runall.AllFlagName},
+			append(DeprecatedCommands{
+				// `run-all hclfmt`
+				newDeprecatedCLIRedesignCommand(CommandHCLFmtName,
+					cli.Args{hcl.CommandName, format.CommandName,
+						"--" + runall.AllFlagName}),
+				// `run-all hclvalidate`
+				newDeprecatedCLIRedesignCommand(CommandHCLValidateName, cli.Args{
+					hcl.CommandName, validate.CommandName,
+					"--" + runall.AllFlagName}),
+				// `run-all validate-inputs`
+				newDeprecatedCLIRedesignCommand(CommandValidateInputsName, cli.Args{
+					hcl.CommandName, validate.CommandName,
+					"--" + runall.AllFlagName,
+					"--" + validate.InputsFlagName}),
+				// `run-all render-json`
+				newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
+					render.CommandName,
+					"--" + runall.AllFlagName,
+					"--" + render.JSONFlagName,
+					"--" + render.WriteFlagName,
+					"--" + render.OutFlagName, "terragrunt_rendered.json"}),
+				// `run-all render`
+				newDeprecatedCLIRedesignCommand(render.CommandName, cli.Args{
+					render.CommandName,
+					"--" + runall.AllFlagName}),
+				// `run-all aws-provider-patch`
+				newDeprecatedCLIRedesignCommand(awsproviderpatch.CommandName, cli.Args{
+					awsproviderpatch.CommandName,
+					"--" + runall.AllFlagName}),
+				// `run-all graph-dependencies`
+				newDeprecatedCLIRedesignCommand(CommandGraphDependenciesName, cli.Args{
+					dag.CommandName, daggraph.CommandName,
+					"--" + runall.AllFlagName}),
+			},
+				// `run-all plan/apply/...`
+				newDeprecatedCLIRedesignTFCommands(cli.Args{"--" + runall.AllFlagName})...,
+			)...,
+		),
 
 		// `graph` commands
 		newDeprecatedCLIRedesignCommand(CommandGraphName, cli.Args{run.CommandName, "--" + render.JSONFlagName},

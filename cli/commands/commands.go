@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -62,7 +61,6 @@ const (
 func New(opts *options.TerragruntOptions) cli.Commands {
 	mainCommands := cli.Commands{
 		runCmd.NewCommand(opts),  // run
-		runall.NewCommand(opts),  // run-all
 		stack.NewCommand(opts),   // stack
 		execCmd.NewCommand(opts), // exec
 		backend.NewCommand(opts), // backend
@@ -193,8 +191,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	switch {
 	case cmdName == runCmd.CommandName:
-		fallthrough
-	case cmdName == runall.CommandName:
 		cmdName = args.CommandName()
 	default:
 		args = append([]string{cmdName}, args...)
