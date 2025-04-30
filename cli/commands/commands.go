@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
-	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
@@ -65,7 +64,6 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		runCmd.NewCommand(opts),  // run
 		runall.NewCommand(opts),  // run-all
 		stack.NewCommand(opts),   // stack
-		graph.NewCommand(opts),   // graph
 		execCmd.NewCommand(opts), // exec
 		backend.NewCommand(opts), // backend
 	}.SetCategory(
@@ -197,8 +195,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	case cmdName == runCmd.CommandName:
 		fallthrough
 	case cmdName == runall.CommandName:
-		fallthrough
-	case cmdName == graph.CommandName && cliCtx.Parent().Command.IsRoot:
 		cmdName = args.CommandName()
 	default:
 		args = append([]string{cmdName}, args...)

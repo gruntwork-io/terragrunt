@@ -2,6 +2,7 @@
 package commands
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
 	daggraph "github.com/gruntwork-io/terragrunt/cli/commands/dag/graph"
@@ -11,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -72,6 +74,26 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			"--" + render.JSONFlagName,
 			"--" + render.WriteFlagName,
 			"--" + render.OutFlagName, "terragrunt_rendered.json"}),
+
+		// `graph` commands
+		newDeprecatedCLIRedesignCommand(CommandGraphName, cli.Args{run.CommandName, "--" + render.JSONFlagName},
+			append(DeprecatedCommands{
+				// `graph render-json`
+				newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
+					render.CommandName,
+					"--" + graph.GraphFlagName,
+					"--" + render.JSONFlagName,
+					"--" + render.WriteFlagName,
+					"--" + render.OutFlagName, "terragrunt_rendered.json"}),
+				// `graph render`
+				newDeprecatedCLIRedesignCommand(render.CommandName, cli.Args{
+					render.CommandName,
+					"--" + graph.GraphFlagName}),
+			},
+				// `graph plan/apply/...`
+				newDeprecatedCLIRedesignTFCommands(cli.Args{"--" + graph.GraphFlagName})...,
+			)...,
+		),
 	}
 
 	return deprecatedCommands.CLICommands(opts)
@@ -102,6 +124,21 @@ func newDeprecatedCLIRedesignCommand(deprecatedCommandName string, replaceWithAr
 	}
 
 	return cmd
+}
+
+func newDeprecatedCLIRedesignTFCommands(args cli.Args) DeprecatedCommands {
+	var cmds = make(DeprecatedCommands, len(tf.CommandNames))
+
+	for i, tfCommandName := range tf.CommandNames {
+		cmds[i] = &DeprecatedCommand{
+			commandName:     tfCommandName,
+			replaceWithArgs: append(cli.Args{tfCommandName}, args...),
+			controlName:     controls.CLIRedesign,
+			controlCategory: controls.CLIRedesignCommandsCategoryName,
+		}
+	}
+
+	return cmds
 }
 
 type DeprecatedCommands []*DeprecatedCommand
