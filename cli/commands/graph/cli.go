@@ -8,6 +8,7 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
+	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -47,6 +48,7 @@ func subCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		terragruntinfo.NewCommand(opts),    // terragrunt-info
 		graphdependencies.NewCommand(opts), // graph-dependencies
+		renderjson.NewCommand(opts),        // render-json
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}
 	sort.Sort(cmds)
