@@ -3,6 +3,8 @@ package commands
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
+	daggraph "github.com/gruntwork-io/terragrunt/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
@@ -61,6 +63,9 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 		// `terragrunt-info`
 		newDeprecatedCLIRedesignCommand(CommandTerragruntInfoName, cli.Args{
 			info.CommandName, print.CommandName}),
+		// `graph-dependencies`
+		newDeprecatedCLIRedesignCommand(CommandGraphDependenciesName, cli.Args{
+			dag.CommandName, daggraph.CommandName}),
 		// `render-json`
 		newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
 			render.CommandName,

@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
-	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
@@ -97,7 +96,6 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	configurationCommands := cli.Commands{
-		graphdependencies.NewCommand(opts),  // graph-dependencies
 		outputmodulegroups.NewCommand(opts), // output-module-groups
 		hcl.NewCommand(opts),                // hcl
 		info.NewCommand(opts),               // info
