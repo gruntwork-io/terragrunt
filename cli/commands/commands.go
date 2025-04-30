@@ -34,7 +34,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
-	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
 	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
@@ -107,7 +106,6 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		render.NewCommand(opts),             // render
 		helpCmd.NewCommand(opts),            // help (hidden)
 		versionCmd.NewCommand(opts),         // version (hidden)
-		awsproviderpatch.NewCommand(opts),   // aws-provider-patch (hidden)
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
