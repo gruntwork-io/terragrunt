@@ -1075,7 +1075,7 @@ func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --json-disable-dependent-modules --non-interactive --log-level trace --working-dir %s --json-out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --disable-dependent-modules --non-interactive --log-level trace --working-dir %s --json-out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
