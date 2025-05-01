@@ -13,14 +13,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
-	"github.com/gruntwork-io/terragrunt/cli/flags"
-	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-const (
-	CommandName = "print"
-)
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+	target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
+
+	return run.RunWithTarget(ctx, opts, target)
+}
 
 // InfoOutput represents the structured output of the info command
 type InfoOutput struct {
@@ -30,23 +30,6 @@ type InfoOutput struct {
 	TerraformBinary  string `json:"terraform_binary"`
 	TerraformCommand string `json:"terraform_command"`
 	WorkingDir       string `json:"working_dir"`
-}
-
-func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	return run.NewFlags(opts, prefix)
-}
-
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	return &cli.Command{
-		Name:      CommandName,
-		Usage:     "Print out a short description of Terragrunt context.",
-		UsageText: "terragrunt info print",
-		Flags:     NewListFlags(opts, nil),
-		Action: func(ctx *cli.Context) error {
-			target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
-			return run.RunWithTarget(ctx, opts, target)
-		},
-	}
 }
 
 func handleTerragruntContextPrint(_ context.Context, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
