@@ -559,7 +559,7 @@ func TestLogRawModuleOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --log-level trace --non-interactive  --forward-tf-stdout --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --log-level trace --non-interactive  --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	stdoutInline := strings.ReplaceAll(stdout, "\n", "")
@@ -799,7 +799,7 @@ func TestTerragruntInitOnce(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitOnce)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureInitOnce)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --forward-tf-stdout --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Initializing modules")
 
@@ -810,7 +810,7 @@ func TestTerragruntInitOnce(t *testing.T) {
 	err = os.WriteFile(cfgPath, bytes, 0644)
 	require.NoError(t, err)
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --forward-tf-stdout --working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.NotContains(t, stdout, "Initializing modules", "init command executed more than once")
 }
@@ -1262,7 +1262,7 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 	rootPath := helpers.CopyEnvironment(t, testFixtureExternalDependence)
 	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, includedModule)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --ignore-external-dependencies --forward-tf-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --ignore-external-dependencies --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run-all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run-all apply stderr")
 	applyAllStdoutString := applyAllStdout.String()
@@ -1305,7 +1305,7 @@ func TestApplySkipFalse(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --forward-tf-stdout --working-dir "+rootPath, &showStdout, &showStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir "+rootPath, &showStdout, &showStderr)
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
@@ -1326,7 +1326,7 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --non-interactive --forward-tf-stdout --working-dir %s --log-level info", rootPath), &showStdout, &showStderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --non-interactive --tf-forward-stdout --working-dir %s --log-level info", rootPath), &showStdout, &showStderr)
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
@@ -1351,7 +1351,7 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --forward-tf-stdout --working-dir "+rootPath, &showStdout, &showStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --tf-forward-stdout --working-dir "+rootPath, &showStdout, &showStderr)
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
@@ -2197,14 +2197,14 @@ func TestDataDir(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --forward-tf-stdout --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 	assert.Contains(t, stdout.String(), "Initializing provider plugins")
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --forward-tf-stdout --working-dir "+rootPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 	assert.NotContains(t, stdout.String(), "Initializing provider plugins")
 }
@@ -2610,7 +2610,7 @@ func TestTerragruntGenerateAttr(t *testing.T) {
 
 	text := "test-terragrunt-generate-attr-hello-world"
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --forward-tf-stdout --working-dir %s -var text=\"%s\"", generateTestCase, text))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir %s -var text=\"%s\"", generateTestCase, text))
 	require.NoError(t, err)
 	assert.Contains(t, stdout, text)
 }
@@ -3132,7 +3132,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --forward-tf-stdout --working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
 	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
@@ -3140,7 +3140,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --forward-tf-stdout --working-dir "+testPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// no initialization expected for second plan run
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
@@ -3168,7 +3168,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --forward-tf-stdout --working-dir "+testPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
 	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
@@ -3179,7 +3179,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --forward-tf-stdout --working-dir "+testPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// auto initialization when source is changed
 	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
@@ -3195,7 +3195,7 @@ func TestNoColor(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan -no-color --forward-tf-stdout --working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan -no-color --tf-forward-stdout --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
 	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
@@ -3286,7 +3286,7 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
 	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
 
-	helpers.RunTerragrunt(t, "terragrunt run-all validate --forward-tf-stdout --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all validate --tf-forward-stdout --non-interactive --working-dir "+rootPath)
 }
 
 func TestInitFailureModulePrefix(t *testing.T) {
@@ -3346,7 +3346,7 @@ func TestExplainingMissingCredentials(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt init -no-color --forward-tf-stdout --non-interactive --working-dir "+initTestCase, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt init -no-color --tf-forward-stdout --non-interactive --working-dir "+initTestCase, &stdout, &stderr)
 	explanation := shell.ExplainError(err)
 	assert.Contains(t, explanation, "Missing AWS credentials")
 }
@@ -3434,7 +3434,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --forward-tf-stdout --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr),
 	)
 
 	// verify that init was invoked
@@ -3446,7 +3446,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --forward-tf-stdout --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr),
 	)
 
 	// verify that init wasn't invoked second time since cache directories are ignored
@@ -3464,7 +3464,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --forward-tf-stdout --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --tf-forward-stdout --working-dir "+rootPath, &stdout, &stderr),
 	)
 
 	// verify that init was invoked
@@ -3622,7 +3622,7 @@ func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureCommandsThatNeedInput)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --forward-tf-stdout --working-dir "+testPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --tf-forward-stdout --working-dir "+testPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Apply complete")
 }
@@ -3870,7 +3870,7 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all show --non-interactive --log-level trace --forward-tf-stdout --working-dir %s --out-dir %s -no-color", testPath, tmpDir))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all show --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --out-dir %s -no-color", testPath, tmpDir))
 	require.NoError(t, err)
 
 	// Verify that output contains the plan and not plain the actual state output
@@ -3920,8 +3920,8 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 	}{
 		{"--json-log"},
 		{"--json-log --tf-logs-to-json"},
-		{"--forward-tf-stdout"},
-		{"--json-log --tf-logs-to-json --forward-tf-stdout"},
+		{"--tf-forward-stdout"},
+		{"--json-log --tf-logs-to-json --tf-forward-stdout"},
 	}
 	for _, tc := range testCases {
 		t.Run("terragrunt output with "+tc.arg, func(t *testing.T) {
@@ -3950,8 +3950,8 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	}{
 		{"--json-log"},
 		{"--json-log --tf-logs-to-json"},
-		{"--forward-tf-stdout"},
-		{"--json-log --tf-logs-to-json --forward-tf-stdout"},
+		{"--tf-forward-stdout"},
+		{"--json-log --tf-logs-to-json --tf-forward-stdout"},
 	}
 	for _, tc := range testCases {
 		t.Run("terragrunt with "+tc.arg, func(t *testing.T) {

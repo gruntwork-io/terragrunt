@@ -943,7 +943,7 @@ func TestRenderJsonMetadataDependencyModulePrefix(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app")
 
-	helpers.RunTerragrunt(t, "terragrunt run-all render-json --forward-tf-stdout --with-metadata --non-interactive --log-level trace --working-dir "+tmpDir)
+	helpers.RunTerragrunt(t, "terragrunt run-all render-json --tf-forward-stdout --with-metadata --non-interactive --log-level trace --working-dir "+tmpDir)
 }
 
 func TestRenderJsonMetadataDependencyModulePrefixExp(t *testing.T) {
