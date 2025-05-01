@@ -90,11 +90,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
 
 	return &cli.Command{
-		Name:                 CommandName,
-		Aliases:              []string{CommandAlias},
-		Usage:                "Find relevant Terragrunt configurations.",
-		ErrorOnUndefinedFlag: true,
-		Flags:                NewFlags(cmdOpts, nil),
+		Name:    CommandName,
+		Aliases: []string{CommandAlias},
+		Usage:   "Find relevant Terragrunt configurations.",
+		Flags:   NewFlags(cmdOpts, nil),
 		Before: func(ctx *cli.Context) error {
 			if cmdOpts.JSON {
 				cmdOpts.Format = FormatJSON

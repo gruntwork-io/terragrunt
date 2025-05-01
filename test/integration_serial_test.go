@@ -494,7 +494,7 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	// check that output have Telemetry json output
+	// check that output has Telemetry JSON traces
 	assert.Contains(t, output, "\"SpanContext\":")
 	assert.Contains(t, output, "\"TraceID\":")
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_1\"")
@@ -508,10 +508,10 @@ func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --working-dir "+rootPath)
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	// check that output have Telemetry json output
+	// check that output has Telemetry JSON traces
 	assert.Contains(t, output, "\"SpanContext\":")
 	assert.Contains(t, output, "\"TraceID\":")
 	assert.Contains(t, output, "\"Name\":\"stack_generate_unit\"")

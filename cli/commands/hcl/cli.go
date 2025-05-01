@@ -19,7 +19,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			format.NewCommand(opts),
 			validate.NewCommand(opts),
 		},
-		ErrorOnUndefinedFlag: true,
-		Action:               cli.ShowCommandHelp,
+		Action: cli.ShowCommandHelp,
 	}
 }

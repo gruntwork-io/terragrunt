@@ -1,4 +1,5 @@
-package cli
+// Package providercache provides initialization of the Terragrunt provider caching server for caching OpenTofu providers.
+package providercache
 
 import (
 	"context"
@@ -60,7 +61,7 @@ type ProviderCache struct {
 	providerService *services.ProviderService
 }
 
-func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
+func InitServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
 	if opts.ProviderCacheDir == "" {
@@ -340,7 +341,11 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
 func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
-	envs := opts.Env
+	// make copy + ensure non-nil
+	envs := make(map[string]string, len(opts.Env))
+	for k, v := range opts.Env {
+		envs[k] = v
+	}
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))

@@ -347,3 +347,46 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
 }
+
+func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+
+	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureOutDir, "dependency")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", dependencyPath, tmpDir))
+
+	// plan and apply
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply --all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	// remove all tfstate files from temp directory to prepare destroy
+	list, err := findFilesWithExtension(tmpDir, ".tfplan")
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
+	for _, file := range list {
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
+	}
+
+	// prepare destroy plan
+	_, output, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --all -destroy --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "Using output file "+getPathRelativeTo(t, tmpDir, testPath))
+	// verify that tfplan files are created in the tmpDir, 2 files
+	list, err = findFilesWithExtension(tmpDir, ".tfplan")
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
+	for _, file := range list {
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
+	}
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply --all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+}
