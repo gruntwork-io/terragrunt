@@ -191,10 +191,10 @@ func TestRenderJSONConfig(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
 
 	tmpDir := t.TempDir()
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+fixtureRenderJSON+" -- apply -auto-approve")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONMainModulePath, jsonOut))
+	helpers.RunTerragrunt(t, "terragrunt run --all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONMainModulePath, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -405,15 +405,15 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 
 	// NOTE: bar is not rendered out because it is considered a parent terragrunt.hcl config.
 
-	bazJSONOut := filepath.Join(workDir, "baz", "terragrunt_rendered.json")
-	rootChildJSONOut := filepath.Join(workDir, "terragrunt_rendered.json")
+	bazJSONOut := filepath.Join(workDir, "baz", "terragrunt.rendered.json")
+	rootChildJSONOut := filepath.Join(workDir, "terragrunt.rendered.json")
 
 	defer os.Remove(bazJSONOut)
 	defer os.Remove(rootChildJSONOut)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+workDir+" -- apply -auto-approve")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all render --json --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+workDir)
+	helpers.RunTerragrunt(t, "terragrunt render --all --json -w --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+workDir)
 
 	bazJSONBytes, err := os.ReadFile(bazJSONOut)
 	require.NoError(t, err)
