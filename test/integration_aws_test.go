@@ -612,13 +612,13 @@ func TestAwsOutputAllCommand(t *testing.T) {
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
+	helpers.RunTerragruntRedirectOutput(t, "terragrunt run --all output --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 
 	assert.Contains(t, output, "app1 output")
@@ -668,7 +668,7 @@ func TestAwsValidateAllCommand(t *testing.T) {
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
 
-	helpers.RunTerragrunt(t, "terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all validate --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
 }
 
 func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
@@ -684,18 +684,18 @@ func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T)
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
-	helpers.RunTerragruntCommand(t, "terragrunt output-all app2_text --terragrunt-ignore-dependency-errors --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
+	helpers.RunTerragruntCommand(t, "terragrunt run --all output app2_text --terragrunt-ignore-dependency-errors --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 
-	helpers.LogBufferContentsLineByLine(t, stdout, "output-all stdout")
-	helpers.LogBufferContentsLineByLine(t, stderr, "output-all stderr")
+	helpers.LogBufferContentsLineByLine(t, stdout, "run --all output stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "run --all output stderr")
 
 	// Without --terragrunt-ignore-dependency-errors, app2 never runs because its dependencies have "errors" since they don't have the output "app2_text".
 	assert.Contains(t, output, "app2 output")
@@ -722,14 +722,14 @@ func TestAwsStackCommands(t *testing.T) { //nolint paralleltest
 	mgmtEnvironmentPath := util.JoinPath(tmpEnvPath, testFixtureStack, "mgmt")
 	stageEnvironmentPath := util.JoinPath(tmpEnvPath, testFixtureStack, "stage")
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+mgmtEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+stageEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --terragrunt-non-interactive --terragrunt-working-dir "+mgmtEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --terragrunt-non-interactive --terragrunt-working-dir "+stageEnvironmentPath)
 
-	helpers.RunTerragrunt(t, "terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir "+mgmtEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir "+stageEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all output --terragrunt-non-interactive --terragrunt-working-dir "+mgmtEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all output --terragrunt-non-interactive --terragrunt-working-dir "+stageEnvironmentPath)
 
-	helpers.RunTerragrunt(t, "terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir "+stageEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir "+mgmtEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all destroy --terragrunt-non-interactive --terragrunt-working-dir "+stageEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all destroy --terragrunt-non-interactive --terragrunt-working-dir "+mgmtEnvironmentPath)
 }
 
 func TestAwsRemoteWithBackend(t *testing.T) {
@@ -781,7 +781,7 @@ func TestAwsGetAccountAliasFunctions(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAwsAccountAlias)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureAwsAccountAlias)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -820,7 +820,7 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAwsGetCallerIdentity)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureAwsGetCallerIdentity)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -901,7 +901,7 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
@@ -1126,7 +1126,7 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 		stderr := bytes.Buffer{}
 		err := helpers.RunTerragruntCommand(
 			t,
-			"terragrunt apply-all --terragrunt-source-update --terragrunt-non-interactive --terragrunt-working-dir "+rootPath,
+			"terragrunt run --all apply --terragrunt-source-update --terragrunt-non-interactive --terragrunt-working-dir "+rootPath,
 			&stdout,
 			&stderr,
 		)
@@ -1533,7 +1533,7 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
