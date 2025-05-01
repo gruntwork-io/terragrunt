@@ -533,7 +533,7 @@ func TestLogStdoutLevel(t *testing.T) {
 func TestLogFormatKeyValueOutput(t *testing.T) {
 	t.Parallel()
 
-	for _, flag := range []string{"--log-format=key-value", "--disable-log-formatting"} {
+	for _, flag := range []string{"--log-format=key-value"} {
 		t.Run("tc-flag-"+flag, func(t *testing.T) {
 			t.Parallel()
 
@@ -582,7 +582,7 @@ func TestTerragruntExcludesFile(t *testing.T) {
 			[]string{`value = "b"`, `value = "d"`},
 		},
 		{
-			"--excludes-file ./excludes-file-pass-as-flag",
+			"--queue-excludes-file ./excludes-file-pass-as-flag",
 			[]string{`value = "a"`, `value = "c"`},
 		},
 	}
@@ -1262,7 +1262,7 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 	rootPath := helpers.CopyEnvironment(t, testFixtureExternalDependence)
 	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, includedModule)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --ignore-external-dependencies --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --queue-exclude-external --tf-forward-stdout --working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run-all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run-all apply stderr")
 	applyAllStdoutString := applyAllStdout.String()
@@ -2860,7 +2860,7 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --modules-that-include parent.hcl --modules-that-include common.hcl --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --units-that-include parent.hcl --units-that-include common.hcl --non-interactive --working-dir "+tmpEnvPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	out := stdout.String()
@@ -3918,10 +3918,10 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 	testCases := []struct {
 		arg string
 	}{
-		{"--json-log"},
-		{"--json-log --tf-logs-to-json"},
+		{"--json"},
+		{"--json --log-format json"},
 		{"--tf-forward-stdout"},
-		{"--json-log --tf-logs-to-json --tf-forward-stdout"},
+		{"--json --log-format json --tf-forward-stdout"},
 	}
 	for _, tc := range testCases {
 		t.Run("terragrunt output with "+tc.arg, func(t *testing.T) {
@@ -3948,10 +3948,10 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	testCases := []struct {
 		arg string
 	}{
-		{"--json-log"},
-		{"--json-log --tf-logs-to-json"},
+		{"--json"},
+		{"--json --log-format json"},
 		{"--tf-forward-stdout"},
-		{"--json-log --tf-logs-to-json --tf-forward-stdout"},
+		{"--json --log-format json --tf-forward-stdout"},
 	}
 	for _, tc := range testCases {
 		t.Run("terragrunt with "+tc.arg, func(t *testing.T) {
@@ -3987,7 +3987,7 @@ func TestErrorMessageIncludeInOutput(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureErrorPrint)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply  --non-interactive --working-dir "+testPath+" --tfpath "+testPath+"/custom-tf-script.sh --log-level trace")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply  --non-interactive --working-dir "+testPath+" --tf-path "+testPath+"/custom-tf-script.sh --log-level trace")
 	require.Error(t, err)
 
 	assert.Contains(t, err.Error(), "Custom error from script")
