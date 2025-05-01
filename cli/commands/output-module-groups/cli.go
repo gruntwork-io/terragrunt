@@ -2,8 +2,10 @@
 package outputmodulegroups
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -14,6 +16,11 @@ const (
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	newCommand := "terragrunt " + find.CommandName + " --" + find.JSONFlagName
+
+	control := controls.NewDeprecatedReplacedCommand(CommandName, newCommand)
+	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).AddSubcontrolsToCategory(controls.CLIRedesignCommandsCategoryName, control)
+
 	return &cli.Command{
 		Name:  CommandName,
 		Flags: run.NewFlags(opts, nil),
@@ -23,7 +30,15 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			subCommandFunc(SubCommandDestroy, opts),
 		},
 		DisabledErrorOnUndefinedFlag: true,
-		Action:                       func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
+		Hidden:                       true,
+		Before: func(ctx *cli.Context) error {
+			if err := control.Evaluate(ctx); err != nil {
+				return cli.NewExitError(err, cli.ExitCodeGeneralError)
+			}
+
+			return nil
+		},
+		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 }
 
