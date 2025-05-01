@@ -12,13 +12,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
-	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
-	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
 	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -64,9 +61,7 @@ const (
 func New(opts *options.TerragruntOptions) cli.Commands {
 	mainCommands := cli.Commands{
 		runCmd.NewCommand(opts),  // run
-		runall.NewCommand(opts),  // run-all
 		stack.NewCommand(opts),   // stack
-		graph.NewCommand(opts),   // graph
 		execCmd.NewCommand(opts), // exec
 		backend.NewCommand(opts), // backend
 	}.SetCategory(
@@ -97,8 +92,6 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	configurationCommands := cli.Commands{
-		graphdependencies.NewCommand(opts),  // graph-dependencies
-		outputmodulegroups.NewCommand(opts), // output-module-groups
 		hcl.NewCommand(opts),                // hcl
 		info.NewCommand(opts),               // info
 		dag.NewCommand(opts),                // dag
@@ -106,6 +99,7 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		helpCmd.NewCommand(opts),            // help (hidden)
 		versionCmd.NewCommand(opts),         // version (hidden)
 		awsproviderpatch.NewCommand(opts),   // aws-provider-patch (hidden)
+		outputmodulegroups.NewCommand(opts), // output-module-groups (hidden)
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -195,14 +189,9 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
-	switch {
-	case cmdName == runCmd.CommandName:
-		fallthrough
-	case cmdName == runall.CommandName:
-		fallthrough
-	case cmdName == graph.CommandName && cliCtx.Parent().Command.IsRoot:
+	if cmdName == runCmd.CommandName {
 		cmdName = args.CommandName()
-	default:
+	} else {
 		args = append([]string{cmdName}, args...)
 	}
 
