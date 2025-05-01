@@ -2,6 +2,9 @@
 package commands
 
 import (
+	"slices"
+
+	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
@@ -75,6 +78,47 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			"--" + render.WriteFlagName,
 			"--" + render.OutFlagName, "terragrunt_rendered.json"}),
 
+		// `run-all` commands
+		newDeprecatedCLIRedesignCommand(CommandRunAllName, cli.Args{run.CommandName, "--" + runall.AllFlagName},
+			append(DeprecatedCommands{
+				// `run-all hclfmt`
+				newDeprecatedCLIRedesignCommand(CommandHCLFmtName,
+					cli.Args{hcl.CommandName, format.CommandName,
+						"--" + runall.AllFlagName}),
+				// `run-all hclvalidate`
+				newDeprecatedCLIRedesignCommand(CommandHCLValidateName, cli.Args{
+					hcl.CommandName, validate.CommandName,
+					"--" + runall.AllFlagName}),
+				// `run-all validate-inputs`
+				newDeprecatedCLIRedesignCommand(CommandValidateInputsName, cli.Args{
+					hcl.CommandName, validate.CommandName,
+					"--" + runall.AllFlagName,
+					"--" + validate.InputsFlagName}),
+				// `run-all render-json`
+				newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
+					render.CommandName,
+					"--" + runall.AllFlagName,
+					"--" + render.JSONFlagName,
+					"--" + render.WriteFlagName,
+					"--" + render.OutFlagName, "terragrunt_rendered.json"}),
+				// `run-all render`
+				newDeprecatedCLIRedesignCommand(render.CommandName, cli.Args{
+					render.CommandName,
+					"--" + runall.AllFlagName}),
+				// `run-all aws-provider-patch`
+				newDeprecatedCLIRedesignCommand(awsproviderpatch.CommandName, cli.Args{
+					awsproviderpatch.CommandName,
+					"--" + runall.AllFlagName}),
+				// `run-all graph-dependencies`
+				newDeprecatedCLIRedesignCommand(CommandGraphDependenciesName, cli.Args{
+					dag.CommandName, daggraph.CommandName,
+					"--" + runall.AllFlagName}),
+			},
+				// `run-all plan/apply/...`
+				newDeprecatedCLIRedesignTFCommands(cli.Args{"--" + runall.AllFlagName})...,
+			)...,
+		),
+
 		// `graph` commands
 		newDeprecatedCLIRedesignCommand(CommandGraphName, cli.Args{run.CommandName, "--" + render.JSONFlagName},
 			append(DeprecatedCommands{
@@ -96,7 +140,10 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 		),
 	}
 
-	return deprecatedCommands.CLICommands(opts)
+	// `push/untaint/...` all TF commands that are not shortcuts
+	deprecatedDefaultCommands := newDeprecatedDefaultCommands(opts)
+
+	return append(deprecatedCommands.CLICommands(opts), deprecatedDefaultCommands...)
 }
 
 func newDeprecatedLegacyAllCommand(deprecatedCommandName, tfCommandName string) *DeprecatedCommand {
@@ -136,6 +183,47 @@ func newDeprecatedCLIRedesignTFCommands(args cli.Args) DeprecatedCommands {
 			controlName:     controls.CLIRedesign,
 			controlCategory: controls.CLIRedesignCommandsCategoryName,
 		}
+	}
+
+	return cmds
+}
+
+func newDeprecatedDefaultCommands(opts *options.TerragruntOptions) cli.Commands {
+	var (
+		runCmd       = run.NewCommand(opts)
+		cmds         = make(cli.Commands, 0, len(runCmd.Subcommands))
+		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.DefaultCommands)
+	)
+
+	for _, runSubCmd := range runCmd.Subcommands {
+		if isShortcutCmd := slices.Contains(shortcutCommandNames, runSubCmd.Name); isShortcutCmd {
+			continue
+		}
+
+		newCommand := "terragrunt " + run.CommandName + " -- " + runSubCmd.Name
+		control := controls.NewDeprecatedReplacedCommand(runSubCmd.Name, newCommand)
+		strictGroups.AddSubcontrolsToCategory(controls.DefaultCommandsCategoryName, control)
+
+		cmd := &cli.Command{
+			Name:       runSubCmd.Name,
+			Usage:      runSubCmd.Usage,
+			Flags:      runCmd.Flags,
+			CustomHelp: runSubCmd.CustomHelp,
+			Before: func(ctx *cli.Context) error {
+				if err := control.Evaluate(ctx); err != nil {
+					return cli.NewExitError(err, cli.ExitCodeGeneralError)
+				}
+
+				return nil
+			},
+			Action: func(ctx *cli.Context) error {
+				return runSubCmd.Action(ctx)
+			},
+			Hidden:                       true,
+			DisabledErrorOnUndefinedFlag: true,
+		}
+
+		cmds = append(cmds, cmd)
 	}
 
 	return cmds
