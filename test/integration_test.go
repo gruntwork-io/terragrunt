@@ -700,7 +700,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		},
 	}
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --working-dir %s --hclvalidate-json", rootPath))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s --json", rootPath))
 	require.NoError(t, err)
 
 	var actualDiags diagnostic.Diagnostics
@@ -723,7 +723,7 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 		filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 	}
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --working-dir %s --hclvalidate-json --hclvalidate-show-config-path", rootPath))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s --json --show-config-path", rootPath))
 	require.NoError(t, err)
 
 	var actualPaths []string
