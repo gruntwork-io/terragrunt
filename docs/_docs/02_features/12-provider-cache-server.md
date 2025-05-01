@@ -24,20 +24,20 @@ Let's imagine that your project consists of 50 Terragrunt modules (terragrunt.hc
 
 ## Why OpenTofu/Terraform's built-in provider caching doesn't work
 
-OpenTofu/Terraform has provider caching feature [Provider Plugin Cache](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), that does the job well until you run multiple OpenTofu/Terraform processes simultaneously, such as when you use `terragrunt run-all`. Then the OpenTofu/Terraform processes begin conflict by overwriting each other’s cache, which causes the error like `Error: Failed to install provider`. As a result, Terragrunt previously had to disable concurrency for `init` steps in `run-all`, which is significantly slower. If you enable Terragrunt Provider Caching, as described in this section, that will no longer be necessary, and you should see significant performance improvements with `init`, as well as significant savings in terms of bandwidth and disk space usage.
+OpenTofu/Terraform has provider caching feature [Provider Plugin Cache](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), that does the job well until you run multiple OpenTofu/Terraform processes simultaneously, such as when you use `terragrunt run --all`. Then the OpenTofu/Terraform processes begin conflict by overwriting each other’s cache, which causes the error like `Error: Failed to install provider`. As a result, Terragrunt previously had to disable concurrency for `init` steps in `run --all`, which is significantly slower. If you enable Terragrunt Provider Caching, as described in this section, that will no longer be necessary, and you should see significant performance improvements with `init`, as well as significant savings in terms of bandwidth and disk space usage.
 
 ## Usage
 
 Terragrunt Provider Cache is currently considered an experimental feature, so it is disabled by default. To enable it you need to use the flag [`provider-cache`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#provider-cache):
 
 ```shell
-terragrunt run-all apply --provider-cache
+terragrunt run --all apply --provider-cache
 ```
 
 or the environment variable `TG_PROVIDER_CACHE`:
 
 ```shell
-TG_PROVIDER_CACHE=1 terragrunt run-all apply
+TG_PROVIDER_CACHE=1 terragrunt run --all apply
 ```
 
 By default, cached providers are stored in `terragrunt/providers` folder, which is located in the user cache directory:

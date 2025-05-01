@@ -158,7 +158,7 @@ These utilities are part of what makes Terragrunt so powerful, as they allow use
 
 The Run Queue is the queue of all units that Terragrunt will do work on over one or more runs.
 
-Certain commands like [run-all](/docs/reference/cli-options/#run-all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
+Certain commands like [run --all](/docs/reference/cli-options/#all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
 
 Certain flags like [--queue-include-dir](/docs/reference/cli-options/#queue-include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--queue-exclude-dir](/docs/reference/cli-options/#queue-exclude-dir) that can be used to adjust the Run Queue to exclude units.
 

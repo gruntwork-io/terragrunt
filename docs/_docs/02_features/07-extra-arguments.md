@@ -185,18 +185,18 @@ terraform {
 
 See the [get\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_terragrunt_dir) and [get\_parent\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_parent_terragrunt_dir) documentation for more details.
 
-With the configuration above, when you run `terragrunt run-all apply`, Terragrunt will call OpenTofu/Terraform as follows:
+With the configuration above, when you run `terragrunt run --all apply`, Terragrunt will call OpenTofu/Terraform as follows:
 
 ```bash
-$ terragrunt run-all apply
+$ terragrunt run --all apply
 [backend-app]  tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/backend-app/dev.tfvars
 [frontend-app] tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
 
-$ TF_VAR_env=prod terragrunt run-all apply
+$ TF_VAR_env=prod terragrunt run --all apply
 [backend-app]  tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars
 [frontend-app] tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
 
-$ TF_VAR_env=prod TF_VAR_region=us-west-2 terragrunt run-all apply
+$ TF_VAR_env=prod TF_VAR_region=us-west-2 terragrunt run --all apply
 [backend-app]  tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
 [frontend-app] tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
 ```

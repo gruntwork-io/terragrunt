@@ -1,6 +1,6 @@
 ---
 name: queue-include-units-reading
-description: If flag is set, 'run-all' will only run the command against Terragrunt units that read the specified file via an HCL function or include.
+description: If flag is set, 'run --all' will only run the command against Terragrunt units that read the specified file via an HCL function or include.
 type: string
 env:
   - TG_QUEUE_INCLUDE_UNITS_READING
@@ -63,7 +63,7 @@ inputs = {
 }
 ```
 <Aside type="caution">
-Due to how Terragrunt parses configurations during `run-all`, functions will only properly mark files as read if they are used in the `locals` block.
+Due to how Terragrunt parses configurations during `run --all`, functions will only properly mark files as read if they are used in the `locals` block.
 
 Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs` block is not evaluated until after the queue has already been populated.
 </Aside>

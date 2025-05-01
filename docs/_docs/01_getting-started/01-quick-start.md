@@ -280,7 +280,7 @@ e.g. Let's say we wanted to update both our `foo` and `bar` environments simulta
 In the directory above `foo` and `bar`, run the following:
 
 ```bash
-$ terragrunt run-all apply
+$ terragrunt run --all apply
 08:42:00.150 INFO   The stack at . will be processed in the following order for command apply:
 Group 1
 - Module ./bar
@@ -309,7 +309,7 @@ This is where that additional verbosity in Terragrunt logging is really handy. Y
 Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
 
 ```bash
-terragrunt run-all --non-interactive apply
+terragrunt run --all --non-interactive apply
 ```
 
 ### Step 6: Use Terragrunt to manage your DAG
@@ -347,7 +347,7 @@ inputs = {
 Being good citizens of the IaC world, we should run a `plan` before an `apply` to see what changes Terragrunt will make to our infrastructure (note that you will get an error here. This is expected, and we'll fix it in the next step):
 
 ```bash
-$ terragrunt run-all plan
+$ terragrunt run --all plan
 08:57:09.271 INFO   The stack at . will be processed in the following order for command plan:
 Group 1
 - Module ./foo
@@ -383,7 +383,7 @@ Oh no! We got an error. This happens because the way in which dependencies are r
 
 You should notice, however, that Terragrunt has already figured out the order in which to run the `plan` command across the units in your stack. This is what we mean when we say that Terragrunt uses a DAG to determine the order of runs in your stack. Terragrunt analyzes the dependencies in your stack, and determines an order for runs so that outputs are ready to be used as inputs in dependent units.
 
-If you decided to run `terragrunt run-all apply` instead, you would instead see Terragrunt complete the `apply` in the `foo` unit first, and then complete the `apply` in the `bar` unit, as it's aware that the `bar` unit might need some outputs from the `foo` unit.
+If you decided to run `terragrunt run --all apply` instead, you would instead see Terragrunt complete the `apply` in the `foo` unit first, and then complete the `apply` in the `bar` unit, as it's aware that the `bar` unit might need some outputs from the `foo` unit.
 
 ### Step 7: Use mocks to handle unavailable outputs
 
@@ -410,7 +410,7 @@ inputs = {
 Re-running the `plan` command should now complete successfully:
 
 ```bash
-$ terragrunt run-all plan
+$ terragrunt run --all plan
 09:29:03.461 INFO   The stack at . will be processed in the following order for command plan:
 Group 1
 - Module ./foo
@@ -442,7 +442,7 @@ Group 2
 If you're concerned about the `mock_outputs` attribute resulting in invalid configurations, note that during an apply, the outputs of `foo` will be known, and Terragrunt won't use `mock_outputs` to resolve the outputs of `foo`.
 
 ```bash
-$ terragrunt run-all --non-interactive apply
+$ terragrunt run --all --non-interactive apply
 
 ...
 

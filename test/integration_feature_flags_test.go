@@ -100,7 +100,7 @@ func TestFeatureFlagRunAll(t *testing.T) {
 	app1 := util.JoinPath(tmpEnvPath, testRunAllFlag, "app1")
 	app2 := util.JoinPath(tmpEnvPath, testRunAllFlag, "app2")
 
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath+" -- apply -auto-approve")
 
 	validateOutputs(t, app1)
 	validateOutputs(t, app2)

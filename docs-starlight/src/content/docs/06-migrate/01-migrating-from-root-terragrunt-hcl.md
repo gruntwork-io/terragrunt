@@ -19,7 +19,7 @@ Over time, this caused confusion for users of Terragrunt, however. See [#3181](h
 
 At the end of the day, from a functional perspective, it doesn't actually help users to have the root configuration named `terragrunt.hcl`. It makes it more confusing to determine what is shared configuration and what is configuration for a unit.
 
-It also complicates Terragrunt usage, as commands like `run-all` need to be run from a directory where all child directories will be `terragrunt.hcl` files corresponding to units that need to be run.
+It also complicates Terragrunt usage, as commands like `run --all` need to be run from a directory where all child directories will be `terragrunt.hcl` files corresponding to units that need to be run.
 
 ## Recommended Solution
 

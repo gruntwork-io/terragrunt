@@ -84,7 +84,7 @@ Note that the parsing order is slightly different when using the `--all` flag of
 
 The results of this pass are then used to build the dependency graph of the units in the stack. Once the graph is constructed, Terragrunt will loop through the units and run the specified command. It will then revert to the single configuration parsing order specified above for each unit as it runs the command.
 
-This allows Terragrunt to avoid resolving `dependency` on units that haven't been applied yet when doing a clean deployment from scratch with `run-all apply`.
+This allows Terragrunt to avoid resolving `dependency` on units that haven't been applied yet when doing a clean deployment from scratch with `run --all apply`.
 
 ## Stacks
 

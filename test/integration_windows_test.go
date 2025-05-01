@@ -119,7 +119,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 				),
 			)
 			tgPath := filepath.Join(rootPath, tc.name)
-			tgArgs := fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", tgPath)
+			tgArgs := "terragrunt run --all --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir " + tgPath + " -- apply -auto-approve"
 			helpers.RunTerragrunt(t, tgArgs)
 		})
 	}
@@ -189,10 +189,10 @@ func TestWindowsFindParent(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindParent)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all plan --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
 
 	// second run shouldn't fail with find_in_parent_folders("root.hcl") issue
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
+	helpers.RunTerragrunt(t, "terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureFindParent+" -- apply -auto-approve")
 }
 
 func TestWindowsScaffold(t *testing.T) {

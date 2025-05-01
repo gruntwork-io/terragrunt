@@ -69,12 +69,12 @@ func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/../.. --terragrunt-include-dir %s", rootPath, testFixtureSops))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir %s/../.. --terragrunt-include-dir %s", rootPath, testFixtureSops)+" -- apply -auto-approve")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s/../.. --terragrunt-include-dir %s", rootPath, testFixtureSops), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir %s/../.. --terragrunt-include-dir %s", rootPath, testFixtureSops)+" -- output -no-color -json", &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}

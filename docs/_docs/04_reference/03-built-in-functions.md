@@ -906,12 +906,12 @@ inputs = {
 ```
 
 By using `mark_as_read` on `file-read-by-tofu.txt`, you can ensure that the `terragrunt.hcl` file passing in the `file-read-by-tofu.txt` file as an input will be included in
-any `run-all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
+any `run --all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
 
 The same technique can be used to mark a file as read when reading a file using code in `run_cmd`, etc.
 
 **NOTE**: Due to the way that Terragrunt enqueues files we require an absolute path for mark_as_read to avoid multiple inclusions.
 
-**NOTE**: Due to the way that Terragrunt parses configurations during a `run-all`, functions will only properly mark files as read
+**NOTE**: Due to the way that Terragrunt parses configurations during a `run --all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
 block is not evaluated until *after* the queue has been populated with units to run.

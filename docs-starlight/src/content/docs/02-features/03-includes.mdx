@@ -451,7 +451,7 @@ to read the documentation on this so that you know the limitations of this flag)
 In the previous example, your CI/CD pipeline can run:
 
 ```bash
-terragrunt run-all plan --queue-include-units-reading _env/app.hcl
+terragrunt run --all plan --queue-include-units-reading _env/app.hcl
 ```
 
 This will:
@@ -470,14 +470,14 @@ updates from the common file:
 
 ```bash
 # Roll out the change to the qa environment first
-terragrunt run-all plan --queue-include-units-reading _env/app.hcl --working-dir qa
-terragrunt run-all apply --queue-include-units-reading _env/app.hcl --working-dir qa
+terragrunt run --all plan --queue-include-units-reading _env/app.hcl --working-dir qa
+terragrunt run --all apply --queue-include-units-reading _env/app.hcl --working-dir qa
 # If the apply succeeds to qa, move on to the stage environment
-terragrunt run-all plan --queue-include-units-reading _env/app.hcl --working-dir stage
-terragrunt run-all apply --queue-include-units-reading _env/app.hcl --working-dir stage
+terragrunt run --all plan --queue-include-units-reading _env/app.hcl --working-dir stage
+terragrunt run --all apply --queue-include-units-reading _env/app.hcl --working-dir stage
 # And finally, prod.
-terragrunt run-all plan --queue-include-units-reading _env/app.hcl --working-dir prod
-terragrunt run-all apply --queue-include-units-reading _env/app.hcl --working-dir prod
+terragrunt run --all plan --queue-include-units-reading _env/app.hcl --working-dir prod
+terragrunt run --all apply --queue-include-units-reading _env/app.hcl --working-dir prod
 ```
 
 This allows you to have flexibility in how changes are rolled out. For example, you can add extra validation stages

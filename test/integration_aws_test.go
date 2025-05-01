@@ -596,7 +596,7 @@ func TestAwsRunAllCommand(t *testing.T) {
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
 
-	helpers.RunTerragrunt(t, "terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all init --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
 }
 
 func TestAwsOutputAllCommand(t *testing.T) {
@@ -648,7 +648,7 @@ func TestAwsOutputFromDependency(t *testing.T) {
 
 	t.Setenv("AWS_CSM_ENABLED", "true")
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level trace", rootTerragruntPath), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level trace", rootTerragruntPath)+" -- apply -auto-approve", &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := stderr.String()
@@ -1192,7 +1192,7 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 		stderr bytes.Buffer
 	)
 
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
+	helpers.RunTerragruntRedirectOutput(t, "terragrunt run --all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 
 	assert.Contains(t, output, "app1 output")
@@ -1251,7 +1251,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
 
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath+" -- apply -auto-approve")
 }
 
 func TestAwsAssumeRole(t *testing.T) {
@@ -1338,7 +1338,7 @@ func TestAwsInitConfirmation(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all init --terragrunt-working-dir "+tmpEnvPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all init --terragrunt-working-dir "+tmpEnvPath, &stdout, &stderr)
 	require.Error(t, err)
 	errout := stderr.String()
 	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
@@ -1358,7 +1358,7 @@ func TestAwsRunAllCommandPrompt(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
@@ -1374,7 +1374,7 @@ func TestAwsReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := util.JoinPath(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s`, rootPath, mockAuthCmd))
+	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s`, rootPath, mockAuthCmd)+" -- apply -auto-approve")
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", appPath, mockAuthCmd))
 	require.NoError(t, err)

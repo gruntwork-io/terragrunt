@@ -185,7 +185,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 	}
 
 	// For apply and destroy, run with auto-approve (unless explicitly disabled) due to the co-mingling of the prompts.
-	// This is not ideal, but until we have a better way of handling interactivity with run-all, we take the evil of
+	// This is not ideal, but until we have a better way of handling interactivity with run --all, we take the evil of
 	// having a global prompt (managed in cli/cli_app.go) be the gate keeper.
 	switch stackCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
@@ -238,7 +238,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 			}
 
 			terragruntOptions.Logger.Infof("%v%v refers to remote state "+
-				"you may have to apply your changes in the dependencies prior running terragrunt run-all plan.\n",
+				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
 				stack.Modules[i].Path,
 				dependenciesMsg,
 			)
@@ -550,14 +550,14 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, nil
 	}
 
-	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
+	// Clone the options struct so we don't modify the original one. This is especially important as run --all operations
 	// happen concurrently.
 	opts, err := stack.terragruntOptions.CloneWithConfigPath(terragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
+	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run --all
 	// from, which is not what any of the modules will want.
 	opts.OriginalTerragruntConfigPath = terragruntConfigPath
 

@@ -179,7 +179,7 @@ func TestGetRepoRootCaching(t *testing.T) {
 
 	helpers.CreateGitRepo(t, rootPath)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stdout, stderr)
@@ -290,7 +290,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	clusterPath := util.JoinPath(rootPath, "cluster")
 
 	helpers.CreateGitRepo(t, tmpEnvPath)
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath+" -- apply -auto-approve")
 
 	// verify expected outputs are not empty
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+clusterPath)
@@ -304,7 +304,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	assert.Equal(t, "something else", val.Value)
 
 	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+basePath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --terragrunt-non-interactive --terragrunt-working-dir "+basePath+" -- destroy -auto-approve")
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Detected dependent modules:\n"+clusterPath)
