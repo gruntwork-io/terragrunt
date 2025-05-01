@@ -1,7 +1,7 @@
 terraform {
   before_hook "tflint" {
     commands = ["plan"]
-    execute  = ["tflint", "--terragrunt-external-tflint"]
+    execute  = ["tflint", "--external-tflint"]
   }
 }
 
