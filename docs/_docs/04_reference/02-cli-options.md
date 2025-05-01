@@ -20,8 +20,6 @@ The main commands available in Terragrunt are:
   - [OpenTofu shortcuts](#opentofu-shortcuts)
   - [run](#run)
   - [exec](#exec)
-  - [run-all](#run-all)
-  - [graph](#graph)
 
 The commands relevant to managing a Terragrunt stack are:
 
@@ -57,15 +55,9 @@ The commands relevant to discovering Terragrunt configurations are:
 The commands used for managing Terragrunt configuration itself are:
 
 - [Configuration commands](#configuration-commands)
-  - [graph-dependencies](#graph-dependencies)
-  - [hclfmt](#hclfmt)
-  - [hclvalidate](#hclvalidate)
-  - [output-module-groups](#output-module-groups)
-  - [render-json](#render-json)
+  - [render](#render)
   - [info](#info)
   - [dag](#dag)
-  - [terragrunt-info](#terragrunt-info)
-  - [validate-inputs](#validate-inputs)
 
 ### Main commands
 
@@ -150,156 +142,6 @@ inputs = {
 $ terragrunt exec -- env | grep 'TF_VAR_message'
 TF_VAR_message=Hello, Terragrunt!
 ```
-
-#### run-all
-
-Runs the provided OpenTofu/Terraform command against a [stack](/docs/getting-started/terminology/#stack).
-The command will recursively find terragrunt [units](/docs/getting-started/terminology/#unit) in the current directory
-tree and run the OpenTofu/Terraform command in dependency order (unless the command is destroy,
-in which case the command is run in reverse dependency order).
-
-Make sure to read about the [stacks feature](/docs/features/stacks) for context.
-
-Example:
-
-```bash
-terragrunt run-all apply
-```
-
-This will recursively search the current working directory for any folders that contain Terragrunt units and run
-`apply` in each one, concurrently, while respecting ordering defined via
-[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
-[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
-
-**[WARNING] Do not set [TF_PLUGIN_CACHE_DIR](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) when using `run-all`**
-
-Instead take advantage of the built-in [Provider Cache Server](/docs/features/provider-cache-server/) that
-mitigates some of the limitations of using the OpenTofu/Terraform Provider Plugin Cache directly.
-
-We are [working with the OpenTofu team to improve this behavior](https://github.com/opentofu/opentofu/issues/1483) so that you don't have to worry about this in the future.
-
-**[NOTE] Use `run-all` with care if you have unapplied dependencies**.
-
-If you have a stack of Terragrunt units with dependencies between them via `dependency` blocks
-and you've never deployed them, then commands like `run-all plan` will fail,
-as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
-
-The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
-
-**[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
-arguments passed to OpenTofu/Terraform due to issues with shared `stdin` making individual approvals impossible.
-
-**[NOTE]** Using the OpenTofu/Terraform [-detailed-exitcode](https://opentofu.org/docs/cli/commands/plan/#other-options)
-flag with the `run-all` command results in an aggregate exit code being returned, rather than the exit code of any particular unit.
-
-The algorithm for determining the aggregate exit code is as follows:
-
-- If any unit throws a 1, Terragrunt will throw a 1.
-- If any unit throws a 2, but nothing throws a 1, Terragrunt will throw a 2.
-- If nothing throws a non-zero, Terragrunt will throw a 0.
-
-#### graph
-
-Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory. The graph consists of all units that depend on the unit in the current working directory via a `dependency` or `dependencies` blocks, plus all the units that depend on those units, and all the units that depend on those units, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
-
-The Command will be executed following the order of dependencies: so it'll run on the unit in the current working directory first, then on units that depend on it directly, then on the units that depend on those units, and so on. Note that if the command is `destroy`, it will run in the opposite order (the final dependents, then their dependencies, etc. up to the unit you ran the command in).
-
-Example:
-Having below dependencies:
-[![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
-
-Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
-
-```text
-Group 1
-- Module project/eks
-
-Group 2
-- Module project/services/eks-service-1
-- Module project/services/eks-service-2
-
-Group 3
-- Module project/services/eks-service-2-v2
-- Module project/services/eks-service-3
-- Module project/services/eks-service-5
-
-Group 4
-- Module project/services/eks-service-3-v2
-- Module project/services/eks-service-4
-
-Group 5
-- Module project/services/eks-service-3-v3
-```
-
-Notes:
-
-- `lambda` units aren't included in the graph, because they are not dependent on `eks` unit.
-- execution is from bottom up based on dependencies
-
-Running `terragrunt graph destroy` in `eks` unit will lead to the following execution order:
-
-```text
-Group 1
-- Module project/services/eks-service-2-v2
-- Module project/services/eks-service-3-v3
-- Module project/services/eks-service-4
-- Module project/services/eks-service-5
-
-Group 2
-- Module project/services/eks-service-3-v2
-
-Group 3
-- Module project/services/eks-service-3
-
-Group 4
-- Module project/services/eks-service-1
-- Module project/services/eks-service-2
-
-Group 5
-- Module project/eks
-```
-
-Notes:
-
-- execution is in reverse order, first are destroyed "top" units and in the end `eks`
-- `lambda` units aren't affected at all
-
-Running `terragrunt graph apply` in `services/eks-service-3`:
-
-```text
-Group 1
-- Module project/services/eks-service-3
-
-Group 2
-- Module project/services/eks-service-3-v2
-- Module project/services/eks-service-4
-
-Group 3
-- Module project/services/eks-service-3-v3
-
-```
-
-Notes:
-
-- in execution are included only services dependent from `eks-service-3`
-
-Running `terragrunt graph destroy` in `services/eks-service-3`:
-
-```text
-Group 1
-- Module project/services/eks-service-3-v3
-- Module project/services/eks-service-4
-
-Group 2
-- Module project/services/eks-service-3-v2
-
-Group 3
-- Module project/services/eks-service-3
-```
-
-Notes:
-
-- destroy will be executed only on subset of services dependent from `eks-service-3`
 
 ### Stack commands
 
@@ -1179,126 +1021,6 @@ This will sort the output based on the dependency graph, as if the `destroy` com
 
 ### Configuration commands
 
-#### graph-dependencies
-
-Prints the Terragrunt dependency graph, in DOT format, to `stdout`. You can generate charts from DOT format using tools
-such as [GraphViz](http://www.graphviz.org/).
-
-Example:
-
-```bash
-terragrunt graph-dependencies
-```
-
-This will recursively search the current working directory for any folders that contain Terragrunt modules and build
-the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
-[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
-
-```text
-digraph {
-  "mgmt/bastion-host" ;
-  "mgmt/bastion-host" -> "mgmt/vpc";
-  "mgmt/bastion-host" -> "mgmt/kms-master-key";
-  "mgmt/kms-master-key" ;
-  "mgmt/vpc" ;
-  "stage/backend-app" ;
-  "stage/backend-app" -> "stage/vpc";
-  "stage/backend-app" -> "mgmt/bastion-host";
-  "stage/backend-app" -> "stage/mysql";
-  "stage/backend-app" -> "stage/search-app";
-  "stage/frontend-app" ;
-  "stage/frontend-app" -> "stage/vpc";
-  "stage/frontend-app" -> "mgmt/bastion-host";
-  "stage/frontend-app" -> "stage/backend-app";
-  "stage/mysql" ;
-  "stage/mysql" -> "stage/vpc";
-  "stage/redis" ;
-  "stage/redis" -> "stage/vpc";
-  "stage/search-app" ;
-  "stage/search-app" -> "stage/vpc";
-  "stage/search-app" -> "stage/redis";
-  "stage/vpc" ;
-  "stage/vpc" -> "mgmt/vpc";
-}
-```
-
-#### hclfmt
-
-Recursively find hcl files and rewrite them into a canonical format.
-
-Example:
-
-```bash
-terragrunt hclfmt
-```
-
-This will recursively search the current working directory for any folders that contain Terragrunt configuration files
-and run the equivalent of `tofu fmt`/`terraform fmt` on them.
-
-#### hclvalidate
-
-Find all hcl files from the configuration stack and validate them.
-
-Example:
-
-```bash
-terragrunt hclvalidate
-```
-
-This will search all hcl files from the configuration stack in the current working directory and run the equivalent
-of `tofu validate`/`terraform validate` on them.
-
-For convenience in programmatically parsing these findings, you can also pass the `--json` flag to output the results in JSON format.
-
-Example:
-
-```bash
-terragrunt hclvalidate --json
-```
-
-In addition, you can pass the `--show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [queue-excludes-file](#queue-excludes-file) flag.
-
-Example:
-
-```bash
-terragrunt hclvalidate --show-config-path
-```
-
-#### output-module-groups
-
-Output groups of modules ordered for apply (or destroy) as a list of list in JSON.
-
-Example:
-
-```bash
-terragrunt output-module-groups <sub-command>
-```
-
-Optional sub-commands:
-
-- apply (default)
-- destroy
-
-This will recursively search the current working directory for any folders that contain Terragrunt modules and build
-the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
-[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks and output the graph as a JSON list of list (unless the sub-command is destroy, in which case the command will output the reverse dependency order).
-
-This can be be useful in several scenarios, such as in CICD, when determining apply order or searching for all files to apply with CLI options
-such as [`--units-that-include`](#units-that-include)
-
-This may produce output such as:
-
-```json
-{
-  "Group 1": ["stage/frontend-app"],
-  "Group 2": ["stage/backend-app"],
-  "Group 3": ["mgmt/bastion-host", "stage/search-app"],
-  "Group 4": ["mgmt/kms-master-key", "stage/mysql", "stage/redis"],
-  "Group 5": ["stage/vpc"],
-  "Group 6": ["mgmt/vpc"]
-}
-```
-
 #### render
 
 Render the Terragrunt configuration in the current working directory, with as much work done as possible beforehand (that is, with all includes merged, dependencies resolved/interpolated, function calls executed, etc).
@@ -1363,63 +1085,6 @@ terragrunt render --all --json -w
 ```
 
 This will render all configurations discovered from the current working directory and write the rendered configurations to `terragrunt.rendered.json` files adjacent to the configurations they are derived from.
-
-#### render-json
-
-Render out the final interpreted `terragrunt.hcl` file (that is, with all the includes merged, dependencies
-resolved/interpolated, function calls executed, etc) as json.
-
-Example:
-
-The following `terragrunt.hcl`:
-
-```hcl
-locals {
-  aws_region = "us-east-1"
-}
-
-inputs = {
-  aws_region = local.aws_region
-}
-```
-
-Renders to the following `terragrunt_rendered.json`:
-
-```json
-{
-  "locals": { "aws_region": "us-east-1" },
-  "inputs": { "aws_region": "us-east-1" }
-  // NOTE: other attributes are omitted for brevity
-}
-```
-
-You can use the CLI option `--out` to configure where terragrunt renders out the json representation.
-
-To generate json with metadata can be specified argument `--with-metadata` which will add metadata to the json output.
-
-Example:
-
-```json
-{
-  "inputs": {
-    "aws_region": {
-      "metadata": {
-        "found_in_file": "/example/terragrunt.hcl"
-      },
-      "value": "us-east-1"
-    }
-  },
-  "locals": {
-    "aws_region": {
-      "metadata": {
-        "found_in_file": "/example/terragrunt.hcl"
-      },
-      "value": "us-east-1"
-    }
-  }
-  // NOTE: other attributes are omitted for brevity
-}
-```
 
 #### info
 
@@ -1493,143 +1158,11 @@ The output can be piped to Graphviz tools to generate visual diagrams:
 terragrunt dag graph  | dot -Tpng > graph.png
 ```
 
-#### terragrunt-info
-
-Emits limited terragrunt state on `stdout` in a JSON format and exits.
-
-Example:
-
-```bash
-terragrunt terragrunt-info
-```
-
-Might produce output such as:
-
-```json
-{
-  "ConfigPath": "/example/path/terragrunt.hcl",
-  "DownloadDir": "/example/path/.terragrunt-cache",
-  "IamRole": "",
-  "TerraformBinary": "terraform",
-  "TerraformCommand": "terragrunt-info",
-  "WorkingDir": "/example/path"
-}
-```
-
-#### validate-inputs
-
-Emits information about the input variables that are configured with the given
-terragrunt configuration. Specifically, this command will print out unused
-inputs (inputs that are not defined as an OpenTofu/Terraform variable in the
-corresponding module) and undefined required inputs (required OpenTofu/Terraform
-variables that are not currently being passed in).
-
-Example:
-
-```bash
-> terragrunt validate-inputs
-The following inputs passed in by terragrunt are unused:
-
-    - foo
-    - bar
-
-
-The following required inputs are missing:
-
-    - baz
-
-```
-
-Note that this only checks for variables passed in in the following ways:
-
-- Configured `inputs` attribute.
-
-- var files defined on `terraform.extra_arguments` blocks using `required_var_files` and `optional_var_files`.
-
-- `-var-file` and `-var` CLI arguments defined on `terraform.extra_arguments` using `arguments`.
-
-- `-var-file` and `-var` CLI arguments passed to terragrunt.
-
-- Automatically loaded var files (`terraform.tfvars`, `terraform.tfvars.json`, `*.auto.tfvars`, `*.auto.tfvars.json`)
-
-- `TF_VAR` environment variables defined on `terraform.extra_arguments` blocks.
-
-- `TF_VAR` environment variables defined in the environment.
-
-Be aware that other ways to pass variables to `tofu`/`terraform` are not checked by this command.
-
-Additionally, there are **two modes** in which the `validate-inputs` command can be run: **relaxed** (default) and **strict**.
-
-If you run the `validate-inputs` command without flags, relaxed mode will be enabled by default. In relaxed mode, any unused variables
-that are passed, but not used by the underlying OpenTofu/Terraform configuration, will generate a warning, but not an error. Missing required variables will _always_ return an error, whether `validate-inputs` is running in relaxed or strict mode.
-
-To enable strict mode, you can pass the `--strict-validate` flag like so:
-
-```bash
-> terragrunt validate-inputs --strict-validate
-```
-
-When running in strict mode, `validate-inputs` will return an error if there are unused inputs.
-
-This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
-
 ## Flags
 
-- [Commands](#commands)
-  - [Main commands](#main-commands)
-    - [OpenTofu shortcuts](#opentofu-shortcuts)
-    - [run](#run)
-    - [exec](#exec)
-    - [run-all](#run-all)
-    - [graph](#graph)
-  - [Stack commands](#stack-commands)
-    - [stack generate](#stack-generate)
-    - [stack run](#stack-run)
-    - [stack output](#stack-output)
-    - [stack clean](#stack-clean)
-  - [Backend commands](#backend-commands)
-    - [backend bootstrap](#backend-bootstrap)
-    - [backend delete](#backend-delete)
-    - [backend migrate](#backend-migrate)
-  - [HCL commands](#hcl-commands)
-    - [hcl validate](#hcl-validate)
-    - [hcl format](#hcl-format)
-  - [Catalog commands](#catalog-commands)
-    - [catalog](#catalog)
-    - [scaffold](#scaffold)
-  - [Discovery commands](#discovery-commands)
-    - [find](#find)
-      - [Find Output Format](#find-output-format)
-      - [Find DAG Mode](#find-dag-mode)
-      - [Find Queue Construct As](#find-queue-construct-as)
-      - [Find Dependencies](#find-dependencies)
-      - [Find Exclude](#find-exclude)
-      - [Find External Dependencies](#find-external-dependencies)
-      - [Find Hidden Configurations](#find-hidden-configurations)
-    - [list](#list)
-      - [List Output Format](#list-output-format)
-        - [Text Format (Default)](#text-format-default)
-        - [Long Format](#long-format)
-        - [Tree Format](#tree-format)
-      - [DAG Mode](#dag-mode)
-      - [List Queue Construct As](#list-queue-construct-as)
-  - [Configuration commands](#configuration-commands)
-    - [graph-dependencies](#graph-dependencies)
-    - [hclfmt](#hclfmt)
-    - [hclvalidate](#hclvalidate)
-    - [output-module-groups](#output-module-groups)
-    - [render](#render)
-    - [render-json](#render-json)
-    - [info](#info)
-      - [Strict command](#strict-command)
-      - [Print command](#print-command)
-    - [dag](#dag)
-      - [dag graph](#dag-graph)
-    - [terragrunt-info](#terragrunt-info)
-    - [validate-inputs](#validate-inputs)
 - [Flags](#flags)
   - [all](#all)
-  - [graph](#graph-1)
+  - [graph](#graph)
   - [auth-provider-cmd](#auth-provider-cmd)
   - [config](#config)
   - [tf-path](#tf-path)
@@ -1695,18 +1228,6 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [strict-control](#strict-control)
   - [strict-mode](#strict-mode)
   - [in-download-dir](#in-download-dir)
-- [Deprecated](#deprecated)
-  - [Deprecated Commands](#deprecated-commands)
-    - [plan-all](#plan-all)
-    - [apply-all](#apply-all)
-    - [output-all](#output-all)
-    - [destroy-all](#destroy-all)
-    - [validate-all](#validate-all)
-  - [Deprecated Flags](#deprecated-flags)
-    - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
-    - [terragrunt-json-log](#terragrunt-json-log)
-    - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
-    - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
 
 ### all
 
@@ -2918,11 +2439,14 @@ Execute the provided command in the download directory.
 The following are deprecated commands that are no longer recommended for use. They are still available for backwards compatibility, but will be removed in a future release.
 
 - [Deprecated Commands](#deprecated-commands)
-  - [plan-all (DEPRECATED: use run-all)](#plan-all)
-  - [apply-all (DEPRECATED: use run-all)](#apply-all)
-  - [output-all (DEPRECATED: use run-all)](#output-all)
-  - [destroy-all (DEPRECATED: use run-all)](#destroy-all)
-  - [validate-all (DEPRECATED: use run-all)](#validate-all)
+  - [plan-all (DEPRECATED: use run --all plan)](#plan-all)
+  - [apply-all (DEPRECATED: use run --all apply)](#apply-all)
+  - [output-all (DEPRECATED: use run --all output)](#output-all)
+  - [destroy-all (DEPRECATED: use run --all destroy)](#destroy-all)
+  - [validate-all (DEPRECATED: use run --all validate)](#validate-all)
+  - [run-all (DEPRECATED: use run --all)](#run-all)
+  - [graph (DEPRECATED: use run --graph)](#graph)
+  - [graph-dependencies (DEPRECATED: use dag graph)](#graph-dependencies)
 
 #### plan-all
 
@@ -3038,6 +2562,431 @@ This will recursively search the current working directory for any folders that 
 `validate` in each one, concurrently, while respecting ordering defined via
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+#### run-all
+
+**DEPRECATED: Use `run --all` instead.**
+
+Runs the provided OpenTofu/Terraform command against a [stack](/docs/getting-started/terminology/#stack).
+The command will recursively find terragrunt [units](/docs/getting-started/terminology/#unit) in the current directory
+tree and run the OpenTofu/Terraform command in dependency order (unless the command is destroy,
+in which case the command is run in reverse dependency order).
+
+Make sure to read about the [stacks feature](/docs/features/stacks) for context.
+
+Example:
+
+```bash
+terragrunt run --all apply  # New syntax
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt units and run
+`apply` in each one, concurrently, while respecting ordering defined via
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+**[WARNING] Do not set [TF_PLUGIN_CACHE_DIR](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) when using `run-all`**
+
+Instead take advantage of the built-in [Provider Cache Server](/docs/features/provider-cache-server/) that
+mitigates some of the limitations of using the OpenTofu/Terraform Provider Plugin Cache directly.
+
+We are [working with the OpenTofu team to improve this behavior](https://github.com/opentofu/opentofu/issues/1483) so that you don't have to worry about this in the future.
+
+**[NOTE] Use `run-all` with care if you have unapplied dependencies**.
+
+If you have a stack of Terragrunt units with dependencies between them via `dependency` blocks
+and you've never deployed them, then commands like `run-all plan` will fail,
+as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
+
+The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
+
+**[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
+arguments passed to OpenTofu/Terraform due to issues with shared `stdin` making individual approvals impossible.
+
+**[NOTE]** Using the OpenTofu/Terraform [-detailed-exitcode](https://opentofu.org/docs/cli/commands/plan/#other-options)
+flag with the `run-all` command results in an aggregate exit code being returned, rather than the exit code of any particular unit.
+
+The algorithm for determining the aggregate exit code is as follows:
+
+- If any unit throws a 1, Terragrunt will throw a 1.
+- If any unit throws a 2, but nothing throws a 1, Terragrunt will throw a 2.
+- If nothing throws a non-zero, Terragrunt will throw a 0.
+
+#### graph
+
+**DEPRECATED: Use `run --graph` instead.**
+
+Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory. The graph consists of all units that depend on the unit in the current working directory via a `dependency` or `dependencies` blocks, plus all the units that depend on those units, and all the units that depend on those units, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
+
+The Command will be executed following the order of dependencies: so it'll run on the unit in the current working directory first, then on units that depend on it directly, then on the units that depend on those units, and so on. Note that if the command is `destroy`, it will run in the opposite order (the final dependents, then their dependencies, etc. up to the unit you ran the command in).
+
+Example:
+Given the following dependencies:
+[![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
+
+Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
+
+```text
+Group 1
+- Module project/eks
+
+Group 2
+- Module project/services/eks-service-1
+- Module project/services/eks-service-2
+
+Group 3
+- Module project/services/eks-service-2-v2
+- Module project/services/eks-service-3
+- Module project/services/eks-service-5
+
+Group 4
+- Module project/services/eks-service-3-v2
+- Module project/services/eks-service-4
+
+Group 5
+- Module project/services/eks-service-3-v3
+```
+
+Notes:
+
+- `lambda` units aren't included in the graph, because they are not dependent on `eks` unit.
+- execution is from bottom up based on dependencies
+
+Running `terragrunt graph destroy` in `eks` unit will lead to the following execution order:
+
+```text
+Group 1
+- Module project/services/eks-service-2-v2
+- Module project/services/eks-service-3-v3
+- Module project/services/eks-service-4
+- Module project/services/eks-service-5
+
+Group 2
+- Module project/services/eks-service-3-v2
+
+Group 3
+- Module project/services/eks-service-3
+
+Group 4
+- Module project/services/eks-service-1
+- Module project/services/eks-service-2
+
+Group 5
+- Module project/eks
+```
+
+Notes:
+
+- execution is in reverse order, first are destroyed "top" units and in the end `eks`
+- `lambda` units aren't affected at all
+
+Running `terragrunt graph apply` in `services/eks-service-3`:
+
+```text
+Group 1
+- Module project/services/eks-service-3
+
+Group 2
+- Module project/services/eks-service-3-v2
+- Module project/services/eks-service-4
+
+Group 3
+- Module project/services/eks-service-3-v3
+
+```
+
+Notes:
+
+- in execution are included only services dependent from `eks-service-3`
+
+Running `terragrunt graph destroy` in `services/eks-service-3`:
+
+```text
+Group 1
+- Module project/services/eks-service-3-v3
+- Module project/services/eks-service-4
+
+Group 2
+- Module project/services/eks-service-3-v2
+
+Group 3
+- Module project/services/eks-service-3
+```
+
+Notes:
+
+- destroy will be executed only on subset of services dependent from `eks-service-3`
+
+#### graph-dependencies
+
+**DEPRECATED: Use `dag graph` instead.**
+
+Prints the Terragrunt dependency graph, in DOT format, to `stdout`. You can generate charts from DOT format using tools
+such as [GraphViz](http://www.graphviz.org/).
+
+Example:
+
+```bash
+terragrunt graph-dependencies
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and build
+the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks. This may produce output such as:
+
+```text
+digraph {
+  "mgmt/bastion-host" ;
+  "mgmt/bastion-host" -> "mgmt/vpc";
+  "mgmt/bastion-host" -> "mgmt/kms-master-key";
+  "mgmt/kms-master-key" ;
+  "mgmt/vpc" ;
+  "stage/backend-app" ;
+  "stage/backend-app" -> "stage/vpc";
+  "stage/backend-app" -> "mgmt/bastion-host";
+  "stage/backend-app" -> "stage/mysql";
+  "stage/backend-app" -> "stage/search-app";
+  "stage/frontend-app" ;
+  "stage/frontend-app" -> "stage/vpc";
+  "stage/frontend-app" -> "mgmt/bastion-host";
+  "stage/frontend-app" -> "stage/backend-app";
+  "stage/mysql" ;
+  "stage/mysql" -> "stage/vpc";
+  "stage/redis" ;
+  "stage/redis" -> "stage/vpc";
+  "stage/search-app" ;
+  "stage/search-app" -> "stage/vpc";
+  "stage/search-app" -> "stage/redis";
+  "stage/vpc" ;
+  "stage/vpc" -> "mgmt/vpc";
+}
+```
+
+#### hclfmt
+
+**DEPRECATED: Use `hcl format` instead.**
+
+Recursively find hcl files and rewrite them into a canonical format.
+
+Example:
+
+```bash
+terragrunt hclfmt
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt configuration files
+and run the equivalent of `tofu fmt`/`terraform fmt` on them.
+
+#### hclvalidate
+
+**DEPRECATED: Use `hcl validate` instead.**
+
+Find all hcl files from the configuration stack and validate them.
+
+Example:
+
+```bash
+terragrunt hclvalidate
+```
+
+This will search all hcl files from the configuration stack in the current working directory and run the equivalent
+of `tofu validate`/`terraform validate` on them.
+
+For convenience in programmatically parsing these findings, you can also pass the `--json` flag to output the results in JSON format.
+
+Example:
+
+```bash
+terragrunt hclvalidate --json
+```
+
+In addition, you can pass the `--show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [queue-excludes-file](#queue-excludes-file) flag.
+
+Example:
+
+```bash
+terragrunt hclvalidate --show-config-path
+```
+
+#### output-module-groups
+
+**DEPRECATED: Use `find --dag --json` or `list --dag --tree` instead.**
+
+Output groups of modules ordered for apply (or destroy) as a list of list in JSON.
+
+Example:
+
+```bash
+terragrunt output-module-groups <sub-command>
+```
+
+Optional sub-commands:
+
+- apply (default)
+- destroy
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and build
+the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks and output the graph as a JSON list of list (unless the sub-command is destroy, in which case the command will output the reverse dependency order).
+
+This can be be useful in several scenarios, such as in CICD, when determining apply order or searching for all files to apply with CLI options
+such as [`--units-that-include`](#units-that-include)
+
+This may produce output such as:
+
+```json
+{
+  "Group 1": ["stage/frontend-app"],
+  "Group 2": ["stage/backend-app"],
+  "Group 3": ["mgmt/bastion-host", "stage/search-app"],
+  "Group 4": ["mgmt/kms-master-key", "stage/mysql", "stage/redis"],
+  "Group 5": ["stage/vpc"],
+  "Group 6": ["mgmt/vpc"]
+}
+```
+
+#### render-json
+
+**DEPRECATED: Use `render --json -w` instead.**
+
+Render out the final interpreted `terragrunt.hcl` file (that is, with all the includes merged, dependencies
+resolved/interpolated, function calls executed, etc) as json.
+
+Example:
+
+The following `terragrunt.hcl`:
+
+```hcl
+locals {
+  aws_region = "us-east-1"
+}
+
+inputs = {
+  aws_region = local.aws_region
+}
+```
+
+Renders to the following `terragrunt_rendered.json`:
+
+```json
+{
+  "locals": { "aws_region": "us-east-1" },
+  "inputs": { "aws_region": "us-east-1" }
+  // NOTE: other attributes are omitted for brevity
+}
+```
+
+You can use the CLI option `--out` to configure where terragrunt renders out the json representation.
+
+To generate json with metadata can be specified argument `--with-metadata` which will add metadata to the json output.
+
+Example:
+
+```json
+{
+  "inputs": {
+    "aws_region": {
+      "metadata": {
+        "found_in_file": "/example/terragrunt.hcl"
+      },
+      "value": "us-east-1"
+    }
+  },
+  "locals": {
+    "aws_region": {
+      "metadata": {
+        "found_in_file": "/example/terragrunt.hcl"
+      },
+      "value": "us-east-1"
+    }
+  }
+  // NOTE: other attributes are omitted for brevity
+}
+```
+
+#### terragrunt-info
+
+**DEPRECATED: Use `info print` instead.**
+
+Emits limited terragrunt state on `stdout` in a JSON format and exits.
+
+Example:
+
+```bash
+terragrunt terragrunt-info
+```
+
+Might produce output such as:
+
+```json
+{
+  "ConfigPath": "/example/path/terragrunt.hcl",
+  "DownloadDir": "/example/path/.terragrunt-cache",
+  "IamRole": "",
+  "TerraformBinary": "terraform",
+  "TerraformCommand": "terragrunt-info",
+  "WorkingDir": "/example/path"
+}
+```
+
+#### validate-inputs
+
+**DEPRECATED: Use `hcl validate --inputs` or `hcl validate --inputs --strict` instead.**
+
+Emits information about the input variables that are configured with the given
+terragrunt configuration. Specifically, this command will print out unused
+inputs (inputs that are not defined as an OpenTofu/Terraform variable in the
+corresponding module) and undefined required inputs (required OpenTofu/Terraform
+variables that are not currently being passed in).
+
+Example:
+
+```bash
+> terragrunt validate-inputs
+The following inputs passed in by terragrunt are unused:
+
+    - foo
+    - bar
+
+
+The following required inputs are missing:
+
+    - baz
+
+```
+
+Note that this only checks for variables passed in in the following ways:
+
+- Configured `inputs` attribute.
+
+- var files defined on `terraform.extra_arguments` blocks using `required_var_files` and `optional_var_files`.
+
+- `-var-file` and `-var` CLI arguments defined on `terraform.extra_arguments` using `arguments`.
+
+- `-var-file` and `-var` CLI arguments passed to terragrunt.
+
+- Automatically loaded var files (`terraform.tfvars`, `terraform.tfvars.json`, `*.auto.tfvars`, `*.auto.tfvars.json`)
+
+- `TF_VAR` environment variables defined on `terraform.extra_arguments` blocks.
+
+- `TF_VAR` environment variables defined in the environment.
+
+Be aware that other ways to pass variables to `tofu`/`terraform` are not checked by this command.
+
+Additionally, there are **two modes** in which the `validate-inputs` command can be run: **relaxed** (default) and **strict**.
+
+If you run the `validate-inputs` command without flags, relaxed mode will be enabled by default. In relaxed mode, any unused variables
+that are passed, but not used by the underlying OpenTofu/Terraform configuration, will generate a warning, but not an error. Missing required variables will _always_ return an error, whether `validate-inputs` is running in relaxed or strict mode.
+
+To enable strict mode, you can pass the `--strict-validate` flag like so:
+
+```bash
+> terragrunt validate-inputs --strict-validate
+```
+
+When running in strict mode, `validate-inputs` will return an error if there are unused inputs.
+
+This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
 
 ### Deprecated Flags
 
