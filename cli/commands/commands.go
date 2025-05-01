@@ -92,7 +92,6 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	configurationCommands := cli.Commands{
-		outputmodulegroups.NewCommand(opts), // output-module-groups
 		hcl.NewCommand(opts),                // hcl
 		info.NewCommand(opts),               // info
 		dag.NewCommand(opts),                // dag
@@ -100,6 +99,7 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		helpCmd.NewCommand(opts),            // help (hidden)
 		versionCmd.NewCommand(opts),         // version (hidden)
 		awsproviderpatch.NewCommand(opts),   // aws-provider-patch (hidden)
+		outputmodulegroups.NewCommand(opts), // output-module-groups (hidden)
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -189,10 +189,9 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
-	switch {
-	case cmdName == runCmd.CommandName:
+	if cmdName == runCmd.CommandName {
 		cmdName = args.CommandName()
-	default:
+	} else {
 		args = append([]string{cmdName}, args...)
 	}
 
