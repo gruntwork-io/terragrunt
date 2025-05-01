@@ -143,7 +143,6 @@ $ terragrunt exec -- env | grep 'TF_VAR_message'
 TF_VAR_message=Hello, Terragrunt!
 ```
 
-
 ### Stack commands
 
 The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
@@ -1021,7 +1020,6 @@ This will sort the output based on the dependency graph, as if the `destroy` com
 **Note:** The `--queue-construct-as` flag implies the `--dag` flag.
 
 ### Configuration commands
-
 
 #### render
 
