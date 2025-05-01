@@ -36,7 +36,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --log-level trace --debug --working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --log-level trace --inputs-debug --working-dir "+rootPath, &stdout, &stderr),
 	)
 
 	debugFile := util.JoinPath(rootPath, helpers.TerragruntDebugFile)
