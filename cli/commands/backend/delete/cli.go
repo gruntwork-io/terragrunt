@@ -39,10 +39,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
-		Name:                 CommandName,
-		Usage:                "Delete OpenTofu/Terraform state.",
-		Flags:                NewFlags(opts, nil),
-		ErrorOnUndefinedFlag: true,
+		Name:  CommandName,
+		Usage: "Delete OpenTofu/Terraform state.",
+		Flags: NewFlags(opts, nil),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))
 		},

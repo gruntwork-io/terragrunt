@@ -22,14 +22,16 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			subCommandFunc(SubCommandApply, opts),
 			subCommandFunc(SubCommandDestroy, opts),
 		},
-		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
+		DisabledErrorOnUndefinedFlag: true,
+		Action:                       func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 }
 
 func subCommandFunc(cmd string, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:  cmd,
-		Usage: "Recursively find terragrunt modules in the current directory tree and output the dependency order as a list of list in JSON for the " + cmd,
+		Name:                         cmd,
+		Usage:                        "Recursively find terragrunt modules in the current directory tree and output the dependency order as a list of list in JSON for the " + cmd,
+		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			opts.TerraformCommand = cmd
 			return Run(ctx, opts.OptionsFromContext(ctx))

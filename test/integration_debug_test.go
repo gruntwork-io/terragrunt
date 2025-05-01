@@ -24,11 +24,6 @@ const (
 	fixtureRenderJSONRegression   = "fixtures/render-json-regression"
 )
 
-var (
-	fixtureRenderJSONMainModulePath = filepath.Join(fixtureRenderJSON, "main")
-	fixtureRenderJSONDepModulePath  = filepath.Join(fixtureRenderJSON, "dep")
-)
-
 func TestDebugGeneratedInputs(t *testing.T) {
 	t.Parallel()
 
@@ -185,13 +180,20 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 func TestRenderJSONConfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	helpers.CleanupTerraformFolder(t, fixtureRenderJSON)
+	tmpEnvPath := helpers.CopyEnvironment(t, fixtureRenderJSON)
+	rootPath := util.JoinPath(tmpEnvPath, fixtureRenderJSON)
+
+	fixtureRenderJSONMainModulePath := filepath.Join(rootPath, "main")
+	fixtureRenderJSONDepModulePath := filepath.Join(rootPath, "dep")
 
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
 
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+fixtureRenderJSON)
+	tmpDir := t.TempDir()
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONMainModulePath, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)

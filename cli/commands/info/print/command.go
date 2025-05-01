@@ -36,15 +36,12 @@ func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flag
 	return run.NewFlags(opts, prefix)
 }
 
-func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
-	prefix = prefix.Append(CommandName)
-
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:                 CommandName,
-		Usage:                "Print out a short description of Terragrunt context.",
-		UsageText:            "terragrunt info print",
-		Flags:                NewListFlags(opts, prefix),
-		ErrorOnUndefinedFlag: true,
+		Name:      CommandName,
+		Usage:     "Print out a short description of Terragrunt context.",
+		UsageText: "terragrunt info print",
+		Flags:     NewListFlags(opts, nil),
 		Action: func(ctx *cli.Context) error {
 			target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
 			return run.RunWithTarget(ctx, opts, target)

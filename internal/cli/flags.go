@@ -20,21 +20,21 @@ func (flags Flags) Parse(args Args) error {
 	return nil
 }
 
-func (flags Flags) NewFlagSet(cmdName string) (*libflag.FlagSet, error) {
+func (flags Flags) NewFlagSet(cmdName string, errHandler func(err error) error) (*libflag.FlagSet, error) {
 	flagSet := libflag.NewFlagSet(cmdName, libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	if err := flags.Apply(flagSet); err != nil {
-		return nil, err
-	}
+	err := flags.Apply(flagSet, errHandler)
 
-	return flagSet, nil
+	return flagSet, err
 }
 
-func (flags Flags) Apply(flagSet *libflag.FlagSet) error {
+func (flags Flags) Apply(flagSet *libflag.FlagSet, errHandler func(err error) error) error {
 	for _, flag := range flags {
 		if err := flag.Apply(flagSet); err != nil {
-			return err
+			if err = errHandler(err); err != nil {
+				return err
+			}
 		}
 	}
 

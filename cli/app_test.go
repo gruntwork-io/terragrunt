@@ -13,7 +13,6 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
-	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -482,8 +481,8 @@ func TestTerragruntHelp(t *testing.T) {
 			notExpected: commands.CommandHCLFmtName,
 		},
 		{
-			args:     []string{"terragrunt", commands.CommandPlanAllName, "--help"},
-			expected: runall.CommandName,
+			args:     []string{"terragrunt", run.CommandName, "--help"},
+			expected: run.CommandName,
 		},
 	}
 
@@ -559,7 +558,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app.Flags = append(global.NewFlags(opts, nil), run.NewFlags(opts, nil)...)
 	app.Commands = append(
 		commands.NewDeprecatedCommands(opts),
-		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))
+		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(opts))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx *clipkg.Context) error {
 		opts.TerraformCliArgs = append(opts.TerraformCliArgs, ctx.Args()...)
@@ -588,19 +587,19 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 	}{
 		{
 			"",
-			[]string{"graph-dependencies", "hcl", "output-module-groups", "render-json", "run-all", "terragrunt-info"},
+			[]string{"hcl", "render", "run"},
 		},
 		{
 			"--versio",
 			[]string{"--version"},
 		},
 		{
-			"render-json -",
+			"render -",
 			[]string{"--out", "--with-metadata"},
 		},
 		{
-			"run-all ren",
-			[]string{"render", "render-json"},
+			"run pla",
+			[]string{"plan"},
 		},
 	}
 
@@ -611,7 +610,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
 		app := cli.NewApp(opts)
 
-		app.Commands = app.Commands.FilterByNames([]string{"graph-dependencies", "hcl", "output-module-groups", "render-json", "run-all", "terragrunt-info"})
+		app.Commands = app.Commands.FilterByNames([]string{"hcl", "render", "run"})
 
 		err := app.Run([]string{"terragrunt"})
 		require.NoError(t, err)

@@ -18,10 +18,9 @@ const (
 
 func NewCommand(opts *options.TerragruntOptions, _ flags.Prefix) *cli.Command {
 	cmd := &cli.Command{
-		Name:                 CommandName,
-		Usage:                "Graph the Directed Acyclic Graph (DAG) in DOT language.",
-		UsageText:            "terragrunt dag graph",
-		ErrorOnUndefinedFlag: true,
+		Name:      CommandName,
+		Usage:     "Graph the Directed Acyclic Graph (DAG) in DOT language.",
+		UsageText: "terragrunt dag graph",
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts)
 		},

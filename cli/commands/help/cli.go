@@ -16,9 +16,10 @@ const (
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:   CommandName,
-		Usage:  "Show help.",
-		Hidden: true,
+		Name:                         CommandName,
+		Usage:                        "Show help.",
+		Hidden:                       true,
+		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			return Action(ctx, opts)
 		},
