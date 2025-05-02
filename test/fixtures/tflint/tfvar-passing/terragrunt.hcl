@@ -3,7 +3,7 @@ terraform {
 
   before_hook "tflint" {
     commands = ["apply", "plan"]
-    execute = ["tflint" , "--external-tflint"]
+    execute = ["tflint" , "--terragrunt-external-tflint"]
   }
 
   extra_arguments "var-files" {
