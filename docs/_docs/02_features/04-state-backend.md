@@ -178,7 +178,7 @@ The following example demonstrates using an environment variable to configure th
 remote_state {
   # ...
 
-  disable_init = tobool(get_env("TERRAGRUNT_DISABLE_INIT", "false"))
+  disable_init = tobool(get_env("TG_DISABLE_INIT", "false"))
 }
 ```
 

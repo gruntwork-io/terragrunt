@@ -42,7 +42,7 @@ terragrunt plan --experiment-mode
 You can also use the environment variable, which can be more useful in CI/CD pipelines:
 
 ```bash
-TERRAGRUNT_EXPERIMENT_MODE='true' terragrunt plan
+TG_EXPERIMENT_MODE='true' terragrunt plan
 ```
 
 Instead of enabling experiment mode, you can also enable specific experiments by setting the [experiment](/docs/reference/cli-options/#experiment)
@@ -56,7 +56,7 @@ terragrunt plan --experiment symlinks
 Again, you can also use the environment variable, which can be more useful in CI/CD pipelines:
 
 ```bash
-TERRAGRUNT_EXPERIMENT='symlinks' terragrunt plan
+TG_EXPERIMENT='symlinks' terragrunt plan
 ```
 
 You can also enable multiple experiments at once with a comma delimited list.
