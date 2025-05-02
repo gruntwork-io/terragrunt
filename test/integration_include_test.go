@@ -46,7 +46,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 
 			childPath := filepath.Join(includeExposeFixturePath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
-			helpers.RunTerragrunt(t, "terragrunt run --all --include-external-dependencies --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
+			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
