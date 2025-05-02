@@ -85,3 +85,15 @@ func TestMockOutputsMergeWithState(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, stdout, "shallow-map-executed")
 	require.NoError(t, err)
 }
+
+func TestIncludeError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "include-error", "project", "app")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "include blocks without label")
+}
