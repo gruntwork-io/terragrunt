@@ -28,14 +28,14 @@ const (
 )
 
 // ModuleStatus represents the status of a module that we are
-// trying to apply as part of the apply-all or destroy-all command
+// trying to apply or destroy as part of the run --all apply or run --all destroy command
 type ModuleStatus int
 
 // DependencyOrder controls in what order dependencies should be enforced between modules.
 type DependencyOrder int
 
 // RunningModule represents a module we are trying to "run" (i.e. apply or destroy)
-// as part of the apply-all or destroy-all command.
+// as part of the run --all apply or run --all destroy command.
 type RunningModule struct {
 	Err            error
 	Module         *TerraformModule

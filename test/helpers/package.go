@@ -288,8 +288,8 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 		&validateAllStderr,
 	)
 
-	LogBufferContentsLineByLine(t, validateAllStdout, "validate-all stdout")
-	LogBufferContentsLineByLine(t, validateAllStderr, "validate-all stderr")
+	LogBufferContentsLineByLine(t, validateAllStdout, "run --all validate stdout")
+	LogBufferContentsLineByLine(t, validateAllStderr, "run --all validate stderr")
 
 	require.NoError(t, err)
 
