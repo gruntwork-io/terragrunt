@@ -312,7 +312,7 @@ This work will be completed prior to the release of Terragrunt 1.0.
 
 ### Debug logging
 
-If you set the `TERRAGRUNT_DEBUG` environment variable to "true", the stack trace for any error will be printed to stdout when you run the app.
+If you set the `TG_INPUTS_DEBUG` environment variable to "true", the stack trace for any error will be printed to stdout when you run the app.
 
 Additionally, newer features introduced in v0.19.0 (such as `locals` and `dependency` blocks) can output more verbose logging if you set the `TG_LOG` environment variable to `debug`.
 

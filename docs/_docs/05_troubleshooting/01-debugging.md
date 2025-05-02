@@ -17,15 +17,15 @@ Terragrunt and OpenTofu/Terraform usually play well together in helping you
 write DRY, reusable infrastructure. But how do we figure out what
 went wrong in the rare case that they _don't_ play well?
 
-Terragrunt provides a way to configure logging level through the `--terragrunt-log-level`
-command flag. Additionally, Terragrunt provides `--terragrunt-debug`, that can be used
+Terragrunt provides a way to configure logging level through the `--log-level`
+command flag. Additionally, Terragrunt provides `--inputs-debug`, that can be used
 to generate `terragrunt-debug.tfvars.json`.
 
 For example you could use it like this to debug an `apply` that's producing
 unexpected output:
 
 ```shell
-terragrunt apply --terragrunt-log-level debug --terragrunt-debug
+terragrunt apply --log-level debug --inputs-debug
 ```
 
 Running this command will do two things for you:
@@ -102,7 +102,7 @@ elements, but you know that the cluster only has 4 VMs in it! What's happening?
 Let's figure it out. Run this:
 
 ```shell
-terragrunt apply --terragrunt-log-level debug --terragrunt-debug
+terragrunt apply --log-level debug --inputs-debug
 ```
 
 After applying, you will see this output on standard error

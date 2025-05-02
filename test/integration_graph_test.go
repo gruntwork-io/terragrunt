@@ -54,7 +54,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := util.JoinPath(fixturePath, tc.path)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
@@ -88,14 +88,15 @@ func TestTerragruntApplyGraph(t *testing.T) {
 		expectedModules    []string
 		notExpectedModules []string
 	}{
+		// We can keep this until the graph command is removed.
 		{
-			args:               "graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s",
+			args:               "graph apply --non-interactive --working-dir %s --graph-root %s",
 			path:               "services/eks-service-3-v2",
 			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-3-v3"},
 			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
 		},
 		{
-			args:               "run --graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s",
+			args:               "run --graph apply --non-interactive --working-dir %s --graph-root %s",
 			path:               "lambda",
 			expectedModules:    []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
 			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
@@ -150,7 +151,7 @@ func prepareGraphFixture(t *testing.T) string {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	return tmpEnvPath
 }

@@ -49,7 +49,7 @@ terragrunt apply --feature s3_version=v1.1.0
 Or by setting the corresponding environment variable:
 
 ```bash
-export TERRAGRUNT_FEATURE="s3_version=v1.1.0"
+export TG_FEATURE="s3_version=v1.1.0"
 terragrunt apply
 ```
 

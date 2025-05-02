@@ -1134,7 +1134,7 @@ When reading Terragrunt HCL configurations, you might read in a computed configu
 # computed.hcl
 
 locals {
-  computed_value = run_cmd("--quiet", "python3", "-c", "print('Hello,')")
+  computed_value = run_cmd("--terragrunt-quiet", "python3", "-c", "print('Hello,')")
 }
 ```
 
@@ -1431,7 +1431,7 @@ with external feature flag services like [LaunchDarkly](https://launchdarkly.com
 # terragrunt.hcl
 
 feature "feature_name" {
-  default = run_cmd("--quiet", "<command-to-fetch-feature-flag-value>")
+  default = run_cmd("--terragrunt-quiet", "<command-to-fetch-feature-flag-value>")
 }
 ```
 

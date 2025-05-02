@@ -563,7 +563,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 
 	// If `childTerragruntConfig.ProcessedIncludes` contains the path `terragruntConfigPath`, then this is a parent config
 	// which implies that `TerragruntConfigPath` must refer to a child configuration file, and the defined `IncludeConfig` must contain the path to the file itself
-	// for the built-in functions `read-terragrunt-config()`, `path_relative_to_include()` to work correctly.
+	// for the built-in functions `read_terragrunt_config()`, `path_relative_to_include()` to work correctly.
 	var includeConfig *config.IncludeConfig
 
 	if stack.childTerragruntConfig != nil && stack.childTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
