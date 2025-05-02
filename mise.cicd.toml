@@ -1,9 +1,4 @@
 [tools]
 go-junit-report = "2.1.0"
 pre-commit = "4.2.0"
-
-[[steps]]
-name = "Install goimports"
-run = """
-  go install golang.org/x/tools/cmd/goimports@latest
-"""
+"go:golang.org/x/tools/cmd/goimports" = "latest"
