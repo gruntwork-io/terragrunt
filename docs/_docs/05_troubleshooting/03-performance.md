@@ -24,7 +24,7 @@ One of the most expensive things that OpenTofu/Terraform does, from a bandwidth 
 You can significantly reduce the amount of time taken by Terragrunt runs by enabling the [provider cache server](/docs/features/provider-cache-server/), like this:
 
 ```bash
-terragrunt run-all plan --provider-cache
+terragrunt run --all plan --provider-cache
 ```
 
 #### Provider Cache - Gotchas
@@ -50,7 +50,7 @@ You can significantly improve the performance of dependency blocks by using the 
 For example:
 
 ```bash
-terragrunt run-all plan --dependency-fetch-output-from-state
+terragrunt run --all plan --dependency-fetch-output-from-state
 ```
 
 #### Fetching Output From State - Gotchas
@@ -104,7 +104,7 @@ You can use configurations like the `--warmup` flag to do some warmup runs befor
 Here's an example of how to use Hyperfine to benchmark the performance of Terragrunt with two different configurations:
 
 ```bash
-hyperfine -w 3 -r 5 'terragrunt run-all plan' 'terragrunt run-all plan --dependency-fetch-output-from-state'
+hyperfine -w 3 -r 5 'terragrunt run --all plan' 'terragrunt run --all plan --dependency-fetch-output-from-state'
 ```
 
 ### Terragrunt Developer

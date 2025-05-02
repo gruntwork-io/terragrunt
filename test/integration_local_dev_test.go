@@ -61,12 +61,12 @@ func TestTerragruntSourceMap(t *testing.T) {
 			t.Parallel()
 			tgPath := filepath.Join(rootPath, tc.name)
 
-			action := "apply"
+			action := "run"
 			if tc.applyAll {
-				action = "run-all apply"
+				action = "run --all"
 			}
 
-			tgArgs := fmt.Sprintf("terragrunt %s -auto-approve --log-level trace --non-interactive --working-dir %s %s", action, tgPath, sourceMapArgs)
+			tgArgs := fmt.Sprintf("terragrunt %s --log-level trace --non-interactive --working-dir %s %s -- apply -auto-approve", action, tgPath, sourceMapArgs)
 			helpers.RunTerragrunt(t, tgArgs)
 		})
 	}

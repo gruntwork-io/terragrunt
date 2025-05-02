@@ -151,7 +151,7 @@ func prepareGraphFixture(t *testing.T) string {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --non-interactive --working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	return tmpEnvPath
 }

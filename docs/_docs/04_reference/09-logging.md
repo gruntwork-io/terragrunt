@@ -77,7 +77,7 @@ The reason Terragrunt enriches stdout/stderr from the processes is that it is of
 For example:
 
 ```bash
-$ terragrunt run-all plan
+$ terragrunt run --all plan
 14:27:45.359 INFO   The stack at . will be processed in the following order for command plan:
 Group 1
 - Module ./unit-1
@@ -117,7 +117,7 @@ Here you see two different units being run by Terragrunt concurrently, and stdou
 It's easier to see the impact of this enrichment if we turn it off, so let's use the [bare](/docs/reference/log-formatting/#bare) preset described in [Log Formatting](/docs/reference/log-formatting).
 
 ```bash
-$ terragrunt run-all --log-format bare plan
+$ terragrunt run --all --log-format bare plan
 INFO[0000] The stack at /Users/yousif/tmp/testing-stdout-stderr-split will be processed in the following order for command plan:
 Group 1
 - Module /Users/yousif/tmp/testing-stdout-stderr-split/unit-1
@@ -234,7 +234,7 @@ Depending on what you're doing with Terragrunt, this might occasionally result i
 For example:
 
 ```bash
-$ terragrunt run-all apply --no-color --non-interactive > logs
+$ terragrunt run --all apply --no-color --non-interactive > logs
 16:01:51.164 INFO   The stack at . will be processed in the following order for command apply:
 Group 1
 - Module ./unit1

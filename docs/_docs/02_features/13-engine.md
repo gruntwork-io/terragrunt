@@ -46,7 +46,7 @@ e.g.
 
 * Emitting custom logging or metrics whenever the `tofu` binary is executed.
 * Running `tofu` in a remote environment, such as a separate Kubernetes pod from the one executing Terragrunt.
-* Using different versions of `tofu` for different Terragrunt configurations in the same `run-all` execution.
+* Using different versions of `tofu` for different Terragrunt configurations in the same `run --all` execution.
 
 ## HTTPS Sources
 
@@ -93,7 +93,7 @@ If the checksum does not match, the engine is not executed.
 To disable this feature, set the environment variable:
 
 ```sh
-export TG_ENGINE_SKIP_CHECK=0 
+export TG_ENGINE_SKIP_CHECK=0
 ```
 
 To configure a custom log level for the engine, set the `TG_ENGINE_LOG_LEVEL` environment variable to one of: `debug`, `info`, `warn`, `error`.
@@ -112,7 +112,7 @@ The metadata block is a map of key-value pairs. Engines can read the information
 engine {
    source  = "/home/users/iac-engines/my-custom-engine"
    # Optionally set metadata for the engine.
-   meta = { 
+   meta = {
      key_1 = ["value1", "value2"]
      key_2 = "1.6.0"
    }

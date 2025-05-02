@@ -179,7 +179,7 @@ func TestGetRepoRootCaching(t *testing.T) {
 
 	helpers.CreateGitRepo(t, rootPath)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --non-interactive --log-level trace --working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stdout, stderr)
@@ -290,7 +290,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	clusterPath := util.JoinPath(rootPath, "cluster")
 
 	helpers.CreateGitRepo(t, tmpEnvPath)
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	// verify expected outputs are not empty
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+clusterPath)

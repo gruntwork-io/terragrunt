@@ -23,11 +23,11 @@ func TestExplainError(t *testing.T) {
 		},
 		{
 			errorOutput: "Error: Initialization required",
-			explanation: "You need to run terragrunt (run-all) init to initialize working directory",
+			explanation: "You need to run terragrunt (run --all) init to initialize working directory",
 		},
 		{
 			errorOutput: "Module source has changed",
-			explanation: "You need to run terragrunt (run-all) init install all required modules",
+			explanation: "You need to run terragrunt (run --all) init install all required modules",
 		},
 		{
 			errorOutput: "Error: Failed to get existing workspaces: Unable to list objects in S3 bucket \"mybucket\": operation error S3: ListObjectsV2, https response error StatusCode: 301, RequestID: GH67DSB7KB8H578N, HostID: vofohiXBwNhR8Im+Dj7RpUPCPnOq9IDfn1rsUHHCzN9HgVMFfuIH5epndgLQvDeJPz2DrlUh0tA=, requested bucket from \"us-east-1\", actual location \"eu-west-1\"\n",

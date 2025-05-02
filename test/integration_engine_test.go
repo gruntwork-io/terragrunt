@@ -90,7 +90,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --tf-forward-stdout --working-dir %s", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Tofu Initialization started")
@@ -106,7 +106,7 @@ func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
 
 	cacheDir, rootPath := setupEngineCache(t)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --tf-forward-stdout --working-dir %s", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "OpenTofu has been successful")
@@ -148,7 +148,7 @@ func TestEngineChecksumVerification(t *testing.T) {
 
 	cachePath, rootPath := setupEngineCache(t)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --working-dir %s", rootPath))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 
 	// change the checksum of the package file
@@ -167,7 +167,7 @@ func TestEngineChecksumVerification(t *testing.T) {
 	}
 
 	assert.NoError(t, file.Close())
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --working-dir %s", rootPath))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.Error(t, err)
 
 	require.Contains(t, err.Error(), "checksum list has unexpected SHA-256 hash")
@@ -178,7 +178,7 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 
 	cachePath, rootPath := setupEngineCache(t)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --working-dir %s", rootPath))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 
 	err = filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
@@ -200,14 +200,14 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath = util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --working-dir %s", rootPath))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "verification failure")
 
 	// disable checksum check
 	t.Setenv("TG_ENGINE_SKIP_CHECK", "1")
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --working-dir %s", rootPath))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 }
 
@@ -218,7 +218,7 @@ func TestEngineOpentofuLatestRunAll(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuLatestRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --tf-forward-stdout --working-dir %s", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "resource \"local_file\" \"test\"")
@@ -260,7 +260,7 @@ func TestEngineLogLevel(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuLatestRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply -no-color --non-interactive --tf-forward-stdout --working-dir %s --log-level trace", rootPath))
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s --log-level trace -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "level=debug")
 	assert.Contains(t, stderr, "[DEBUG] terragrunt-iac-engine-opentofu_rpc")

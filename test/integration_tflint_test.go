@@ -101,7 +101,7 @@ func TestTflintInitSameModule(t *testing.T) {
 		err := util.CopyFolderContents(createLogger(), appTemplate, appPath, ".terragrunt-test", []string{}, []string{})
 		require.NoError(t, err)
 	}
-	helpers.RunTerragrunt(t, "terragrunt run-all init --log-level trace --non-interactive --working-dir "+runPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all init --log-level trace --non-interactive --working-dir "+runPath)
 }
 
 func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {

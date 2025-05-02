@@ -141,14 +141,14 @@ Similarly, commands like `graph` won't be supported as a shortcut, as `graph` is
 terragrunt run graph
 ```
 
-In addition to allowing for explicit invocation of OpenTofu/Terraform instead of using shortcuts, the `run` command also takes on the responsibilities of the now deprecated `run-all` and `graph` commands using flags.
+In addition to allowing for explicit invocation of OpenTofu/Terraform instead of using shortcuts, the `run` command also takes on the responsibilities of the now deprecated `run --all` and `graph` commands using flags.
 
-For example, if you are currently using the `terragrunt run-all` command, you can switch to the `run` command with the `--all` flag instead.
+For example, if you are currently using the `terragrunt run --all` command, you can switch to the `run` command with the `--all` flag instead.
 
 Before:
 
 ```bash
-terragrunt run-all plan
+terragrunt run --all plan
 ```
 
 After:

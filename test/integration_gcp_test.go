@@ -336,7 +336,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
 	require.NoError(t, err)
 
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --non-interactive --working-dir "+tmpEnvPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+tmpEnvPath+" -- apply -auto-approve")
 }
 
 func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project string, location string, gcsBucketName string, configFileName string) string {

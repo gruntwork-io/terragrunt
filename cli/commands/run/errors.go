@@ -64,5 +64,5 @@ type RunAllDisabledErr struct {
 }
 
 func (err RunAllDisabledErr) Error() string {
-	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
+	return fmt.Sprintf("%s with run --all is disabled: %s", err.command, err.reason)
 }

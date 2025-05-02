@@ -153,7 +153,7 @@ func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
 // applied. If the user selects "yes", then Terragrunt will apply that module as well.
-// Note that we skip the prompt for `run-all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
+// Note that we skip the prompt for `run --all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
 // with the --queue-include-external or --queue-include-dir flags.
 func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.Context, dependency *TerraformModule, opts *options.TerragruntOptions) (bool, error) {
@@ -163,13 +163,13 @@ func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.
 	}
 
 	if opts.NonInteractive {
-		opts.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		opts.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run --all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil
 	}
 
 	stackCmd := opts.TerraformCommand
 	if stackCmd == "destroy" {
-		opts.Logger.Debugf("run-all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		opts.Logger.Debugf("run --all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run --all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil
 	}
 

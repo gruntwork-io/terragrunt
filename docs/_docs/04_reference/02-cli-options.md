@@ -1460,7 +1460,7 @@ Other credential configurations will be supported in the future, but until then,
 A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. The
 default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the current directory (see
 [Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced
-explanation). This argument is not used with the `run-all` commands.
+explanation). This argument is not used with `run --all` commands.
 
 ### tf-path
 
@@ -1503,12 +1503,9 @@ disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 **Environment Variable**: `TG_NO_AUTO_APPROVE` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_NO_AUTO_APPROVE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_APPROVE` (set to `false`), and is still available for backwards compatibility)_
-**Commands**:
-
-- [run-all](#run-all)
 
 When passed in, Terragrunt will no longer automatically append `-auto-approve` to the underlying OpenTofu/Terraform commands run
-with `run-all`. Note that due to the interactive prompts, this flag will also **automatically assume
+with `run --all`. Note that due to the interactive prompts, this flag will also **automatically assume
 `--parallelism 1`**.
 
 ### no-auto-retry
@@ -1558,7 +1555,7 @@ Is how you would make Terragrunt apply without any user prompts from Terragrunt 
 **Requires an argument**: `--working-dir /path/to/working-directory`<br/>
 
 Set the directory where Terragrunt should execute the `terraform` command. Default is the current working directory.
-Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the
+Note that for the `run --all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the
 OpenTofu/Terraform modules in the subfolders of the `working-dir`, running `terraform` in the root of each module it
 finds.
 
@@ -1584,9 +1581,9 @@ Default is `.terragrunt-cache` in the working directory. We recommend adding thi
 
 Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run OpenTofu/Terraform in that temporary
 folder. The source should use the same syntax as the [OpenTofu/Terraform module
-source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `run-all`
+source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `run --all`
 commands, Terragrunt will assume this is the local file path for all of your OpenTofu/Terraform modules, and for each module
-processed by the `run-all` command, Terragrunt will automatically append the path of `source` parameter in each module
+processed by the `run --all` command, Terragrunt will automatically append the path of `source` parameter in each module
 to the `--source` parameter you passed in.
 
 ### source-map
@@ -1609,7 +1606,7 @@ terragrunt apply --source-map github.com/org/modules.git=/local/path/to/modules
 ```
 
 The above would replace `terraform { source = "github.com/org/modules.git//xxx" }` with `terraform { source = /local/path/to/modules//xxx }` regardless of
-whether you were running `apply`, or `run-all`, or using a `dependency`.
+whether you were running `apply`, or `run --all`, or using a `dependency`.
 
 **NOTE**: This setting is ignored if you pass in `--source`.
 
@@ -1695,7 +1692,7 @@ excluded during execution of the commands. If a relative path is specified, it s
 This flag has been designed to integrate nicely with the `hclvalidate` command, which can return a list of invalid files delimited by newlines when passed the `--show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
 
 ```bash
-terragrunt run-all plan --queue-excludes-file <(terragrunt hclvalidate --show-config-path)
+terragrunt run --all plan --queue-excludes-file <(terragrunt hclvalidate --show-config-path)
 ```
 
 ### queue-exclude-dir
@@ -2005,12 +2002,8 @@ When passed in, render the json representation in this file.
 **Environment Variable**: `TG_UNITS_THAT_INCLUDE`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_MODULES_THAT_INCLUDE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Requires an argument**: `--units-that-include /path/to/included-terragrunt.hcl`<br/>
-**Commands**:
 
-- [run](#run)
-- [run-all](#run-all)
-
-When passed in, `run-all` will only run the command against Terragrunt modules that include the specified file.
+When passed in, `run --all` will only run the command against Terragrunt modules that include the specified file.
 
 This applies to the set of modules that are identified based on all the existing criteria for deciding which modules to
 include. For example, consider the following folder structure:
@@ -2049,9 +2042,9 @@ include "envcommon" {
 }
 ```
 
-If you run the command `run-all init --units-that-include ../_envcommon/data-stores/aurora.hcl` from the
+If you run the command `run --all init --units-that-include ../_envcommon/data-stores/aurora.hcl` from the
 `dev` folder, only `dev/us-west-2/dev/data-stores/aurora` will be run; not `stage/us-west-2/stage/data-stores/aurora`.
-This is because `run-all` by default restricts the modules to only those that are direct descendents of the current
+This is because `run --all` by default restricts the modules to only those that are direct descendents of the current
 folder you are running from. If you also pass in `--queue-include-dir ../stage`, then it will now include
 `stage/us-west-2/stage/data-stores/aurora` because now the `stage` folder is in consideration.
 
@@ -2073,10 +2066,6 @@ only for the `include` configuration block.
 **Environment Variable**: `TERRAGRUNT_QUEUE_INCLUDE_UNITS_READING`<br/>
 **CLI Arg Alias**: `--terragrunt-queue-include-units-reading` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable Alias**: `TG_QUEUE_INCLUDE_UNITS_READING` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run](#run)
-- [run-all](#run-all)
 
 This flag works very similarly to the `--units-that-include` flag, but instead of looking only for included configurations,
 it also looks for configurations that read a given file.
@@ -2105,7 +2094,7 @@ locals {
 }
 ```
 
-If you run the command `run-all init --queue-include-units-reading shared.hcl` from the root folder, both
+If you run the command `run --all init --queue-include-units-reading shared.hcl` from the root folder, both
 `reading-shared-hcl` and `also-reading-shared-hcl` will be run; not `not-reading-shared-hcl`.
 
 This is because the `read_terragrunt_config` HCL function has a special hook that allows Terragrunt to track that it has
@@ -2128,7 +2117,7 @@ inputs = {
 }
 ```
 
-**⚠️**: Due to the way that Terragrunt parses configurations during a `run-all`, functions will only properly mark files as read
+**⚠️**: Due to the way that Terragrunt parses configurations during a `run --all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
 block is not evaluated until _after_ the queue has been populated with units to run.
 
@@ -2162,7 +2151,7 @@ The reason you might want to use this flag is that Terragrunt frequently only ne
 
 This is the case for scenarios like:
 
-- Building the Directed Acyclic Graph (DAG) during a `run-all` command where only the `dependency` blocks need to be evaluated to determine run order.
+- Building the Directed Acyclic Graph (DAG) during a `run --all` command where only the `dependency` blocks need to be evaluated to determine run order.
 - Parsing the `terraform` block to determine state configurations for fetching `dependency` outputs.
 - Determining whether Terragrunt execution behavior has to change like for `prevent_destroy` or `skip` flags in configuration.
 
@@ -2203,9 +2192,6 @@ When this flag is set, Terragrunt will not validate the terraform command, which
 **CLI Arg Alias**: `--terragrunt-provider-cache` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_PROVIDER_CACHE`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run-all](#run-all)
 
 Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
@@ -2215,9 +2201,6 @@ Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make pr
 **CLI Arg Alias**: `--terragrunt-provider-cache-dir` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_PROVIDER_CACHE_DIR`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_DIR` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run-all](#run-all)
 
 The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) directory. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
@@ -2227,9 +2210,6 @@ The path to the Terragrunt provider cache directory. By default, `terragrunt/pro
 **CLI Arg Alias**: `--terragrunt-provider-cache-hostname` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_PROVIDER_CACHE_HOSTNAME`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_HOSTNAME` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run-all](#run-all)
 
 The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
@@ -2239,9 +2219,6 @@ The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. M
 **CLI Arg Alias**: `--terragrunt-provider-cache-port` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_PROVIDER_CACHE_PORT`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_PORT` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run-all](#run-all)
 
 The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
@@ -2251,9 +2228,6 @@ The port of the Terragrunt Provider Cache server. By default, assigned automatic
 **CLI Arg Alias**: `--terragrunt-provider-cache-token` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_PROVIDER_CACHE_TOKEN`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_TOKEN` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run-all](#run-all)
 
 The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
@@ -2263,9 +2237,6 @@ The Token for authentication on the Terragrunt Provider Cache server. By default
 **CLI Arg Alias**: `--terragrunt-provider-cache-registry-names` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_PROVIDER_CACHE_REGISTRY_NAMES`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run-all](#run-all)
 
 The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Cache Server](/docs/features/provider-cache-server) for context.
 
@@ -2275,9 +2246,6 @@ The list of remote registries to cached by Terragrunt Provider Cache server. By 
 **CLI Arg Alias**: `--terragrunt-out-dir` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_OUT_DIR`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_OUT_DIR` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run-all](#run-all)
 
 Specify the plan output directory for the `*-all` commands. Useful to save plans between runs in a single place.
 
@@ -2287,9 +2255,6 @@ Specify the plan output directory for the `*-all` commands. Useful to save plans
 **CLI Arg Alias**: `--terragrunt-json-out-dir` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_JSON_OUT_DIR`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_JSON_OUT_DIR` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Commands**:
-
-- [run-all](#run-all)
 
 Specify the output directory for the `*-all` commands to store plans in JSON format. Useful to read plans programmatically.
 
@@ -2457,7 +2422,7 @@ The following are deprecated commands that are no longer recommended for use. Th
 
 #### plan-all
 
-**DEPRECATED: Use `run-all plan` instead.**
+**DEPRECATED: Use `run --all plan` instead.**
 
 Display the plans of a `stack` by running `terragrunt plan` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
 commands on multiple modules at once](/docs/features/stacks) for
@@ -2466,7 +2431,7 @@ context.
 Example:
 
 ```bash
-terragrunt run-all plan
+terragrunt run --all plan
 ```
 
 This will recursively search the current working directory for any folders that contain Terragrunt modules and run
@@ -2474,15 +2439,15 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] `run-all plan` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
+**[WARNING] `run --all plan` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
 dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never
-deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks or
+deployed them, then `run --all plan` will fail as it will not be possible to resolve the `dependency` blocks or
 `terraform_remote_state` data sources! Please [see here for more
 information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
 
 #### apply-all
 
-**DEPRECATED: Use `run-all apply` instead.**
+**DEPRECATED: Use `run --all apply` instead.**
 
 Apply a `stack` by running `terragrunt apply` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
 commands on multiple modules at once](/docs/features/stacks) for
@@ -2505,7 +2470,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 
 #### output-all
 
-**DEPRECATED: Use `run-all output` instead.**
+**DEPRECATED: Use `run --all output` instead.**
 
 Display the outputs of a `stack` by running `terragrunt output` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
 commands on multiple modules at once](/docs/features/stacks) for
@@ -2530,7 +2495,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 
 #### destroy-all
 
-**DEPRECATED: Use `run-all destroy` instead.**
+**DEPRECATED: Use `run --all destroy` instead.**
 
 Destroy a `stack` by running `terragrunt destroy` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
 commands on multiple modules at once](/docs/features/stacks) for
@@ -2553,7 +2518,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 
 #### validate-all
 
-**DEPRECATED: Use `run-all validate` instead.**
+**DEPRECATED: Use `run --all validate` instead.**
 
 Validate `stack` by running `terragrunt validate` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
 commands on multiple modules at once](/docs/features/stacks) for

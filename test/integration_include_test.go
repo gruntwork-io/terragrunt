@@ -46,7 +46,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 
 			childPath := filepath.Join(includeExposeFixturePath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
-			helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --queue-include-external --non-interactive --log-level trace --working-dir "+childPath)
+			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
@@ -72,7 +72,7 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	err := helpers.RunTerragruntCommand(
 		t,
 		fmt.Sprintf(
-			"terragrunt run-all plan --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --units-that-include alpha.hcl",
+			"terragrunt run --all plan --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --units-that-include alpha.hcl",
 			modulePath,
 		),
 		&stdout,
@@ -99,7 +99,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(
 		t,
-		"terragrunt run-all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
+		"terragrunt run --all plan --non-interactive --tf-forward-stdout --working-dir "+modulePath,
 		&stdout,
 		&stderr,
 	)
