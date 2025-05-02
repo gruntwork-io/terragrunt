@@ -66,4 +66,4 @@ jobs:
       - name: Display JUnit Results with action-junit-report
         uses: mikepenz/action-junit-report@v5
         with:
-          files: result.xml
+          report_paths: result.xml
