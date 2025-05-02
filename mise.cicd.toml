@@ -1,0 +1,2 @@
+[tools]
+go-junit-report = "2.1.0"
