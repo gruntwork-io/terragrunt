@@ -808,16 +808,16 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 // GetTerragruntSourceForModule returns the source path for a module based on the source path of the parent module and the
 // source path specified in the module's terragrunt.hcl file.
 //
-// If one of the xxx-all commands is called with the --terragrunt-source parameter, then for each module, we need to
-// build its own --terragrunt-source parameter by doing the following:
+// If one of the xxx-all commands is called with the --source parameter, then for each module, we need to
+// build its own --source parameter by doing the following:
 //
 // 1. Read the source URL from the Terragrunt configuration of each module
 // 2. Extract the path from that URL (the part after a double-slash)
-// 3. Append the path to the --terragrunt-source parameter
+// 3. Append the path to the --source parameter
 //
 // Example:
 //
-// --terragrunt-source: /source/infrastructure-modules
+// --source: /source/infrastructure-modules
 // source param in module's terragrunt.hcl: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
 //
 // This method will return: /source/infrastructure-modules//networking/vpc
@@ -914,7 +914,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	)
 
 	// Set environment variables from the TerragruntOptions.Env map.
-	// This is especially useful for integrations with things like the `terragrunt-auth-provider` flag,
+	// This is especially useful for integrations with things like the `auth-provider` flag,
 	// which can set environment variables that are used for decryption.
 	//
 	// Due to the fact that sops doesn't expose a way of explicitly setting authentication configurations
@@ -974,7 +974,7 @@ func getSopsFileFormat(sourceFile string) (string, error) {
 	return format, nil
 }
 
-// Return the location of the Terraform files provided via --terragrunt-source
+// Return the location of the Terraform files provided via --source
 func getTerragruntSourceCliFlag(ctx *ParsingContext) (string, error) {
 	return ctx.TerragruntOptions.Source, nil
 }

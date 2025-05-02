@@ -28,14 +28,14 @@ const (
 )
 
 // ModuleStatus represents the status of a module that we are
-// trying to apply as part of the apply-all or destroy-all command
+// trying to apply or destroy as part of the run --all apply or run --all destroy command
 type ModuleStatus int
 
 // DependencyOrder controls in what order dependencies should be enforced between modules.
 type DependencyOrder int
 
 // RunningModule represents a module we are trying to "run" (i.e. apply or destroy)
-// as part of the apply-all or destroy-all command.
+// as part of the run --all apply or run --all destroy command.
 type RunningModule struct {
 	Err            error
 	Module         *TerraformModule
@@ -97,7 +97,7 @@ func (module *RunningModule) waitForDependencies() error {
 
 		if doneDependency.Err != nil {
 			if module.Module.TerragruntOptions.IgnoreDependencyErrors {
-				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
+				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
 				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
 				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}

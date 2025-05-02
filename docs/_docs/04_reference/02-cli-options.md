@@ -33,6 +33,7 @@ The commands relevant to managing OpenTofu/Terraform state backends are:
 - [Backend commands](#backend-commands)
   - [backend bootstrap](#backend-bootstrap)
   - [backend delete](#backend-delete)
+  - [backend migrate](#backend-migrate)
 
 The commands for interacting with Terragrunt files, written in HashiCorp Configuration Language (HCL):
 
@@ -2412,6 +2413,12 @@ The following are deprecated commands that are no longer recommended for use. Th
   - [run-all (DEPRECATED: use run --all)](#run-all)
   - [graph (DEPRECATED: use run --graph)](#graph)
   - [graph-dependencies (DEPRECATED: use dag graph)](#graph-dependencies)
+  - [hclfmt (DEPRECATED: use run --hclfmt)](#hclfmt)
+  - [hclvalidate (DEPRECATED: use run --hclvalidate)](#hclvalidate)
+  - [output-module-groups (DEPRECATED: use run --output-module-groups)](#output-module-groups)
+  - [render-json (DEPRECATED: use run --render-json)](#render-json)
+  - [terragrunt-info (DEPRECATED: use run --terragrunt-info)](#terragrunt-info)
+  - [validate-inputs (DEPRECATED: use run --validate-inputs)](#validate-inputs)
 
 #### plan-all
 

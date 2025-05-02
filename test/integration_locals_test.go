@@ -29,7 +29,7 @@ func TestUndefinedLocalsReferenceBreaks(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalsErrorUndefinedLocal)
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalsErrorUndefinedLocal, os.Stdout, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureLocalsErrorUndefinedLocal, os.Stdout, os.Stderr)
 	require.Error(t, err)
 }
 
@@ -37,7 +37,7 @@ func TestUndefinedLocalsReferenceToInputsBreaks(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalsErrorUndefinedLocalButInput)
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalsErrorUndefinedLocalButInput, os.Stdout, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureLocalsErrorUndefinedLocalButInput, os.Stdout, os.Stderr)
 	require.Error(t, err)
 }
 
@@ -46,9 +46,9 @@ func TestLocalsParsing(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalsCanonical)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalsCanonical)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureLocalsCanonical)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalsCanonical)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+testFixtureLocalsCanonical)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -64,9 +64,9 @@ func TestLocalsInInclude(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureLocalsInInclude)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalsInInclude)
 	childPath := filepath.Join(tmpEnvPath, testFixtureLocalsInInclude, testFixtureLocalsInIncludeChildRelPath)
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve -no-color --terragrunt-non-interactive --terragrunt-working-dir "+childPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve -no-color --non-interactive --working-dir "+childPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+childPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -102,7 +102,7 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level trace", testFixtureBrokenLocals), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --log-level trace", testFixtureBrokenLocals), &stdout, &stderr)
 	require.Error(t, err)
 
 	output := stderr.String()
@@ -116,7 +116,7 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+testFixtureLocalRunMultiple, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt init --working-dir "+testFixtureLocalRunMultiple, &stdout, &stderr)
 	require.Error(t, err)
 
 	errout := stdout.String()
@@ -142,7 +142,7 @@ func TestTerragruntLocalRunOnce(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+testFixtureLocalRunOnce, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt init --working-dir "+testFixtureLocalRunOnce, &stdout, &stderr)
 	require.Error(t, err)
 
 	errout := stdout.String()

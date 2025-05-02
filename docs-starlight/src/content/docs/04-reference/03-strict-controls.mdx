@@ -93,6 +93,13 @@ $ TG_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrun
 15:26:46.564 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 ```
 
+You can also use [control categories](#control-categories) to enable certain categories of strict controls.
+
+```bash
+$ terragrunt plan-all --strict-control deprecated-commands
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+```
+
 ## Strict Mode Controls
 
 The following strict mode controls are available:
@@ -149,6 +156,10 @@ Skipping dependency inputs is a performance optimization. For more details on pe
 
 **Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
 
+### require-explicit-bootstrap
+
+Require explicit usage of `--backend-bootstrap` to automatically bootstrap backend resources.
+
 ### root-terragrunt-hcl
 
 Throw an error when users try to reference a root `terragrunt.hcl` file using `find_in_parent_folders`.
@@ -156,3 +167,102 @@ Throw an error when users try to reference a root `terragrunt.hcl` file using `f
 This control will also try to find other scenarios where users may be using `terragrunt.hcl` as the root configuration, including when using commands like `scaffold` and `catalog`, which can generate a `terragrunt.hcl` file expecting a `terragrunt.hcl` file at the root of the project. Enabling this flag adjusts the defaults for those commands so that they expect a recommended `root.hcl` file by default, and will throw an error if a `terragrunt.hcl` file is explicitly set.
 
 **Reason**: Using a root `terragrunt.hcl` file was previously the recommended pattern to use with Terragrunt, but that is no longer the case. For more information see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl/).
+
+### terragrunt-prefix-flags
+
+Throw an error when using the `--terragrunt-` prefix for flags.
+
+**Reason**: This is no longer necessary, due to the work in RFC [#3445](https://github.com/gruntwork-io/terragrunt/issues/3445).
+**Example**: The `--terragrunt-non-interactive` flag is deprecated and will be removed in a future version. Use `--non-interactive` instead.
+
+### terragrunt-prefix-env-vars
+
+Throw an error when using the `TERRAGRUNT_` prefix for environment variables.
+
+**Reason**: This prefix has been renamed to `TG_` to shorten the prefix, due to the work in RFC [#3445](https://github.com/gruntwork-io/terragrunt/issues/3445).
+**Example**: The `TERRAGRUNT_LOG_LEVEL` env var is deprecated and will be removed in a future version. Use `TG_LOG_LEVEL=info` instead.
+
+### default-command
+
+Throw an error when using the Terragrunt default command.
+
+**Reason**: Terragrunt now supports a special `run` command that can be used to explicitly forward commands to OpenTofu/Terraform when no shortcut exists in the Terragrunt CLI.
+**Example**: The default command is deprecated and will be removed in a future version. Use `terragrunt run` instead.
+
+### cli-redesign
+
+Throw an error when using commands that were deprecated as part of the CLI redesign.
+
+**Commands**:
+
+- `run-all`
+- `graph`
+- `graph-dependencies`
+- `hclfmt`
+- `hclvalidate`
+- `output-module-groups`
+- `render-json`
+- `terragrunt-info`
+- `validate-inputs`
+
+**Reason**: These commands have been deprecated in favor of more consistent and intuitive commands as part of the CLI redesign. For more information, see the [CLI Redesign Migration Guide](/docs/migrate/cli-redesign/).
+
+## Control Categories
+
+Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.
+
+These categories change over time, so you might want to use the specific strict controls if you want to ensure that only certain controls are enabled.
+
+### deprecated-commands
+
+Throw an error when using the deprecated commands.
+
+**Controls**:
+
+- [plan-all](#plan-all)
+- [apply-all](#apply-all)
+- [destroy-all](#destroy-all)
+- [output-all](#output-all)
+- [validate-all](#validate-all)
+- [spin-up](#spin-up)
+- [tear-down](#tear-down)
+- [default-command](#default-command)
+- [cli-redesign](#cli-redesign)
+
+### deprecated-flags
+
+Throw an error when using the deprecated flags.
+
+**Controls**:
+
+- [terragrunt-prefix-flags](#terragrunt-prefix-flags)
+
+### deprecated-env-vars
+
+Throw an error when using the deprecated environment variables.
+
+**Controls**:
+
+- [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
+
+### deprecated-configs
+
+Throw an error when using the deprecated Terragrunt configuration.
+
+**Controls**:
+
+- [skip-dependencies-inputs](#skip-dependencies-inputs)
+
+### legacy-all-commands
+
+Throw an error when using any of the legacy commands replaced by `run-all`.
+
+**Controls**:
+
+- [plan-all](#plan-all)
+- [apply-all](#apply-all)
+- [destroy-all](#destroy-all)
+- [output-all](#output-all)
+- [validate-all](#validate-all)
+- [spin-up](#spin-up)
+- [tear-down](#tear-down)

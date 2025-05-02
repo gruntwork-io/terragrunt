@@ -1961,7 +1961,7 @@ It supports all terragrunt functions, i.e. `path_relative_from_include()`.
 ### prevent_destroy
 
 Terragrunt `prevent_destroy` boolean flag allows you to protect selected OpenTofu/Terraform module. It will prevent `destroy` or
-`destroy-all` command to actually destroy resources of the protected module. This is useful for modules you want to
+`run --all destroy` command from actually destroying resources of the protected module. This is useful for modules you want to
 carefully protect, such as a database, or a module that provides auth.
 
 Example:

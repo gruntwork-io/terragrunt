@@ -152,7 +152,7 @@ type InvalidSourceURLError struct {
 }
 
 func (err InvalidSourceURLError) Error() string {
-	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceURL)
+	return fmt.Sprintf("The --source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceURL)
 }
 
 type InvalidSourceURLWithMapError struct {
@@ -161,7 +161,7 @@ type InvalidSourceURLWithMapError struct {
 }
 
 func (err InvalidSourceURLWithMapError) Error() string {
-	return fmt.Sprintf("The --terragrunt-source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceURL)
+	return fmt.Sprintf("The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceURL)
 }
 
 type ParsingModulePathError struct {

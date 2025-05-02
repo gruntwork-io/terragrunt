@@ -383,9 +383,11 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		errs = errs.Append(err)
 	}
 
-	ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
-	ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
-	ctx = ctx.WithLocals(baseBlocks.Locals)
+	if baseBlocks != nil {
+		ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
+		ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
+		ctx = ctx.WithLocals(baseBlocks.Locals)
+	}
 
 	// Set parsed Locals on the parsed config
 	output, err := convertToTerragruntConfig(ctx, file.ConfigPath, &terragruntConfigFile{})

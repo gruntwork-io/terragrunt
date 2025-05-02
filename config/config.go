@@ -1288,9 +1288,11 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		errs = errs.Append(err)
 	}
 
-	ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
-	ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
-	ctx = ctx.WithLocals(baseBlocks.Locals)
+	if baseBlocks != nil {
+		ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
+		ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
+		ctx = ctx.WithLocals(baseBlocks.Locals)
+	}
 
 	if ctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the

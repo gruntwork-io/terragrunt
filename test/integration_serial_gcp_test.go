@@ -32,7 +32,7 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	defer deleteGCSBucket(t, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsPath))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
@@ -56,7 +56,7 @@ func TestGcpWorksWithImpersonateBackend(t *testing.T) {
 
 	// run with impersonation
 	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsImpersonatePath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntImpersonateGCSConfigPath, testFixtureGcsImpersonatePath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntImpersonateGCSConfigPath, testFixtureGcsImpersonatePath))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",

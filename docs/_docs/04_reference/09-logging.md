@@ -36,7 +36,7 @@ All other log levels are standard, and are used by Terragrunt to log its own mes
 For example:
 
 ```bash
-$ terragrunt --terragrunt-log-level debug plan
+$ terragrunt --log-level debug plan
 14:20:38.431 DEBUG  Terragrunt Version: 0.0.0
 14:20:38.431 DEBUG  Did not find any locals block: skipping evaluation.
 14:20:38.431 DEBUG  Running command: tofu --version
@@ -66,7 +66,7 @@ $ terragrunt --terragrunt-log-level debug plan
 
 Here, we have three types of log messages:
 
-1. `DEBUG` messages from Terragrunt itself. By default, Terragrunt's log level is `INFO`, but we've set it to `DEBUG` using the `--terragrunt-log-level` flag.
+1. `DEBUG` messages from Terragrunt itself. By default, Terragrunt's log level is `INFO`, but we've set it to `DEBUG` using the `--log-level` flag.
 2. `STDOUT` messages from OpenTofu. These are messages that OpenTofu would normally print directly to the terminal, but instead, Terragrunt captures them and logs them as `STDOUT` log messages, along with timestamps and other metadata.
 3. `INFO` messages from Terragrunt [auto-init](/docs/features/auto-init). These were initially emitted by OpenTofu, however the user did not specifically ask for them, so Terragrunt logs them as `INFO` messages.
 
@@ -117,7 +117,7 @@ Here you see two different units being run by Terragrunt concurrently, and stdou
 It's easier to see the impact of this enrichment if we turn it off, so let's use the [bare](/docs/reference/log-formatting/#bare) preset described in [Log Formatting](/docs/reference/log-formatting).
 
 ```bash
-$ terragrunt run --all --terragrunt-log-format bare plan
+$ terragrunt run --all --log-format bare plan
 INFO[0000] The stack at /Users/yousif/tmp/testing-stdout-stderr-split will be processed in the following order for command plan:
 Group 1
 - Module /Users/yousif/tmp/testing-stdout-stderr-split/unit-1
@@ -234,7 +234,7 @@ Depending on what you're doing with Terragrunt, this might occasionally result i
 For example:
 
 ```bash
-$ terragrunt run --all apply --terragrunt-no-color --terragrunt-non-interactive > logs
+$ terragrunt run --all apply --no-color --non-interactive > logs
 16:01:51.164 INFO   The stack at . will be processed in the following order for command apply:
 Group 1
 - Module ./unit1
@@ -305,7 +305,7 @@ $ grep '\[unit2\]' < logs
 Finally, you can also disable logs entirely like so:
 
 ```bash
-$ terragrunt --terragrunt-log-disable plan
+$ terragrunt --log-disable plan
 
 Initializing the backend...
 

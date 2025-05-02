@@ -155,10 +155,10 @@ func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 // applied. If the user selects "yes", then Terragrunt will apply that module as well.
 // Note that we skip the prompt for `run --all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
-// with the --terragrunt-include-external-dependencies or --terragrunt-include-dir flags.
+// with the --queue-include-external or --queue-include-dir flags.
 func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.Context, dependency *TerraformModule, opts *options.TerragruntOptions) (bool, error) {
 	if opts.IncludeExternalDependencies {
-		opts.Logger.Debugf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		opts.Logger.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return true, nil
 	}
 
@@ -556,7 +556,7 @@ func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOption
 	return modules
 }
 
-// flagExcludedDirs iterates over a module slice and flags all entries as excluded listed in the terragrunt-exclude-dir CLI flag.
+// flagExcludedDirs iterates over a module slice and flags all entries as excluded listed in the queue-exclude-dir CLI flag.
 func (modules TerraformModules) flagExcludedDirs(opts *options.TerragruntOptions) TerraformModules {
 	// If we don't have any excludes, we don't need to do anything.
 	if len(opts.ExcludeDirs) == 0 {

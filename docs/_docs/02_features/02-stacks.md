@@ -15,13 +15,15 @@ slug: stacks
 
 - [Motivation](#motivation)
 - [Stacks to the rescue!](#stacks-to-the-rescue)
-- [The run --all command](#the-run---all-command)
+- [The `run --all` command](#the-run---all-command)
 - [Passing outputs between units](#passing-outputs-between-units)
   - [Unapplied dependency and mock outputs](#unapplied-dependency-and-mock-outputs)
 - [Dependencies between units](#dependencies-between-units)
+- [Visualizing the DAG](#visualizing-the-dag)
 - [Testing multiple units locally](#testing-multiple-units-locally)
 - [Limiting run parallelism](#limiting-run-parallelism)
 - [Saving OpenTofu/Terraform plan output](#saving-opentofuterraform-plan-output)
+- [Nested Stacks](#nested-stacks)
 
 ## Motivation
 
@@ -120,7 +122,7 @@ terragrunt run --all plan
 
 If your units have dependencies between them, for example, you can’t deploy the backend-app until MySQL and redis are deployed. You’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
-Additional note: If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--terragrunt-ignore-external-dependencies` flag, or use the `--terragrunt-exclude-dir` once for each directory you wish to exclude.
+Additional note: If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--queue-exclude-external` flag, or use the `--exclude-dir` once for each directory you wish to exclude.
 
 ## Passing outputs between units
 
@@ -355,7 +357,7 @@ Any error encountered in an individual unit during a `run --all` command will pr
 
 To check all of your dependencies and validate the code in them, you can use the `run --all validate` command.
 
-**Note:** During `destroy` runs, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of detected dependencies. This is because Terragrunt knows that once resources in a dependency is destroyed, any commands run on dependent units may fail. For example, if `destroy` was called on the `redis` unit, you'll be asked for confirmation, as the `backend-app` depends on `redis`. You can avoid the prompt by using `--terragrunt-non-interactive`.
+**Note:** During `destroy` runs, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of detected dependencies. This is because Terragrunt knows that once resources in a dependency is destroyed, any commands run on dependent units may fail. For example, if `destroy` was called on the `redis` unit, you'll be asked for confirmation, as the `backend-app` depends on `redis`. You can avoid the prompt by using `--non-interactive`.
 
 ## Visualizing the DAG
 
@@ -379,20 +381,20 @@ The exception to this rule is during the `destroy` (and `plan -destroy`) command
 
 ## Testing multiple units locally
 
-If you are using Terragrunt to download [remote OpenTofu/Terraform modules]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter to override that value:
+If you are using Terragrunt to download [remote OpenTofu/Terraform modules]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter to override that value:
 
 ```bash
 cd root
-terragrunt run --all plan --terragrunt-source /source/modules
+terragrunt run --all plan --source /source/modules
 ```
 
-If you set the `--terragrunt-source` parameter, the `run --all` command will assume that parameter is pointing to a folder on your local file system that has a local checkout of all of your OpenTofu/Terraform modules.
+If you set the `--source` parameter, the `run --all` command will assume that parameter is pointing to a folder on your local file system that has a local checkout of all of your OpenTofu/Terraform modules.
 
 For each unit that is being processed via a `run --all` command, Terragrunt will:
 
 1. Read in the `source` parameter in that unit’s `terragrunt.hcl` file.
 2. Parse out the path (the portion after the double-slash).
-3. Append the path to the `--terragrunt-source` parameter to create the final local path for that unit.
+3. Append the path to the `--source` parameter to create the final local path for that unit.
 
 For example, consider the following `terragrunt.hcl` file:
 
@@ -405,7 +407,7 @@ terraform {
 Running the following:
 
 ```bash
-terragrunt run --all apply --terragrunt-source /source/infrastructure-modules
+terragrunt run --all apply --source /source/infrastructure-modules
 ```
 
 Will result in a unit with the configuration for the source above being resolved to `/source/infrastructure-modules//networking/vpc`.
@@ -418,10 +420,10 @@ meaning that if it finds 5 units without dependencies, it'll run OpenTofu/Terraf
 Sometimes, this can create a problem if there are a lot of units in the dependency graph, like hitting a rate limit on a
 cloud provider.
 
-To limit the maximum number of unit executions at any given time use the `--terragrunt-parallelism [number]` flag
+To limit the maximum number of unit executions at any given time use the `--parallelism [number]` flag
 
 ```sh
-terragrunt run --all apply --terragrunt-parallelism 4
+terragrunt run --all apply --parallelism 4
 ```
 
 ## Saving OpenTofu/Terraform plan output
@@ -431,10 +433,10 @@ A powerful feature of OpenTofu/Terraform is the ability to [save the result of a
 Terragrunt provides special tooling in `run --all` execution in order to ensure that the saved plan for a `run --all` against a stack has
 a corresponding entry for each unit in the stack in a directory structure that mirrors the stack structure.
 
-To save plan against a stack, use the `--terragrunt-out-dir` flag (or `TERRAGRUNT_OUT_DIR` environment variable) as demonstrated below:
+To save plan against a stack, use the `--out-dir` flag (or `TG_OUT_DIR` environment variable) as demonstrated below:
 
 ```sh
-$ terragrunt run --all plan --terragrunt-out-dir /tmp/tfplan
+$ terragrunt run --all plan --out-dir /tmp/tfplan
 $ tree /tmp/tfplan
 /tmp/tfplan
 ├── app1
@@ -446,20 +448,20 @@ $ tree /tmp/tfplan
 └── project-2
     └── project-2-app1
         └── tfplan.tfplan
-$ terragrunt run --all apply --terragrunt-out-dir /tmp/tfplan
+$ terragrunt run --all apply --out-dir /tmp/tfplan
 ```
 
 For planning a destroy operation, use the following commands:
 
 ```sh
-terragrunt run --all --terragrunt-out-dir /tmp/tfplan -- plan -destroy
-terragrunt run --all apply --terragrunt-out-dir /tmp/tfplan
+terragrunt run --all --out-dir /tmp/tfplan -- plan -destroy
+terragrunt run --all apply --out-dir /tmp/tfplan
 ```
 
-To save plan in json format use `--terragrunt-json-out-dir` flag (or `TERRAGRUNT_JSON_OUT_DIR` environment variable):
+To save plan in json format use `--json-out-dir` flag (or `TG_JSON_OUT_DIR` environment variable):
 
 ```sh
-$ terragrunt run --all plan --terragrunt-json-out-dir /tmp/json
+$ terragrunt run --all plan --json-out-dir /tmp/json
 $ tree /tmp/json
 /tmp/json
 ├── app1
@@ -534,6 +536,6 @@ Terragrunt will only include the units in the `us-east-1` stack and its children
 
 Generally speaking, this is the primary tool Terragrunt users use to control the blast radius of their changes. For the most part, it is the current working directory that determines the blast radius of a `run --all` command.
 
-In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#runner-queue), you can also use flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) and [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
+In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#runner-queue), you can also use flags like [--queue-include-dir](/docs/reference/cli-options/#queue-include-dir) and [--queue-exclude-dir](/docs/reference/cli-options/#queue-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
 
 There are more flags that control the behavior of the `run --all` command, which you can find in the [CLI Options](/docs/reference/cli-options) section.
