@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/gruntwork-io/pre-commit
-    rev:  feat/adding-tofu-fmt-hooks
+    rev:  v0.1.29
     hooks:
       - id: tofu-fmt
       - id: goimports
