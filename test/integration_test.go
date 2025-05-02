@@ -3957,7 +3957,7 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 		t.Run("terragrunt with "+tc.tgArgs+" -- plan "+tc.tfArgs, func(t *testing.T) {
 			t.Parallel()
 			tmpDir := t.TempDir()
-			_, _, _, err := testRunAllPlan(t, tc.tgArgs, tc.tfArgs)
+			_, _, _, err := testRunAllPlan(t, tc.tgArgs+" --json-out-dir "+tmpDir, tc.tfArgs)
 			require.NoError(t, err)
 			list, err := findFilesWithExtension(tmpDir, ".json")
 			require.NoError(t, err)
