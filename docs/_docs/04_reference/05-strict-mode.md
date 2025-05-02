@@ -131,6 +131,7 @@ The following strict mode controls are available:
   - [terragrunt-prefix-flags](#terragrunt-prefix-flags)
   - [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
   - [default-command](#default-command)
+  - [cli-redesign](#cli-redesign)
 - [Control Categories](#control-categories)
   - [deprecated-commands](#deprecated-commands)
   - [deprecated-flags](#deprecated-flags)
@@ -221,6 +222,24 @@ Throw an error when using the Terragrunt default command.
 **Reason**: Terragrunt now supports a special `run` command that can be used to explicitly forward commands to OpenTofu/Terraform when no shortcut exists in the Terragrunt CLI.
 **Example**: The default command is deprecated and will be removed in a future version. Use `terragrunt run` instead.
 
+### cli-redesign
+
+Throw an error when using commands that were deprecated as part of the CLI redesign.
+
+**Commands**:
+
+- [run-all](/docs/reference/cli-options/#run-all)
+- [graph](/docs/reference/cli-options/#graph)
+- [graph-dependencies](/docs/reference/cli-options/#graph-dependencies)
+- [hclfmt](/docs/reference/cli-options/#hclfmt)
+- [hclvalidate](/docs/reference/cli-options/#hclvalidate)
+- [output-module-groups](/docs/reference/cli-options/#output-module-groups)
+- [render-json](/docs/reference/cli-options/#render-json)
+- [terragrunt-info](/docs/reference/cli-options/#terragrunt-info)
+- [validate-inputs](/docs/reference/cli-options/#validate-inputs)
+
+**Reason**: These commands have been deprecated in favor of more consistent and intuitive commands as part of the CLI redesign. For more information, see the [CLI Redesign Migration Guide](/docs/migrate/cli-redesign/).
+
 ## Control Categories
 
 Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.
@@ -241,6 +260,7 @@ Throw an error when using the deprecated commands.
 - [spin-up](#spin-up)
 - [tear-down](#tear-down)
 - [default-command](#default-command)
+- [cli-redesign](#cli-redesign)
 
 ### deprecated-flags
 

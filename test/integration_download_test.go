@@ -566,9 +566,9 @@ func TestPreventDestroyDependencies(t *testing.T) {
 		destroyAllStderr bytes.Buffer
 	)
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalPreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
-	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
-	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all destroy --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalPreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
+	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "run --all destroy stdout")
+	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "run --all destroy stderr")
 
 	require.Error(t, err)
 

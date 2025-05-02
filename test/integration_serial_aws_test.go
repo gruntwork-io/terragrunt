@@ -190,7 +190,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	// read the output of all modules 1 by 1 sequence, parallel reads mix outputs and make output complicated to parse
 	outputParallelism := 1
 	// Call helpers.RunTerragruntCommandWithOutput directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-parallelism %d", environmentPath, outputParallelism))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-parallelism %d -- output -no-color", environmentPath, outputParallelism))
 	if err != nil {
 		return "", 0, err
 	}
