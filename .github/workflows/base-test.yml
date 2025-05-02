@@ -65,5 +65,10 @@ jobs:
 
       - name: Display JUnit Results with action-junit-report
         uses: mikepenz/action-junit-report@v5
+        if: always()
         with:
           report_paths: result.xml
+          detailed_summary: 'true'
+          include_time_in_summary: 'true'
+          group_suite: 'true'
+
