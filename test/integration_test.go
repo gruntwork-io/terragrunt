@@ -3785,7 +3785,7 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
-	_, _, _, err := testRunAllPlan(t, "--json-out-dir "+tmpDir)
+	_, _, _, err := testRunAllPlan(t, "--json-out-dir "+tmpDir, "")
 	require.NoError(t, err)
 
 	// verify that was generated json files with plan data
@@ -3945,18 +3945,19 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		arg string
+		tgArgs string
+		tfArgs string
 	}{
-		{"--json"},
-		{"--json --log-format json"},
-		{"--tf-forward-stdout"},
-		{"--json --log-format json --tf-forward-stdout"},
+		{"", "--json"},
+		{"--log-format json", "--json"},
+		{"--tf-forward-stdout", ""},
+		{"--log-format json --tf-forward-stdout", "--json"},
 	}
 	for _, tc := range testCases {
-		t.Run("terragrunt with "+tc.arg, func(t *testing.T) {
+		t.Run("terragrunt with "+tc.tgArgs+" -- plan "+tc.tfArgs, func(t *testing.T) {
 			t.Parallel()
 			tmpDir := t.TempDir()
-			_, _, _, err := testRunAllPlan(t, fmt.Sprintf("--json-out-dir %s %s", tmpDir, tc.arg))
+			_, _, _, err := testRunAllPlan(t, tc.tgArgs, tc.tfArgs)
 			require.NoError(t, err)
 			list, err := findFilesWithExtension(tmpDir, ".json")
 			require.NoError(t, err)
