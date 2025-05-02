@@ -140,7 +140,7 @@ func TestDeprecatedTerragruntInfoCommand_TerragruntInfoError(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDepreactedRenderJsonCommand_RenderJsonDependentModulesMetadataTerraform(t *testing.T) {
+func TestDeprecatedRenderJsonCommand_RenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyWarning)
