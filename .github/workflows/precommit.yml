@@ -11,20 +11,12 @@ jobs:
   precommit:
     name: Run pre-commit hooks
     runs-on: ubuntu-latest
+    env:
+      MISE_PROFILE: cicd
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Create default packages file
-        run: |
-          # Unlike the Python one below, this one can't be at
-          # a configurable location, so we always write it to the home dir.
-          cat <<EOF > ~/.default-go-packages
-          golang.org/x/tools/cmd/goimports@latest
-          EOF
-
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
