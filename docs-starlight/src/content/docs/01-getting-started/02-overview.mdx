@@ -543,7 +543,7 @@ For example, let's go ahead and destroy all the infrastructure that we've create
 
 ```bash
 # From the root directory
-$ terragrunt run-all destroy
+$ terragrunt run --all destroy
 16:32:08.944 INFO   The stack at . will be processed in the following order for command destroy:
 Group 1
 - Module ./ec2
@@ -555,7 +555,7 @@ Group 2
 WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo! (y/n)
 ```
 
-First, notice that we're using a special `run-all` command for Terragrunt. This command tells Terragrunt that we're operating on a stack of units, and that we want to run a given OpenTofu/Terraform command on all of them.
+First, notice that we're using a special `run --all` command for Terragrunt. This command tells Terragrunt that we're operating on a stack of units, and that we want to run a given OpenTofu/Terraform command on all of them.
 
 Second, notice that the `ec2` unit is being run _before_ the `vpc` unit. Terragrunt knows that the `ec2` unit depends on the `vpc` unit, so it plans to run the `ec2` unit first, followed by the `vpc` unit.
 
@@ -577,10 +577,10 @@ Terragrunt will give you the contextual information you need to understand what'
 
 ### Mock outputs
 
-Now that the stack has been destroyed, take a look at the error you get when you try to run `terragrunt run-all plan` again:
+Now that the stack has been destroyed, take a look at the error you get when you try to run `terragrunt run --all plan` again:
 
 ```bash
-$ terragrunt run-all plan
+$ terragrunt run --all plan
 ...
 16:50:22.153 STDOUT [vpc] tofu: Note: You didn't use the -out option to save this plan, so OpenTofu can't
 16:50:22.153 STDOUT [vpc] tofu: guarantee to take exactly these actions if you run "tofu apply" now.
@@ -615,7 +615,7 @@ dependency "vpc" {
 Then run the plan again:
 
 ```bash
-$ terragrunt run-all plan
+$ terragrunt run --all plan
 ...
 16:53:04.037 STDOUT [ec2] tofu:       + source_dest_check                    = true
 16:53:04.037 STDOUT [ec2] tofu:       + spot_instance_request_id             = (known after apply)
@@ -627,12 +627,12 @@ $ terragrunt run-all plan
 
 As you can see, the plan for the EC2 instance now includes a `subnet_id` value of `mock-subnet`, which is the value we provided in the `mock_outputs` block.
 
-Terragrunt only uses these mock values when the output is unavailable, so a `terragrunt run-all apply` would succeed, but it's best practice to explicitly tell Terragrunt that it should only use these mock values during a plan (or any other command where you are okay with the output being mocked).
+Terragrunt only uses these mock values when the output is unavailable, so a `terragrunt run --all apply` would succeed, but it's best practice to explicitly tell Terragrunt that it should only use these mock values during a plan (or any other command where you are okay with the output being mocked).
 
-Also note that when you run `terragrunt run-all apply`:
+Also note that when you run `terragrunt run --all apply`:
 
 ```bash
-$ terragrunt run-all apply
+$ terragrunt run --all apply
 16:57:32.297 INFO   The stack at . will be processed in the following order for command apply:
 Group 1
 - Module ./vpc
@@ -687,7 +687,7 @@ Remember that now you'll need to migrate state, as changing the location of the 
 (In production scenarios, you likely want to carefully manage state by migrating over one unit at a time, but for the sake of this tutorial, you can learn about this shortcut)
 
 ```bash
-terragrunt run-all init -migrate-state
+terragrunt run --all -- init -migrate-state
 ```
 
 We want the AWS region used by our units to be determined dynamically, so we can add a configuration file to the `us-east-1` directory that looks like this:
@@ -808,11 +808,11 @@ locals {
 
 ### Tightening the blast radius
 
-Run the `terragrunt run-all apply` command after changing your current working directory to the `us-west-2` directory:
+Run the `terragrunt run --all apply` command after changing your current working directory to the `us-west-2` directory:
 
 ```bash
 cd us-west-2
-terragrunt run-all apply
+terragrunt run --all apply
 ```
 
 You should see the VPC and EC2 instances being provisioned in the `us-west-2` region.
@@ -831,14 +831,14 @@ To destroy all the resources you've provisioned thus far, run the following:
 
 ```bash
 # From the root directory
-$ terragrunt run-all destroy
+$ terragrunt run --all destroy
 ```
 
 In real-world scenarios, it's generally advised that you plan your destroys first before cleaning them up:
 
 ```bash
 # From the root directory
-$ terragrunt run-all plan -destroy
+$ terragrunt run --all -- plan -destroy
 ```
 
 You won't need to run any more Terragrunt commands for the rest of this guide.

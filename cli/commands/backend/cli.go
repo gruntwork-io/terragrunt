@@ -21,7 +21,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			delete.NewCommand(opts),
 			migrate.NewCommand(opts),
 		},
-		ErrorOnUndefinedFlag: true,
-		Action:               cli.ShowCommandHelp,
+		Action: cli.ShowCommandHelp,
 	}
 }

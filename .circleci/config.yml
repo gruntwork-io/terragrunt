@@ -80,6 +80,12 @@ run_integration_test: &run_integration_test
     run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/test-results.log
   no_output_timeout: 30m
 
+run_integration_deprecated_test: &run_integration_deprecated_test
+  name: Run integration tests for deprecated commands/flags
+  command: |
+    run-go-tests --packages "-tags deprecated -run ^TestDeprecated ./..." | tee logs/test-results.log
+  no_output_timeout: 30m
+
 run_integration_tofu_only_test: &run_integration_tofu_only_test
   name: Run tofu-only integration tests
   command: |
@@ -276,6 +282,29 @@ jobs:
           <<: *setup_test_environment
       - run:
           <<: *run_integration_test
+          environment:
+            TG_TF_PATH: tofu
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_deprecated:
+    resource_class: xlarge
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_integration_deprecated_test
           environment:
             TG_TF_PATH: tofu
       - run:
@@ -708,6 +737,16 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu:
+          filters:
+            tags:
+              only:
+                - /^v.*/
+                - /^alpha.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - integration_test_deprecated:
           filters:
             tags:
               only:

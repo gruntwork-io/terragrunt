@@ -59,14 +59,14 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
 		defer func() {
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy -auto-approve --non-interactive --working-dir "+rootPath)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 			require.NoError(t, err)
 		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 		require.NoError(t, err)
 	})
 
@@ -83,14 +83,14 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
 		defer func() {
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy -auto-approve --non-interactive --working-dir "+rootPath)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 			require.NoError(t, err)
 		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 		require.NoError(t, err)
 	})
 
@@ -107,14 +107,14 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
 		defer func() {
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy -auto-approve --non-interactive --working-dir "+rootPath)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 			require.NoError(t, err)
 		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 		require.NoError(t, err)
 	})
 
@@ -131,14 +131,14 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
 		defer func() {
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy -auto-approve --non-interactive --working-dir "+rootPath)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 			require.NoError(t, err)
 		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --non-interactive --working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 		require.NoError(t, err)
 	})
 }

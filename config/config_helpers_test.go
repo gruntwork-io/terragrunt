@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -129,7 +131,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 				"child": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath},
 			},
 			params:            []string{"child"},
-			terragruntOptions: terragruntOptionsForTest(t, "../child/sub-child/"+config.DefaultTerragruntConfigPath),
+			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
 			expectedPath:      "../../other-child",
 		},
 	}
@@ -145,6 +147,10 @@ func TestPathRelativeFromInclude(t *testing.T) {
 
 func TestRunCommand(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows because it doesn't support bash")
+	}
 
 	homeDir := os.Getenv("HOME")
 	testCases := []struct {
@@ -218,7 +224,9 @@ func absPath(t *testing.T, path string) string {
 
 	out, err := filepath.Abs(path)
 	require.NoError(t, err)
-	return out
+	// Convert the path to use forward slashes for consistency with the FindInParentFolders function
+	// which uses filepath.ToSlash internally
+	return filepath.ToSlash(out)
 }
 
 func TestFindInParentFolders(t *testing.T) {
@@ -994,7 +1002,7 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 
 	localsMap := tgConfigMap["locals"].(map[string]any)
 	assert.InEpsilon(t, float64(2), localsMap["x"].(float64), 0.0000000001)
-	assert.Equal(t, "Hello world\n", localsMap["file_contents"].(string))
+	assert.Equal(t, "Hello world", strings.TrimSpace(localsMap["file_contents"].(string)))
 	assert.InEpsilon(t, float64(42), localsMap["number_expression"].(float64), 0.0000000001)
 }
 

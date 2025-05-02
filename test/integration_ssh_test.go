@@ -29,7 +29,7 @@ func TestSSHSourceMapWithSlashInRef(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=v0.77.22 --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test-fixtures --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 }
 
@@ -43,7 +43,7 @@ func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt init --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt init --non-interactive --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
@@ -58,6 +58,6 @@ func TestSSHDownloadSourceWithRef(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 }

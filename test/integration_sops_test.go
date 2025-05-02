@@ -36,12 +36,12 @@ func TestSOPSDecryptedCorrectly(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -69,12 +69,12 @@ func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/../.. --terragrunt-include-dir %s", rootPath, testFixtureSops))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --include-dir %s", rootPath, testFixtureSops)+" -- apply -auto-approve")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s/../.. --terragrunt-include-dir %s", rootPath, testFixtureSops), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --include-dir %s", rootPath, testFixtureSops)+" -- output -no-color -json", &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -104,7 +104,7 @@ func TestSOPSTerragruntLogSopsErrors(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureSopsErrors)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+testPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+testPath)
 	require.Error(t, err)
 
 	assert.Contains(t, errorOut, "error decrypting key: [error decrypting key")
@@ -119,7 +119,7 @@ func TestSOPSDecryptOnMissing(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSopsMissing)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+rootPath)
 	require.Error(t, err)
 
 	errorOut = strings.ReplaceAll(errorOut, "\n", " ")

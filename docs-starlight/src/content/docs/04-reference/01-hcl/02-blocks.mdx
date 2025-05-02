@@ -753,7 +753,7 @@ terraform {
 In general, you can access all attributes on `include` when they are exposed (e.g., `include.locals`, `include.inputs`,
 etc.).
 
-However, to support `run-all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
+However, to support `run --all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
 block. To understand this, consider the following example:
 
 ```hcl
@@ -791,16 +791,16 @@ In the child `terragrunt.hcl`, the `dependency` path for the `alb` depends on wh
 which is determined by the `dependency.vpc` in the root config. This means that the output from `dependency.vpc` must be
 available to parse the `dependency.alb` config.
 
-This causes problems when performing a `run-all apply` operation. During a `run-all` operation, Terragrunt first parses
+This causes problems when performing a `run --all apply` operation. During a `run --all` operation, Terragrunt first parses
 all the `dependency` blocks to build a dependency tree of the Terragrunt modules to figure out the order of operations.
 If all the paths are static references, then Terragrunt can determine all the dependency paths before any module has
 been applied. In this case there is no problem even if other config blocks access `dependency`, as by the time
-Terragrunt needs to parse those blocks, the upstream dependencies would have been applied during the `run-all apply`.
+Terragrunt needs to parse those blocks, the upstream dependencies would have been applied during the `run --all apply`.
 
 However, if those `dependency` blocks depend on upstream dependencies, then there is a problem as Terragrunt would not
 be able to build the dependency tree without the upstream dependencies being applied.
 
-Therefore, to ensure that Terragrunt can build the dependency tree in a `run-all` operation, Terragrunt enforces the
+Therefore, to ensure that Terragrunt can build the dependency tree in a `run --all` operation, Terragrunt enforces the
 following limitation to exposed `include` config:
 
 If the included configuration has any `dependency` blocks, only `locals` and `include` are exposed and available to the
@@ -1134,7 +1134,7 @@ When reading Terragrunt HCL configurations, you might read in a computed configu
 # computed.hcl
 
 locals {
-  computed_value = run_cmd("--quiet", "python3", "-c", "print('Hello,')")
+  computed_value = run_cmd("--terragrunt-quiet", "python3", "-c", "print('Hello,')")
 }
 ```
 
@@ -1262,7 +1262,7 @@ state for the target module without parsing the `dependency` blocks, avoiding th
 ## dependencies
 
 The `dependencies` block is used to enumerate all the Terragrunt modules that need to be applied in order for this
-module to be able to apply. Note that this is purely for ordering the operations when using `run-all` commands of
+module to be able to apply. Note that this is purely for ordering the operations when using `run --all` commands of
 OpenTofu/Terraform. This does not expose or pull in the outputs like `dependency` blocks.
 
 The `dependencies` block supports the following arguments:
@@ -1274,7 +1274,7 @@ Example:
 ```hcl
 # terragrunt.hcl
 
-# When applying this terragrunt config in an `run-all` command, make sure the modules at "../vpc" and "../rds" are
+# When applying this terragrunt config in an `run --all` command, make sure the modules at "../vpc" and "../rds" are
 # handled first.
 dependencies {
   paths = ["../vpc", "../rds"]
@@ -1431,7 +1431,7 @@ with external feature flag services like [LaunchDarkly](https://launchdarkly.com
 # terragrunt.hcl
 
 feature "feature_name" {
-  default = run_cmd("--quiet", "<command-to-fetch-feature-flag-value>")
+  default = run_cmd("--terragrunt-quiet", "<command-to-fetch-feature-flag-value>")
 }
 ```
 
@@ -1661,10 +1661,6 @@ errors {
 
 ## unit
 
-<Aside type="tip" title="Stacks">
-      The <code dir="auto">unit</code> block is experimental, usage requires the <a href="/docs/reference/experiments#stacks"><code dir="auto">--experiment stacks</code></a> flag.
-</Aside>
-
 The `unit` block is used to define a deployment unit within a Terragrunt stack file (`terragrunt.stack.hcl`). Each unit represents a distinct infrastructure component that should be deployed as part of the stack.
 
 The `unit` block supports the following arguments:
@@ -1772,11 +1768,6 @@ The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**,
 The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
 
 ## stack
-
-<Aside type="tip" title="Stacks">
-    The <code dir="auto">stack</code> block is experimental, usage requires the <a href="/docs/reference/experiments#stacks"><code dir="auto">--experiment stacks</code></a> flag.
-</Aside>
-
 
 The `stack` block is used to define a stack of deployment units in a Terragrunt configuration file (`terragrunt.stack.hcl`).
 Stacks allow for nesting, enabling the organization of infrastructure components into modular, reusable groups, reducing redundancy and improving maintainability.

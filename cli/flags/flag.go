@@ -82,7 +82,7 @@ func (newFlag *Flag) Value() cli.FlagValue {
 			continue
 		}
 
-		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue.IsSet() {
+		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue != nil && deprecatedFlagValue.IsSet() {
 			newValue := deprecatedFlagValue.String()
 
 			if newFlag.Flag.Value().IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
@@ -171,7 +171,7 @@ func (newFlag *Flag) Parse(args cli.Args) error {
 			break
 		}
 
-		if errStr := err.Error(); !strings.HasPrefix(errStr, cli.ErrFlagUndefined) {
+		if errStr := err.Error(); !strings.HasPrefix(errStr, cli.ErrMsgFlagUndefined) {
 			break
 		}
 

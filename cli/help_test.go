@@ -3,6 +3,8 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -13,6 +15,14 @@ import (
 
 func TestCommandHelpTemplate(t *testing.T) {
 	t.Parallel()
+
+	// Set environment variable format based on OS
+	envVarChar := "$"
+	closeEnvVarChar := ""
+	if runtime.GOOS == "windows" {
+		envVarChar = "%"
+		closeEnvVarChar = "%"
+	}
 
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 
@@ -63,7 +73,6 @@ func TestCommandHelpTemplate(t *testing.T) {
 				Usage:   "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
 			},
 		},
-		ErrorOnUndefinedFlag: true,
 	}
 
 	var out bytes.Buffer
@@ -72,7 +81,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 	ctx := cli.NewAppContext(context.Background(), app, nil).NewCommandContext(cmd, nil)
 	require.Error(t, cli.ShowCommandHelp(ctx))
 
-	expectedOutput := `Usage: terragrunt run [options] -- <tofu/terraform command>
+	expectedOutput := fmt.Sprintf(`Usage: terragrunt run [options] -- <tofu/terraform command>
 
    Run a command, passing arguments to an orchestrated tofu/terraform binary.
 
@@ -97,14 +106,14 @@ Commands:
    validate   Find all hcl files from the config stack and validate them.
 
 Options:
-   --all, -a  Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory. [$TG_ALL]
-   --graph    Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies. [$TG_GRAPH]
+   --all, -a  Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory. [%sTG_ALL%s]
+   --graph    Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies. [%sTG_GRAPH%s]
 
 Global Options:
-   --log-disable        Disable logging. [$TG_LOG_DISABLE]
-   --working-dir value  The path to the directory of Terragrunt configurations. Default is current directory. [$TG_WORKING_DIR]
+   --log-disable        Disable logging. [%sTG_LOG_DISABLE%s]
+   --working-dir value  The path to the directory of Terragrunt configurations. Default is current directory. [%sTG_WORKING_DIR%s]
 
-`
+`, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar, envVarChar, closeEnvVarChar)
 
 	assert.Equal(t, expectedOutput, out.String())
 }

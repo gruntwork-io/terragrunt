@@ -44,7 +44,7 @@ const (
 	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
 	RequireExplicitBootstrap = "require-explicit-bootstrap"
 
-	// CLIRedesign is the control that prevents the use of deprecated commands.
+	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
 )
 
@@ -103,7 +103,7 @@ func New() strict.Controls {
 		requireExplicitBootstrapControl,
 		&Control{
 			Name:        CLIRedesign,
-			Description: "Prevents deprecated commands from being used.",
+			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",
 			Category:    stageCategory,
 		},
 		&Control{

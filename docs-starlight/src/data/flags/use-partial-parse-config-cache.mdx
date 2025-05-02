@@ -16,7 +16,7 @@ The reason you might want to use this flag is that Terragrunt frequently only ne
 
 This is the case for scenarios like:
 
-- Building the Directed Acyclic Graph (DAG) during a `run-all` command where only the `dependency` blocks need to be evaluated to determine run order.
+- Building the Directed Acyclic Graph (DAG) during a `run --all` command where only the `dependency` blocks need to be evaluated to determine run order.
 - Parsing the `terraform` block to determine state configurations for fetching `dependency` outputs.
 - Determining whether Terragrunt execution behavior has to change like for `prevent_destroy` or `skip` flags in configuration.
 

@@ -36,11 +36,11 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
 	}
 
-	// These condition are here to specifically handle the `run-all` command. During any `run-all` call, terragrunt
+	// These condition are here to specifically handle the `run --all` command. During any `run --all` call, terragrunt
 	// needs to first build up the dependency graph to know what order to process the modules in. We want to limit users
 	// from creating a dependency between the dependency path for graph generation, and a module output. This is because
 	// the outputs may not be available yet during the graph generation. E.g., consider a completely new deployment and
-	// `terragrunt run-all apply` is called. In this case, the outputs are expected to be materialized while terragrunt
+	// `terragrunt run --all apply` is called. In this case, the outputs are expected to be materialized while terragrunt
 	// is running `apply` through the graph, but NOT when the dependency graph is first being formulated.
 	//
 	// To support this, we implement the following conditions for when terragrunt can fully parse the included config
@@ -87,7 +87,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 
 	if hasDependency && len(ctx.PartialParseDecodeList) > 0 {
 		ctx.TerragruntOptions.Logger.Debugf(
-			"Included config %s can only be partially parsed during dependency graph formation for run-all command as it has a dependency block.",
+			"Included config %s can only be partially parsed during dependency graph formation for run --all command as it has a dependency block.",
 			includePath,
 		)
 

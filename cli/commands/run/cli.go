@@ -29,9 +29,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			//
 			// "# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
 		},
-		Flags:                NewFlags(opts, nil),
-		ErrorOnUndefinedFlag: true,
-		Subcommands:          NewSubcommands(opts),
+		Flags:       NewFlags(opts, nil),
+		Subcommands: NewSubcommands(opts),
 		Action: func(ctx *cli.Context) error {
 			if len(ctx.Args()) == 0 {
 				return cli.ShowCommandHelp(ctx)
@@ -41,8 +40,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd)
-	cmd = graph.WrapCommand(opts, cmd)
+	cmd = runall.WrapCommand(opts, cmd, Run)
+	cmd = graph.WrapCommand(opts, cmd, Run)
 
 	return cmd
 }
@@ -54,11 +53,10 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 		usage, visible := tf.CommandUsages[name]
 
 		subcommand := &cli.Command{
-			Name:                 name,
-			Usage:                usage,
-			Hidden:               !visible,
-			CustomHelp:           ShowTFHelp(opts),
-			ErrorOnUndefinedFlag: true,
+			Name:       name,
+			Usage:      usage,
+			Hidden:     !visible,
+			CustomHelp: ShowTFHelp(opts),
 			Action: func(ctx *cli.Context) error {
 				return Action(opts)(ctx)
 			},

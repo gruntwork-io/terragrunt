@@ -14,7 +14,7 @@ This cache directory is created whenever Terragrunt downloads a module from a re
 
 Terragrunt creates a `.terragrunt-cache` folder in the current working directory as its scratch directory. It downloads your remote OpenTofu/Terraform configurations into this folder, runs your OpenTofu/Terraform commands in this folder, and any modules and providers those commands download also get stored in this folder. You can safely delete this folder any time, and Terragrunt will recreate it as necessary.
 
-If you need to clean up a lot of these folders (e.g., after `terragrunt run-all apply`), you can use the following commands on Mac and Linux:
+If you need to clean up a lot of these folders (e.g., after `terragrunt run --all apply`), you can use the following commands on Mac and Linux:
 
 Recursively find all the `.terragrunt-cache` folders that are children of the current folder:
 

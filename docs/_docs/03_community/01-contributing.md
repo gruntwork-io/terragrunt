@@ -114,6 +114,16 @@ To run Terragrunt locally, use the `go run` command:
 go run main.go plan
 ```
 
+### Testing on Windows
+
+Running tests on Windows is currently limited. Not all tests pass reliably, and additional configuration is required for proper functionality.
+Specifically:
+
+- Long file paths must be enabled on Windows.
+- A Bash shell (e.g., via Git Bash or WSL) must be available in the environment.
+
+For setup instructions and requirements, `.github/scripts/windows-setup.ps1`.
+
 ### Dependencies
 
 Terragrunt uses go modules (read more about the modules system in [the official
@@ -302,7 +312,7 @@ This work will be completed prior to the release of Terragrunt 1.0.
 
 ### Debug logging
 
-If you set the `TERRAGRUNT_DEBUG` environment variable to "true", the stack trace for any error will be printed to stdout when you run the app.
+If you set the `TG_INPUTS_DEBUG` environment variable to "true", the stack trace for any error will be printed to stdout when you run the app.
 
 Additionally, newer features introduced in v0.19.0 (such as `locals` and `dependency` blocks) can output more verbose logging if you set the `TG_LOG` environment variable to `debug`.
 

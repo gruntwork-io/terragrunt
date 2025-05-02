@@ -2,6 +2,7 @@ package format
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -70,7 +71,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.HclFromStdin,
 			Usage:       "Format HCL from stdin and print result to stdout.",
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-diff"), terragruntPrefixControl),          // `TG_HCLFMT_STDIN`
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclfmt-stdin"), terragruntPrefixControl),         // `TG_HCLFMT_STDIN`
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclfmt-stdin"), terragruntPrefixControl), // `--terragrunt-hclfmt-stdin`, `TERRAGRUNT_HCLFMT_STDIN`
 		),
 	}
@@ -80,17 +81,16 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
-		Name:                 CommandName,
-		Aliases:              []string{CommandNameAlias},
-		Usage:                "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
-		Flags:                NewFlags(opts, nil),
-		ErrorOnUndefinedFlag: true,
+		Name:    CommandName,
+		Aliases: []string{CommandNameAlias},
+		Usage:   "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
+		Flags:   NewFlags(opts, nil),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd)
+	cmd = runall.WrapCommand(opts, cmd, run.Run)
 
 	return cmd
 }

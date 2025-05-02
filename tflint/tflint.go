@@ -121,7 +121,7 @@ func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, con
 	return nil
 }
 
-// tflintArguments filters args for --terragrunt-external-tflint, returning filtered args and a flag for using
+// tflintArguments filters args for --external-tflint, returning filtered args and a flag for using
 // external tflint.
 func tflintArguments(arguments []string) ([]string, bool) {
 	externalTfLint := false

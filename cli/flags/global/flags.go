@@ -95,8 +95,8 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 	// and we create new strict controls each time we call `commands.New` which will then be evaluated,
 	// we need to clear `Strict Controls` to avoid them being displayed and causing duplicate warnings, for example, log output:
 	//
-	// WARN The global `--terragrunt-no-auto-init` flag has moved to the `run` command and will not be accessible as a global flag in a future version of Terragrunt. Use `run --no-auto-init` instead.
-	// WARN The `--terragrunt-no-auto-init` flag is deprecated and will be removed in a future version of Terragrunt. Use `--no-auto-init` instead.
+	// WARN The global `--no-auto-init` flag has moved to the `run` command and will not be accessible as a global flag in a future version of Terragrunt. Use `run --no-auto-init` instead.
+	// WARN The `--no-auto-init` flag is deprecated and will be removed in a future version of Terragrunt. Use `--no-auto-init` instead.
 	cmdOpts := opts.Clone()
 	cmdOpts.StrictControls = nil
 

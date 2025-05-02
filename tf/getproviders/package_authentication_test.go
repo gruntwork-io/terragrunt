@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/tf/getproviders"
@@ -53,6 +55,30 @@ func TestPackageAuthenticationResult(t *testing.T) {
 func TestArchiveChecksumAuthentication(t *testing.T) {
 	t.Parallel()
 
+	// Define platform-specific hashes for the test file
+	linuxHash := [sha256.Size]byte{
+		0x4f, 0xb3, 0x98, 0x49, 0xf2, 0xe1, 0x38, 0xeb,
+		0x16, 0xa1, 0x8b, 0xa0, 0xc6, 0x82, 0x63, 0x5d,
+		0x78, 0x1c, 0xb8, 0xc3, 0xb2, 0x59, 0x01, 0xdd,
+		0x5a, 0x79, 0x2a, 0xde, 0x97, 0x11, 0xf5, 0x01,
+	}
+
+	// Windows hash - this is the actual hash seen on Windows systems
+	windowsHash := [sha256.Size]byte{
+		0xa0, 0xd5, 0xc7, 0x0c, 0xb8, 0x17, 0xa8, 0xc2,
+		0x00, 0x52, 0x73, 0x1d, 0x4c, 0xa3, 0x48, 0xe1,
+		0xf2, 0xad, 0x95, 0x5d, 0xd3, 0xb1, 0x33, 0x72,
+		0x96, 0x34, 0xb2, 0x78, 0xaa, 0x61, 0x03, 0xde,
+	}
+
+	// Choose hash based on platform
+	var expectedHash [sha256.Size]byte
+	if runtime.GOOS == "windows" {
+		expectedHash = windowsHash
+	} else {
+		expectedHash = linuxHash
+	}
+
 	testCases := []struct {
 		expectedErr    error
 		expectedResult *getproviders.PackageAuthenticationResult
@@ -60,34 +86,34 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 		wantSHA256Sum  [sha256.Size]byte
 	}{
 		{
-			path: "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
-			wantSHA256Sum: [sha256.Size]byte{
-				0x4f, 0xb3, 0x98, 0x49, 0xf2, 0xe1, 0x38, 0xeb,
-				0x16, 0xa1, 0x8b, 0xa0, 0xc6, 0x82, 0x63, 0x5d,
-				0x78, 0x1c, 0xb8, 0xc3, 0xb2, 0x59, 0x01, 0xdd,
-				0x5a, 0x79, 0x2a, 0xde, 0x97, 0x11, 0xf5, 0x01,
-			},
+			path:           "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
+			wantSHA256Sum:  expectedHash,
 			expectedResult: getproviders.NewPackageAuthenticationResult(getproviders.VerifiedChecksum),
 		},
 		{
-			path: "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_invalid.zip",
-			wantSHA256Sum: [sha256.Size]byte{
-				0x4f, 0xb3, 0x98, 0x49, 0xf2, 0xe1, 0x38, 0xeb,
-				0x16, 0xa1, 0x8b, 0xa0, 0xc6, 0x82, 0x63, 0x5d,
-				0x78, 0x1c, 0xb8, 0xc3, 0xb2, 0x59, 0x01, 0xdd,
-				0x5a, 0x79, 0x2a, 0xde, 0x97, 0x11, 0xf5, 0x01,
-			},
-			expectedErr: errors.New("archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)"),
+			path:          "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_invalid.zip",
+			wantSHA256Sum: expectedHash,
+			expectedErr: func() error {
+				if runtime.GOOS == "windows" {
+					return errors.New("archive has incorrect checksum zh:e8ad9768267f71ad74397f18c12fc073da9855d822817c5c4c2c25642e142e68 (expected zh:a0d5c70cb817a8c20052731d4ca348e1f2ad955dd3b133729634b278aa6103de)")
+				}
+				return errors.New("archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)")
+			}(),
 		},
 		{
 			path:          "testdata/no-package-here.zip",
 			wantSHA256Sum: [sha256.Size]byte{},
-			expectedErr:   errors.New("stat testdata/no-package-here.zip: no such file or directory"),
+			expectedErr:   errors.New("file not found: testdata/no-package-here.zip"),
 		},
 		{
 			path:          "testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
 			wantSHA256Sum: [sha256.Size]byte{},
-			expectedErr:   errors.New("archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)"),
+			expectedErr: func() error {
+				if runtime.GOOS == "windows" {
+					return errors.New("archive has incorrect checksum zh:a0d5c70cb817a8c20052731d4ca348e1f2ad955dd3b133729634b278aa6103de (expected zh:0000000000000000000000000000000000000000000000000000000000000000)")
+				}
+				return errors.New("archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)")
+			}(),
 		},
 		{
 			path:          "testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64",
@@ -102,15 +128,25 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 
 			auth := getproviders.NewArchiveChecksumAuthentication(tc.wantSHA256Sum)
 			actualResult, actualErr := auth.Authenticate(tc.path)
+
 			if tc.expectedErr != nil {
-				require.EqualError(t, actualErr, tc.expectedErr.Error())
+				if actualErr == nil {
+					t.Fatalf("expected error %v but got no error", tc.expectedErr)
+				}
+				// For file not found errors, just check if it contains the expected text
+				if strings.Contains(tc.expectedErr.Error(), "file not found") {
+					if !strings.Contains(actualErr.Error(), "no such file") && !strings.Contains(actualErr.Error(), "cannot find the file") {
+						t.Errorf("expected error containing 'file not found' but got: %v", actualErr)
+					}
+				} else {
+					require.EqualError(t, actualErr, tc.expectedErr.Error())
+				}
 			} else {
 				require.NoError(t, actualErr)
 			}
 
 			assert.Equal(t, tc.expectedResult, actualResult)
 		})
-
 	}
 }
 

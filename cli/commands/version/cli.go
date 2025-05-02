@@ -12,9 +12,10 @@ const (
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:   CommandName,
-		Usage:  "Show terragrunt version.",
-		Hidden: true,
+		Name:                         CommandName,
+		Usage:                        "Show terragrunt version.",
+		Hidden:                       true,
+		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			return cli.NewExitError(Action(ctx), 0)
 		},

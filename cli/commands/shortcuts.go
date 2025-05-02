@@ -4,8 +4,6 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 
@@ -31,39 +29,25 @@ var (
 
 func NewShortcutsCommands(opts *options.TerragruntOptions) cli.Commands {
 	var (
-		runCmd       = run.NewCommand(opts)
-		cmds         = make(cli.Commands, len(runCmd.Subcommands))
-		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.DefaultCommands)
+		runCmd = run.NewCommand(opts)
+		cmds   = make(cli.Commands, 0, len(runCmd.Subcommands))
 	)
 
-	for i, runSubCmd := range runCmd.Subcommands {
-		var (
-			isNotShortcutCmd = !slices.Contains(shortcutCommandNames, runSubCmd.Name)
-			control          strict.Control
-		)
-
-		if isNotShortcutCmd {
-			newCommand := "terragrunt run -- " + runSubCmd.Name
-			control = controls.NewDeprecatedCommand(runSubCmd.Name, newCommand)
-			strictGroups.AddSubcontrolsToCategory(controls.DefaultCommandsCategoryName, control)
+	for _, runSubCmd := range runCmd.Subcommands {
+		if isNotShortcutCmd := !slices.Contains(shortcutCommandNames, runSubCmd.Name); isNotShortcutCmd {
+			continue
 		}
 
-		cmds[i] = &cli.Command{
-			Name:       runSubCmd.Name,
-			Usage:      runSubCmd.Usage,
-			Hidden:     isNotShortcutCmd,
-			Flags:      runCmd.Flags,
-			CustomHelp: runSubCmd.CustomHelp,
-			Action: func(ctx *cli.Context) error {
-				if isNotShortcutCmd {
-					if err := control.Evaluate(ctx); err != nil {
-						return cli.NewExitError(err, cli.ExitCodeGeneralError)
-					}
-				}
-
-				return runSubCmd.Action(ctx)
-			},
+		cmd := &cli.Command{
+			Name:                         runSubCmd.Name,
+			Usage:                        runSubCmd.Usage,
+			Flags:                        runCmd.Flags,
+			CustomHelp:                   runSubCmd.CustomHelp,
+			Action:                       runSubCmd.Action,
+			DisabledErrorOnUndefinedFlag: true,
 		}
+
+		cmds = append(cmds, cmd)
 	}
 
 	return cmds

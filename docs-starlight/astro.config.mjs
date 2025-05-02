@@ -78,8 +78,9 @@ export default defineConfig({
 					'http://localhost:9090/',
 
 					// Unfortunately, these have to be ignored, as they're
-					// referencing links that exist outside the file.
+					// referencing content that is generated outside the contents of the markdown file.
 					'/docs/reference/cli/commands/run#*',
+					'/docs/reference/cli/commands/run/#*',
 				],
 			})],
 		}),

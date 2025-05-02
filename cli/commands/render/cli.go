@@ -2,6 +2,7 @@
 package render
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -24,6 +25,8 @@ const (
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
@@ -80,21 +83,31 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(OutFlagName),
 			Destination: &opts.OutputPath,
 			Usage:       "The file name that terragrunt should use when rendering the terragrunt.hcl config (next to the unit configuration).",
-		}),
+		},
+			flags.WithDeprecatedFlagName("json-out", terragruntPrefixControl),                          // `--json-out`
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-out"), terragruntPrefixControl),  // `TG_RENDER_JSON_OUT`
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("json-out"), terragruntPrefixControl), // `--terragrunt-json-out`, `TERRAGRUNT_JSON_OUT`
+		),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        WithMetadataFlagName,
 			EnvVars:     tgPrefix.EnvVars(WithMetadataFlagName),
 			Destination: &opts.RenderMetadata,
 			Usage:       "Add metadata to the rendered output file.",
-		}),
+		},
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-with-metadata"), terragruntPrefixControl), // `TG_RENDER_JSON_WITH_METADATA`
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("with-metadata"), terragruntPrefixControl),     // `--terragrunt-with-metadata`, `TERRAGRUNT_WITH_METADATA`
+		),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DisableDependentModulesFlagName,
 			EnvVars:     tgPrefix.EnvVars(DisableDependentModulesFlagName),
 			Destination: &opts.DisableDependentModules,
 			Usage:       "Disable identification of dependent modules when rendering config.",
-		}),
+		},
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-disable-dependent-modules"), terragruntPrefixControl),  // `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES`
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("json-disable-dependent-modules"), terragruntPrefixControl), // `--terragrunt-json-disable-dependent-modules`, `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`
+		),
 	}
 }
 
@@ -114,10 +127,11 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			return Run(ctx, renderOpts)
 		},
-		ErrorOnUndefinedFlag: true,
 	}
 
-	cmd = runall.WrapCommand(opts, cmd)
+	cmd = runall.WrapCommand(opts, cmd, run.Run)
+	// TODO: For backward compatibility, remove after getting rid of the `render-json` command, as supporting the `graph` flag for the `render` command is pointless.
+	cmd = graph.WrapCommand(opts, cmd, run.Run)
 
 	return cmd
 }

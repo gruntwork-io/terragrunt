@@ -185,7 +185,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 	}
 
 	// For apply and destroy, run with auto-approve (unless explicitly disabled) due to the co-mingling of the prompts.
-	// This is not ideal, but until we have a better way of handling interactivity with run-all, we take the evil of
+	// This is not ideal, but until we have a better way of handling interactivity with run --all, we take the evil of
 	// having a global prompt (managed in cli/cli_app.go) be the gate keeper.
 	switch stackCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
@@ -238,7 +238,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 			}
 
 			terragruntOptions.Logger.Infof("%v%v refers to remote state "+
-				"you may have to apply your changes in the dependencies prior running terragrunt run-all plan.\n",
+				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
 				stack.Modules[i].Path,
 				dependenciesMsg,
 			)
@@ -550,20 +550,20 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, nil
 	}
 
-	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
+	// Clone the options struct so we don't modify the original one. This is especially important as run --all operations
 	// happen concurrently.
 	opts, err := stack.terragruntOptions.CloneWithConfigPath(terragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
+	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run --all
 	// from, which is not what any of the modules will want.
 	opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
 	// If `childTerragruntConfig.ProcessedIncludes` contains the path `terragruntConfigPath`, then this is a parent config
 	// which implies that `TerragruntConfigPath` must refer to a child configuration file, and the defined `IncludeConfig` must contain the path to the file itself
-	// for the built-in functions `read-terragrunt-config()`, `path_relative_to_include()` to work correctly.
+	// for the built-in functions `read_terragrunt_config()`, `path_relative_to_include()` to work correctly.
 	var includeConfig *config.IncludeConfig
 
 	if stack.childTerragruntConfig != nil && stack.childTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
@@ -659,7 +659,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
-// user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
+// user is trying to run --all apply or run --all destroy. Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
 func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *TerraformModule, modulesMap TerraformModulesMap, skipExternal bool) (TerraformModulesMap, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return TerraformModulesMap{}, nil
@@ -704,7 +704,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *Te
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
 // each modules config (i.e. those dependencies not in the given list of Terragrunt config canonical file paths).
 // These external dependencies are outside of the current working directory, which means they may not be part of the
-// environment the user is trying to apply-all or destroy-all. Therefore, this method also confirms whether the user wants
+// environment the user is trying to run --all apply or run --all destroy. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
 func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, modulesMap, modulesAlreadyProcessed TerraformModulesMap, recursionLevel int) (TerraformModulesMap, error) {

@@ -712,10 +712,10 @@ remote_state {
 }
 ```
 
-If the command you are running has the potential to output sensitive values, you may wish to redact the output from appearing in the terminal. To do so, use the special `--quiet` argument which must be passed as one of the first arguments to `run_cmd()`:
+If the command you are running has the potential to output sensitive values, you may wish to redact the output from appearing in the terminal. To do so, use the special `--terragrunt-quiet` argument which must be passed as one of the first arguments to `run_cmd()`:
 
 ```hcl
-super_secret_value = run_cmd("--quiet", "./decrypt_secret.sh", "foo")
+super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
 ```
 
 **Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the OpenTofu/Terraform output if OpenTofu/Terraform does not treat it as a [sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
@@ -767,10 +767,10 @@ carrot
 - Output contains multiple times `uuid3`, +1 more output comparing to `uuid1` and `uuid2` - because `uuid3` is declared in locals and inputs which add one more evaluation
 - Output contains only once `uuid4` since it is declared only once in `inputs`, `inputs` is not evaluated twice
 
-You can modify this caching behavior to ignore the existing directory if you know the command you are running is not dependent on the current directory path. To do so, use the special `--global-cache` argument which must be passed as one of the first arguments to `run_cmd()` (and can be combined with `--quiet` in any order):
+You can modify this caching behavior to ignore the existing directory if you know the command you are running is not dependent on the current directory path. To do so, use the special `--terragrunt-global-cache` argument which must be passed as one of the first arguments to `run_cmd()` (and can be combined with `--terragrunt-quiet` in any order):
 
 ```hcl
-value = run_cmd("--global-cache", "--quiet", "/usr/local/bin/get-account-map")
+value = run_cmd("--terragrunt-global-cache", "--terragrunt-quiet", "/usr/local/bin/get-account-map")
 ```
 
 ## read_terragrunt_config
@@ -912,7 +912,7 @@ Some example use cases are:
 
 ## read_tfvars_file
 
-`read_tfvars_file(file_path)` reads a `.tfvars` or `.tfvars.json` file and returns a map of the variables defined in it. 
+`read_tfvars_file(file_path)` reads a `.tfvars` or `.tfvars.json` file and returns a map of the variables defined in it.
 
 This is useful for reading variables from a `.tfvars` file, merging them into the inputs, or using them in a `locals` block:
 
@@ -977,12 +977,12 @@ inputs = {
 ```
 
 By using `mark_as_read` on `file-read-by-tofu.txt`, you can ensure that the `terragrunt.hcl` file passing in the `file-read-by-tofu.txt` file as an input will be included in
-any `run-all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
+any `run --all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
 
 The same technique can be used to mark a file as read when a file is read using code in `run_cmd`.
 
 **NOTE**: Due to the way that Terragrunt enqueues files we require an absolute path for mark_as_read to avoid multiple inclusions.
 
-**NOTE**: Due to the way that Terragrunt parses configurations during a `run-all`, functions will only properly mark files as read
+**NOTE**: Due to the way that Terragrunt parses configurations during a `run --all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
 block is not evaluated until *after* the queue has been populated with units to run.

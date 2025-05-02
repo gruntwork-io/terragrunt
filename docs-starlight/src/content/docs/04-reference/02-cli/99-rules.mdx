@@ -8,7 +8,7 @@ sidebar:
 
 import { Aside, Badge, LinkCard } from '@astrojs/starlight/components';
 
-These are the rules that Terragrunt maintainers endeavor to follow when working on the CLI. 
+These are the rules that Terragrunt maintainers endeavor to follow when working on the CLI.
 
 Whenever we break these rules, that is a bug and should be reported. The maintainers will either fix the behavior, or update the rules to reflect the reason for the discrepancy.
 
@@ -46,7 +46,7 @@ In addition, if you find that a certain pattern that's reliably followed in the 
     <details>
         <summary><Badge text="Example" variant="note" /></summary>
 
-        `--provider-cache`: The system is the `provider cache` server. The Provider Cache Server be enabled if this flag is set. 
+        `--provider-cache`: The system is the `provider cache` server. The Provider Cache Server be enabled if this flag is set.
 
         For brevity, prefer this to flags like `--provider-cache-enable`.
     </details>
@@ -89,7 +89,7 @@ In addition, if you find that a certain pattern that's reliably followed in the 
 
         For example, the [terragrunt-include-module-prefix](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-include-module-prefix) flag was previously opt-in, but users were better served with the behavior being opt-out. To preserve backwards compatibility until the next release, the flag remained, but to use it, users had to set it via `--terragrunt-include-module-prefix=false`.
 
-        In this scenario, whenever applicable, a different flag will be made available that does obey this rule (like [forward-tf-stdout](https://terragrunt.gruntwork.io/docs/reference/cli-options/#forward-tf-stdout)).
+        In this scenario, whenever applicable, a different flag will be made available that does obey this rule (like [tf-forward-stdout](https://terragrunt.gruntwork.io/docs/reference/cli-options/#tf-forward-stdout)).
     </details>
 
     When a flag prevents something from happening that Terragrunt would do by default, it will be proceeded by the prefix `no`/ `non`.

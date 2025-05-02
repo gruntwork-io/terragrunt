@@ -1,4 +1,4 @@
-package cli_test
+package providercache_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gruntwork-io/terragrunt/cli"
+	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf/cache"
@@ -43,12 +43,12 @@ func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
 func TestProviderCache(t *testing.T) {
 	t.Parallel()
 
-	token := fmt.Sprintf("%s:%s", cli.APIKeyAuth, uuid.New().String())
+	token := fmt.Sprintf("%s:%s", providercache.APIKeyAuth, uuid.New().String())
 
 	providerCacheDir := t.TempDir()
 	pluginCacheDir := t.TempDir()
 
-	opts := []cache.Option{cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(cli.CacheProviderHTTPStatusCode)}
+	opts := []cache.Option{cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode)}
 
 	testCases := []struct {
 		expectedBodyReg    *regexp.Regexp
@@ -184,7 +184,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		unsetEnv(t, "HOME")
 		unsetEnv(t, "XDG_CACHE_HOME")
 
-		_, err := cli.InitProviderCacheServer(&options.TerragruntOptions{
+		_, err := providercache.InitServer(&options.TerragruntOptions{
 			ProviderCacheDir: cacheDir,
 		})
 		require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
@@ -196,7 +196,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 
 		t.Setenv("HOME", home)
 
-		_, err := cli.InitProviderCacheServer(&options.TerragruntOptions{
+		_, err := providercache.InitServer(&options.TerragruntOptions{
 			ProviderCacheDir: cacheDir,
 		})
 		require.NoError(t, err)
