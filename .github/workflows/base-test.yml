@@ -46,9 +46,26 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-base-test-${{ hashFiles('**/go.sum') }}
 
-      - name: Run Tests
-        run: go test -v ./... -timeout 45m
+      - name: Install go-junit-report
+        run: |
+          go install github.com/jstemmer/go-junit-report@v2.1.0
+
+      - name: Run Tests and Generate JUnit XML Report
+        id: run-tests
+        run: |
+          go test -v ./... -timeout 45m | go-junit-report > result.xml
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload JUnit XML Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-report
+          path: result.xml
+
+      - name: Display JUnit Results with action-junit-report
+        uses: mikepenz/action-junit-report@v5
+        with:
+          files: result.xml
