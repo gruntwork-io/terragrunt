@@ -81,40 +81,40 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 		// `run-all` commands
 		newDeprecatedCLIRedesignCommand(CommandRunAllName, cli.Args{run.CommandName, "--" + runall.AllFlagName},
 			append(DeprecatedCommands{
-				// `run --all hclfmt`
+				// `run-all hclfmt`
 				newDeprecatedCLIRedesignCommand(CommandHCLFmtName,
 					cli.Args{hcl.CommandName, format.CommandName,
 						"--" + runall.AllFlagName}),
-				// `run --all hclvalidate`
+				// `run-all hclvalidate`
 				newDeprecatedCLIRedesignCommand(CommandHCLValidateName, cli.Args{
 					hcl.CommandName, validate.CommandName,
 					"--" + runall.AllFlagName}),
-				// `run --all validate-inputs`
+				// `run-all validate-inputs`
 				newDeprecatedCLIRedesignCommand(CommandValidateInputsName, cli.Args{
 					hcl.CommandName, validate.CommandName,
 					"--" + runall.AllFlagName,
 					"--" + validate.InputsFlagName}),
-				// `run --all render-json`
+				// `run-all render-json`
 				newDeprecatedCLIRedesignCommand(CommandRenderJSONName, cli.Args{
 					render.CommandName,
 					"--" + runall.AllFlagName,
 					"--" + render.JSONFlagName,
 					"--" + render.WriteFlagName,
 					"--" + render.OutFlagName, "terragrunt_rendered.json"}),
-				// `run --all render`
+				// `run-all render`
 				newDeprecatedCLIRedesignCommand(render.CommandName, cli.Args{
 					render.CommandName,
 					"--" + runall.AllFlagName}),
-				// `run --all aws-provider-patch`
+				// `run-all aws-provider-patch`
 				newDeprecatedCLIRedesignCommand(awsproviderpatch.CommandName, cli.Args{
 					awsproviderpatch.CommandName,
 					"--" + runall.AllFlagName}),
-				// `run --all graph-dependencies`
+				// `run-all graph-dependencies`
 				newDeprecatedCLIRedesignCommand(CommandGraphDependenciesName, cli.Args{
 					dag.CommandName, daggraph.CommandName,
 					"--" + runall.AllFlagName}),
 			},
-				// `run --all plan/apply/...`
+				// `run-all plan/apply/...`
 				newDeprecatedCLIRedesignTFCommands(cli.Args{"--" + runall.AllFlagName})...,
 			)...,
 		),
