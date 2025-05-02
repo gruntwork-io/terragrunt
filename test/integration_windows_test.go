@@ -119,7 +119,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 				),
 			)
 			tgPath := filepath.Join(rootPath, tc.name)
-			tgArgs := fmt.Sprintf("terragrunt run --all apply -auto-approve --log-level trace --non-interactive --working-dir %s", tgPath)
+			tgArgs := fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s", tgPath)
 			helpers.RunTerragrunt(t, tgArgs)
 		})
 	}
