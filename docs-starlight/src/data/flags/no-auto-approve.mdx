@@ -2,6 +2,8 @@
 name: no-auto-approve
 description: Don't automatically append '-auto-approve' to the underlying OpenTofu/Terraform commands run with 'run --all'.
 type: bool
+env:
+  - TG_NO_AUTO_APPROVE
 ---
 
 When enabled, Terragrunt will not automatically append the `-auto-approve` flag to destructive commands like `apply` or `destroy` when running with `--all`. This means you'll be prompted for confirmation before making changes.
