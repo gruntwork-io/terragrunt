@@ -60,7 +60,7 @@ jobs:
       - name: Upload JUnit XML Report
         uses: actions/upload-artifact@v4
         with:
-          name: test-report
+          name: test-report-${{ matrix.os }}
           path: result.xml
 
       - name: Display JUnit Results with action-junit-report
