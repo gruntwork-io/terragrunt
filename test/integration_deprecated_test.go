@@ -1,4 +1,3 @@
-// Package test_test contains integration tests for Terragrunt.
 package test_test
 
 import (
@@ -49,7 +48,7 @@ func TestDeprecatedRunAllCommand_TerragruntReportsTerraformErrorsWithPlanAll(t *
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixtures/failure")
 
-	cmd := "terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir " + rootTerragruntConfigPath
+	cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir " + rootTerragruntConfigPath
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
