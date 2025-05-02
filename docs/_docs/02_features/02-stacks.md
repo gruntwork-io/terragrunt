@@ -122,7 +122,7 @@ terragrunt run --all plan
 
 If your units have dependencies between them, for example, you can’t deploy the backend-app until MySQL and redis are deployed. You’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
-Additional note: If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--ignore-external-dependencies` flag, or use the `--exclude-dir` once for each directory you wish to exclude.
+Additional note: If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--queue-exclude-external` flag, or use the `--exclude-dir` once for each directory you wish to exclude.
 
 ## Passing outputs between units
 
