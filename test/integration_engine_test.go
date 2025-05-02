@@ -90,7 +90,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --forward-tf-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Tofu Initialization started")
@@ -106,7 +106,7 @@ func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
 
 	cacheDir, rootPath := setupEngineCache(t)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --forward-tf-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "OpenTofu has been successful")
@@ -218,7 +218,7 @@ func TestEngineOpentofuLatestRunAll(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuLatestRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --forward-tf-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "resource \"local_file\" \"test\"")
@@ -260,7 +260,7 @@ func TestEngineLogLevel(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuLatestRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --forward-tf-stdout --working-dir %s --log-level trace -- apply -no-color -auto-approve", rootPath))
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s --log-level trace -- apply -no-color -auto-approve", rootPath))
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "level=debug")
 	assert.Contains(t, stderr, "[DEBUG] terragrunt-iac-engine-opentofu_rpc")
