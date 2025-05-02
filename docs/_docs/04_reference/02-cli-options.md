@@ -1887,8 +1887,8 @@ NOTE: This option also disables OpenTofu/Terraform output colors by propagating 
 
 **CLI Arg**: `--check`<br/>
 **CLI Arg Alias**: `--terragrunt-check` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_HCLFMT_CHECK` (set to `true`)<br/>
-**Environment Variable Alias**: `TERRAGRUNT_CHECK` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_CHECK` (set to `true`)<br/>
+**Environment Variable Aliases**: `TERRAGRUNT_CHECK`, `TG_HCLFMT_CHECK` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
@@ -1900,8 +1900,8 @@ command to exit with exit code 1 if there are any files that are not formatted.
 
 **CLI Arg**: `--diff`<br/>
 **CLI Arg Alias**: `--terragrunt-diff` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_HCLFMT_DIFF` (set to `true`)<br/>
-**Environment Variable Alias**: `TERRAGRUNT_DIFF` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_DIFF` (set to `true`)<br/>
+**Environment Variable Aliases**: `TERRAGRUNT_DIFF`, `TG_HCLFMT_DIFF` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
@@ -1912,8 +1912,8 @@ When passed in, running `hclfmt` will print diff between original and modified f
 
 **CLI Arg**: `--file`<br/>
 **CLI Arg Alias**: `--terragrunt-hclfmt-file` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_HCLFMT_FILE` (set to `true`)<br/>
-**Environment Variable Alias**: `TERRAGRUNT_HCLFMT_FILE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_FILE`<br/>
+**Environment Variable Aliases**: `TERRAGRUNT_FILE`, `TG_HCLFMT_FILE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Requires an argument**: `--file /path/to/terragrunt.hcl`<br/>
 **Commands**:
 
@@ -1925,8 +1925,8 @@ When passed in, run `hclfmt` only on the specified file.
 
 **CLI Arg**: `--exclude-dir`<br/>
 **CLI Arg Alias**: `--terragrunt-hclfmt-exclude-dir` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_HCLFMT_EXCLUDE_DIR`<br/>
-**Environment Variable Alias**: `TERRAGRUNT_HCLFMT_EXCLUDE_DIR` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_EXCLUDE_DIR`<br/>
+**Environment Variable Aliases**: `TERRAGRUNT_EXCLUDE_DIR`, `TG_HCLFMT_EXCLUDE_DIR` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Requires an argument**: `--exclude-dir /path/to/dir`<br/>
 **Commands**:
 
@@ -1939,8 +1939,8 @@ When passed in, `hclfmt` will ignore files in the specified directories.
 
 **CLI Arg**: `--stdin`<br/>
 **CLI Arg Alias**: `--terragrunt-hclfmt-stdin` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_HCLFMT_STDIN` (set to `true`)<br/>
-**Environment Variable Alias**: `TERRAGRUNT_HCLFMT_STDIN` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_STDIN` (set to `true`)<br/>
+**Environment Variable Aliases**: `TERRAGRUNT_STDIN`, `TG_HCLFMT_STDIN` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
@@ -1951,8 +1951,8 @@ When passed in, run `hclfmt` only on hcl passed to `stdin`, result is printed to
 
 **CLI Arg**: `--json`<br/>
 **CLI Arg Alias**: `--terragrunt-hclvalidate-json` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_HCLVALIDATE_JSON` (set to `true`)<br/>
-**Environment Variable Alias**: `TERRAGRUNT_HCLVALIDATE_JSON` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_JSON` (set to `true`)<br/>
+**Environment Variable Aliases**: `TERRAGRUNT_JSON`, `TG_HCLVALIDATE_JSON` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
 - [hclvalidate](#hclvalidate)
@@ -1963,8 +1963,8 @@ When passed in, render the output in the JSON format.
 
 **CLI Arg**: `--show-config-path`<br/>
 **CLI Arg Alias**: `--terragrunt-hclvalidate-show-config-path` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_HCLVALIDATE_SHOW_CONFIG_PATH` (set to `true`)<br/>
-**Environment Variable Alias**: `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_SHOW_CONFIG_PATH` (set to `true`)<br/>
+**Environment Variable Aliases**: `TERRAGRUNT_SHOW_CONFIG_PATH`, `TG_HCLVALIDATE_SHOW_CONFIG_PATH` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
 - [hclvalidate](#hclvalidate)
@@ -1988,7 +1988,7 @@ This lead to a faster rendering process, but the output will not include any dep
 
 **CLI Arg**: `--out`<br/>
 **CLI Arg Alias**: `--terragrunt-json-out` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_RENDER_JSON_OUT` (set to `true`)<br/>
+**Environment Variable**: `TG_OUT` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_JSON_OUT` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Requires an argument**: `--out /path/to/terragrunt_rendered.json`<br/>
 **Commands**:
