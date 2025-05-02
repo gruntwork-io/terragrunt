@@ -24,7 +24,7 @@ const (
 	tfVarPrefix      = "TF_VAR_"
 	argVarPrefix     = "-var="
 	argVarFilePrefix = "-var-file="
-	tfExternalTFLint = "--external-tflint"
+	tfExternalTFLint = "--terragrunt-external-tflint"
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
