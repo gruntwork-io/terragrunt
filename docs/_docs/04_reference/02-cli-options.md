@@ -1800,7 +1800,7 @@ To safely access provider cache concurrently, enable the [Provider Cache Server]
 
 **CLI Arg**: `--inputs-debug`<br/>
 **CLI Arg Alias**: `--terragrunt-debug` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_DEBUG_INPUTS`<br/>
+**Environment Variable**: `TG_INPUTS_DEBUG`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_DEBUG` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 
 When passed in, Terragrunt will create a tfvars file that can be used to invoke the terraform module in the same way
