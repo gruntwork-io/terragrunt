@@ -72,7 +72,7 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	err := helpers.RunTerragruntCommand(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --all plan --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --modules-that-include alpha.hcl",
+			"terragrunt run --all plan --non-interactive --log-level trace --tf-forward-stdout --working-dir %s --units-that-include alpha.hcl",
 			modulePath,
 		),
 		&stdout,
