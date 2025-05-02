@@ -4,9 +4,6 @@ description: Recursively find HashiCorp Configuration Language (HCL) files and v
 slug: docs/reference/cli/commands/hcl/validate
 sidebar:
   order: 900
-  badge:
-    text: exp
-    variant: tip
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->

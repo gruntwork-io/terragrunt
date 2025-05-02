@@ -4,9 +4,6 @@ description: Retrieve outputs from units defined in a terragrunt.stack.hcl file 
 slug: docs/reference/cli/commands/stack/output
 sidebar:
   order: 402
-  badge:
-    text: exp
-    variant: tip
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->

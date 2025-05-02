@@ -4,9 +4,6 @@ description: Interact with OpenTofu/Terraform backend infrastructure.
 slug: docs/reference/cli/commands/backend/bootstrap
 sidebar:
   order: 300
-  badge:
-    text: exp
-    variant: tip
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->
