@@ -3,11 +3,11 @@ package cas
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -148,7 +148,7 @@ func (g *GitRunner) CreateTempDir() (string, func() error, error) {
 	prefix := "terragrunt-cas-"
 
 	// Add a timestamp to the prefix to avoid conflicts
-	prefix += fmt.Sprintf("%d", time.Now().UnixNano())
+	prefix += strconv.FormatInt(time.Now().UnixNano(), 10)
 
 	tempDir, err := os.MkdirTemp("", prefix+"*")
 	if err != nil {
