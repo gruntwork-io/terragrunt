@@ -372,17 +372,17 @@ For example, if `destroy` was called on the `Valkey` unit, you'd be asked for co
 
 ## Visualizing the DAG
 
-To visualize the dependency graph you can use the `graph-dependencies` command (similar to the `terraform graph` command).
+To visualize the dependency graph you can use the `dag graph` command (similar to the `terraform graph` command).
 
 The graph is output in DOT format. The typical program used to render this file format is GraphViz, but many web services are available that can do this as well.
 
 ```bash
-terragrunt graph-dependencies | dot -Tsvg > graph.svg
+terragrunt dag graph | dot -Tsvg > graph.svg
 ```
 
 The example above generates the following graph:
 
-![terragrunt graph-dependencies](../../../assets/img/collections/documentation/graph.png)
+![terragrunt dag graph](../../../assets/img/collections/documentation/graph.png)
 
 Note that this graph shows the dependency relationship in the direction of the arrow, with the tip pointing to the dependency (e.g. `frontend-app` depends on `backend-app`).
 
