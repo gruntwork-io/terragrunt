@@ -853,7 +853,7 @@ This repository is generally concerned with the configuration of reliably reprod
 
 What's on the default branch for this repository is generally considered the source of truth for the infrastructure you have provisioned. That default branch is generally the only version that matters when considering the state of your infrastructure.
 
-You can see an example of this in the [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repository maintained by Gruntwork.
+You can see an example of this in the [terragrunt-infrastructure-live-stacks-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example) repository maintained by Gruntwork.
 
 #### `infrastructure-modules`
 
@@ -865,7 +865,7 @@ You typically integrate this repository with tools like [Terratest](https://terr
 
 [Semantic Versioning](https://semver.org/) is widely used to manage communicating the impact of updates to this repository, and you typically pin the version of a consumed module in the `infrastructure-live` repository to a specific tag.
 
-You can see an example of this in the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) repository maintained by Gruntwork.
+You can see an example of this in the [terragrunt-infrastructure-catalog-example](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example) repository maintained by Gruntwork.
 
 ### Atomic Deployments
 
