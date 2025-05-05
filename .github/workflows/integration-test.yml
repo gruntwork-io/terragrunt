@@ -43,7 +43,7 @@ jobs:
             run: '^TestTflint'
             requires_setup: true
             setup_script: .github/scripts/setup/tflint.sh
-            secrets: []
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
           - name: GCP
             os: ubuntu
             target: ./...
