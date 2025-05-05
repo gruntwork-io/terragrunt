@@ -81,7 +81,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Generate Secrets Environment
-        if: ${{ matrix.integration.requires_setup }}
         id: generate-secrets
         run: |
           ENV_FILE="${GITHUB_WORKSPACE}/.env.secrets"
@@ -113,7 +112,6 @@ jobs:
         shell: bash
 
       - name: Setup
-        if: ${{ matrix.integration.requires_setup }}
         run: |
           # Source the environment file
           source "${GITHUB_WORKSPACE}/.env.secrets"
