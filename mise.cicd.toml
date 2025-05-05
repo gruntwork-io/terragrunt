@@ -1,4 +1,6 @@
 [tools]
 go-junit-report = "2.1.0"
 pre-commit = "4.2.0"
+gcloud = "520.0.0"
+awscli = "2.27.7"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
