@@ -48,6 +48,27 @@ jobs:
               run: '^TestGcp'
               requires_setup: true
               setup_script: .github/scripts/setup/gcp.sh
+            - name: AWS
+              os: ubuntu
+              target: ./...
+              tags: aws
+              run: '^TestAws'
+              requires_setup: true
+              setup_script: .github/scripts/setup/aws.sh
+            - name: AWSGCP
+              os: ubuntu
+              target: ./...
+              tags: awsgcp
+              run: '^TestAwsGcp'
+              requires_setup: true
+              setup_script: .github/scripts/setup/awsgcp.sh
+            - name: Engine
+              os: ubuntu
+              target: ./...
+              tags: engine
+              run: '^TestEngine'
+              requires_setup: true
+              setup_script: .github/scripts/setup/engine.sh
 
     steps:
       - name: Checkout code
