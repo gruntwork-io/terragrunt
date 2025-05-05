@@ -20,10 +20,6 @@ jobs:
           - name: Fixtures
             os: ubuntu
             target: ./test
-            setup_scripts: []
-            tags: []
-            run: ''
-            secrets: []
           - name: SSH
             os: ubuntu
             target: ./...
@@ -39,7 +35,6 @@ jobs:
               - .github/scripts/setup/sops.sh
             tags: sops
             run: '^TestSOPS'
-            secrets: []
           - name: Tflint
             os: ubuntu
             target: ./...
@@ -68,7 +63,8 @@ jobs:
             os: ubuntu
             target: ./...
             setup_scripts:
-              - .github/scripts/setup/awsgcp.sh
+              - .github/scripts/setup/aws.sh
+              - .github/scripts/setup/gcp.sh
             tags: awsgcp
             run: '^TestAwsGcp'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
@@ -79,7 +75,6 @@ jobs:
               - .github/scripts/setup/engine.sh
             tags: engine
             run: '^TestEngine'
-            secrets: []
 
     steps:
       - name: Checkout code
