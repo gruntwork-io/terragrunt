@@ -4,7 +4,7 @@ import starlight from "@astrojs/starlight";
 import starlightLinksValidator from "starlight-links-validator";
 import vercel from "@astrojs/vercel";
 
-import astroD2 from "astro-d2";
+// import d2 from "astro-d2";
 
 export const sidebar = [
   {
@@ -107,7 +107,7 @@ export default defineConfig({
         }),
       ],
     }),
-    astroD2(),
+    // d2(),
   ],
   redirects: {
     // Pages that have been rehomed.
