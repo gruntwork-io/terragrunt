@@ -1,0 +1,4 @@
+{
+    "installCommand": "bun i && apt-get update && apt-get install -y d2",
+    "buildCommand": "bun run build"
+}

@@ -16,6 +16,8 @@ Afterwards, you'll want to install the dependencies for the project:
 bun i
 ```
 
+You'll also need to install [d2](https://github.com/terrastruct/d2/blob/master/docs/INSTALL.md) to build any diagrams:
+
 You can now start the development server:
 
 ```bash
