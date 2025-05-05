@@ -1626,12 +1626,12 @@ func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, 
 	res, err := client.GetBucketVersioning(&s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)})
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	require.NotNil(t, res.Status)
 
 	if versioning {
+		require.NotNil(t, res.Status)
 		assert.Equal(t, *res.Status, s3.BucketVersioningStatusEnabled, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
 	} else {
-		assert.NotEqual(t, *res.Status, s3.BucketVersioningStatusEnabled, "Versioning is enabled for the remote state S3 bucket %s", bucketName)
+		require.Nil(t, res.Status)
 	}
 }
 
