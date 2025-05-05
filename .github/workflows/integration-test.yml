@@ -56,8 +56,7 @@ jobs:
             os: ubuntu
             target: ./...
             setup_scripts:
-              - .github/scripts/setup/aws.sh
-              - .github/scripts/setup/gcp.sh
+              - .github/scripts/setup/awsgcp.sh
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
           - name: Engine
             os: ubuntu
@@ -77,12 +76,25 @@ jobs:
           ENV_FILE="${GITHUB_WORKSPACE}/.env.secrets"
           echo "export SCRIPT_PATHS='${{ matrix.integration.setup_scripts }}'" > $ENV_FILE
           
-          # Loop through secrets dynamically and export them to the file
+          # Manually export each secret listed in matrix.integration.secrets
           for SECRET in ${{ join(matrix.integration.secrets, ' ') }}; do
-            SECRET_VALUE_NAME="secrets.${SECRET}"
-            SECRET_VALUE="${{ env[SECRET_VALUE_NAME] }}"
-            if [[ -n "$SECRET_VALUE" ]]; then
-              printf "export %s='%s'\n" "$SECRET" "$SECRET_VALUE" >> $ENV_FILE
+            # Use conditional checks for each secret
+            if [[ "$SECRET" == "GHA_DEPLOY_KEY" && -n "${{ secrets.GHA_DEPLOY_KEY }}" ]]; then
+              printf "export GHA_DEPLOY_KEY='%s'\n" "${{ secrets.GHA_DEPLOY_KEY }}" >> $ENV_FILE
+            elif [[ "$SECRET" == "AWS_ACCESS_KEY_ID" && -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]]; then
+              printf "export AWS_ACCESS_KEY_ID='%s'\n" "${{ secrets.AWS_ACCESS_KEY_ID }}" >> $ENV_FILE
+            elif [[ "$SECRET" == "AWS_SECRET_ACCESS_KEY" && -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]]; then
+              printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $ENV_FILE
+            elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY" && -n "${{ secrets.GCLOUD_SERVICE_KEY }}" ]]; then
+              printf "export GCLOUD_SERVICE_KEY='%s'\n" "${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
+            elif [[ "$SECRET" == "GOOGLE_CLOUD_PROJECT" && -n "${{ secrets.GOOGLE_CLOUD_PROJECT }}" ]]; then
+              printf "export GOOGLE_CLOUD_PROJECT='%s'\n" "${{ secrets.GOOGLE_CLOUD_PROJECT }}" >> $ENV_FILE
+            elif [[ "$SECRET" == "GOOGLE_COMPUTE_ZONE" && -n "${{ secrets.GOOGLE_COMPUTE_ZONE }}" ]]; then
+              printf "export GOOGLE_COMPUTE_ZONE='%s'\n" "${{ secrets.GOOGLE_COMPUTE_ZONE }}" >> $ENV_FILE
+            elif [[ "$SECRET" == "GOOGLE_IDENTITY_EMAIL" && -n "${{ secrets.GOOGLE_IDENTITY_EMAIL }}" ]]; then
+              printf "export GOOGLE_IDENTITY_EMAIL='%s'\n" "${{ secrets.GOOGLE_IDENTITY_EMAIL }}" >> $ENV_FILE
+            elif [[ "$SECRET" == "GOOGLE_PROJECT_ID" && -n "${{ secrets.GOOGLE_PROJECT_ID }}" ]]; then
+              printf "export GOOGLE_PROJECT_ID='%s'\n" "${{ secrets.GOOGLE_PROJECT_ID }}" >> $ENV_FILE
             fi
           done
 
