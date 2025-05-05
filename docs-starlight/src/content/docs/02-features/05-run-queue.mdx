@@ -26,6 +26,7 @@ Terragrunt analyzes these dependencies to determine the correct order of operati
 
 Consider a setup where Unit B depends on Unit A, and Unit C depends on Unit B. Unit D has no dependencies.
 
+{/*
 ```d2
 direction: right
 
@@ -50,6 +51,20 @@ D: Unit D {
 A -> B: depends on
 B -> C: depends on
 ```
+*/}
+
+{/*
+    To avoid having to install d2 in vercel, or require that contributors have it installed,
+    we can simply reference the built artifact.
+
+    If you want to edit the diagram, install d2 locally following these instructions:
+    https://github.com/terrastruct/d2/blob/master/docs/INSTALL.md
+
+    Once you have d2 installed, you can uncomment the diagram above, edit it, and see it change live,
+    then commit the updated diagram to the repo.
+*/}
+
+![Example DAG](../../../../public/d2/docs/02-features/05-run-queue-0.svg)
 
 -   **`run --all plan` Order:** Terragrunt would run C and D concurrently. Once C finishes, B would run. Once B finishes, A would run.
 -   **`run --all destroy` Order:** Terragrunt would run A and D concurrently. Once A finishes, B would run. Once B finishes, C would run.
