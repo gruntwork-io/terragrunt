@@ -90,7 +90,7 @@ jobs:
           
           for SECRET in ${{ join(matrix.integration.secrets, ' ') }}; do
             if [ "$SECRET" = "SSH_KEY" ]; then
-              printf "export SSH_KEY='%s'\n" "${{ secrets.GHA_DEPLOY_KEY }}" >> $ENV_FILE
+              printf "export SSH_KEY='%s'\n" "${{ secrets.SSH_KEY }}" >> $ENV_FILE
             elif [ "$SECRET" = "GCLOUD_SERVICE_KEY" ]; then
               printf "export GCLOUD_SERVICE_KEY='%s'\n" "${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
             elif [ "$SECRET" = "GOOGLE_CLOUD_PROJECT" ]; then
