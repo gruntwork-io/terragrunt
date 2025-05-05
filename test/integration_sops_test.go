@@ -69,16 +69,13 @@ func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --include-dir %s", rootPath, testFixtureSops)+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- apply -auto-approve")
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --include-dir %s", rootPath, testFixtureSops)+" -- output -no-color -json", &stdout, &stderr)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- output -no-color -json")
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	assert.Equal(t, []any{true, false}, outputs["json_bool_array"].Value)
 	assert.Equal(t, []any{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
