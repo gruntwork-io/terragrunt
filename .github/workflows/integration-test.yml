@@ -117,7 +117,7 @@ jobs:
           source "${GITHUB_WORKSPACE}/.env.secrets"
           
           # Loop through setup scripts and execute them
-          for SCRIPT in ${{ matrix.integration.setup_scripts }}; do
+          for SCRIPT in ${{ join(matrix.integration.setup_scripts, ' ') }}; do
             if [[ -n "$SCRIPT" ]]; then
               chmod +x "$SCRIPT"
               "$SCRIPT"
