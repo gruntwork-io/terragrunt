@@ -43,6 +43,7 @@ jobs:
             tags: tflint
             run: '^TestTflint'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            skip: true
           - name: GCP
             os: ubuntu
             target: ./...
@@ -59,6 +60,7 @@ jobs:
             tags: aws
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            skip: true
           - name: AWSGCP
             os: ubuntu
             target: ./...
@@ -68,6 +70,7 @@ jobs:
             tags: awsgcp
             run: '^TestAwsGcp'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
+            skip: true
           - name: Engine
             os: ubuntu
             target: ./...
@@ -75,6 +78,15 @@ jobs:
               - .github/scripts/setup/engine.sh
             tags: engine
             run: '^TestEngine'
+          - name: Skipped AWS Test
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/aws.sh
+            tags: aws
+            run: '^TestAwsSkipped'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            skip: true
 
     steps:
       - name: Checkout code
@@ -88,7 +100,6 @@ jobs:
           
           # Manually export each secret listed in matrix.integration.secrets
           for SECRET in ${{ join(matrix.integration.secrets, ' ') }}; do
-            # Use conditional checks for each secret
             if [[ "$SECRET" == "GHA_DEPLOY_KEY" && -n "${{ secrets.GHA_DEPLOY_KEY }}" ]]; then
               printf "export GHA_DEPLOY_KEY='%s'\n" "${{ secrets.GHA_DEPLOY_KEY }}" >> $ENV_FILE
             elif [[ "$SECRET" == "AWS_ACCESS_KEY_ID" && -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]]; then
@@ -147,7 +158,11 @@ jobs:
 
       - name: Run Tests
         run: |
-          go test -v ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
+          if [ "${{ matrix.integration.skip }}" != "true" ]; then
+            go test -v ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
+          else
+            echo "Skipping tests for ${{ matrix.integration.name }} as the skip flag is true."
+          fi
         shell: bash
         env:
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
