@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-SSH_KEY="${SSH_KEY:?Required environment variable SSH_KEY}"
+SSH_KEY="${GHA_DEPLOY_KEY:?Required environment variable GHA_DEPLOY_KEY}"
 
 mkdir -p ~/.ssh
 echo "$SSH_KEY" > ~/.ssh/id_rsa
