@@ -64,7 +64,7 @@ B -> C: depends on
     then commit the updated diagram to the repo.
 */}
 
-![Example DAG](../../../../public/d2/docs/02-features/05-run-queue-0.svg)
+![Example DAG](../../../assets/img/d2/docs/02-features/05-run-queue-0.svg)
 
 -   **`run --all plan` Order:** Terragrunt would run C and D concurrently. Once C finishes, B would run. Once B finishes, A would run.
 -   **`run --all destroy` Order:** Terragrunt would run A and D concurrently. Once A finishes, B would run. Once B finishes, C would run.
@@ -106,5 +106,5 @@ This can cause concurrent access issues with the provider cache. Instead, use Te
 </Aside>
 
 <Aside type="caution">
-When using `run --all` with `apply` or `destroy`, Terragrunt automatically adds the `-auto-approve` flag due to limitations with shared stdin making individual approvals impossible. Use [`--no-auto-approve`](/docs/reference/cli/flags/no-auto-approve) to override this, but be aware you might need alternative approval workflows.
+When using `run --all` with `apply` or `destroy`, Terragrunt automatically adds the `-auto-approve` flag due to limitations with shared stdin making individual approvals impossible. Use [`--no-auto-approve`](/docs/reference/cli/commands/run#no-auto-approve) to override this, but be aware you might need alternative approval workflows.
 </Aside>

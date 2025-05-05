@@ -101,6 +101,8 @@ export default defineConfig({
             // referencing content that is generated outside the contents of the markdown file.
             "/docs/reference/cli/commands/run#*",
             "/docs/reference/cli/commands/run/#*",
+            "/docs/reference/cli/commands/list#*",
+            "/docs/reference/cli/commands/list/#*",
           ],
         }),
       ],
