@@ -177,6 +177,7 @@ jobs:
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET: ${{ matrix.integration.target }}
           TAGS: ${{ matrix.integration.tags }}
