@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    name: Test (${{ matrix.integration.name}})
+    name: Test (${{ matrix.integration.name }})
     runs-on: ${{ matrix.integration.os }}-latest
     env:
       MISE_PROFILE: cicd
@@ -91,7 +91,23 @@ jobs:
           
           # Add secrets for this specific integration test
           for SECRET in ${{ join(matrix.integration.secrets, ' ') }}; do
-            echo "$SECRET=${{ secrets[$SECRET] }}" >> $ENV_FILE
+            if [ "$SECRET" = "SSH_KEY" ]; then
+              echo "SSH_KEY=${{ secrets.GHA_DEPLOY_KEY }}" >> $ENV_FILE
+            elif [ "$SECRET" = "GCLOUD_SERVICE_KEY" ]; then
+              echo "GCLOUD_SERVICE_KEY=${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
+            elif [ "$SECRET" = "GOOGLE_CLOUD_PROJECT" ]; then
+              echo "GOOGLE_CLOUD_PROJECT=${{ secrets.GOOGLE_CLOUD_PROJECT }}" >> $ENV_FILE
+            elif [ "$SECRET" = "GOOGLE_COMPUTE_ZONE" ]; then
+              echo "GOOGLE_COMPUTE_ZONE=${{ secrets.GOOGLE_COMPUTE_ZONE }}" >> $ENV_FILE
+            elif [ "$SECRET" = "GOOGLE_IDENTITY_EMAIL" ]; then
+              echo "GOOGLE_IDENTITY_EMAIL=${{ secrets.GOOGLE_IDENTITY_EMAIL }}" >> $ENV_FILE
+            elif [ "$SECRET" = "GOOGLE_PROJECT_ID" ]; then
+              echo "GOOGLE_PROJECT_ID=${{ secrets.GOOGLE_PROJECT_ID }}" >> $ENV_FILE
+            elif [ "$SECRET" = "AWS_ACCESS_KEY_ID" ]; then
+              echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $ENV_FILE
+            elif [ "$SECRET" = "AWS_SECRET_ACCESS_KEY" ]; then
+              echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $ENV_FILE
+            fi
           done
           
           echo "Created environment file with secrets for ${{ matrix.integration.name }}"
@@ -112,7 +128,6 @@ jobs:
           version: 2025.4.4
           experimental: true
         env:
-          # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: go-cache-paths
@@ -131,7 +146,6 @@ jobs:
           go test -v ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
         shell: bash
         env:
-          # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET: ${{ matrix.integration.target }}
