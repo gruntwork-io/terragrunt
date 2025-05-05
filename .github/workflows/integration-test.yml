@@ -21,48 +21,64 @@ jobs:
             os: ubuntu
             target: ./test
             setup_scripts: []
+            tags: []
+            run: ''
             secrets: []
           - name: SSH
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/ssh.sh
+            tags: ssh
+            run: '^TestSSH'
             secrets: [GHA_DEPLOY_KEY]
           - name: SOPS
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/sops.sh
+            tags: sops
+            run: '^TestSOPS'
             secrets: []
           - name: Tflint
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/tflint.sh
+            tags: tflint
+            run: '^TestTflint'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
           - name: GCP
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/gcp.sh
+            tags: gcp
+            run: '^TestGcp'
             secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
           - name: AWS
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/aws.sh
+            tags: aws
+            run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
           - name: AWSGCP
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/awsgcp.sh
+            tags: awsgcp
+            run: '^TestAwsGcp'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
           - name: Engine
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/engine.sh
+            tags: engine
+            run: '^TestEngine'
             secrets: []
 
     steps:
