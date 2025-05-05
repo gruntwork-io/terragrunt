@@ -20,61 +20,50 @@ jobs:
           - name: Fixtures
             os: ubuntu
             target: ./test
+            setup_scripts: []
+            secrets: []
           - name: SSH
             os: ubuntu
             target: ./...
-            tags: ssh
-            run: '^TestSSH'
-            requires_setup: true
-            setup_script: .github/scripts/setup/ssh.sh
+            setup_scripts:
+              - .github/scripts/setup/ssh.sh
             secrets: [GHA_DEPLOY_KEY]
           - name: SOPS
             os: ubuntu
             target: ./...
-            tags: sops
-            run: '^TestSOPS'
-            requires_setup: true
-            setup_script: .github/scripts/setup/sops.sh
+            setup_scripts:
+              - .github/scripts/setup/sops.sh
             secrets: []
           - name: Tflint
             os: ubuntu
             target: ./...
-            tags: tflint
-            run: '^TestTflint'
-            requires_setup: true
-            setup_script: .github/scripts/setup/tflint.sh
+            setup_scripts:
+              - .github/scripts/setup/tflint.sh
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
           - name: GCP
             os: ubuntu
             target: ./...
-            tags: gcp
-            run: '^TestGcp'
-            requires_setup: true
-            setup_script: .github/scripts/setup/gcp.sh
+            setup_scripts:
+              - .github/scripts/setup/gcp.sh
             secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
           - name: AWS
             os: ubuntu
             target: ./...
-            tags: aws
-            run: '^TestAws'
-            requires_setup: true
-            setup_script: .github/scripts/setup/aws.sh
+            setup_scripts:
+              - .github/scripts/setup/aws.sh
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
           - name: AWSGCP
             os: ubuntu
             target: ./...
-            tags: awsgcp
-            run: '^TestAwsGcp'
-            requires_setup: true
-            setup_script: .github/scripts/setup/awsgcp.sh
+            setup_scripts:
+              - .github/scripts/setup/aws.sh
+              - .github/scripts/setup/gcp.sh
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
           - name: Engine
             os: ubuntu
             target: ./...
-            tags: engine
-            run: '^TestEngine'
-            requires_setup: true
-            setup_script: .github/scripts/setup/engine.sh
+            setup_scripts:
+              - .github/scripts/setup/engine.sh
             secrets: []
 
     steps:
@@ -86,26 +75,33 @@ jobs:
         id: generate-secrets
         run: |
           ENV_FILE="${GITHUB_WORKSPACE}/.env.secrets"
-          echo "export SCRIPT_PATH='${{ matrix.integration.setup_script }}'" > $ENV_FILE
+          echo "export SCRIPT_PATHS='${{ matrix.integration.setup_scripts }}'" > $ENV_FILE
           
+          # Loop through secrets dynamically and export them to the file
           for SECRET in ${{ join(matrix.integration.secrets, ' ') }}; do
-            SECRET_VALUE="${{ secrets[SECRET] }}"
+            SECRET_VALUE_NAME="secrets.${SECRET}"
+            SECRET_VALUE="${{ env[SECRET_VALUE_NAME] }}"
             if [[ -n "$SECRET_VALUE" ]]; then
               printf "export %s='%s'\n" "$SECRET" "$SECRET_VALUE" >> $ENV_FILE
             fi
           done
-          
+
           echo "Created environment file with secrets for ${{ matrix.integration.name }}"
         shell: bash
-
 
       - name: Setup
         if: ${{ matrix.integration.requires_setup }}
         run: |
-          # Source the environment file and run setup script
+          # Source the environment file
           source "${GITHUB_WORKSPACE}/.env.secrets"
-          chmod +x "${SCRIPT_PATH}"
-          "${SCRIPT_PATH}"
+          
+          # Loop through setup scripts and execute them
+          for SCRIPT in ${{ matrix.integration.setup_scripts }}; do
+            if [[ -n "$SCRIPT" ]]; then
+              chmod +x "$SCRIPT"
+              "$SCRIPT"
+            fi
+          done
         shell: bash
 
       - name: Use mise to install dependencies
