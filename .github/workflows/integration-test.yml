@@ -89,23 +89,15 @@ jobs:
           echo "export SCRIPT_PATH='${{ matrix.integration.setup_script }}'" > $ENV_FILE
           
           for SECRET in ${{ join(matrix.integration.secrets, ' ') }}; do
+            # Map SSH_KEY to GHA_DEPLOY_KEY, otherwise use the same name
+            SECRET_ENV_NAME="$SECRET"
+            SECRET_GITHUB_NAME="$SECRET"
             if [ "$SECRET" = "SSH_KEY" ]; then
-              printf "export SSH_KEY='%s'\n" "${{ secrets.GHA_DEPLOY_KEY }}" >> $ENV_FILE
-            elif [ "$SECRET" = "GCLOUD_SERVICE_KEY" ]; then
-              printf "export GCLOUD_SERVICE_KEY='%s'\n" "${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
-            elif [ "$SECRET" = "GOOGLE_CLOUD_PROJECT" ]; then
-              printf "export GOOGLE_CLOUD_PROJECT='%s'\n" "${{ secrets.GOOGLE_CLOUD_PROJECT }}" >> $ENV_FILE
-            elif [ "$SECRET" = "GOOGLE_COMPUTE_ZONE" ]; then
-              printf "export GOOGLE_COMPUTE_ZONE='%s'\n" "${{ secrets.GOOGLE_COMPUTE_ZONE }}" >> $ENV_FILE
-            elif [ "$SECRET" = "GOOGLE_IDENTITY_EMAIL" ]; then
-              printf "export GOOGLE_IDENTITY_EMAIL='%s'\n" "${{ secrets.GOOGLE_IDENTITY_EMAIL }}" >> $ENV_FILE
-            elif [ "$SECRET" = "GOOGLE_PROJECT_ID" ]; then
-              printf "export GOOGLE_PROJECT_ID='%s'\n" "${{ secrets.GOOGLE_PROJECT_ID }}" >> $ENV_FILE
-            elif [ "$SECRET" = "AWS_ACCESS_KEY_ID" ]; then
-              printf "export AWS_ACCESS_KEY_ID='%s'\n" "${{ secrets.AWS_ACCESS_KEY_ID }}" >> $ENV_FILE
-            elif [ "$SECRET" = "AWS_SECRET_ACCESS_KEY" ]; then
-              printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $ENV_FILE
+              SECRET_GITHUB_NAME="GHA_DEPLOY_KEY"
             fi
+            # Use indirect expansion to get the secret value from GitHub Actions
+            SECRET_VALUE="${{ secrets[SECRET_GITHUB_NAME] }}"
+            printf "export %s='%s'\n" "$SECRET_ENV_NAME" "$SECRET_VALUE" >> $ENV_FILE
           done
           
           echo "Created environment file with secrets for ${{ matrix.integration.name }}"
