@@ -3,7 +3,7 @@ title: Authentication
 description: Learn how Terragrunt helps you automate authentication workflows.
 slug: docs/features/authentication
 sidebar:
-  order: 8
+  order: 9
 ---
 
 ## Motivation

@@ -3,7 +3,7 @@ title: Scaffold
 description: Learn how to scaffold Terragrunt units.
 slug: docs/features/scaffold
 sidebar:
-  order: 6
+  order: 7
 ---
 
 Terragrunt scaffolding can generate files for you automatically using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates.

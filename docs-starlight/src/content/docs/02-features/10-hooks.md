@@ -3,7 +3,7 @@ title: Hooks
 description: Learn how to execute custom code before or after running OpenTofu/Terraform, or when errors occur.
 slug: docs/features/hooks
 sidebar:
-  order: 9
+  order: 10
 ---
 
 _Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before/after running an `tofu`/`terraform` command.
