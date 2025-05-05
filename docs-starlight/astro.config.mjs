@@ -3,8 +3,8 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightLinksValidator from "starlight-links-validator";
 import vercel from "@astrojs/vercel";
-
 import d2 from "astro-d2";
+import tailwindcss from "@tailwindcss/vite";
 
 export const sidebar = [
   {
@@ -78,6 +78,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Terragrunt",
+      customCss: ["./src/styles/global.css"],
       logo: {
         dark: "/src/assets/logo-light.svg",
         light: "/src/assets/logo-dark.svg",
@@ -161,5 +162,8 @@ export default defineConfig({
     "/docs/features/auto-retry/": "/docs/features/runtime-control/",
     "/docs/features/provider-cache/": "/docs/features/provider-cache-server/",
     "/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
+  },
+  vite: {
+    plugins: [tailwindcss()],
   },
 });
