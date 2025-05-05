@@ -184,7 +184,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, bucketName 
 	if bucketUpdatesRequired.Versioning {
 		if client.SkipBucketVersioning {
 			client.logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", bucketName)
-		} else if err := client.EnableVersioningForS3Bucket(); err != nil {
+		} else if err := client.EnableVersioningForS3Bucket(bucketName); err != nil {
 			return err
 		}
 	}
@@ -293,6 +293,12 @@ func (client *Client) configureAccessLogBucket(ctx context.Context, opts *option
 
 			return err
 		}
+	}
+
+	if client.SkipBucketVersioning {
+		client.logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", client.AccessLoggingBucketName)
+	} else if err := client.EnableVersioningForS3Bucket(client.AccessLoggingBucketName); err != nil {
+		return err
 	}
 
 	return nil
@@ -479,7 +485,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 
 	if client.SkipBucketVersioning {
 		client.logger.Debugf("Versioning is disabled for the remote state S3 bucket %s using 'skip_bucket_versioning' config.", cfg.Bucket)
-	} else if err := client.EnableVersioningForS3Bucket(); err != nil {
+	} else if err := client.EnableVersioningForS3Bucket(cfg.Bucket); err != nil {
 		return err
 	}
 
@@ -939,21 +945,19 @@ func (client *Client) EnableEnforcedTLSAccesstoS3Bucket(bucket string) error {
 // Helper function to check if the enforced TLS policy is enabled for the bucket
 
 // EnableVersioningForS3Bucket enables versioning for the S3 bucket specified in the given config.
-func (client *Client) EnableVersioningForS3Bucket() error {
-	cfg := &client.RemoteStateConfigS3
-
-	client.logger.Debugf("Enabling versioning on S3 bucket %s", cfg.Bucket)
+func (client *Client) EnableVersioningForS3Bucket(bucketName string) error {
+	client.logger.Debugf("Enabling versioning on S3 bucket %s", bucketName)
 	input := s3.PutBucketVersioningInput{
-		Bucket:                  aws.String(cfg.Bucket),
+		Bucket:                  aws.String(bucketName),
 		VersioningConfiguration: &s3.VersioningConfiguration{Status: aws.String(s3.BucketVersioningStatusEnabled)},
 	}
 
 	_, err := client.PutBucketVersioning(&input)
 	if err != nil {
-		return errors.Errorf("error enabling versioning on S3 bucket %s: %w", cfg.Bucket, err)
+		return errors.Errorf("error enabling versioning on S3 bucket %s: %w", bucketName, err)
 	}
 
-	client.logger.Debugf("Enabled versioning on S3 bucket %s", cfg.Bucket)
+	client.logger.Debugf("Enabled versioning on S3 bucket %s", bucketName)
 
 	return nil
 }

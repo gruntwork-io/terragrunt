@@ -80,7 +80,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 
 				require.NoError(t, err)
 
-				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 			},
 		},
@@ -92,7 +92,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 
 				require.NoError(t, err)
 
-				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, true)
 			},
 		},
@@ -104,7 +104,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 
 				require.NoError(t, err)
 
-				validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 			},
 		},
@@ -161,7 +161,7 @@ func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" apply")
 	require.NoError(t, err)
 
-	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
 	assert.Contains(t, stderr, "Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.")
@@ -204,7 +204,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature disable_versioning=true --backend-bootstrap apply")
 	require.NoError(t, err)
 
-	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, false, nil)
 	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
@@ -212,6 +212,36 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all --force")
 	require.NoError(t, err)
+}
+
+func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureS3Backend)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3Backend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3Backend)
+
+	testID := strings.ToLower(helpers.UniqueID())
+
+	s3BucketName := "terragrunt-test-bucket-" + testID
+	s3AccessLogsBucketName := "terragrunt-test-bucket-" + testID + "-access-logs"
+	dynamoDBName := "terragrunt-test-dynamodb-" + testID
+
+	defer func() {
+		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, s3AccessLogsBucketName, helpers.TerraformRemoteStateS3Region)
+		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+	}()
+
+	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature access_logging_bucket="+s3AccessLogsBucketName+" --backend-bootstrap apply")
+	require.NoError(t, err)
+
+	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
+	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3AccessLogsBucketName, true, nil)
+	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 }
 
 func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
@@ -238,7 +268,7 @@ func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+unitPath+" --feature disable_versioning=true --backend-bootstrap apply -- -auto-approve")
 	require.NoError(t, err)
 
-	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, nil)
+	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, false, nil)
 	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend migrate unit1 unit2")
@@ -471,7 +501,7 @@ func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 	var expectedS3Tags = map[string]string{
 		"owner": "terragrunt integration test",
 		"name":  "Terraform state storage"}
-	validateS3BucketExistsAndIsTagged(t, helpers.TerraformRemoteStateS3Region, s3BucketName, expectedS3Tags)
+	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, expectedS3Tags)
 
 	var expectedDynamoDBTableTags = map[string]string{
 		"owner": "terragrunt integration test",
@@ -1590,6 +1620,21 @@ func assertS3Tags(t *testing.T, expectedTags map[string]string, bucketName strin
 	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
 }
 
+func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, client *s3.S3) {
+	t.Helper()
+
+	res, err := client.GetBucketVersioning(&s3.GetBucketVersioningInput{Bucket: aws.String(bucketName)})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Status)
+
+	if versioning {
+		assert.Equal(t, *res.Status, s3.BucketVersioningStatusEnabled, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
+	} else {
+		assert.NotEqual(t, *res.Status, s3.BucketVersioningStatusEnabled, "Versioning is enabled for the remote state S3 bucket %s", bucketName)
+	}
+}
+
 // Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
 // Also check if table got tagged properly
 func validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string, expectedSSEncrypted bool) {
@@ -1651,7 +1696,7 @@ func doesDynamoDBTableItemExist(t *testing.T, awsRegion string, tableName, key s
 
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
 // Also check if bucket got tagged properly and that public access is disabled completely.
-func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
+func validateS3BucketExistsAndIsTaggedAndVersioning(t *testing.T, awsRegion string, bucketName string, versioning bool, expectedTags map[string]string) {
 	t.Helper()
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
@@ -1662,6 +1707,8 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 	if expectedTags != nil {
 		assertS3Tags(t, expectedTags, bucketName, client)
 	}
+
+	assertS3BucketVersioning(t, bucketName, versioning, client)
 
 	assertS3PublicAccessBlocks(t, client, bucketName)
 }
