@@ -1,236 +1,462 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-
-const pageTitle = "Terragrunt by Gruntwork | Flexible IaC that Scales";
-
-// Placeholder data for logos - replace with actual image paths or SVG components
-const companyLogos = [
-  { name: "Company A", placeholder: "bg-gray-300", alt: "Logo for Company A" },
-  { name: "Company B", placeholder: "bg-gray-400", alt: "Logo for Company B" },
-  { name: "Company C", placeholder: "bg-gray-500", alt: "Logo for Company C" },
-  { name: "Company D", placeholder: "bg-gray-300", alt: "Logo for Company D" },
-  { name: "Company E", placeholder: "bg-gray-400", alt: "Logo for Company E" },
-  { name: "Company F", placeholder: "bg-gray-500", alt: "Logo for Company F" },
-  { name: "Company G", placeholder: "bg-gray-300", alt: "Logo for Company G" },
-];
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 ---
-<BaseLayout title={pageTitle}>
 
-  {/* Navbar Section */}
-  <header class="bg-white shadow-sm sticky top-0 z-50">
-    {/* Apply container centering and padding to the nav element itself */}
-    <nav class="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-      {/* Logo */}
-      <a href="/" class="flex items-center space-x-2 flex-shrink-0" aria-label="Terragrunt Homepage">
-        {/* Placeholder Logo SVG: Explicit height and width */}
-        <svg class="h-8 w-8 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"></path></svg>
-        <span class="font-bold text-xl text-gray-800">Terragrunt <span class="text-gray-500 font-normal text-sm">by Gruntwork</span></span>
-      </a>
+<StarlightPage frontmatter={{
+	template: 'splash',
+	title: '',
+	description: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+	pagefind: false,
+}}>
 
-      {/* Navigation Links & Actions */}
-      {/* Added min-w-0 to prevent flex item overflow issues on very small screens if needed */}
-      <div class="flex items-center space-x-3 sm:space-x-4 lg:space-x-6 min-w-0">
-        {/* Search Placeholder Button */}
-        <button class="text-gray-500 hover:text-gray-700 hidden md:block p-1 flex-shrink-0" aria-label="Search (coming soon)">
-          {/* Search Icon: Explicit height and width */}
-          <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-        </button>
-        {/* GitHub Stars Link */}
-        <a href="https://github.com/gruntwork-io/terragrunt" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-900 flex items-center space-x-1 flex-shrink-0" aria-label="View Terragrunt on GitHub">
-          {/* GitHub Icon: Explicit height and width */}
-          <svg class="h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"> <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/> </svg>
-          <span class="hidden sm:inline text-sm">Stars</span>
-          {/* Placeholder for star count */}
-        </a>
-        {/* Discord Link */}
-        <a href="https://discord.gg/gruntwork" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-900 p-1 flex-shrink-0" aria-label="Join the Gruntwork Discord">
-          {/* Discord Icon: Explicit height and width */}
-          <svg class="h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.54 0c1.356 0 2.46 1.104 2.46 2.472v21.528l-2.58-2.28-1.452-1.344-1.536-1.428.636 2.22h-13.608c-1.356 0-2.46-1.104-2.46-2.472v-16.224c0-1.368 1.104-2.472 2.46-2.472h16.08zm-4.632 15.672c2.652-.084 3.672-1.824 3.672-1.824 0-3.864-1.728-6.996-1.728-6.996-1.728-1.296-3.372-1.26-3.372-1.26l-.168.192c2.04.624 2.988 1.524 2.988 1.524-1.248-.684-2.472-1.02-3.612-1.152-.864-.096-1.692-.072-2.424.024l-.204.048c-.612.168-1.2.396-1.74.696-.6.348-1.164.78-1.644 1.284-.528.54-1.008 1.14-1.38 1.788-.42.744-.708 1.548-.828 2.388-.168 1.032-.048 2.076.18 3.084.228 1.008.636 1.956 1.224 2.808.588.84 1.32 1.584 2.16 2.208.84.624 1.764 1.116 2.724 1.476l.072.024c.132.024.264.048.396.06.252.036.504.06.768.072.264.012.528.012.78.012.144 0 .288-.012.432-.012.648-.048 1.284-.144 1.872-.288.816-.192 1.572-.48 2.244-.84.564-.312 1.056-.708 1.464-1.164.384-.432.696-.912.924-1.428.228-.492.372-1.008.444-1.536.06-.528.072-1.056.024-1.572l-.048-.276zm-8.232-1.488c0 .84-.708 1.524-1.572 1.524-.864 0-1.572-.684-1.572-1.524 0-.84.708-1.524 1.572-1.524.864 0 1.572.684 1.572 1.524zm4.98 0c0 .84-.708 1.524-1.572 1.524-.864 0-1.572-.684-1.572-1.524 0-.84.708-1.524 1.572-1.524.864 0 1.572.684 1.572 1.524z"/></svg>
-        </a>
-        {/* Commercial Links */}
-        {/* Added flex-shrink-0 to prevent shrinking on small screens */}
-        <a href="#" class="text-sm font-medium text-blue-600 hover:text-blue-800 hidden lg:block flex-shrink-0 whitespace-nowrap">Automate your pipeline*</a>
-        <a href="#" class="text-sm font-medium text-blue-600 hover:text-blue-800 hidden lg:block flex-shrink-0 whitespace-nowrap">Support*</a>
-      </div>
-    </nav>
-  </header>
+	<div class="section hero-section">
+		<h1 class="hero-title">Flexible IaC That Scales</h1>
+		<p class="hero-tagline">Production-grade infrastructure tooling for OpenTofu/Terraform from the DevOps experts at Gruntwork.</p>
+		<div class="hero-buttons">
+			<a href="/getting-started/" class="btn-primary">Quick Start</a>
+			<a href="/introduction/" class="btn-secondary">Docs</a>
+		</div>
+	</div>
 
-  <main>
-    {/* Hero Section */}
-    <section class="bg-gradient-to-b from-white to-gray-50 pt-20 pb-24 sm:pt-28 sm:pb-32 text-center">
-      <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight">
-          Flexible IaC that scales
-        </h1>
-        <p class="mt-6 max-w-3xl mx-auto text-lg sm:text-xl md:text-2xl text-gray-600 leading-relaxed">
-          Production-grade infrastructure tooling for OpenTofu/Terraform from the DevOps experts at Gruntwork.
-        </p>
-        <div class="mt-10 flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-          <a
-            href="https://terragrunt.gruntwork.io/docs/getting-started/quick-start/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-block w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg text-lg shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:-translate-y-1"
-            aria-label="Quick Start Guide"
-          >
-            Quick Start
-          </a>
-          <a
-            href="https://terragrunt.gruntwork.io/docs/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-block w-full sm:w-auto bg-white hover:bg-gray-100 text-blue-600 font-semibold py-3 px-8 rounded-lg text-lg shadow-md hover:shadow-lg border border-gray-300 transition-all duration-300 ease-in-out"
-            aria-label="View Documentation"
-          >
-            Docs
-          </a>
-        </div>
-      </div>
-    </section>
+	<div class="section logo-section">
+		<h2 class="logo-title">
+			Orchestrating infrastructure at
+		</h2>
+		<div class="logo-grid">
+			<img src="/placeholder-logo.svg" alt="Client Logo 1" class="logo-img" />
+			<img src="/placeholder-logo.svg" alt="Client Logo 2" class="logo-img" />
+			<img src="/placeholder-logo.svg" alt="Client Logo 3" class="logo-img" />
+			<img src="/placeholder-logo.svg" alt="Client Logo 4" class="logo-img" />
+			<img src="/placeholder-logo.svg" alt="Client Logo 5" class="logo-img" />
+			<img src="/placeholder-logo.svg" alt="Client Logo 6" class="logo-img" />
+			<img src="/placeholder-logo.svg" alt="Client Logo 7" class="logo-img" />
+		</div>
+	</div>
 
-    {/* Logo Bar Section */}
-    <section class="bg-gray-50 py-12 sm:py-16">
-      <div class="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-8">
-          Orchestrating infrastructure at
-        </h2>
-        <div class="flex flex-wrap justify-center items-center gap-8 sm:gap-10 lg:gap-12">
-          {/* Updated logo placeholders: Use img tag structure, constrain height, auto width */}
-          {companyLogos.map(logo => (
-            <div class="flex justify-center items-center h-10 sm:h-12 px-2" title={logo.name}>
-               {/* Placeholder - Replace with actual <img> tag */}
-               {/* <img src="/path/to/logo.svg" alt={logo.alt} class="h-full w-auto max-w-full object-contain" /> */}
-               <div class={`h-full w-24 sm:w-32 ${logo.placeholder} rounded flex items-center justify-center text-xs text-white font-medium opacity-60 hover:opacity-100 transition-opacity`}>
-                 {logo.name}
-               </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
+	<div class="section">
+		<h2 class="section-title">
+			The Best Way to Manage Infrastructure at Scale
+		</h2>
+		<p class="section-description">
+			Organically shaped by years of solving scaling problems for organizations managing massive OpenTofu/Terraform infrastructure estates.
+		</p>
+	</div>
 
-    {/* Feature Sections */}
-    <section class="py-16 sm:py-24 bg-white">
-      <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+	<div class="features-grid">
+		<div class="feature-card">
+			<h3 class="feature-title">Control Your Infrastructure</h3>
+			<p class="feature-subtitle">Limit Your Blast Radius 🎯</p>
+			<p class="feature-description">Break down your monolithic infrastructure to manageable units that are safe to update independently, and have their own state.</p>
+		</div>
 
-        {/* Section: Best Way */}
-        <div class="text-center max-w-3xl mx-auto mb-16 sm:mb-20">
-          <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
-            The Best Way to Manage Infrastructure at Scale
-          </h2>
-          <p class="text-lg sm:text-xl text-gray-600 leading-relaxed">
-            Organically shaped by years of solving scaling problems for organizations managing massive OpenTofu/Terraform infrastructure estates.
-          </p>
-        </div>
+		<div class="feature-card">
+			<h3 class="feature-title">Orchestrate Your Infrastructure</h3>
+			<p class="feature-description">Reject all-or-nothing updates. Control exactly what infrastructure is updated, how it gets updated, and in what order by taking advantage of stacks.</p>
+		</div>
 
-        {/* Feature Grid/List */}
-        {/* Increased gap for better spacing */}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 lg:gap-14">
+		<div class="feature-card">
+			<h3 class="feature-title">Automate Your Backend Infrastructure</h3>
+			<p class="feature-description">Ensure your entire team is using secure, consistent OpenTofu/Terraform state backend configurations.</p>
+		</div>
 
-          {/* Feature: Control */}
-          <div class="space-y-3">
-            <h3 class="text-xl font-semibold text-gray-900">Control Your Infrastructure</h3>
-            <p class="text-gray-600 leading-relaxed"> {/* Added leading-relaxed */}
-              Limit Your Blast Radius 🎯 <br/>
-              Break down your monolithic infrastructure to manageable units that are safe to update independently, and have their own state.
-            </p>
-          </div>
+		<div class="feature-card">
+			<h3 class="feature-title">Reduce Code Duplication</h3>
+			<p class="feature-subtitle">Includes</p>
+			<p class="feature-description">Define reusable infrastructure configurations once, and reference them wherever they're needed using includes.</p>
+			<p class="feature-subtitle">Reuse Production-Ready Patterns</p>
+			<p class="feature-description">Leverage the special construct of the Terragrunt Stack to encapsulate higher level collections of infrastructure components as a unified stack.</p>
+			<p class="feature-subtitle">Out of the Box Self-Service</p>
+			<p class="feature-description">Maintain and expose an infrastructure catalog that your engineers can consume on demand. Make the easiest way to provision infrastructure the right way.</p>
+		</div>
 
-          {/* Feature: Orchestrate */}
-          <div class="space-y-3">
-            <h3 class="text-xl font-semibold text-gray-900">Orchestrate Your Infrastructure</h3>
-            <p class="text-gray-600 leading-relaxed"> {/* Added leading-relaxed */}
-              Reject all-or-nothing updates. Control exactly what infrastructure is updated, how it gets updated, and in what order by taking advantage of stacks.
-            </p>
-          </div>
+		<div class="feature-card">
+			<h3 class="feature-title">Ensure Consistency and Safety</h3>
+			<p class="feature-subtitle">Codify Tribal Knowledge</p>
+			<p class="feature-subtitle">Automate Operational Tasks Using Hooks</p>
+			<p class="feature-description">Don't ask that your engineers remember to do things before/after updating IaC, codify those tasks with hooks so that they're done automatically.</p>
+			<p class="feature-subtitle">Handle Expected Errors</p>
+			<p class="feature-description">Your engineers know that networks can be flaky, and cloud providers aren't perfect. Automatically handle the errors they produce using built-in error handling.</p>
+			<p class="feature-subtitle">Integrate Early and Often</p>
+			<p class="feature-description">Get your engineers on the same page. Keep them all working on a consistent, unified codebase, but gradually roll out new features using feature flags.</p>
+		</div>
+	</div>
 
-          {/* Feature: Automate Backend */}
-          <div class="space-y-3">
-            <h3 class="text-xl font-semibold text-gray-900">Automate Your Backend Infrastructure</h3>
-            <p class="text-gray-600 leading-relaxed"> {/* Added leading-relaxed */}
-              Ensure your entire team is using secure, consistent OpenTofu/Terraform state backend configurations.
-            </p>
-          </div>
+	<div class="section commercial-section">
+		<h2 class="commercial-heading">Supercharge Terragrunt for your Organization</h2>
+		<p class="commercial-description">
+			Buy a subscription to Gruntwork services to get a platform team for your platform team. Trade money for time, and focus your engineering efforts on the work that delivers value to your organization.
+		</p>
+		<div class="commercial-cards">
+			<div class="commercial-card">
+				<div class="commercial-icon">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+				</div>
+				<h3 class="commercial-title">Automate your CI/CD</h3>
+				<p class="commercial-text">Gruntwork Pipelines provides a highly secure, GitOps driven infrastructure pipeline with first-class support for Terragrunt features like Stacks.</p>
+				<a href="https://www.gruntwork.io/platform/pipelines" class="commercial-btn">Learn More →</a>
+			</div>
+			<div class="commercial-card">
+				<div class="commercial-icon">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+				</div>
+				<h3 class="commercial-title">Keep your IaC Fresh</h3>
+				<p class="commercial-text">Gruntwork Patcher makes updates to your infrastructure seamless, and will even patch your code to make it work with backward incompatible module releases. It also knows how to update your stacks and promote across environments.</p>
+				<a href="https://www.gruntwork.io/platform/patcher" class="commercial-btn">Learn More →</a>
+			</div>
+		</div>
+	</div>
 
-          {/* Feature: DRY */}
-          <div class="space-y-5">
-             <h3 class="text-xl font-semibold text-gray-900">Reduce Code Duplication</h3>
-             <div class="space-y-4 pl-4 border-l-2 border-blue-200"> {/* Increased space-y */}
-                <h4 class="font-medium text-gray-800">Includes</h4>
-                <p class="text-gray-600 text-sm leading-relaxed">Define reusable infrastructure configurations once, and reference them wherever they’re needed using includes.</p>
-                <h4 class="font-medium text-gray-800">Reuse Production-Ready Patterns</h4>
-                <p class="text-gray-600 text-sm leading-relaxed">Leverage the special construct of the Terragrunt Stack to encapsulate higher level collections of infrastructure components as a unified stack.</p>
-                <h4 class="font-medium text-gray-800">Out of the Box Self-Service</h4>
-                <p class="text-gray-600 text-sm leading-relaxed">Maintain and expose an infrastructure catalog that your engineers can consume on demand. Make the easiest way to provision infrastructure the right way.</p>
-             </div>
-          </div>
+	<div class="footer">
+		From the DevOps Experts at <a href="https://gruntwork.io" class="footer-link">Gruntwork</a>
+	</div>
 
-          {/* Feature: Consistency & Safety */}
-           <div class="space-y-5">
-             <h3 class="text-xl font-semibold text-gray-900">Codify Tribal Knowledge</h3>
-             <div class="space-y-4 pl-4 border-l-2 border-blue-200"> {/* Increased space-y */}
-                <h4 class="font-medium text-gray-800">Automate Operational Tasks Using Hooks</h4>
-                <p class="text-gray-600 text-sm leading-relaxed">Don’t ask that your engineers remember to do things before/after updating IaC, codify those tasks with hooks so that they’re done automatically.</p>
-                <h4 class="font-medium text-gray-800">Handle Expected Errors</h4>
-                <p class="text-gray-600 text-sm leading-relaxed">Your engineers know that networks can be flaky, and cloud providers aren’t perfect. Automatically handle the errors they produce using built-in error handling.</p>
-                <h4 class="font-medium text-gray-800">Integrate Early and Often</h4>
-                <p class="text-gray-600 text-sm leading-relaxed">Get your engineers on the same page. Keep them all working on a consistent, unified codebase, but gradually roll out new features using feature flags.</p>
-             </div>
-          </div>
-
-          {/* Empty div to push the last item if needed on certain grid layouts, or remove if layout adjusts well */}
-           <div class="hidden lg:block"></div>
-
-        </div>
-      </div>
-    </section>
-
-    {/* Upsell Section */}
-    <section class="bg-gradient-to-b from-gray-50 to-white py-16 sm:py-24">
-      <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl text-center">
-        <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
-          Supercharge Terragrunt for your Organization
-        </h2>
-        <p class="text-lg sm:text-xl text-gray-600 leading-relaxed mb-12">
-          Buy a subscription to Gruntwork services to get a platform team for your platform team. Trade money for time, and focus your engineering efforts on the work that delivers value to your organization.
-        </p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
-          {/* Added hover effect and slightly more padding */}
-          <div class="bg-white p-6 md:p-8 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200">
-            <h3 class="text-xl font-semibold text-gray-900 mb-3">Automate your CI/CD</h3>
-            <p class="text-gray-600 leading-relaxed"> {/* Added leading-relaxed */}
-              Gruntwork Pipelines is an out-of-the-box, best practices, secure CI/CD pipeline, built for Terragrunt, by the creators of Terragrunt.
-            </p>
-            {/* Optional: Add a link */}
-            {/* <a href="#" class="text-blue-600 hover:text-blue-800 font-medium mt-4 inline-block">Learn More &rarr;</a> */}
-          </div>
-           {/* Added hover effect and slightly more padding */}
-          <div class="bg-white p-6 md:p-8 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200">
-            <h3 class="text-xl font-semibold text-gray-900 mb-3">Keep your IaC Fresh</h3>
-            <p class="text-gray-600 leading-relaxed"> {/* Added leading-relaxed */}
-              Gruntwork Patcher is a dependency management tool that keeps your OpenTofu/Terraform modules up to date, even through breaking changes.
-            </p>
-            {/* Optional: Add a link */}
-            {/* <a href="#" class="text-blue-600 hover:text-blue-800 font-medium mt-4 inline-block">Learn More &rarr;</a> */}
-          </div>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  {/* Footer Section */}
-  <footer class="bg-gray-100 border-t border-gray-200 py-8">
-    <div class="container mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
-      From the DevOps Experts at <a href="https://gruntwork.io/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 font-medium">Gruntwork</a>
-    </div>
-  </footer>
-
-</BaseLayout>
+</StarlightPage>
 
 <style is:global>
-  /* Minor global adjustments if needed */
-  html {
-    scroll-padding-top: 80px; /* Adjust based on sticky header height */
-  }
+	.banner {
+		background-color: #c9d8f5;
+		color: #000;
+		text-align: center;
+		padding: 0.75rem;
+		font-weight: 500;
+	}
+
+	.banner-subtitle {
+		font-size: 0.875rem;
+		margin-top: 0.25rem;
+	}
+
+	.banner a {
+		text-decoration: underline;
+		color: #3182ce;
+	}
+
+	.section {
+		padding: 2rem 1rem;
+		max-width: 1200px;
+		margin: 0 auto;
+		text-align: center;
+	}
+
+	.hero-section {
+		padding: 3rem 1rem;
+		text-align: center;
+	}
+
+	.hero-title {
+		font-size: 2.5rem;
+		font-weight: 700;
+		margin-bottom: 1rem;
+	}
+
+	.hero-tagline {
+		font-size: 1.25rem;
+		color: var(--sl-color-gray-3);
+		margin-bottom: 2rem;
+		max-width: 800px;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	.hero-buttons {
+		display: flex;
+		gap: 1rem;
+		justify-content: center;
+		margin-top: 2rem;
+	}
+
+	.btn-primary, .btn-secondary {
+		padding: 0.625rem 1.5rem;
+		border-radius: 0.25rem;
+		font-weight: 500;
+		transition: all 0.2s ease;
+		text-decoration: none;
+		font-size: 1rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.btn-primary {
+		background-color: #4561FA;
+		color: white;
+		border: none;
+	}
+
+	:root[data-theme='light'] .btn-primary {
+		background-color: #3447FF;
+	}
+
+	.btn-primary:hover {
+		background-color: #3447FF;
+		transform: translateY(-1px);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	}
+
+	:root[data-theme='light'] .btn-primary:hover {
+		background-color: #2A39DF;
+	}
+
+	.btn-secondary {
+		background-color: transparent;
+		color: #B3C7FF;
+		border: 1px solid #B3C7FF;
+	}
+
+	:root[data-theme='light'] .btn-secondary {
+		color: #3447FF;
+		border-color: #3447FF;
+	}
+
+	.btn-secondary:hover {
+		background-color: rgba(179, 199, 255, 0.1);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	}
+
+	:root[data-theme='light'] .btn-secondary:hover {
+		background-color: rgba(52, 71, 255, 0.1);
+	}
+
+	.logo-section {
+		padding: 2rem 1rem 4rem;
+	}
+
+	.logo-title {
+		font-size: 1.25rem;
+		font-weight: 500;
+		color: var(--sl-color-gray-3);
+		margin-bottom: 2rem;
+		text-align: center;
+	}
+
+	.logo-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 2rem;
+		justify-content: center;
+		align-items: center;
+		max-width: 1200px;
+		margin: 0 auto;
+	}
+
+	.logo-img {
+		height: 2rem;
+		opacity: 0.6;
+		filter: grayscale(50%);
+		transition: all 0.2s ease;
+    margin-top: 1rem;
+	}
+
+	.logo-img:hover {
+		opacity: 1;
+		filter: grayscale(0%);
+	}
+
+	.section-title {
+		font-size: 2rem;
+		font-weight: 700;
+		margin-bottom: 1rem;
+	}
+
+	.section-description {
+		color: var(--sl-color-gray-3);
+		max-width: 800px;
+		margin: 0 auto 3rem;
+		font-size: 1.125rem;
+	}
+
+	.features-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+		gap: 1.5rem;
+		padding: 0 1.5rem;
+		max-width: 1200px;
+		margin: 0 auto 4rem;
+	}
+
+	.feature-card {
+		background-color: var(--sl-color-gray-7);
+		border-radius: 0.5rem;
+		padding: 1.5rem;
+		color: var(--sl-color-black);
+		height: 100%;
+		border: 1px solid var(--sl-color-gray-6);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin-top: 1rem;
+	}
+
+	:root.dark .feature-card {
+		background-color: var(--sl-color-gray-6);
+		color: var(--sl-color-white);
+		border: 1px solid var(--sl-color-gray-5);
+	}
+
+	.feature-title {
+		font-size: 1.25rem;
+		font-weight: 600;
+		margin-bottom: 0.75rem;
+	}
+
+	.feature-subtitle {
+		font-weight: 600;
+		color: var(--sl-color-accent);
+		margin-bottom: 0.3rem;
+		margin-top: 0.8rem;
+	}
+
+	.feature-description {
+		color: var(--sl-color-gray-3);
+		margin-bottom: 0.5rem;
+		line-height: 1.5;
+	}
+
+	.commercial-section {
+		background-color: var(--sl-color-black);
+		padding: 4rem 1.5rem;
+		text-align: center;
+		margin-top: 2rem;
+	}
+
+	:root[data-theme='light'] .commercial-section {
+		background-color: var(--sl-color-gray-1);
+	}
+
+	.commercial-heading {
+		font-size: 2rem;
+		font-weight: 700;
+		margin-bottom: 1rem;
+		color: var(--sl-color-white);
+	}
+
+	:root[data-theme='light'] .commercial-heading {
+		color: var(--sl-color-black);
+	}
+
+	.commercial-description {
+		color: var(--sl-color-gray-2);
+		max-width: 800px;
+		margin: 0 auto 3rem;
+		font-size: 1.125rem;
+	}
+
+	:root[data-theme='light'] .commercial-description {
+		color: var(--sl-color-gray-3);
+	}
+
+	.commercial-cards {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 2rem;
+		justify-content: center;
+		max-width: 1200px;
+		margin: 0 auto;
+	}
+
+	.commercial-card {
+		background-color: var(--sl-color-gray-6);
+		border-radius: 0.5rem;
+		padding: 1.5rem;
+		text-align: left;
+		flex: 1;
+		min-width: 300px;
+		max-width: 450px;
+		border: 1px solid var(--sl-color-gray-5);
+		box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-top: 1rem;
+	}
+
+	:root[data-theme='light'] .commercial-card {
+		background-color: var(--sl-color-white);
+		border: 1px solid var(--sl-color-gray-5);
+	}
+
+	.commercial-icon {
+		color: var(--sl-color-accent);
+		margin-bottom: 1rem;
+	}
+
+	.commercial-title {
+		font-size: 1.25rem;
+		font-weight: 600;
+		margin-bottom: 0.75rem;
+		color: var(--sl-color-white);
+	}
+
+	:root[data-theme='light'] .commercial-title {
+		color: var(--sl-color-black);
+	}
+
+	.commercial-text {
+		color: var(--sl-color-gray-2);
+		margin-bottom: 1.5rem;
+		line-height: 1.5;
+	}
+
+	:root[data-theme='light'] .commercial-text {
+		color: var(--sl-color-gray-4);
+	}
+
+	.commercial-btn {
+		display: inline-block;
+		padding: 0.5rem 1rem;
+		background-color: transparent;
+		color: var(--sl-color-accent-high);
+		border: 1px solid var(--sl-color-accent-high);
+		border-radius: 0.25rem;
+		text-decoration: none;
+		font-weight: 500;
+		transition: all 0.2s ease;
+	}
+
+	:root[data-theme='light'] .commercial-btn {
+		color: var(--sl-color-accent);
+		border-color: var(--sl-color-accent);
+	}
+
+	.commercial-btn:hover {
+		background-color: var(--sl-color-accent-high);
+		color: var(--sl-color-black);
+	}
+
+	:root[data-theme='light'] .commercial-btn:hover {
+		background-color: var(--sl-color-accent);
+		color: var(--sl-color-white);
+	}
+
+	.footer {
+		text-align: center;
+		padding: 3rem 0;
+		color: var(--sl-color-gray-3);
+	}
+
+	.footer-link {
+		color: var(--sl-color-accent);
+		text-decoration: none;
+	}
+
+	.footer-link:hover {
+		text-decoration: underline;
+	}
+
+	@media (max-width: 768px) {
+		.features-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.commercial-cards {
+			flex-direction: column;
+			align-items: center;
+		}
+
+		.hero-buttons {
+			flex-direction: column;
+			max-width: 200px;
+			margin: 0 auto;
+		}
+
+		.hero-title {
+			font-size: 2rem;
+		}
+	}
 </style>
