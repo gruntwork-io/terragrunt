@@ -41,6 +41,13 @@ jobs:
               run: '^TestTflint'
               requires_setup: true
               setup_script: .github/scripts/setup/tflint.sh
+            - name: GCP
+              os: ubuntu
+              target: ./...
+              tags: gcp
+              run: '^TestGcp'
+              requires_setup: true
+              setup_script: .github/scripts/setup/gcp.sh
 
     steps:
       - name: Checkout code
