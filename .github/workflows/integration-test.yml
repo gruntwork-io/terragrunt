@@ -17,69 +17,139 @@ jobs:
       fail-fast: false
       matrix:
         integration:
-            - name: Fixtures
-              os: ubuntu
-              target: ./test
-            - name: SSH
-              os: ubuntu
-              target: ./...
-              tags: ssh
-              run: '^TestSSH'
-              requires_setup: true
-              setup_script: .github/scripts/setup/ssh.sh
-            - name: SOPS
-              os: ubuntu
-              target: ./...
-              tags: sops
-              run: '^TestSOPS'
-              requires_setup: true
-              setup_script: .github/scripts/setup/sops.sh
-            - name: Tflint
-              os: ubuntu
-              target: ./...
-              tags: tflint
-              run: '^TestTflint'
-              requires_setup: true
-              setup_script: .github/scripts/setup/tflint.sh
-            - name: GCP
-              os: ubuntu
-              target: ./...
-              tags: gcp
-              run: '^TestGcp'
-              requires_setup: true
-              setup_script: .github/scripts/setup/gcp.sh
-            - name: AWS
-              os: ubuntu
-              target: ./...
-              tags: aws
-              run: '^TestAws'
-              requires_setup: true
-              setup_script: .github/scripts/setup/aws.sh
-            - name: AWSGCP
-              os: ubuntu
-              target: ./...
-              tags: awsgcp
-              run: '^TestAwsGcp'
-              requires_setup: true
-              setup_script: .github/scripts/setup/awsgcp.sh
-            - name: Engine
-              os: ubuntu
-              target: ./...
-              tags: engine
-              run: '^TestEngine'
-              requires_setup: true
-              setup_script: .github/scripts/setup/engine.sh
+          - name: Fixtures
+            os: ubuntu
+            target: ./test
+          - name: SSH
+            os: ubuntu
+            target: ./...
+            tags: ssh
+            run: '^TestSSH'
+            requires_setup: true
+            setup_script: .github/scripts/setup/ssh.sh
+            secrets: [SSH_KEY]
+          - name: SOPS
+            os: ubuntu
+            target: ./...
+            tags: sops
+            run: '^TestSOPS'
+            requires_setup: true
+            setup_script: .github/scripts/setup/sops.sh
+            secrets: []
+          - name: Tflint
+            os: ubuntu
+            target: ./...
+            tags: tflint
+            run: '^TestTflint'
+            requires_setup: true
+            setup_script: .github/scripts/setup/tflint.sh
+            secrets: []
+          - name: GCP
+            os: ubuntu
+            target: ./...
+            tags: gcp
+            run: '^TestGcp'
+            requires_setup: true
+            setup_script: .github/scripts/setup/gcp.sh
+            secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
+          - name: AWS
+            os: ubuntu
+            target: ./...
+            tags: aws
+            run: '^TestAws'
+            requires_setup: true
+            setup_script: .github/scripts/setup/aws.sh
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+          - name: AWSGCP
+            os: ubuntu
+            target: ./...
+            tags: awsgcp
+            run: '^TestAwsGcp'
+            requires_setup: true
+            setup_script: .github/scripts/setup/awsgcp.sh
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
+          - name: Engine
+            os: ubuntu
+            target: ./...
+            tags: engine
+            run: '^TestEngine'
+            requires_setup: true
+            setup_script: .github/scripts/setup/engine.sh
+            secrets: []
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Generate Secrets Environment
+        if: ${{ matrix.integration.requires_setup }}
+        id: generate-secrets
+        run: |
+          # Create a file to store environment variables
+          ENV_FILE="${{ github.workspace }}/.env.secrets"
+          touch $ENV_FILE
+          
+          # Add all basic env vars
+          echo "SCRIPT_PATH=${{ matrix.integration.setup_script }}" >> $ENV_FILE
+          
+          # Conditionally add secrets based on the matrix definition
+          # SSH
+          if [[ "${{ contains(matrix.integration.secrets, 'SSH_KEY') }}" == "true" ]]; then
+            echo "SSH_KEY<<EOF" >> $ENV_FILE
+            echo "${{ secrets.GHA_DEPLOY_KEY }}" >> $ENV_FILE
+            echo "EOF" >> $ENV_FILE
+          fi
+          
+          # GCP
+          if [[ "${{ contains(matrix.integration.secrets, 'GCLOUD_SERVICE_KEY') }}" == "true" ]]; then
+            echo "GCLOUD_SERVICE_KEY<<EOF" >> $ENV_FILE
+            echo "${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
+            echo "EOF" >> $ENV_FILE
+          fi
+          
+          if [[ "${{ contains(matrix.integration.secrets, 'GOOGLE_CLOUD_PROJECT') }}" == "true" ]]; then
+            echo "GOOGLE_CLOUD_PROJECT=${{ secrets.GOOGLE_CLOUD_PROJECT }}" >> $ENV_FILE
+          fi
+          
+          if [[ "${{ contains(matrix.integration.secrets, 'GOOGLE_COMPUTE_ZONE') }}" == "true" ]]; then
+            echo "GOOGLE_COMPUTE_ZONE=${{ secrets.GOOGLE_COMPUTE_ZONE }}" >> $ENV_FILE
+          fi
+          
+          if [[ "${{ contains(matrix.integration.secrets, 'GOOGLE_IDENTITY_EMAIL') }}" == "true" ]]; then
+            echo "GOOGLE_IDENTITY_EMAIL=${{ secrets.GOOGLE_IDENTITY_EMAIL }}" >> $ENV_FILE
+          fi
+          
+          if [[ "${{ contains(matrix.integration.secrets, 'GOOGLE_PROJECT_ID') }}" == "true" ]]; then
+            echo "GOOGLE_PROJECT_ID=${{ secrets.GOOGLE_PROJECT_ID }}" >> $ENV_FILE
+          fi
+          
+          # AWS
+          if [[ "${{ contains(matrix.integration.secrets, 'AWS_ACCESS_KEY_ID') }}" == "true" ]]; then
+            echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $ENV_FILE
+          fi
+          
+          if [[ "${{ contains(matrix.integration.secrets, 'AWS_SECRET_ACCESS_KEY') }}" == "true" ]]; then
+            echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $ENV_FILE
+          fi
+          
+          # Set output for debugging only (optional)
+          echo "env_file_created=true" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Setup
         if: ${{ matrix.integration.requires_setup }}
-        run: "${SCRIPT_PATH}"
-        env:
-          SCRIPT_PATH: ${{ matrix.integration.setup_script }}
-          SSH_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
+        run: |
+          # Source the environment variables
+          if [ -f "${{ github.workspace }}/.env.secrets" ]; then
+            source "${{ github.workspace }}/.env.secrets"
+          
+            # Run the setup script with the environment variables
+            "${SCRIPT_PATH}"
+          else
+            echo "Error: Environment file not found"
+            exit 1
+          fi
+        shell: bash
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -103,7 +173,7 @@ jobs:
 
       - name: Run Tests
         run: |
-            go test -v ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
+          go test -v ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
