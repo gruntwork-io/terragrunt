@@ -27,7 +27,6 @@ jobs:
             run: '^TestSSH'
             requires_setup: true
             setup_script: .github/scripts/setup/ssh.sh
-            secrets: [SSH_KEY]
           - name: SOPS
             os: ubuntu
             target: ./...
