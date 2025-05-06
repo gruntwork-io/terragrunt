@@ -78,7 +78,7 @@ func TestMain(m *testing.M) {
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	t.Parallel()
 
-	rootPath := helpers.CopyEnvironment(t, testFixtureDownloadPath)
+	rootPath := CopyEnvironmentWithTflint(t, testFixtureDownloadPath)
 	modulePath := util.JoinPath(rootPath, testFixtureLocalRelativeArgsWindowsDownloadPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s", modulePath))
@@ -105,7 +105,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 			fixtureSourceMapPath := "fixtures/source-map"
 			helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
 			targetPath := "C:\\test\\infrastructure-modules/"
-			copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
+			CopyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 			rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 
 			t.Setenv(
@@ -128,7 +128,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 func TestWindowsTflintIsInvoked(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
+	rootPath := CopyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
 	modulePath := util.JoinPath(rootPath, testFixtureTflintNoIssuesFound)
 	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --log-level trace --working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
@@ -144,7 +144,7 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 func TestWindowsManifestFileIsRemoved(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, testFixtureManifestRemoval)
+	rootPath := CopyEnvironmentWithTflint(t, testFixtureManifestRemoval)
 	modulePath := util.JoinPath(rootPath, testFixtureManifestRemoval, "app")
 	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --non-interactive --log-level trace --working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
@@ -223,7 +223,7 @@ func TestWindowsScaffoldRef(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
+func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	if err := os.MkdirAll(targetPath, 0777); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
 	}
@@ -232,8 +232,12 @@ func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	require.NoError(t, copyErr)
 }
 
-func copyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
+func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+	tmpDir, err := os.MkdirTemp(currentDir, "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
