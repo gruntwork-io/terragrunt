@@ -3,7 +3,7 @@ title: Auto-init
 description: Learn how Terragrunt makes it so that you don't have to explicitly call `init` when using it.
 slug: docs/features/auto-init
 sidebar:
-  order: 10
+  order: 11
 ---
 
 *Auto-Init* is a feature of Terragrunt that makes it so that `terragrunt init` does not need to be called explicitly before other terragrunt commands.

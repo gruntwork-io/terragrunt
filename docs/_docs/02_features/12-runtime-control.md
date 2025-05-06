@@ -1,24 +1,34 @@
 ---
+layout: collection-browser-doc
 title: Feature Flags, Errors and Excludes
-description: Learn how Terragrunt allows for runtime control using feature flags, error handling, and excludes.
-slug: docs/features/runtime-control
-sidebar:
-  order: 11
+category: features
+categories_url: features
+excerpt: Learn how Terragrunt allows for runtime control using feature flags, error handling, and excludes.
+tags: ["CLI"]
+order: 212
+nav_title: Documentation
+nav_title_link: /docs/
+redirect_from:
+    - /docs/features/auto-retry/
+slug: runtime-control
 ---
 
 Sometimes, you need to have Terragrunt behave differently at runtime due to specific context that you have in your environment.
 
-The following configuration blocks have been designed to work together in concert to provide you a great deal of flexibility in how Terragrunt behaves at runtime.
+The following configuration blocks have been designed to work together in concert to provide you a great deal of flexibility in how Terragrunt behaves at runtime:
+
+- [Feature Flags](#feature-flags)
+- [Errors](#errors)
+- [Excludes](#excludes)
+  - [Exclusion from the Run Queue](#exclusion-from-the-run-queue)
 
 ## Feature Flags
 
-Defined using the [feature](/docs/reference/hcl/blocks#feature) configuration block, Terragrunt allows for the control of specific features at runtime using feature flags.
+Defined using the [feature](/docs/reference/config-blocks-and-attributes/#feature) configuration block, Terragrunt allows for the control of specific features at runtime using feature flags.
 
 For example:
 
 ```hcl
-# terragrunt.hcl
-
 feature "s3_version" {
   default = "v1.0.0"
 }
@@ -43,19 +53,17 @@ export TG_FEATURE="s3_version=v1.1.0"
 terragrunt apply
 ```
 
-This can be a useful way to opt in to new features or to test changes in your infrastructure.
+This can be a useful way to opt-in to new features or to test changes in your infrastructure.
 
 Setting a different version of an OpenTofu/Terraform module in a lower environment can be useful for testing changes before rolling them out to production. Users will always use the default version unless they explicitly set a different value.
 
 ## Errors
 
-Defined using the [errors](/docs/reference/hcl/blocks#errors) configuration block, Terragrunt allows for fine-grained control of errors at runtime.
+Defined using the [errors](/docs/reference/config-blocks-and-attributes/#errors) configuration block, Terragrunt allows for fine-grained control of errors at runtime.
 
 For example:
 
 ```hcl
-# terragrunt.hcl
-
 errors {
     # Retry block for transient errors
     retry "transient_errors" {
@@ -87,8 +95,6 @@ It will also ignore any error that matches the regex `.*Error: safe warning.*`, 
 When it ignores an error that it can safely ignore, it will output the message `Ignoring safe warning errors`, and will generate a file named `error-signals.json` in the working directory with the following content:
 
 ```json
-# error-signals.json
-
 {
     "alert_team": false
 }
@@ -103,8 +109,6 @@ Say, for example, a developer was trying to roll out a new version of your modul
 You could use a feature flag to control introduction of that new module, and an error block to ignore any errors that you know are safe to ignore.
 
 ```hcl
-# terragrunt.hcl
-
 feature "enable_flaky_module" {
   default = false
 }
@@ -137,13 +141,11 @@ This pattern allows for greater speed of integration with larger codebases, and 
 
 ## Excludes
 
-Defined using the [exclude](/docs/reference/hcl/blocks#exclude) configuration block, Terragrunt allows for the exclusion of specific units at runtime.
+Defined using the [exclude](/docs/reference/config-blocks-and-attributes/#exclude) configuration block, Terragrunt allows for the exclusion of specific units at runtime.
 
 For example:
 
 ```hcl
-# terragrunt.hcl
-
 locals {
   day_of_week = formatdate("EEE", timestamp())
   ban_deploy  = contains(["Fri", "Sat", "Sun"], local.day_of_week)
@@ -157,7 +159,7 @@ exclude {
 
 In this example, the `exclude` block will prevent the `apply` command from running in a given unit on Fridays, Saturdays, and Sundays, as all good DevOps engineers know that deploying that close to a weekend is a recipe for disaster.
 
-While a toy example, this demonstrates how you can use the `exclude` block to use dynamic information at runtime to control the [run queue](/docs/getting-started/terminology/#run-queue).
+While a toy example, this demonstrates how you can use the `exclude` block to use dynamic information at runtime to control the [run queue](/docs/getting-started/terminology/#runner-queue).
 
 You can use this block to prevent certain units from running in certain environments, or to prevent certain commands from running in certain units.
 
@@ -203,7 +205,7 @@ exclude {
 }
 ```
 
-In this example, the `dev`, `stage` and `prod` directories have their own root configurations that are included by all units in their respective environments. The assumption of a configuration like this is that each environment is fully self-contained, and that the team has a desire to always update `dev` units, but wants to opt in changes to `stage` and `prod` units.
+In this example, the `dev`, `stage` and `prod` directories have their own root configurations that are included by all units in their respective environments. The assumption of a configuration like this is that each environment is fully self-contained, and that the team has a desire to always update `dev` units, but wants to opt-in changes to `stage` and `prod` units.
 
 In this setup, any `run --all` command like the following:
 
@@ -213,7 +215,7 @@ terragrunt run --all plan
 
 Will exclude all units in both the `stage` and `prod` directories, as the `feature` block in each of those directories is set to `false` by default. As a result, the only units that are run are those in the `dev` directory.
 
-When a user wants to opt in to updates for the `stage` environment, they could do something like this:
+When a user wants to opt-in updates for the `stage` environment, they could do something like this:
 
 ```bash
 terragrunt run --all --feature stage=true plan
@@ -238,8 +240,6 @@ If you would like to explicitly prevent a command from being run, even if a user
 For example:
 
 ```hcl
-# terragrunt.hcl
-
 locals {
   day_of_week = formatdate("EEE", timestamp())
   ban_deploy  = contains(["Fri", "Sat", "Sun"], local.day_of_week)

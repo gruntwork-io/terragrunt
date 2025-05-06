@@ -3,7 +3,7 @@ title: Content Addressable Store (CAS)
 description: Learn how Terragrunt supports deduplication of content using a Content Addressable Store (CAS).
 slug: docs/features/cas
 sidebar:
-  order: 14
+  order: 15
 ---
 
 Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations. This feature is still experimental and not recommended for general production usage.

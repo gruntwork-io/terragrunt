@@ -3,7 +3,7 @@ title: Catalog
 description: Learn how to search and use your module catalog with Terragrunt.
 slug: docs/features/catalog
 sidebar:
-  order: 5
+  order: 6
 ---
 
 Launch the user interface for searching and managing your module catalog.
