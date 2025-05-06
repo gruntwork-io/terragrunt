@@ -1,20 +1,23 @@
 ---
-title: Hooks
-description: Learn how to execute custom code before or after running OpenTofu/Terraform, or when errors occur.
-slug: docs/features/hooks
-sidebar:
-  order: 9
+layout: collection-browser-doc
+title: Before, After, and Error Hooks
+category: features
+categories_url: features
+excerpt: Learn how to execute custom code before or after running OpenTofu/Terraform, or when errors occur.
+tags: ["hooks"]
+order: 211
+nav_title: Documentation
+nav_title_link: /docs/
+slug: hooks
 ---
 
-_Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before/after running an `tofu`/`terraform` command.
+_Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before or after running an `tofu`/`terraform` command.
 
 They allow you to _orchestrate_ certain operations around IaC updates so that you have a consistent way to run custom code before or after running OpenTofu/Terraform.
 
 Here’s an example:
 
-```hcl
-# terragrunt.hcl
-
+``` hcl
 terraform {
   before_hook "before_hook" {
     commands     = ["apply", "plan"]
@@ -40,12 +43,12 @@ terraform {
 In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu plan` (or the `terraform` equivalent), three things will happen:
 
 - Before Terragrunt runs `tofu`/`terraform`, it will output `Running OpenTofu` to the console.
-- After Terragrunt runs `tofu`/`terraform`, it will output `Finished running OpenTofu`, regardless of whether the
+- After Terragrunt runs `tofu`/`terraform`, it will output `Finished running OpenTofu`, regardless of whether or not the
   command failed.
 - If an error occurs during the `tofu apply` command, Terragrunt will output `Error Hook executed`.
 
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
-block](/docs/reference/hcl/blocks#terraform).
+block](/docs/reference/config-blocks-and-attributes/#terraform).
 
 ## Hook Context
 
@@ -58,8 +61,6 @@ All hooks add extra environment variables when executing the hook's run command:
 For example:
 
 ```hcl
-# terragrunt.hcl
-
 terraform {
   before_hook "test_hook" {
     commands     = ["apply"]
@@ -70,15 +71,15 @@ terraform {
 
 Where `hook.sh` is:
 
-```bash
-# hook.sh
+``` bash
+#!/bin/sh
 
 echo "TF_PATH=${TG_CTX_TF_PATH} COMMAND=${TG_CTX_COMMAND} HOOK_NAME=${TG_CTX_HOOK_NAME}"
 ```
 
-Will result in the following output when Terragrunt runs `tofu apply`/`terraform apply`:
+Will result in the following output when running `tofu apply`/`terraform apply`:
 
-```bash
+``` bash
 TF_PATH=tofu COMMAND=apply HOOK_NAME=test_hook
 ```
 
@@ -93,6 +94,8 @@ for hook logic.
 For example:
 
 ```bash
+#!/usr/bin/env bash
+
 # Get the bucket_name output from OpenTofu/Terraform state
 BUCKET_NAME="$("$TG_CTX_TF_PATH" output -raw bucket_name)"
 
@@ -101,7 +104,7 @@ aws s3 ls "s3://$BUCKET_NAME"
 ```
 
 Note that the `TG_CTX_TF_PATH` environment variable is used here to ensure compatibility, regardless of the
-value of [tf-path](/docs/reference/cli/commands/run#tf-path). This can be a useful practice
+value of [tf-path](/docs/reference/cli-options/#tf-path). This can be a useful practice
 if you are migrating between OpenTofu or Terraform.
 
 You will also have access to all the `inputs` set in the `terragrunt.hcl` file as environment variables prefixed
@@ -110,8 +113,6 @@ by `TF_VAR_`, as that's how the variables are set for use in OpenTofu/Terraform.
 For example, if you have the following `inputs` block in your `terragrunt.hcl` file:
 
 ```hcl
-# terragrunt.hcl
-
 inputs = {
   bucket_name = "my-bucket"
 }
@@ -120,6 +121,8 @@ inputs = {
 You can access the `bucket_name` input in your hook as follows:
 
 ```bash
+#!/usr/bin/env bash
+
 # Get the bucket_name input from the terragrunt.hcl file
 BUCKET_NAME="$TF_VAR_bucket_name"
 
@@ -136,8 +139,6 @@ For example, you may be using Terragrunt to manage an [AWS ECS service](https://
 You can use a `before_hook` to build and push a new image to the [Elastic Container Registry (ECR)](https://aws.amazon.com/ecr/) before running `tofu apply`.
 
 ```hcl
-# terragrunt.hcl
-
 terraform {
   before_hook "build_and_push_image" {
     commands     = ["plan", "apply"]
@@ -149,8 +150,6 @@ terraform {
 Where `build_and_push_image.sh` is something like:
 
 ```bash
-# build_and_push_image.sh
-
 #!/usr/bin/env bash
 
 set -eou pipefail
@@ -170,13 +169,11 @@ aws ecr get-login-password --region us-east-1 | docker login --username AWS --pa
 docker push "$IMAGE_TAG"
 ```
 
-The hard-coding of values in the script could be replaced with context, as shown in the previous section.
+The hard-coding of values in the script could be replaced with context as shown in the previous section.
 
 Similarly, you may want to smoke-test newly deployed infrastructure after running `tofu apply`.
 
 ```hcl
-# terragrunt.hcl
-
 terraform {
   after_hook "smoke_test" {
     commands     = ["apply"]
@@ -189,8 +186,6 @@ terraform {
 Where `smoke_test.sh` is something like:
 
 ```bash
-# smoke_test.sh
-
 #!/usr/bin/env bash
 
 set -eou pipefail
@@ -211,8 +206,6 @@ You can have multiple before and after hooks. Each hook will execute in the orde
 For example:
 
 ```hcl
-# terragrunt.hcl
-
 terraform {
   before_hook "before_hook_1" {
     commands     = ["apply", "plan"]
@@ -232,12 +225,11 @@ to OpenTofu/Terraform.
 ## Tflint hook
 
 _Before Hooks_ or _After Hooks_ natively support _tflint_, a linter for OpenTofu/Terraform code. It will validate the
-OpenTofu/Terraform code used by Terragrunt, and its inputs.
+OpenTofu/Terraform code used by Terragrunt, and it's inputs.
 
 Here's an example:
-```hcl
-# terragrunt.hcl
 
+```hcl
 terraform {
   before_hook "before_hook" {
     commands     = ["apply", "plan"]
@@ -251,8 +243,6 @@ a `.tflint.hcl` file, it won't execute tflint and return an error. All configura
 file, as per [Tflint's docs](https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/config.md).
 
 ```hcl
-# .tflint.hcl
-
 plugin "aws" {
     enabled = true
     version = "0.21.0"
@@ -272,18 +262,16 @@ Any desired extra configuration should be added in the `.tflint.hcl` file.
 It will work with a `.tflint.hcl` file in the current folder or any parent folder.
 To utilize an alternative configuration file, use the `--config` flag with the path to the configuration file.
 
-If there is a need to run `tflint` from the operating system directly, use the extra parameter `--external-tflint`.
+If there is a need to run `tflint` from the operating system directly, use the extra parameter `--terragrunt-external-tflint`.
 This will result in usage of the `tflint` binary found in the `PATH` environment variable.
 
 For example:
 
 ```hcl
-# terragrunt.hcl
-
 terraform {
     before_hook "tflint" {
     commands = ["apply", "plan"]
-    execute = ["tflint" , "--external-tflint", "--minimum-failure-severity=error", "--config", "custom.tflint.hcl"]
+    execute = ["tflint" , "--terragrunt-external-tflint", "--minimum-failure-severity=error", "--config", "custom.tflint.hcl"]
   }
 }
 ```
@@ -297,7 +285,7 @@ _Public rulesets_
 
 _Private rulesets_
 
-If you want to run the `tflint` hook with custom rulesets defined in a private repository, you will need to export a valid `GITHUB_TOKEN` token.
+If you want to run a the `tflint` hook with custom rulesets defined in a private repository, you will need to export a valid `GITHUB_TOKEN` token.
 
 ### Troubleshooting
 
@@ -312,8 +300,6 @@ Failed to initialize plugins; Unrecognized remote plugin message: Incorrect Usag
 To fix this, make sure that the configuration for the `terraform` ruleset, in the `.tflint.hcl` file contains a version constraint:
 
 ```hcl
-# .tflint.hcl
-
 plugin "terraform" {
     enabled = true
     version = "0.2.1"

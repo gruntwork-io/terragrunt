@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how Terragrunt supports deduplication of content using a Content Addressable Store (CAS).
 tags: ["cas"]
-order: 214
+order: 215
 nav_title: Documentation
 nav_title_link: /docs/
 slug: cas

@@ -3,7 +3,7 @@ title: Provider Cache Server
 description: Learn how to use the Terragrunt provider cache server.
 slug: docs/features/provider-cache-server
 sidebar:
-  order: 12
+  order: 13
 ---
 
 Terragrunt has the ability to cache OpenTofu/Terraform providers across all OpenTofu/Terraform runs. The Provider Cache Server feature ensures that each provider is only ever downloaded and stored on disk exactly once by running a local provider cache server while Terragrunt runs OpenTofu/Terraform commands.
