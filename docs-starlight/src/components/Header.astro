@@ -27,19 +27,26 @@ const shouldRenderSearch =
 			<SocialIcons {...Astro.props} />
 		</div>
 		<div class="sl-flex social-icons">
-			<button>
-                <div class="flex flex-col">
-                    <span>Automate your Pipeline</span>
-                    <span>CI/CD by the creators of Terragrunt</span>
-                </div>
-            </button>
+			<a href="https://www.gruntwork.io/platform/pipelines" class="pipeline-pill">
+				<span class="pipeline-icon">
+					<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#A78BFA"/><circle cx="10" cy="10" r="4" fill="#fff"/></svg>
+				</span>
+				<span class="pipeline-text">
+					<span class="pipeline-title">Learn about Gruntwork Pipelines</span>
+					<span class="pipeline-subtitle">CI/CD built for Terragrunt & Stacks</span>
+				</span>
+				<span class="pipeline-arrow">
+					<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 6l4 4-4 4" stroke="#A78BFA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+				</span>
+			</a>
 		</div>
 		<div class="sl-flex social-icons">
-			<button>
-                <div class="flex flex-col">
-                    <span>Support</span>
-                </div>
-            </button>
+			<a href="https://www.gruntwork.io/services/terragrunt" class="support-btn">
+				Enterprise Support
+				<span class="support-arrow">
+					<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M8 6l4 4-4 4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+				</span>
+			</a>
 		</div>
 		<ThemeSelect {...Astro.props} />
 		<LanguageSelect {...Astro.props} />
@@ -92,7 +99,7 @@ const shouldRenderSearch =
 			);
 			display: grid;
 			grid-template-columns:
-                /* 1 (site title): runs up until the main content column’s left edge or the width of the title, whichever is the largest  */
+                /* 1 (site title): runs up until the main content column's left edge or the width of the title, whichever is the largest  */
 				minmax(
 					calc(var(--__sidebar-width) + max(0rem, var(--__main-column-fr) - var(--sl-nav-gap))),
 					auto
@@ -103,5 +110,65 @@ const shouldRenderSearch =
 				auto;
 			align-content: center;
 		}
+	}
+
+	.pipeline-pill {
+		display: flex;
+		align-items: center;
+		background: rgba(167, 139, 250, 0.08);
+		border-radius: 999px;
+		padding: 0.5rem 1.25rem 0.5rem 0.5rem;
+		gap: 0.75rem;
+		text-decoration: none;
+		transition: background 0.2s;
+	}
+	.pipeline-pill:hover {
+		background: rgba(167, 139, 250, 0.18);
+	}
+	.pipeline-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.pipeline-text {
+		display: flex;
+		flex-direction: column;
+		line-height: 1.1;
+	}
+	.pipeline-title {
+		font-weight: 600;
+		font-size: 1rem;
+		color: var(--sl-color-text);
+	}
+	.pipeline-subtitle {
+		font-size: 0.85rem;
+		color: var(--sl-color-gray-2);
+	}
+	.pipeline-arrow {
+		display: flex;
+		align-items: center;
+		margin-left: 0.5rem;
+	}
+	.support-btn {
+		display: flex;
+		align-items: center;
+		background: #7c3aed;
+		color: #fff;
+		border-radius: 999px;
+		padding: 0.5rem 1.5rem;
+		font-weight: 600;
+		font-size: 1rem;
+		text-decoration: none;
+		transition: background 0.2s;
+		gap: 0.5rem;
+		box-shadow: 0 1px 4px rgba(124, 58, 237, 0.08);
+	}
+	.support-btn:hover {
+		background: #5b21b6;
+	}
+	.support-arrow {
+		display: flex;
+		align-items: center;
+		margin-left: 0.25rem;
 	}
 </style>
