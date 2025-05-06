@@ -11,6 +11,7 @@ package cas_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -60,17 +61,18 @@ func TestSSHCASGetterGet(t *testing.T) {
 			t.Parallel()
 
 			tmpDir := t.TempDir()
+			dstDir := filepath.Join(tmpDir, "repo")
 
 			res, err := client.Get(
 				context.TODO(),
 				&getter.Request{
 					Src: tt.url,
-					Dst: tmpDir,
+					Dst: dstDir,
 				},
 			)
 			require.NoError(t, err)
 
-			assert.Equal(t, tmpDir, res.Dst)
+			assert.Equal(t, dstDir, res.Dst)
 		})
 	}
 }
