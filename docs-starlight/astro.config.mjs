@@ -79,6 +79,9 @@ export default defineConfig({
     starlight({
       title: "Terragrunt",
       customCss: ["./src/styles/global.css"],
+      components: {
+        Header: './src/components/Header.astro',
+      },
       logo: {
         dark: "/src/assets/logo-light.svg",
         light: "/src/assets/logo-dark.svg",
