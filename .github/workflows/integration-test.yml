@@ -43,6 +43,7 @@ jobs:
             tags: tflint
             run: '^TestTflint'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            # requires AWS credentials to run
             skip: true
           - name: GCP
             os: ubuntu
@@ -60,6 +61,7 @@ jobs:
             tags: aws
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            # requires AWS credentials to run
             skip: true
           - name: AWSGCP
             os: ubuntu
@@ -70,6 +72,7 @@ jobs:
             tags: awsgcp
             run: '^TestAwsGcp'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
+            # requires AWS credentials to run
             skip: true
           - name: Engine
             os: ubuntu
@@ -78,15 +81,6 @@ jobs:
               - .github/scripts/setup/engine.sh
             tags: engine
             run: '^TestEngine'
-          - name: Skipped AWS Test
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/aws.sh
-            tags: aws
-            run: '^TestAwsSkipped'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
-            skip: true
 
     steps:
       - name: Checkout code
