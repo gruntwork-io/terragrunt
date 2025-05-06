@@ -153,6 +153,7 @@ jobs:
       - name: Run Tests
         run: |
           if [ "${{ matrix.integration.skip }}" != "true" ]; then
+            source "${GITHUB_WORKSPACE}/.env.secrets"
             go test -v ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
           else
             echo "Skipping tests for ${{ matrix.integration.name }} as the skip flag is true."
