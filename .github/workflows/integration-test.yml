@@ -102,6 +102,7 @@ jobs:
               printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $ENV_FILE
             elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY" && -n "${{ secrets.GCLOUD_SERVICE_KEY }}" ]]; then
               printf "export GCLOUD_SERVICE_KEY='%s'\n" "${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
+              printf "export GOOGLE_SERVICE_ACCOUNT_JSON='%s'\n" "${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
             elif [[ "$SECRET" == "GOOGLE_CLOUD_PROJECT" && -n "${{ secrets.GOOGLE_CLOUD_PROJECT }}" ]]; then
               printf "export GOOGLE_CLOUD_PROJECT='%s'\n" "${{ secrets.GOOGLE_CLOUD_PROJECT }}" >> $ENV_FILE
             elif [[ "$SECRET" == "GOOGLE_COMPUTE_ZONE" && -n "${{ secrets.GOOGLE_COMPUTE_ZONE }}" ]]; then
