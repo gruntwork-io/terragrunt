@@ -27,17 +27,6 @@ func TestSSHCASGetterGet(t *testing.T) {
 	c, err := cas.New(cas.Options{})
 	require.NoError(t, err)
 
-	opts := &cas.CloneOptions{
-		Branch: "main",
-	}
-
-	l := log.New()
-
-	g := cas.NewCASGetter(&l, c, opts)
-	client := getter.Client{
-		Getters: []getter.Getter{g},
-	}
-
 	tests := []struct {
 		name      string
 		url       string
@@ -62,6 +51,15 @@ func TestSSHCASGetterGet(t *testing.T) {
 
 			tmpDir := t.TempDir()
 			dstDir := filepath.Join(tmpDir, "repo")
+
+			opts := &cas.CloneOptions{
+				Branch: "main",
+			}
+			l := log.New()
+			g := cas.NewCASGetter(&l, c, opts)
+			client := getter.Client{
+				Getters: []getter.Getter{g},
+			}
 
 			res, err := client.Get(
 				context.TODO(),
