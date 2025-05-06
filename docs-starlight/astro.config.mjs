@@ -81,10 +81,11 @@ export default defineConfig({
       customCss: ["./src/styles/global.css"],
       components: {
         Header: './src/components/Header.astro',
+        SiteTitle: './src/components/SiteTitle.astro',
       },
       logo: {
-        dark: "/src/assets/logo-light.svg",
-        light: "/src/assets/logo-dark.svg",
+        dark: "/src/assets/horizontal-logo-light.svg",
+        light: "/src/assets/horizontal-logo-dark.svg",
       },
       social: {
         github: "https://github.com/gruntwork-io/terragrunt",
