@@ -11,7 +11,6 @@ env: &env
     OPENTOFU_VERSION: "1.9.0"
     TERRAFORM_VERSION: "1.11.3"
     TFLINT_VERSION: "0.47.0"
-    TOFU_ENGINE_VERSION: "v0.0.16"
 
 defaults: &defaults
   docker:
@@ -110,12 +109,6 @@ run_integration_awsgcp_test: &run_integration_awsgcp_test
   name: Run integration tests using both AWS and GCP
   command: |
     run-go-tests --packages "-tags=awsgcp -run ^TestAwsGcp ./..." | tee logs/test-results.log
-  no_output_timeout: 30m
-
-run_integration_engine_test: &run_integration_engine_test
-  name: Run integration tests engine
-  command: |
-    run-go-tests --packages "-tags=engine -run ^TestEngine ./test" | tee logs/test-results.log
   no_output_timeout: 30m
 
 run_tflint_test: &run_tflint_test
@@ -352,25 +345,6 @@ jobs:
           environment:
             TG_TF_PATH: tofu
             TG_PROVIDER_CACHE: "1"
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_tofu_engine:
-    resource_class: xlarge
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tofu
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_engine_test
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -816,17 +790,6 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      - integration_test_tofu_engine:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-            - APPLE__OSX__code-signing
       - integration_test_tofu_gcp:
           filters:
             tags:
