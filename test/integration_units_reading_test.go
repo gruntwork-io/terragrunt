@@ -26,7 +26,7 @@ const (
 	testFixtureUnitsReading = "fixtures/units-reading/"
 )
 
-func TestUnitsReading(t *testing.T) {
+func TestSOPSUnitsReading(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureUnitsReading)

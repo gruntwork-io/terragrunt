@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -143,7 +145,12 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 
 // CreateTempDir creates a new temporary directory for git operations
 func (g *GitRunner) CreateTempDir() (string, func() error, error) {
-	tempDir, err := os.MkdirTemp("", "terragrunt-cas-*")
+	prefix := "terragrunt-cas-"
+
+	// Add a timestamp to the prefix to avoid conflicts
+	prefix += strconv.FormatInt(time.Now().UnixNano(), 10)
+
+	tempDir, err := os.MkdirTemp("", prefix+"*")
 	if err != nil {
 		return "", nil, &WrappedError{
 			Op:      "create_temp_dir",

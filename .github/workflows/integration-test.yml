@@ -1,0 +1,144 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    name: Test (${{ matrix.integration.name }})
+    runs-on: ${{ matrix.integration.os }}-latest
+    env:
+      MISE_PROFILE: cicd
+    strategy:
+      fail-fast: false
+      matrix:
+        integration:
+          - name: Fixtures
+            os: ubuntu
+            target: ./test
+          - name: SSH
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/ssh.sh
+            tags: ssh
+            run: '^TestSSH'
+            secrets: [GHA_DEPLOY_KEY]
+          - name: SOPS
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/sops.sh
+            tags: sops
+            run: '^TestSOPS'
+          - name: Tflint
+            os: ubuntu
+            target: ./...
+            tags: tflint
+            run: '^TestTflint'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            # requires AWS credentials to run
+            skip: true
+          - name: GCP
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/gcp.sh
+            tags: gcp
+            run: '^TestGcp'
+            secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
+            skip: true
+          - name: AWS
+            os: ubuntu
+            target: ./...
+            tags: aws
+            run: '^TestAws'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            # requires AWS credentials to run
+            skip: true
+          - name: AWSGCP
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/aws.sh
+              - .github/scripts/setup/gcp.sh
+            tags: awsgcp
+            run: '^TestAwsGcp'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
+            # requires AWS credentials to run
+            skip: true
+          - name: Engine
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/engine.sh
+            tags: engine
+            run: '^TestEngine'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate Secrets Environment
+        run: ./.github/scripts/setup/generate-secrets.sh
+        env:
+          NAME: ${{ matrix.integration.name }}
+          ENV_FILE: ${{ github.workspace }}/.env.secrets
+          SECRETS: ${{ join(matrix.integration.secrets, ' ') }}
+          GHA_DEPLOY_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_COMPUTE_ZONE: ${{ secrets.GOOGLE_COMPUTE_ZONE }}
+          GOOGLE_IDENTITY_EMAIL: ${{ secrets.GOOGLE_IDENTITY_EMAIL }}
+          GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+        shell: bash
+
+      - name: Setup
+        run: ./.github/scripts/setup/run-setup-scripts.sh
+        shell: bash
+        env:
+          ENV_FILE: ${{ github.workspace }}/.env.secrets
+          SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Go Build Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-integration-test-${{ matrix.integration.name }}-${{ hashFiles('**/go.sum') }}
+
+      - name: Run Tests
+        run: |
+          if [ "$SKIP" != "true" ]; then
+            source "${GITHUB_WORKSPACE}/.env.secrets"
+            go test -v ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
+          else
+            echo "Skipping tests for $NAME as the skip flag is true."
+          fi
+        shell: bash
+        env:
+          GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ matrix.integration.target }}
+          TAGS: ${{ matrix.integration.tags }}
+          RUN: ${{ matrix.integration.run }}
+          SKIP: ${{ matrix.integration.skip }}
+          NAME: ${{ matrix.integration.name }}
