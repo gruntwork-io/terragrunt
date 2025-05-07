@@ -87,7 +87,7 @@ jobs:
         run: ./.github/scripts/setup/generate-secrets.sh
         env:
           NAME: ${{ matrix.integration.name }}
-          ENV_FILE: ${{ env.GITHUB_WORKSPACE }}/.env.secrets
+          ENV_FILE: ${{ github.workspace }}/.env.secrets
           SCRIPT_PATHS: ${{ join(matrix.integration.setup_scripts, ' ') }}
           SECRETS: ${{ join(matrix.integration.secrets, ' ') }}
           GHA_DEPLOY_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
@@ -104,6 +104,7 @@ jobs:
         run: ./.github/scripts/setup/run-setup-scripts.sh
         shell: bash
         env:
+          ENV_FILE: ${{ github.workspace }}/.env.secrets
           SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
 
       - name: Use mise to install dependencies
