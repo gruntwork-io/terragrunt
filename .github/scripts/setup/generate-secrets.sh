@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
+# Required environment variables
 : "${NAME:?NAME is not set}"
 : "${ENV_FILE:?ENV_FILE is not set}"
 : "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is not set}"
-: "${SCRIPT_PATHS:?SCRIPT_PATHS is not set}"
 : "${SECRETS:?SECRETS is not set}"
 : "${GHA_DEPLOY_KEY:?GHA_DEPLOY_KEY is not set}"
 
@@ -19,6 +19,8 @@ set -euo pipefail
 : "${GOOGLE_IDENTITY_EMAIL:?GOOGLE_IDENTITY_EMAIL is not set}"
 : "${GOOGLE_PROJECT_ID:?GOOGLE_PROJECT_ID is not set}"
 
+# Optional environment variables
+SCRIPT_PATHS="${SCRIPT_PATHS:-}"
 
 echo "export SCRIPT_PATHS=${SCRIPT_PATHS}" > "$ENV_FILE"
 
