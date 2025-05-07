@@ -13,3 +13,5 @@ printf "export GOOGLE_APPLICATION_CREDENTIALS='%s'\n" "${HOME}/gcloud-service-ke
 # Save gcloud commands to ENV_FILE
 printf "gcloud auth activate-service-account --key-file=\"%s\" --quiet\n" "${HOME}/gcloud-service-key.json" >> "$ENV_FILE"
 printf "gcloud config set project '%s'\n" "${GOOGLE_PROJECT_ID}" >> "$ENV_FILE"
+
+printf "export GOOGLE_CLOUD_PROJECT='%s'\n" "terragrunt-458620" >> "$ENV_FILE"
