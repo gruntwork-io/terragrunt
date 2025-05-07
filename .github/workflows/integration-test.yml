@@ -38,8 +38,6 @@ jobs:
           - name: Tflint
             os: ubuntu
             target: ./...
-            setup_scripts:
-              - .github/scripts/setup/tflint.sh
             tags: tflint
             run: '^TestTflint'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
@@ -57,8 +55,6 @@ jobs:
           - name: AWS
             os: ubuntu
             target: ./...
-            setup_scripts:
-              - .github/scripts/setup/aws.sh
             tags: aws
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
