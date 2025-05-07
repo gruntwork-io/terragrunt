@@ -123,7 +123,6 @@ jobs:
           for SCRIPT in ${{ join(matrix.integration.setup_scripts, ' ') }}; do
             if [[ -n "$SCRIPT" ]]; then
               echo "Running setup script: $SCRIPT"
-              chmod +x "$SCRIPT"
               "$SCRIPT"
             fi
           done
