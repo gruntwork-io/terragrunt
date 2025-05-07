@@ -2,8 +2,11 @@
 
 set -euo pipefail
 
+# Required environment variables
 : "${ENV_FILE:?ENV_FILE is not set}"
-: "${SETUP_SCRIPTS:?SETUP_SCRIPTS is not set}"
+
+# Optional environment variables
+SETUP_SCRIPTS="${SETUP_SCRIPTS:-}"
 
 # Source the environment file
 # shellcheck source=/dev/null
