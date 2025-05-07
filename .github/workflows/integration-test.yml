@@ -89,6 +89,7 @@ jobs:
           NAME: ${{ matrix.integration.name }}
           ENV_FILE: ${{ env.GITHUB_WORKSPACE }}/.env.secrets
           SCRIPT_PATHS: ${{ join(matrix.integration.setup_scripts, ' ') }}
+          SECRETS: ${{ join(matrix.integration.secrets, ' ') }}
           GHA_DEPLOY_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
