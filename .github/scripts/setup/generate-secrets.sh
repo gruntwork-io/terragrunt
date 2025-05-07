@@ -19,10 +19,7 @@ set -euo pipefail
 : "${GOOGLE_PROJECT_ID:?GOOGLE_PROJECT_ID is not set}"
 
 # Optional environment variables
-SCRIPT_PATHS="${SCRIPT_PATHS:-}"
 SECRETS="${SECRETS:-}"
-
-echo "export SCRIPT_PATHS=${SCRIPT_PATHS}" > "$ENV_FILE"
 
 # Manually export each secret listed in matrix.integration.secrets
 for SECRET in $SECRETS; do
