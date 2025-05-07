@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Generate Secrets Environment
-        run: ./github/scripts/setup/generate-secrets.sh
+        run: ./.github/scripts/setup/generate-secrets.sh
         env:
           NAME: ${{ matrix.integration.name }}
           ENV_FILE: ${{ env.GITHUB_WORKSPACE }}/.env.secrets
@@ -100,7 +100,7 @@ jobs:
         shell: bash
 
       - name: Setup
-        run: ./github/scripts/setup/run-setup-scripts.sh
+        run: ./.github/scripts/setup/run-setup-scripts.sh
         shell: bash
         env:
           SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
@@ -126,11 +126,11 @@ jobs:
 
       - name: Run Tests
         run: |
-          if [ "${{ matrix.integration.skip }}" != "true" ]; then
+          if [ "$SKIP" != "true" ]; then
             source "${GITHUB_WORKSPACE}/.env.secrets"
             go test -v ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
           else
-            echo "Skipping tests for ${{ matrix.integration.name }} as the skip flag is true."
+            echo "Skipping tests for $NAME as the skip flag is true."
           fi
         shell: bash
         env:
@@ -139,3 +139,5 @@ jobs:
           TARGET: ${{ matrix.integration.target }}
           TAGS: ${{ matrix.integration.tags }}
           RUN: ${{ matrix.integration.run }}
+          SKIP: ${{ matrix.integration.skip }}
+          NAME: ${{ matrix.integration.name }}
