@@ -51,7 +51,6 @@ jobs:
             tags: gcp
             run: '^TestGcp'
             secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
-            skip: true
           - name: AWS
             os: ubuntu
             target: ./...
