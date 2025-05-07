@@ -10,6 +10,6 @@ echo "$GCLOUD_SERVICE_KEY" > "${HOME}/gcloud-service-key.json"
 export GOOGLE_APPLICATION_CREDENTIALS="${HOME}/gcloud-service-key.json"
 printf "export GOOGLE_APPLICATION_CREDENTIALS='%s'\n" "${HOME}/gcloud-service-key.json" >> "$ENV_FILE"
 
-# Set up gcloud CLI
-gcloud auth activate-service-account --key-file="${HOME}/gcloud-service-key.json" --quiet
-gcloud config set project "${GOOGLE_PROJECT_ID}"
+# Save gcloud commands to ENV_FILE
+printf "gcloud auth activate-service-account --key-file=\"%s\" --quiet\n" "${HOME}/gcloud-service-key.json" >> "$ENV_FILE"
+printf "gcloud config set project '%s'\n" "${GOOGLE_PROJECT_ID}" >> "$ENV_FILE"
