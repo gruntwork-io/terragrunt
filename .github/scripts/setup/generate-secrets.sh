@@ -21,6 +21,8 @@ set -euo pipefail
 # Optional environment variables
 SECRETS="${SECRETS:-}"
 
+touch "$ENV_FILE"
+
 # Manually export each secret listed in matrix.integration.secrets
 for SECRET in $SECRETS; do
     if [[ "$SECRET" == "GHA_DEPLOY_KEY" && -n "${GHA_DEPLOY_KEY}" ]]; then
