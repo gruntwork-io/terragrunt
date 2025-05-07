@@ -37,10 +37,12 @@ func TraceParentFromContext(ctx context.Context) (string, error) {
 	traceID := spanContext.TraceID().String()
 	spanID := spanContext.SpanID().String()
 	flags := "00"
+
 	if spanContext.TraceFlags().IsSampled() {
 		flags = "01"
 	}
 
 	traceparent := "00-" + traceID + "-" + spanID + "-" + flags
+
 	return traceparent, nil
 }

@@ -571,6 +571,7 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 	// Combine the existing environment variables with the ones provided in the run options
 	// to ensure that the command has access to all necessary variables.
 	envVars := runOptions.TerragruntOptions.Env
+	
 	if runOptions.EnvVars != nil {
 		for k, v := range runOptions.EnvVars {
 			envVars[k] = v
