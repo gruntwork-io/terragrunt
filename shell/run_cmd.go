@@ -13,6 +13,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -76,6 +78,23 @@ func RunCommandWithOutput(
 		}
 
 		if command == opts.TerraformPath {
+			// If the command is the Terraform/OpenTofu executable, propagate the trace via the 'TRACEPARENT'
+			// environment variable to the child process.
+			extraEnvVars := make(map[string]string)
+
+			span := trace.SpanFromContext(ctx)
+			spanContext := span.SpanContext()
+			if spanContext.IsValid() {
+				traceParent, err := telemetry.TraceParentFromContext(ctx)
+				if err != nil {
+					return errors.New(err)
+				}
+				if traceParent != "" {
+					opts.Logger.Debugf("Setting TRACEPARENT=%q environment variable for command execution", traceParent)
+					extraEnvVars["TRACEPARENT"] = traceParent
+				}
+			}
+
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 			if opts.Engine != nil && opts.EngineEnabled {
 				opts.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
@@ -89,6 +108,7 @@ func RunCommandWithOutput(
 					AllocatePseudoTty: needsPTY,
 					Command:           command,
 					Args:              args,
+					EnvVars:           extraEnvVars,
 				})
 				if err != nil {
 					return errors.New(err)

@@ -28,13 +28,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt-engine-go/engine"
 	"github.com/gruntwork-io/terragrunt-engine-go/proto"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
@@ -66,6 +67,7 @@ type ExecutionOptions struct {
 	Args              []string
 	SuppressStdout    bool
 	AllocatePseudoTty bool
+	EnvVars           map[string]string
 }
 
 type engineInstance struct {
@@ -566,13 +568,22 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		return nil, errors.New(err)
 	}
 
+	// Combine the existing environment variables with the ones provided in the run options
+	// to ensure that the command has access to all necessary variables.
+	envVars := runOptions.TerragruntOptions.Env
+	if runOptions.EnvVars != nil {
+		for k, v := range runOptions.EnvVars {
+			envVars[k] = v
+		}
+	}
+
 	response, err := (*client).Run(ctx, &proto.RunRequest{
 		Command:           runOptions.Command,
 		Args:              runOptions.Args,
 		AllocatePseudoTty: runOptions.AllocatePseudoTty,
 		WorkingDir:        runOptions.WorkingDir,
 		Meta:              meta,
-		EnvVars:           runOptions.TerragruntOptions.Env,
+		EnvVars:           envVars,
 	})
 	if err != nil {
 		return nil, errors.New(err)
