@@ -2,7 +2,7 @@
 import { logos } from 'virtual:starlight/user-images';
 import config from 'virtual:starlight/user-config';
 import type { Props } from '@astrojs/starlight/props';
-const { siteTitle, siteTitleHref } = Astro.props;
+const { siteTitleHref } = Astro.props;
 ---
 
 <a href={siteTitleHref} class="site-title sl-flex">
@@ -10,7 +10,7 @@ const { siteTitle, siteTitleHref } = Astro.props;
 		config.logo && logos.dark && (
 			<>
 				<img
-					class:list={{ 'light:sl-hidden print:hidden': !('src' in config.logo) }}
+					class:list={{ 'light:sl-hidden print:hidden light-logo': !('src' in config.logo) }}
 					alt={config.logo.alt}
 					src={logos.dark.src}
 					width={logos.dark.width}
@@ -19,7 +19,7 @@ const { siteTitle, siteTitleHref } = Astro.props;
 				{/* Show light alternate if a user configure both light and dark logos. */}
 				{!('src' in config.logo) && (
 					<img
-						class="dark:sl-hidden print:block"
+						class="dark:sl-hidden print:block dark-logo"
 						alt={config.logo.alt}
 						src={logos.light?.src}
 						width={logos.light?.width}
@@ -45,7 +45,18 @@ const { siteTitle, siteTitleHref } = Astro.props;
 		height: calc(var(--sl-nav-height) - 2 * var(--sl-nav-pad-y));
 		width: auto;
 		max-width: 100%;
+		min-width: var(--sl-nav-height);
 		object-fit: contain;
 		object-position: 0 50%;
+	}
+
+	@media (max-width: 768px) {
+		img.dark-logo {
+			content: url('/src/assets/logo-dark.svg');
+		}
+
+		img.light-logo {
+			content: url('/src/assets/logo-light.svg');
+		}
 	}
 </style>
