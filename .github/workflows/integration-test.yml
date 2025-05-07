@@ -84,49 +84,26 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Generate Secrets Environment
-        id: generate-secrets
-        run: |
-          ENV_FILE="${GITHUB_WORKSPACE}/.env.secrets"
-          echo "export SCRIPT_PATHS='${{ matrix.integration.setup_scripts }}'" > $ENV_FILE
-          
-          # Manually export each secret listed in matrix.integration.secrets
-          for SECRET in ${{ join(matrix.integration.secrets, ' ') }}; do
-            if [[ "$SECRET" == "GHA_DEPLOY_KEY" && -n "${{ secrets.GHA_DEPLOY_KEY }}" ]]; then
-              printf "export GHA_DEPLOY_KEY='%s'\n" "${{ secrets.GHA_DEPLOY_KEY }}" >> $ENV_FILE
-            elif [[ "$SECRET" == "AWS_ACCESS_KEY_ID" && -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]]; then
-              printf "export AWS_ACCESS_KEY_ID='%s'\n" "${{ secrets.AWS_ACCESS_KEY_ID }}" >> $ENV_FILE
-            elif [[ "$SECRET" == "AWS_SECRET_ACCESS_KEY" && -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]]; then
-              printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $ENV_FILE
-            elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY" && -n "${{ secrets.GCLOUD_SERVICE_KEY }}" ]]; then
-              printf "export GCLOUD_SERVICE_KEY='%s'\n" "${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
-              printf "export GOOGLE_SERVICE_ACCOUNT_JSON='%s'\n" "${{ secrets.GCLOUD_SERVICE_KEY }}" >> $ENV_FILE
-            elif [[ "$SECRET" == "GOOGLE_CLOUD_PROJECT" && -n "${{ secrets.GOOGLE_CLOUD_PROJECT }}" ]]; then
-              printf "export GOOGLE_CLOUD_PROJECT='%s'\n" "${{ secrets.GOOGLE_CLOUD_PROJECT }}" >> $ENV_FILE
-            elif [[ "$SECRET" == "GOOGLE_COMPUTE_ZONE" && -n "${{ secrets.GOOGLE_COMPUTE_ZONE }}" ]]; then
-              printf "export GOOGLE_COMPUTE_ZONE='%s'\n" "${{ secrets.GOOGLE_COMPUTE_ZONE }}" >> $ENV_FILE
-            elif [[ "$SECRET" == "GOOGLE_IDENTITY_EMAIL" && -n "${{ secrets.GOOGLE_IDENTITY_EMAIL }}" ]]; then
-              printf "export GOOGLE_IDENTITY_EMAIL='%s'\n" "${{ secrets.GOOGLE_IDENTITY_EMAIL }}" >> $ENV_FILE
-            elif [[ "$SECRET" == "GOOGLE_PROJECT_ID" && -n "${{ secrets.GOOGLE_PROJECT_ID }}" ]]; then
-              printf "export GOOGLE_PROJECT_ID='%s'\n" "${{ secrets.GOOGLE_PROJECT_ID }}" >> $ENV_FILE
-            fi
-          done
-
-          echo "Created environment file with secrets for ${{ matrix.integration.name }}"
+        run: ./github/scripts/setup/generate-secrets.sh
+        env:
+          NAME: ${{ matrix.integration.name }}
+          ENV_FILE: ${{ env.GITHUB_WORKSPACE }}/.env.secrets
+          SCRIPT_PATHS: ${{ matrix.integration.setup_scripts }}
+          GHA_DEPLOY_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_COMPUTE_ZONE: ${{ secrets.GOOGLE_COMPUTE_ZONE }}
+          GOOGLE_IDENTITY_EMAIL: ${{ secrets.GOOGLE_IDENTITY_EMAIL }}
+          GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
         shell: bash
 
       - name: Setup
-        run: |
-          # Source the environment file
-          source "${GITHUB_WORKSPACE}/.env.secrets"
-          
-          # Loop through setup scripts and execute them
-          for SCRIPT in ${{ join(matrix.integration.setup_scripts, ' ') }}; do
-            if [[ -n "$SCRIPT" ]]; then
-              echo "Running setup script: $SCRIPT"
-              "$SCRIPT"
-            fi
-          done
+        run: ./github/scripts/setup/run-setup-scripts.sh
         shell: bash
+        env:
+          SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
