@@ -62,9 +62,6 @@ install_tflint: &install_tflint
 setup_test_environment: &setup_test_environment
   name: Setup integration tests environment
   command: |
-    # Make GCP Service Account creds available as a file
-    echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-    echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
     # Import test / dev key for SOPS
     gpg --import --no-tty --batch --yes ./test/fixtures/sops/test_pgp_key.asc
     mkdir -p logs
@@ -92,12 +89,6 @@ run_integration_tofu_only_test: &run_integration_tofu_only_test
   no_output_timeout: 30m
   environment:
     TG_TF_PATH: tofu
-
-run_integration_gcp_test: &run_integration_gcp_test
-  name: Run integration tests GCP
-  command: |
-    run-go-tests --packages "-tags=gcp -run ^TestGcp ./..." | tee logs/test-results.log
-  no_output_timeout: 30m
 
 run_integration_aws_test: &run_integration_aws_test
   name: Run integration tests AWS
@@ -345,58 +336,6 @@ jobs:
           environment:
             TG_TF_PATH: tofu
             TG_PROVIDER_CACHE: "1"
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_tofu_gcp:
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tofu
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_gcp_test
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_terraform_gcp:
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_gcp_test
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_terraform_latest_gcp:
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *install_terraform_latest
-      - run:
-          <<: *run_integration_gcp_test
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -790,39 +729,6 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      - integration_test_tofu_gcp:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-            - APPLE__OSX__code-signing
-      - integration_test_terraform_gcp:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-            - APPLE__OSX__code-signing
-      - integration_test_terraform_latest_gcp:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-            - APPLE__OSX__code-signing
       - integration_test_tofu_aws:
           filters:
             tags:
