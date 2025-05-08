@@ -17,6 +17,7 @@ set -euo pipefail
 : "${GOOGLE_COMPUTE_ZONE:?GOOGLE_COMPUTE_ZONE is not set}"
 : "${GOOGLE_IDENTITY_EMAIL:?GOOGLE_IDENTITY_EMAIL is not set}"
 : "${GOOGLE_PROJECT_ID:?GOOGLE_PROJECT_ID is not set}"
+: "${GCLOUD_SERVICE_KEY_IMPERSONATOR:?GCLOUD_SERVICE_KEY_IMPERSONATOR is not set}"
 
 # Optional environment variables
 SECRETS="${SECRETS:-}"
@@ -42,6 +43,8 @@ for SECRET in $SECRETS; do
         printf "export GOOGLE_IDENTITY_EMAIL='%s'\n" "${GOOGLE_IDENTITY_EMAIL}" >> "$ENV_FILE"
     elif [[ "$SECRET" == "GOOGLE_PROJECT_ID" && -n "${GOOGLE_PROJECT_ID}" ]]; then
         printf "export GOOGLE_PROJECT_ID='%s'\n" "${GOOGLE_PROJECT_ID}" >> "$ENV_FILE"
+    elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY_IMPERSONATOR" && -n "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" ]]; then
+        printf "export GCLOUD_SERVICE_KEY_IMPERSONATOR='%s'\n" "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" >> "$ENV_FILE"
     fi
 done
 
