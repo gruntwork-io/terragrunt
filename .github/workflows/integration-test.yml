@@ -96,6 +96,7 @@ jobs:
           GOOGLE_COMPUTE_ZONE: ${{ secrets.GOOGLE_COMPUTE_ZONE }}
           GOOGLE_IDENTITY_EMAIL: ${{ secrets.GOOGLE_IDENTITY_EMAIL }}
           GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+          GCLOUD_SERVICE_KEY_IMPERSONATOR: ${{ secrets.GCLOUD_SERVICE_KEY_IMPERSONATOR }}
         shell: bash
 
       - name: Setup
