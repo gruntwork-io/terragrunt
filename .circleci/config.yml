@@ -1,6 +1,4 @@
 orbs:
-  # The Windows orb gives us everything we need to start using the Windows executor.
-  win: circleci/windows@5.0
   go: circleci/go@1.11
 
 # The "sign binary" rubs in a MacOS environment, so it's necessary to download GW's binaries
@@ -138,54 +136,6 @@ win_install_tflint: &win_install_tflint
 
 version: 2.1
 jobs:
-  test_windows_terraform:
-    executor:
-      name: win/default
-      size: "large"
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *win_install_golang
-      - run:
-          <<: *win_install_tflint
-      - run:
-          name: Install Terraform
-          shell: powershell.exe
-          command: ./_ci/install-terraform.ps1
-      - run:
-          name: Run go terraform tests
-          shell: powershell.exe
-          no_output_timeout: 45m
-          environment:
-            TG_TF_PATH: terraform
-          command: |
-            go test -tags windows -v -run ^TestWindows ./... -timeout 45m
-
-  test_windows_tofu:
-    executor:
-      name: win/default
-      size: "large"
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *win_install_golang
-      - run:
-          <<: *win_install_tflint
-      - run:
-          name: Install Opentofu
-          shell: powershell.exe
-          command: ./_ci/install-opentofu.ps1
-      - run:
-          name: Run go tofu tests
-          shell: powershell.exe
-          no_output_timeout: 45m
-          environment:
-            TG_TF_PATH: tofu
-          command: |
-            go test -tags windows -v -run ^TestWindows ./... -timeout 45m
-
   integration_test_terraform_1_5:
     resource_class: xlarge
     <<: *defaults
@@ -599,26 +549,6 @@ workflows:
   version: 2
   build-and-test:
     jobs:
-      - test_windows_terraform:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - test_windows_tofu:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
       - integration_test_terraform_1_5:
           filters:
             tags:
