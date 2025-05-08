@@ -107,8 +107,17 @@ jobs:
         shell: bash
 
       - name: Setup
+        if: runner.os != 'Windows'
         run: ./.github/scripts/setup/run-setup-scripts.sh
         shell: bash
+        env:
+          ENV_FILE: ${{ github.workspace }}/.env.secrets
+          SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
+
+      - name: Windows Setup
+        if: runner.os == 'Windows'
+        run: .github/scripts/setup/windows-setup.ps1
+        shell: pwsh
         env:
           ENV_FILE: ${{ github.workspace }}/.env.secrets
           SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
