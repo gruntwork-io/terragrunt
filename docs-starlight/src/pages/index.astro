@@ -1,4 +1,5 @@
 ---
+import { Icon } from '@astrojs/starlight/components';
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 ---
 
@@ -12,9 +13,15 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 	<div class="max-w-7xl mx-auto px-4 py-12 text-center">
 		<h1 class="text-4xl font-bold mb-4">The Trusted IaC Orchestrator that Scales</h1>
 		<p class="text-xl text-gray-600 dark:text-gray-300 mb-8">Solving scaling for OpenTofu/Terraform since 2016.</p>
-		<div class="flex flex-col sm:flex-row gap-4 justify-center mt-8 max-w-[200px] sm:max-w-none mx-auto">
-			<a href="/docs/getting-started/quick-start/" class="inline-flex items-center justify-center px-6 py-2.5 rounded bg-[#4561FA] text-white font-medium transition-all duration-200 hover:bg-[#3447FF] hover:-translate-y-0.5 hover:shadow-md">Quick Start</a>
-			<a href="/docs/reference/hcl/" class="inline-flex items-center justify-center px-6 py-2.5 rounded border border-[#B3C7FF] text-[#B3C7FF] font-medium transition-all duration-200 hover:bg-[#B3C7FF]/10 hover:-translate-y-0.5 hover:shadow-md dark:text-[#B3C7FF] dark:border-[#B3C7FF] dark:hover:bg-[#B3C7FF]/10">Docs</a>
+		<div class="flex flex-col sm:flex-row gap-4 justify-center mt-8 max-w-[300px] sm:max-w-none mx-auto  p-8 rounded-lg">
+			<a href="/docs/getting-started/quick-start/" class="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-blue-600 dark:bg-blue-500 text-white font-semibold transition-all duration-200 hover:bg-blue-500 dark:hover:bg-blue-400 hover:-translate-y-0.5 hover:shadow-xl shadow-md no-underline">
+				<span class="ml-2">Quick Start </span>
+				<Icon name="rocket" />
+			</a>
+			<a href="/docs/reference/hcl/" class="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-blue-600 dark:bg-blue-500 text-white font-semibold transition-all duration-200 hover:bg-blue-500 dark:hover:bg-blue-400 hover:-translate-y-0.5 hover:shadow-xl shadow-md no-underline">
+				<span class="ml-2">Docs </span>
+				<Icon name="open-book" />
+			</a>
 		</div>
 	</div>
 
@@ -50,19 +57,19 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Limit Your Blast Radius</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Break down your monolithic infrastructure to manageable <a href="/docs/features/units/" class="text-blue-600 dark:text-blue-400 underline">units</a> that are safe to update independently, and have their own state.
+					Break down your monolithic infrastructure to manageable <a href="/docs/features/units/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">units</a> that are safe to update independently, and have their own state.
 				</div>
 			</div>
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Orchestrate Your Infrastructure</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Reject all-or-nothing updates. Control exactly what infrastructure is updated, how it gets updated, and in what order by taking advantage of <a href="/docs/features/stacks/" class="text-blue-600 dark:text-blue-400 underline">stacks</a>.
+					Reject all-or-nothing updates. Control exactly what infrastructure is updated, how it gets updated, and in what order by taking advantage of <a href="/docs/features/stacks/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">stacks</a>.
 				</div>
 			</div>
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Automate You Backend Infrastructure</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Ensure your entire team is using secure, consistent OpenTofu/Terraform <a href="/docs/features/state-backend/" class="text-blue-600 dark:text-blue-400 underline">state backend</a> configurations.
+					Ensure your entire team is using secure, consistent OpenTofu/Terraform <a href="/docs/features/state-backend/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">state backend</a> configurations.
 				</div>
 			</div>
 		</div>
@@ -76,7 +83,7 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Reuse Common Infrastructure Configurations</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-          Define reusable infrastructure configurations once, and reference them wherever they're needed using <a href="/docs/features/includes/" class="text-blue-600 dark:text-blue-400 underline">includes</a>.
+          Define reusable infrastructure configurations once, and reference them wherever they're needed using <a href="/docs/features/includes/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">includes</a>.
 				</div>
 			</div>
 			<div class="feature-card text-left">
@@ -87,7 +94,7 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Reuse Production-Ready Patterns</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Leverage the special construct of the <a href="/docs/features/stacks/" class="text-blue-600 dark:text-blue-400 underline">Terragrunt Stack</a> to encapsulate higher level collections of infrastructure components as a unified stack.
+					Leverage the special construct of the <a href="/docs/features/stacks/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">Terragrunt Stack</a> to encapsulate higher level collections of infrastructure components as a unified stack.
 				</div>
 			</div>
 		</div>
@@ -101,19 +108,19 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Automate Operational Tasks Using Hooks</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Don't ask that your engineers remember to do things before/after updating IaC, codify those tasks with <a href="/docs/features/hooks/" class="text-blue-600 dark:text-blue-400 underline">hooks</a> so that they're done automatically.
+					Don't ask that your engineers remember to do things before/after updating IaC, codify those tasks with <a href="/docs/features/hooks/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">hooks</a> so that they're done automatically.
 				</div>
 			</div>
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Handle Expected Errors</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Your engineers know that networks can be flaky, and cloud providers aren't perfect. Automatically handle the errors they produce using <a href="/docs/features/runtime-control/#errors" class="text-blue-600 dark:text-blue-400 underline">built-in error handling</a>.
+					Your engineers know that networks can be flaky, and cloud providers aren't perfect. Automatically handle the errors they produce using <a href="/docs/features/runtime-control/#errors" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">built-in error handling</a>.
 				</div>
 			</div>
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Integrate Early and Often</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Get your engineers on the same page. Keep them all working on a consistent, unified codebase, but gradually roll out new features using <a href="/docs/features/runtime-control/#feature-flags" class="text-blue-600 dark:text-blue-400 underline">feature flags</a>.
+					Get your engineers on the same page. Keep them all working on a consistent, unified codebase, but gradually roll out new features using <a href="/docs/features/runtime-control/#feature-flags" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">feature flags</a>.
 				</div>
 			</div>
 		</div>
@@ -127,7 +134,7 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Leverage a Proven Infrastructure Catalog</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Catalog your infrastructure patterns for reuse across your organization using the <a href="/docs/features/catalog/" class="text-blue-600 dark:text-blue-400 underline">catalog TUI</a>.
+					Catalog your infrastructure patterns for reuse across your organization using the <a href="/docs/features/catalog/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">catalog TUI</a>.
 				</div>
 			</div>
 			<div class="feature-card text-left">
@@ -138,7 +145,7 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 			<div class="feature-card text-left">
 				<div class="font-bold text-lg mb-1">Design Opinionated Templates</div>
 				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Provide templates that guide engineers to <a href="/docs/features/scaffold/" class="text-blue-600 dark:text-blue-400 underline">scaffold</a> exactly the right infrastructure they need, following best practices by default.
+					Provide templates that guide engineers to <a href="/docs/features/scaffold/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">scaffold</a> exactly the right infrastructure they need, following best practices by default.
 				</div>
 			</div>
 		</div>
