@@ -77,6 +77,13 @@ jobs:
               - .github/scripts/setup/engine.sh
             tags: engine
             run: '^TestEngine'
+          - name: Windows
+            os: windows
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/windows-setup.ps1
+            tags: windows
+            run: '^TestWindows'
 
     steps:
       - name: Checkout code
