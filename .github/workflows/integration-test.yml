@@ -116,7 +116,7 @@ jobs:
 
       - name: Windows Setup
         if: runner.os == 'Windows'
-        run: .github/scripts/setup/windows-setup.ps1
+        run: pwsh -File ./.github/scripts/setup/windows-setup.ps1
         shell: pwsh
         env:
           ENV_FILE: ${{ github.workspace }}/.env.secrets
