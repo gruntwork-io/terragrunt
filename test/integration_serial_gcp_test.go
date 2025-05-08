@@ -41,10 +41,6 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 }
 
 func TestGcpWorksWithImpersonateBackend(t *testing.T) {
-	if os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR") == "" {
-		t.Skip("Skipping test for impersonation, as it requires a specific secret for GCP.")
-		return
-	}
 	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	if impersonatorKey == "" {
 		t.Fatalf("required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
