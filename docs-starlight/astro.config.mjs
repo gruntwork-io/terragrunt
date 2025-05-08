@@ -88,7 +88,6 @@ export default defineConfig({
         light: "/src/assets/horizontal-logo-dark.svg",
       },
       social: {
-        github: "https://github.com/gruntwork-io/terragrunt",
         discord: "https://discord.gg/SPu4Degs5f",
       },
       sidebar: sidebar,
