@@ -10,30 +10,31 @@ import GruntworkLogoGlacier from '../assets/gruntwork-logo-mark-glacier.svg';
 
 <StarlightPage frontmatter={{
 	template: 'splash',
-	title: '',
+	title: 'Terragrunt',
 	description: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
 	pagefind: false,
+	hero: {
+		title: 'Terragrunt',
+		tagline: 'Ship scalable infrastructure, faster and safer.',
+		image: {
+			dark: LightLogo,
+			light: DarkLogo,
+			alt: 'Terragrunt Logo',
+		},
+		actions: [
+			{
+				text: 'Quick Start',
+				icon: 'rocket',
+				link: '/docs/getting-started/quick-start/'
+			},
+			{
+				text: 'Docs',
+				icon: 'open-book',
+				link: '/docs/reference/hcl/'
+			}
+		]
+	}
 }}>
-
-	<div class="max-w-7xl mx-auto px-4 py-12 text-center">
-		<h1 class="text-4xl font-bold mb-4">The IaC Orchestrator that Scales</h1>
-		<p class="text-xl text-gray-600 dark:text-gray-300 mb-8 break-words">Ship well organized infrastructure, faster and safer.</p>
-		<div>
-			<LinkButton href="/docs/getting-started/quick-start/" icon="rocket">Quick Start</LinkButton>
-			<LinkButton href="/docs/reference/hcl/" icon="open-book">Docs</LinkButton>
-		</div>
-	</div>
-
-	<div class="logo-container">
-		{
-				<Image
-					src={DarkLogo}
-					alt="Terragrunt Logo"
-					class='dark:sl-hidden logo-image'
-				/>
-		}
-		{<Image src={LightLogo} alt="Terragrunt Logo" class="light:sl-hidden logo-image" />}
-	</div>
 
 	<div class="flex items-center justify-center py-12 text-gray-600 dark:text-gray-300">
 		<Image src={GruntworkLogoDusk} alt="Gruntwork Logo" class="w-6 h-6 dark:sl-hidden" style="margin-top: 0;" />
