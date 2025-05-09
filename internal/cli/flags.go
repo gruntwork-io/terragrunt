@@ -58,10 +58,11 @@ func (flags Flags) Parse(args Args, errHandler FlagErrorHandler) (Args, error) {
 		if err = flagSet.Parse(args); err != nil {
 			errStr := err.Error()
 
-			switch {
-			case strings.HasPrefix(errStr, ErrMsgFlagHelpRequested):
+			if strings.HasPrefix(errStr, ErrMsgFlagHelpRequested) {
 				return append(undefArgs, "-h"), nil
-			case strings.HasPrefix(errStr, ErrMsgFlagUndefined):
+			}
+
+			if strings.HasPrefix(errStr, ErrMsgFlagUndefined) {
 				undefArg := strings.Trim(strings.TrimPrefix(errStr, ErrMsgFlagUndefined), " -")
 				err = UndefinedFlagError{CmdName: undefArgs.First(), Arg: undefArg}
 
@@ -75,9 +76,8 @@ func (flags Flags) Parse(args Args, errHandler FlagErrorHandler) (Args, error) {
 						break
 					}
 				}
-			default:
-				return nil, err
 			}
+
 		} else if args = Args(flagSet.Args()); args.Present() {
 			undefArgs = append(undefArgs, args.First())
 			args = args.Tail()
@@ -90,6 +90,10 @@ func (flags Flags) Parse(args Args, errHandler FlagErrorHandler) (Args, error) {
 		if err != nil {
 			break
 		}
+	}
+
+	if err != nil && errors.As(err, new(FatalFlagError)) {
+		return nil, err
 	}
 
 	undefArgs = append(undefArgs, args...)

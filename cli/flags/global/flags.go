@@ -332,46 +332,58 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 		// Telemetry related flags.
 
 		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        TelemetryTraceExporterFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(TelemetryTraceExporterFlagName),
 			ConfigKey:   flags.ConfigKey(TelemetryTraceExporterFlagName),
 			Destination: &opts.Telemetry.TraceExporter,
+			Hidden:      true,
 		},
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemetry-trace-exporter"), strictControl),
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemerty-trace-exporter"), strictControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
+			Name:        TelemetryTraceExporterInsecureEndpointFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(TelemetryTraceExporterInsecureEndpointFlagName),
 			ConfigKey:   flags.ConfigKey(TelemetryTraceExporterInsecureEndpointFlagName),
 			Destination: &opts.Telemetry.TraceExporterInsecureEndpoint,
+			Hidden:      true,
 		},
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemetry-trace-exporter-insecure-endpoint"), strictControl),
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemerty-trace-exporter-insecure-endpoint"), strictControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        TelemetryTraceExporterHTTPEndpointFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(TelemetryTraceExporterHTTPEndpointFlagName),
 			ConfigKey:   flags.ConfigKey(TelemetryTraceExporterHTTPEndpointFlagName),
 			Destination: &opts.Telemetry.TraceExporterHTTPEndpoint,
+			Hidden:      true,
 		},
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemetry-trace-exporter-http-endpoint"), strictControl),
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemerty-trace-exporter-http-endpoint"), strictControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        TraceparentFlagName,
 			EnvVars:     flags.Name{}.EnvVars(TraceparentFlagName),
 			ConfigKey:   flags.ConfigKey(TraceparentFlagName),
 			Destination: &opts.Telemetry.TraceParent,
+			Hidden:      true,
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        TelemetryMetricExporterFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(TelemetryMetricExporterFlagName),
 			ConfigKey:   flags.ConfigKey(TelemetryMetricExporterFlagName),
 			Destination: &opts.Telemetry.MetricExporter,
+			Hidden:      true,
 		},
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemetry-metric-exporter"), strictControl),
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemerty-metric-exporter"), strictControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
+			Name:        TelemetryMetricExporterInsecureEndpointFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(TelemetryMetricExporterInsecureEndpointFlagName),
 			ConfigKey:   flags.ConfigKey(TelemetryMetricExporterInsecureEndpointFlagName),
 			Destination: &opts.Telemetry.MetricExporterInsecureEndpoint,
+			Hidden:      true,
 		},
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemetry-metric-exporter-insecure-endpoint"), strictControl),
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("telemerty-metric-exporter-insecure-endpoint"), strictControl)),

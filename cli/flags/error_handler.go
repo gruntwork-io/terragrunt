@@ -15,7 +15,7 @@ func ErrorHandler(commands cli.Commands) cli.FlagErrHandlerFunc {
 	return func(ctx *cli.Context, err error) error {
 		var undefinedFlagErr cli.UndefinedFlagError
 		if !errors.As(err, &undefinedFlagErr) {
-			return err
+			return cli.NewFatalFlagError(err)
 		}
 
 		undefArg := undefinedFlagErr.Arg

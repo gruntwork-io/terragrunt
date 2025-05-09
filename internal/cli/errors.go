@@ -130,3 +130,21 @@ var (
 func IsMultipleTimesSettingError(err error) bool {
 	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error())
 }
+
+type FatalFlagError struct {
+	underlyingError error
+}
+
+func NewFatalFlagError(err error) FatalFlagError {
+	return FatalFlagError{
+		underlyingError: err,
+	}
+}
+
+func (err FatalFlagError) Error() string {
+	return err.underlyingError.Error()
+}
+
+func (err FatalFlagError) Unwrap() error {
+	return err.underlyingError
+}
