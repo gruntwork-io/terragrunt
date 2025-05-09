@@ -8,6 +8,9 @@ import SiteTitle from 'virtual:starlight/components/SiteTitle';
 import SocialIcons from 'virtual:starlight/components/SocialIcons';
 import ThemeSelect from 'virtual:starlight/components/ThemeSelect';
 
+import PipelinesLogo from '../assets/pipelines.svg';
+import { Image } from 'astro:assets';
+
 /**
  * Render the `Search` component if Pagefind is enabled or the default search component has been overridden.
  */
@@ -53,7 +56,7 @@ try {
 		<div class="sl-hidden lg:sl-flex pipelines-pill">
 			<a href="https://www.gruntwork.io/platform/pipelines" class="pipeline-pill">
 				<span class="pipeline-icon">
-					<img src="/src/assets/pipelines.svg" width="24" height="24" class="product-icon" alt="Pipeline" />
+					<Image src={PipelinesLogo} width="24" height="24" class="product-icon" alt="Pipeline" />
 				</span>
 				<span class="pipeline-text">
 					<span class="pipeline-title">Automate your pipeline</span>
