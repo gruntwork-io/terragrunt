@@ -29,7 +29,7 @@ const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Comman
 // ShowTFHelp prints TF help for the given `ctx.Command` command.
 func ShowTFHelp(opts *options.TerragruntOptions) cli.HelpFunc {
 	return func(ctx *cli.Context) error {
-		if err := NewTFPathFlag(opts, nil).Parse(ctx.Args()); err != nil {
+		if _, err := ctx.Command.Flags.Filter(TFPathFlagName).Parse(ctx.Args(), cli.IgnoringUndefinedFlagErrorHandler); err != nil {
 			return err
 		}
 

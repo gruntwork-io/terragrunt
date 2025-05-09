@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"slices"
 )
 
 // Context can be used to retrieve context-specific args and parsed command-line options.
@@ -61,4 +62,22 @@ func (ctx *Context) Flag(name string) Flag {
 	}
 
 	return nil
+}
+
+func (ctx *Context) Flags() Flags {
+	if ctx.Command == nil {
+		return nil
+	}
+
+	flags := ctx.Command.Flags
+
+	if ctx = ctx.Parent(); ctx != nil {
+		for _, flag := range ctx.Flags() {
+			if !slices.Contains(flags, flag) {
+				flags = append(flags, flag)
+			}
+		}
+	}
+
+	return flags
 }

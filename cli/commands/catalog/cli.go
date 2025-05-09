@@ -13,18 +13,20 @@ const (
 	CommandName = "catalog"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	return scaffold.NewFlags(opts, prefix).Filter(
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+	return scaffold.NewFlags(opts, cmdPrefix).Filter(
 		scaffold.RootFileNameFlagName,
 		scaffold.NoIncludeRootFlagName,
 	)
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	cmdPrefix := flags.Name{CommandName}
+
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Launch the user interface for searching and managing your module catalog.",
-		Flags: NewFlags(opts, nil),
+		Flags: NewFlags(opts, cmdPrefix),
 		Action: func(ctx *cli.Context) error {
 			var repoPath string
 

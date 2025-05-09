@@ -173,6 +173,8 @@ type TerragruntOptions struct {
 	ScaffoldOutputFolder string
 	// Root directory for graph command.
 	GraphRoot string
+	// CLIConfigFile is a path to CLI configuration file.
+	CLIConfigFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs cli.Args
 	// Unix-style glob of directories to include when running *-all commands
@@ -469,6 +471,22 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 	}
 
 	return opts, nil
+}
+
+// NormalizeWorkingDir assigns the current directory if the working directory is not defined.
+func (opts *TerragruntOptions) NormalizeWorkingDir() error {
+	if opts.WorkingDir == "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return errors.New(err)
+		}
+
+		opts.WorkingDir = currentDir
+	}
+
+	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
+
+	return nil
 }
 
 // OptionsFromContext tries to retrieve options from context, otherwise, returns its own instance.
@@ -853,6 +871,3 @@ func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 
 	return false
 }
-
-// ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
-var ErrRunTerragruntCommandNotSet = errors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")

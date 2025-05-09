@@ -37,6 +37,9 @@ type GenericFlag[T GenericType] struct {
 	// Usage is a short usage description to display in help.
 	Usage string
 
+	// ConfigKey is the key of the value in the configuration file.
+	ConfigKey string
+
 	// Aliases are usually used for the short flag name, like `-h`.
 	Aliases []string
 
@@ -47,12 +50,7 @@ type GenericFlag[T GenericType] struct {
 	Hidden bool
 }
 
-// Apply applies Flag settings to the given flag set.
-func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
-	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
-	}
-
+func (flag *GenericFlag[T]) initValue() *flagValue {
 	if flag.Destination == nil {
 		flag.Destination = new(T)
 	}
@@ -60,9 +58,25 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 	valueType := &genericVar[T]{dest: flag.Destination}
 	value := newGenericValue(valueType, flag.Setter)
 
-	flag.FlagValue = &flagValue{
+	return &flagValue{
 		value:            value,
 		initialTextValue: value.String(),
+	}
+}
+
+// Value returns the `FlagValue` interface for interacting with the flag value.
+func (flag *GenericFlag[T]) Value() FlagValue {
+	if flag.FlagValue == nil {
+		flag.FlagValue = flag.initValue()
+	}
+
+	return flag.FlagValue
+}
+
+// Apply applies Flag settings to the given flag set.
+func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
+	if flag.FlagValue == nil {
+		flag.FlagValue = flag.initValue()
 	}
 
 	return ApplyFlag(flag, set)
@@ -81,6 +95,11 @@ func (flag *GenericFlag[T]) GetUsage() string {
 // GetEnvVars implements `cli.Flag` interface.
 func (flag *GenericFlag[T]) GetEnvVars() []string {
 	return flag.EnvVars
+}
+
+// GetConfigKey implements `cli.Flag` interface.
+func (flag *GenericFlag[T]) GetConfigKey() string {
+	return flag.ConfigKey
 }
 
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.

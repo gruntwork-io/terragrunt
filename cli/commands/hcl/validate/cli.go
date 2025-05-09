@@ -18,62 +18,66 @@ const (
 	JSONFlagName           = "json"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+	strictControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	flagSet := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        StrictFlagName,
-			EnvVars:     tgPrefix.EnvVars(StrictFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(StrictFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(StrictFlagName),
 			Destination: &opts.HCLValidateStrict,
 			Usage:       "Enables strict mode. When used in combination with the `--inputs` flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
 		},
-			flags.WithDeprecatedFlagName("strict-validate", terragruntPrefixControl), // `--strict-validate`
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars(
+			flags.WithDeprecatedFlagName("strict-validate", strictControl), // `--strict-validate`
+			flags.WithDeprecatedEnvVars(flags.EnvVarsWithTgPrefix(
 				"strict-validate",             // `TG_STRICT_VALIDATE`
 				"hclvalidate-strict-validate", // `TG_HCLVALIDATE_STRICT_VALIDATE`
-			), terragruntPrefixControl),
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("strict-validate"), terragruntPrefixControl), // `--terragrunt-strict-validate`, `TERRAGRUNT_STRICT_VALIDATE`
+			), strictControl),
+			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("strict-validate"), strictControl), // `--terragrunt-strict-validate`, `TERRAGRUNT_STRICT_VALIDATE`
 		),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InputsFlagName,
-			EnvVars:     tgPrefix.EnvVars(InputsFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(InputsFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(InputsFlagName),
 			Destination: &opts.HCLValidateInputs,
 			Usage:       "Checks if the Terragrunt configured inputs align with OpenTofu/Terraform defined variables.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
-			EnvVars:     tgPrefix.EnvVars(ShowConfigPathFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(ShowConfigPathFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(ShowConfigPathFlagName),
 			Usage:       "Emit a list of files with invalid configurations after validating all configurations.",
 			Destination: &opts.HCLValidateShowConfigPath,
 		},
 
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-strict-validate"), terragruntPrefixControl),          // `TG_HCLVALIDATE_STRICT_VALIDATE`
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclvalidate-show-config-path"), terragruntPrefixControl), // `--terragrunt-hclvalidate-show-config-path`, `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH`
+			flags.WithDeprecatedEnvVars(flags.EnvVarsWithTgPrefix("hclvalidate-strict-validate"), strictControl),          // `TG_HCLVALIDATE_STRICT_VALIDATE`
+			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("hclvalidate-show-config-path"), strictControl), // `--terragrunt-hclvalidate-show-config-path`, `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH`
 		),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
-			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(JSONFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(JSONFlagName),
 			Destination: &opts.HCLValidateJSONOutput,
 			Usage:       "Format results in JSON format.",
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-json"), terragruntPrefixControl),         // `TG_HCLVALIDATE_JSON`
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("hclvalidate-json"), terragruntPrefixControl), // `--terragrunt-hclvalidate-json`, `TERRAGRUNT_HCLVALIDATE_JSON`
+			flags.WithDeprecatedEnvVars(flags.EnvVarsWithTgPrefix("hclvalidate-json"), strictControl),         // `TG_HCLVALIDATE_JSON`
+			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("hclvalidate-json"), strictControl), // `--terragrunt-hclvalidate-json`, `TERRAGRUNT_HCLVALIDATE_JSON`
 		),
 	}
 
 	return flagSet
 }
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Name) *cli.Command {
+	cmdPrefix = cmdPrefix.Append(CommandName)
+
 	cmd := &cli.Command{
 		Name:                         CommandName,
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",
-		Flags:                        NewFlags(opts, nil),
+		Flags:                        NewFlags(opts, cmdPrefix),
 		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))

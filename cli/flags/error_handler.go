@@ -18,26 +18,26 @@ func ErrorHandler(commands cli.Commands) cli.FlagErrHandlerFunc {
 			return err
 		}
 
-		undefFlag := string(undefinedFlagErr)
+		undefArg := undefinedFlagErr.Arg
 
-		if cmds, flag := findFlagInCommands(commands, undefFlag); cmds != nil {
+		if cmds, flag := findFlagInCommands(commands, undefArg); cmds != nil {
 			var (
 				flagHint = util.FirstElement(util.RemoveEmptyElements(flag.Names()))
 				cmdHint  = strings.Join(cmds.Names(), " ")
 			)
 
 			if ctx.Parent().Command != nil {
-				return NewCommandFlagHintError(ctx.Command.Name, undefFlag, cmdHint, flagHint)
+				return NewCommandFlagHintError(ctx.Command.Name, undefArg, cmdHint, flagHint)
 			}
 
-			return NewGlobalFlagHintError(undefFlag, cmdHint, flagHint)
+			return NewGlobalFlagHintError(undefArg, cmdHint, flagHint)
 		}
 
 		return err
 	}
 }
 
-func findFlagInCommands(commands cli.Commands, undefFlag string) (cli.Commands, cli.Flag) {
+func findFlagInCommands(commands cli.Commands, undefArg string) (cli.Commands, cli.Flag) {
 	if len(commands) == 0 {
 		return nil, nil
 	}
@@ -50,12 +50,12 @@ func findFlagInCommands(commands cli.Commands, undefFlag string) (cli.Commands, 
 				flagNames = append(flagNames, flag.DeprecatedNames()...)
 			}
 
-			if slices.Contains(flagNames, undefFlag) {
+			if slices.Contains(flagNames, undefArg) {
 				return cli.Commands{cmd}, flag
 			}
 		}
 
-		if cmds, flag := findFlagInCommands(cmd.Subcommands, undefFlag); cmds != nil {
+		if cmds, flag := findFlagInCommands(cmd.Subcommands, undefArg); cmds != nil {
 			return append(cli.Commands{cmd}, cmds...), flag
 		}
 	}

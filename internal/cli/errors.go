@@ -109,19 +109,24 @@ func (err InvalidValueError) Unwrap() error {
 	return err.underlyingError
 }
 
-const ErrMsgFlagUndefined = "flag provided but not defined:"
+const (
+	ErrMsgFlagUndefined     = "flag provided but not defined:"
+	ErrMsgFlagHelpRequested = "flag: help requested"
+)
 
-type UndefinedFlagError string
+type UndefinedFlagError struct {
+	Arg     string
+	CmdName string
+}
 
-func (flag UndefinedFlagError) Error() string {
-	return ErrMsgFlagUndefined + " -" + string(flag)
+func (err UndefinedFlagError) Error() string {
+	return ErrMsgFlagUndefined + " -" + err.Arg
 }
 
 var (
-	ErrMultipleTimesSettingFlag   = errors.New("setting the flag multiple times")
-	ErrMultipleTimesSettingEnvVar = errors.New("setting the env var multiple times")
+	ErrMultipleTimesSettingFlag = errors.New("setting the flag multiple times")
 )
 
 func IsMultipleTimesSettingError(err error) bool {
-	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error()) || strings.Contains(err.Error(), ErrMultipleTimesSettingEnvVar.Error())
+	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error())
 }

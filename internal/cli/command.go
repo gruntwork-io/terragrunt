@@ -1,9 +1,9 @@
 package cli
 
 import (
-	"errors"
-	libflag "flag"
-	"strings"
+	"slices"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 type Command struct {
@@ -175,12 +175,17 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	return nil
 }
 
-func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
-	var undefArgs Args
-
+func (cmd *Command) parseFlags(ctx *Context, args Args) (Args, error) {
 	errHandler := func(err error) error {
-		if err == nil {
+		if err == nil || ctx.shellComplete {
 			return nil
+		}
+
+		var underErr UndefinedFlagError
+		if errors.As(err, &underErr) {
+			if cmd.DisabledErrorOnUndefinedFlag || cmd.Subcommands.Get(underErr.CmdName) != nil {
+				return nil
+			}
 		}
 
 		if cmd.DisabledErrorOnMultipleSetFlag && IsMultipleTimesSettingError(err) {
@@ -194,108 +199,16 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 		return err
 	}
 
-	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler)
-	if err != nil {
-		return nil, err
-	}
-
-	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name, errHandler)
-	if err != nil {
-		return nil, err
-	}
-
 	if cmd.SkipFlagParsing {
 		return args, nil
 	}
 
-	args, builtinCmd := args.Split(BuiltinCmdSep)
-
-	for i := 0; len(args) > 0; i++ {
-		if i == 0 {
-			args, err = cmd.flagSetParse(ctx, flagSet, args)
-		} else {
-			args, err = cmd.flagSetParse(ctx, flagSetWithSubcommandScope, args)
-		}
-
-		if len(args) != 0 {
-			undefArgs = append(undefArgs, args[0])
-			args = args[1:]
-		}
-
-		if err != nil {
-			if !errors.As(err, new(UndefinedFlagError)) ||
-				(cmd.Subcommands.Get(undefArgs.Get(0)) == nil) {
-				if err = errHandler(err); err != nil {
-					return undefArgs, err
-				}
-			}
-		}
+	args, err := cmd.Flags.WithSubcommandScope().Parse(args, errHandler)
+	if err == nil || !args.Present() {
+		return args, err
 	}
 
-	if len(builtinCmd) > 0 {
-		undefArgs = append(undefArgs, BuiltinCmdSep)
-		undefArgs = append(undefArgs, builtinCmd...)
-	}
-
-	return undefArgs, nil
-}
-
-func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Args) ([]string, error) {
-	var (
-		undefArgs []string
-		err       error
-	)
-
-	if len(args) == 0 {
-		return undefArgs, nil
-	}
-
-	const maxFlagsParse = 1000 // Maximum flags parse
-
-	for range maxFlagsParse {
-		// check if the error is due to an undefArgs flag
-		var undefArg string
-
-		if err = flagSet.Parse(args); err == nil {
-			break
-		}
-
-		if errStr := err.Error(); strings.HasPrefix(errStr, ErrMsgFlagUndefined) {
-			undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrMsgFlagUndefined), " -")
-			err = UndefinedFlagError(undefArg)
-		} else {
-			break
-		}
-
-		// cut off the args
-		var notFoundMatch bool
-
-		for i, arg := range args {
-			// `--var=input=from_env` trims to `var`
-			trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0] //nolint:mnd
-			if trimmed == undefArg {
-				undefArgs = append(undefArgs, arg)
-				notFoundMatch = true
-				args = args[i+1:]
-
-				break
-			}
-		}
-
-		if !cmd.DisabledErrorOnUndefinedFlag && !ctx.shellComplete {
-			break
-		}
-
-		// This should be an impossible to reach code path, but in case the arg
-		// splitting failed to happen, this will prevent infinite loops
-		if !notFoundMatch {
-			return nil, err
-		}
-	}
-
-	undefArgs = append(undefArgs, flagSet.Args()...)
-
-	return undefArgs, err
+	return cmd.Flags.Parse(args, errHandler)
 }
 
 func (cmd *Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *Command {
@@ -317,4 +230,17 @@ func (cmd *Command) DisableErrorOnMultipleSetFlag() *Command {
 	newCmd.Subcommands = newCmd.Subcommands.DisableErrorOnMultipleSetFlag()
 
 	return &newCmd
+}
+
+// AllFlags returns all flags, including subcommand flags.
+func (cmd *Command) AllFlags() Flags {
+	flags := cmd.Flags
+
+	for _, flag := range cmd.Subcommands.AllFlags() {
+		if !slices.Contains(flags, flag) {
+			flags = append(flags, flag)
+		}
+	}
+
+	return flags
 }

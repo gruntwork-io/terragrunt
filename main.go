@@ -5,13 +5,14 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // The main entrypoint for Terragrunt
@@ -19,18 +20,11 @@ func main() {
 	var exitCode tf.DetailedExitCode
 
 	opts := options.NewTerragruntOptions()
-
-	// Immediately parse the `TG_LOG_LEVEL` environment variable, e.g. to set the TRACE level.
-	if err := global.NewLogLevelFlag(opts, nil).Parse(os.Args); err != nil {
-		opts.Logger.Error(err.Error())
-		os.Exit(1)
-	}
+	app := cli.NewApp(opts)
 
 	defer errors.Recover(checkForErrorsAndExit(opts.Logger, exitCode.Get()))
 
-	app := cli.NewApp(opts)
-
-	ctx := setupContext(opts, &exitCode)
+	ctx := setupContext(opts.Logger, &exitCode)
 	err := app.RunContext(ctx, os.Args)
 
 	checkForErrorsAndExit(opts.Logger, exitCode.Get())(err)
@@ -42,7 +36,14 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 		if err == nil {
 			os.Exit(exitCode)
 		} else {
-			logger.Error(err.Error())
+			errStr := err.Error()
+			if len(errStr) > 0 {
+				// Capitalize the first letter of the error.
+				firstLetter := cases.Upper(language.Und).String(string(errStr[0]))
+				errStr = string([]rune(errStr)[:0]) + firstLetter + string([]rune(errStr)[1:])
+			}
+
+			logger.Error(errStr)
 
 			if errStack := errors.ErrorStack(err); errStack != "" {
 				logger.Trace(errStack)
@@ -65,9 +66,9 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 	}
 }
 
-func setupContext(opts *options.TerragruntOptions, exitCode *tf.DetailedExitCode) context.Context {
+func setupContext(logger log.Logger, exitCode *tf.DetailedExitCode) context.Context {
 	ctx := context.Background()
 	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
-	return log.ContextWithLogger(ctx, opts.Logger)
+	return log.ContextWithLogger(ctx, logger)
 }

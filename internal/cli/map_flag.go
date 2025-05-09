@@ -18,7 +18,7 @@ var _ Flag = new(MapFlag[string, string])
 var (
 	MapFlagEnvVarSep = ","
 	MapFlagKeyValSep = "="
-	flatPatsCount    = 2
+	flagPartsCount   = 2
 )
 
 type MapFlagKeyType interface {
@@ -60,6 +60,9 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	// KeyValSep is the separator used to split the key and value of the flag.
 	KeyValSep string
 
+	// ConfigKey is the key of the value in the configuration file.
+	ConfigKey string
+
 	// Aliases are usually used for the short flag name, like `-h`.
 	Aliases []string
 
@@ -70,12 +73,7 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	Hidden bool
 }
 
-// Apply applies Flag settings to the given flag set.
-func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
-	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
-	}
-
+func (flag *MapFlag[K, V]) initValue() *flagValue {
 	if flag.Destination == nil {
 		dest := make(map[K]V)
 		flag.Destination = &dest
@@ -108,10 +106,26 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 
 	value := newMapValue(keyType, valType, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination, flag.Setter)
 
-	flag.FlagValue = &flagValue{
+	return &flagValue{
 		multipleSet:      true,
 		value:            value,
 		initialTextValue: value.String(),
+	}
+}
+
+// Value returns the `FlagValue` interface for interacting with the flag value.
+func (flag *MapFlag[K, V]) Value() FlagValue {
+	if flag.FlagValue == nil {
+		flag.FlagValue = flag.initValue()
+	}
+
+	return flag.FlagValue
+}
+
+// Apply applies Flag settings to the given flag set.
+func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
+	if flag.FlagValue == nil {
+		flag.FlagValue = flag.initValue()
 	}
 
 	return ApplyFlag(flag, set)
@@ -130,6 +144,11 @@ func (flag *MapFlag[K, V]) GetUsage() string {
 // GetEnvVars implements `cli.Flag` interface.
 func (flag *MapFlag[K, V]) GetEnvVars() []string {
 	return flag.EnvVars
+}
+
+// GetConfigKey implements `cli.Flag` interface.
+func (flag *MapFlag[K, V]) GetConfigKey() string {
+	return flag.ConfigKey
 }
 
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
@@ -194,7 +213,7 @@ func (flag *mapValue[K, V]) Reset() {
 
 func (flag *mapValue[K, V]) Set(str string) error {
 	parts := flag.splitter(str, flag.valSep)
-	if len(parts) != flatPatsCount {
+	if len(parts) != flagPartsCount {
 		return errors.New(NewInvalidKeyValueError(flag.valSep, str))
 	}
 

@@ -24,18 +24,16 @@ func TestCommandHelpTemplate(t *testing.T) {
 		closeEnvVarChar = "%"
 	}
 
-	tgPrefix := flags.Prefix{flags.TgPrefix}
-
 	app := cli.NewApp()
 	app.Flags = cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:    "working-dir",
-			EnvVars: tgPrefix.EnvVars("working-dir"),
+			EnvVars: flags.EnvVarsWithTgPrefix("working-dir"),
 			Usage:   "The path to the directory of Terragrunt configurations. Default is current directory.",
 		},
 		&cli.BoolFlag{
 			Name:    "log-disable",
-			EnvVars: tgPrefix.EnvVars("log-disable"),
+			EnvVars: flags.EnvVarsWithTgPrefix("log-disable"),
 			Usage:   "Disable logging.",
 		},
 	}.Sort()
@@ -64,12 +62,12 @@ func TestCommandHelpTemplate(t *testing.T) {
 			&cli.BoolFlag{
 				Name:    "all",
 				Aliases: []string{"a"},
-				EnvVars: tgPrefix.EnvVars("all"),
+				EnvVars: flags.EnvVarsWithTgPrefix("all"),
 				Usage:   `Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory.`,
 			},
 			&cli.BoolFlag{
 				Name:    "graph",
-				EnvVars: tgPrefix.EnvVars("graph"),
+				EnvVars: flags.EnvVarsWithTgPrefix("graph"),
 				Usage:   "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
 			},
 		},

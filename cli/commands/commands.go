@@ -184,10 +184,19 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 }
 
 // mostly preparing terragrunt options
-func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
+func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
+	// Log which flags were set and from where: arg, env var, config
+	for _, sourceType := range []cli.FlagValueSourceType{cli.FlagValueSourceConfig, cli.FlagValueSourceEnvVar, cli.FlagValueSourceArg} {
+		for _, flag := range ctx.Flags().FilterBySourceType(sourceType) {
+			if value := flag.Value(); !flag.GetHidden() && value.IsSet() {
+				opts.Logger.Debugf("Using %s \"%s=%v\"", sourceType, value.SourceName(), value.Get())
+			}
+		}
+	}
+
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
-	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
-	cmdName := cliCtx.Command.Name
+	args := ctx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
+	cmdName := ctx.Command.Name
 
 	if cmdName == runCmd.CommandName {
 		cmdName = args.CommandName()
@@ -215,16 +224,9 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.Env = env.Parse(os.Environ())
 
 	// --- Working Dir
-	if opts.WorkingDir == "" {
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return errors.New(err)
-		}
-
-		opts.WorkingDir = currentDir
+	if err := opts.NormalizeWorkingDir(); err != nil {
+		return err
 	}
-
-	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
 
 	workingDir, err := filepath.Abs(opts.WorkingDir)
 	if err != nil {
@@ -259,7 +261,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
-		(cliCtx.Command.Name == runCmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
+		(ctx.Command.Name == runCmd.CommandName || slices.Contains(tf.CommandNames, ctx.Command.Name)) {
 		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
@@ -308,7 +310,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
 
 	// --- Terragrunt Version
-	terragruntVersion, err := hashicorpversion.NewVersion(cliCtx.App.Version)
+	terragruntVersion, err := hashicorpversion.NewVersion(ctx.App.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {

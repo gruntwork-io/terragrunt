@@ -24,3 +24,6 @@ type ExitErrHandlerFunc func(ctx *Context, err error) error
 
 // FlagErrHandlerFunc is executed if an error occurs while parsing flags.
 type FlagErrHandlerFunc func(ctx *Context, err error) error
+
+// LookupEnvFunc is used for getting the env var by the given `key`.
+type LookupEnvFunc func(key string) []string

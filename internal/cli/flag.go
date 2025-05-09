@@ -10,6 +10,13 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// List of sources. Order matters. Higher sources may overwrite flag values assigned by a lower source.
+const (
+	FlagValueSourceConfig FlagValueSourceType = iota
+	FlagValueSourceEnvVar
+	FlagValueSourceArg
+)
+
 var (
 	// FlagSplitter uses to separate arguments and env vars with multiple values.
 	FlagSplitter = strings.Split
@@ -18,6 +25,23 @@ var (
 // FlagStringer converts a flag definition to a string. This is used by help
 // to display a flag.
 var FlagStringer = cli.FlagStringer //nolint:gochecknoglobals
+
+type FlagErrorHandler func(err error) error
+
+type FlagValueSourceType byte
+
+func (source FlagValueSourceType) String() string {
+	switch source {
+	case FlagValueSourceConfig:
+		return "cli-config"
+	case FlagValueSourceEnvVar:
+		return "evn-var"
+	case FlagValueSourceArg:
+		return "cli-argument"
+	}
+
+	return "undefined source"
+}
 
 // FlagSetterFunc represents function type that is called when the flag is specified.
 // Unlike `FlagActionFunc` where the function is called after the value has been parsed and assigned to the `Destination` field,
@@ -40,6 +64,12 @@ type FlagVariable[T any] interface {
 	Clone(dest *T) FlagVariable[T]
 }
 
+// FlagConfigGetter provides methods to retrieve flag values from the configuration.
+type FlagConfigGetter interface {
+	// Get returns a raw key and its value for the specified `key` from the config.
+	Get(key string) (string, any)
+}
+
 type FlagValue interface {
 	fmt.Stringer
 
@@ -47,20 +77,17 @@ type FlagValue interface {
 
 	Set(str string) error
 
-	Getter(name string) FlagValueGetter
+	Getter(name string, source FlagValueSourceType) FlagValueGetter
 
-	GetName() string
+	SourceName() string
+
+	// SourceType returns the type of the value source, where the value was received from: arg, env or config.
+	SourceType() FlagValueSourceType
 
 	GetInitialTextValue() string
 
-	// IsSet returns true if the flag was set either by env var or CLI arg.
+	// IsSet returns true if the value has already been set by any source type.
 	IsSet() bool
-
-	// IsArgSet returns true if the flag was set by CLI arg.
-	IsArgSet() bool
-
-	// IsEnvSet returns true if the flag was set by env var.
-	IsEnvSet() bool
 
 	// IsBoolFlag returns true if the flag is of type bool.
 	IsBoolFlag() bool
@@ -93,47 +120,31 @@ type Flag interface {
 	// and not only after the command it belongs to.
 	AllowedSubcommandScope() bool
 
-	// Parse parses the given args and environment variables to set the flag value.
-	Parse(args Args) error
+	// GetConfigKey returns the key of the value in the configuration file.
+	GetConfigKey() string
 }
-
-type LookupEnvFuncType func(key string) []string
 
 type FlagValueGetter interface {
 	libflag.Getter
 
-	EnvSet(str string) error
+	// IsSet returns true if the value has already been set with the same source type.
+	IsSet() bool
 }
 
 type flagValueGetter struct {
 	*flagValue
-	valueName string
+	name   string
+	source FlagValueSourceType
 }
 
-func (flag *flagValueGetter) EnvSet(val string) error {
-	var err error
-
-	if !flag.envHasBeenSet {
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
-		flag.value.Reset()
-		flag.envHasBeenSet = true
-	} else if !flag.multipleSet {
-		err = errors.New(ErrMultipleTimesSettingEnvVar)
-	}
-
-	flag.flagValue.name = flag.valueName
-
-	if err := flag.flagValue.value.Set(val); err != nil {
-		return err
-	}
-
-	return err
+func (flag *flagValueGetter) IsSet() bool {
+	return flag.hasBeenSet && flag.flagValue.source == flag.source
 }
 
 func (flag *flagValueGetter) Set(val string) error {
 	var err error
 
-	if !flag.hasBeenSet {
+	if !flag.IsSet() {
 		// may contain a default value or an env var, so it needs to be cleared before the first setting.
 		flag.value.Reset()
 		flag.hasBeenSet = true
@@ -141,7 +152,12 @@ func (flag *flagValueGetter) Set(val string) error {
 		err = errors.New(ErrMultipleTimesSettingFlag)
 	}
 
-	flag.flagValue.name = flag.valueName
+	if flag.flagValue.source > flag.source {
+		return nil
+	}
+
+	flag.flagValue.name = flag.name
+	flag.flagValue.source = flag.source
 
 	if err := flag.flagValue.value.Set(val); err != nil {
 		return err
@@ -162,8 +178,8 @@ type flagValue struct {
 	initialTextValue string
 	multipleSet      bool
 	hasBeenSet       bool
-	envHasBeenSet    bool
 	negative         bool
+	source           FlagValueSourceType
 }
 
 func (flag *flagValue) MultipleSet() bool {
@@ -186,7 +202,7 @@ func (flag *flagValue) Get() any {
 }
 
 func (flag *flagValue) Set(str string) error {
-	return (&flagValueGetter{flagValue: flag}).Set(str)
+	return (&flagValueGetter{flagValue: flag, source: FlagValueSourceArg}).Set(str)
 }
 
 func (flag *flagValue) String() string {
@@ -202,34 +218,25 @@ func (flag *flagValue) GetInitialTextValue() string {
 }
 
 func (flag *flagValue) IsSet() bool {
-	return flag.hasBeenSet || flag.envHasBeenSet
-}
-
-func (flag *flagValue) IsArgSet() bool {
 	return flag.hasBeenSet
 }
 
-func (flag *flagValue) IsEnvSet() bool {
-	return flag.envHasBeenSet
+func (flag *flagValue) SourceType() FlagValueSourceType {
+	return flag.source
 }
 
-func (flag *flagValue) GetName() string {
+func (flag *flagValue) SourceName() string {
 	return flag.name
 }
 
-func (flag *flagValue) Getter(name string) FlagValueGetter {
-	return &flagValueGetter{flagValue: flag, valueName: name}
+func (flag *flagValue) Getter(name string, source FlagValueSourceType) FlagValueGetter {
+	return &flagValueGetter{flagValue: flag, name: name, source: source}
 }
 
 // flag is a common flag related to parsing flags in cli.
 type flag struct {
 	FlagValue
-	LookupEnvFunc LookupEnvFuncType
-}
-
-// Parse implements `Flag` interface.
-func (flag *flag) Parse(args Args) error {
-	return nil
+	LookupEnvFunc LookupEnvFunc
 }
 
 func (flag *flag) LookupEnv(envVar string) []string {
@@ -244,10 +251,6 @@ func (flag *flag) LookupEnv(envVar string) []string {
 	}
 
 	return flag.LookupEnvFunc(envVar)
-}
-
-func (flag *flag) Value() FlagValue {
-	return flag.FlagValue
 }
 
 // TakesValue returns true if the flag needs to be given a value.
@@ -278,14 +281,57 @@ func (flag *flag) SplitValue(val string) []string {
 	return []string{val}
 }
 
-func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
+func ApplyConfig(flag Flag, cfgGetter FlagConfigGetter) error {
+	key := flag.GetConfigKey()
+	if key == "" {
+		return nil
+	}
+
+	rawKey, val := cfgGetter.Get(key)
+	if val == nil {
+		return nil
+	}
+
+	var vals []string
+
+	switch val := val.(type) {
+	case []any:
+		for _, val := range val {
+			vals = append(vals, fmt.Sprintf("%v", val))
+		}
+
+	case map[string]any:
+		for key, val := range val {
+			vals = append(vals, fmt.Sprintf("%v%v%v", key, MapFlagKeyValSep, val))
+		}
+
+	default:
+		vals = []string{fmt.Sprintf("%v", val)}
+	}
+
+	for _, val := range vals {
+		if val == "" {
+			continue
+		}
+
+		if err := flag.Value().Getter(rawKey, FlagValueSourceConfig).Set(val); err != nil {
+			return errors.Errorf("invalid value %q for key %q: %w", val, rawKey, err)
+		}
+	}
+
+	return nil
+}
+
+func ApplyFlag(flag Flag, flagSet *libflag.FlagSet) error {
 	for _, name := range flag.GetEnvVars() {
 		for _, val := range flag.LookupEnv(name) {
-			if val == "" || (flag.Value().IsEnvSet() && !flag.Value().MultipleSet()) {
+			getter := flag.Value().Getter(name, FlagValueSourceEnvVar)
+
+			if val == "" || (getter.IsSet() && !flag.Value().MultipleSet()) {
 				continue
 			}
 
-			if err := flag.Value().Getter(name).EnvSet(val); err != nil {
+			if err := getter.Set(val); err != nil {
 				return errors.Errorf("invalid value %q for env var %s: %w", val, name, err)
 			}
 		}
@@ -293,7 +339,7 @@ func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
 
 	for _, name := range flag.Names() {
 		if name != "" {
-			set.Var(flag.Value().Getter(name), name, flag.GetUsage())
+			flagSet.Var(flag.Value().Getter(name, FlagValueSourceArg), name, flag.GetUsage())
 		}
 	}
 

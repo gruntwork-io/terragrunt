@@ -5,11 +5,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/engine"
+	"github.com/gruntwork-io/terragrunt/internal/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -62,10 +65,6 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	return &App{app, opts}
 }
 
-func (app *App) Run(args []string) error {
-	return app.RunContext(context.Background(), args)
-}
-
 func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
 	ctx, cancel := context.WithCancelCause(ctx)
 
@@ -80,13 +79,97 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 	return ctx
 }
 
+func (app *App) ApplyConfig(ctx context.Context) error {
+	if err := app.opts.NormalizeWorkingDir(); err != nil {
+		return err
+	}
+
+	paths := []string{
+		app.opts.CLIConfigFile,
+		app.opts.WorkingDir,
+	}
+
+	repoDir, err := filepath.Abs(app.opts.WorkingDir)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	const maxWalking = 1000
+
+	for range maxWalking {
+		gitDir := filepath.Join(repoDir, ".git")
+		if util.FileExists(gitDir) && util.IsDir(gitDir) {
+			paths = append(paths, repoDir)
+
+			cfgRepoDir := filepath.Join(repoDir, ".config")
+			if util.FileExists(cfgRepoDir) {
+				paths = append(paths, cfgRepoDir)
+			}
+
+			break
+		}
+
+		if newRepoDir := filepath.Dir(repoDir); newRepoDir != repoDir {
+			repoDir = newRepoDir
+		} else {
+			break
+		}
+	}
+
+	path, err := cliconfig.DiscoveryPath(paths...)
+	if err != nil || path == "" {
+		return err
+	}
+
+	cfg, err := cliconfig.LoadConfig(path)
+	if err != nil {
+		return errors.Errorf("could not load CLI config %s: %w", path, err)
+	}
+
+	if err := app.AllFlags().ApplyConfig(cfg); err != nil {
+		return errors.Errorf("could not apply CLI config %s: %w", path, err)
+	}
+
+	app.opts.Logger.Debugf("Loaded CLI configuration file %s", cfg.Path())
+
+	if extraKeys := cfg.ExtraKeys(); len(extraKeys) > 0 {
+		app.opts.Logger.Warnf("CLI configuration file contains unused keys: %s", strings.Join(extraKeys, ","))
+	}
+
+	return nil
+}
+
+func (app *App) Run(args []string) error {
+	return app.RunContext(context.Background(), args)
+}
+
 func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	ctx = app.registerGracefullyShutdown(ctx)
 
-	if err := global.NewTelemetryFlags(app.opts, nil).Parse(os.Args); err != nil {
+	// These essential flags we must parse immediately to be able:
+	// 1. Log at the user-specified level from the very beginning.
+	// 2. Load CLI config file since it can also contain the log level and other settings used from the start.
+	// 3. Init telemetery at the very beginning.
+	args, err := app.Flags.Filter(
+		global.LogLevelFlagName,
+		global.WorkingDirFlagName,
+		global.CLIConfigFileFlagName,
+		// Telemetry flags
+		global.TelemetryTraceExporterFlagName,
+		global.TelemetryTraceExporterInsecureEndpointFlagName,
+		global.TelemetryTraceExporterHTTPEndpointFlagName,
+		global.TraceparentFlagName,
+		global.TelemetryMetricExporterFlagName,
+		global.TelemetryMetricExporterInsecureEndpointFlagName,
+	).Parse(args, cli.IgnoringUndefinedFlagErrorHandler)
+	if err != nil {
+		return err
+	}
+
+	if err := app.ApplyConfig(ctx); err != nil {
 		return err
 	}
 

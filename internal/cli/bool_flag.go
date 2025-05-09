@@ -33,6 +33,9 @@ type BoolFlag struct {
 	// Usage is a short usage description to display in help.
 	Usage string
 
+	// ConfigKey is the key of the value in the configuration file.
+	ConfigKey string
+
 	// Aliases are usually used for the short flag name, like `-h`.
 	Aliases []string
 
@@ -48,12 +51,7 @@ type BoolFlag struct {
 	Hidden bool
 }
 
-// Apply applies Flag settings to the given flag set.
-func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
-	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
-	}
-
+func (flag *BoolFlag) initValue() *flagValue {
 	if flag.Destination == nil {
 		flag.Destination = new(bool)
 	}
@@ -61,10 +59,26 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	valueType := newBoolVar(flag.Destination, flag.Negative)
 	value := newGenericValue(valueType, flag.Setter)
 
-	flag.FlagValue = &flagValue{
+	return &flagValue{
 		value:            value,
 		initialTextValue: value.String(),
 		negative:         flag.Negative,
+	}
+}
+
+// Value returns the `FlagValue` interface for interacting with the flag value.
+func (flag *BoolFlag) Value() FlagValue {
+	if flag.FlagValue == nil {
+		flag.FlagValue = flag.initValue()
+	}
+
+	return flag.FlagValue
+}
+
+// Apply applies Flag settings to the given flag set.
+func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
+	if flag.FlagValue == nil {
+		flag.FlagValue = flag.initValue()
 	}
 
 	return ApplyFlag(flag, set)
@@ -83,6 +97,11 @@ func (flag *BoolFlag) GetUsage() string {
 // GetEnvVars implements `cli.Flag` interface.
 func (flag *BoolFlag) GetEnvVars() []string {
 	return flag.EnvVars
+}
+
+// GetConfigKey implements `cli.Flag` interface.
+func (flag *BoolFlag) GetConfigKey() string {
+	return flag.ConfigKey
 }
 
 // TakesValue returns true of the flag takes a value, otherwise false.
