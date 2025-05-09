@@ -1,6 +1,8 @@
 ---
 import { Icon } from '@astrojs/starlight/components';
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import GruntworkLogoDusk from '../assets/gruntwork-logo-mark-dusk.svg';
+import GruntworkLogoGlacier from '../assets/gruntwork-logo-mark-glacier.svg';
 ---
 
 <StarlightPage frontmatter={{
@@ -25,158 +27,12 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 		</div>
 	</div>
 
-	<div class="py-8 px-4 max-w-7xl mx-auto text-center">
-		<h2 class="text-xl font-medium text-gray-600 dark:text-gray-300 mb-8">
-			Managing infrastructure at
-		</h2>
-		<div class="flex flex-wrap gap-8 justify-center items-center max-w-7xl mx-auto">
-			<img src="/placeholder-logo.svg" alt="Client Logo 1" class="logo h-8 opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-200 mt-4" />
-			<img src="/placeholder-logo.svg" alt="Client Logo 2" class="logo h-8 opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-200 mt-4" />
-			<img src="/placeholder-logo.svg" alt="Client Logo 3" class="logo h-8 opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-200 mt-4" />
-			<img src="/placeholder-logo.svg" alt="Client Logo 4" class="logo h-8 opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-200 mt-4" />
-			<img src="/placeholder-logo.svg" alt="Client Logo 5" class="logo h-8 opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-200 mt-4" />
-			<img src="/placeholder-logo.svg" alt="Client Logo 6" class="logo h-8 opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-200 mt-4" />
-			<img src="/placeholder-logo.svg" alt="Client Logo 7" class="logo h-8 opacity-60 grayscale hover:opacity-100 hover:grayscale-0 transition-all duration-200 mt-4" />
-		</div>
-	</div>
-
-	<div class="py-8 px-4 max-w-7xl mx-auto text-center">
-		<h2 class="text-4xl font-bold mb-4">
-			The Best Way to Manage Infrastructure at Scale
-		</h2>
-		<p class="text-gray-600 dark:text-gray-300 mb-12 text-lg">
-			Organically shaped by years of solving scaling problems for organizations managing massive OpenTofu/Terraform infrastructure estates.
-		</p>
-	</div>
-
-	<div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 text-black dark:text-white h-full border border-gray-200 dark:border-gray-600 shadow-sm mt-4">
-		<div class="text-center mb-6">
-			<h3 class="text-2xl font-bold mb-2">Control Your Infrastructure</h3>
-		</div>
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Limit Your Blast Radius</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Break down your monolithic infrastructure to manageable <a href="/docs/features/units/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">units</a> that are safe to update independently, and have their own state.
-				</div>
-			</div>
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Orchestrate Your Infrastructure</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Reject all-or-nothing updates. Control exactly what infrastructure is updated, how it gets updated, and in what order by taking advantage of <a href="/docs/features/stacks/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">stacks</a>.
-				</div>
-			</div>
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Automate You Backend Infrastructure</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Ensure your entire team is using secure, consistent OpenTofu/Terraform <a href="/docs/features/state-backend/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">state backend</a> configurations.
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 text-black dark:text-white h-full border border-gray-200 dark:border-gray-600 shadow-sm mt-4">
-		<div class="text-center mb-6">
-			<h3 class="text-2xl font-bold mb-2">Reduce Code Repetition</h3>
-		</div>
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Reuse Common Infrastructure Configurations</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-          Define reusable infrastructure configurations once, and reference them wherever they're needed using <a href="/docs/features/includes/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">includes</a>.
-				</div>
-			</div>
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1"></div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-				</div>
-			</div>
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Reuse Production-Ready Patterns</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Leverage the special construct of the <a href="/docs/features/stacks/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">Terragrunt Stack</a> to encapsulate higher level collections of infrastructure components as a unified stack.
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 text-black dark:text-white h-full border border-gray-200 dark:border-gray-600 shadow-sm mt-4">
-		<div class="text-center mb-6">
-			<h3 class="text-2xl font-bold mb-2">Codify Tribal Knowledge</h3>
-		</div>
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Automate Operational Tasks Using Hooks</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Don't ask that your engineers remember to do things before/after updating IaC, codify those tasks with <a href="/docs/features/hooks/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">hooks</a> so that they're done automatically.
-				</div>
-			</div>
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Handle Expected Errors</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Your engineers know that networks can be flaky, and cloud providers aren't perfect. Automatically handle the errors they produce using <a href="/docs/features/runtime-control/#errors" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">built-in error handling</a>.
-				</div>
-			</div>
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Integrate Early and Often</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Get your engineers on the same page. Keep them all working on a consistent, unified codebase, but gradually roll out new features using <a href="/docs/features/runtime-control/#feature-flags" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">feature flags</a>.
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 text-black dark:text-white h-full border border-gray-200 dark:border-gray-600 shadow-sm mt-4">
-		<div class="text-center mb-6">
-			<h3 class="text-2xl font-bold mb-2">Enable Self-Service</h3>
-		</div>
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Leverage a Proven Infrastructure Catalog</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Catalog your infrastructure patterns for reuse across your organization using the <a href="/docs/features/catalog/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">catalog TUI</a>.
-				</div>
-			</div>
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1"></div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-				</div>
-			</div>
-			<div class="feature-card text-left">
-				<div class="font-bold text-lg mb-1">Design Opinionated Templates</div>
-				<div class="text-gray-700 dark:text-gray-200 mb-2 leading-relaxed">
-					Provide templates that guide engineers to <a href="/docs/features/scaffold/" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">scaffold</a> exactly the right infrastructure they need, following best practices by default.
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<div class="text-black dark:text-white py-16 px-6 text-center mt-8">
-		<h2 class="text-4xl font-bold mb-4">Supercharge Terragrunt for your Organization</h2>
-		<p class="mb-12 text-lg">
-			A Gruntwork subscription provides a suite of tools to accelerate your adoption of Terragrunt and deliver best-practice end-to-end infrastructure.
-		</p>
-		<div class="flex flex-wrap gap-8 justify-center max-w-7xl mx-auto">
-			<div class="commercial-card rounded-lg p-6 text-left flex-1 min-w-[300px] max-w-[450px] border border-gray-700 dark:border-gray-700 shadow-lg mt-4">
-				<div class="text-blue-500 dark:text-blue-400 mb-4">
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-				</div>
-				<h3 class="text-xl font-semibold mb-3 text-white dark:text-white">Automate your CI/CD</h3>
-				<p class="mb-6 leading-relaxed">Gruntwork Pipelines is an out-of-the-box, best practices, secure CI/CD pipeline, built for Terragrunt, by the creators of Terragrunt.</p>
-				<a href="https://www.gruntwork.io/platform/pipelines" class="inline-block px-4 py-2 bg-transparent text-blue-500 dark:text-blue-400 border border-blue-500 dark:border-blue-400 rounded font-medium transition-all duration-200 hover:bg-blue-500 hover:text-black dark:hover:bg-blue-400 dark:hover:text-white">Learn More →</a>
-			</div>
-			<div class="commercial-card rounded-lg p-6 text-left flex-1 min-w-[300px] max-w-[450px] border border-gray-700 dark:border-gray-700 shadow-lg mt-4">
-				<div class="text-blue-500 dark:text-blue-400 mb-4">
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-				</div>
-				<h3 class="text-xl font-semibold mb-3 text-white dark:text-white">Keep your IaC Fresh</h3>
-				<p class="mb-6 leading-relaxed">Gruntwork Patcher is a dependency management tool that keeps your OpenTofu/Terraform modules up to date, even through breaking changes.</p>
-				<a href="https://www.gruntwork.io/platform/patcher" class="inline-block px-4 py-2 bg-transparent text-blue-500 dark:text-blue-400 border border-blue-500 dark:border-blue-400 rounded font-medium transition-all duration-200 hover:bg-blue-500 hover:text-black dark:hover:bg-blue-400 dark:hover:text-white">Learn More →</a>
-			</div>
-		</div>
-	</div>
-
-	<div class="text-center py-12 text-gray-600 dark:text-gray-300">
+	<div class="flex items-center justify-center py-12 text-gray-600 dark:text-gray-300">
+		<picture class="w-6 h-6 mr-2">
+			<source srcset={GruntworkLogoGlacier.src} media="(prefers-color-scheme: dark)" />
+			<source srcset={GruntworkLogoDusk.src} media="(prefers-color-scheme: light)" />
+			<img src={GruntworkLogoDusk.src} alt="Gruntwork Logo" class="w-6 h-6" />
+		</picture>
 		From the DevOps Experts at <a href="https://gruntwork.io" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">Gruntwork</a>
 	</div>
 
