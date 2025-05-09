@@ -77,7 +77,6 @@ func (flags Flags) Parse(args Args, errHandler FlagErrorHandler) (Args, error) {
 					}
 				}
 			}
-
 		} else if args = Args(flagSet.Args()); args.Present() {
 			undefArgs = append(undefArgs, args.First())
 			args = args.Tail()
