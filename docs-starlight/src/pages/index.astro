@@ -1,6 +1,9 @@
 ---
-import { Icon } from '@astrojs/starlight/components';
+import { LinkButton } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import DarkLogo from '../assets/logo-dark.svg'
+import LightLogo from '../assets/logo-light.svg'
 import GruntworkLogoDusk from '../assets/gruntwork-logo-mark-dusk.svg';
 import GruntworkLogoGlacier from '../assets/gruntwork-logo-mark-glacier.svg';
 ---
@@ -13,34 +16,49 @@ import GruntworkLogoGlacier from '../assets/gruntwork-logo-mark-glacier.svg';
 }}>
 
 	<div class="max-w-7xl mx-auto px-4 py-12 text-center">
-		<h1 class="text-4xl font-bold mb-4">The Trusted IaC Orchestrator that Scales</h1>
-		<p class="text-xl text-gray-600 dark:text-gray-300 mb-8">Solving scaling for OpenTofu/Terraform since 2016.</p>
-		<div class="flex flex-col sm:flex-row gap-4 justify-center mt-8 max-w-[300px] sm:max-w-none mx-auto  p-8 rounded-lg">
-			<a href="/docs/getting-started/quick-start/" class="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-blue-600 dark:bg-blue-500 text-white font-semibold transition-all duration-200 hover:bg-blue-500 dark:hover:bg-blue-400 hover:-translate-y-0.5 hover:shadow-xl shadow-md no-underline">
-				<span class="ml-2">Quick Start </span>
-				<Icon name="rocket" />
-			</a>
-			<a href="/docs/reference/hcl/" class="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-blue-600 dark:bg-blue-500 text-white font-semibold transition-all duration-200 hover:bg-blue-500 dark:hover:bg-blue-400 hover:-translate-y-0.5 hover:shadow-xl shadow-md no-underline">
-				<span class="ml-2">Docs </span>
-				<Icon name="open-book" />
-			</a>
+		<h1 class="text-4xl font-bold mb-4">The IaC Orchestrator that Scales</h1>
+		<p class="text-xl text-gray-600 dark:text-gray-300 mb-8 break-words">Author your Infrastructure as Code, and let Terragrunt handle getting it to production.</p>
+		<div>
+			<LinkButton href="/docs/getting-started/quick-start/" icon="rocket">Quick Start</LinkButton>
+			<LinkButton href="/docs/reference/hcl/" icon="open-book">Docs</LinkButton>
 		</div>
 	</div>
 
+	<div class="logo-container">
+		{
+				<Image
+					src={DarkLogo}
+					alt="Terragrunt Logo"
+					class='dark:sl-hidden logo-image'
+				/>
+		}
+		{<Image src={LightLogo} alt="Terragrunt Logo" class="light:sl-hidden logo-image" />}
+	</div>
+
 	<div class="flex items-center justify-center py-12 text-gray-600 dark:text-gray-300">
-		<picture class="w-6 h-6 mr-2">
-			<source srcset={GruntworkLogoGlacier.src} media="(prefers-color-scheme: dark)" />
-			<source srcset={GruntworkLogoDusk.src} media="(prefers-color-scheme: light)" />
-			<img src={GruntworkLogoDusk.src} alt="Gruntwork Logo" class="w-6 h-6" />
-		</picture>
-		From the DevOps Experts at <a href="https://gruntwork.io" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">Gruntwork</a>
+		<Image src={GruntworkLogoDusk} alt="Gruntwork Logo" class="w-6 h-6 dark:sl-hidden" style="margin-top: 0;" />
+		<Image src={GruntworkLogoGlacier} alt="Gruntwork Logo" class="w-6 h-6 light:sl-hidden" style="margin-top: 0;" />
+		<span class="mr-2">&nbsp;From the DevOps experts at&nbsp;</span>
+		<a href="https://gruntwork.io" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">Gruntwork</a>
 	</div>
 
 </StarlightPage>
 
 
-<!-- These styles are needed to override the weird styles for the StarlightPage component -->
 <style>
+  .logo-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 3rem;
+    margin-bottom: 3rem;
+  }
+
+  .logo-image {
+    max-width: 200px;
+    height: auto;
+  }
+
   .logo {
     margin-top: 1rem;
   }
