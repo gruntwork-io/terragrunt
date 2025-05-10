@@ -166,7 +166,7 @@ func (commands Commands) AllFlags() Flags {
 	var flags Flags
 
 	for _, cmd := range commands {
-		flags = append(flags, cmd.Flags...)
+		flags = append(flags, cmd.AllFlags()...)
 	}
 
 	return flags
