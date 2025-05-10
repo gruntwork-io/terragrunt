@@ -473,8 +473,8 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 	return opts, nil
 }
 
-// NormalizeWorkingDir assigns the current directory if the working directory is not defined.
-func (opts *TerragruntOptions) NormalizeWorkingDir() error {
+// SetDefaults sets default values for undefined values.
+func (opts *TerragruntOptions) SetDefaults() error {
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
@@ -483,8 +483,6 @@ func (opts *TerragruntOptions) NormalizeWorkingDir() error {
 
 		opts.WorkingDir = currentDir
 	}
-
-	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
 
 	return nil
 }

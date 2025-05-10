@@ -194,6 +194,10 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 
+	if err := opts.SetDefaults(); err != nil {
+		return err
+	}
+
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := ctx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := ctx.Command.Name
@@ -224,9 +228,7 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.Env = env.Parse(os.Environ())
 
 	// --- Working Dir
-	if err := opts.NormalizeWorkingDir(); err != nil {
-		return err
-	}
+	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
 
 	workingDir, err := filepath.Abs(opts.WorkingDir)
 	if err != nil {
