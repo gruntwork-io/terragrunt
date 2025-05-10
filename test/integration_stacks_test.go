@@ -864,15 +864,16 @@ func TestStacksSourceMapModule(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackSourceMap, "live")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+" --log-level debug --working-dir "+rootPath)
+
 	require.NoError(t, err)
-	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
+	assert.NotContains(t, helpers.RemoveLinesThatContain(t, stderr, "cli-argument"), "git-host.com/not-existing-repo.git")
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
+	assert.NotContains(t, helpers.RemoveLinesThatContain(t, stderr, "cli-argument"), "git-host.com/not-existing-repo.git")
 	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app1")
 	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app2")
 }
