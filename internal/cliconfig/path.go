@@ -11,31 +11,17 @@ const (
 	gitDir = ".git"
 )
 
-func getRepoDirs(baseDir string) string {
-	const maxPathWalking = 100
-
-	for range maxPathWalking {
-		gitDir := filepath.Join(baseDir, gitDir)
-		if util.FileExists(gitDir) && util.IsDir(gitDir) {
-			return baseDir
-		}
-
-		if parentDir := filepath.Dir(baseDir); parentDir != baseDir {
-			baseDir = parentDir
-		} else {
-			break
-		}
-	}
-
-	return ""
-}
-
+// DiscoveryPath tries to find the configuration file in the following directories:
+// 1. In the specified `baseDir` (TG working directory).
+// 2. In the repository root directory.
+// 3. In `.config` located in the repository root directory.
+// 4. In config dirs, depending on the OS, this may be `HOME` or `XDG_CONFIG_HOME` directory.
 func DiscoveryPath(baseDir string) (string, error) {
 	dirs := []string{
 		baseDir,
 	}
 
-	if repoDir := getRepoDirs(baseDir); repoDir != "" {
+	if repoDir := getRepoDir(baseDir); repoDir != "" {
 		dirs = append(dirs, []string{
 			repoDir,
 			filepath.Join(repoDir, ".config"),
@@ -62,4 +48,23 @@ func DiscoveryPath(baseDir string) (string, error) {
 	}
 
 	return "", nil
+}
+
+func getRepoDir(baseDir string) string {
+	const maxPathWalking = 100
+
+	for range maxPathWalking {
+		gitDir := filepath.Join(baseDir, gitDir)
+		if util.FileExists(gitDir) && util.IsDir(gitDir) {
+			return baseDir
+		}
+
+		if parentDir := filepath.Dir(baseDir); parentDir != baseDir {
+			baseDir = parentDir
+		} else {
+			break
+		}
+	}
+
+	return ""
 }

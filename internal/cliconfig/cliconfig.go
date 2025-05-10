@@ -21,6 +21,7 @@ type Config struct {
 	usedKeys       []string
 }
 
+// LoadConfig returns the loaded configuration at the specified `path`.
 func LoadConfig(cfgPath string) (*Config, error) {
 	cfg := &Config{
 		keysValues:     make(map[string]any),
@@ -35,10 +36,7 @@ func LoadConfig(cfgPath string) (*Config, error) {
 	return cfg, nil
 }
 
-func (cfg *Config) Path() string {
-	return cfg.path
-}
-
+// ExtraKeys returns config keys that were never requested by the `Get` method.
 func (cfg *Config) ExtraKeys() []string {
 	var extraKeys []string
 
@@ -51,6 +49,7 @@ func (cfg *Config) ExtraKeys() []string {
 	return extraKeys
 }
 
+// Get implements `cli.FlagConfigGetter` interface.
 func (cfg *Config) Get(key string) (string, any) {
 	if key = cfg.rawKey(key); key == "" {
 		return "", nil

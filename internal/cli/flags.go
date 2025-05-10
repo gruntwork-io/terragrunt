@@ -32,23 +32,25 @@ func (flags Flags) FilterBySourceType(sourceType FlagValueSourceType) Flags {
 	return filtered
 }
 
-// Parse parses the given `args` for the flag value and env vars values specified in the `flags` and assigns the arg to the flag.
-// The value will be assigned to the `Destination` field.
-// The value can also be retrieved using `flag.Value().Get()`.
+// Parse parses the given `args` to the `flags` and returns the rest of args for which no flags were found.
+// Essentially this is a wrapper for `flagSet.Parse` Golang flag parser,
+// which allows us to parse all `args` in a few tries and not fall on the first failure.
 func (flags Flags) Parse(args Args, errHandler FlagErrorHandler) (Args, error) {
-	var (
-		undefArgs Args
-		err       error
-	)
+	flagSet := libflag.NewFlagSet("", libflag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
 
-	flagSet, err := flags.NewFlagSet(errHandler)
-	if err != nil {
+	if err := flags.Apply(flagSet, errHandler); err != nil {
 		return nil, err
 	}
 
 	args, builtinCmd := args.Split(BuiltinCmdSep)
 
 	const maxFlagsParse = 1000 // Maximum flags parse
+
+	var (
+		undefArgs Args
+		err       error
+	)
 
 	for range maxFlagsParse {
 		if !args.Present() {
@@ -113,15 +115,6 @@ func (flags Flags) ApplyConfig(cfgGetter FlagConfigGetter) error {
 	}
 
 	return nil
-}
-
-func (flags Flags) NewFlagSet(errHandler FlagErrorHandler) (*libflag.FlagSet, error) {
-	flagSet := libflag.NewFlagSet("", libflag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-
-	err := flags.Apply(flagSet, errHandler)
-
-	return flagSet, err
 }
 
 func (flags Flags) Apply(flagSet *libflag.FlagSet, errHandler FlagErrorHandler) error {

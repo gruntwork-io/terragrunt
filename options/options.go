@@ -473,7 +473,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 	return opts, nil
 }
 
-// SetDefaults sets default values for undefined values.
+// SetDefaults sets default values for undefined fields.
 func (opts *TerragruntOptions) SetDefaults() error {
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()

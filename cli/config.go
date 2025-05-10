@@ -40,7 +40,7 @@ func LoadConfig(opts *options.TerragruntOptions) (*cliconfig.Config, error) {
 		return nil, errors.Errorf("could not load CLI config %s: %w", path, err)
 	}
 
-	opts.Logger.Debugf("Loaded CLI configuration file %s", cfg.Path())
+	opts.Logger.Debugf("Loaded CLI configuration file %s", path)
 
 	return cfg, nil
 }

@@ -10,13 +10,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// List of sources. Order matters. Higher sources may overwrite flag values assigned by a lower source.
-const (
-	FlagValueSourceConfig FlagValueSourceType = iota
-	FlagValueSourceEnvVar
-	FlagValueSourceArg
-)
-
 var (
 	// FlagSplitter uses to separate arguments and env vars with multiple values.
 	FlagSplitter = strings.Split
@@ -27,21 +20,6 @@ var (
 var FlagStringer = cli.FlagStringer //nolint:gochecknoglobals
 
 type FlagErrorHandler func(err error) error
-
-type FlagValueSourceType byte
-
-func (source FlagValueSourceType) String() string {
-	switch source {
-	case FlagValueSourceConfig:
-		return "cli-config"
-	case FlagValueSourceEnvVar:
-		return "evn-var"
-	case FlagValueSourceArg:
-		return "cli-argument"
-	}
-
-	return "undefined source"
-}
 
 // FlagSetterFunc represents function type that is called when the flag is specified.
 // Unlike `FlagActionFunc` where the function is called after the value has been parsed and assigned to the `Destination` field,
@@ -118,6 +96,9 @@ type Flag interface {
 
 	// AllowedSubcommandScope returns true if the flag is allowed to be specified in subcommands,
 	// and not only after the command it belongs to.
+	//
+	// For example: `terragrunt --tf-forward-stdout run plan` command, where the `--tf-forward-stdout` flag belongs to the `run` command, but is specified before.
+	// So if `AllowedSubcommandScope` returns `true` for this flag, the CLI parser returns "flag provided but not defined" error.
 	AllowedSubcommandScope() bool
 
 	// GetConfigKey returns the key of the value in the configuration file.
@@ -152,6 +133,7 @@ func (flag *flagValueGetter) Set(val string) error {
 		err = errors.New(ErrMultipleTimesSettingFlag)
 	}
 
+	// Allow value to be overwritten only if the source has higher priority.
 	if flag.flagValue.source > flag.source {
 		return nil
 	}
@@ -322,7 +304,7 @@ func ApplyConfig(flag Flag, cfgGetter FlagConfigGetter) error {
 	return nil
 }
 
-func ApplyFlag(flag Flag, flagSet *libflag.FlagSet) error {
+func ApplyEnvVars(flag Flag) error {
 	for _, name := range flag.GetEnvVars() {
 		for _, val := range flag.LookupEnv(name) {
 			getter := flag.Value().Getter(name, FlagValueSourceEnvVar)
@@ -337,6 +319,10 @@ func ApplyFlag(flag Flag, flagSet *libflag.FlagSet) error {
 		}
 	}
 
+	return nil
+}
+
+func ApplyArgs(flag Flag, flagSet *libflag.FlagSet) error {
 	for _, name := range flag.Names() {
 		if name != "" {
 			flagSet.Var(flag.Value().Getter(name, FlagValueSourceArg), name, flag.GetUsage())
@@ -344,4 +330,12 @@ func ApplyFlag(flag Flag, flagSet *libflag.FlagSet) error {
 	}
 
 	return nil
+}
+
+func ApplyFlag(flag Flag, flagSet *libflag.FlagSet) error {
+	if err := ApplyEnvVars(flag); err != nil {
+		return err
+	}
+
+	return ApplyArgs(flag, flagSet)
 }

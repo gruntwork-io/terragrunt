@@ -125,8 +125,8 @@ func (app *App) prepare(args cli.Args) (cli.Args, error) {
 	return args, nil
 }
 
-// parseFlags parses the essential flags and returns the rest of args for which no flag was found.
-// We need to parse them before runnin App to be able:
+// parseFlags parses the essential flags and returns the rest of args for which no flags were found.
+// We need to parse them before running App to be able:
 // 1. Log at the user-specified level from the very beginning.
 // 2. Load the CLI configuration file, the path to which is searched in the working directory.
 // 3. Initiate telemetry with user-specified parameters.

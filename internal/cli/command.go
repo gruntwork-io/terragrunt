@@ -176,14 +176,18 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 }
 
 func (cmd *Command) parseFlags(ctx *Context, args Args) (Args, error) {
-	errHandler := func(err error) error {
+	if cmd.SkipFlagParsing {
+		return args, nil
+	}
+
+	flagErrHandler := func(err error) error {
 		if err == nil || ctx.shellComplete {
 			return nil
 		}
 
-		var underErr UndefinedFlagError
-		if errors.As(err, &underErr) {
-			if cmd.DisabledErrorOnUndefinedFlag || cmd.Subcommands.Get(underErr.CmdName) != nil {
+		var undefErr UndefinedFlagError
+		if errors.As(err, &undefErr) {
+			if cmd.DisabledErrorOnUndefinedFlag || cmd.Subcommands.Get(undefErr.CmdName) != nil {
 				return nil
 			}
 		}
@@ -192,23 +196,20 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) (Args, error) {
 			return nil
 		}
 
-		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
-			err = flagErrHandler(ctx.NewCommandContext(cmd, args), err)
+		if errHandler := ctx.App.FlagErrHandler; errHandler != nil {
+			err = errHandler(ctx.NewCommandContext(cmd, args), err)
 		}
 
 		return err
 	}
 
-	if cmd.SkipFlagParsing {
-		return args, nil
-	}
-
-	args, err := cmd.Flags.WithSubcommandScope().Parse(args, errHandler)
+	// The first attempt is to parse flags with scope restrictions, see `flags.AllowedSubcommandScope`.
+	args, err := cmd.Flags.WithSubcommandScope().Parse(args, flagErrHandler)
 	if err == nil || !args.Present() {
 		return args, err
 	}
 
-	return cmd.Flags.Parse(args, errHandler)
+	return cmd.Flags.Parse(args, flagErrHandler)
 }
 
 func (cmd *Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *Command {
