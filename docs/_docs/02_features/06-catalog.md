@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to search and use your module catalog with Terragrunt.
 tags: ["catalog"]
-order: 205
+order: 206
 nav_title: Documentation
 nav_title_link: /docs/
 slug: catalog

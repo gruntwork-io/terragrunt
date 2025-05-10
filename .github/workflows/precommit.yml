@@ -1,4 +1,4 @@
-name: Build Without Go Proxy
+name: Pre-commit
 
 on:
   push:
@@ -8,26 +8,11 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  build-no-proxy:
-    name: Build (${{ matrix.os }}/${{ matrix.arch }})
+  precommit:
+    name: Run pre-commit hooks
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - os: darwin
-            arch: amd64
-          - os: darwin
-            arch: arm64
-          - os: linux
-            arch: "386"
-          - os: linux
-            arch: amd64
-          - os: linux
-            arch: arm64
-          - os: windows
-            arch: "386"
-          - os: windows
-            arch: amd64
+    env:
+      MISE_PROFILE: cicd
 
     steps:
       - name: Checkout code
@@ -37,6 +22,7 @@ jobs:
         uses: jdx/mise-action@v2
         with:
           version: 2025.4.4
+          experimental: true
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -51,16 +37,11 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
 
-      - name: Build Terragrunt without Go proxy
+      - name: Run pre-commit hooks
         env:
           GOPROXY: direct
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          OUTPUT="bin/terragrunt-${GOOS}-${GOARCH}"
-          if [ "${GOOS}" = "windows" ]; then
-            OUTPUT="${OUTPUT}.exe"
-          fi
-          go build -o "${OUTPUT}" \
-            -ldflags "-X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
-            .
+          pre-commit install
+          pre-commit run --all-files
