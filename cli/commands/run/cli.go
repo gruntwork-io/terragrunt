@@ -29,7 +29,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			//
 			// "# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
 		},
-		Flags:       NewFlags(opts, nil),
+		Flags:       NewFlags(opts),
 		Subcommands: NewSubcommands(opts),
 		Action: func(ctx *cli.Context) error {
 			if len(ctx.Args()) == 0 {

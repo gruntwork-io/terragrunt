@@ -28,57 +28,63 @@ const (
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-
+func NewFlags(opts *Options, cmdPrefix flags.Name) cli.Flags {
 	return cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FormatFlagName,
-			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(FormatFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(FormatFlagName),
 			Destination: &opts.Format,
 			Usage:       "Output format for find results. Valid values: text, json.",
 			DefaultText: FormatText,
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
-			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(JSONFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(JSONFlagName),
 			Aliases:     []string{JSONFlagAlias},
 			Destination: &opts.JSON,
 			Usage:       "Output in JSON format (equivalent to --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DAGFlagName,
-			EnvVars:     tgPrefix.EnvVars(DAGFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(DAGFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(DAGFlagName),
 			Destination: &opts.DAG,
 			Usage:       "Use DAG mode to sort and group output.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        HiddenFlagName,
-			EnvVars:     tgPrefix.EnvVars(HiddenFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(HiddenFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(HiddenFlagName),
 			Destination: &opts.Hidden,
 			Usage:       "Include hidden directories in find results.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        Dependencies,
-			EnvVars:     tgPrefix.EnvVars(Dependencies),
+			EnvVars:     flags.EnvVarsWithTgPrefix(Dependencies),
+			ConfigKey:   cmdPrefix.ConfigKey(Dependencies),
 			Destination: &opts.Dependencies,
 			Usage:       "Include dependencies in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        Exclude,
-			EnvVars:     tgPrefix.EnvVars(Exclude),
+			EnvVars:     flags.EnvVarsWithTgPrefix(Exclude),
+			ConfigKey:   cmdPrefix.ConfigKey(Exclude),
 			Destination: &opts.Exclude,
 			Usage:       "Display exclude configurations in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        External,
-			EnvVars:     tgPrefix.EnvVars(External),
+			EnvVars:     flags.EnvVarsWithTgPrefix(External),
+			ConfigKey:   cmdPrefix.ConfigKey(External),
 			Destination: &opts.External,
 			Usage:       "Discover external dependencies from initial results, and add them to top-level results.",
 		}),
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        QueueConstructAsFlagName,
-			EnvVars:     tgPrefix.EnvVars(QueueConstructAsFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(QueueConstructAsFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(QueueConstructAsFlagName),
 			Destination: &opts.QueueConstructAs,
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
@@ -88,12 +94,13 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
+	cmdPrefix := flags.Name{CommandName}
 
 	return &cli.Command{
 		Name:    CommandName,
 		Aliases: []string{CommandAlias},
 		Usage:   "Find relevant Terragrunt configurations.",
-		Flags:   NewFlags(cmdOpts, nil),
+		Flags:   NewFlags(cmdOpts, cmdPrefix),
 		Before: func(ctx *cli.Context) error {
 			if cmdOpts.JSON {
 				cmdOpts.Format = FormatJSON

@@ -10,15 +10,17 @@ import (
 
 const CommandName = "bootstrap"
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	return run.NewFlags(opts, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
+func NewFlags(opts *options.TerragruntOptions, _ flags.Name) cli.Flags {
+	return run.NewFlags(opts).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
 }
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Name) *cli.Command {
+	cmdPrefix = cmdPrefix.Append(CommandName)
+
 	cmd := &cli.Command{
 		Name:  CommandName,
 		Usage: "Bootstrap OpenTofu/Terraform backend infrastructure.",
-		Flags: NewFlags(opts, nil),
+		Flags: NewFlags(opts, cmdPrefix),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))
 		},

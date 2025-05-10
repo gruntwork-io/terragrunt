@@ -66,29 +66,16 @@ func (app *App) Run(args []string) error {
 	return app.RunContext(context.Background(), args)
 }
 
-func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
-	ctx, cancel := context.WithCancelCause(ctx)
+func (app *App) RunContext(ctx context.Context, args cli.Args) error {
+	args, err := app.prepare(args)
+	if err != nil {
+		return err
+	}
 
-	signal.NotifierWithContext(ctx, func(sig os.Signal) {
-		// Carriage return helps prevent "^C" from being printed
-		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
-		app.opts.Logger.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
-
-		cancel(signal.NewContextCanceledError(sig))
-	}, signal.InterruptSignals...)
-
-	return ctx
-}
-
-func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	ctx = app.registerGracefullyShutdown(ctx)
-
-	if err := global.NewTelemetryFlags(app.opts, nil).Parse(os.Args); err != nil {
-		return err
-	}
 
 	telemeter, err := telemetry.NewTelemeter(ctx, app.Name, app.Version, app.Writer, app.opts.Telemetry)
 	if err != nil {
@@ -112,13 +99,83 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
-	args = removeNoColorFlagDuplicates(args)
-
 	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
 		return err
 	}
 
 	return nil
+}
+
+func (app *App) prepare(args cli.Args) (cli.Args, error) {
+	args, err := app.parseFlags(args)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := app.opts.SetDefaults(); err != nil {
+		return nil, err
+	}
+
+	if err := app.loadConfig(); err != nil {
+		return nil, err
+	}
+
+	args = removeNoColorFlagDuplicates(args)
+
+	return args, nil
+}
+
+// parseFlags parses the essential flags and returns the rest of args for which no flags were found.
+// We need to parse them before running App to be able:
+// 1. Log at the user-specified level from the very beginning.
+// 2. Load the CLI configuration file, the path to which is searched in the working directory.
+// 3. Initiate telemetry with user-specified parameters.
+func (app *App) parseFlags(args []string) (cli.Args, error) {
+	flags := app.Flags.Filter(
+		global.LogLevelFlagName,
+		global.WorkingDirFlagName,
+		global.CLIConfigFileFlagName,
+		// Telemetry flags
+		global.TelemetryTraceExporterFlagName,
+		global.TelemetryTraceExporterInsecureEndpointFlagName,
+		global.TelemetryTraceExporterHTTPEndpointFlagName,
+		global.TraceparentFlagName,
+		global.TelemetryMetricExporterFlagName,
+		global.TelemetryMetricExporterInsecureEndpointFlagName,
+	)
+
+	return flags.Parse(args, cli.IgnoringUndefinedFlagErrorHandler)
+}
+
+func (app *App) loadConfig() error {
+	cfg, err := LoadConfig(app.opts)
+	if err != nil || cfg == nil {
+		return err
+	}
+
+	if err := app.AllFlags().ApplyConfig(cfg); err != nil {
+		return errors.Errorf("could not apply CLI config: %w", err)
+	}
+
+	if extraKeys := cfg.ExtraKeys(); len(extraKeys) > 0 {
+		app.opts.Logger.Warnf("CLI configuration file contains unused keys: %s", strings.Join(extraKeys, ","))
+	}
+
+	return nil
+}
+
+func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancelCause(ctx)
+
+	signal.NotifierWithContext(ctx, func(sig os.Signal) {
+		// Carriage return helps prevent "^C" from being printed
+		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
+		app.opts.Logger.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
+
+		cancel(signal.NewContextCanceledError(sig))
+	}, signal.InterruptSignals...)
+
+	return ctx
 }
 
 // removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.

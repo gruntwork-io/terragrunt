@@ -251,7 +251,7 @@ type DeprecatedCommand struct {
 }
 
 func (dep DeprecatedCommand) CLICommand(opts *options.TerragruntOptions) *cli.Command {
-	newCommand := "terragrunt " + dep.replaceWithArgs.String()
+	newCommand := dep.replaceWithArgs.String()
 	depCommand := dep.commandName
 
 	if dep.parentCommand != nil {

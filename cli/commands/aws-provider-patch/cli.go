@@ -45,19 +45,17 @@ const (
 	OverrideAttrFlagName = "override-attr"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
-	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+	strictControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.MapFlag[string, string]{
 			Name:        OverrideAttrFlagName,
-			EnvVars:     tgPrefix.EnvVars(OverrideAttrFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(OverrideAttrFlagName),
 			Destination: &opts.AwsProviderPatchOverrides,
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
 		},
-			flags.WithDeprecatedName(terragruntPrefix.FlagName("override-attr"), terragruntPrefixControl)),
+			flags.WithDeprecatedName(flags.FlagNameWithTerragruntPrefix("override-attr"), strictControl)),
 	}
 }
 
@@ -69,7 +67,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
 		Hidden: true,
-		Flags:  append(run.NewFlags(opts, nil), NewFlags(opts, nil)...),
+		Flags:  append(run.NewFlags(opts), NewFlags(opts)...),
 		Before: func(ctx *cli.Context) error {
 			if err := control.Evaluate(ctx); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)

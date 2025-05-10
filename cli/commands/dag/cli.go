@@ -14,13 +14,13 @@ const (
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	prefix := flags.Prefix{CommandName}
+	cmdPrefix := flags.Name{CommandName}
 
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Interact with the Directed Acyclic Graph (DAG).",
 		Subcommands: cli.Commands{
-			graph.NewCommand(opts, prefix),
+			graph.NewCommand(opts, cmdPrefix),
 		},
 		Action: cli.ShowCommandHelp,
 	}

@@ -983,3 +983,16 @@ func HCLFilesInDir(t *testing.T, dir string) []string {
 
 	return files
 }
+
+func RemoveLinesThatContain(t *testing.T, str, substr string) string {
+	t.Helper()
+
+	lines := strings.Split(str, "\n")
+	for i := range lines {
+		if strings.Contains(lines[i], substr) {
+			lines[i] = ""
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}

@@ -16,7 +16,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:      CommandName,
 		Usage:     "Print out a short description of Terragrunt context.",
 		UsageText: "terragrunt info print",
-		Flags:     run.NewFlags(opts, nil),
+		Flags:     run.NewFlags(opts),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts)
 		},

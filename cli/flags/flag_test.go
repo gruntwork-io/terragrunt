@@ -163,12 +163,12 @@ func TestFlag_Evaluate(t *testing.T) {
 				require.NoError(t, err)
 
 				if testFlag.arg != "" {
-					err := testFlag.flag.Value().Getter(testFlag.arg).Set("1")
+					err := testFlag.flag.Value().Getter(testFlag.arg, cli.FlagValueSourceArg).Set("1")
 					require.NoError(t, err)
 				}
 
 				if testFlag.envVar != "" {
-					err := testFlag.flag.Value().Getter(testFlag.envVar).EnvSet("1")
+					err := testFlag.flag.Value().Getter(testFlag.envVar, cli.FlagValueSourceEnvVar).Set("1")
 					require.NoError(t, err)
 				}
 

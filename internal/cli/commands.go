@@ -37,7 +37,7 @@ func (commands *Commands) Add(cmd *Command) {
 }
 
 // FilterByNames returns a list of commands filtered by the given names.
-func (commands Commands) FilterByNames(names []string) Commands {
+func (commands Commands) FilterByNames(names ...string) Commands {
 	var filtered Commands
 
 	for _, cmd := range commands {
@@ -159,4 +159,15 @@ func (commands Commands) DisableErrorOnMultipleSetFlag() Commands {
 	}
 
 	return newCommands
+}
+
+// AllFlags returns all flags, including subcommand flags.
+func (commands Commands) AllFlags() Flags {
+	var flags Flags
+
+	for _, cmd := range commands {
+		flags = append(flags, cmd.Flags...)
+	}
+
+	return flags
 }

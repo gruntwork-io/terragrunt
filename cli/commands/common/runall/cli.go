@@ -17,14 +17,12 @@ const (
 	AllFlagAlias = "a"
 )
 
-func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-
+func NewFlags(opts *options.TerragruntOptions, commandName string) cli.Flags {
 	return cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        AllFlagName,
 			Aliases:     []string{AllFlagAlias},
-			EnvVars:     tgPrefix.EnvVars(AllFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(AllFlagName),
 			Destination: &opts.RunAll,
 			Usage:       `Run the specified command on the stack of units in the current directory.`,
 			Action: func(_ *cli.Context, _ bool) error {
@@ -58,7 +56,7 @@ func WrapCommand(opts *options.TerragruntOptions, cmd *cli.Command, runFn func(c
 		return Run(cliCtx, opts.OptionsFromContext(cliCtx))
 	})
 
-	cmd.Flags = append(cmd.Flags, NewFlags(opts, cmd.Name, nil)...)
+	cmd.Flags = append(cmd.Flags, NewFlags(opts, cmd.Name)...)
 
 	return cmd
 }

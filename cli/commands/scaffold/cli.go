@@ -24,13 +24,12 @@ const (
 	VarFileFlagName       = "var-file"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 	return cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        RootFileNameFlagName,
-			EnvVars:     tgPrefix.EnvVars(RootFileNameFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(RootFileNameFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(RootFileNameFlagName),
 			Destination: &opts.ScaffoldRootFileName,
 			Usage:       "Name of the root Terragrunt configuration file, if used.",
 			Action: func(ctx *cli.Context, value string) error {
@@ -54,7 +53,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoIncludeRootFlagName,
-			EnvVars:     tgPrefix.EnvVars(NoIncludeRootFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(NoIncludeRootFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(NoIncludeRootFlagName),
 			Destination: &opts.ScaffoldNoIncludeRoot,
 			Usage:       "Do not include root unit in scaffolding done by catalog.",
 		}),
@@ -67,14 +67,16 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:        VarFlagName,
-			EnvVars:     tgPrefix.EnvVars(VarFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(VarFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(VarFlagName),
 			Destination: &opts.ScaffoldVars,
 			Usage:       "Variables for usage in scaffolding.",
 		}),
 
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:        VarFileFlagName,
-			EnvVars:     tgPrefix.EnvVars(VarFileFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(VarFileFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(VarFileFlagName),
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in unit scaffolding.",
 		}),
@@ -82,10 +84,12 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	cmdPrefix := flags.Name{CommandName}
+
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Scaffold a new Terragrunt module.",
-		Flags: NewFlags(opts, nil),
+		Flags: NewFlags(opts, cmdPrefix),
 		Action: func(ctx *cli.Context) error {
 			var moduleURL, templateURL string
 

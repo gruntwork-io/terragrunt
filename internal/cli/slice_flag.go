@@ -47,6 +47,9 @@ type SliceFlag[T SliceFlagType] struct {
 	// EnvVarSep is the separator used to split the env var value.
 	EnvVarSep string
 
+	// ConfigKey is the key of the value in the configuration file.
+	ConfigKey string
+
 	// Aliases are usually used for the short flag name, like `-h`.
 	Aliases []string
 
@@ -57,12 +60,7 @@ type SliceFlag[T SliceFlagType] struct {
 	Hidden bool
 }
 
-// Apply applies Flag settings to the given flag set.
-func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
-	if flag.FlagValue != nil {
-		return ApplyFlag(flag, set)
-	}
-
+func (flag *SliceFlag[T]) initValue() *flagValue {
 	if flag.Destination == nil {
 		flag.Destination = new([]T)
 	}
@@ -88,10 +86,26 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	valueType := FlagVariable[T](new(genericVar[T]))
 	value := newSliceValue(valueType, flag.EnvVarSep, flag.Destination, flag.Setter)
 
-	flag.FlagValue = &flagValue{
+	return &flagValue{
 		multipleSet:      true,
 		value:            value,
 		initialTextValue: value.String(),
+	}
+}
+
+// Value returns the `FlagValue` interface for interacting with the flag value.
+func (flag *SliceFlag[T]) Value() FlagValue {
+	if flag.FlagValue == nil {
+		flag.FlagValue = flag.initValue()
+	}
+
+	return flag.FlagValue
+}
+
+// Apply applies Flag settings to the given flag set.
+func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
+	if flag.FlagValue == nil {
+		flag.FlagValue = flag.initValue()
 	}
 
 	return ApplyFlag(flag, set)
@@ -110,6 +124,11 @@ func (flag *SliceFlag[T]) GetUsage() string {
 // GetEnvVars implements `cli.Flag` interface.
 func (flag *SliceFlag[T]) GetEnvVars() []string {
 	return flag.EnvVars
+}
+
+// GetConfigKey implements `cli.Flag` interface.
+func (flag *SliceFlag[T]) GetConfigKey() string {
+	return flag.ConfigKey
 }
 
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.

@@ -16,27 +16,28 @@ const (
 	usageText = "terragrunt backend migrate [options] <src-unit> <dst-unit>"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ForceBackendMigrateFlagName,
-			EnvVars:     tgPrefix.EnvVars(ForceBackendMigrateFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(ForceBackendMigrateFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(ForceBackendMigrateFlagName),
 			Usage:       "Force the backend to be migrated, even if the bucket is not versioned.",
 			Destination: &opts.ForceBackendMigrate,
 		}),
 	}
 
-	return append(flags, run.NewFlags(opts, nil).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
+	return append(flags, run.NewFlags(opts).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
 }
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Name) *cli.Command {
+	cmdPrefix = cmdPrefix.Append(CommandName)
+
 	cmd := &cli.Command{
 		Name:      CommandName,
 		Usage:     "Migrate OpenTofu/Terraform state from one location to another.",
 		UsageText: usageText,
-		Flags:     NewFlags(opts, nil),
+		Flags:     NewFlags(opts, cmdPrefix),
 		Action: func(ctx *cli.Context) error {
 			srcPath := ctx.Args().First()
 			if srcPath == "" {

@@ -57,11 +57,16 @@ func NewDeprecatedEnvVar(deprecatedFlag, newFlag cli.Flag, newValue string) *Dep
 // Evaluate implements `strict.Control` interface.
 func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 	var (
-		valueName = ctrl.deprecatedFlag.Value().GetName()
-		envName   string
+		flagValue  = ctrl.deprecatedFlag.Value()
+		sourceName = flagValue.SourceName()
+		sourceType = flagValue.SourceType()
+		isSet      = flagValue.IsSet()
+
+		envVars = ctrl.deprecatedFlag.GetEnvVars()
+		envName string
 	)
 
-	if valueName == "" || !ctrl.deprecatedFlag.Value().IsEnvSet() || !slices.Contains(ctrl.deprecatedFlag.GetEnvVars(), valueName) {
+	if sourceName == "" || sourceType != cli.FlagValueSourceEnvVar || !isSet || !slices.Contains(envVars, sourceName) {
 		return nil
 	}
 
@@ -75,7 +80,7 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 		}
 
 		if value == "" {
-			value = ctrl.deprecatedFlag.Value().String()
+			value = flagValue.String()
 		}
 
 		envName += "=" + value
@@ -86,12 +91,12 @@ func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 			return nil
 		}
 
-		return errors.Errorf(ctrl.ErrorFmt, valueName, envName)
+		return errors.Errorf(ctrl.ErrorFmt, sourceName, envName)
 	}
 
 	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.Suppress {
 		ctrl.OnceWarn.Do(func() {
-			logger.Warnf(ctrl.WarningFmt, valueName, envName)
+			logger.Warnf(ctrl.WarningFmt, sourceName, envName)
 		})
 	}
 

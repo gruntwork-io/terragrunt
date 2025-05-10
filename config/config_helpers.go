@@ -240,7 +240,7 @@ func getRepoRoot(ctx *ParsingContext) (string, error) {
 func getPathFromRepoRoot(ctx *ParsingContext) (string, error) {
 	repoAbsPath, err := shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	repoRelPath, err := filepath.Rel(repoAbsPath, ctx.TerragruntOptions.WorkingDir)
@@ -255,7 +255,7 @@ func getPathFromRepoRoot(ctx *ParsingContext) (string, error) {
 func getPathToRepoRoot(ctx *ParsingContext) (string, error) {
 	repoAbsPath, err := shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	repoRootPathAbs, err := filepath.Rel(ctx.TerragruntOptions.WorkingDir, repoAbsPath)
@@ -293,7 +293,7 @@ func getOriginalTerragruntDir(ctx *ParsingContext) (string, error) {
 func GetParentTerragruntDir(ctx *ParsingContext, params []string) (string, error) {
 	parentPath, err := PathRelativeFromInclude(ctx, params)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
 	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)

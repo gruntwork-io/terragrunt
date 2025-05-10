@@ -78,25 +78,30 @@ func NewDeprecatedFlagName(deprecatedFlag, newFlag cli.Flag, newValue string) *D
 // Evaluate implements `strict.Control` interface.
 func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 	var (
-		valueName = ctrl.deprecatedFlag.Value().GetName()
-		flagName  string
+		flagValue  = ctrl.deprecatedFlag.Value()
+		sourceName = flagValue.SourceName()
+		sourceType = flagValue.SourceType()
+		isSet      = flagValue.IsSet()
+
+		argNames = ctrl.deprecatedFlag.Names()
+		argName  string
 	)
 
-	if valueName == "" || !ctrl.deprecatedFlag.Value().IsArgSet() || !slices.Contains(ctrl.deprecatedFlag.Names(), valueName) {
+	if sourceName == "" || sourceType != cli.FlagValueSourceArg || !isSet || !slices.Contains(argNames, sourceName) {
 		return nil
 	}
 
 	if names := ctrl.newFlag.Names(); len(names) > 0 {
-		flagName = names[0]
+		argName = names[0]
 
 		if ctrl.newFlag.TakesValue() {
 			value := ctrl.newFlag.Value().String()
 
 			if value == "" {
-				value = ctrl.deprecatedFlag.Value().String()
+				value = flagValue.String()
 			}
 
-			flagName += "=" + value
+			argName += "=" + value
 		}
 	}
 
@@ -105,12 +110,12 @@ func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 			return nil
 		}
 
-		return errors.Errorf(ctrl.ErrorFmt, valueName, flagName)
+		return errors.Errorf(ctrl.ErrorFmt, sourceName, argName)
 	}
 
 	if logger := log.LoggerFromContext(ctx); logger != nil && ctrl.WarningFmt != "" && !ctrl.Suppress {
 		ctrl.OnceWarn.Do(func() {
-			logger.Warnf(ctrl.WarningFmt, valueName, flagName)
+			logger.Warnf(ctrl.WarningFmt, sourceName, argName)
 		})
 	}
 

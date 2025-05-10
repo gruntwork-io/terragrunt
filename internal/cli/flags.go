@@ -4,15 +4,112 @@ import (
 	libflag "flag"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 type Flags []Flag
 
-func (flags Flags) Parse(args Args) error {
+var IgnoringUndefinedFlagErrorHandler = func(err error) error {
+	if errors.As(err, new(UndefinedFlagError)) {
+		return nil
+	}
+
+	return err
+}
+
+func (flags Flags) FilterBySourceType(sourceType FlagValueSourceType) Flags {
+	var filtered Flags
+
 	for _, flag := range flags {
-		if err := flag.Parse(args); err != nil {
+		if flag.Value().SourceType() == sourceType {
+			filtered = append(filtered, flag)
+		}
+	}
+
+	return filtered
+}
+
+// Parse parses the given `args` to the `flags` and returns the rest of args for which no flags were found.
+// Essentially this is a wrapper for `flagSet.Parse` Golang flag parser,
+// which allows us to parse all `args` in a few tries and not fall on the first failure.
+func (flags Flags) Parse(args Args, errHandler FlagErrorHandler) (Args, error) {
+	flagSet := libflag.NewFlagSet("", libflag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+
+	if err := flags.Apply(flagSet, errHandler); err != nil {
+		return nil, err
+	}
+
+	args, builtinCmd := args.Split(BuiltinCmdSep)
+
+	const maxFlagsParse = 1000 // Maximum flags parse
+
+	var (
+		undefArgs Args
+		err       error
+	)
+
+	for range maxFlagsParse {
+		if !args.Present() {
+			break
+		}
+
+		if err = flagSet.Parse(args); err != nil {
+			errStr := err.Error()
+
+			if strings.HasPrefix(errStr, ErrMsgFlagHelpRequested) {
+				return append(undefArgs, "-h"), nil
+			}
+
+			if strings.HasPrefix(errStr, ErrMsgFlagUndefined) {
+				undefArg := strings.Trim(strings.TrimPrefix(errStr, ErrMsgFlagUndefined), " -")
+				err = UndefinedFlagError{CmdName: undefArgs.First(), Arg: undefArg}
+
+				for i, arg := range args {
+					// `--var=input=from_env` trims to `var`
+					trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0] //nolint:mnd
+					if trimmed == undefArg {
+						undefArgs = append(undefArgs, arg)
+						args = args[i+1:]
+
+						break
+					}
+				}
+			}
+		} else if args = Args(flagSet.Args()); args.Present() {
+			undefArgs = append(undefArgs, args.First())
+			args = args.Tail()
+		}
+
+		if errHandler != nil {
+			err = errHandler(err)
+		}
+
+		if err != nil {
+			break
+		}
+	}
+
+	if err != nil && errors.As(err, new(FatalFlagError)) {
+		return nil, err
+	}
+
+	undefArgs = append(undefArgs, args...)
+
+	if len(builtinCmd) > 0 {
+		undefArgs = append(undefArgs, BuiltinCmdSep)
+		undefArgs = append(undefArgs, builtinCmd...)
+	}
+
+	return undefArgs, err
+}
+
+func (flags Flags) ApplyConfig(cfgGetter FlagConfigGetter) error {
+	for _, flag := range flags {
+		if err := ApplyConfig(flag, cfgGetter); err != nil {
 			return err
 		}
 	}
@@ -20,18 +117,13 @@ func (flags Flags) Parse(args Args) error {
 	return nil
 }
 
-func (flags Flags) NewFlagSet(cmdName string, errHandler func(err error) error) (*libflag.FlagSet, error) {
-	flagSet := libflag.NewFlagSet(cmdName, libflag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-
-	err := flags.Apply(flagSet, errHandler)
-
-	return flagSet, err
-}
-
-func (flags Flags) Apply(flagSet *libflag.FlagSet, errHandler func(err error) error) error {
+func (flags Flags) Apply(flagSet *libflag.FlagSet, errHandler FlagErrorHandler) error {
 	for _, flag := range flags {
 		if err := flag.Apply(flagSet); err != nil {
+			if errHandler == nil {
+				return err
+			}
+
 			if err = errHandler(err); err != nil {
 				return err
 			}

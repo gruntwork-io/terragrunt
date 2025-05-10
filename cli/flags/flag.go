@@ -3,10 +3,8 @@ package flags
 
 import (
 	"context"
-	"flag"
-	"io"
+	libflag "flag"
 	"strconv"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 )
@@ -46,14 +44,14 @@ func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn 
 
 // TakesValue implements `github.com/urfave/cli.DocGenerationFlag` required to generate help.
 // TakesValue returns `true` for all flags except boolean ones that are `false` or `true` inverted.
-func (newFlag *Flag) TakesValue() bool {
-	if newFlag.Flag.Value() == nil {
+func (flag *Flag) TakesValue() bool {
+	if flag.Flag.Value() == nil {
 		return false
 	}
 
-	val, ok := newFlag.Flag.Value().Get().(bool)
+	val, ok := flag.Flag.Value().Get().(bool)
 
-	if newFlag.Flag.Value().IsNegativeBoolFlag() {
+	if flag.Flag.Value().IsNegativeBoolFlag() {
 		val = !val
 	}
 
@@ -61,14 +59,14 @@ func (newFlag *Flag) TakesValue() bool {
 }
 
 // DeprecatedNames returns all deprecated names for this flag.
-func (newFlag *Flag) DeprecatedNames() []string {
+func (flag *Flag) DeprecatedNames() []string {
 	var names []string
 
-	if flag, ok := newFlag.Flag.(interface{ DeprecatedNames() []string }); ok {
+	if flag, ok := flag.Flag.(interface{ DeprecatedNames() []string }); ok {
 		names = flag.DeprecatedNames()
 	}
 
-	for _, deprecated := range newFlag.deprecatedFlags {
+	for _, deprecated := range flag.deprecatedFlags {
 		names = append(names, deprecated.Names()...)
 	}
 
@@ -76,16 +74,16 @@ func (newFlag *Flag) DeprecatedNames() []string {
 }
 
 // Value implements `cli.Flag` interface.
-func (newFlag *Flag) Value() cli.FlagValue {
-	for _, deprecatedFlag := range newFlag.deprecatedFlags {
-		if deprecatedFlag.Flag == newFlag.Flag {
+func (flag *Flag) Value() cli.FlagValue {
+	for _, deprecatedFlag := range flag.deprecatedFlags {
+		if deprecatedFlag.Flag == flag.Flag {
 			continue
 		}
 
 		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue != nil && deprecatedFlagValue.IsSet() {
 			newValue := deprecatedFlagValue.String()
 
-			if newFlag.Flag.Value().IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
+			if flag.Flag.Value().IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
 				if v, ok := deprecatedFlagValue.Get().(bool); ok {
 					newValue = strconv.FormatBool(!v)
 				}
@@ -95,21 +93,21 @@ func (newFlag *Flag) Value() cli.FlagValue {
 				newValue = deprecatedFlag.newValueFn(deprecatedFlagValue)
 			}
 
-			newFlag.Flag.Value().Getter(deprecatedFlagValue.GetName()).Set(newValue) //nolint:errcheck
+			flag.Flag.Value().Getter(deprecatedFlagValue.SourceName(), cli.FlagValueSourceArg).Set(newValue) //nolint:errcheck
 		}
 	}
 
-	return newFlag.Flag.Value()
+	return flag.Flag.Value()
 }
 
 // Apply implements `cli.Flag` interface.
-func (newFlag *Flag) Apply(set *flag.FlagSet) error {
-	if err := newFlag.Flag.Apply(set); err != nil {
+func (flag *Flag) Apply(set *libflag.FlagSet) error {
+	if err := flag.Flag.Apply(set); err != nil {
 		return err
 	}
 
-	for _, deprecated := range newFlag.deprecatedFlags {
-		if deprecated.Flag == newFlag.Flag {
+	for _, deprecated := range flag.deprecatedFlags {
+		if deprecated.Flag == flag.Flag {
 			if err := cli.ApplyFlag(deprecated, set); err != nil {
 				return err
 			}
@@ -126,13 +124,13 @@ func (newFlag *Flag) Apply(set *flag.FlagSet) error {
 }
 
 // RunAction implements `cli.Flag` interface.
-func (newFlag *Flag) RunAction(ctx *cli.Context) error {
-	for _, deprecated := range newFlag.deprecatedFlags {
-		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
+func (flag *Flag) RunAction(ctx *cli.Context) error {
+	for _, deprecated := range flag.deprecatedFlags {
+		if err := flag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err
 		}
 
-		if deprecated.Flag == nil || deprecated.Flag == newFlag.Flag || !deprecated.Value().IsSet() {
+		if deprecated.Flag == nil || deprecated.Flag == flag.Flag || !deprecated.Value().IsSet() {
 			continue
 		}
 
@@ -141,42 +139,13 @@ func (newFlag *Flag) RunAction(ctx *cli.Context) error {
 		}
 	}
 
-	if deprecated, ok := newFlag.Flag.(interface {
+	if deprecated, ok := flag.Flag.(interface {
 		Evaluate(ctx context.Context) error
 	}); ok {
-		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
+		if err := flag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err
 		}
 	}
 
-	return newFlag.Flag.RunAction(ctx)
-}
-
-// Parse parses the given `args` for the flag value and env vars values specified in the flag.
-// The value will be assigned to the `Destination` field.
-// The value can also be retrieved using `flag.Value().Get()`.
-func (newFlag *Flag) Parse(args cli.Args) error {
-	flagSet := flag.NewFlagSet("", flag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-
-	if err := newFlag.Apply(flagSet); err != nil {
-		return err
-	}
-
-	const maxFlagsParse = 1000 // Maximum flags parse
-
-	for range maxFlagsParse {
-		err := flagSet.Parse(args)
-		if err == nil {
-			break
-		}
-
-		if errStr := err.Error(); !strings.HasPrefix(errStr, cli.ErrMsgFlagUndefined) {
-			break
-		}
-
-		args = flagSet.Args()
-	}
-
-	return nil
+	return flag.Flag.RunAction(ctx)
 }

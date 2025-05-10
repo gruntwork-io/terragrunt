@@ -28,6 +28,8 @@ const (
 
 // NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	cmdPrefix := flags.Name{CommandName}
+
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Terragrunt stack commands.",
@@ -38,7 +40,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Action: func(ctx *cli.Context) error {
 					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(opts, nil),
+				Flags: defaultFlags(opts, cmdPrefix),
 			},
 			&cli.Command{
 				Name:  runCommandName,
@@ -46,7 +48,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(opts, nil),
+				Flags: defaultFlags(opts, cmdPrefix),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
@@ -58,7 +60,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 					}
 					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx), index)
 				},
-				Flags: outputFlags(opts, nil),
+				Flags: outputFlags(opts, cmdPrefix),
 			},
 			&cli.Command{
 				Name:  cleanCommandName,
@@ -72,49 +74,52 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func defaultFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-
+func defaultFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoStackGenerate,
-			EnvVars:     tgPrefix.EnvVars(NoStackGenerate),
+			EnvVars:     flags.EnvVarsWithTgPrefix(NoStackGenerate),
+			ConfigKey:   cmdPrefix.ConfigKey(NoStackGenerate),
 			Destination: &opts.NoStackGenerate,
 			Usage:       "Disable automatic stack regeneration before running the command.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoStackValidate,
-			EnvVars:     tgPrefix.EnvVars(NoStackValidate),
+			EnvVars:     flags.EnvVarsWithTgPrefix(NoStackValidate),
+			ConfigKey:   cmdPrefix.ConfigKey(NoStackValidate),
 			Destination: &opts.NoStackValidate,
 			Hidden:      true,
 			Usage:       "Disable automatic stack validation after generation.",
 		}),
 	}
 
-	return append(run.NewFlags(opts, nil), flags...)
+	return append(run.NewFlags(opts), flags...)
 }
 
-func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
-
+func outputFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutputFormatFlagName,
-			EnvVars:     tgPrefix.EnvVars(OutputFormatFlagName),
+			EnvVars:     flags.EnvVarsWithTgPrefix(OutputFormatFlagName),
+			ConfigKey:   cmdPrefix.ConfigKey(OutputFormatFlagName),
 			Destination: &opts.StackOutputFormat,
 			Usage:       "Stack output format. Valid values are: json, raw",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:  RawFormatFlagName,
-			Usage: "Stack output in raw format",
+			Name:      RawFormatFlagName,
+			EnvVars:   flags.EnvVarsWithTgPrefix(RawFormatFlagName),
+			ConfigKey: cmdPrefix.ConfigKey(RawFormatFlagName),
+			Usage:     "Stack output in raw format",
 			Action: func(ctx *cli.Context, value bool) error {
 				opts.StackOutputFormat = rawOutputFormat
 				return nil
 			},
 		}),
 		flags.NewFlag(&cli.BoolFlag{
-			Name:  JSONFormatFlagName,
-			Usage: "Stack output in json format",
+			Name:      JSONFormatFlagName,
+			EnvVars:   flags.EnvVarsWithTgPrefix(JSONFormatFlagName),
+			ConfigKey: cmdPrefix.ConfigKey(JSONFormatFlagName),
+			Usage:     "Stack output in json format",
 			Action: func(ctx *cli.Context, value bool) error {
 				opts.StackOutputFormat = jsonOutputFormat
 				return nil
@@ -122,5 +127,5 @@ func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags
 		}),
 	}
 
-	return append(defaultFlags(opts, prefix), flags...)
+	return append(defaultFlags(opts, cmdPrefix), flags...)
 }
