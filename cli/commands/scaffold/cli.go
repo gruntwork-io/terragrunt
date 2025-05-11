@@ -24,7 +24,7 @@ const (
 	VarFileFlagName       = "var-file"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
 	return cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        RootFileNameFlagName,
@@ -84,7 +84,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdPrefix := flags.Name{CommandName}
+	cmdPrefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:  CommandName,

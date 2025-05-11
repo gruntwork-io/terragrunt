@@ -28,7 +28,7 @@ const (
 
 // NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdPrefix := flags.Name{CommandName}
+	cmdPrefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:  CommandName,
@@ -74,7 +74,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func defaultFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+func defaultFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoStackGenerate,
@@ -96,7 +96,7 @@ func defaultFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Fla
 	return append(run.NewFlags(opts), flags...)
 }
 
-func outputFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+func outputFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutputFormatFlagName,

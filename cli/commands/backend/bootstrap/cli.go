@@ -10,11 +10,11 @@ import (
 
 const CommandName = "bootstrap"
 
-func NewFlags(opts *options.TerragruntOptions, _ flags.Name) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, _ flags.Prefix) cli.Flags {
 	return run.NewFlags(opts).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
 }
 
-func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Name) *cli.Command {
+func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) *cli.Command {
 	cmdPrefix = cmdPrefix.Append(CommandName)
 
 	cmd := &cli.Command{

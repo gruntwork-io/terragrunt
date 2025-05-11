@@ -23,7 +23,7 @@ const (
 	DisableDependentModulesFlagName = "disable-dependent-modules"
 )
 
-func NewFlags(opts *Options, cmdPrefix flags.Name) cli.Flags {
+func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
 	strictControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	return cli.Flags{
@@ -116,7 +116,7 @@ func NewFlags(opts *Options, cmdPrefix flags.Name) cli.Flags {
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdPrefix := flags.Name{CommandName}
+	cmdPrefix := flags.Prefix{CommandName}
 	renderOpts := NewOptions(opts)
 
 	cmd := &cli.Command{

@@ -18,7 +18,7 @@ const (
 	JSONFlagName           = "json"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
 	strictControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	flagSet := cli.Flags{
@@ -71,7 +71,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 	return flagSet
 }
 
-func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Name) *cli.Command {
+func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) *cli.Command {
 	cmdPrefix = cmdPrefix.Append(CommandName)
 
 	cmd := &cli.Command{

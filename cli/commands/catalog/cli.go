@@ -13,7 +13,7 @@ const (
 	CommandName = "catalog"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
 	return scaffold.NewFlags(opts, cmdPrefix).Filter(
 		scaffold.RootFileNameFlagName,
 		scaffold.NoIncludeRootFlagName,
@@ -21,7 +21,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdPrefix := flags.Name{CommandName}
+	cmdPrefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:  CommandName,

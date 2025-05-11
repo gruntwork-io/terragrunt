@@ -30,7 +30,7 @@ const (
 	QueueConstructAsFlagAlias = "as"
 )
 
-func NewFlags(opts *Options, cmdPrefix flags.Name) cli.Flags {
+func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
 	return cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FormatFlagName,
@@ -97,7 +97,7 @@ func NewFlags(opts *Options, cmdPrefix flags.Name) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
-	cmdPrefix := flags.Name{CommandName}
+	cmdPrefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:    CommandName,

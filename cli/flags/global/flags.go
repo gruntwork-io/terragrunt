@@ -260,7 +260,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix(DeprecatedNonInteractiveFlagName), strictControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				Negative: true,
-				EnvVars:  flags.Name{}.EnvVars(DeprecatedTFInputFlagName),
+				EnvVars:  flags.Prefix{}.EnvVars(DeprecatedTFInputFlagName),
 			}, nil, strictControl)),
 
 		// Experiment Mode flags.
@@ -363,7 +363,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        TraceparentFlagName,
-			EnvVars:     flags.Name{}.EnvVars(TraceparentFlagName),
+			EnvVars:     flags.Prefix{}.EnvVars(TraceparentFlagName),
 			ConfigKey:   flags.ConfigKey(TraceparentFlagName),
 			Destination: &opts.Telemetry.TraceParent,
 			Hidden:      true,

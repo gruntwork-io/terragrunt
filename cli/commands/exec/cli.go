@@ -15,7 +15,7 @@ const (
 	InDownloadDirFlagName = "in-download-dir"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, cmdPrefix flags.Name) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, cmdPrefix flags.Prefix) cli.Flags {
 	return append(run.NewFlags(opts).Filter(
 		run.AuthProviderCmdFlagName,
 		run.ConfigFlagName,
@@ -38,7 +38,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, cmdPrefix flags
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions()
-	cmdPrefix := flags.Name{CommandName}
+	cmdPrefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:        CommandName,

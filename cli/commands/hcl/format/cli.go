@@ -19,7 +19,7 @@ const (
 	StdinFlagName      = "stdin"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
 	strictControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	flags := cli.Flags{
@@ -82,7 +82,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 	return flags
 }
 
-func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Name) *cli.Command {
+func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) *cli.Command {
 	cmdPrefix = cmdPrefix.Append(CommandName)
 
 	cmd := &cli.Command{

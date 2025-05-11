@@ -4,41 +4,69 @@ import (
 	"strings"
 )
 
-// Name helps to combine strings into flag names or environment variables in a convenient way.
+const (
+	// TgPrefix is an environment variable prefix.
+	TgPrefix = "TG"
+
+	// TerragruntPrefix is an environment variable deprecated prefix.
+	TerragruntPrefix = "TERRAGRUNT"
+)
+
+func ConfigKey(name string) string {
+	return Prefix{}.ConfigKey(name)
+}
+
+func EnvVarsWithTgPrefix(names ...string) []string {
+	return Prefix{TgPrefix}.EnvVars(names...)
+}
+
+func EnvVarsWithTerragruntPrefix(names ...string) []string {
+	return Prefix{TerragruntPrefix}.EnvVars(names...)
+}
+
+func FlagNamesWithTerragruntPrefix(names ...string) []string {
+	return Prefix{TerragruntPrefix}.FlagNames(names...)
+}
+
+func FlagNameWithTerragruntPrefix(name string) string {
+	return Prefix{TerragruntPrefix}.FlagName(name)
+}
+
+// Prefix helps to combine strings into flag names or environment variables in a convenient way.
 // Can be passed to subcommands and contain the names of parent commands,
 // thus creating env vars as a chain of "TG prefix, parent command names, command name, flag name". For example:
 // `TG_HLC_FMT_FILE`, where `hcl` is the parent command, `fmt` is the command and `file` is a flag. Example of use:
 //
 //	func main () {
-//		ParentCommand(Name{TgPrefix})
+//		ParentCommand(Prefix{TgPrefix})
 //	}
 //
-//	func ParentCommand(prefix Name) {
+//	func ParentCommand(prefix Prefix) {
 //		Command(prefix.Append("hcl"))
 //	}
 //
-//	func Command(prefix Name) {
+//	func Command(prefix Prefix) {
 //		Flag(prefix.Append("fmt"))
 //	}
 //
-//	func Flag(prefix Name) {
+//	func Flag(prefix Prefix) {
 //		envName := prefix.EnvVar("file") // TG_HCL_FMT_FILE
 //	}
-type Name []string
+type Prefix []string
 
 // Prepend adds a value to the beginning of the slice.
-func (prefix Name) Prepend(val string) Name {
+func (prefix Prefix) Prepend(val string) Prefix {
 	return append([]string{val}, prefix...)
 }
 
 // Append adds a value to the end of the slice.
-func (prefix Name) Append(val string) Name {
+func (prefix Prefix) Append(val string) Prefix {
 	return append(prefix, val)
 }
 
 // EnvVar returns a string that is the concatenation of the slice values with the given `name`,
 // using underscores as separators, replacing dashes with underscores, converting to uppercase.
-func (prefix Name) EnvVar(name string) string {
+func (prefix Prefix) EnvVar(name string) string {
 	if name == "" {
 		return ""
 	}
@@ -49,7 +77,7 @@ func (prefix Name) EnvVar(name string) string {
 }
 
 // EnvVars does the same `EnvVar`, except it takes and returns the slice.
-func (prefix Name) EnvVars(names ...string) []string {
+func (prefix Prefix) EnvVars(names ...string) []string {
 	var envVars = make([]string, len(names))
 
 	for i := range names {
@@ -61,7 +89,7 @@ func (prefix Name) EnvVars(names ...string) []string {
 
 // ConfigKey returns a string that is the concatenation of the slice values with the given `name`,
 // using underscores as separators, replacing dashes with underscores, converting to lowercase.
-func (prefix Name) ConfigKey(key string) string {
+func (prefix Prefix) ConfigKey(key string) string {
 	if key == "" {
 		return ""
 	}
@@ -73,7 +101,7 @@ func (prefix Name) ConfigKey(key string) string {
 
 // FlagName returns a string that is the concatenation of the slice values with the given `name`,
 // using dashes as separators, replacing dashes with underscores, converting to lowercase.
-func (prefix Name) FlagName(name string) string {
+func (prefix Prefix) FlagName(name string) string {
 	if name == "" {
 		return ""
 	}
@@ -84,7 +112,7 @@ func (prefix Name) FlagName(name string) string {
 }
 
 // FlagNames does the same `FlagName`, except it takes and returns the slice.
-func (prefix Name) FlagNames(names ...string) []string {
+func (prefix Prefix) FlagNames(names ...string) []string {
 	var flagNames = make([]string, len(names))
 
 	for i := range names {

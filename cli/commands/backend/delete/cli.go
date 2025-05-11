@@ -15,7 +15,7 @@ const (
 	ForceBackendDeleteFlagName = "force"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        BucketFlagName,
@@ -37,7 +37,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Name) cli.Flags {
 	return append(flags, run.NewFlags(opts).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
 }
 
-func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Name) *cli.Command {
+func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) *cli.Command {
 	cmdPrefix = cmdPrefix.Append(CommandName)
 
 	cmd := &cli.Command{
