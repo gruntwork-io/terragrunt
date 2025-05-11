@@ -252,6 +252,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVars:     flags.EnvVarsWithTgPrefix(IAMAssumeRoleWebIdentityTokenFlagName),
 			ConfigKey:   flags.ConfigKey(IAMAssumeRoleWebIdentityTokenFlagName),
 			Destination: &opts.IAMRoleOptions.WebIdentityToken,
+			Sensitive:   true,
 			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token.",
 		},
 			flags.WithDeprecatedNamesEnvVars(
@@ -473,6 +474,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVars:     flags.EnvVarsWithTgPrefix(ProviderCacheTokenFlagName),
 			ConfigKey:   flags.ConfigKey(ProviderCacheTokenFlagName),
 			Destination: &opts.ProviderCacheToken,
+			Sensitive:   true,
 			Usage:       "The token for authentication to the Terragrunt Provider Cache server. By default, assigned automatically.",
 		},
 			flags.WithDeprecatedNames(flags.FlagNamesWithTerragruntPrefix("provider-cache-token"), strictControl)),

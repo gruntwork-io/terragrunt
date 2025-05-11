@@ -49,6 +49,9 @@ type BoolFlag struct {
 
 	// Hidden hides the flag from the help.
 	Hidden bool
+
+	// Sensitive is used to indicate that the flag value is sensitive and should not be exposed, for example in logs.
+	Sensitive bool
 }
 
 func (flag *BoolFlag) initValue() *flagValue {
@@ -87,6 +90,11 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 // GetHidden returns true if the flag should be hidden from the help.
 func (flag *BoolFlag) GetHidden() bool {
 	return flag.Hidden
+}
+
+// GetSensitive returns true if the flag value should not be exposed.
+func (flag *BoolFlag) GetSensitive() bool {
+	return flag.Sensitive
 }
 
 // GetUsage returns the usage string for the flag.

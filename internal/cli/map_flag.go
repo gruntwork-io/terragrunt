@@ -71,6 +71,9 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 
 	// Hidden hides the flag from the help.
 	Hidden bool
+
+	// Sensitive is used to indicate that the flag value is sensitive and should not be exposed, for example in logs.
+	Sensitive bool
 }
 
 func (flag *MapFlag[K, V]) initValue() *flagValue {
@@ -134,6 +137,11 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 // GetHidden returns true if the flag should be hidden from the help.
 func (flag *MapFlag[K, V]) GetHidden() bool {
 	return flag.Hidden
+}
+
+// GetSensitive returns true if the flag value should not be exposed.
+func (flag *MapFlag[K, V]) GetSensitive() bool {
+	return flag.Sensitive
 }
 
 // GetUsage returns the usage string for the flag.

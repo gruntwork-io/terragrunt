@@ -88,6 +88,9 @@ type Flag interface {
 	// GetHidden returns true if the flag is hidden.
 	GetHidden() bool
 
+	// GetSensitive returns true if the flag value should not be exposed.
+	GetSensitive() bool
+
 	// RunAction runs the flag action.
 	RunAction(ctx *Context) error
 
