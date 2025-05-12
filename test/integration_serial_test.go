@@ -729,44 +729,68 @@ func TestParseTFLog(t *testing.T) {
 }
 
 func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
-	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
-
-	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
-
-	str, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
-	require.NoError(t, err)
-
-	traceparentLine := ""
-	for _, line := range strings.Split(str, "\n") {
-		if strings.HasPrefix(line, "hook_print_traceparent {\"traceparent\": \"") {
-			traceparentLine = line
-			break
-		}
+	testCases := []struct {
+		name     string
+		envValue string
+	}{
+		{
+			name:     "Default execution",
+			envValue: "",
+		},
+		{
+			name:     "Engine execution",
+			envValue: "1",
+		},
 	}
-	require.NotEmpty(t, traceparentLine, "Expected hook_print_traceparent output with traceparent value")
-	re := regexp.MustCompile(`hook_print_traceparent \{"traceparent": "([^"]+)"\}`)
-	matches := re.FindStringSubmatch(traceparentLine)
-	require.Len(t, matches, 2, "Expected to extract traceparent value from hook output")
-	traceparentValue := matches[1]
-	require.NotEmpty(t, traceparentValue, "Traceparent value should not be empty")
-	require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparentValue, "Traceparent value should match W3C traceparent format")
 
-	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
+			if tc.envValue != "" {
+				t.Setenv("TG_EXPERIMENTAL_ENGINE", tc.envValue)
+			} else {
+				_ = os.Unsetenv("TG_EXPERIMENTAL_ENGINE")
+			}
 
-	require.NoError(
-		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
-	)
+			helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
 
-	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	traceparent, found := outputs["traceparent_value"]
-	require.True(t, found)
-	assert.NotEmpty(t, traceparent.Value)
-	require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparent.Value, "Traceparent value should match W3C traceparent format")
+			str, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+			require.NoError(t, err)
+
+			traceparentLine := ""
+			for _, line := range strings.Split(str, "\n") {
+				if strings.HasPrefix(line, "hook_print_traceparent {\"traceparent\": \"") {
+					traceparentLine = line
+					break
+				}
+			}
+			require.NotEmpty(t, traceparentLine, "Expected hook_print_traceparent output with traceparent value")
+			re := regexp.MustCompile(`hook_print_traceparent \{"traceparent": "([^"]+)"\}`)
+			matches := re.FindStringSubmatch(traceparentLine)
+			require.Len(t, matches, 2, "Expected to extract traceparent value from hook output")
+			traceparentValue := matches[1]
+			require.NotEmpty(t, traceparentValue, "Traceparent value should not be empty")
+			require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparentValue, "Traceparent value should match W3C traceparent format")
+
+			t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "")
+
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
+
+			require.NoError(
+				t,
+				helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+			)
+
+			outputs := map[string]helpers.TerraformOutput{}
+			require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+			traceparent, found := outputs["traceparent_value"]
+			require.True(t, found)
+			assert.NotEmpty(t, traceparent.Value)
+			require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparent.Value, "Traceparent value should match W3C traceparent format")
+		})
+	}
 }
