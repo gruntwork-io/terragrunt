@@ -69,6 +69,16 @@ func RunCommandWithOutput(
 			cmdStdout = io.MultiWriter(opts.Writer, &output.Stdout)
 		)
 
+		// Pass the traceparent to the child process if it is available in the context.
+		traceParent, err := telemetry.TraceParentFromContext(ctx)
+		if err != nil {
+			return errors.New(err)
+		}
+		if traceParent != "" {
+			opts.Logger.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
+			opts.Env[telemetry.TraceParentEnv] = traceParent
+		}
+
 		if suppressStdout {
 			opts.Logger.Debugf("Command output will be suppressed.")
 
@@ -76,19 +86,6 @@ func RunCommandWithOutput(
 		}
 
 		if command == opts.TerraformPath {
-			// If the command is the Terraform/OpenTofu executable, propagate the trace via the 'TRACEPARENT'
-			// environment variable to the child process.
-			extraEnvVars := make(map[string]string)
-
-			traceParent, err := telemetry.TraceParentFromContext(ctx)
-			if err != nil {
-				return errors.New(err)
-			}
-			if traceParent != "" {
-				opts.Logger.Debugf("Setting TRACEPARENT=%q environment variable for command execution", traceParent)
-				extraEnvVars["TRACEPARENT"] = traceParent
-			}
-
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 			if opts.Engine != nil && opts.EngineEnabled {
 				opts.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
@@ -102,7 +99,6 @@ func RunCommandWithOutput(
 					AllocatePseudoTty: needsPTY,
 					Command:           command,
 					Args:              args,
-					EnvVars:           extraEnvVars,
 				})
 				if err != nil {
 					return errors.New(err)

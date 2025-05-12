@@ -2,30 +2,34 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel/trace"
 )
 
+type contextKey byte
+
 const (
-	telemeterContextKey ctxKey = iota
+	telemeterContextKey contextKey = iota
+	TraceParentEnv                 = "TRACEPARENT"
 )
 
-type ctxKey byte
-
-func ContextWithTelemeter(ctx context.Context, tlm *Telemeter) context.Context {
-	return context.WithValue(ctx, telemeterContextKey, tlm)
+// ContextWithTelemeter returns a new context with the provided Telemeter attached.
+func ContextWithTelemeter(ctx context.Context, telemeter *Telemeter) context.Context {
+	return context.WithValue(ctx, telemeterContextKey, telemeter)
 }
 
+// TelemeterFromContext retrieves the Telemeter from the context, or nil if not present.
 func TelemeterFromContext(ctx context.Context) *Telemeter {
 	if val := ctx.Value(telemeterContextKey); val != nil {
-		if val, ok := val.(*Telemeter); ok {
-			return val
+		if telemeter, ok := val.(*Telemeter); ok {
+			return telemeter
 		}
 	}
-
-	return new(Telemeter)
+	return nil
 }
 
+// TraceParentFromContext returns the W3C traceparent header value from the context's span, or an error if not available.
 func TraceParentFromContext(ctx context.Context) (string, error) {
 	span := trace.SpanFromContext(ctx)
 	spanContext := span.SpanContext()
@@ -42,7 +46,5 @@ func TraceParentFromContext(ctx context.Context) (string, error) {
 		flags = "01"
 	}
 
-	traceparent := "00-" + traceID + "-" + spanID + "-" + flags
-
-	return traceparent, nil
+	return fmt.Sprintf("00-%s-%s-%s", traceID, spanID, flags), nil
 }

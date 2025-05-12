@@ -67,7 +67,6 @@ type ExecutionOptions struct {
 	Args              []string
 	SuppressStdout    bool
 	AllocatePseudoTty bool
-	EnvVars           map[string]string
 }
 
 type engineInstance struct {
@@ -568,23 +567,13 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		return nil, errors.New(err)
 	}
 
-	// Combine the existing environment variables with the ones provided in the run options
-	// to ensure that the command has access to all necessary variables.
-	envVars := runOptions.TerragruntOptions.Env
-	
-	if runOptions.EnvVars != nil {
-		for k, v := range runOptions.EnvVars {
-			envVars[k] = v
-		}
-	}
-
 	response, err := (*client).Run(ctx, &proto.RunRequest{
 		Command:           runOptions.Command,
 		Args:              runOptions.Args,
 		AllocatePseudoTty: runOptions.AllocatePseudoTty,
 		WorkingDir:        runOptions.WorkingDir,
 		Meta:              meta,
-		EnvVars:           envVars,
+		EnvVars:           runOptions.TerragruntOptions.Env,
 	})
 	if err != nil {
 		return nil, errors.New(err)

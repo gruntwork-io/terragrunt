@@ -589,8 +589,9 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	// check that output have Telemetry json output
+	// check that output has Telemetry json output
 	assert.Contains(t, output, "\"SpanContext\":{\"TraceID\":\"b2ff2d54551433d53dd807a6c94e81d1\"")
+	assert.Contains(t, output, "\"Parent\":{\"TraceID\":\"b2ff2d54551433d53dd807a6c94e81d1")
 	assert.Contains(t, output, "\"SpanID\":\"0e6f631d793c718a\"")
 	assert.Contains(t, output, "\"SpanContext\":")
 	assert.Contains(t, output, "\"TraceID\":")
@@ -598,7 +599,7 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_2\"")
 }
 
-func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
+func TestTerragruntProduceTelemetryInCaseOfError(t *testing.T) {
 	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")
 	}
