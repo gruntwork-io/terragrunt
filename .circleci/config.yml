@@ -126,27 +126,6 @@ run_terratest_log_parser: &run_terratest_log_parser
 
 version: 2.1
 jobs:
-  integration_test_terraform_1_5:
-    resource_class: xlarge
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_test
-          environment:
-            TG_TF_PATH: terraform
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   integration_test_terraform_with_provider_cache:
     resource_class: xlarge
     <<: *defaults
@@ -162,29 +141,6 @@ jobs:
           environment:
             TG_TF_PATH: terraform
             TG_PROVIDER_CACHE: "1"
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_terraform_latest:
-    resource_class: xlarge
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_terraform_latest
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_test
-          environment:
-            TG_TF_PATH: terraform
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -539,26 +495,6 @@ workflows:
   version: 2
   build-and-test:
     jobs:
-      - integration_test_terraform_1_5:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - integration_test_terraform_latest:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
       - integration_test_terraform_with_provider_cache:
           filters:
             tags:
