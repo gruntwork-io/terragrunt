@@ -6,7 +6,7 @@ set -euo pipefail
 
 touch "$ENV_FILE"
 
-mise uninstall terraform
+mise uninstall --all terraform
 
 tofu --version
 
