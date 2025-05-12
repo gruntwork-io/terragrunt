@@ -40,7 +40,7 @@ func DiscoveryPath(baseDir string) (string, error) {
 			continue
 		}
 
-		path := filepath.Join(dir, configFilename)
+		path := filepath.Join(dir, DefaultConfigFilename)
 
 		if util.FileExists(path) {
 			return path, nil

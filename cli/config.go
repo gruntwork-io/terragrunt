@@ -2,14 +2,16 @@ package cli
 
 import (
 	"path/filepath"
+	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func ConfigPath(opts *options.TerragruntOptions) (string, error) {
+func configPath(opts *options.TerragruntOptions) (string, error) {
 	if path := opts.CLIConfigFile; path != "" {
 		path, err := filepath.Abs(path)
 		if err != nil {
@@ -29,18 +31,26 @@ func ConfigPath(opts *options.TerragruntOptions) (string, error) {
 	return cliconfig.DiscoveryPath(workingDir)
 }
 
-func LoadConfig(opts *options.TerragruntOptions) (*cliconfig.Config, error) {
-	path, err := ConfigPath(opts)
+func loadConfig(flags cli.Flags, opts *options.TerragruntOptions) error {
+	path, err := configPath(opts)
 	if err != nil || path == "" {
-		return nil, err
+		return err
 	}
 
 	cfg, err := cliconfig.LoadConfig(path)
 	if err != nil {
-		return nil, errors.Errorf("could not load CLI config %s: %w", path, err)
+		return errors.Errorf("could not load CLI config %s: %w", path, err)
+	}
+
+	if err := flags.ApplyConfig(cfg); err != nil {
+		return errors.Errorf("could not apply CLI config: %w", err)
 	}
 
 	opts.Logger.Debugf("Loaded CLI configuration file %s", path)
 
-	return cfg, nil
+	if extraKeys := cfg.ExtraKeys(); len(extraKeys) > 0 {
+		opts.Logger.Warnf("CLI configuration file contains non-existent keys: %s", strings.Join(extraKeys, ","))
+	}
+
+	return nil
 }

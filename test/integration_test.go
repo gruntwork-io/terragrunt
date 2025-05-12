@@ -112,6 +112,7 @@ const (
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
 	testFixtureTfPath                         = "fixtures/tf-path"
+	testFixtureCLIConfigFile                  = "fixtures/cli-config-file"
 
 	terraformFolder = ".terraform"
 
@@ -120,6 +121,75 @@ const (
 	terraformStateBackup = "terraform.tfstate.backup"
 	terragruntCache      = ".terragrunt-cache"
 )
+
+func TestCLIConfigFile(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expectedError error
+		cliConfigFile string
+		name          string
+		expectedLogs  []string
+	}{
+		{
+			name: "default CLI config file from the working directory",
+			expectedLogs: []string{
+				filepath.Join(testFixtureCLIConfigFile, ".terragruntrc.json"),
+				`cli-config strict-control="spin-up,tear-down"`,
+			},
+		},
+		{
+			name:          "explicitly specified CLI config file path",
+			cliConfigFile: "different-name.json",
+			expectedLogs: []string{
+				filepath.Join(testFixtureCLIConfigFile, "different-name.json"),
+				`cli-config strict-control="plan-all"`,
+			},
+		},
+		{
+			name:          "validation CLI config values",
+			cliConfigFile: "with-wrong-value.json",
+			expectedError: errors.New(`could not apply CLI config: invalid value "wrong-name" for key "strict-control"`),
+		},
+		{
+			name:          "validation CLI config keys",
+			cliConfigFile: "with-non-existent-keys.json",
+			expectedLogs: []string{
+				`non-existent keys: wrong-key`,
+			},
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureCLIConfigFile)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCLIConfigFile, ".terragruntrc.json", tc.cliConfigFile)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureCLIConfigFile)
+			rootPath, err := filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
+
+			var cliArgs string
+			if tc.cliConfigFile != "" {
+				cliArgs = " --cli-config-file=" + filepath.Join(rootPath, tc.cliConfigFile)
+			}
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --log-level=debug --working-dir "+rootPath+cliArgs+" plan")
+			if tc.expectedError != nil {
+				require.ErrorContains(t, err, tc.expectedError.Error())
+			} else {
+				require.NoError(t, err)
+			}
+
+			logs := stdout + stderr
+
+			for _, expLog := range tc.expectedLogs {
+				assert.Contains(t, logs, expLog)
+			}
+		})
+	}
+}
 
 func TestCLIFlagHints(t *testing.T) {
 	t.Parallel()
@@ -143,7 +213,8 @@ func TestCLIFlagHints(t *testing.T) {
 			t.Parallel()
 
 			helpers.CleanupTerraformFolder(t, testFixtureCLIFlagHints)
-			rootPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureCLIFlagHints)
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 

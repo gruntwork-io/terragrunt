@@ -189,12 +189,12 @@ func initialSetup(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	for _, sourceType := range []cli.FlagValueSourceType{cli.FlagValueSourceConfig, cli.FlagValueSourceEnvVar, cli.FlagValueSourceArg} {
 		for _, flag := range ctx.Flags().FilterBySourceType(sourceType) {
 			if !flag.GetHidden() && flag.Value().IsSet() {
-				value := flag.Value().Get()
+				value := flag.Value().String()
 				if flag.GetSensitive() {
 					value = "********"
 				}
 
-				opts.Logger.Debugf("Using %s \"%s=%v\"", sourceType, flag.Value().SourceName(), value)
+				opts.Logger.Debugf("Using %s %s=%q", sourceType, flag.Value().SourceName(), value)
 			}
 		}
 	}

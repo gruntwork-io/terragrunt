@@ -124,11 +124,11 @@ func (err UndefinedFlagError) Error() string {
 }
 
 var (
-	ErrMultipleTimesSettingFlag = errors.New("setting the flag multiple times")
+	ErrSetValueMultipleTimes = errors.New("setting the value multiple times")
 )
 
-func IsMultipleTimesSettingError(err error) bool {
-	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error())
+func IsSetValueMultipleTimesError(err error) bool {
+	return strings.Contains(err.Error(), ErrSetValueMultipleTimes.Error())
 }
 
 type FatalFlagError struct {

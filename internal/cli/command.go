@@ -192,7 +192,7 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) (Args, error) {
 			}
 		}
 
-		if cmd.DisabledErrorOnMultipleSetFlag && IsMultipleTimesSettingError(err) {
+		if cmd.DisabledErrorOnMultipleSetFlag && IsSetValueMultipleTimesError(err) {
 			return nil
 		}
 

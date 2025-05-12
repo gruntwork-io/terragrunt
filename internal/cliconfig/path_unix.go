@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	configFilename = ".terragruntrc.json"
-	configXDGDir   = "terragrunt"
+	DefaultConfigFilename = ".terragruntrc.json"
+	ConfigXDGDir          = "terragrunt"
 )
 
 func ConfigDirs() ([]string, error) {
@@ -24,7 +24,7 @@ func ConfigDirs() ([]string, error) {
 	dirs := []string{dir}
 
 	if xdgDir := os.Getenv("XDG_CONFIG_HOME"); xdgDir != "" {
-		dirs = append(dirs, filepath.Join(xdgDir, configXDGDir))
+		dirs = append(dirs, filepath.Join(xdgDir, ConfigXDGDir))
 	}
 
 	return dirs, nil

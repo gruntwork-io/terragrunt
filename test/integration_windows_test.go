@@ -248,3 +248,26 @@ func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 
 	return tmpDir
 }
+
+func TestCLIConfigFileLoadedFromWindowsUserDir(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureCLIConfigFile)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCLIConfigFile, ".terragruntrc.json")
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureCLIConfigFile)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	cliConfigPath := filepath.Join(homeDir, "terragruntrc.json")
+
+	err = os.Rename(filepath.Join(rootPath, ".terragruntrc.json"), cliConfigPath)
+	require.NoError(t, err)
+
+	defer os.Remove(cliConfigPath)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --log-level=debug --working-dir "+rootPath+" plan")
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout+stderr, cliConfigPath)
+}

@@ -116,7 +116,7 @@ func (app *App) prepare(args cli.Args) (cli.Args, error) {
 		return nil, err
 	}
 
-	if err := app.loadConfig(); err != nil {
+	if err := loadConfig(app.AllFlags(), app.opts); err != nil {
 		return nil, err
 	}
 
@@ -145,23 +145,6 @@ func (app *App) parseFlags(args []string) (cli.Args, error) {
 	)
 
 	return flags.Parse(args, cli.IgnoringUndefinedFlagErrorHandler)
-}
-
-func (app *App) loadConfig() error {
-	cfg, err := LoadConfig(app.opts)
-	if err != nil || cfg == nil {
-		return err
-	}
-
-	if err := app.AllFlags().ApplyConfig(cfg); err != nil {
-		return errors.Errorf("could not apply CLI config: %w", err)
-	}
-
-	if extraKeys := cfg.ExtraKeys(); len(extraKeys) > 0 {
-		app.opts.Logger.Warnf("CLI configuration file contains unused keys: %s", strings.Join(extraKeys, ","))
-	}
-
-	return nil
 }
 
 func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {

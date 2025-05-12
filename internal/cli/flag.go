@@ -133,7 +133,7 @@ func (flag *flagValueGetter) Set(val string) error {
 		flag.value.Reset()
 		flag.hasBeenSet = true
 	} else if !flag.multipleSet {
-		err = errors.New(ErrMultipleTimesSettingFlag)
+		err = errors.New(ErrSetValueMultipleTimes)
 	}
 
 	// Allow value to be overwritten only if the source has higher priority.

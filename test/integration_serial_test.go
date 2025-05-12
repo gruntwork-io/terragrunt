@@ -725,3 +725,43 @@ func TestParseTFLog(t *testing.T) {
 		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: Go runtime version`)
 	}
 }
+
+func TestCLIConfigFileLoadedFromHomeDir(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureCLIConfigFile)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCLIConfigFile, ".terragruntrc.json")
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureCLIConfigFile)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	cliConfigPath := filepath.Join(homeDir, ".terragruntrc.json")
+
+	err = os.Rename(filepath.Join(rootPath, ".terragruntrc.json"), cliConfigPath)
+	require.NoError(t, err)
+
+	defer os.Remove(cliConfigPath)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --log-level=debug --working-dir "+rootPath+" plan")
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout+stderr, cliConfigPath)
+}
+
+func TestCLIConfigFileSpecifiedByEnvVar(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureCLIConfigFile)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCLIConfigFile, ".terragruntrc.json")
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureCLIConfigFile)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	cliConfigPath := filepath.Join(rootPath, "different-name.json")
+
+	t.Setenv("TG_CLI_CONFIG_FILE", cliConfigPath)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --log-level=debug --working-dir "+rootPath+" plan")
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout+stderr, cliConfigPath)
+}

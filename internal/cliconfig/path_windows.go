@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	configFilename = "terragruntrc.json"
+	DefaultConfigFilename = "terragruntrc.json"
 )
 
 func ConfigDirs() ([]string, error) {
