@@ -14,7 +14,7 @@ TF_VERSION="$1"
 touch "$ENV_FILE"
 
 mise uninstall opentofu
-mise local "terraform@${TF_VERSION}"
+mise use "terraform@${TF_VERSION}"
 
 terraform --version
 
