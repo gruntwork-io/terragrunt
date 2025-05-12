@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -725,4 +725,31 @@ func TestParseTFLog(t *testing.T) {
 	for _, prefixName := range []string{"app", "dep"} {
 		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: Go runtime version`)
 	}
+}
+
+func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+	)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	traceparent, found := outputs["traceparent_value"]
+	require.True(t, found)
+	assert.NotEmpty(t, traceparent)
 }
