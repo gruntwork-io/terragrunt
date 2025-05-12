@@ -20,6 +20,8 @@ jobs:
           - name: Fixtures
             os: ubuntu
             target: ./test
+            setup_scripts:
+              - .github/scripts/setup/tofu-switch.sh
           - name: Fixtures Terraform 1.5
             os: ubuntu
             target: ./test
