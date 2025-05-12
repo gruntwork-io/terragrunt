@@ -268,7 +268,7 @@ func TestEngineLogLevel(t *testing.T) {
 	assert.Contains(t, stderr, "[DEBUG] plugin exited")
 }
 
-func TestTerragruntTelemetryForEngine(t *testing.T) {
+func TestEngineTelemetry(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv(envVarExperimental, "1")
 
