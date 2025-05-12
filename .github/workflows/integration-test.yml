@@ -24,12 +24,12 @@ jobs:
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/terraform-switch.sh 1.5
+              - .github/scripts/setup/terraform-switch-1-5.sh
           - name: Fixtures Terraform 1.11
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/terraform-switch.sh 1.11
+              - .github/scripts/setup/terraform-switch-1-11.sh
           - name: SSH
             os: ubuntu
             target: ./...
