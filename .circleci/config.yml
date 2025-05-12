@@ -100,12 +100,6 @@ run_integration_awsgcp_test: &run_integration_awsgcp_test
     run-go-tests --packages "-tags=awsgcp -run ^TestAwsGcp ./..." | tee logs/test-results.log
   no_output_timeout: 30m
 
-run_tflint_test: &run_tflint_test
-  name: Run TFlint tests
-  command: |
-    run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/test-results.log
-  no_output_timeout: 30m
-
 run_race_test: &run_race_test
   name: Run Race tests
   command: |
@@ -124,39 +118,8 @@ run_terratest_log_parser: &run_terratest_log_parser
     terratest_log_parser --testlog logs/test-results.log --outputdir logs
   when: always
 
-win_install_golang: &win_install_golang
-  name: Install golang
-  shell: powershell.exe
-  command: ./_ci/install-golang.ps1
-
-win_install_tflint: &win_install_tflint
-  name: Install TFLint
-  shell: powershell.exe
-  command: ./_ci/install-tflint.ps1
-
 version: 2.1
 jobs:
-  integration_test_terraform_1_5:
-    resource_class: xlarge
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_test
-          environment:
-            TG_TF_PATH: terraform
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   integration_test_terraform_with_provider_cache:
     resource_class: xlarge
     <<: *defaults
@@ -172,29 +135,6 @@ jobs:
           environment:
             TG_TF_PATH: terraform
             TG_PROVIDER_CACHE: "1"
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_terraform_latest:
-    resource_class: xlarge
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_terraform_latest
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_test
-          environment:
-            TG_TF_PATH: terraform
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -393,29 +333,6 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
-
-  # Run TFLint tests separately as tflint during execution change working directory.
-  integration_test_tflint:
-    resource_class: large
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tofu
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_tflint_test
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   race_test:
     resource_class: medium
     <<: *defaults
@@ -549,26 +466,6 @@ workflows:
   version: 2
   build-and-test:
     jobs:
-      - integration_test_terraform_1_5:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - integration_test_terraform_latest:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
       - integration_test_terraform_with_provider_cache:
           filters:
             tags:
@@ -610,16 +507,6 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu_with_provider_cache:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - integration_test_tflint:
           filters:
             tags:
               only:
