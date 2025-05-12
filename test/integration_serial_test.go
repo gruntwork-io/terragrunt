@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -734,8 +735,23 @@ func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	str, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
+
+	traceparentLine := ""
+	for _, line := range strings.Split(str, "\n") {
+		if strings.HasPrefix(line, "hook_print_traceparent {\"traceparent\": \"") {
+			traceparentLine = line
+			break
+		}
+	}
+	require.NotEmpty(t, traceparentLine, "Expected hook_print_traceparent output with traceparent value")
+	re := regexp.MustCompile(`hook_print_traceparent \{"traceparent": "([^"]+)"\}`)
+	matches := re.FindStringSubmatch(traceparentLine)
+	require.Len(t, matches, 2, "Expected to extract traceparent value from hook output")
+	traceparentValue := matches[1]
+	require.NotEmpty(t, traceparentValue, "Traceparent value should not be empty")
+	require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparentValue, "Traceparent value should match W3C traceparent format")
 
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "")
 
@@ -751,5 +767,6 @@ func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	traceparent, found := outputs["traceparent_value"]
 	require.True(t, found)
-	assert.NotEmpty(t, traceparent)
+	assert.NotEmpty(t, traceparent.Value)
+	require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparent.Value, "Traceparent value should match W3C traceparent format")
 }
