@@ -26,6 +26,7 @@ func TelemeterFromContext(ctx context.Context) *Telemeter {
 			return telemeter
 		}
 	}
+
 	return nil
 }
 

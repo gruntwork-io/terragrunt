@@ -74,6 +74,7 @@ func RunCommandWithOutput(
 		if err != nil {
 			return errors.New(err)
 		}
+
 		if traceParent != "" {
 			opts.Logger.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
 			opts.Env[telemetry.TraceParentEnv] = traceParent
