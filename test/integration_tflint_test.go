@@ -129,7 +129,7 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 	assert.True(t, found)
 }
 
-func TestExternalTflint(t *testing.T) {
+func TestTflintExternalTflint(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
@@ -145,7 +145,7 @@ func TestExternalTflint(t *testing.T) {
 	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
 }
 
-func TestTfvarsArePassedToTflint(t *testing.T) {
+func TestTflintTfvarsArePassedToTflint(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
