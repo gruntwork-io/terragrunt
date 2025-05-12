@@ -30,6 +30,7 @@ const (
 	testFixtureOpenTofuEngine       = "fixtures/engine/opentofu-engine"
 	testFixtureOpenTofuRunAll       = "fixtures/engine/opentofu-run-all"
 	testFixtureOpenTofuLatestRunAll = "fixtures/engine/opentofu-latest-run-all"
+	testFixtureEngineTraceParent    = "fixtures/engine/trace-parent"
 
 	envVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
@@ -265,6 +266,20 @@ func TestEngineLogLevel(t *testing.T) {
 	assert.Contains(t, stderr, "level=debug")
 	assert.Contains(t, stderr, "[DEBUG] terragrunt-iac-engine-opentofu_rpc")
 	assert.Contains(t, stderr, "[DEBUG] plugin exited")
+}
+
+func TestTerragruntTelemetryForEngine(t *testing.T) {
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv(envVarExperimental, "1")
+
+	helpers.CleanupTerraformFolder(t, testFixtureEngineTraceParent)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEngineTraceParent)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureEngineTraceParent)
+
+	str, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	helpers.ValidateHookTraceParent(t, "hook_print_traceparent", str)
 }
 
 func setupEngineCache(t *testing.T) (string, string) {
