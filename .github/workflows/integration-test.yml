@@ -20,6 +20,16 @@ jobs:
           - name: Fixtures
             os: ubuntu
             target: ./test
+          - name: Fixtures Terraform 1.5
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch.sh 1.5
+          - name: Fixtures Terraform 1.11
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch.sh 1.11
           - name: SSH
             os: ubuntu
             target: ./...
@@ -89,6 +99,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # install dependencies for the integration tests
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate Secrets Environment
         run: ./.github/scripts/setup/generate-secrets.sh
         env:
@@ -121,14 +140,6 @@ jobs:
         env:
           ENV_FILE: ${{ github.workspace }}/.env.secrets
           SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
-
-      - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
-        with:
-          version: 2025.4.4
-          experimental: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: go-cache-paths
         run: |

@@ -124,16 +124,6 @@ run_terratest_log_parser: &run_terratest_log_parser
     terratest_log_parser --testlog logs/test-results.log --outputdir logs
   when: always
 
-win_install_golang: &win_install_golang
-  name: Install golang
-  shell: powershell.exe
-  command: ./_ci/install-golang.ps1
-
-win_install_tflint: &win_install_tflint
-  name: Install TFLint
-  shell: powershell.exe
-  command: ./_ci/install-tflint.ps1
-
 version: 2.1
 jobs:
   integration_test_terraform_1_5:
