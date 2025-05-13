@@ -70,10 +70,7 @@ func RunCommandWithOutput(
 		)
 
 		// Pass the traceparent to the child process if it is available in the context.
-		traceParent, err := telemetry.TraceParentFromContext(ctx)
-		if err != nil {
-			return errors.New(err)
-		}
+		traceParent := telemetry.TraceParentFromContext(ctx, opts.Telemetry)
 
 		if traceParent != "" {
 			opts.Logger.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))

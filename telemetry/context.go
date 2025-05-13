@@ -31,12 +31,16 @@ func TelemeterFromContext(ctx context.Context) *Telemeter {
 }
 
 // TraceParentFromContext returns the W3C traceparent header value from the context's span, or an error if not available.
-func TraceParentFromContext(ctx context.Context) (string, error) {
+func TraceParentFromContext(ctx context.Context, telemetry *Options) string {
 	span := trace.SpanFromContext(ctx)
 	spanContext := span.SpanContext()
 
 	if !spanContext.IsValid() {
-		return "", nil
+		return ""
+	}
+
+	if len(telemetry.TraceParent) > 0 {
+		return telemetry.TraceParent
 	}
 
 	traceID := spanContext.TraceID().String()
@@ -47,5 +51,5 @@ func TraceParentFromContext(ctx context.Context) (string, error) {
 		flags = "01"
 	}
 
-	return fmt.Sprintf("00-%s-%s-%s", traceID, spanID, flags), nil
+	return fmt.Sprintf("00-%s-%s-%s", traceID, spanID, flags)
 }
