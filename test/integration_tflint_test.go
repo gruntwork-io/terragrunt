@@ -114,6 +114,9 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 	}
 
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
+	t.Cleanup(func() {
+		helpers.RemoveFolder(t, rootPath)
+	})
 	modulePath := util.JoinPath(rootPath, testFixtureTflintNoIssuesFound)
 	err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --log-level trace --working-dir %s --download-dir %s", modulePath, downloadDir), out, errOut)
 	require.NoError(t, err)
