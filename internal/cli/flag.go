@@ -45,7 +45,7 @@ type FlagVariable[T any] interface {
 // FlagConfigGetter provides methods to retrieve flag values from the configuration.
 type FlagConfigGetter interface {
 	// Get returns a raw key and its value for the specified `key` from the config.
-	Get(key string) (string, any)
+	Get(command *Command, flag Flag) (string, any)
 }
 
 type FlagValue interface {
@@ -266,17 +266,7 @@ func (flag *flag) SplitValue(val string) []string {
 	return []string{val}
 }
 
-func ApplyConfig(flag Flag, cfgGetter FlagConfigGetter) error {
-	key := flag.GetConfigKey()
-	if key == "" {
-		return nil
-	}
-
-	rawKey, val := cfgGetter.Get(key)
-	if val == nil {
-		return nil
-	}
-
+func ApplyConfig(flag Flag, rawKey string, val any) error {
 	var vals []string
 
 	switch val := val.(type) {

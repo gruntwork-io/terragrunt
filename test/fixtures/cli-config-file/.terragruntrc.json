@@ -1,1 +1,8 @@
-{"strict-control":["spin-up", "tear-down"]}
+{
+    "flags": [
+        {
+            "name": "strict-control",
+            "value": ["spin-up", "tear-down"]
+        }
+    ]
+}

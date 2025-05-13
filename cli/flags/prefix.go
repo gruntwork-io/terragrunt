@@ -94,9 +94,9 @@ func (prefix Prefix) ConfigKey(key string) string {
 		return ""
 	}
 
-	key = strings.Join(append(prefix, key), "_")
+	key = strings.Join(append(prefix, key), "-")
 
-	return strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	return strings.ToLower(strings.ReplaceAll(key, "_", "-"))
 }
 
 // FlagName returns a string that is the concatenation of the slice values with the given `name`,

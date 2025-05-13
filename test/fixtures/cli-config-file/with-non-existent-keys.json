@@ -1,1 +1,8 @@
-{"wrong-key":"info"}
+{
+    "flags": [
+        {
+            "name": "wrong-key",
+            "value": ["plan-all"]
+        }
+    ]
+}

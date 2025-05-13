@@ -171,3 +171,13 @@ func (commands Commands) AllFlags() Flags {
 
 	return flags
 }
+
+func (commands Commands) ApplyConfig(cfgGetter FlagConfigGetter, seen *Flags) error {
+	for _, cmd := range commands {
+		if err := cmd.ApplyConfig(cfgGetter, seen); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

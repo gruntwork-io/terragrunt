@@ -107,16 +107,6 @@ func (flags Flags) Parse(args Args, errHandler FlagErrorHandler) (Args, error) {
 	return undefArgs, err
 }
 
-func (flags Flags) ApplyConfig(cfgGetter FlagConfigGetter) error {
-	for _, flag := range flags {
-		if err := ApplyConfig(flag, cfgGetter); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (flags Flags) Apply(flagSet *libflag.FlagSet, errHandler FlagErrorHandler) error {
 	for _, flag := range flags {
 		if err := flag.Apply(flagSet); err != nil {

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"os"
 	"slices"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 )
@@ -15,19 +14,30 @@ var _ cli.FlagConfigGetter = new(Config)
 
 // Config is the structure of the configuration for the Terragrunt CLI.
 type Config struct {
-	keysValues     map[string]any
-	normalizedKeys map[string]string
-	path           string
-	usedKeys       []string
+	Flags ConfigFlags `json:"flags"`
+}
+
+type ConfigFlag struct {
+	Name     string   `json:"name"`
+	Value    any      `json:"value"`
+	Commands []string `json:"commands"`
+}
+
+type ConfigFlags []*ConfigFlag
+
+func (flags ConfigFlags) Find(name string) *ConfigFlag {
+	for _, flag := range flags {
+		if flag.Name == name {
+			return flag
+		}
+	}
+
+	return nil
 }
 
 // LoadConfig returns the loaded configuration at the specified `path`.
 func LoadConfig(cfgPath string) (*Config, error) {
-	cfg := &Config{
-		keysValues:     make(map[string]any),
-		normalizedKeys: make(map[string]string),
-		path:           cfgPath,
-	}
+	cfg := &Config{}
 
 	if err := cfg.decode(cfgPath); err != nil {
 		return nil, err
@@ -36,36 +46,18 @@ func LoadConfig(cfgPath string) (*Config, error) {
 	return cfg, nil
 }
 
-// ExtraKeys returns config keys that were never requested by the `Get` method.
-func (cfg *Config) ExtraKeys() []string {
-	var extraKeys []string
-
-	for key := range cfg.keysValues {
-		if !slices.Contains(cfg.usedKeys, key) {
-			extraKeys = append(extraKeys, key)
-		}
-	}
-
-	return extraKeys
-}
-
 // Get implements `cli.FlagConfigGetter` interface.
-func (cfg *Config) Get(key string) (string, any) {
-	if key = cfg.rawKey(key); key == "" {
+func (cfg *Config) Get(command *cli.Command, flag cli.Flag) (string, any) {
+	cfgFlag := cfg.Flags.Find(flag.GetConfigKey())
+	if cfgFlag == nil {
 		return "", nil
 	}
 
-	cfg.usedKeys = append(cfg.usedKeys, key)
-
-	return key, cfg.keysValues[key]
-}
-
-func (cfg *Config) rawKey(key string) string {
-	if key, ok := cfg.normalizedKeys[key]; ok {
-		return key
+	if cfgFlag.Commands != nil && !slices.Contains(cfgFlag.Commands, command.Name) {
+		return "", nil
 	}
 
-	return ""
+	return cfgFlag.Name, cfgFlag.Value
 }
 
 func (cfg *Config) decode(cfgPath string) error {
@@ -78,13 +70,8 @@ func (cfg *Config) decode(cfgPath string) error {
 		return nil
 	}
 
-	if err := json.Unmarshal(data, &cfg.keysValues); err != nil {
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return NewDecodeError(cfgPath, err)
-	}
-
-	for key := range cfg.keysValues {
-		normalizedKey := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
-		cfg.normalizedKeys[normalizedKey] = key
 	}
 
 	return nil

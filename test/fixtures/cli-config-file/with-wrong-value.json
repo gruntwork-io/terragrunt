@@ -1,1 +1,8 @@
-{"strict-control":"wrong-name"}
+{
+    "flags": [
+        {
+            "name": "strict-control",
+            "value": ["wrong-value"]
+        }
+    ]
+}

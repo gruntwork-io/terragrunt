@@ -245,3 +245,21 @@ func (cmd *Command) AllFlags() Flags {
 
 	return flags
 }
+
+func (cmd *Command) ApplyConfig(cfgGetter FlagConfigGetter, seen *Flags) error {
+	for _, flag := range cmd.Flags {
+		if slices.Contains(*seen, flag) {
+			continue
+		}
+		*seen = append(*seen, flag)
+
+		if rawKey, val := cfgGetter.Get(cmd, flag); val != nil {
+			if err := ApplyConfig(flag, rawKey, val); err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return cmd.Subcommands.ApplyConfig(cfgGetter, seen)
+}

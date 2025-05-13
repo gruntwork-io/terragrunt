@@ -116,8 +116,13 @@ func (app *App) prepare(args cli.Args) (cli.Args, error) {
 		return nil, err
 	}
 
-	if err := loadConfig(app.AllFlags(), app.opts); err != nil {
+	cfg, err := loadConfig(app.AllFlags(), app.opts)
+	if err != nil {
 		return nil, err
+	}
+
+	if err := app.ApplyConfig(cfg); err != nil {
+		return nil, errors.Errorf("could not apply CLI config: %w", err)
 	}
 
 	args = removeNoColorFlagDuplicates(args)

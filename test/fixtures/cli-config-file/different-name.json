@@ -1,1 +1,8 @@
-{"strict-control":"plan-all"}
+{
+    "flags": [
+        {
+            "name": "strict-control",
+            "value": ["plan-all"]
+        }
+    ]
+}
