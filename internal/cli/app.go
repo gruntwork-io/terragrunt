@@ -254,11 +254,6 @@ func (app *App) handleExitCoder(ctx *Context, err error) error {
 	return handleExitCoder(ctx, err, app.OsExiter)
 }
 
-// AllFlags returns all flags, including subcommand flags.
-func (app *App) AllFlags() Flags {
-	return app.NewRootCommand().AllFlags()
-}
-
 func (app *App) ApplyConfig(cfgGetter FlagConfigGetter) error {
 	return app.NewRootCommand().ApplyConfig(cfgGetter, new(Flags))
 }

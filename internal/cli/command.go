@@ -233,24 +233,12 @@ func (cmd *Command) DisableErrorOnMultipleSetFlag() *Command {
 	return &newCmd
 }
 
-// AllFlags returns all flags, including subcommand flags.
-func (cmd *Command) AllFlags() Flags {
-	flags := cmd.Flags
-
-	for _, flag := range cmd.Subcommands.AllFlags() {
-		if !slices.Contains(flags, flag) {
-			flags = append(flags, flag)
-		}
-	}
-
-	return flags
-}
-
 func (cmd *Command) ApplyConfig(cfgGetter FlagConfigGetter, seen *Flags) error {
 	for _, flag := range cmd.Flags {
 		if slices.Contains(*seen, flag) {
 			continue
 		}
+
 		*seen = append(*seen, flag)
 
 		if rawKey, val := cfgGetter.Get(cmd, flag); val != nil {
@@ -258,7 +246,6 @@ func (cmd *Command) ApplyConfig(cfgGetter FlagConfigGetter, seen *Flags) error {
 				return err
 			}
 		}
-
 	}
 
 	return cmd.Subcommands.ApplyConfig(cfgGetter, seen)

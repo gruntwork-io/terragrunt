@@ -116,7 +116,7 @@ func (app *App) prepare(args cli.Args) (cli.Args, error) {
 		return nil, err
 	}
 
-	cfg, err := loadConfig(app.AllFlags(), app.opts)
+	cfg, err := loadConfig(app.opts)
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,6 @@ package cli
 import (
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -30,7 +29,7 @@ func configPath(opts *options.TerragruntOptions) (string, error) {
 	return cliconfig.DiscoveryPath(workingDir)
 }
 
-func loadConfig(flags cli.Flags, opts *options.TerragruntOptions) (*cliconfig.Config, error) {
+func loadConfig(opts *options.TerragruntOptions) (*cliconfig.Config, error) {
 	path, err := configPath(opts)
 	if err != nil || path == "" {
 		return nil, err

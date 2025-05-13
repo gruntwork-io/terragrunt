@@ -161,17 +161,6 @@ func (commands Commands) DisableErrorOnMultipleSetFlag() Commands {
 	return newCommands
 }
 
-// AllFlags returns all flags, including subcommand flags.
-func (commands Commands) AllFlags() Flags {
-	var flags Flags
-
-	for _, cmd := range commands {
-		flags = append(flags, cmd.AllFlags()...)
-	}
-
-	return flags
-}
-
 func (commands Commands) ApplyConfig(cfgGetter FlagConfigGetter, seen *Flags) error {
 	for _, cmd := range commands {
 		if err := cmd.ApplyConfig(cfgGetter, seen); err != nil {
