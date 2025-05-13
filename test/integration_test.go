@@ -151,15 +151,6 @@ func TestCLIConfigFile(t *testing.T) {
 			cliConfigFile: "with-wrong-value.json",
 			expectedError: errors.New(`could not apply CLI config: invalid value "wrong-value" for key "strict-control"`),
 		},
-
-		// TODO: implement a key validation
-		// {
-		// 	name:          "validation CLI config keys",
-		// 	cliConfigFile: "with-non-existent-keys.json",
-		// 	expectedLogs: []string{
-		// 		`non-existent keys: wrong-key`,
-		// 	},
-		// },
 	}
 
 	for i, tc := range testCases {
