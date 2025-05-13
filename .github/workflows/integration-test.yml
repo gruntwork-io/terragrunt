@@ -89,30 +89,30 @@ jobs:
               - .github/scripts/setup/windows-setup.ps1
             tags: windows
             run: '^TestWindows'
-          - name: Fixtures Provider Cache
+          - name: Provider Cache
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
               - .github/scripts/setup/terraform-switch-1-11.sh
-          - name: Deprecated tests
+          - name: Deprecated
             os: ubuntu
             target: ./...
             tags: deprecated
             run: '^TestDeprecated'
-          - name: Mocks tests
+          - name: Mock
             os: ubuntu
             target: ./...
             tags: mocks
             run: '^TestMock'
             setup_scripts:
               - .github/scripts/setup/generate-mocks.sh
-          - name: Race tests
+          - name: Race
             os: ubuntu
             target: ./...
             run: '.*WithRacing'
             test_args: "-race"
-          - name: Parse tests
+          - name: Parse
             os: ubuntu
             target: ./...
             tags: parse
