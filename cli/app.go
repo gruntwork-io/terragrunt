@@ -107,8 +107,6 @@ func (app *App) RunContext(ctx context.Context, args cli.Args) error {
 }
 
 func (app *App) prepare(args cli.Args) (cli.Args, error) {
-	args = removeNoColorFlagDuplicates(args)
-
 	args, err := app.parseFlags(args)
 	if err != nil {
 		return nil, err
@@ -118,14 +116,15 @@ func (app *App) prepare(args cli.Args) (cli.Args, error) {
 		return nil, err
 	}
 
-	cfg, err := loadConfig(app.opts)
-	if err != nil || cfg == nil {
-		return args, err
+	if cfg, err := loadConfig(app.opts); err != nil {
+		return nil, err
+	} else if cfg != nil {
+		if err := app.ApplyConfig(cfg); err != nil {
+			return nil, errors.Errorf("could not apply CLI config: %w", err)
+		}
 	}
 
-	if err := app.ApplyConfig(cfg); err != nil {
-		return nil, errors.Errorf("could not apply CLI config: %w", err)
-	}
+	args = removeNoColorFlagDuplicates(args)
 
 	return args, nil
 }
