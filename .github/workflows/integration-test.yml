@@ -71,7 +71,6 @@ jobs:
             os: ubuntu
             target: ./...
             setup_scripts:
-              - .github/scripts/setup/aws.sh
               - .github/scripts/setup/gcp.sh
             tags: awsgcp
             run: '^TestAwsGcp'
