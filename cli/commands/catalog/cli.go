@@ -4,7 +4,6 @@ package catalog
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -13,20 +12,18 @@ const (
 	CommandName = "catalog"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
-	return scaffold.NewFlags(opts, cmdPrefix).Filter(
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+	return scaffold.NewFlags(opts).Filter(
 		scaffold.RootFileNameFlagName,
 		scaffold.NoIncludeRootFlagName,
 	)
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdPrefix := flags.Prefix{CommandName}
-
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Launch the user interface for searching and managing your module catalog.",
-		Flags: NewFlags(opts, cmdPrefix),
+		Flags: NewFlags(opts),
 		Action: func(ctx *cli.Context) error {
 			var repoPath string
 

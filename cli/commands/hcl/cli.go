@@ -4,7 +4,6 @@ package hcl
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/validate"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -12,15 +11,13 @@ import (
 const CommandName = "hcl"
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdPrefix := flags.Prefix{CommandName}
-
 	return &cli.Command{
 		Name:        CommandName,
 		Usage:       "Interact with HCL files.",
 		Description: "Interact with Terragrunt files written in HashiCorp Configuration Language (HCL).",
 		Subcommands: cli.Commands{
-			format.NewCommand(opts, cmdPrefix),
-			validate.NewCommand(opts, cmdPrefix),
+			format.NewCommand(opts),
+			validate.NewCommand(opts),
 		},
 		Action: cli.ShowCommandHelp,
 	}

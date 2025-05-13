@@ -18,14 +18,14 @@ const (
 	JSONFlagName           = "json"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	strictControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	flagSet := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        StrictFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(StrictFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(StrictFlagName),
+			ConfigKey:   flags.ConfigKey(StrictFlagName),
 			Destination: &opts.HCLValidateStrict,
 			Usage:       "Enables strict mode. When used in combination with the `--inputs` flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
 		},
@@ -40,14 +40,14 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InputsFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(InputsFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(InputsFlagName),
+			ConfigKey:   flags.ConfigKey(InputsFlagName),
 			Destination: &opts.HCLValidateInputs,
 			Usage:       "Checks if the Terragrunt configured inputs align with OpenTofu/Terraform defined variables.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(ShowConfigPathFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(ShowConfigPathFlagName),
+			ConfigKey:   flags.ConfigKey(ShowConfigPathFlagName),
 			Usage:       "Emit a list of files with invalid configurations after validating all configurations.",
 			Destination: &opts.HCLValidateShowConfigPath,
 		},
@@ -59,7 +59,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(JSONFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(JSONFlagName),
+			ConfigKey:   flags.ConfigKey(JSONFlagName),
 			Destination: &opts.HCLValidateJSONOutput,
 			Usage:       "Format results in JSON format.",
 		},
@@ -71,13 +71,11 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 	return flagSet
 }
 
-func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) *cli.Command {
-	cmdPrefix = cmdPrefix.Append(CommandName)
-
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:                         CommandName,
 		Usage:                        "Recursively find HashiCorp Configuration Language (HCL) files and validate them.",
-		Flags:                        NewFlags(opts, cmdPrefix),
+		Flags:                        NewFlags(opts),
 		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))

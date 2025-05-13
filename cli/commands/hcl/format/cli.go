@@ -19,14 +19,14 @@ const (
 	StdinFlagName      = "stdin"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	strictControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FileFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(FileFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(FileFlagName),
+			ConfigKey:   flags.ConfigKey(FileFlagName),
 			Destination: &opts.HclFile,
 			Usage:       "The path to a single HCL file that the command should run on.",
 		},
@@ -37,7 +37,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:        ExcludeDirFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(ExcludeDirFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(ExcludeDirFlagName),
+			ConfigKey:   flags.ConfigKey(ExcludeDirFlagName),
 			Destination: &opts.HclExclude,
 			Usage:       "Skip HCL formatting in given directories.",
 		},
@@ -48,7 +48,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        CheckFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(CheckFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(CheckFlagName),
+			ConfigKey:   flags.ConfigKey(CheckFlagName),
 			Destination: &opts.Check,
 			Usage:       "Return a status code of zero when all files are formatted correctly, and a status code of one when they aren't.",
 		},
@@ -59,7 +59,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DiffFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(DiffFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(DiffFlagName),
+			ConfigKey:   flags.ConfigKey(DiffFlagName),
 			Destination: &opts.Diff,
 			Usage:       "Print diff between original and modified file versions.",
 		},
@@ -70,7 +70,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        StdinFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(StdinFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(StdinFlagName),
+			ConfigKey:   flags.ConfigKey(StdinFlagName),
 			Destination: &opts.HclFromStdin,
 			Usage:       "Format HCL from stdin and print result to stdout.",
 		},
@@ -82,14 +82,12 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 	return flags
 }
 
-func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) *cli.Command {
-	cmdPrefix = cmdPrefix.Append(CommandName)
-
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:    CommandName,
 		Aliases: []string{CommandNameAlias},
 		Usage:   "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
-		Flags:   NewFlags(opts, cmdPrefix),
+		Flags:   NewFlags(opts),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))
 		},

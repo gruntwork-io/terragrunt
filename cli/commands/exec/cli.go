@@ -15,7 +15,7 @@ const (
 	InDownloadDirFlagName = "in-download-dir"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, cmdPrefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options) cli.Flags {
 	return append(run.NewFlags(opts).Filter(
 		run.AuthProviderCmdFlagName,
 		run.ConfigFlagName,
@@ -29,7 +29,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, cmdPrefix flags
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InDownloadDirFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(InDownloadDirFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(InDownloadDirFlagName),
+			ConfigKey:   flags.ConfigKey(InDownloadDirFlagName),
 			Destination: &cmdOpts.InDownloadDir,
 			Usage:       "Run the provided command in the download directory.",
 		}),
@@ -38,7 +38,6 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, cmdPrefix flags
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions()
-	cmdPrefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:        CommandName,
@@ -49,7 +48,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			"# Utilize the AWS CLI.\nterragrunt exec -- aws s3 ls",
 			"# Inspect `main.tf` file of module for Unit\nterragrunt exec --in-download-dir -- cat main.tf",
 		},
-		Flags: NewFlags(opts, cmdOpts, cmdPrefix),
+		Flags: NewFlags(opts, cmdOpts),
 		Action: func(ctx *cli.Context) error {
 			tgArgs, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
 

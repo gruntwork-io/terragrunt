@@ -23,14 +23,14 @@ const (
 	DisableDependentModulesFlagName = "disable-dependent-modules"
 )
 
-func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
+func NewFlags(opts *Options) cli.Flags {
 	strictControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 
 	return cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(FormatFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(FormatFlagName),
+			ConfigKey:   flags.ConfigKey(FormatFlagName),
 			Destination: &opts.Format,
 			Usage:       "The output format to render the config in. Currently supports: json",
 			Action: func(ctx *cli.Context, value string) error {
@@ -57,7 +57,7 @@ func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.BoolFlag{
 			Name:      JSONFlagName,
 			EnvVars:   flags.EnvVarsWithTgPrefix(JSONFlagName),
-			ConfigKey: cmdPrefix.ConfigKey(JSONFlagName),
+			ConfigKey: flags.ConfigKey(JSONFlagName),
 			Usage:     "Render the config in JSON format. Equivalent to --format=json.",
 			Action: func(ctx *cli.Context, value bool) error {
 				opts.Format = FormatJSON
@@ -73,7 +73,7 @@ func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        WriteFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(WriteFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(WriteFlagName),
+			ConfigKey:   flags.ConfigKey(WriteFlagName),
 			Aliases:     []string{WriteAliasFlagName},
 			Destination: &opts.Write,
 			Usage:       "Write the rendered config to a file.",
@@ -82,7 +82,7 @@ func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(OutFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(OutFlagName),
+			ConfigKey:   flags.ConfigKey(OutFlagName),
 			Destination: &opts.OutputPath,
 			Usage:       "The file name that terragrunt should use when rendering the terragrunt.hcl config (next to the unit configuration).",
 		},
@@ -94,7 +94,7 @@ func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        WithMetadataFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(WithMetadataFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(WithMetadataFlagName),
+			ConfigKey:   flags.ConfigKey(WithMetadataFlagName),
 			Destination: &opts.RenderMetadata,
 			Usage:       "Add metadata to the rendered output file.",
 		},
@@ -105,7 +105,7 @@ func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DisableDependentModulesFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(DisableDependentModulesFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(DisableDependentModulesFlagName),
+			ConfigKey:   flags.ConfigKey(DisableDependentModulesFlagName),
 			Destination: &opts.DisableDependentModules,
 			Usage:       "Disable identification of dependent modules when rendering config.",
 		},
@@ -116,14 +116,13 @@ func NewFlags(opts *Options, cmdPrefix flags.Prefix) cli.Flags {
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdPrefix := flags.Prefix{CommandName}
 	renderOpts := NewOptions(opts)
 
 	cmd := &cli.Command{
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, in the specified format.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       append(run.NewFlags(opts), NewFlags(renderOpts, cmdPrefix)...),
+		Flags:       append(run.NewFlags(opts), NewFlags(renderOpts)...),
 		Action: func(ctx *cli.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 			renderOpts := renderOpts.Clone()

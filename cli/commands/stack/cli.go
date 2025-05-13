@@ -28,8 +28,6 @@ const (
 
 // NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmdPrefix := flags.Prefix{CommandName}
-
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Terragrunt stack commands.",
@@ -40,7 +38,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Action: func(ctx *cli.Context) error {
 					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(opts, cmdPrefix),
+				Flags: defaultFlags(opts),
 			},
 			&cli.Command{
 				Name:  runCommandName,
@@ -48,7 +46,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(opts, cmdPrefix),
+				Flags: defaultFlags(opts),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
@@ -60,7 +58,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 					}
 					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx), index)
 				},
-				Flags: outputFlags(opts, cmdPrefix),
+				Flags: outputFlags(opts),
 			},
 			&cli.Command{
 				Name:  cleanCommandName,
@@ -74,19 +72,19 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func defaultFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
+func defaultFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoStackGenerate,
 			EnvVars:     flags.EnvVarsWithTgPrefix(NoStackGenerate),
-			ConfigKey:   cmdPrefix.ConfigKey(NoStackGenerate),
+			ConfigKey:   flags.ConfigKey(NoStackGenerate),
 			Destination: &opts.NoStackGenerate,
 			Usage:       "Disable automatic stack regeneration before running the command.",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoStackValidate,
 			EnvVars:     flags.EnvVarsWithTgPrefix(NoStackValidate),
-			ConfigKey:   cmdPrefix.ConfigKey(NoStackValidate),
+			ConfigKey:   flags.ConfigKey(NoStackValidate),
 			Destination: &opts.NoStackValidate,
 			Hidden:      true,
 			Usage:       "Disable automatic stack validation after generation.",
@@ -96,19 +94,19 @@ func defaultFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.F
 	return append(run.NewFlags(opts), flags...)
 }
 
-func outputFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
+func outputFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutputFormatFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(OutputFormatFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(OutputFormatFlagName),
+			ConfigKey:   flags.ConfigKey(OutputFormatFlagName),
 			Destination: &opts.StackOutputFormat,
 			Usage:       "Stack output format. Valid values are: json, raw",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:      RawFormatFlagName,
 			EnvVars:   flags.EnvVarsWithTgPrefix(RawFormatFlagName),
-			ConfigKey: cmdPrefix.ConfigKey(RawFormatFlagName),
+			ConfigKey: flags.ConfigKey(RawFormatFlagName),
 			Usage:     "Stack output in raw format",
 			Action: func(ctx *cli.Context, value bool) error {
 				opts.StackOutputFormat = rawOutputFormat
@@ -118,7 +116,7 @@ func outputFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Fl
 		flags.NewFlag(&cli.BoolFlag{
 			Name:      JSONFormatFlagName,
 			EnvVars:   flags.EnvVarsWithTgPrefix(JSONFormatFlagName),
-			ConfigKey: cmdPrefix.ConfigKey(JSONFormatFlagName),
+			ConfigKey: flags.ConfigKey(JSONFormatFlagName),
 			Usage:     "Stack output in json format",
 			Action: func(ctx *cli.Context, value bool) error {
 				opts.StackOutputFormat = jsonOutputFormat
@@ -127,5 +125,5 @@ func outputFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Fl
 		}),
 	}
 
-	return append(defaultFlags(opts, cmdPrefix), flags...)
+	return append(defaultFlags(opts), flags...)
 }

@@ -3,24 +3,21 @@ package bootstrap
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 const CommandName = "bootstrap"
 
-func NewFlags(opts *options.TerragruntOptions, _ flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return run.NewFlags(opts).Filter(run.ConfigFlagName, run.DownloadDirFlagName)
 }
 
-func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) *cli.Command {
-	cmdPrefix = cmdPrefix.Append(CommandName)
-
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:  CommandName,
 		Usage: "Bootstrap OpenTofu/Terraform backend infrastructure.",
-		Flags: NewFlags(opts, cmdPrefix),
+		Flags: NewFlags(opts),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))
 		},

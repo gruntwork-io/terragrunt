@@ -15,12 +15,12 @@ const (
 	ForceBackendDeleteFlagName = "force"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        BucketFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(BucketFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(BucketFlagName),
+			ConfigKey:   flags.ConfigKey(BucketFlagName),
 			Usage:       "Delete the entire bucket.",
 			Hidden:      true,
 			Destination: &opts.DeleteBucket,
@@ -28,7 +28,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ForceBackendDeleteFlagName,
 			EnvVars:     flags.EnvVarsWithTgPrefix(ForceBackendDeleteFlagName),
-			ConfigKey:   cmdPrefix.ConfigKey(ForceBackendDeleteFlagName),
+			ConfigKey:   flags.ConfigKey(ForceBackendDeleteFlagName),
 			Usage:       "Force the backend to be deleted, even if the bucket is not versioned.",
 			Destination: &opts.ForceBackendDelete,
 		}),
@@ -37,13 +37,11 @@ func NewFlags(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) cli.Flags
 	return append(flags, run.NewFlags(opts).Filter(run.ConfigFlagName, run.DownloadDirFlagName)...)
 }
 
-func NewCommand(opts *options.TerragruntOptions, cmdPrefix flags.Prefix) *cli.Command {
-	cmdPrefix = cmdPrefix.Append(CommandName)
-
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:  CommandName,
 		Usage: "Delete OpenTofu/Terraform state.",
-		Flags: NewFlags(opts, cmdPrefix),
+		Flags: NewFlags(opts),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))
 		},
