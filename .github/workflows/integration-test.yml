@@ -107,6 +107,16 @@ jobs:
             run: '^TestMock'
             setup_scripts:
               - .github/scripts/setup/generate-mocks.sh
+          - name: Race tests
+            os: ubuntu
+            target: ./...
+            run: '.*WithRacing'
+            test_args: "-race"
+          - name: Parse tests
+            os: ubuntu
+            target: ./...
+            tags: parse
+            run: '^TestParse'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -190,3 +200,4 @@ jobs:
           RUN: ${{ matrix.integration.run }}
           SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
+          TEST_ARGS: ${{ matrix.integration.go_test_args }}
