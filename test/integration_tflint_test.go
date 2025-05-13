@@ -29,6 +29,9 @@ const (
 	testFixtureTflintTfvarPassing   = "fixtures/tflint/tfvar-passing"
 	testFixtureTflintArgs           = "fixtures/tflint/tflint-args"
 	testFixtureTflintCustomConfig   = "fixtures/tflint/custom-tflint-config"
+
+	// Number of init samples to detect tflint race conditions
+	tflintInitSamples = 25
 )
 
 func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
@@ -96,7 +99,7 @@ func TestTflintInitSameModule(t *testing.T) {
 	runPath := util.JoinPath(rootPath, testFixtureParallelRun, "dev")
 	appTemplate := util.JoinPath(rootPath, testFixtureParallelRun, "dev", "app")
 	// generate multiple "app" modules that will be initialized in parallel
-	for i := 0; i < 25; i++ {
+	for i := 0; i < tflintInitSamples; i++ {
 		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
 		err := util.CopyFolderContents(createLogger(), appTemplate, appPath, ".terragrunt-test", []string{}, []string{})
 		require.NoError(t, err)
