@@ -756,3 +756,33 @@ func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
 	assert.NotEmpty(t, traceparent.Value)
 	require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparent.Value, "Traceparent value should match W3C traceparent format")
 }
+
+func TestTerragruntTelemetryPassTraceParentEnvVariable(t *testing.T) {
+	envParentTrace := "00-b2ff2d54551433d53dd807a666666666-0e6f631d793c718a-01"
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TRACEPARENT", envParentTrace)
+
+	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+	)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	traceparent, found := outputs["traceparent_value"]
+	require.True(t, found)
+	assert.NotEmpty(t, traceparent.Value)
+	assert.Equal(t, envParentTrace, traceparent.Value)
+}
