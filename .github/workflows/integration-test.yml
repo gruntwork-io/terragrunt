@@ -124,7 +124,6 @@ jobs:
       - name: "Save space on node"
         if: runner.os != 'Windows'
         run: |
-          df -h
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force
           sudo docker builder prune -a
