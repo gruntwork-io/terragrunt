@@ -112,13 +112,13 @@ const (
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
 	testFixtureTfPath                         = "fixtures/tf-path"
+	testFixtureTraceParent                    = "fixtures/trace-parent"
 
 	terraformFolder = ".terraform"
 
 	terraformState = "terraform.tfstate"
 
 	terraformStateBackup = "terraform.tfstate.backup"
-	terragruntCache      = ".terragrunt-cache"
 )
 
 func TestCLIFlagHints(t *testing.T) {
