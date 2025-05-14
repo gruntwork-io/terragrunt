@@ -67,6 +67,8 @@ jobs:
             tags: aws
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            setup_scripts:
+              - .github/scripts/setup/tofu-switch.sh
           - name: AWSGCP
             os: ubuntu
             target: ./...
@@ -93,7 +95,7 @@ jobs:
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/tofu-switch.sh
+              - .github/scripts/setup/provider-cache.sh
               - .github/scripts/setup/terraform-switch-1-11.sh
           - name: Deprecated
             os: ubuntu
