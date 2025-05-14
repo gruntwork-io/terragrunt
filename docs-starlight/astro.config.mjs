@@ -6,6 +6,8 @@ import vercel from "@astrojs/vercel";
 import d2 from "astro-d2";
 import tailwindcss from "@tailwindcss/vite";
 
+import partytown from "@astrojs/partytown";
+
 export const sidebar = [
   {
     label: "Getting Started",
@@ -75,44 +77,41 @@ export default defineConfig({
       expiration: 60 * 60 * 24, // 24 hours
     },
   }),
-  integrations: [
-    starlight({
-      title: "Terragrunt",
-      customCss: ["./src/styles/global.css"],
-      components: {
-        Header: './src/components/Header.astro',
-        SiteTitle: './src/components/SiteTitle.astro',
-      },
-      logo: {
-        dark: "/src/assets/horizontal-logo-light.svg",
-        light: "/src/assets/horizontal-logo-dark.svg",
-      },
-      social: {
-        discord: "https://discord.gg/SPu4Degs5f",
-      },
-      sidebar: sidebar,
-      // NOTE: We don't currently check links by default because the CLI
-      // Redesign isn't done yet. Once those pages are built out, we'll require
-      // links to be checked for all builds.
-      plugins: [
-        starlightLinksValidator({
-          exclude: [
-            // Used in the docs for OpenTelemetry
-            "http://localhost:16686/",
-            "http://localhost:9090/",
+  integrations: [starlight({
+    title: "Terragrunt",
+    customCss: ["./src/styles/global.css"],
+    components: {
+      Header: './src/components/Header.astro',
+      SiteTitle: './src/components/SiteTitle.astro',
+    },
+    logo: {
+      dark: "/src/assets/horizontal-logo-light.svg",
+      light: "/src/assets/horizontal-logo-dark.svg",
+    },
+    social: {
+      discord: "https://discord.gg/SPu4Degs5f",
+    },
+    sidebar: sidebar,
+    // NOTE: We don't currently check links by default because the CLI
+    // Redesign isn't done yet. Once those pages are built out, we'll require
+    // links to be checked for all builds.
+    plugins: [
+      starlightLinksValidator({
+        exclude: [
+          // Used in the docs for OpenTelemetry
+          "http://localhost:16686/",
+          "http://localhost:9090/",
 
-            // Unfortunately, these have to be ignored, as they're
-            // referencing content that is generated outside the contents of the markdown file.
-            "/docs/reference/cli/commands/run#*",
-            "/docs/reference/cli/commands/run/#*",
-            "/docs/reference/cli/commands/list#*",
-            "/docs/reference/cli/commands/list/#*",
-          ],
-        }),
-      ],
-    }),
-    d2(),
-  ],
+          // Unfortunately, these have to be ignored, as they're
+          // referencing content that is generated outside the contents of the markdown file.
+          "/docs/reference/cli/commands/run#*",
+          "/docs/reference/cli/commands/run/#*",
+          "/docs/reference/cli/commands/list#*",
+          "/docs/reference/cli/commands/list/#*",
+        ],
+      }),
+    ],
+  }), d2(), partytown()],
   redirects: {
     // Pages that have been rehomed.
     "/docs/features/debugging/": "/docs/troubleshooting/debugging/",
