@@ -1,6 +1,4 @@
 orbs:
-  # The Windows orb gives us everything we need to start using the Windows executor.
-  win: circleci/windows@5.0
   go: circleci/go@1.11
 
 # The "sign binary" rubs in a MacOS environment, so it's necessary to download GW's binaries
@@ -11,7 +9,6 @@ env: &env
     OPENTOFU_VERSION: "1.9.0"
     TERRAFORM_VERSION: "1.11.3"
     TFLINT_VERSION: "0.47.0"
-    TOFU_ENGINE_VERSION: "v0.0.16"
 
 defaults: &defaults
   docker:
@@ -63,9 +60,6 @@ install_tflint: &install_tflint
 setup_test_environment: &setup_test_environment
   name: Setup integration tests environment
   command: |
-    # Make GCP Service Account creds available as a file
-    echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-    echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
     # Import test / dev key for SOPS
     gpg --import --no-tty --batch --yes ./test/fixtures/sops/test_pgp_key.asc
     mkdir -p logs
@@ -80,6 +74,12 @@ run_integration_test: &run_integration_test
     run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/test-results.log
   no_output_timeout: 30m
 
+run_integration_deprecated_test: &run_integration_deprecated_test
+  name: Run integration tests for deprecated commands/flags
+  command: |
+    run-go-tests --packages "-tags deprecated -run ^TestDeprecated ./..." | tee logs/test-results.log
+  no_output_timeout: 30m
+
 run_integration_tofu_only_test: &run_integration_tofu_only_test
   name: Run tofu-only integration tests
   command: |
@@ -87,12 +87,6 @@ run_integration_tofu_only_test: &run_integration_tofu_only_test
   no_output_timeout: 30m
   environment:
     TG_TF_PATH: tofu
-
-run_integration_gcp_test: &run_integration_gcp_test
-  name: Run integration tests GCP
-  command: |
-    run-go-tests --packages "-tags=gcp -run ^TestGcp ./..." | tee logs/test-results.log
-  no_output_timeout: 30m
 
 run_integration_aws_test: &run_integration_aws_test
   name: Run integration tests AWS
@@ -104,18 +98,6 @@ run_integration_awsgcp_test: &run_integration_awsgcp_test
   name: Run integration tests using both AWS and GCP
   command: |
     run-go-tests --packages "-tags=awsgcp -run ^TestAwsGcp ./..." | tee logs/test-results.log
-  no_output_timeout: 30m
-
-run_integration_engine_test: &run_integration_engine_test
-  name: Run integration tests engine
-  command: |
-    run-go-tests --packages "-tags=engine -run ^TestEngine ./test" | tee logs/test-results.log
-  no_output_timeout: 30m
-
-run_tflint_test: &run_tflint_test
-  name: Run TFlint tests
-  command: |
-    run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/test-results.log
   no_output_timeout: 30m
 
 run_race_test: &run_race_test
@@ -136,129 +118,8 @@ run_terratest_log_parser: &run_terratest_log_parser
     terratest_log_parser --testlog logs/test-results.log --outputdir logs
   when: always
 
-win_install_golang: &win_install_golang
-  name: Install golang
-  shell: powershell.exe
-  command: ./_ci/install-golang.ps1
-
-win_install_tflint: &win_install_tflint
-  name: Install TFLint
-  shell: powershell.exe
-  command: ./_ci/install-tflint.ps1
-
 version: 2.1
 jobs:
-  test_windows_terraform:
-    executor:
-      name: win/default
-      size: "large"
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *win_install_golang
-      - run:
-          <<: *win_install_tflint
-      - run:
-          name: Install Terraform
-          shell: powershell.exe
-          command: ./_ci/install-terraform.ps1
-      - run:
-          name: Run go terraform tests
-          shell: powershell.exe
-          no_output_timeout: 45m
-          environment:
-            TG_TF_PATH: terraform
-          command: |
-            go test -tags windows -v -run ^TestWindows ./... -timeout 45m
-
-  test_windows_tofu:
-    executor:
-      name: win/default
-      size: "large"
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *win_install_golang
-      - run:
-          <<: *win_install_tflint
-      - run:
-          name: Install Opentofu
-          shell: powershell.exe
-          command: ./_ci/install-opentofu.ps1
-      - run:
-          name: Run go tofu tests
-          shell: powershell.exe
-          no_output_timeout: 45m
-          environment:
-            TG_TF_PATH: tofu
-          command: |
-            go test -tags windows -v -run ^TestWindows ./... -timeout 45m
-
-  # We're running unit tests separately from integration tests - with no parallelization.
-  # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
-  # instability with the tests. The unit tests are fast to execute, so there is negligible
-  # performance penalty.
-  unit_test:
-    resource_class: large
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      # Run pre-commit hooks and fail the build if any hook finds required changes.
-      - run:
-          name: run precommit
-          command: |
-            # Oct 26, 2019: Install the last known working version of pre-commit. Also, we have to pin the version of
-            # transitive dependencies that are being pulled in which released new versions that are no longer compatible
-            # with any python < 3.6.
-            pip3 install pre-commit==1.21.0 cfgv==2.0.1 zipp==1.1.0
-            go install golang.org/x/tools/cmd/goimports@latest
-            export GOPATH=~/go/bin && export PATH=$PATH:$GOPATH
-            pre-commit install
-            pre-commit run --all-files
-      - run:
-          name: generate mocks
-          command: |
-            make install-mockery
-            make generate-mocks
-      - run:
-          <<: *install_tofu
-      - run:
-          command: |
-            mkdir -p logs
-            go mod tidy
-            run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/test-results.log
-            go test -run=TestParseDependencyBlockMultiple -race ./config | tee -a logs/block-multiple-test-results.log
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_terraform_1_5:
-    resource_class: xlarge
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_test
-          environment:
-            TG_TF_PATH: terraform
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   integration_test_terraform_with_provider_cache:
     resource_class: xlarge
     <<: *defaults
@@ -281,29 +142,6 @@ jobs:
       - store_test_results:
           path: logs
 
-  integration_test_terraform_latest:
-    resource_class: xlarge
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_terraform_latest
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_test
-          environment:
-            TG_TF_PATH: terraform
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   integration_test_tofu:
     resource_class: xlarge
     <<: *defaults
@@ -318,6 +156,29 @@ jobs:
           <<: *setup_test_environment
       - run:
           <<: *run_integration_test
+          environment:
+            TG_TF_PATH: tofu
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_deprecated:
+    resource_class: xlarge
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_integration_deprecated_test
           environment:
             TG_TF_PATH: tofu
       - run:
@@ -365,77 +226,6 @@ jobs:
           environment:
             TG_TF_PATH: tofu
             TG_PROVIDER_CACHE: "1"
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_tofu_engine:
-    resource_class: xlarge
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tofu
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_engine_test
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_tofu_gcp:
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tofu
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_gcp_test
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_terraform_gcp:
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_gcp_test
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_terraform_latest_gcp:
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *install_terraform_latest
-      - run:
-          <<: *run_integration_gcp_test
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -543,29 +333,6 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
-
-  # Run TFLint tests separately as tflint during execution change working directory.
-  integration_test_tflint:
-    resource_class: large
-    <<: *defaults
-    <<: *env
-    steps:
-      - checkout
-      - run:
-          <<: *install_tofu
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_tflint_test
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   race_test:
     resource_class: medium
     <<: *defaults
@@ -699,56 +466,6 @@ workflows:
   version: 2
   build-and-test:
     jobs:
-      - test_windows_terraform:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - test_windows_tofu:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - unit_test:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - integration_test_terraform_1_5:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - integration_test_terraform_latest:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
       - integration_test_terraform_with_provider_cache:
           filters:
             tags:
@@ -769,6 +486,16 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
+      - integration_test_deprecated:
+          filters:
+            tags:
+              only:
+                - /^v.*/
+                - /^alpha.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu_only:
           filters:
             tags:
@@ -780,16 +507,6 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu_with_provider_cache:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - integration_test_tflint:
           filters:
             tags:
               only:
@@ -829,50 +546,6 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      - integration_test_tofu_engine:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-            - APPLE__OSX__code-signing
-      - integration_test_tofu_gcp:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-            - APPLE__OSX__code-signing
-      - integration_test_terraform_gcp:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-            - APPLE__OSX__code-signing
-      - integration_test_terraform_latest_gcp:
-          filters:
-            tags:
-              only:
-                - /^v.*/
-                - /^alpha.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-            - APPLE__OSX__code-signing
       - integration_test_tofu_aws:
           filters:
             tags:

@@ -19,17 +19,14 @@ var terraformErrorsMatcher = map[string]string{
 	"(?s).*operation error S3: ListObjectsV2, https response error StatusCode: 301(?s).*": "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
 	"(?s).*The authorization header is malformed(?s).*":                                   "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
 	"(?s).*Unable to list objects in S3 bucket(?s).*":                                     "You don't have access to the S3 bucket where the state is stored. Check your credentials and permissions.",
-	"(?s).*Error: Initialization required(?s).*":                                          "You need to run terragrunt (run-all) init to initialize working directory.",
-	"(?s).*Module source has changed(?s).*":                                               "You need to run terragrunt (run-all) init install all required modules.",
+	"(?s).*Error: Initialization required(?s).*":                                          "You need to run terragrunt (run --all) init to initialize working directory.",
+	"(?s).*Module source has changed(?s).*":                                               "You need to run terragrunt (run --all) init install all required modules.",
 	"(?s).*Error finding AWS credentials(?s).*":                                           "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*Error: No valid credential sources found(?s).*":                                "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*Error: validating provider credentials(?s).*":                                  "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*NoCredentialProviders(?s).*":                                                   "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*client: no valid credential sources(?s).*":                                     "Missing AWS credentials. Provide credentials to proceed.",
 	"(?s).*exec: \"(tofu|terraform)\": executable file not found(?s).*":                   "The executables 'terraform' and 'tofu' are missing from your $PATH. Please add at least one of these to your $PATH.",
-	"(?s).*There is no variable named \"values\"(?s).*":                                   "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\".",
-	"(?s).*Error: Reference to undeclared input variable(?s).*values(?s).*":               "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\".",
-	"(?s).*The input variable \"values\" is not declared in the root module(?s).*":        "You are using a stacks feature without enabling it. Enable the stacks experiment through CLI flag \"--experiment stacks\".",
 }
 
 // ExplainError will try to explain the error to the user, if we know how to do so.

@@ -25,7 +25,7 @@ func TestExcludeByDefault(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByDefault)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeByDefault)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	require.NoError(t, err)
 
@@ -40,7 +40,7 @@ func TestExcludeDisabled(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDisabled)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeDisabled)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	require.NoError(t, err)
 
@@ -55,14 +55,14 @@ func TestExcludeApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByAction)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeByAction)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "exclude-apply")
 	assert.NotContains(t, stderr, "exclude-plan")
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	require.NoError(t, err)
 
@@ -78,7 +78,7 @@ func TestExcludeByFeatureFlagDefault(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 
@@ -93,7 +93,7 @@ func TestExcludeByFeatureFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --feature exclude2=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --feature exclude2=false --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 
@@ -108,7 +108,7 @@ func TestExcludeAllByFeatureFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --feature exclude1=true --feature exclude2=true --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --feature exclude1=true --feature exclude2=true --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 
@@ -123,13 +123,13 @@ func TestExcludeDependencies(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeDependencies)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature exclude=false --feature exclude_dependencies=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --feature exclude=false --feature exclude_dependencies=false --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "dep")
 	assert.Contains(t, stderr, "app1")
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature exclude=true --feature exclude_dependencies=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --feature exclude=true --feature exclude_dependencies=false --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	require.NoError(t, err)
 
@@ -144,13 +144,13 @@ func TestExcludeAllExceptOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeAllExceptOutput)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeAllExceptOutput)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "app1")
 	assert.Contains(t, stderr, "app2")
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all output --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all output --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "app1")

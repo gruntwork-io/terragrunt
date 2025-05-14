@@ -42,7 +42,7 @@ terragrunt plan --experiment-mode
 You can also use the environment variable, which can be more useful in CI/CD pipelines:
 
 ```bash
-TERRAGRUNT_EXPERIMENT_MODE='true' terragrunt plan
+TG_EXPERIMENT_MODE='true' terragrunt plan
 ```
 
 Instead of enabling experiment mode, you can also enable specific experiments by setting the [experiment](/docs/reference/cli-options/#experiment)
@@ -56,7 +56,7 @@ terragrunt plan --experiment symlinks
 Again, you can also use the environment variable, which can be more useful in CI/CD pipelines:
 
 ```bash
-TERRAGRUNT_EXPERIMENT='symlinks' terragrunt plan
+TG_EXPERIMENT='symlinks' terragrunt plan
 ```
 
 You can also enable multiple experiments at once with a comma delimited list.
@@ -68,8 +68,6 @@ You can also enable multiple experiments at once with a comma delimited list.
 The following strict mode controls are available:
 
 - [symlinks](#symlinks)
-- [stacks](#stacks)
-- [cli-redesign](#cli-redesign)
 - [cas](#cas)
 
 ### `symlinks`
@@ -92,34 +90,6 @@ To stabilize this feature, the following need to be resolved, at a minimum:
   - [ ] Add integration tests for all filesystem flags to confirm support with symlinks (or document the fact that they cannot be supported).
 - [ ] Ensure that MacOS integration tests still work. See [#3616](https://github.com/gruntwork-io/terragrunt/issues/3616).
   - [ ] Add integration tests for MacOS in CI.
-
-### `stacks`
-
-Support for Terragrunt stacks.
-
-#### `stacks` - What it does
-
-Enable `stack` command to manage Terragrunt stacks.
-
-#### `stacks` - How to provide feedback
-
-Share your experience with the `stack` command in the [Stacks](https://github.com/gruntwork-io/terragrunt/issues/3313) RFC.
-Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
-
-- Any bugs or issues encountered (including logs or stack traces if possible).
-- Suggestions for additional improvements or enhancements.
-
-#### `stacks` - Criteria for stabilization
-
-To transition the `stacks` feature to a stable release, the following must be addressed:
-
-- [x] Add support for `stack run *` command
-- [x] Add support for `stack output` commands to extend stack-level operations.
-- [x] Add support for stack "values".
-- [x] Add support for recursive stacks.
-- [x] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
-- [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
-- [x] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
 
 ### `cas`
 
@@ -150,6 +120,7 @@ To transition the `cas` feature to a stable release, the following must be addre
 ## Completed Experiments
 
 - [cli-redesign](#cli-redesign)
+- [stacks](#stacks)
 
 ### `cli-redesign`
 
@@ -208,3 +179,23 @@ To transition `cli-redesign` features to a stable the following have been comple
   - [x] Add integration with `symlinks` experiment to support listing units/stacks via symlinks.
   - [x] Add handling of broken configurations or configurations requiring authentication.
   - [x] Add integration test for `list` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
+
+### `stacks`
+
+Support for Terragrunt stacks.
+
+#### `stacks` - What it does
+
+Enable `stack` command to manage Terragrunt stacks.
+
+#### `stacks` - Criteria for stabilization
+
+To transition the `stacks` feature to a stable release, the following must be addressed:
+
+- [x] Add support for `stack run *` command
+- [x] Add support for `stack output` commands to extend stack-level operations.
+- [x] Add support for stack "values".
+- [x] Add support for recursive stacks.
+- [x] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
+- [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
+- [x] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.

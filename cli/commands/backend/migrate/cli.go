@@ -33,11 +33,10 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
-		Name:                 CommandName,
-		Usage:                "Migrate OpenTofu/Terraform state from one location to another.",
-		UsageText:            usageText,
-		Flags:                NewFlags(opts, nil),
-		ErrorOnUndefinedFlag: true,
+		Name:      CommandName,
+		Usage:     "Migrate OpenTofu/Terraform state from one location to another.",
+		UsageText: usageText,
+		Flags:     NewFlags(opts, nil),
 		Action: func(ctx *cli.Context) error {
 			srcPath := ctx.Args().First()
 			if srcPath == "" {

@@ -73,25 +73,25 @@ const (
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
 
-	// `run-all/--all` related flags.
+	// `--all` related flags.
 
 	OutDirFlagName     = "out-dir"
 	JSONOutDirFlagName = "json-out-dir"
 
-	// `graph/--graph` related flags.
+	// `--graph` related flags.
 
 	GraphRootFlagName = "graph-root"
 )
 
 // NewFlags creates and returns global flags.
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 	legacyLogsControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName, controls.LegacyLogs)
 
 	flags := cli.Flags{
-		// `run-all/-all` related flags.
+		// `--all` related flags.
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutDirFlagName,
@@ -159,7 +159,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        NoAutoApproveFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoAutoApproveFlagName),
 			Destination: &opts.RunAllAutoApprove,
-			Usage:       "Don't automatically append '-auto-approve' to the underlying OpenTofu/Terraform commands run with 'run-all'.",
+			Usage:       "Don't automatically append '-auto-approve' to the underlying OpenTofu/Terraform commands run with 'run --all'.",
 			Negative:    true,
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("no-auto-approve"), terragruntPrefixControl),
@@ -357,7 +357,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        UnitsThatIncludeFlagName,
 			EnvVars:     tgPrefix.EnvVars(UnitsThatIncludeFlagName),
 			Destination: &opts.ModulesThatInclude,
-			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt modules that include the specified file.",
+			Usage:       "If flag is set, 'run --all' will only run the command against Terragrunt modules that include the specified file.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("modules-that-include"), terragruntPrefixControl)),
 
@@ -365,7 +365,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:        QueueIncludeUnitsReadingFlagName,
 			EnvVars:     tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
 			Destination: &opts.UnitsReading,
-			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt units that read the specified file via an HCL function or include.",
+			Usage:       "If flag is set, 'run --all' will only run the command against Terragrunt units that read the specified file via an HCL function or include.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("queue-include-units-reading"), terragruntPrefixControl)),
 

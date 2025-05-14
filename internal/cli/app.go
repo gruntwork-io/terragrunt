@@ -16,9 +16,9 @@ import (
 // regardless of their position among the others registered commands and flags.
 //
 // For example, CLI command:
-// `terragrunt run-all apply --terragrunt-log-level trace --auto-approve --terragrunt-non-interactive`
-// The `App` will runs the registered command `run-all`, define the registered flags `--terragrunt-log-level`,
-// `--terragrunt-non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
+// `terragrunt run --all apply --log-level trace --auto-approve --non-interactive`
+// The `App` will runs the registered command `run --all`, define the registered flags `--log-level`,
+// `--non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
 // ctx.Args().Slice()
 type App struct {
 	// AutocompleteInstaller supports autocompletion via the github.com/posener/complete
@@ -75,6 +75,12 @@ type App struct {
 
 	// Autocomplete enables or disables subcommand auto-completion support.
 	Autocomplete bool
+
+	// DisabledErrorOnUndefinedFlag prevents the application to exit and return an error on any undefined flag.
+	DisabledErrorOnUndefinedFlag bool
+
+	// DisabledErrorOnMultipleSetFlag prevents the application to exit and return an error if any flag is set multiple times.
+	DisabledErrorOnMultipleSetFlag bool
 }
 
 // NewApp returns app new App instance.
@@ -166,19 +172,20 @@ func (app *App) VisibleCommands() Commands {
 
 func (app *App) NewRootCommand() *Command {
 	return &Command{
-		Name:                 app.Name,
-		Before:               app.Before,
-		After:                app.After,
-		Action:               app.Action,
-		Usage:                app.Usage,
-		UsageText:            app.UsageText,
-		Description:          app.Description,
-		Examples:             app.Examples,
-		Flags:                app.Flags,
-		Subcommands:          app.Commands,
-		Complete:             app.Complete,
-		IsRoot:               true,
-		ErrorOnUndefinedFlag: true,
+		Name:                           app.Name,
+		Before:                         app.Before,
+		After:                          app.After,
+		Action:                         app.Action,
+		Usage:                          app.Usage,
+		UsageText:                      app.UsageText,
+		Description:                    app.Description,
+		Examples:                       app.Examples,
+		Flags:                          app.Flags,
+		Subcommands:                    app.Commands,
+		Complete:                       app.Complete,
+		IsRoot:                         true,
+		DisabledErrorOnUndefinedFlag:   app.DisabledErrorOnUndefinedFlag,
+		DisabledErrorOnMultipleSetFlag: app.DisabledErrorOnMultipleSetFlag,
 	}
 }
 

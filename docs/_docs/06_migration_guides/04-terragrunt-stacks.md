@@ -11,8 +11,6 @@ nav_title_link: /docs/
 slug: terragrunt-stacks
 ---
 
-> **Note:** This guide assumes that Terragrunt Stacks have already graduated from the [experimental stage](https://terragrunt.gruntwork.io/docs/reference/experiments/#stacks), and was written when Terragrunt Stacks were very close to being marked as generally available. If they are not yet generally available, you will need to use the `--experiment stacks` flag when running Terragrunt commands that use Terragrunt Stacks functionality.
-
 ## Migrating from the `terragrunt-infrastructure-live-example` repository
 
 If you have an existing repository that was started using the [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repository as a starting point, follow the steps below to migrate your existing configurations to take advantage of the patterns available using Terragrunt Stacks.

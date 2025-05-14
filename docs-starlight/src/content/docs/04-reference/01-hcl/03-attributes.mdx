@@ -121,7 +121,7 @@ It supports all terragrunt functions, i.e. `path_relative_from_include()`.
 ## prevent_destroy
 
 Terragrunt `prevent_destroy` boolean flag allows you to protect selected OpenTofu/Terraform module. It will prevent `destroy` or
-`destroy-all` command to actually destroy resources of the protected module. This is useful for modules you want to
+`run --all destroy` command from actually destroying resources of the protected module. This is useful for modules you want to
 carefully protect, such as a database, or a module that provides auth.
 
 Example:
@@ -160,8 +160,8 @@ Consider the following file structure:
 </FileTree>
 
 In some cases, the root level `terragrunt.hcl` file is solely used to DRY up your OpenTofu/Terraform configuration by being
-included in the other `terragrunt.hcl` files. In this case, you do not want the `run-all` commands to process the root
-level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run-all` commands skip the
+included in the other `terragrunt.hcl` files. In this case, you do not want the `run --all` commands to process the root
+level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run --all` commands skip the
 root level `terragrunt.hcl` file, you can set `skip = true`:
 
 ```hcl
@@ -260,7 +260,7 @@ If your Git provider provides the OIDC token as a file, simply pass the file pat
 
 iam_role = "arn:aws:iam::<AWS account number>:role/<IAM role name>"
 
-iam_web_identity_token = "/path/to/token/file" 
+iam_web_identity_token = "/path/to/token/file"
 ```
 
 ## terraform_binary

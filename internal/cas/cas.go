@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -423,6 +424,13 @@ func (c *CAS) ensureBlob(ctx context.Context, hash string) (err error) {
 	err = c.git.CatFile(ctx, hash, tmpHandle)
 	if err != nil {
 		return err
+	}
+
+	// For Windows, ensure data is synchronized to disk
+	if runtime.GOOS == "windows" {
+		if err = tmpHandle.Sync(); err != nil {
+			return err
+		}
 	}
 
 	if err = tmpHandle.Close(); err != nil {

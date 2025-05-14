@@ -10,7 +10,7 @@ import { Aside, FileTree } from '@astrojs/starlight/components';
 
 ## Motivation
 
-Let’s say your infrastructure is defined across multiple OpenTofu/Terraform modules:
+Let's say your infrastructure is defined across multiple OpenTofu/Terraform root modules:
 
 <FileTree>
 
@@ -21,7 +21,7 @@ Let’s say your infrastructure is defined across multiple OpenTofu/Terraform mo
     - main.tf
   - mysql
     - main.tf
-  - redis
+  - valkey
     - main.tf
   - vpc
     - main.tf
@@ -30,7 +30,7 @@ Let’s say your infrastructure is defined across multiple OpenTofu/Terraform mo
 
 There is one unit to deploy a frontend-app, another to deploy a backend-app, another for the MySQL database, and so on.
 
-To deploy such an environment, you’d have to manually run `tofu`/`terraform` `apply` in each of module, wait for it to complete, and then run `tofu apply`/`terraform apply` in the next subfolder. Moreover, you have to make sure you manually run `tofu`/`terraform` `apply` in the _right_ module each time. The order in which they are applied can be important, especially if one module depends on another.
+To deploy such an environment, you'd have to manually run `tofu`/`terraform` `apply` in each root module, wait for it to complete, and then run `tofu apply`/`terraform apply` in the next root module. Moreover, you have to make sure you manually run `tofu`/`terraform` `apply` in the _right_ root module each time. The order in which they are applied can be important, especially if one root module depends on another.
 
 How do you avoid this tedious, error-prone and time-consuming process?
 
@@ -38,14 +38,50 @@ How do you avoid this tedious, error-prone and time-consuming process?
 
 Terragrunt provides special tooling for operating on sets of units at once. Sets of units in Terragrunt are called [stacks](/docs/getting-started/terminology/#stack).
 
-Right now, there is no special syntax for defining a stack as a single file, but that will change soon with the introduction of the [Stacks RFC](https://github.com/gruntwork-io/terragrunt/issues/3313).
+To work with stacks, you author [`terragrunt.stack.hcl` files](/docs/reference/hcl/#stacks) to define stacks, then use [Stack commands](/docs/reference/cli/commands/stack/generate) to generate and interact with those generated stacks.
 
-Regardless of whether you are using the new syntax or not, the core functionality provided by Stacks are the same.
-The new `terragrunt.stack.hcl` file is merely a shorthand for defining a stack, just like you could by placing units directly in a folder.
+For example, the configuration for a stack that defines the units above might look like this:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "backend_app" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/backend-app?ref=v0.0.1"
+  path   = "backend-app"
+}
+
+unit "frontend_app" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/frontend-app?ref=v0.0.1"
+  path   = "frontend-app"
+}
+
+unit "mysql" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/mysql?ref=v0.0.1"
+  path   = "mysql"
+}
+
+unit "valkey" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/valkey?ref=v0.0.1"
+  path   = "valkey"
+}
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+}
+```
+
+And use commands like `stack run apply` to deploy the stack.
+
+```bash
+terragrunt stack run apply
+```
+
+Using `terragrunt.stack.hcl` files to define infrastructure is a bit more advanced than defining units directly in a repository, so learning how to work with stacks without using `terragrunt.stack.hcl` files will help you understand how to author effective `terragrunt.stack.hcl` files as well. At the end of the day, the core functionality of a stack is the same whether you are using `terragrunt.stack.hcl` files or not, they merely provide a more concise way to define a stack, and generate units on demand.
 
 ## The `run --all` command
 
-To solve the problem above, first convert the OpenTofu/Terraform modules into units. This is done simply by adding an empty `terragrunt.hcl` file within each root module folder.
+To make it possible to concurrently deploy all these OpenTofu/Terraform root modules concurrently with as little change to your existing infrastructure as possible, first convert the OpenTofu/Terraform root modules into units. This is done simply by adding an empty `terragrunt.hcl` file within each root module folder.
 
 <FileTree>
 
@@ -59,7 +95,7 @@ To solve the problem above, first convert the OpenTofu/Terraform modules into un
   - mysql
     - main.tf
     - terragrunt.hcl
-  - redis
+  - valkey
     - main.tf
     - terragrunt.hcl
   - vpc
@@ -73,7 +109,6 @@ Because you've created a directory of units, you've also implicitly created a st
 Now, you can go into the `root` directory and deploy all the units within it by using the `run --all` command with `apply`:
 
 ```bash
-cd root
 terragrunt run --all apply
 ```
 
@@ -82,32 +117,29 @@ When you run this command, Terragrunt will recursively discover all the units un
 Similarly, to undeploy all the OpenTofu/Terraform units, you can use the `run --all` command with `destroy`:
 
 ```bash
-cd root
 terragrunt run --all destroy
 ```
 
-To see the currently applied outputs of all of the subfolders, you can use the `run --all` command with `output`:
+To see the currently applied outputs of all of the units, you can use the `run --all` command with `output`:
 
 ```bash
-cd root
 terragrunt run --all output
 ```
 
 Finally, if you make some changes to your project, you could evaluate the impact by using `run --all` command with `plan`:
 
 Note: It is important to realize that you could get errors running `run --all plan` if you have dependencies between your
-projects and some of those dependencies haven’t been applied yet.
+projects and some of those dependencies haven't been applied yet.
 
-_Ex: If unit A depends on unit B and unit B hasn’t been applied yet, then `run --all plan` will show the plan for B, but exit with an error when trying to show the plan for A._
+_Ex: If unit A depends on unit B and unit B hasn't been applied yet, then `run --all plan` will show the plan for B, but exit with an error when trying to show the plan for A._
 
 ```bash
-cd root
 terragrunt run --all plan
 ```
 
 \* Note that the units _might_ run concurrently, but some units can be blocked from running until their dependencies are run.
 
-If your units have dependencies between them, for example, you can’t deploy the backend-app until MySQL and valkey are deployed. You’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
+If your units have dependencies between them, for example, you can't deploy the backend-app until MySQL and valkey are deployed. You'll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
 <Aside type="danger">
 If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)!
@@ -117,13 +149,24 @@ In the above example- this would mean that destroying the backend-app would also
 If you wish to prevent external dependencies from being destroyed, add the [`--queue-exclude-external` flag](/docs/reference/cli/commands/run#queue-exclude-external), or use the [`--exclude-dir` flag](/docs/reference/cli/commands/run#exclude-dir) once for each directory you wish to exclude.
 </Aside>
 
-## Cutting down the file count
+## The `stack run` command
 
-A simple way to reduce the file count from adding `terragrunt.hcl` files above is to move to [remote OpenTofu/Terraform modules](/docs/features/units/#remote-opentofuterraform-modules).
+The `stack run` command is the equivalent of the `run --all` command for a single stack defined using a `terragrunt.stack.hcl` file.
 
-This is a best practice, especially in larger projects, as it allows you to pin specific versions of your modules and use that specific version across multiple units.
+When you run `stack run`, under the hood, Terragrunt will simply:
 
-The rest of this documentation will assume you are following that best practice.
+1. Recursively generate all stacks that are defined via the `stack` blocks of the `terragrunt.stack.hcl` file in the current directory (and all the stacks they generate).
+2. Generate all units that are defined via the `unit` blocks all the `terragrunt.stack.hcl` files in the current directory (and all the stacks generated in step 1).
+3. Perform a `run --all` in the current directory.
+
+As such, the following is functionally equivalent to running `stack run <a-command>`:
+
+```bash
+terragrunt stack generate
+terragrunt run --all <a-command>
+```
+
+This manually generates all the relevant units, using the `stack generate` command, then explicitly running `run --all <a-command>` on those units.
 
 ## Passing outputs between units
 
@@ -136,7 +179,7 @@ Consider the following file structure:
     - terragrunt.hcl
   - mysql
     - terragrunt.hcl
-  - redis
+  - valkey
     - terragrunt.hcl
   - vpc
     - terragrunt.hcl
@@ -145,9 +188,9 @@ Consider the following file structure:
 
 Suppose that you wanted to pass in the VPC ID of the VPC that is created from the `vpc` unit in the folder structure above to the `mysql` unit as an input variable. Or that you wanted to pass in the subnet IDs of the private subnet that is allocated as part of the `vpc` unit.
 
-You can use the `dependency` block to extract those outputs and use them as `inputs` to another unit.
+You can use the `dependency` block to extract those outputs and use them as `inputs` to the `mysql` unit.
 
-For example, suppose the `vpc` unit outputs the ID under the name `vpc_id`. To access that output, you would specify in `mysql/terragrunt.hcl`:
+For example, suppose the `vpc` unit outputs the ID under the output named `vpc_id`. To access that output, you would specify in `mysql/terragrunt.hcl`:
 
 ```hcl
 # mysql/terragrunt.hcl
@@ -164,7 +207,7 @@ When you apply this unit, the output will be read from the `vpc` unit and passed
 
 You can also specify multiple `dependency` blocks to access the outputs of multiple units.
 
-For example, in the above folder structure, you might want to reference the `domain` output of the `redis` and `mysql` units for use as `inputs` in the `backend-app` unit. To access those outputs, you would specify the following in `backend-app/terragrunt.hcl`:
+For example, in the above folder structure, you might want to reference the `domain` output of the `valkey` and `mysql` units for use as `inputs` in the `backend-app` unit. To access those outputs, you would specify the following in `backend-app/terragrunt.hcl`:
 
 ```hcl
 # backend-app/terragrunt.hcl
@@ -172,13 +215,13 @@ dependency "mysql" {
   config_path = "../mysql"
 }
 
-dependency "redis" {
-  config_path = "../redis"
+dependency "valkey" {
+  config_path = "../valkey"
 }
 
 inputs = {
   mysql_url = dependency.mysql.outputs.domain
-  redis_url = dependency.redis.outputs.domain
+  valkey_url = dependency.valkey.outputs.domain
 }
 ```
 
@@ -186,7 +229,7 @@ Note that each `dependency` block results in a relevant status in the Terragrunt
 
 1. Deploy the VPC
 
-2. Deploy MySQL and Redis in parallel
+2. Deploy MySQL and valkey in parallel
 
 3. Deploy the backend-app
 
@@ -198,11 +241,11 @@ If any of the units failed to deploy, then Terragrunt will not attempt to deploy
 
 Terragrunt will return an error if the unit referenced in a `dependency` block has not been applied yet. This is because you cannot actually fetch outputs out of an unapplied unit, even if there are no resources being created in the unit.
 
-This is most problematic when running commands that do not modify state (e.g `run --all plan` and `run --all validate`) on a completely new setup where no infrastructure has been deployed. You won’t be able to `plan` or `validate` a unit if you can’t determine the `inputs`. If the unit depends on the outputs of another unit that hasn’t been applied yet, you won’t be able to compute the `inputs` unless the dependencies are all applied.
+This is most problematic when running commands that do not modify state (e.g `run --all plan` and `run --all validate`) on a completely new setup where no infrastructure has been deployed. You won't be able to `plan` or `validate` a unit if you can't determine the `inputs`. If the unit depends on the outputs of another unit that hasn't been applied yet, you won't be able to compute the `inputs` unless the dependencies are all applied.
 
 Of course, in real life usage, you typically need the ability to run `run --all validate` or `run --all plan` on a completely new set of infrastructure.
 
-To address this, you can provide mock outputs to use when a unit hasn’t been applied yet. This is configured using the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of the actual dependency outputs if the target config hasn’t been applied yet.
+To address this, you can provide mock outputs to use when a unit hasn't been applied yet. This is configured using the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of the actual dependency outputs if the target config hasn't been applied yet.
 
 Using a mock output is typically the best solution here, as you typically don't actually care that an _accurate_ value is used for a given value at this stage, just that it will plan successfully. When you actually apply the unit, that's when you want to be sure that a real value is used.
 
@@ -227,7 +270,7 @@ inputs = {
 
 You can now run `validate` on this config before the `vpc` unit is applied because Terragrunt will use the map `{vpc_id = "mock-vpc-id"}` as the `outputs` attribute on the dependency instead of erroring out.
 
-What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use the defaults for a `plan` operation because the plan doesn’t give you any indication of what is actually going to be created.
+What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use the defaults for a `plan` operation because the plan doesn't give you any indication of what is actually going to be created.
 
 You can use the `mock_outputs_allowed_terraform_commands` attribute to indicate that the `mock_outputs` should only be used when running those OpenTofu/Terraform commands. So to restrict the `mock_outputs` to only when `validate` is being run, you can modify the above `terragrunt.hcl` file to:
 
@@ -296,9 +339,36 @@ dependency "vpc" {
 
 If real outputs only contain `vpc_id`, `dependency.outputs` will contain a real value for `vpc_id` and a mocked value for `new_output`.
 
+## Stack outputs
+
+When defining a stack using a `terragrunt.stack.hcl` file, you also have the ability to interact with the aggregated outputs of all the units in the stack.
+
+To do this, use the [`stack output`](/docs/reference/cli/commands/stack/output) command (not the [`stack run output`](/docs/reference/cli/commands/stack/run) command).
+
+```bash
+$ terragrunt stack output
+backend_app = {
+  domain = "backend-app.example.com"
+}
+frontend_app = {
+  domain = "frontend-app.example.com"
+}
+mysql = {
+  endpoint = "terraform-20250504140737772400000001.abcdefghijkl.us-east-1.rds.amazonaws.com"
+}
+valkey = {
+  endpoint = "serverless-valkey-01.amazonaws.com"
+}
+vpc = {
+  vpc_id = "vpc-1234567890"
+}
+```
+
+This will return a single aggregated value for all the outputs of all the units in the stack.
+
 ## Dependencies between units
 
-You can also specify dependencies explicitly. Consider the following file structure:
+You can also specify dependencies without accessing any of the outputs of units. Consider the following file structure:
 
 <FileTree>
 
@@ -309,22 +379,22 @@ You can also specify dependencies explicitly. Consider the following file struct
     - terragrunt.hcl
   - mysql
     - terragrunt.hcl
-  - redis
+  - valkey
     - terragrunt.hcl
   - vpc
     - terragrunt.hcl
 
 </FileTree>
 
-Let’s assume you have the following dependencies between OpenTofu/Terraform units:
+Let's assume you have the following dependencies between OpenTofu/Terraform units:
 
-- `backend-app` depends on `mysql`, `redis`, and `vpc`
+- `backend-app` depends on `mysql`, `valkey`, and `vpc`
 
 - `frontend-app` depends on `backend-app` and `vpc`
 
 - `mysql` depends on `vpc`
 
-- `redis` depends on `vpc`
+- `valkey` depends on `vpc`
 
 - `vpc` has no dependencies
 
@@ -333,7 +403,7 @@ You can express these dependencies in your `terragrunt.hcl` config files using a
 ``` hcl
 # backend-app/terragrunt.hcl
 dependencies {
-  paths = ["../vpc", "../mysql", "../redis"]
+  paths = ["../vpc", "../mysql", "../valkey"]
 }
 ```
 
@@ -346,13 +416,13 @@ dependencies {
 }
 ```
 
-Once you’ve specified these dependencies in each `terragrunt.hcl` file, Terragrunt will be able to perform updates respecting the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of dependencies.
+Once you've specified these dependencies in each `terragrunt.hcl` file, Terragrunt will be able to perform updates respecting the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of dependencies.
 
 For the example at the start of this section, the order of runs for the `run --all apply` command would be:
 
 1. Deploy the VPC
 
-2. Deploy MySQL and Redis in parallel
+2. Deploy MySQL and valkey in parallel
 
 3. Deploy the backend-app
 
@@ -372,17 +442,17 @@ For example, if `destroy` was called on the `Valkey` unit, you'd be asked for co
 
 ## Visualizing the DAG
 
-To visualize the dependency graph you can use the `graph-dependencies` command (similar to the `terraform graph` command).
+To visualize the dependency graph you can use the `dag graph` command (similar to the `terraform graph` command).
 
 The graph is output in DOT format. The typical program used to render this file format is GraphViz, but many web services are available that can do this as well.
 
 ```bash
-terragrunt graph-dependencies | dot -Tsvg > graph.svg
+terragrunt dag graph | dot -Tsvg > graph.svg
 ```
 
 The example above generates the following graph:
 
-![terragrunt graph-dependencies](../../../assets/img/collections/documentation/graph.png)
+![terragrunt dag graph](../../../assets/img/collections/documentation/graph.png)
 
 Note that this graph shows the dependency relationship in the direction of the arrow, with the tip pointing to the dependency (e.g. `frontend-app` depends on `backend-app`).
 
@@ -392,10 +462,9 @@ The exception to this rule is during the `destroy` (and `plan -destroy`) command
 
 ## Testing multiple units locally
 
-If you are using Terragrunt to download [remote OpenTofu/Terraform modules](/docs/features/units#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter to override that value:
+If you are using Terragrunt to download [remote OpenTofu/Terraform modules](/docs/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter to override that value:
 
 ```bash
-cd root
 terragrunt run --all plan --source /source/modules
 ```
 
@@ -403,7 +472,7 @@ If you set the `--source` parameter, the `run --all` command will assume that pa
 
 For each unit that is being processed via a `run --all` command, Terragrunt will:
 
-1. Read in the `source` parameter in that unit’s `terragrunt.hcl` file.
+1. Read in the `source` parameter in that unit's `terragrunt.hcl` file.
 2. Parse out the path (the portion after the double-slash).
 3. Append the path to the `--source` parameter to create the final local path for that unit.
 
@@ -568,3 +637,8 @@ Generally speaking, this is the primary tool Terragrunt users use to control the
 In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#run-queue), you can also use flags like [--include-dir](/docs/reference/cli/commands/run#include-dir) and [--exclude-dir](/docs/reference/cli/commands/run#exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
 
 There are more flags that control the behavior of the `run` command, which you can find in the [`run` docs](/docs/reference/cli/commands/run).
+
+## Learning more
+
+If you'd like more advanced examples on stacks, check out the [terragrunt-infrastructure-catalog-example repository](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt/stacks). These have full-featured examples of stacks that deploy real, stateful infrastructure in an AWS account.
+

@@ -1,0 +1,141 @@
+---
+title: IaC Engines
+description: Learn how to dynamically control OpenTofu/Terraform runs using IaC engines.
+slug: docs/features/engine
+sidebar:
+  order: 14
+---
+
+import { Code } from '@astrojs/starlight/components'
+export const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt-engine-opentofu/releases/latest');
+export const data = await response.json();
+export const version = data.tag_name || 'v0.0.15';
+
+IaC engines allow you to customize and configure how IaC updates are orchestrated by Terragrunt. This feature is still experimental and not recommended for general production usage.
+
+To try it out, all you need to do is include the following in your `terragrunt.hcl`:
+
+<Code
+  lang="hcl"
+  title="terragrunt.hcl"
+  code={`
+engine {
+    source  = "github.com/gruntwork-io/terragrunt-engine-opentofu"
+    version = "${version}"
+}
+`}
+>
+</Code>
+
+This example leverages the official OpenTofu engine, [publicly available on GitHub](https://github.com/gruntwork-io/terragrunt-engine-opentofu).
+
+This engine currently leverages the locally available installation of the `tofu` binary, just like Terragrunt does by default without use of engine configurations. It provides a convenient example of how to build engines for Terragrunt.
+
+In the future, this engine will expand in capability to include additional features and configurations.
+
+Since this functionality is experimental and not recommended for production, set the following environment variable to enable it:
+
+```sh
+export TG_EXPERIMENTAL_ENGINE=1
+```
+
+## Use Cases
+
+IaC Engines were introduced to offer advanced users of Terragrunt a level of customization over how exactly IaC updates are performed with a given set of Terragrunt configurations.
+
+Without usage of IaC Engines, Terragrunt will determine how IaC updates will be performed by doing things like invoking the `tofu` or `terraform` binary directly. For most users, this is fine.
+
+However, advanced users have more complex use cases that require more control over how those IaC updates are executed, given certain Terragrunt configurations.
+
+e.g.
+
+* Emitting custom logging or metrics whenever the `tofu` binary is executed.
+* Running `tofu` in a remote environment, such as a separate Kubernetes pod from the one executing Terragrunt.
+* Using different versions of `tofu` for different Terragrunt configurations in the same `run --all` execution.
+
+## HTTPS Sources
+
+Use an HTTP(S) URL to specify the path to the engine:
+
+<Code
+  lang="hcl"
+  title="terragrunt.hcl"
+  code={`
+engine {
+    source = "https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/${version}/terragrunt-iac-engine-opentofu_rpc_${version}_linux_amd64.zip"
+}
+`}
+>
+</Code>
+
+## Local Sources
+
+Specify a local absolute path as the source:
+
+<Code
+  lang="hcl"
+  title="terragrunt.hcl"
+  code={`
+engine {
+    source = "/home/users/iac-engines/terragrunt-iac-engine-opentofu_${version}"
+}
+`}
+>
+</Code>
+
+## Parameters
+
+* `source`: (Required) The source of the plugin. Multiple engine approaches are supported, including GitHub repositories, HTTP(S) paths, and local absolute paths.
+* `version`: (Optional) The version of the engine to download from GitHub releases. If not specified, the latest release is always downloaded.
+* `type`: (Optional) Currently, the only supported type is `rpc`.
+* `meta`: (Optional) A block for setting engine-specific metadata. This can include various configuration settings required by the engine.
+
+## Caching
+
+Engines are cached locally by default to enhance performance and minimize repeated downloads.
+
+The cached engines are stored in the following directory by default:
+
+`~/.cache/terragrunt/plugins/iac-engine/rpc/<version>`
+
+If you need to use a different path, set the environment variable `TG_ENGINE_CACHE_PATH` accordingly.
+
+Downloaded engines are checked for integrity using the SHA256 checksum GPG key.
+If the checksum does not match, the engine is not executed.
+To disable this feature, set the environment variable:
+
+```sh
+export TG_ENGINE_SKIP_CHECK=0
+```
+
+To configure a custom log level for the engine, set the `TG_ENGINE_LOG_LEVEL` environment variable to one of `debug`, `info`, `warn`, `error`.
+
+```sh
+export TG_ENGINE_LOG_LEVEL=debug
+```
+
+## Engine Metadata
+
+The `meta` block is used to pass metadata to the engine. This metadata can be used to configure the engine or pass additional information to the engine.
+
+The metadata block is a map of key-value pairs. Engines can read the information passed via the metadata map to configure themselves.
+
+```hcl
+# terragrunt.hcl
+
+engine {
+   source = "github.com/gruntwork-io/terragrunt-engine-opentofu"
+   # Optionally set metadata for the engine.
+   meta = {
+     key_1 = ["value1", "value2"]
+     key_2 = "1.6.0"
+   }
+}
+```
+
+Configurations you might want to set with `meta` include:
+
+* Connection configurations
+* Tool versions
+* Feature flags
+* Other configurations that the engine might want to be variable in different `terragrunt.hcl` files

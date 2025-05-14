@@ -191,9 +191,9 @@ type TerragruntOptions struct {
 	ScaffoldVars []string
 	// StrictControls is a slice of strict controls.
 	StrictControls strict.Controls `clone:"shadowcopy"`
-	// When used with `run-all`, restrict the modules in the stack to only those that include at least one of the files in this list.
+	// When used with `run --all`, restrict the modules in the stack to only those that include at least one of the files in this list.
 	ModulesThatInclude []string
-	// When used with `run-all`, restrict the units in the stack to only those that read at least one of the files in this list.
+	// When used with `run --all`, restrict the units in the stack to only those that read at least one of the files in this list.
 	UnitsReading []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
@@ -265,7 +265,7 @@ type TerragruntOptions struct {
 	IgnoreDependencyOrder bool
 	// If set to true, continue running *-all commands even if a dependency has errors.
 	IgnoreDependencyErrors bool
-	// Whether we should automatically run terraform with -auto-apply in run-all mode.
+	// Whether we should automatically run terraform with -auto-apply in run --all mode.
 	RunAllAutoApprove bool
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool

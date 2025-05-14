@@ -4,6 +4,7 @@ package module
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -78,7 +79,7 @@ func (module *Module) FilterValue() string {
 // Title implements /github.com/charmbracelet/bubbles.list.DefaultItem.Title
 func (module *Module) Title() string {
 	if title := module.Doc.Title(); title != "" {
-		return title
+		return strings.TrimSpace(title)
 	}
 
 	return filepath.Base(module.moduleDir)

@@ -72,8 +72,11 @@ type Command struct {
 	// Hidden hides the command from help.
 	Hidden bool
 
-	// ErrorOnUndefinedFlag causes the application to exit and return an error on any undefined flag.
-	ErrorOnUndefinedFlag bool
+	// DisabledErrorOnUndefinedFlag prevents the application to exit and return an error on any undefined flag.
+	DisabledErrorOnUndefinedFlag bool
+
+	// DisabledErrorOnMultipleSetFlag prevents the application to exit and return an error if any flag is set multiple times.
+	DisabledErrorOnMultipleSetFlag bool
 }
 
 // Names returns the names including short names and aliases.
@@ -122,15 +125,11 @@ func (cmd *Command) VisibleSubcommands() Commands {
 // If this is the final command, starts its execution.
 func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	args, err = cmd.parseFlags(ctx, args.Slice())
-	ctx = ctx.NewCommandContext(cmd, args)
-
 	if err != nil {
-		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
-			err = flagErrHandler(ctx, err)
-		}
-
 		return NewExitError(err, ExitCodeGeneralError)
 	}
+
+	ctx = ctx.NewCommandContext(cmd, args)
 
 	subCmdName := ctx.Args().CommandName()
 	subCmdArgs := ctx.Args().Remove(subCmdName)
@@ -179,12 +178,28 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	var undefArgs Args
 
-	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name)
+	errHandler := func(err error) error {
+		if err == nil {
+			return nil
+		}
+
+		if cmd.DisabledErrorOnMultipleSetFlag && IsMultipleTimesSettingError(err) {
+			return nil
+		}
+
+		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
+			err = flagErrHandler(ctx.NewCommandContext(cmd, args), err)
+		}
+
+		return err
+	}
+
+	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler)
 	if err != nil {
 		return nil, err
 	}
 
-	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name)
+	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name, errHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -195,26 +210,26 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 
 	args, builtinCmd := args.Split(BuiltinCmdSep)
 
-	for i := 0; ; i++ {
+	for i := 0; len(args) > 0; i++ {
 		if i == 0 {
 			args, err = cmd.flagSetParse(ctx, flagSet, args)
 		} else {
 			args, err = cmd.flagSetParse(ctx, flagSetWithSubcommandScope, args)
 		}
 
+		if len(args) != 0 {
+			undefArgs = append(undefArgs, args[0])
+			args = args[1:]
+		}
+
 		if err != nil {
 			if !errors.As(err, new(UndefinedFlagError)) ||
 				(cmd.Subcommands.Get(undefArgs.Get(0)) == nil) {
-				return nil, err
+				if err = errHandler(err); err != nil {
+					return undefArgs, err
+				}
 			}
 		}
-
-		if len(args) == 0 {
-			break
-		}
-
-		undefArgs = append(undefArgs, args[0])
-		args = args[1:]
 	}
 
 	if len(builtinCmd) > 0 {
@@ -241,13 +256,12 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 		// check if the error is due to an undefArgs flag
 		var undefArg string
 
-		err = flagSet.Parse(args)
-		if err == nil {
+		if err = flagSet.Parse(args); err == nil {
 			break
 		}
 
-		if errStr := err.Error(); strings.HasPrefix(errStr, ErrFlagUndefined) {
-			undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrFlagUndefined), " -")
+		if errStr := err.Error(); strings.HasPrefix(errStr, ErrMsgFlagUndefined) {
+			undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrMsgFlagUndefined), " -")
 			err = UndefinedFlagError(undefArg)
 		} else {
 			break
@@ -268,7 +282,7 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 			}
 		}
 
-		if cmd.ErrorOnUndefinedFlag && !ctx.shellComplete {
+		if !cmd.DisabledErrorOnUndefinedFlag && !ctx.shellComplete {
 			break
 		}
 
@@ -294,4 +308,13 @@ func (cmd *Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *
 	clone.Subcommands = clone.Subcommands.WrapAction(fn)
 
 	return &clone
+}
+
+// DisableErrorOnMultipleSetFlag returns cloned commands with disabled the check for multiple values set for the same flag.
+func (cmd *Command) DisableErrorOnMultipleSetFlag() *Command {
+	newCmd := *cmd
+	newCmd.DisabledErrorOnMultipleSetFlag = true
+	newCmd.Subcommands = newCmd.Subcommands.DisableErrorOnMultipleSetFlag()
+
+	return &newCmd
 }

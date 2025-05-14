@@ -11,22 +11,22 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
-// Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
-// tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run-all.
+// Known terraform commands that are explicitly not supported in run --all due to the nature of the command. This is
+// tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run --all.
 var runAllDisabledCommands = map[string]string{
 	tf.CommandNameImport:      "terraform import should only be run against a single state representation to avoid injecting the wrong object in the wrong state representation.",
 	tf.CommandNameTaint:       "terraform taint should only be run against a single state representation to avoid using the wrong state address.",
 	tf.CommandNameUntaint:     "terraform untaint should only be run against a single state representation to avoid using the wrong state address.",
-	tf.CommandNameConsole:     "terraform console requires stdin, which is shared across all instances of run-all when multiple modules run concurrently.",
-	tf.CommandNameForceUnlock: "lock IDs are unique per state representation and thus should not be run with run-all.",
+	tf.CommandNameConsole:     "terraform console requires stdin, which is shared across all instances of run --all when multiple modules run concurrently.",
+	tf.CommandNameForceUnlock: "lock IDs are unique per state representation and thus should not be run with run --all.",
 
 	// MAINTAINER'S NOTE: There are a few other commands that might not make sense, but we deliberately allow it for
 	// certain use cases that are documented here:
-	// - state          : Supporting `state` with run-all could be useful for a mass pull and push operation, which can
+	// - state          : Supporting `state` with run --all could be useful for a mass pull and push operation, which can
 	//                    be done en masse with the use of relative pathing.
-	// - login / logout : Supporting `login` with run-all could be useful when used in conjunction with mise and
+	// - login / logout : Supporting `login` with run --all could be useful when used in conjunction with mise and
 	//                    multi-terraform version setups, where multiple terraform versions need to be configured.
-	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
+	// - version        : Supporting `version` with run --all could be useful for sanity checking a multi-version setup.
 }
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {

@@ -47,7 +47,8 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: Stacks,
+			Name:   Stacks,
+			Status: StatusCompleted,
 		},
 		{
 			Name: CAS,

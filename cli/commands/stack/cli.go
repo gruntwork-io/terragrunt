@@ -29,9 +29,8 @@ const (
 // NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:                 CommandName,
-		Usage:                "Terragrunt stack commands.",
-		ErrorOnUndefinedFlag: true,
+		Name:  CommandName,
+		Usage: "Terragrunt stack commands.",
 		Subcommands: cli.Commands{
 			&cli.Command{
 				Name:  generateCommandName,

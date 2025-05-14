@@ -170,7 +170,7 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket or DynamoDB table.
 
-**Note**: You can disable automatic remote state initialization by setting `remote_state.disable_init`, this will skip the automatic creation of remote state resources and will execute `terraform init` passing the `backend=false` option. This can be handy when running commands such as `validate-all` as part of a CI process where you do not want to initialize remote state.
+**Note**: You can disable automatic remote state initialization by setting `remote_state.disable_init`, this will skip the automatic creation of remote state resources and will execute `terraform init` passing the `backend=false` option. This can be handy when running commands such as `run --all validate` as part of a CI process where you do not want to initialize remote state.
 
 The following example demonstrates using an environment variable to configure this option:
 
@@ -178,7 +178,7 @@ The following example demonstrates using an environment variable to configure th
 remote_state {
   # ...
 
-  disable_init = tobool(get_env("TERRAGRUNT_DISABLE_INIT", "false"))
+  disable_init = tobool(get_env("TG_DISABLE_INIT", "false"))
 }
 ```
 

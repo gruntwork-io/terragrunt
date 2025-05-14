@@ -1275,14 +1275,12 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	// read unit files and add to context
-	if ctx.TerragruntOptions.Experiments.Evaluate(experiment.Stacks) {
-		unitValues, err := ReadValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
-		if err != nil {
-			return nil, err
-		}
-
-		ctx = ctx.WithValues(unitValues)
+	unitValues, err := ReadValues(ctx.Context, ctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+	if err != nil {
+		return nil, err
 	}
+
+	ctx = ctx.WithValues(unitValues)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)
@@ -1290,9 +1288,11 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		errs = errs.Append(err)
 	}
 
-	ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
-	ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
-	ctx = ctx.WithLocals(baseBlocks.Locals)
+	if baseBlocks != nil {
+		ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
+		ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
+		ctx = ctx.WithLocals(baseBlocks.Locals)
+	}
 
 	if ctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the

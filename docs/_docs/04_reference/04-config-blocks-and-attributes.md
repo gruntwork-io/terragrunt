@@ -785,7 +785,7 @@ terraform {
 In general, you can access all attributes on `include` when they are exposed (e.g., `include.locals`, `include.inputs`,
 etc).
 
-However, to support `run-all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
+However, to support `run --all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
 block. To understand this, consider the following example:
 
 ```hcl
@@ -823,16 +823,16 @@ In the child `terragrunt.hcl`, the `dependency` path for the `alb` depends on wh
 which is determined by the `dependency.vpc` in the root config. This means that the output from `dependency.vpc` must be
 available to parse the `dependency.alb` config.
 
-This causes problems when performing a `run-all apply` operation. During a `run-all` operation, Terragrunt first parses
+This causes problems when performing a `run --all apply` operation. During a `run --all` operation, Terragrunt first parses
 all the `dependency` blocks to build a dependency tree of the Terragrunt modules to figure out the order of operations.
 If all the paths are static references, then Terragrunt can determine all the dependency paths before any module has
 been applied. In this case there is no problem even if other config blocks access `dependency`, as by the time
-Terragrunt needs to parse those blocks, the upstream dependencies would have been applied during the `run-all apply`.
+Terragrunt needs to parse those blocks, the upstream dependencies would have been applied during the `run --all apply`.
 
 However, if those `dependency` blocks depend on upstream dependencies, then there is a problem as Terragrunt would not
 be able to build the dependency tree without the upstream dependencies being applied.
 
-Therefore, to ensure that Terragrunt can build the dependency tree in a `run-all` operation, Terragrunt enforces the
+Therefore, to ensure that Terragrunt can build the dependency tree in a `run --all` operation, Terragrunt enforces the
 following limitation to exposed `include` config:
 
 If the included configuration has any `dependency` blocks, only `locals` and `include` are exposed and available to the
@@ -1280,7 +1280,7 @@ state for the target module without parsing the `dependency` blocks, avoiding th
 ### dependencies
 
 The `dependencies` block is used to enumerate all the Terragrunt modules that need to be applied in order for this
-module to be able to apply. Note that this is purely for ordering the operations when using `run-all` commands of
+module to be able to apply. Note that this is purely for ordering the operations when using `run --all` commands of
 OpenTofu/Terraform. This does not expose or pull in the outputs like `dependency` blocks.
 
 The `dependencies` block supports the following arguments:
@@ -1290,7 +1290,7 @@ The `dependencies` block supports the following arguments:
 Example:
 
 ```hcl
-# When applying this terragrunt config in an `run-all` command, make sure the modules at "../vpc" and "../rds" are
+# When applying this terragrunt config in an `run --all` command, make sure the modules at "../vpc" and "../rds" are
 # handled first.
 dependencies {
   paths = ["../vpc", "../rds"]
@@ -1961,7 +1961,7 @@ It supports all terragrunt functions, i.e. `path_relative_from_include()`.
 ### prevent_destroy
 
 Terragrunt `prevent_destroy` boolean flag allows you to protect selected OpenTofu/Terraform module. It will prevent `destroy` or
-`destroy-all` command to actually destroy resources of the protected module. This is useful for modules you want to
+`run --all destroy` command from actually destroying resources of the protected module. This is useful for modules you want to
 carefully protect, such as a database, or a module that provides auth.
 
 Example:
@@ -1996,8 +1996,8 @@ root
 ```
 
 In some cases, the root level `terragrunt.hcl` file is solely used to DRY up your OpenTofu/Terraform configuration by being
-included in the other `terragrunt.hcl` files. In this case, you do not want the `run-all` commands to process the root
-level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run-all` commands skip the
+included in the other `terragrunt.hcl` files. In this case, you do not want the `run --all` commands to process the root
+level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run --all` commands skip the
 root level `terragrunt.hcl` file, you can set `skip = true`:
 
 ```hcl

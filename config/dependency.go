@@ -1062,7 +1062,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 	// the one we retrieved from the config.
 	targetTGOptions.IAMRoleOptions = options.MergeIAMRoleOptions(iamRoleOpts, targetTGOptions.OriginalIAMRoleOptions)
 
-	// Make sure to assume any roles set by TERRAGRUNT_IAM_ROLE
+	// Make sure to assume any roles set by TG_IAM_ROLE
 	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, targetTGOptions,
 		externalcmd.NewProvider(targetTGOptions),
 		amazonsts.NewProvider(targetTGOptions),

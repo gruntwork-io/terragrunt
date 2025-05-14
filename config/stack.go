@@ -51,7 +51,7 @@ type StackConfig struct {
 	Units  []*Unit
 }
 
-// Unit represent unit from stack file.
+// Unit represents unit from a stack file.
 type Unit struct {
 	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation *bool      `hcl:"no_validation,attr"`
@@ -95,6 +95,8 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 
 			processedNewFiles = true
 			processedFiles[file] = true
+
+			opts.Logger.Infof("Generating stack from %s", file)
 
 			if err := generateStackFile(ctx, opts, wp, file); err != nil {
 				return errors.Errorf("Failed to process stack file %s %w", file, err)
@@ -357,11 +359,11 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
-	if err := generateUnits(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, opts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, opts, pool, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, opts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -371,7 +373,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceDir, targetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceFile, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
 
@@ -388,9 +390,10 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 				kind:         unitKind,
 			}
 
-			opts.Logger.Infof("Processing unit %s", unitCopy.Name)
+			opts.Logger.Infof("Processing unit %s from %s", unitCopy.Name, sourceFile)
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
+				"stack_file":  sourceFile,
 				"unit_name":   unitCopy.Name,
 				"unit_source": unitCopy.Source,
 				"unit_path":   unitCopy.Path,
@@ -405,7 +408,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceDir, targetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceFile, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 
@@ -422,9 +425,10 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 				kind:         stackKind,
 			}
 
-			opts.Logger.Infof("Processing stack %s", stackCopy.Name)
+			opts.Logger.Infof("Processing stack %s from %s", stackCopy.Name, sourceFile)
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
+				"stack_file":   sourceFile,
 				"stack_name":   stackCopy.Name,
 				"stack_source": stackCopy.Source,
 				"stack_path":   stackCopy.Path,

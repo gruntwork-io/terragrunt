@@ -26,7 +26,7 @@ const (
 	testFixtureUnitsReading = "fixtures/units-reading/"
 )
 
-func TestUnitsReading(t *testing.T) {
+func TestSOPSUnitsReading(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureUnitsReading)
@@ -153,7 +153,7 @@ func TestUnitsReading(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
 
-			cmd := "terragrunt run-all plan --non-interactive --log-level trace --working-dir " + rootPath
+			cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath
 
 			for _, f := range tc.unitsReading {
 				cmd = cmd + " --queue-include-units-reading " + f

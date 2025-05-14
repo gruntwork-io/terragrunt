@@ -16,16 +16,15 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
-		Name:                 CommandName,
-		Usage:                "Bootstrap OpenTofu/Terraform backend infrastructure.",
-		Flags:                NewFlags(opts, nil),
-		ErrorOnUndefinedFlag: true,
+		Name:  CommandName,
+		Usage: "Bootstrap OpenTofu/Terraform backend infrastructure.",
+		Flags: NewFlags(opts, nil),
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts.OptionsFromContext(ctx))
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd)
+	cmd = runall.WrapCommand(opts, cmd, run.Run)
 
 	return cmd
 }

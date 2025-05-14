@@ -24,7 +24,7 @@ Over time, this caused confusion for users of Terragrunt, however. See [#3181](h
 
 At the end of the day, from a functional perspective, it doesn't actually help users to have the root configuration named `terragrunt.hcl`. It makes it more confusing to determine what is shared configuration and what is configuration for a unit.
 
-It also complicates Terragrunt usage, as commands like `run-all` need to be run from a directory where all child directories will be `terragrunt.hcl` files corresponding to units that need to be run.
+It also complicates Terragrunt usage, as commands like `run --all` need to be run from a directory where all child directories will be `terragrunt.hcl` files corresponding to units that need to be run.
 
 ## Recommended Solution
 
@@ -89,7 +89,7 @@ terragrunt plan --strict-control=root-terragrunt-hcl
 Or:
 
 ```bash
-TERRAGRUNT_STRICT_CONTROL=root-terragrunt-hcl terragrunt plan
+TG_STRICT_CONTROL=root-terragrunt-hcl terragrunt plan
 ```
 
 By enabling the strict control, you will also have the default behavior of `scaffold` and `catalog` commands changed to use `root.hcl` as the default root configuration file name if none are provided.

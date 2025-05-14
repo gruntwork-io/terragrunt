@@ -32,7 +32,7 @@ func TestErrorsHandling(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testSimpleErrors)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 }
@@ -44,7 +44,7 @@ func TestIgnoreError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testIgnoreErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testIgnoreErrors)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Ignoring error example1")
@@ -58,7 +58,7 @@ func TestRunAllIgnoreError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllIgnoreErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testRunAllIgnoreErrors)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Ignoring error example1")
@@ -73,7 +73,7 @@ func TestRetryError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testRetryErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testRetryErrors)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Encountered retryable error: script_errors")
@@ -87,7 +87,7 @@ func TestRetryFailError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testRetryFailErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testRetryFailErrors)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	require.Error(t, err)
 	assert.Contains(t, stderr, "Encountered retryable error: script_errors")
@@ -128,7 +128,7 @@ func TestRunAllError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testRunAllErrors)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Ignoring error example1")
@@ -143,7 +143,7 @@ func TestRunAllFail(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testRunAllErrors)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature unstable=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --feature unstable=false --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	require.Error(t, err)
 }
@@ -155,7 +155,7 @@ func TestIgnoreNegativePattern(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testNegativePatternErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testNegativePatternErrors)
 
-	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	require.Error(t, err)
 	assert.Contains(t, stdout, "Error: baz")
@@ -168,7 +168,7 @@ func TestHandleMultiLineErrors(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testMultiLineErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testMultiLineErrors)
 
-	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Ignoring transit gateway not found when creating internal route")

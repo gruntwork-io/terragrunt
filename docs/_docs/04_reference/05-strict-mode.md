@@ -33,7 +33,7 @@ For example:
 
 ```bash
 $ terragrunt plan-all --strict-control deprecated-commands
-15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run --all plan` instead.
 ```
 
 ## Controlling Strict Mode
@@ -44,19 +44,19 @@ This will enable strict mode for all Terragrunt commands, for all strict mode co
 
 ```bash
 $ terragrunt plan-all
-15:26:08.585 WARN   The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.
+15:26:08.585 WARN   The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run --all plan` instead.
 ```
 
 ```bash
 $ terragrunt --strict-mode plan-all
-15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run --all plan` instead.
 ```
 
 You can also use the environment variable, which can be more useful in CI/CD pipelines:
 
 ```bash
 $ TG_STRICT_MODE='true' terragrunt plan-all
-15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run --all plan` instead.
 ```
 
 Instead of enabling strict mode like this, you can also enable specific strict controls by setting the [strict-control](/docs/reference/cli-options/#strict-control)
@@ -66,32 +66,32 @@ This can allow you to gradually increase your confidence in the future compatibi
 
 ```bash
 $ terragrunt plan-all
-15:26:08.585 WARN   The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.
+15:26:08.585 WARN   The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run --all plan` instead.
 ```
 
 ```bash
 $ terragrunt plan-all --strict-control plan-all
-15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run --all plan` instead.
 ```
 
 Again, you can also use the environment variable, which might be more useful in CI/CD pipelines:
 
 ```bash
 $ TG_STRICT_CONTROL='plan-all' terragrunt plan-all
-15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run --all plan` instead.
 ```
 
 You can enable multiple strict controls at once:
 
 ```bash
 $ terragrunt plan-all --strict-control plan-all --strict-control apply-all
-15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run --all plan` instead.
 15:26:46.521 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 ```
 
 ```bash
 $ terragrunt apply-all --strict-control plan-all --strict-control apply-all
-15:26:46.564 ERROR  The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead.
+15:26:46.564 ERROR  The `apply-all` command is no longer supported. Use `terragrunt run --all apply` instead.
 15:26:46.564 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 ```
 
@@ -99,9 +99,9 @@ You can also enable multiple strict controls at once when using the environment 
 
 ```bash
 $ TG_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
-15:26:46.521 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:46.521 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run --all plan` instead.
 15:26:46.521 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
-15:26:46.564 ERROR  The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead.
+15:26:46.564 ERROR  The `apply-all` command is no longer supported. Use `terragrunt run --all apply` instead.
 15:26:46.564 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 ```
 
@@ -109,7 +109,7 @@ You can also use [control categories](#control-categories) to enable certain cat
 
 ```bash
 $ terragrunt plan-all --strict-control deprecated-commands
-15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run --all plan` instead.
 ```
 
 ## Strict Mode Controls
@@ -131,6 +131,7 @@ The following strict mode controls are available:
   - [terragrunt-prefix-flags](#terragrunt-prefix-flags)
   - [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
   - [default-command](#default-command)
+  - [cli-redesign](#cli-redesign)
 - [Control Categories](#control-categories)
   - [deprecated-commands](#deprecated-commands)
   - [deprecated-flags](#deprecated-flags)
@@ -142,43 +143,43 @@ The following strict mode controls are available:
 
 Throw an error when using the `spin-up` command.
 
-**Reason**: The `spin-up` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.
+**Reason**: The `spin-up` command is deprecated and will be removed in a future version. Use `terragrunt run --all apply` instead.
 
 ### tear-down
 
 Throw an error when using the `tear-down` command.
 
-**Reason**: The `tear-down` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.
+**Reason**: The `tear-down` command is deprecated and will be removed in a future version. Use `terragrunt run --all destroy` instead.
 
 ### plan-all
 
 Throw an error when using the `plan-all` command.
 
-**Reason**: The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.
+**Reason**: The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run --all plan` instead.
 
 ### apply-all
 
 Throw an error when using the `apply-all` command.
 
-**Reason**: The `apply-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.
+**Reason**: The `apply-all` command is deprecated and will be removed in a future version. Use `terragrunt run --all apply` instead.
 
 ### destroy-all
 
 Throw an error when using the `destroy-all` command.
 
-**Reason**: The `destroy-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.
+**Reason**: The `destroy-all` command is deprecated and will be removed in a future version. Use `terragrunt run --all destroy` instead.
 
 ### output-all
 
 Throw an error when using the `output-all` command.
 
-**Reason**: The `output-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead.
+**Reason**: The `output-all` command is deprecated and will be removed in a future version. Use `terragrunt run --all output` instead.
 
 ### validate-all
 
 Throw an error when using the `validate-all` command.
 
-**Reason**: The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.
+**Reason**: The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run --all validate` instead.
 
 ### skip-dependencies-inputs
 
@@ -221,6 +222,24 @@ Throw an error when using the Terragrunt default command.
 **Reason**: Terragrunt now supports a special `run` command that can be used to explicitly forward commands to OpenTofu/Terraform when no shortcut exists in the Terragrunt CLI.
 **Example**: The default command is deprecated and will be removed in a future version. Use `terragrunt run` instead.
 
+### cli-redesign
+
+Throw an error when using commands that were deprecated as part of the CLI redesign.
+
+**Commands**:
+
+- [run-all](/docs/reference/cli-options/#run-all)
+- [graph](/docs/reference/cli-options/#graph)
+- [graph-dependencies](/docs/reference/cli-options/#graph-dependencies)
+- [hclfmt](/docs/reference/cli-options/#hclfmt)
+- [hclvalidate](/docs/reference/cli-options/#hclvalidate)
+- [output-module-groups](/docs/reference/cli-options/#output-module-groups)
+- [render-json](/docs/reference/cli-options/#render-json)
+- [terragrunt-info](/docs/reference/cli-options/#terragrunt-info)
+- [validate-inputs](/docs/reference/cli-options/#validate-inputs)
+
+**Reason**: These commands have been deprecated in favor of more consistent and intuitive commands as part of the CLI redesign. For more information, see the [CLI Redesign Migration Guide](/docs/migrate/cli-redesign/).
+
 ## Control Categories
 
 Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.
@@ -241,6 +260,7 @@ Throw an error when using the deprecated commands.
 - [spin-up](#spin-up)
 - [tear-down](#tear-down)
 - [default-command](#default-command)
+- [cli-redesign](#cli-redesign)
 
 ### deprecated-flags
 
@@ -268,7 +288,7 @@ Throw an error when using the deprecated Terragrunt configuration.
 
 ### legacy-all-commands
 
-Throw an error when using any of the legacy commands replaced by `run-all`.
+Throw an error when using any of the legacy commands replaced by `run --all`.
 
 **Controls**:
 
