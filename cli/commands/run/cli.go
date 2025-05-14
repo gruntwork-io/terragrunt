@@ -2,13 +2,18 @@
 package run
 
 import (
+	"context"
+	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -42,6 +47,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 	cmd = runall.WrapCommand(opts, cmd, Run)
 	cmd = graph.WrapCommand(opts, cmd, Run)
+	cmd = wrapWithStackGenerate(opts, cmd)
 
 	return cmd
 }
@@ -95,4 +101,51 @@ func validateCommand(opts *options.TerragruntOptions) error {
 
 func isTerraformPath(opts *options.TerragruntOptions) bool {
 	return strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath)
+}
+
+// wrapWithStackGenerate wraps a CLI command to automatically generate stack configurations
+// when running with --all or --graph flags, unless --no-stack-generate is specified.
+// This allows users to transparently use stack features without manual stack generation.
+func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
+	// Wrap the original command action with our stack generation logic
+	cmd = cmd.WrapAction(func(ctx *cli.Context, action cli.ActionFunc) error {
+		// Set the default stack configuration path in the working directory
+		stackConfigPath := filepath.Join(opts.WorkingDir, config.DefaultStackFile)
+		opts.TerragruntStackConfigPath = stackConfigPath
+
+		// Determine if we should generate the stack configuration
+		// We generate if:
+		// 1. User is running with --all or --graph flag AND
+		// 2. User hasn't explicitly disabled stack generation with --no-stack-generate
+		shouldGenerateStack := (opts.RunAll || opts.Graph) && !opts.NoStackGenerate
+
+		if shouldGenerateStack {
+			// Generate the stack configuration
+			err := generateStackConfiguration(ctx, opts)
+			if err != nil {
+				return fmt.Errorf("failed to generate stack file: %w", err)
+			}
+		} else {
+			// Log that we're skipping stack generation
+			opts.Logger.Debugf("Skipping stack generation for %s", stackConfigPath)
+		}
+
+		// Execute the original command action
+		return action(ctx)
+	})
+
+	return cmd
+}
+
+// generateStackConfiguration handles the actual stack generation process,
+// including telemetry collection for monitoring and debugging.
+func generateStackConfiguration(ctx *cli.Context, opts *options.TerragruntOptions) error {
+	// Collect telemetry data about the stack generation
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+		"stack_config_path": opts.TerragruntStackConfigPath,
+		"working_dir":       opts.WorkingDir,
+	}, func(ctx context.Context) error {
+		// Generate the actual stack configuration
+		return config.GenerateStacks(ctx, opts)
+	})
 }
