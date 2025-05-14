@@ -107,12 +107,18 @@ jobs:
               - .github/scripts/setup/windows-setup.ps1
             tags: windows
             run: '^TestWindows'
-          - name: Provider Cache
+          - name: Provider Cache Terraform 1.11
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/provider-cache.sh
               - .github/scripts/setup/terraform-switch-1-11.sh
+          - name: Provider Cache Tofu
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/provider-cache.sh
+              - .github/scripts/setup/tofu-switch.sh
           - name: Deprecated
             os: ubuntu
             target: ./...
