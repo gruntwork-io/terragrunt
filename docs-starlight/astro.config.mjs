@@ -80,9 +80,32 @@ export default defineConfig({
   integrations: [starlight({
     title: "Terragrunt",
     customCss: ["./src/styles/global.css"],
+    head: [
+      {
+        tag: 'script',
+        attrs: {
+          src: 'https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL',
+          type: 'text/partytown',
+        },
+      },
+      {
+        tag: 'script',
+        attrs: {
+          type: 'text/partytown',
+        },
+        content: `
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','GTM-5TTJJGTL');
+          `,
+      },
+    ],
     components: {
       Header: './src/components/Header.astro',
       SiteTitle: './src/components/SiteTitle.astro',
+      SkipLink: './src/components/SkipLink.astro',
     },
     logo: {
       dark: "/src/assets/horizontal-logo-light.svg",
@@ -111,7 +134,11 @@ export default defineConfig({
         ],
       }),
     ],
-  }), d2(), partytown()],
+  }), d2(), partytown({
+    config: {
+      forward: ['dataLayer.push']
+    }
+  })],
   redirects: {
     // Pages that have been rehomed.
     "/docs/features/debugging/": "/docs/troubleshooting/debugging/",
