@@ -61,7 +61,7 @@ jobs:
             tags: gcp
             run: '^TestGcp'
             secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID, GCLOUD_SERVICE_KEY_IMPERSONATOR]
-          - name: AWS
+          - name: AWS Tofu
             os: ubuntu
             target: ./...
             tags: aws
@@ -69,6 +69,22 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
+          - name: AWS Terraform 1.5
+            os: ubuntu
+            target: ./...
+            tags: aws
+            run: '^TestAws'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch-1-5.sh
+          - name: AWS Terraform 1.11
+            os: ubuntu
+            target: ./...
+            tags: aws
+            run: '^TestAws'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch-1-11.sh
           - name: AWSGCP
             os: ubuntu
             target: ./...
