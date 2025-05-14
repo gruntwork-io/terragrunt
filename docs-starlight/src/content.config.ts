@@ -8,7 +8,7 @@ const docs = defineCollection({
 		{
 			extend: z.object({
 				banner: z.object({ content: z.string() }).default({
-					content: "👷 The Terragrunt website redesign is Work In Progress! 👷</br>For a list of outstanding TODOs see <a href=\"https://github.com/gruntwork-io/terragrunt/blob/main/docs-starlight/TODO.md\">this</a>.</br>To give feedback, click <a href=\"https://forms.gle/MxfBQ5DebeAHA6oN6\">here</a>.",
+					content: "🧪 The terragrunt-v1 docs are open for feedback! 🧪</br>This site will eventually replace the <a href=\"https://terragrunt.gruntwork.io\">terragrunt.io</a> site.</br>To give feedback on your experience with the new docs, click <a href=\"https://forms.gle/MxfBQ5DebeAHA6oN6\">here</a>.",
 				}),
 			}),
 		},
