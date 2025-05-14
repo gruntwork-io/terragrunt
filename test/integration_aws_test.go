@@ -1103,7 +1103,11 @@ func TestAwsAssumeRoleDuration(t *testing.T) {
 
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	assumeRole := os.Getenv("AWS_OIDC_ROLE_ARN")
+	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
+	if len(assumeRole) == 0 {
+		t.Skip("AWS_TEST_S3_ASSUME_ROLE environment variable not set")
+		return
+	}
 
 	helpers.CopyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
