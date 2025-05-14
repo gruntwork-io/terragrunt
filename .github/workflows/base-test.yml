@@ -53,7 +53,7 @@ jobs:
         id: run-tests
         run: |
           set -o pipefail
-          go test -v ./... -timeout 45m | go-junit-report -set-exit-code > result.xml
+          go test -v ./... -timeout 45m | tee >(go-junit-report -set-exit-code > result.xml)
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
