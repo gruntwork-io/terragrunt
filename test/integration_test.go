@@ -728,6 +728,24 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	assert.ElementsMatch(t, expectedDiags, actualDiags)
 }
 
+func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
+
+	// We expect an error because the fixture has HCL validation issues.
+	// The content of stdout and stderr isn't the primary focus here,
+	// rather the fact that an error (non-zero exit code) is returned.
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s", rootPath))
+	require.Error(t, err, "terragrunt hcl validate should return a non-zero exit code on HCL errors")
+
+	// As an additional check, we can verify that the error message indicates HCL validation errors.
+	// This makes the test more robust.
+	assert.Contains(t, err.Error(), "HCL validation error(s) found")
+}
+
 func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	t.Parallel()
 
