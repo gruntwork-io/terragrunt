@@ -738,7 +738,7 @@ func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {
 	// We expect an error because the fixture has HCL validation issues.
 	// The content of stdout and stderr isn't the primary focus here,
 	// rather the fact that an error (non-zero exit code) is returned.
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s", rootPath))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
 	require.Error(t, err, "terragrunt hcl validate should return a non-zero exit code on HCL errors")
 
 	// As an additional check, we can verify that the error message indicates HCL validation errors.
