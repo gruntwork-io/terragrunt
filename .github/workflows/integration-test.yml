@@ -210,7 +210,7 @@ jobs:
         run: |
           if [ "$SKIP" != "true" ]; then
             source "${GITHUB_WORKSPACE}/.env.secrets"
-            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} "${TARGET}"
+            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}"
           else
             echo "Skipping tests for $NAME as the skip flag is true."
           fi
