@@ -3,7 +3,6 @@ package run
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -103,49 +103,41 @@ func isTerraformPath(opts *options.TerragruntOptions) bool {
 	return strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath)
 }
 
-// wrapWithStackGenerate wraps a CLI command to automatically generate stack configurations
-// when running with --all or --graph flags, unless --no-stack-generate is specified.
-// This allows users to transparently use stack features without manual stack generation.
+// wrapWithStackGenerate wraps a CLI command to handle automatic stack generation.
+// It generates a stack configuration file when running terragrunt with --all or --graph flags,
+// unless explicitly disabled with --no-stack-generate.
 func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
-	// Wrap the original command action with our stack generation logic
+	// Wrap the command's action to inject stack generation logic
 	cmd = cmd.WrapAction(func(ctx *cli.Context, action cli.ActionFunc) error {
-		// Set the default stack configuration path in the working directory
-		stackConfigPath := filepath.Join(opts.WorkingDir, config.DefaultStackFile)
-		opts.TerragruntStackConfigPath = stackConfigPath
-
-		// Determine if we should generate the stack configuration
-		// We generate if:
-		// 1. User is running with --all or --graph flag AND
-		// 2. User hasn't explicitly disabled stack generation with --no-stack-generate
+		// Determine if stack generation should occur based on command flags
+		// Stack generation is triggered by --all or --graph flags, unless --no-stack-generate is set
 		shouldGenerateStack := (opts.RunAll || opts.Graph) && !opts.NoStackGenerate
 
-		if shouldGenerateStack {
-			// Generate the stack configuration
-			err := generateStackConfiguration(ctx, opts)
-			if err != nil {
-				return fmt.Errorf("failed to generate stack file: %w", err)
-			}
-		} else {
-			// Log that we're skipping stack generation
-			opts.Logger.Debugf("Skipping stack generation for %s", stackConfigPath)
+		// Skip stack generation if not needed
+		if !shouldGenerateStack {
+			opts.Logger.Debugf("Skipping stack generation for %s", opts.TerragruntStackConfigPath)
+			return nil
 		}
 
-		// Execute the original command action
+		// Set the stack config path to the default location in the working directory
+		opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
+
+		// Generate the stack configuration with telemetry tracking
+		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
+			"stack_config_path": opts.TerragruntStackConfigPath,
+			"working_dir":       opts.WorkingDir,
+		}, func(ctx context.Context) error {
+			return config.GenerateStacks(ctx, opts)
+		})
+
+		// Handle any errors during stack generation
+		if err != nil {
+			return errors.Errorf("failed to generate stack file: %w", err)
+		}
+
+		// Execute the original command action after successful stack generation
 		return action(ctx)
 	})
 
 	return cmd
-}
-
-// generateStackConfiguration handles the actual stack generation process,
-// including telemetry collection for monitoring and debugging.
-func generateStackConfiguration(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	// Collect telemetry data about the stack generation
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
-		"stack_config_path": opts.TerragruntStackConfigPath,
-		"working_dir":       opts.WorkingDir,
-	}, func(ctx context.Context) error {
-		// Generate the actual stack configuration
-		return config.GenerateStacks(ctx, opts)
-	})
 }
