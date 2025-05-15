@@ -65,7 +65,7 @@ jobs:
           name: test-report-${{ matrix.os }}
           path: result.xml
 
-      - name: Display JUnit Results with action-junit-report
+      - name: Display JUnit Results
         uses: mikepenz/action-junit-report@v5
         if: always()
         with:

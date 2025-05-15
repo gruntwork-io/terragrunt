@@ -213,7 +213,7 @@ jobs:
             source "${GITHUB_WORKSPACE}/.env.secrets"
             # print command arguments
             set -x
-            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}"
+            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee >(go-junit-report -set-exit-code > result.xml)
           else
             echo "Skipping tests for $NAME as the skip flag is true."
           fi
@@ -227,3 +227,18 @@ jobs:
           SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
+
+      - name: Upload JUnit XML Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ matrix.integration.name }}
+          path: result.xml
+
+      - name: Display JUnit Results
+        uses: mikepenz/action-junit-report@v5
+        if: always()
+        with:
+          report_paths: result.xml
+          detailed_summary: 'true'
+          include_time_in_summary: 'true'
+          group_suite: 'true'
