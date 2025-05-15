@@ -228,13 +228,13 @@ jobs:
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
 
-      - name: Upload JUnit XML Report
+      - name: Upload Report (${{ matrix.integration.name }}))
         uses: actions/upload-artifact@v4
         with:
           name: test-report-${{ matrix.integration.name }}
           path: result.xml
 
-      - name: Display JUnit Results
+      - name: Display Test Results (${{ matrix.integration.name }})
         uses: mikepenz/action-junit-report@v5
         if: always()
         with:
