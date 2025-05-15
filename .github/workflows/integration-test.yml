@@ -223,4 +223,4 @@ jobs:
           RUN: ${{ matrix.integration.run }}
           SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
-          TEST_ARGS: ${{ matrix.integration.go_test_args }}
+          TEST_ARGS: ${{ matrix.integration.test_args }}
