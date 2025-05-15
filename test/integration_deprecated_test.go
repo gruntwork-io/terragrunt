@@ -30,7 +30,7 @@ func TestDeprecatedHclvalidateCommand_HclvalidateInvalidConfigPath(t *testing.T)
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json --terragrunt-hclvalidate-show-config-path", rootPath))
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	var actualPaths []string
 
