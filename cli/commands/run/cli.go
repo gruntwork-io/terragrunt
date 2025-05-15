@@ -115,8 +115,8 @@ func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *c
 
 		// Skip stack generation if not needed
 		if !shouldGenerateStack {
-			opts.Logger.Debugf("Skipping stack generation for %s", opts.TerragruntStackConfigPath)
-			return nil
+			opts.Logger.Debugf("Skipping stack generation in %s", opts.WorkingDir)
+			return action(ctx)
 		}
 
 		// Set the stack config path to the default location in the working directory

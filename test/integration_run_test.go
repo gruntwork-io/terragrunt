@@ -49,43 +49,73 @@ func TestRunStacksGenerate(t *testing.T) {
 }
 
 // TestRunNoStacksGenerate verifies that stack generation is skipped in appropriate scenarios:
-// 1. When running without --all flag
-// 2. When running with --all but --no-stack-generate flag is set
+// 1. When running without --all flag on directory which contains only terragrunt.stack.hcl
+// 2. When running with --all but --no-stack-generate flag is set on directory which contains only terragrunt.stack.hcl
+// 3. When running without --all flag on standard terragrunt directory
+// 4. When running with --all but --no-stack-generate on directory without terragrunt.stack.hcl
 func TestRunNoStacksGenerate(t *testing.T) {
 	t.Parallel()
 
-	// Set up test environment
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
-
 	// Define test cases for different scenarios where stack generation should be skipped
 	testdata := []struct {
-		name string
-		cmd  string
+		name       string
+		cmd        string
+		subfolder  string
+		shouldFail bool
 	}{
 		{
-			name: "NoAll",
-			cmd:  "terragrunt run apply --non-interactive --working-dir " + rootPath,
+			name:       "NoAll",
+			cmd:        "terragrunt run apply --non-interactive",
+			subfolder:  "live",
+			shouldFail: true,
 		},
 		{
-			name: "AllNoGenerate",
-			cmd:  "terragrunt run apply --all --no-stack-generate --non-interactive --working-dir " + rootPath,
+			name:       "AllNoGenerate",
+			cmd:        "terragrunt run apply --all --no-stack-generate --non-interactive",
+			subfolder:  "live",
+			shouldFail: true,
+		},
+		{
+			name:       "Standard",
+			cmd:        "terragrunt run apply --non-interactive",
+			subfolder:  "units/chicken",
+			shouldFail: false,
+		},
+		{
+			name:       "AllNoStackToGenerate",
+			cmd:        "terragrunt run apply --all --no-stack-generate --non-interactive",
+			subfolder:  "units",
+			shouldFail: false,
 		},
 	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 
 	// Run each test case and verify stack generation is skipped
 	for _, tt := range testdata {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Set up test environment
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+			path := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, tt.subfolder)
+			cmd := tt.cmd + " --working-dir " + path + " -- -auto-approve"
+
 			// Execute terragrunt command and verify no output
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, tt.cmd)
-			require.NoError(t, err)
-			assert.Empty(t, stdout)
-			assert.Empty(t, stderr)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			if tt.shouldFail {
+				require.Error(t, err)
+				assert.Empty(t, stdout)
+				assert.Empty(t, stderr)
+			} else {
+				require.NoError(t, err)
+				assert.NotEmpty(t, stdout)
+				assert.NotEmpty(t, stderr)
+			}
 
 			// Verify that stack directory was not created
-			path := util.JoinPath(rootPath, ".terragrunt-stack")
-			assert.NoDirExists(t, path)
+			genPath := util.JoinPath(path, ".terragrunt-stack")
+			assert.NoDirExists(t, genPath)
 		})
 	}
 }
