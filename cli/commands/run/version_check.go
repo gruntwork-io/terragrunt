@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 )
 
@@ -83,9 +87,46 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	return nil
 }
 
+// Helper to compute a cache key from the checksums of .terraform-version and .tool-versions
+func computeVersionFilesCacheKey(workingDir string) string {
+	var hashes []string
+	files := []string{".terraform-version", ".tool-versions"}
+	for _, file := range files {
+		path := filepath.Join(workingDir, file)
+		if util.FileExists(path) {
+			hash, err := util.FileSHA256(path)
+			if err == nil {
+				hashes = append(hashes, file+":"+fmt.Sprintf("%x", hash))
+			}
+		}
+	}
+	if len(hashes) == 0 {
+		return "no-version-files"
+	}
+	return strings.Join(hashes, "|")
+}
+
 // PopulateTerraformVersion populates the currently installed version of Terraform into the given terragruntOptions.
 func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
+	// Use context-based cache for version output
+	ctx = config.WithVersionCache(ctx)
+	cache := cache.ContextCache[string](ctx, config.TerraformVersionCacheContextKey)
+	cacheKey := computeVersionFilesCacheKey(terragruntOptions.WorkingDir)
+
+	if cachedOutput, found := cache.Get(ctx, cacheKey); found {
+		terraformVersion, err := ParseTerraformVersion(cachedOutput)
+		if err != nil {
+			return err
+		}
+		tfImplementation, err := parseTerraformImplementationType(cachedOutput)
+		if err != nil {
+			return err
+		}
+		terragruntOptions.TerraformVersion = terraformVersion
+		terragruntOptions.TerraformImplementation = tfImplementation
+		return nil
+	}
+
 	terragruntOptionsCopy, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return err
@@ -93,10 +134,6 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 
 	terragruntOptionsCopy.Writer = io.Discard
 	terragruntOptionsCopy.ErrWriter = io.Discard
-	// Remove any TF_CLI_ARGS before version checking. These are appended to
-	// the arguments supplied on the command line and cause issues when running
-	// the --version command.
-	// https://www.terraform.io/docs/commands/environment-variables.html#tf_cli_args-and-tf_cli_args_name
 	for key := range terragruntOptionsCopy.Env {
 		if strings.HasPrefix(key, "TF_CLI_ARGS") {
 			delete(terragruntOptionsCopy.Env, key)
@@ -107,6 +144,9 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 	if err != nil {
 		return err
 	}
+
+	// Save output to cache
+	cache.Put(ctx, cacheKey, output.Stdout.String())
 
 	terraformVersion, err := ParseTerraformVersion(output.Stdout.String())
 	if err != nil {
