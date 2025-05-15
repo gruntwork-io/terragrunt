@@ -53,19 +53,19 @@ jobs:
         id: run-tests
         run: |
           set -o pipefail
-          go test -v ./... -timeout 45m | go-junit-report -set-exit-code > result.xml
+          go test -v ./... -timeout 45m | tee >(go-junit-report -set-exit-code > result.xml)
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload JUnit XML Report
+      - name: Upload Report (${{ matrix.os }})
         uses: actions/upload-artifact@v4
         with:
           name: test-report-${{ matrix.os }}
           path: result.xml
 
-      - name: Display JUnit Results with action-junit-report
+      - name: Display Test Results (${{ matrix.os }})
         uses: mikepenz/action-junit-report@v5
         if: always()
         with:
