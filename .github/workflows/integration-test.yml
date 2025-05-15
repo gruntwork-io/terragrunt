@@ -228,7 +228,7 @@ jobs:
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
 
-      - name: Upload Report (${{ matrix.integration.name }}))
+      - name: Upload Report (${{ matrix.integration.name }})
         uses: actions/upload-artifact@v4
         with:
           name: test-report-${{ matrix.integration.name }}
