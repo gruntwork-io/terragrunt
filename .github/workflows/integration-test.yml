@@ -177,6 +177,7 @@ jobs:
           GOOGLE_IDENTITY_EMAIL: ${{ secrets.GOOGLE_IDENTITY_EMAIL }}
           GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
           GCLOUD_SERVICE_KEY_IMPERSONATOR: ${{ secrets.GCLOUD_SERVICE_KEY_IMPERSONATOR }}
+          AWS_TEST_S3_ASSUME_ROLE: ${{ secrets.AWS_TEST_S3_ASSUME_ROLE }}
         shell: bash
 
       - name: Setup
