@@ -10,7 +10,6 @@ mise uninstall --all terraform
 mise uninstall --all opentofu
 
 # Download custom build of Tofu from https://github.com/denis256/opentofu/releases/download/experiment_prune_provider_schemas-1/tofu_linux_amd64
-
 wget https://github.com/denis256/opentofu/releases/download/experiment_prune_provider_schemas-1/tofu_linux_amd64
 chmod +x tofu_linux_amd64
 # put it in path under tofu_linux_amd64
