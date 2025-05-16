@@ -68,6 +68,5 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 func setupContext(opts *options.TerragruntOptions, exitCode *tf.DetailedExitCode) context.Context {
 	ctx := context.Background()
 	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
-
 	return log.ContextWithLogger(ctx, opts.Logger)
 }
