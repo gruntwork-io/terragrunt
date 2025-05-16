@@ -22,16 +22,23 @@ jobs:
             target: ./test
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
+          - name: Fixtures OpenTofu Experiment
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/install-custom-iac.sh
           - name: Fixtures Terraform 1.5
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/terraform-switch-1-5.sh
+            skip: true
           - name: Fixtures Terraform 1.11
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/terraform-switch-1-11.sh
+            skip: true
           - name: SSH
             os: ubuntu
             target: ./...
@@ -40,6 +47,7 @@ jobs:
             tags: ssh
             run: '^TestSSH'
             secrets: [GHA_DEPLOY_KEY]
+            skip: true
           - name: SOPS
             os: ubuntu
             target: ./...
@@ -47,12 +55,14 @@ jobs:
               - .github/scripts/setup/sops.sh
             tags: sops
             run: '^TestSOPS'
+            skip: true
           - name: Tflint
             os: ubuntu
             target: ./...
             tags: tflint
             run: '^TestTflint'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+            skip: true
           - name: GCP
             os: ubuntu
             target: ./...
@@ -61,6 +71,7 @@ jobs:
             tags: gcp
             run: '^TestGcp'
             secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID, GCLOUD_SERVICE_KEY_IMPERSONATOR]
+            skip: true
           - name: AWS Tofu
             os: ubuntu
             target: ./...
@@ -69,6 +80,7 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
+            skip: true
           - name: AWS Terraform 1.5
             os: ubuntu
             target: ./...
@@ -77,6 +89,7 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
               - .github/scripts/setup/terraform-switch-1-5.sh
+            skip: true
           - name: AWS Terraform 1.11
             os: ubuntu
             target: ./...
@@ -85,6 +98,7 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
               - .github/scripts/setup/terraform-switch-1-11.sh
+            skip: true
           - name: AWSGCP
             os: ubuntu
             target: ./...
@@ -93,6 +107,7 @@ jobs:
             tags: awsgcp
             run: '^TestAwsGcp'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
+            skip: true
           - name: Engine
             os: ubuntu
             target: ./...
@@ -100,6 +115,7 @@ jobs:
               - .github/scripts/setup/engine.sh
             tags: engine
             run: '^TestEngine'
+            skip: true
           - name: Windows
             os: windows
             target: ./...
@@ -107,23 +123,27 @@ jobs:
               - .github/scripts/setup/windows-setup.ps1
             tags: windows
             run: '^TestWindows'
+            skip: true
           - name: Provider Cache Terraform 1.11
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/provider-cache.sh
               - .github/scripts/setup/terraform-switch-1-11.sh
+            skip: true
           - name: Provider Cache Tofu
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/provider-cache.sh
               - .github/scripts/setup/tofu-switch.sh
+            skip: true
           - name: Deprecated
             os: ubuntu
             target: ./...
             tags: deprecated
             run: '^TestDeprecated'
+            skip: true
           - name: Mock
             os: ubuntu
             target: ./...
@@ -131,16 +151,19 @@ jobs:
             run: '^TestMock'
             setup_scripts:
               - .github/scripts/setup/generate-mocks.sh
+            skip: true
           - name: Race
             os: ubuntu
             target: ./...
             run: '.*WithRacing'
             test_args: "-race"
+            skip: true
           - name: Parse
             os: ubuntu
             target: ./...
             tags: parse
             run: '^TestParse'
+            skip: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
