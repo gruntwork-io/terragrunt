@@ -102,13 +102,13 @@ jobs:
             source "${GITHUB_WORKSPACE}/.env.secrets"
             mkdir -p psrecord-results
 
-            cd "${TARGET:-test/experiment_prune_provider_schemas}"
+            export "${TARGET:-test/experiment_prune_provider_schemas}"
 
             for i in $(seq 1 100); do
               echo "🔁 Run #$i"
               psrecord --interval 1 \
                 --log "psrecord-results/log_${i}.txt" \
-                --plot "psrecord-results/plot_${i}.png" "$TG_TF_PATH" run apply --all --non-interactive --working-dir ${TARGET}
+                --plot "psrecord-results/plot_${i}.png" ./script.sh
             done
           else
             echo "Skipping tests for $NAME as the skip flag is true."
