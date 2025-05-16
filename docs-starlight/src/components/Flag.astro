@@ -11,7 +11,7 @@ const { slug } = Astro.props;
 
 const flagEntry = await getEntry('flags', slug) as CollectionEntry<'flags'>;
 const { Content } = await render(flagEntry);
-const { aliases, description, type, env, name } = flagEntry.data;
+const { aliases, description, type, env, name, defaultVal } = flagEntry.data;
 ---
 
 <section id={name}>
@@ -21,6 +21,11 @@ const { aliases, description, type, env, name } = flagEntry.data;
     <div>
       <span>Type: </span><Badge text={type} variant="note" style={{ fontWeight: 'bold' }}/>
     </div>
+    {defaultVal && (
+      <div>
+        <span>Default: </span><Badge text={defaultVal} variant="tip" style={{ fontWeight: 'bold' }}/>
+      </div>
+    )}
     {aliases && aliases.length > 0 && (
       <>
         <p>Aliases:</p>
