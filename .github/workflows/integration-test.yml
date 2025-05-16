@@ -108,7 +108,7 @@ jobs:
               echo "🔁 Run #$i"
               psrecord --interval 1 \
                 --log "../psrecord-results/log_${i}.txt" \
-                --plot "../psrecord-results/plot_${i}.png" "$TG_TF_PATH" run apply --all --non-interactive
+                --plot "../psrecord-results/plot_${i}.png" "$TG_TF_PATH" run apply --all --non-interactive --working-dir ${TARGET}
             done
           else
             echo "Skipping tests for $NAME as the skip flag is true."
