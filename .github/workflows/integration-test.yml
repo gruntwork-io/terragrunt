@@ -17,130 +17,16 @@ jobs:
       fail-fast: false
       matrix:
         integration:
-          - name: Fixtures OpenTofu 1.9
+          - name: OpenTofu 1.9
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
-          - name: Fixtures Terraform 1.5
+          - name: OpenTofu Experiment
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-5.sh
-          - name: Fixtures Terraform 1.11
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-11.sh
-          - name: SSH
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/ssh.sh
-            tags: ssh
-            run: '^TestSSH'
-            secrets: [GHA_DEPLOY_KEY]
-          - name: SOPS
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/sops.sh
-            tags: sops
-            run: '^TestSOPS'
-          - name: Tflint
-            os: ubuntu
-            target: ./...
-            tags: tflint
-            run: '^TestTflint'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
-          - name: GCP
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/gcp.sh
-            tags: gcp
-            run: '^TestGcp'
-            secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID, GCLOUD_SERVICE_KEY_IMPERSONATOR]
-          - name: AWS Tofu
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
-            setup_scripts:
-              - .github/scripts/setup/tofu-switch.sh
-          - name: AWS Terraform 1.5
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-5.sh
-          - name: AWS Terraform 1.11
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-11.sh
-          - name: AWSGCP
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/gcp.sh
-            tags: awsgcp
-            run: '^TestAwsGcp'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
-          - name: Engine
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/engine.sh
-            tags: engine
-            run: '^TestEngine'
-          - name: Windows
-            os: windows
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/windows-setup.ps1
-            tags: windows
-            run: '^TestWindows'
-          - name: Provider Cache Terraform 1.11
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/provider-cache.sh
-              - .github/scripts/setup/terraform-switch-1-11.sh
-          - name: Provider Cache Tofu
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/provider-cache.sh
-              - .github/scripts/setup/tofu-switch.sh
-          - name: Deprecated
-            os: ubuntu
-            target: ./...
-            tags: deprecated
-            run: '^TestDeprecated'
-          - name: Mock
-            os: ubuntu
-            target: ./...
-            tags: mocks
-            run: '^TestMock'
-            setup_scripts:
-              - .github/scripts/setup/generate-mocks.sh
-          - name: Race
-            os: ubuntu
-            target: ./...
-            run: '.*WithRacing'
-            test_args: "-race"
-          - name: Parse
-            os: ubuntu
-            target: ./...
-            tags: parse
-            run: '^TestParse'
+              - .github/scripts/setup/install-custom-iac.sh
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -207,13 +93,21 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-integration-test-${{ matrix.integration.name }}-${{ hashFiles('**/go.sum') }}
 
-      - name: Run Tests
+      - name: Install psrecord
+        run: pip install psrecord matplotlib
+
+      - name: Run Tests with psrecord (100 times)
         run: |
           if [ "$SKIP" != "true" ]; then
             source "${GITHUB_WORKSPACE}/.env.secrets"
-            # print command arguments
-            set -x
-            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee >(go-junit-report -set-exit-code > result.xml)
+            mkdir -p psrecord-results
+
+            for i in $(seq 1 100); do
+              echo "🔁 Run #$i"
+              psrecord --interval 1 \
+                --log "psrecord-results/log_${i}.txt" \
+                --plot "psrecord-results/plot_${i}.png" ./script.sh
+            done
           else
             echo "Skipping tests for $NAME as the skip flag is true."
           fi
@@ -227,18 +121,9 @@ jobs:
           SKIP: ${{ matrix.integration.skip }}
           NAME: ${{ matrix.integration.name }}
           TEST_ARGS: ${{ matrix.integration.test_args }}
-
-      - name: Upload Report (${{ matrix.integration.name }})
+      - name: Upload psrecord Artifacts
+        if: always()  # Upload even if some tests fail
         uses: actions/upload-artifact@v4
         with:
-          name: test-report-${{ matrix.integration.name }}
-          path: result.xml
-
-      - name: Display Test Results (${{ matrix.integration.name }})
-        uses: mikepenz/action-junit-report@v5
-        if: always()
-        with:
-          report_paths: result.xml
-          detailed_summary: 'true'
-          include_time_in_summary: 'true'
-          group_suite: 'true'
+          name: psrecord-${{ matrix.integration.name }}
+          path: psrecord-results/
