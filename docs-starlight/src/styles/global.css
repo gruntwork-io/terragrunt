@@ -34,3 +34,7 @@
   --color-gray-900: var(--color-zinc-900);
   --color-gray-950: var(--color-zinc-950);
 }
+
+:root {
+  --sl-nav-height: 5rem;
+}
