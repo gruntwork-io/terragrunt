@@ -306,6 +306,47 @@ Are you sure you want to run 'terragrunt apply' in each folder of the stack desc
 
 This is where that additional verbosity in Terragrunt logging is really handy. You can see that Terragrunt concurrently ran `apply -auto-approve` in both the `foo` and `bar` units. The extra logging for Terragrunt also included information on the names of the units that were processed, and disambiguated the output from each unit.
 
+When Terragrunt runs these commands, it creates a `.terragrunt-cache` directory in each unit's directory. This cache directory serves as Terragrunt's scratch directory where it:
+- Downloads your remote OpenTofu/Terraform configurations
+- Runs your OpenTofu/Terraform commands
+- Stores downloaded modules and providers
+- Stores generated files (in this case, the `hi.txt` file will be created under `.terragrunt-cache/[HASH]/[HASH]/hi.txt` rather than directly in the `foo` or `bar` directories)
+
+With this configuration, the `hi.txt` files will be created directly in the `foo` and `bar` directories instead of the `.terragrunt-cache` directory. This is a common pattern when you want to generate files in specific locations relative to your Terragrunt configuration.
+
+Inside the cache directory, Terragrunt automatically converts your `terragrunt.hcl` configuration into standard OpenTofu/Terraform configuration files:
+- Generates `main.tf` with your module source and provider configurations
+- Creates `terraform.tfvars` or `terraform.tfvars.json` with your input variables
+- Sets up any additional files like `outputs.tf` and `variables.tf` based on your Terragrunt configuration
+
+The `.terragrunt-cache` directory is typically added to `.gitignore` files, similar to the `.terraform` directory that OpenTofu generates. You can safely delete this folder at any time, and Terragrunt will recreate it as necessary.
+
+
+If you want to control where the files are created, you can modify the module to accept an output directory parameter. For example, you can update the `shared/main.tf` file to:
+
+```hcl
+variable "content" {}
+variable "output_dir" {}
+
+resource "local_file" "file" {
+  content  = var.content
+  filename = "${var.output_dir}/hi.txt"
+}
+```
+
+Then in your `foo/terragrunt.hcl` and `bar/terragrunt.hcl` files, you can use the `get_terragrunt_dir()` built-in function to get the directory where the `terragrunt.hcl` file is located:
+
+```hcl
+terraform {
+  source = "../shared"
+}
+
+inputs = {
+  output_dir = get_terragrunt_dir()
+  content = "Hello from bar, Terragrunt!"
+}
+```
+
 Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
 
 ```bash
