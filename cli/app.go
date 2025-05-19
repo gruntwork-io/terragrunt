@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -105,6 +107,8 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx = config.WithConfigValues(ctx)
 	// configure engine context
 	ctx = engine.WithEngineValues(ctx)
+
+	ctx = run.WithRunVersionCache(ctx)
 
 	defer func(ctx context.Context) {
 		if err := engine.Shutdown(ctx, app.opts); err != nil {
