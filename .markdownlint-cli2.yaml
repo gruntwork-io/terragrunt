@@ -4,3 +4,6 @@ config:
 
   # Disable multiple headers with the same content
   MD024: false
+
+  # Disable requirement for descriptive links (e.g. allow click [here]())
+  MD059: false
