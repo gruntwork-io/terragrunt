@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 
+	"encoding/hex"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -95,12 +97,17 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 		if err != nil {
 			return err
 		}
+
 		tfImplementation, err := parseTerraformImplementationType(cachedOutput)
+
 		if err != nil {
 			return err
 		}
+
 		terragruntOptions.TerraformVersion = terraformVersion
+
 		terragruntOptions.TerraformImplementation = tfImplementation
+
 		return nil
 	}
 
@@ -111,6 +118,7 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 
 	terragruntOptionsCopy.Writer = io.Discard
 	terragruntOptionsCopy.ErrWriter = io.Discard
+
 	for key := range terragruntOptionsCopy.Env {
 		if strings.HasPrefix(key, "TF_CLI_ARGS") {
 			delete(terragruntOptionsCopy.Env, key)
@@ -232,20 +240,25 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 // Helper to compute a cache key from the checksums of .terraform-version and .tool-versions
 func computeVersionFilesCacheKey(workingDir string) string {
 	var hashes []string
+
 	files := []string{".terraform-version", ".tool-versions"}
+
 	for _, file := range files {
 		path := filepath.Join(workingDir, file)
 		if util.FileExists(path) {
 			hash, err := util.FileSHA256(path)
 			if err == nil {
-				hashes = append(hashes, file+":"+fmt.Sprintf("%x", hash))
+				hashes = append(hashes, file+":"+hex.EncodeToString(hash))
 			}
 		}
 	}
+
 	cacheKey := "no-version-files"
+
 	if len(hashes) != 0 {
 		cacheKey = strings.Join(hashes, "|")
 	}
+
 	return util.EncodeBase64Sha1(cacheKey)
 }
 

@@ -1958,7 +1958,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	// Verify that validate-all works as well.
 	showStdout.Reset()
 	showStderr.Reset()
-	err = helpers.RunTerragruntCommand(t, "terragrunt validate-all --non-interactive --working-dir "+dependent2Path, &showStdout, &showStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt validate-all --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -4150,5 +4150,6 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	// check that version command was invoked only once -version
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
-	require.Equal(t, 1, len(matches), "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+
+	assert.Len(t, matches, 1, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 }
