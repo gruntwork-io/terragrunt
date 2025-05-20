@@ -113,6 +113,7 @@ const (
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
 	testFixtureTfPath                         = "fixtures/tf-path"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
+	testFixtureVersionInvocation              = "fixtures/version-invocation"
 
 	terraformFolder = ".terraform"
 
@@ -4152,4 +4153,21 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
 	assert.Len(t, matches, 1, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+}
+
+func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }
