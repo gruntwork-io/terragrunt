@@ -39,6 +39,8 @@ const (
 )
 
 func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
+	t.Parallel()
+
 	token := fetchGitHubOIDCToken(t)
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -90,6 +92,8 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 }
 
 func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
+	t.Parallel()
+
 	token := fetchGitHubOIDCToken(t)
 
 	// These tests need to be run without the static key + secret
@@ -116,9 +120,9 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv(githubActionsEnvVar) != "true" {
-		t.Skipf("Skipping test because it's not running in a GitHub Actions environment (expected %s=true)", githubActionsEnvVar)
-	}
+	token := fetchGitHubOIDCToken(t)
+
+	t.Setenv("OIDC_TOKEN", token)
 
 	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
