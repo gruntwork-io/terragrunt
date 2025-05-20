@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   run_cloud_nuke:
+    name: Nuke
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -20,7 +21,7 @@ jobs:
         run: |
             wget -O /usr/local/bin/cloud-nuke \
                 --header="Authorization: Bearer ${GITHUB_TOKEN}" \
-                "https://github.com/gruntwork-io/cloud-nuke/releases/download/${VERSION}/cloud-nuke_linux_amd64"
+                "https://github.com/gruntwork-io/cloud-nuke/releases/download/v${VERSION}/cloud-nuke_linux_amd64"
 
             chmod +x /usr/local/bin/cloud-nuke
         env:
@@ -36,11 +37,11 @@ jobs:
 
       - name: Run cloud-nuke
         run: |
-            # TODO: After testing, remove --dry-run and add the --force flag.
             cloud-nuke aws \
-                --dry-run \
+                --force \
                 --log-level debug \
                 --resource-type s3 \
                 --region us-east-1 \
+                --region us-west-2 \
                 --older-than 24h \
                 --config .github/cloud-nuke/config.yml
