@@ -20,7 +20,7 @@ jobs:
         run: |
             wget -O /usr/local/bin/cloud-nuke \
                 --header="Authorization: Bearer ${GITHUB_TOKEN}" \
-                "https://github.com/gruntwork-io/cloud-nuke/releases/download/${VERSION}/cloud-nuke_linux_amd64"
+                "https://github.com/gruntwork-io/cloud-nuke/releases/download/v${VERSION}/cloud-nuke_linux_amd64"
 
             chmod +x /usr/local/bin/cloud-nuke
         env:
