@@ -13,8 +13,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
+
+// NewRepoFunc defines the signature for a function that creates a new repository.
+// This allows for mocking in tests.
+type NewRepoFunc func(ctx context.Context, logger log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error)
 
 const (
 	// tempDirFormat is used to create unique temporary directory names for catalog repositories.
@@ -34,16 +39,23 @@ type CatalogService interface {
 // It holds the necessary options and configuration to perform its tasks.
 type catalogServiceImpl struct {
 	opts    *options.TerragruntOptions
+	newRepo NewRepoFunc
 	repoURL string
 }
 
 // NewCatalogService creates a new instance of catalogServiceImpl.
 // It requires TerragruntOptions and an optional initial repository URL.
-// If repoURL is empty, the service will attempt to use URLs from the catalog configuration.
-func NewCatalogService(opts *options.TerragruntOptions, repoURL string) CatalogService {
+// Optionally, a custom NewRepoFunc can be provided for testing or alternative repo implementations.
+func NewCatalogService(opts *options.TerragruntOptions, repoURL string, customNewRepoFunc ...NewRepoFunc) CatalogService {
+	fn := module.NewRepo // Default to the actual implementation
+	if len(customNewRepoFunc) > 0 && customNewRepoFunc[0] != nil {
+		fn = customNewRepoFunc[0]
+	}
+
 	return &catalogServiceImpl{
 		opts:    opts,
 		repoURL: repoURL,
+		newRepo: fn,
 	}
 }
 
@@ -94,7 +106,8 @@ func (s *catalogServiceImpl) ListModules(ctx context.Context) (module.Modules, e
 		s.opts.Logger.Debugf("Processing repository %s in temporary path %s", currentRepoURL, tempPath)
 
 		// Initialize the repository. This might involve cloning or updating.
-		repo, err := module.NewRepo(ctx, s.opts.Logger, currentRepoURL, tempPath, walkWithSymlinks, allowCAS)
+		// Use the newRepo function stored in the service instance.
+		repo, err := s.newRepo(ctx, s.opts.Logger, currentRepoURL, tempPath, walkWithSymlinks, allowCAS)
 		if err != nil {
 			s.opts.Logger.Errorf("Failed to initialize repository %s: %v", currentRepoURL, err)
 
