@@ -38,6 +38,8 @@ const (
 	SourceMapFlagName    = "source-map"
 	SourceUpdateFlagName = "source-update"
 
+	NoStackGenerate = "no-stack-generate"
+
 	// Assume IAM Role flags.
 
 	IAMAssumeRoleFlagName                 = "iam-assume-role"
@@ -118,6 +120,15 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:       "Root directory from where to build graph dependencies.",
 		},
 			flags.WithDeprecatedName(terragruntPrefix.FlagName("graph-root"), terragruntPrefixControl)),
+
+		// `--all` and `--graph` related flags.
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoStackGenerate,
+			EnvVars:     tgPrefix.EnvVars(NoStackGenerate),
+			Destination: &opts.NoStackGenerate,
+			Usage:       "Disable automatic stack regeneration before running the command.",
+		}),
 
 		//  Backward compatibility with `terragrunt-` prefix flags.
 

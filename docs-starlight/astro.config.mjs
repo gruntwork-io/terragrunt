@@ -3,8 +3,10 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightLinksValidator from "starlight-links-validator";
 import vercel from "@astrojs/vercel";
-
 import d2 from "astro-d2";
+import tailwindcss from "@tailwindcss/vite";
+
+import partytown from "@astrojs/partytown";
 
 export const sidebar = [
   {
@@ -75,40 +77,68 @@ export default defineConfig({
       expiration: 60 * 60 * 24, // 24 hours
     },
   }),
-  integrations: [
-    starlight({
-      title: "Terragrunt",
-      logo: {
-        dark: "/src/assets/logo-light.svg",
-        light: "/src/assets/logo-dark.svg",
+  integrations: [starlight({
+    title: "Terragrunt",
+    customCss: ["./src/styles/global.css"],
+    head: [
+      {
+        tag: 'script',
+        attrs: {
+          src: 'https://www.googletagmanager.com/gtm.js?id=GTM-5TTJJGTL',
+          type: 'text/partytown',
+        },
       },
-      social: {
-        github: "https://github.com/gruntwork-io/terragrunt",
-        discord: "https://discord.gg/SPu4Degs5f",
+      {
+        tag: 'script',
+        attrs: {
+          type: 'text/partytown',
+        },
+        content: `
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','GTM-5TTJJGTL');
+          `,
       },
-      sidebar: sidebar,
-      // NOTE: We don't currently check links by default because the CLI
-      // Redesign isn't done yet. Once those pages are built out, we'll require
-      // links to be checked for all builds.
-      plugins: [
-        starlightLinksValidator({
-          exclude: [
-            // Used in the docs for OpenTelemetry
-            "http://localhost:16686/",
-            "http://localhost:9090/",
+    ],
+    components: {
+      Header: './src/components/Header.astro',
+      SiteTitle: './src/components/SiteTitle.astro',
+      SkipLink: './src/components/SkipLink.astro',
+    },
+    logo: {
+      dark: "/src/assets/horizontal-logo-light.svg",
+      light: "/src/assets/horizontal-logo-dark.svg",
+    },
+    social: {
+      discord: "https://discord.gg/SPu4Degs5f",
+    },
+    sidebar: sidebar,
+    // NOTE: We don't currently check links by default because the CLI
+    // Redesign isn't done yet. Once those pages are built out, we'll require
+    // links to be checked for all builds.
+    plugins: [
+      starlightLinksValidator({
+        exclude: [
+          // Used in the docs for OpenTelemetry
+          "http://localhost:16686/",
+          "http://localhost:9090/",
 
-            // Unfortunately, these have to be ignored, as they're
-            // referencing content that is generated outside the contents of the markdown file.
-            "/docs/reference/cli/commands/run#*",
-            "/docs/reference/cli/commands/run/#*",
-            "/docs/reference/cli/commands/list#*",
-            "/docs/reference/cli/commands/list/#*",
-          ],
-        }),
-      ],
-    }),
-    d2(),
-  ],
+          // Unfortunately, these have to be ignored, as they're
+          // referencing content that is generated outside the contents of the markdown file.
+          "/docs/reference/cli/commands/run#*",
+          "/docs/reference/cli/commands/run/#*",
+          "/docs/reference/cli/commands/list#*",
+          "/docs/reference/cli/commands/list/#*",
+        ],
+      }),
+    ],
+  }), d2(), partytown({
+    config: {
+      forward: ['dataLayer.push']
+    }
+  })],
   redirects: {
     // Pages that have been rehomed.
     "/docs/features/debugging/": "/docs/troubleshooting/debugging/",
@@ -161,5 +191,8 @@ export default defineConfig({
     "/docs/features/auto-retry/": "/docs/features/runtime-control/",
     "/docs/features/provider-cache/": "/docs/features/provider-cache-server/",
     "/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
+  },
+  vite: {
+    plugins: [tailwindcss()],
   },
 });

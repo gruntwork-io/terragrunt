@@ -8,7 +8,7 @@ type Options struct {
 	TraceExporterHTTPEndpoint string
 	// TraceParent is used as a parent trace context.
 	TraceParent string
-	// MetricExporter is the type of  metrics exporter.
+	// MetricExporter is the type of metrics exporter.
 	MetricExporter string
 	// TraceExporterInsecureEndpoint is useful for collecting traces locally. If set to true, the exporter will not validate the server certificate.
 	TraceExporterInsecureEndpoint bool

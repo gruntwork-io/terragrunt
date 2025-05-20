@@ -77,12 +77,6 @@ func defaultFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flag
 
 	flags := cli.Flags{
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        NoStackGenerate,
-			EnvVars:     tgPrefix.EnvVars(NoStackGenerate),
-			Destination: &opts.NoStackGenerate,
-			Usage:       "Disable automatic stack regeneration before running the command.",
-		}),
-		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoStackValidate,
 			EnvVars:     tgPrefix.EnvVars(NoStackValidate),
 			Destination: &opts.NoStackValidate,

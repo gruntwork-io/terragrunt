@@ -211,8 +211,6 @@ func TestRemoteDownloadWithRelativePath(t *testing.T) {
 }
 
 func TestRemoteDownloadWithRelativePathAndSlashInBranch(t *testing.T) {
-	t.Skip("This test needs to be skipped for now, as there's a recursive reference happening on tagged modules that needs to be plumbed out.")
-
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureRemoteRelativeDownloadPathWithSlash)

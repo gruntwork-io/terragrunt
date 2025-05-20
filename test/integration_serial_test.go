@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -589,8 +589,9 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	// check that output have Telemetry json output
+	// check that output has Telemetry json output
 	assert.Contains(t, output, "\"SpanContext\":{\"TraceID\":\"b2ff2d54551433d53dd807a6c94e81d1\"")
+	assert.Contains(t, output, "\"Parent\":{\"TraceID\":\"b2ff2d54551433d53dd807a6c94e81d1")
 	assert.Contains(t, output, "\"SpanID\":\"0e6f631d793c718a\"")
 	assert.Contains(t, output, "\"SpanContext\":")
 	assert.Contains(t, output, "\"TraceID\":")
@@ -598,7 +599,7 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_2\"")
 }
 
-func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
+func TestTerragruntProduceTelemetryInCaseOfError(t *testing.T) {
 	if helpers.IsWindows() {
 		t.Skip("Skipping test on Windows since bash script execution is not supported")
 	}
@@ -724,4 +725,64 @@ func TestParseTFLog(t *testing.T) {
 	for _, prefixName := range []string{"app", "dep"} {
 		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: Go runtime version`)
 	}
+}
+
+func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
+
+	str, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	helpers.ValidateHookTraceParent(t, "hook_print_traceparent", str)
+
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+	)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	traceparent, found := outputs["traceparent_value"]
+	require.True(t, found)
+	assert.NotEmpty(t, traceparent.Value)
+	require.Regexp(t, `^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`, traceparent.Value, "Traceparent value should match W3C traceparent format")
+}
+
+func TestTerragruntTelemetryPassTraceParentEnvVariable(t *testing.T) {
+	envParentTrace := "00-b2ff2d54551433d53dd807a666666666-0e6f631d793c718a-01"
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TRACEPARENT", envParentTrace)
+
+	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureTraceParent)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+	)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	traceparent, found := outputs["traceparent_value"]
+	require.True(t, found)
+	assert.NotEmpty(t, traceparent.Value)
+	assert.Equal(t, envParentTrace, traceparent.Value)
 }
