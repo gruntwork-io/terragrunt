@@ -154,7 +154,7 @@ func fetchGitHubOIDCToken(t *testing.T) string {
 	}
 
 	client := &http.Client{}
-	postReqBody := strings.NewReader("{}")
+	postReqBody := strings.NewReader(`{"aud": "sts.amazonaws.com"}`)
 	req, err := http.NewRequest(http.MethodPost, requestURL, postReqBody)
 	require.NoError(t, err, "Failed to create OIDC token request to %s", requestURL)
 
