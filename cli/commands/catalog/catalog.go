@@ -2,65 +2,32 @@ package catalog
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const (
-	tempDirFormat = "catalog%x"
-)
-
+// Run is the main entry point for the catalog command.
+// It initializes the catalog service, retrieves modules, and then launches the TUI.
 func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) error {
-	repoURLs := []string{repoURL}
+	catalogService := service.NewCatalogService(opts, repoURL)
 
-	if repoURL == "" {
-		config, err := config.ReadCatalogConfig(ctx, opts)
-		if err != nil {
-			return err
-		}
-
-		if config != nil && len(config.URLs) > 0 {
-			repoURLs = config.URLs
-		}
+	modules, err := catalogService.ListModules(ctx)
+	if err != nil {
+		// The service layer now handles scenarios like no repos configured, returning an error.
+		// It also handles logging for individual repo errors if it continues processing others.
+		return errors.Errorf("failed to list modules: %w", err)
 	}
 
-	repoURLs = util.RemoveDuplicatesFromList(repoURLs)
-
-	var modules module.Modules
-
-	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
-	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
-
-	for _, repoURL := range repoURLs {
-		path := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repoURL)))
-
-		repo, err := module.NewRepo(ctx, opts.Logger, repoURL, path, walkWithSymlinks, allowCAS)
-		if err != nil {
-			return err
-		}
-
-		repoModules, err := repo.FindModules(ctx)
-		if err != nil {
-			return err
-		}
-
-		opts.Logger.Infof("Found %d modules in repository %q", len(repoModules), repoURL)
-
-		modules = append(modules, repoModules...)
-	}
-
+	// The service returns an error if no modules are found after processing all repositories.
+	// This check might be redundant if the service guarantees an error, but good for safety.
 	if len(modules) == 0 {
-		return errors.Errorf("no modules found")
+		return errors.Errorf("no modules found by the catalog service")
 	}
+
+	opts.Logger.Debugf("Total modules collected by service: %d. Launching TUI.", len(modules))
 
 	return tui.Run(ctx, modules, opts)
 }

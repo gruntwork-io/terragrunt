@@ -125,7 +125,5 @@ func (s *catalogServiceImpl) ListModules(ctx context.Context) (module.Modules, e
 		return allModules, errors.Errorf("no modules found in any of the configured repositories")
 	}
 
-	s.opts.Logger.Infof("Total modules found across all repositories: %d", len(allModules))
-
 	return allModules, nil
 }
