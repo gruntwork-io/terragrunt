@@ -1,4 +1,8 @@
-name: Integration Tests
+# These tests require different top-level permissions
+# than the other integration tests, so we're keeping them
+# in a separate workflow.
+
+name: OIDC Integration Tests
 
 on:
   push:
@@ -7,9 +11,15 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+
+permissions:
+  id-token: write
+  contents: read
+  checks: write
+
 jobs:
   test:
-    name: Test (${{ matrix.integration.name }})
+    name: Test OIDC (${{ matrix.integration.name }})
     runs-on: ${{ matrix.integration.os }}-latest
     env:
       MISE_PROFILE: cicd
@@ -17,130 +27,15 @@ jobs:
       fail-fast: false
       matrix:
         integration:
-          - name: Fixtures OpenTofu 1.9
+          - name: GHA AWS
             os: ubuntu
-            target: ./test
+            target: ./...
+            tags: awsoidc
+            run: '^TestAws'
+            # We leave the key and secret on so that cleanup steps can use them.
+            secrets: [AWS_TEST_OIDC_ROLE_ARN, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
-          - name: Fixtures Terraform 1.5
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-5.sh
-          - name: Fixtures Terraform 1.11
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-11.sh
-          - name: SSH
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/ssh.sh
-            tags: ssh
-            run: '^TestSSH'
-            secrets: [GHA_DEPLOY_KEY]
-          - name: SOPS
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/sops.sh
-            tags: sops
-            run: '^TestSOPS'
-          - name: Tflint
-            os: ubuntu
-            target: ./...
-            tags: tflint
-            run: '^TestTflint'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
-          - name: GCP
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/gcp.sh
-            tags: gcp
-            run: '^TestGcp'
-            secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID, GCLOUD_SERVICE_KEY_IMPERSONATOR]
-          - name: AWS Tofu
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
-            setup_scripts:
-              - .github/scripts/setup/tofu-switch.sh
-          - name: AWS Terraform 1.5
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-5.sh
-          - name: AWS Terraform 1.11
-            os: ubuntu
-            target: ./...
-            tags: aws
-            run: '^TestAws'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
-            setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-11.sh
-          - name: AWSGCP
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/gcp.sh
-            tags: awsgcp
-            run: '^TestAwsGcp'
-            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
-          - name: Engine
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/engine.sh
-            tags: engine
-            run: '^TestEngine'
-          - name: Windows
-            os: windows
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/windows-setup.ps1
-            tags: windows
-            run: '^TestWindows'
-          - name: Provider Cache Terraform 1.11
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/provider-cache.sh
-              - .github/scripts/setup/terraform-switch-1-11.sh
-          - name: Provider Cache Tofu
-            os: ubuntu
-            target: ./test
-            setup_scripts:
-              - .github/scripts/setup/provider-cache.sh
-              - .github/scripts/setup/tofu-switch.sh
-          - name: Deprecated
-            os: ubuntu
-            target: ./...
-            tags: deprecated
-            run: '^TestDeprecated'
-          - name: Mock
-            os: ubuntu
-            target: ./...
-            tags: mocks
-            run: '^TestMock'
-            setup_scripts:
-              - .github/scripts/setup/generate-mocks.sh
-          - name: Race
-            os: ubuntu
-            target: ./...
-            run: '.*WithRacing'
-            test_args: "-race"
-          - name: Parse
-            os: ubuntu
-            target: ./...
-            tags: parse
-            run: '^TestParse'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
