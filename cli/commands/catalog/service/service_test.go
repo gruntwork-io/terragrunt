@@ -18,8 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockRepo and newMockedRealRepo are no longer needed with the new injection approach.
-
 func TestListModules_HappyPath(t *testing.T) {
 	t.Parallel()
 
@@ -54,7 +52,7 @@ func TestListModules_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	opts.TerragruntConfigPath = filepath.Join(tmpDir, "terragrunt.hcl")
 
-	svc := service.NewCatalogService(opts, "", mockNewRepo)
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
 	modulesResult, err := svc.ListModules(context.Background())
 
 	require.NoError(t, err)
@@ -74,7 +72,7 @@ func TestListModules_NoRepositoriesConfigured(t *testing.T) {
 	opts.TerragruntConfigPath = filepath.Join(tmpDir, "nonexistent-terragrunt.hcl")
 
 	// No customNewRepoFunc needed as it should error before trying to create a repo.
-	svc := service.NewCatalogService(opts, "")
+	svc := service.NewCatalogService(opts)
 	_, err := svc.ListModules(context.Background())
 
 	require.Error(t, err)
@@ -100,7 +98,7 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoURL)
 	}
 
-	svc := service.NewCatalogService(opts, "mock://only-repo", mockNewRepo)
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("mock://only-repo")
 	modulesResult, err := svc.ListModules(context.Background())
 
 	require.NoError(t, err)
@@ -120,7 +118,7 @@ func TestListModules_ErrorFromNewRepo(t *testing.T) {
 		return nil, expectedErr
 	}
 
-	svc := service.NewCatalogService(opts, "mock://error-repo", mockNewRepo)
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("mock://error-repo")
 	_, err := svc.ListModules(context.Background())
 
 	require.Error(t, err)
@@ -151,7 +149,7 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoURL)
 	}
 
-	svc := service.NewCatalogService(opts, "mock://find-error-repo", mockNewRepo)
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("mock://find-error-repo")
 	_, err := svc.ListModules(context.Background())
 
 	require.Error(t, err)
@@ -173,7 +171,7 @@ func TestListModules_NoModulesFound(t *testing.T) {
 		return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
 	}
 
-	svc := service.NewCatalogService(opts, "mock://empty-repo", mockNewRepo)
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("mock://empty-repo")
 	returnedModules, err := svc.ListModules(context.Background())
 
 	require.Error(t, err)
@@ -210,7 +208,7 @@ func TestListModules_EmptyRepoURLInListSkipped(t *testing.T) {
 	require.NoError(t, err)
 	opts.TerragruntConfigPath = filepath.Join(tmpDir, "terragrunt.hcl")
 
-	svc := service.NewCatalogService(opts, "", mockNewRepo)
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
 	modulesResult, err := svc.ListModules(context.Background())
 
 	require.NoError(t, err)

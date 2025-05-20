@@ -12,7 +12,11 @@ import (
 // Run is the main entry point for the catalog command.
 // It initializes the catalog service, retrieves modules, and then launches the TUI.
 func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) error {
-	catalogService := service.NewCatalogService(opts, repoURL)
+	catalogService := service.NewCatalogService(opts)
+
+	if repoURL != "" {
+		catalogService.WithRepoURL(repoURL)
+	}
 
 	modules, err := catalogService.ListModules(ctx)
 	if err != nil {

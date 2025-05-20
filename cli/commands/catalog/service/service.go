@@ -43,20 +43,30 @@ type catalogServiceImpl struct {
 	repoURL string
 }
 
-// NewCatalogService creates a new instance of catalogServiceImpl.
+// NewCatalogService creates a new instance of catalogServiceImpl with default settings.
 // It requires TerragruntOptions and an optional initial repository URL.
-// Optionally, a custom NewRepoFunc can be provided for testing or alternative repo implementations.
-func NewCatalogService(opts *options.TerragruntOptions, repoURL string, customNewRepoFunc ...NewRepoFunc) CatalogService {
-	fn := module.NewRepo // Default to the actual implementation
-	if len(customNewRepoFunc) > 0 && customNewRepoFunc[0] != nil {
-		fn = customNewRepoFunc[0]
-	}
-
+// Configuration methods like WithNewRepoFunc can be chained to customize the service.
+func NewCatalogService(opts *options.TerragruntOptions) *catalogServiceImpl {
 	return &catalogServiceImpl{
 		opts:    opts,
-		repoURL: repoURL,
-		newRepo: fn,
+		newRepo: module.NewRepo,
 	}
+}
+
+// WithNewRepoFunc allows overriding the default function used to create repository instances.
+// This is primarily useful for testing.
+func (s *catalogServiceImpl) WithNewRepoFunc(fn NewRepoFunc) *catalogServiceImpl {
+	s.newRepo = fn
+
+	return s
+}
+
+// WithRepoURL allows overriding the repository URL.
+// This is primarily useful for testing.
+func (s *catalogServiceImpl) WithRepoURL(repoURL string) *catalogServiceImpl {
+	s.repoURL = repoURL
+
+	return s
 }
 
 // ListModules implements the CatalogService interface.
