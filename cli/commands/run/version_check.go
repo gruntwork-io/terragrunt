@@ -31,6 +31,8 @@ var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
 
+var versionFiles = []string{".terraform-version", ".tool-versions", "mise.toml", ".mise.toml"}
+
 // CheckVersionConstraints checks the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
 // following settings on terragruntOptions:
 // - TerraformPath
@@ -241,9 +243,7 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 func computeVersionFilesCacheKey(workingDir string) string {
 	var hashes []string
 
-	files := []string{".terraform-version", ".tool-versions"}
-
-	for _, file := range files {
+	for _, file := range versionFiles {
 		path := filepath.Join(workingDir, file)
 		if util.FileExists(path) {
 			hash, err := util.FileSHA256(path)
