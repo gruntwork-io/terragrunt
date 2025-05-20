@@ -1,0 +1,32 @@
+name: Daily Cloud Nuke
+on:
+  schedule:
+    - cron: "0 0 * * *" # Runs every day at midnight UTC
+jobs:
+  run_cloud_nuke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install cloud-nuke
+        run: |
+            wget -O /usr/local/bin/cloud-nuke \
+                --header="Authorization: Bearer ${GITHUB_TOKEN}" \
+                "https://github.com/gruntwork-io/cloud-nuke/releases/download/${VERSION}/cloud-nuke_linux_amd64"
+
+            chmod +x /usr/local/bin/cloud-nuke
+        env:
+            # Authenticate to reduce the likelihood of hitting rate limit issues.
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            VERSION: 0.40.0
+
+      - name: Run cloud-nuke
+        run: |
+            cloud-nuke aws \
+                --dry-run \ # TODO: Remove this after testing, and add --force flag.
+                --log-level debug \
+                --resource-type s3 \
+                --region us-east-1 \
+                --older-than 1d \
+                --config .github/cloud-nuke/config.yml

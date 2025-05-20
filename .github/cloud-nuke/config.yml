@@ -1,0 +1,2 @@
+s3:
+  timeout: 10m
