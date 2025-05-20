@@ -8,8 +8,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -109,11 +107,10 @@ func computeVersionFilesCacheKey(workingDir string) string {
 // PopulateTerraformVersion populates the currently installed version of Terraform into the given terragruntOptions.
 func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Use context-based cache for version output
-	ctx = config.WithVersionCache(ctx)
-	cache := cache.ContextCache[string](ctx, config.TerraformVersionCacheContextKey)
+	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(terragruntOptions.WorkingDir)
 
-	if cachedOutput, found := cache.Get(ctx, cacheKey); found {
+	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
 		terraformVersion, err := ParseTerraformVersion(cachedOutput)
 		if err != nil {
 			return err
@@ -146,7 +143,7 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 	}
 
 	// Save output to cache
-	cache.Put(ctx, cacheKey, output.Stdout.String())
+	versionCache.Put(ctx, cacheKey, output.Stdout.String())
 
 	terraformVersion, err := ParseTerraformVersion(output.Stdout.String())
 	if err != nil {
