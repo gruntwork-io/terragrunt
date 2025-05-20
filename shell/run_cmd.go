@@ -69,6 +69,14 @@ func RunCommandWithOutput(
 			cmdStdout = io.MultiWriter(opts.Writer, &output.Stdout)
 		)
 
+		// Pass the traceparent to the child process if it is available in the context.
+		traceParent := telemetry.TraceParentFromContext(ctx, opts.Telemetry)
+
+		if traceParent != "" {
+			opts.Logger.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
+			opts.Env[telemetry.TraceParentEnv] = traceParent
+		}
+
 		if suppressStdout {
 			opts.Logger.Debugf("Command output will be suppressed.")
 

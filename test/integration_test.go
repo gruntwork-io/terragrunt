@@ -112,13 +112,13 @@ const (
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
 	testFixtureTfPath                         = "fixtures/tf-path"
+	testFixtureTraceParent                    = "fixtures/trace-parent"
 
 	terraformFolder = ".terraform"
 
 	terraformState = "terraform.tfstate"
 
 	terraformStateBackup = "terraform.tfstate.backup"
-	terragruntCache      = ".terragrunt-cache"
 )
 
 func TestCLIFlagHints(t *testing.T) {
@@ -231,6 +231,23 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
 	assert.Equal(t, 2, exitCode.Get())
+}
+
+func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+
+	var exitCode tf.DetailedExitCode
+	ctx := context.Background()
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+util.JoinPath(tmpEnvPath, testFixturePath))
+	require.NoError(t, err)
+	assert.Equal(t, 0, exitCode.Get())
 }
 
 func TestDetailedExitCodeChangesPresentOne(t *testing.T) {

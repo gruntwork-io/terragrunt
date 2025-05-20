@@ -8,9 +8,9 @@ set -euo pipefail
 : "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is not set}"
 : "${GHA_DEPLOY_KEY:?GHA_DEPLOY_KEY is not set}"
 
-# These aren't available yet.
-# : "${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is not set}"
-# : "${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY is not set}"
+: "${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is not set}"
+: "${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY is not set}"
+: "${AWS_TEST_S3_ASSUME_ROLE:?AWS_TEST_S3_ASSUME_ROLE is not set}"
 
 : "${GCLOUD_SERVICE_KEY:?GCLOUD_SERVICE_KEY is not set}"
 : "${GOOGLE_CLOUD_PROJECT:?GOOGLE_CLOUD_PROJECT is not set}"
@@ -45,6 +45,12 @@ for SECRET in $SECRETS; do
         printf "export GOOGLE_PROJECT_ID='%s'\n" "${GOOGLE_PROJECT_ID}" >> "$ENV_FILE"
     elif [[ "$SECRET" == "GCLOUD_SERVICE_KEY_IMPERSONATOR" && -n "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" ]]; then
         printf "export GCLOUD_SERVICE_KEY_IMPERSONATOR='%s'\n" "${GCLOUD_SERVICE_KEY_IMPERSONATOR}" >> "$ENV_FILE"
+    elif [[ "$SECRET" == "AWS_ACCESS_KEY_ID" && -n "${AWS_ACCESS_KEY_ID}" ]]; then
+        printf "export AWS_ACCESS_KEY_ID='%s'\n" "${AWS_ACCESS_KEY_ID}" >> "$ENV_FILE"
+    elif [[ "$SECRET" == "AWS_SECRET_ACCESS_KEY" && -n "${AWS_SECRET_ACCESS_KEY}" ]]; then
+        printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${AWS_SECRET_ACCESS_KEY}" >> "$ENV_FILE"
+    elif [[ "$SECRET" == "AWS_TEST_S3_ASSUME_ROLE" && -n "${AWS_TEST_S3_ASSUME_ROLE}" ]]; then
+        printf "export AWS_TEST_S3_ASSUME_ROLE='%s'\n" "${AWS_TEST_S3_ASSUME_ROLE}" >> "$ENV_FILE"
     fi
 done
 
