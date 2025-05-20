@@ -137,7 +137,7 @@ The following strict mode controls are available:
   - [deprecated-flags](#deprecated-flags)
   - [deprecated-env-vars](#deprecated-env-vars)
   - [deprecated-configs](#deprecated-configs)
-  - [legacy-all-commands](#legacy-all-commands)
+  - [legacy-all](#legacy-all)
 
 ### spin-up
 
@@ -286,7 +286,7 @@ Throw an error when using the deprecated Terragrunt configuration.
 
 - [skip-dependencies-inputs](#skip-dependencies-inputs)
 
-### legacy-all-commands
+### legacy-all
 
 Throw an error when using any of the legacy commands replaced by `run --all`.
 
