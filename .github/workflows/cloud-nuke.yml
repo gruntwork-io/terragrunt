@@ -43,5 +43,6 @@ jobs:
                 --log-level debug \
                 --resource-type s3 \
                 --region us-east-1 \
+                --region us-west-2 \
                 --older-than 24h \
                 --config .github/cloud-nuke/config.yml
