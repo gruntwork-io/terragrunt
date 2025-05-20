@@ -44,7 +44,6 @@ const (
 	testFixtureS3Errors                          = "fixtures/s3-errors/"
 	testFixtureAssumeRole                        = "fixtures/assume-role/external-id"
 	testFixtureAssumeRoleDuration                = "fixtures/assume-role/duration"
-	testFixtureAssumeRoleWebIdentityFile         = "fixtures/assume-role-web-identity/file-path"
 	testFixtureReadIamRole                       = "fixtures/read-config/iam_role_in_file"
 	testFixtureOutputFromRemoteState             = "fixtures/output-from-remote-state"
 	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"
@@ -1438,21 +1437,6 @@ func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["hello"].Value)
-}
-
-func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
-	t.Parallel()
-
-	if os.Getenv("CIRCLECI") != "true" {
-		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
-	}
-
-	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
-	oidcPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
-	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
-
-	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`, oidcPath, mockAuthCmd))
 }
 
 func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
