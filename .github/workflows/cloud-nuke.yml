@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   run_cloud_nuke:
+    name: Nuke
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
