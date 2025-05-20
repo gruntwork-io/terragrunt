@@ -18,3 +18,4 @@ mocks/
 .terragrunt-stack
 .devcontainer.json
 .cursor/
+.env
