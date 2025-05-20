@@ -36,8 +36,9 @@ jobs:
 
       - name: Run cloud-nuke
         run: |
+            # TODO: After testing, remove --dry-run and add the --force flag.
             cloud-nuke aws \
-                --dry-run \ # TODO: Remove this after testing, and add --force flag.
+                --dry-run \
                 --log-level debug \
                 --resource-type s3 \
                 --region us-east-1 \
