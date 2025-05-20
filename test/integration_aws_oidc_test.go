@@ -110,6 +110,21 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+tmp+" --iam-assume-role "+roleARN+" --iam-assume-role-web-identity-token "+token)
 }
 
+func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv(githubActionsEnvVar) != "true" {
+		t.Skipf("Skipping test because it's not running in a GitHub Actions environment (expected %s=true)", githubActionsEnvVar)
+	}
+
+	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	oidcPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
+	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
+
+	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`, oidcPath, mockAuthCmd))
+}
+
 // oidcTokenResponse defines the structure of the JSON response from GitHub's OIDC token endpoint.
 type oidcTokenResponse struct {
 	Value string `json:"value"`
