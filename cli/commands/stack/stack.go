@@ -144,17 +144,13 @@ func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		var (
-			firstErr error
-		)
+		errs := &errors.MultiError{}
 
 		walkFn := func(path string, d os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				opts.Logger.Warnf("Error accessing path %s: %v", path, walkErr)
 
-				if firstErr == nil {
-					firstErr = walkErr
-				}
+				errs = errs.Append(walkErr)
 
 				return nil
 			}
@@ -170,9 +166,7 @@ func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
 				if rmErr := os.RemoveAll(path); rmErr != nil {
 					opts.Logger.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
 
-					if firstErr == nil {
-						firstErr = rmErr
-					}
+					errs = errs.Append(rmErr)
 				}
 
 				return filepath.SkipDir
@@ -181,11 +175,11 @@ func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
 			return nil
 		}
 
-		if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil && firstErr == nil {
-			firstErr = walkErr
+		if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil {
+			errs = errs.Append(walkErr)
 		}
 
-		return firstErr
+		return errs.ErrorOrNil()
 	})
 
 	if err != nil {
