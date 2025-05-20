@@ -2,6 +2,13 @@ name: Daily Cloud Nuke
 on:
   schedule:
     - cron: "0 0 * * *" # Runs every day at midnight UTC
+  workflow_dispatch:
+
+
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   run_cloud_nuke:
     runs-on: ubuntu-latest
@@ -20,6 +27,12 @@ jobs:
             # Authenticate to reduce the likelihood of hitting rate limit issues.
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             VERSION: 0.40.0
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CLOUD_NUKE_ROLE }}
+          aws-region: us-east-1
 
       - name: Run cloud-nuke
         run: |
