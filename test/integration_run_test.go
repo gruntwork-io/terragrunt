@@ -106,7 +106,12 @@ func TestRunNoStacksGenerate(t *testing.T) {
 			if tt.shouldFail {
 				require.Error(t, err)
 				assert.Empty(t, stdout)
-				assert.Empty(t, stderr)
+				// We should explicitly avoid asserting on stderr, because information
+				// might be logged to stderr, even if the command succeeds.
+				//
+				// e.g. Usage of the provider cache server.
+				//
+				// assert.Empty(t, stderr)
 			} else {
 				require.NoError(t, err)
 				assert.NotEmpty(t, stdout)
