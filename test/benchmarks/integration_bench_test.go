@@ -22,25 +22,20 @@ terraform {
 }
 `
 
+	// Create a temporary directory for the test
+	tmpDir := b.TempDir()
+	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
+	// Create an empty `root.hcl` file
+	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+
+	// Create 1 units
+	helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
+
 	b.Run("1 units", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			b.StopTimer()
-
-			// Create a temporary directory for the test
-			tmpDir := b.TempDir()
-			rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-			// Create an empty `root.hcl` file
-			require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
-
-			// Create 10 units
-			helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
-
-			b.StartTimer()
-
 			helpers.Init(b, tmpDir)
 		}
 	})
-
 }
 
 func BenchmarkEmptyTerragruntPlan(b *testing.B) {
@@ -56,20 +51,17 @@ terraform {
 }
 `
 
+	// Create a temporary directory for the test
+	tmpDir := b.TempDir()
+	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
+	// Create an empty `root.hcl` file
+	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+
+	// Create 1 units
+	helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
+
 	b.Run("1 units", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			b.StopTimer()
-
-			// Create a temporary directory for the test
-			tmpDir := b.TempDir()
-			rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
-			// Create an empty `root.hcl` file
-			require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
-
-			// Create 10 units
-			helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
-
-			b.StartTimer()
 
 			helpers.Plan(b, tmpDir)
 		}
