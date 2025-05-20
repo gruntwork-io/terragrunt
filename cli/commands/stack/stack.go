@@ -137,21 +137,59 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 	return nested
 }
 
-// RunClean cleans the stack directory
+// RunClean recursively removes all stack directories under the specified WorkingDir.
 func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
-	baseDir := filepath.Join(opts.WorkingDir, stackDir)
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_clean", map[string]any{
+	telemeter := telemetry.TelemeterFromContext(ctx)
+	err := telemeter.Collect(ctx, "stack_clean", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		opts.Logger.Debugf("Cleaning stack directory: %s", baseDir)
-		err := os.RemoveAll(baseDir)
+		var (
+			firstErr error
+		)
 
-		return err
+		walkFn := func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				opts.Logger.Warnf("Error accessing path %s: %v", path, walkErr)
+
+				if firstErr == nil {
+					firstErr = walkErr
+				}
+
+				return nil
+			}
+
+			if d.IsDir() && d.Name() == stackDir {
+				relPath, relErr := filepath.Rel(opts.WorkingDir, path)
+				if relErr != nil {
+					relPath = path // fallback to absolute if error
+				}
+
+				opts.Logger.Infof("Deleting stack directory: %s", relPath)
+
+				if rmErr := os.RemoveAll(path); rmErr != nil {
+					opts.Logger.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
+
+					if firstErr == nil {
+						firstErr = rmErr
+					}
+				}
+
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil && firstErr == nil {
+			firstErr = walkErr
+		}
+
+		return firstErr
 	})
 
 	if err != nil {
-		return errors.Errorf("failed to clean stack directory: %s %w", baseDir, err)
+		return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
 	}
 
 	return nil
