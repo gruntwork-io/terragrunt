@@ -3,5 +3,5 @@ inputs = {
 }
 
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git?ref=v0.77.22//test/fixtures/download/relative"
+  source = "github.com/gruntwork-io/terragrunt.git?ref=v0.78.4//test/fixtures/download/relative"
 }
