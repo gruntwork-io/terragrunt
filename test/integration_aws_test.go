@@ -44,7 +44,6 @@ const (
 	testFixtureS3Errors                          = "fixtures/s3-errors/"
 	testFixtureAssumeRole                        = "fixtures/assume-role/external-id"
 	testFixtureAssumeRoleDuration                = "fixtures/assume-role/duration"
-	testFixtureAssumeRoleWebIdentityFile         = "fixtures/assume-role-web-identity/file-path"
 	testFixtureReadIamRole                       = "fixtures/read-config/iam_role_in_file"
 	testFixtureOutputFromRemoteState             = "fixtures/output-from-remote-state"
 	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"

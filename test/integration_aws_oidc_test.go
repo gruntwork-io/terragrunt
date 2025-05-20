@@ -33,6 +33,9 @@ const (
 	actionsIDTokenRequestURLEnvVar = "ACTIONS_ID_TOKEN_REQUEST_URL"
 	// Environment variable from GitHub Actions containing the bearer token to authenticate the OIDC token request.
 	actionsIDTokenRequestTokenEnvVar = "ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+
+	// This is a fixture that tests the assume-role-web-identity-file flag.
+	testFixtureAssumeRoleWebIdentityFile = "fixtures/assume-role-web-identity/file-path"
 )
 
 func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
