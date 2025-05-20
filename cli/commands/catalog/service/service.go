@@ -1,0 +1,131 @@
+// Package service provides the core functionality for the Terragrunt catalog command.
+// It handles the logic for fetching and processing module information from remote repositories.
+package service
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
+)
+
+const (
+	// tempDirFormat is used to create unique temporary directory names for catalog repositories.
+	// It uses a hexadecimal representation of a SHA1 hash of the repo URL.
+	tempDirFormat = "catalog-%s" // Changed from catalog%x to catalog-%s for clarity with Sprintf.
+)
+
+// CatalogService defines the interface for the catalog service.
+// It's responsible for fetching and processing module information.
+type CatalogService interface {
+	// ListModules retrieves all modules from the configured repositories.
+	// It takes the context and returns the found modules or an error.
+	ListModules(ctx context.Context) (module.Modules, error)
+}
+
+// catalogServiceImpl is the concrete implementation of CatalogService.
+// It holds the necessary options and configuration to perform its tasks.
+type catalogServiceImpl struct {
+	opts    *options.TerragruntOptions
+	repoURL string
+}
+
+// NewCatalogService creates a new instance of catalogServiceImpl.
+// It requires TerragruntOptions and an optional initial repository URL.
+// If repoURL is empty, the service will attempt to use URLs from the catalog configuration.
+func NewCatalogService(opts *options.TerragruntOptions, repoURL string) CatalogService {
+	return &catalogServiceImpl{
+		opts:    opts,
+		repoURL: repoURL,
+	}
+}
+
+// ListModules implements the CatalogService interface.
+// It contains the core logic for cloning/updating repositories and finding Terragrunt modules within them.
+func (s *catalogServiceImpl) ListModules(ctx context.Context) (module.Modules, error) {
+	repoURLs := []string{s.repoURL}
+
+	// If no specific repoURL was provided to the service, try to read from catalog config.
+	if s.repoURL == "" {
+		catalogCfg, err := config.ReadCatalogConfig(ctx, s.opts)
+		if err != nil {
+			return nil, errors.Errorf("failed to read catalog configuration: %w", err)
+		}
+
+		if catalogCfg != nil && len(catalogCfg.URLs) > 0 {
+			repoURLs = catalogCfg.URLs
+		} else {
+			return nil, errors.Errorf("no catalog URLs provided")
+		}
+	}
+
+	// Remove duplicates
+	repoURLs = util.RemoveDuplicatesFromList(repoURLs)
+	if len(repoURLs) == 0 || (len(repoURLs) == 1 && repoURLs[0] == "") {
+		return nil, errors.Errorf("no valid repository URLs specified after configuration and flag processing")
+	}
+
+	var allModules module.Modules
+
+	// Evaluate experimental features for symlinks and content-addressable storage.
+	walkWithSymlinks := s.opts.Experiments.Evaluate(experiment.Symlinks)
+	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS)
+
+	var errs []error
+
+	for _, currentRepoURL := range repoURLs {
+		if currentRepoURL == "" {
+			s.opts.Logger.Warnf("Empty repository URL encountered, skipping.")
+			continue
+		}
+
+		// Create a unique path in the system's temporary directory for this repository.
+		// The path is based on a SHA1 hash of the repository URL to ensure uniqueness and idempotency.
+		encodedRepoURL := util.EncodeBase64Sha1(currentRepoURL)
+		tempPath := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, encodedRepoURL))
+
+		s.opts.Logger.Debugf("Processing repository %s in temporary path %s", currentRepoURL, tempPath)
+
+		// Initialize the repository. This might involve cloning or updating.
+		repo, err := module.NewRepo(ctx, s.opts.Logger, currentRepoURL, tempPath, walkWithSymlinks, allowCAS)
+		if err != nil {
+			s.opts.Logger.Errorf("Failed to initialize repository %s: %v", currentRepoURL, err)
+
+			errs = append(errs, err)
+
+			continue
+		}
+
+		// Find modules within the initialized repository.
+		repoModules, err := repo.FindModules(ctx)
+		if err != nil {
+			s.opts.Logger.Errorf("Failed to find modules in repository %s: %v", currentRepoURL, err)
+
+			errs = append(errs, err)
+
+			continue
+		}
+
+		s.opts.Logger.Infof("Found %d module(s) in repository %q", len(repoModules), currentRepoURL)
+		allModules = append(allModules, repoModules...)
+	}
+
+	if len(errs) > 0 {
+		return allModules, errors.Errorf("failed to find modules in some repositories: %v", errs)
+	}
+
+	if len(allModules) == 0 {
+		return allModules, errors.Errorf("no modules found in any of the configured repositories")
+	}
+
+	s.opts.Logger.Infof("Total modules found across all repositories: %d", len(allModules))
+
+	return allModules, nil
+}
