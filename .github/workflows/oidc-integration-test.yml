@@ -32,7 +32,8 @@ jobs:
             target: ./...
             tags: awsoidc
             run: '^TestAws'
-            secrets: [AWS_TEST_OIDC_ROLE_ARN]
+            # We leave the key and secret on so that cleanup steps can use them.
+            secrets: [AWS_TEST_OIDC_ROLE_ARN, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
     steps:
