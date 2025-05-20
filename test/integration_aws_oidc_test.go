@@ -39,7 +39,8 @@ const (
 )
 
 func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() cannot be used together with t.Setenv()
+	// t.Parallel()
 
 	token := fetchGitHubOIDCToken(t)
 
@@ -92,7 +93,8 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 }
 
 func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() cannot be used together with t.Setenv()
+	// t.Parallel()
 
 	token := fetchGitHubOIDCToken(t)
 
@@ -118,7 +120,8 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 }
 
 func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
-	t.Parallel()
+	// t.Parallel() cannot be used together with t.Setenv()
+	// t.Parallel()
 
 	token := fetchGitHubOIDCToken(t)
 
