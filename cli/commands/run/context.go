@@ -3,8 +3,6 @@ package run
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
-
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 )
 
@@ -17,7 +15,7 @@ const (
 
 // WithRunVersionCache initializes the version cache in the context for the run package.
 func WithRunVersionCache(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, versionCacheContextKey, cache.NewCache[*hclparse.File](versionCacheName))
+	ctx = context.WithValue(ctx, versionCacheContextKey, cache.NewCache[string](versionCacheName))
 	return ctx
 }
 

@@ -85,28 +85,8 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	return nil
 }
 
-// Helper to compute a cache key from the checksums of .terraform-version and .tool-versions
-func computeVersionFilesCacheKey(workingDir string) string {
-	var hashes []string
-	files := []string{".terraform-version", ".tool-versions"}
-	for _, file := range files {
-		path := filepath.Join(workingDir, file)
-		if util.FileExists(path) {
-			hash, err := util.FileSHA256(path)
-			if err == nil {
-				hashes = append(hashes, file+":"+fmt.Sprintf("%x", hash))
-			}
-		}
-	}
-	if len(hashes) == 0 {
-		return "no-version-files"
-	}
-	return strings.Join(hashes, "|")
-}
-
 // PopulateTerraformVersion populates the currently installed version of Terraform into the given terragruntOptions.
 func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	// Use context-based cache for version output
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(terragruntOptions.WorkingDir)
 
@@ -247,6 +227,26 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 	default:
 		return options.UnknownImpl, nil
 	}
+}
+
+// Helper to compute a cache key from the checksums of .terraform-version and .tool-versions
+func computeVersionFilesCacheKey(workingDir string) string {
+	var hashes []string
+	files := []string{".terraform-version", ".tool-versions"}
+	for _, file := range files {
+		path := filepath.Join(workingDir, file)
+		if util.FileExists(path) {
+			hash, err := util.FileSHA256(path)
+			if err == nil {
+				hashes = append(hashes, file+":"+fmt.Sprintf("%x", hash))
+			}
+		}
+	}
+	cacheKey := "no-version-files"
+	if len(hashes) != 0 {
+		cacheKey = strings.Join(hashes, "|")
+	}
+	return util.EncodeBase64Sha1(cacheKey)
 }
 
 // Custom error types
