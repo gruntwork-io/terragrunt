@@ -1939,7 +1939,7 @@ tofu apply # or terraform apply
 
 #### Variable Precedence
 
-Variables loaded in OpenTofu/Terraform will consequently use the following precedence order (with the highest precedence being lowest on the list):
+Variables loaded in OpenTofu/Terraform will use the following precedence order from lowest (1) to highest (6):
 
 1. `inputs` set in `terragrunt.hcl` files.
 2. Explicitly set `TF_VAR_` environment variables (these will override the `inputs` set in `terragrunt.hcl` if they conflict).
