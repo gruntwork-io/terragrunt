@@ -2,5 +2,5 @@
 
 set -euo pipefail
 
-make install-mockery
+make install-mock-tools
 make generate-mocks
