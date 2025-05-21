@@ -43,11 +43,11 @@ type CatalogService interface {
 
 	// WithNewRepoFunc allows overriding the default function used to create repository instances.
 	// This is primarily useful for testing.
-	WithNewRepoFunc(fn NewRepoFunc) *catalogServiceImpl
+	WithNewRepoFunc(fn NewRepoFunc) CatalogService
 
 	// WithRepoURL allows overriding the repository URL.
 	// This is primarily useful for testing.
-	WithRepoURL(repoURL string) *catalogServiceImpl
+	WithRepoURL(repoURL string) CatalogService
 }
 
 // catalogServiceImpl is the concrete implementation of CatalogService.
@@ -71,7 +71,7 @@ func NewCatalogService(opts *options.TerragruntOptions) *catalogServiceImpl {
 
 // WithNewRepoFunc allows overriding the default function used to create repository instances.
 // This is primarily useful for testing.
-func (s *catalogServiceImpl) WithNewRepoFunc(fn NewRepoFunc) *catalogServiceImpl {
+func (s *catalogServiceImpl) WithNewRepoFunc(fn NewRepoFunc) CatalogService {
 	s.newRepo = fn
 
 	return s
@@ -79,7 +79,7 @@ func (s *catalogServiceImpl) WithNewRepoFunc(fn NewRepoFunc) *catalogServiceImpl
 
 // WithRepoURL allows overriding the repository URL.
 // This is primarily useful for testing.
-func (s *catalogServiceImpl) WithRepoURL(repoURL string) *catalogServiceImpl {
+func (s *catalogServiceImpl) WithRepoURL(repoURL string) CatalogService {
 	s.repoURL = repoURL
 
 	return s
