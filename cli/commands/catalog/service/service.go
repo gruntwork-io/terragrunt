@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service/module"
+	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -36,6 +37,9 @@ type CatalogService interface {
 
 	// Modules returns the discovered modules.
 	Modules() module.Modules
+
+	// Scaffold scaffolds a module.
+	Scaffold(ctx context.Context, opts *options.TerragruntOptions, module *module.Module) error
 
 	// WithNewRepoFunc allows overriding the default function used to create repository instances.
 	// This is primarily useful for testing.
@@ -167,4 +171,10 @@ func (s *catalogServiceImpl) Load(ctx context.Context) error {
 
 func (s *catalogServiceImpl) Modules() module.Modules {
 	return s.modules
+}
+
+func (s *catalogServiceImpl) Scaffold(ctx context.Context, opts *options.TerragruntOptions, module *module.Module) error {
+	opts.Logger.Infof("Scaffolding module: %q", module.TerraformSourcePath())
+
+	return scaffold.Run(ctx, opts, module.TerraformSourcePath(), "")
 }

@@ -6,28 +6,28 @@ import (
 	"context"
 	"io"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service/module"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 type Scaffold struct {
 	module            *module.Module
 	terragruntOptions *options.TerragruntOptions
+	svc               service.CatalogService
 }
 
-func NewScaffold(opts *options.TerragruntOptions, module *module.Module) *Scaffold {
+func NewScaffold(opts *options.TerragruntOptions, svc service.CatalogService, module *module.Module) *Scaffold {
 	return &Scaffold{
 		module:            module,
 		terragruntOptions: opts,
+		svc:               svc,
 	}
 }
 
 func (cmd *Scaffold) Run() error {
-	cmd.module.Logger().Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
-
-	return scaffold.Run(context.Background(), cmd.terragruntOptions, cmd.module.TerraformSourcePath(), "")
+	return cmd.svc.Scaffold(context.Background(), cmd.terragruntOptions, cmd.module)
 }
 
 func (cmd *Scaffold) SetStdin(io.Reader) {

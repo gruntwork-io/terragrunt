@@ -47,6 +47,7 @@ func (b button) String() string {
 type model struct {
 	list              list.Model
 	terragruntOptions *options.TerragruntOptions
+	svc               service.CatalogService
 	selectedModule    *module.Module
 	delegateKeys      *delegateKeyMap
 	buttonBar         *buttonbar.ButtonBar
