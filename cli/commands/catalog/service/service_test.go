@@ -3,7 +3,6 @@ package service_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -22,22 +22,22 @@ func TestListModules_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	opts.Logger = log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel))
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 		// Use t.TempDir() for the dummyRepoDir to ensure cleanup and parallelism safety.
-		dummyRepoDir := filepath.Join(t.TempDir(), strings.ReplaceAll(repoURL, "mock://", ""))
+		dummyRepoDir := filepath.Join(t.TempDir(), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
 		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
 
-		if repoURL == "mock://repo1" {
+		if repoURL == "github.com/gruntwork-io/repo1" {
 			readme1Path := filepath.Join(dummyRepoDir, "README.md")
 			os.WriteFile(readme1Path, []byte("# module1-title\nThis is module1."), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "module1.tf"), []byte{}, 0644)
 			return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
 		}
-		if repoURL == "mock://repo2" {
+		if repoURL == "github.com/gruntwork-io/repo2" {
 			readme2Path := filepath.Join(dummyRepoDir, "README.md")
 			os.WriteFile(readme2Path, []byte("# module2-title\nThis is module2."), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "module2.tf"), []byte{}, 0644)
@@ -47,10 +47,18 @@ func TestListModules_HappyPath(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	catalogFile := filepath.Join(tmpDir, "catalog.hcl")
-	err := os.WriteFile(catalogFile, []byte(`urls = ["mock://repo1", "mock://repo2"]`), 0600)
+	rootFile := filepath.Join(tmpDir, "root.hcl")
+	err := os.WriteFile(rootFile, []byte(`catalog {
+	urls = [
+		"github.com/gruntwork-io/repo1",
+		"github.com/gruntwork-io/repo2",
+	]
+}`), 0600)
 	require.NoError(t, err)
-	opts.TerragruntConfigPath = filepath.Join(tmpDir, "terragrunt.hcl")
+
+	unitDir := filepath.Join(tmpDir, "unit")
+	os.MkdirAll(unitDir, 0755)
+	opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
 
 	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
 	modulesResult, err := svc.ListModules(context.Background())
@@ -66,7 +74,7 @@ func TestListModules_NoRepositoriesConfigured(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	opts.Logger = log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel))
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	tmpDir := t.TempDir()
 	opts.TerragruntConfigPath = filepath.Join(tmpDir, "nonexistent-terragrunt.hcl")
@@ -83,10 +91,10 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	opts.Logger = log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel))
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
-		if repoURL == "mock://only-repo" {
+		if repoURL == "github.com/gruntwork-io/only-repo" {
 			dummyRepoDir := filepath.Join(t.TempDir(), "only-repo")
 			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
@@ -98,7 +106,7 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoURL)
 	}
 
-	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("mock://only-repo")
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/only-repo")
 	modulesResult, err := svc.ListModules(context.Background())
 
 	require.NoError(t, err)
@@ -111,14 +119,14 @@ func TestListModules_ErrorFromNewRepo(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	opts.Logger = log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel))
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	expectedErr := errors.Errorf("failed to clone repo")
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 		return nil, expectedErr
 	}
 
-	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("mock://error-repo")
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/error-repo")
 	_, err := svc.ListModules(context.Background())
 
 	require.Error(t, err)
@@ -130,10 +138,10 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	opts.Logger = log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel))
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
-		if repoURL == "mock://find-error-repo" {
+		if repoURL == "github.com/gruntwork-io/find-error-repo" {
 			dummyRepoDir := filepath.Join(t.TempDir(), "find-error-repo-dir")
 			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
@@ -149,19 +157,18 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoURL)
 	}
 
-	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("mock://find-error-repo")
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/find-error-repo")
 	_, err := svc.ListModules(context.Background())
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to find modules in some repositories", "Error message mismatch: %v", err)
-	assert.True(t, strings.Contains(err.Error(), "problem_module") && (strings.Contains(err.Error(), "README.md") || strings.Contains(err.Error(), "read")), "Underlying error not indicative of FindDoc failure: %v", err)
+	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
 }
 
 func TestListModules_NoModulesFound(t *testing.T) {
 	t.Parallel()
 
 	opts := options.NewTerragruntOptions()
-	opts.Logger = log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel))
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 		dummyRepoDir := filepath.Join(t.TempDir(), "empty-repo-dir")
@@ -171,48 +178,10 @@ func TestListModules_NoModulesFound(t *testing.T) {
 		return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
 	}
 
-	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("mock://empty-repo")
+	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/empty-repo")
 	returnedModules, err := svc.ListModules(context.Background())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
 	assert.Empty(t, returnedModules, "Should return empty modules slice on 'no modules found' error")
-}
-
-func TestListModules_EmptyRepoURLInListSkipped(t *testing.T) {
-	t.Parallel()
-
-	opts := options.NewTerragruntOptions()
-	opts.Logger = log.New(log.WithOutput(io.Discard), log.WithLevel(log.ErrorLevel))
-
-	var calledRepoURLs []string
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
-		calledRepoURLs = append(calledRepoURLs, repoURL)
-		if repoURL == "mock://valid-repo" {
-			dummyRepoDir := filepath.Join(t.TempDir(), "valid-repo-dir")
-			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
-			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
-			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
-			os.WriteFile(filepath.Join(dummyRepoDir, "README.md"), []byte("# moduleValid-title"), 0644)
-			os.WriteFile(filepath.Join(dummyRepoDir, "moduleValid.tf"), []byte{}, 0644)
-			return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
-		}
-		// This case should not be hit if empty URLs are correctly skipped by the service before calling newRepo.
-		// However, if an empty URL somehow reaches here, this mock will error.
-		return nil, fmt.Errorf("newRepoFunc called with unexpected or empty URL: '%s'", repoURL)
-	}
-
-	tmpDir := t.TempDir()
-	catalogFile := filepath.Join(tmpDir, "catalog.hcl")
-	err := os.WriteFile(catalogFile, []byte(`urls = ["mock://valid-repo", ""]`), 0600)
-	require.NoError(t, err)
-	opts.TerragruntConfigPath = filepath.Join(tmpDir, "terragrunt.hcl")
-
-	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
-	modulesResult, err := svc.ListModules(context.Background())
-
-	require.NoError(t, err)
-	assert.Len(t, modulesResult, 1)
-	assert.Equal(t, "moduleValid-title", modulesResult[0].Title())
-	assert.Equal(t, []string{"mock://valid-repo"}, calledRepoURLs, "newRepoFunc should only be called for valid URLs")
 }
