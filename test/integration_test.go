@@ -16,7 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -113,6 +113,7 @@ const (
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
 	testFixtureTfPath                         = "fixtures/tf-path"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
+	testFixtureVersionInvocation              = "fixtures/version-invocation"
 
 	terraformFolder = ".terraform"
 
@@ -1958,7 +1959,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	// Verify that validate-all works as well.
 	showStdout.Reset()
 	showStderr.Reset()
-	err = helpers.RunTerragruntCommand(t, "terragrunt validate-all --non-interactive --working-dir "+dependent2Path, &showStdout, &showStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt validate-all --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -3165,9 +3166,6 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 }
 
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
-	// TODO: Resolve this.
-	t.Skip("This test needs to be skipped for now, as there's recursive references happening on tagged modules that needs to be plumbed out.")
-
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
@@ -3179,7 +3177,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	if err != nil {
 		require.NoError(t, err)
 	}
-	updatedHcl := strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.77.21")
+	updatedHcl := strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.78.4")
 	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
 
 	stdout := bytes.Buffer{}
@@ -3190,7 +3188,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	// providers initialization during first plan
 	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
-	updatedHcl = strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.77.22")
+	updatedHcl = strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.79.0")
 	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
 
 	stdout = bytes.Buffer{}
@@ -4135,4 +4133,38 @@ func TestTfPath(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Regexp(t, "(?i)(terraform|opentofu)", stdout+stderr)
+}
+
+func TestVersionIsInvokedOnlyOnce(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	// check that version command was invoked only once -version
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	assert.Len(t, matches, 1, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+}
+
+func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }

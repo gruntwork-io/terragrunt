@@ -11,6 +11,7 @@ set -euo pipefail
 : "${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID is not set}"
 : "${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY is not set}"
 : "${AWS_TEST_S3_ASSUME_ROLE:?AWS_TEST_S3_ASSUME_ROLE is not set}"
+: "${AWS_TEST_OIDC_ROLE_ARN:?AWS_TEST_OIDC_ROLE_ARN is not set}"
 
 : "${GCLOUD_SERVICE_KEY:?GCLOUD_SERVICE_KEY is not set}"
 : "${GOOGLE_CLOUD_PROJECT:?GOOGLE_CLOUD_PROJECT is not set}"
@@ -51,6 +52,8 @@ for SECRET in $SECRETS; do
         printf "export AWS_SECRET_ACCESS_KEY='%s'\n" "${AWS_SECRET_ACCESS_KEY}" >> "$ENV_FILE"
     elif [[ "$SECRET" == "AWS_TEST_S3_ASSUME_ROLE" && -n "${AWS_TEST_S3_ASSUME_ROLE}" ]]; then
         printf "export AWS_TEST_S3_ASSUME_ROLE='%s'\n" "${AWS_TEST_S3_ASSUME_ROLE}" >> "$ENV_FILE"
+    elif [[ "$SECRET" == "AWS_TEST_OIDC_ROLE_ARN" && -n "${AWS_TEST_OIDC_ROLE_ARN}" ]]; then
+        printf "export AWS_TEST_OIDC_ROLE_ARN='%s'\n" "${AWS_TEST_OIDC_ROLE_ARN}" >> "$ENV_FILE"
     fi
 done
 
