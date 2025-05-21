@@ -133,12 +133,15 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			case scaffoldBtn:
 				m.state = scaffoldState
 				return m, scaffoldModuleCmd(m, m.svc, m.selectedModule)
-			case viewSourceBtn: // This case is only reachable if viewSourceBtn is in m.currentPagerButtons
-				if m.selectedModule.URL() != "" { // Defensive check
+			case viewSourceBtn:
+				if m.selectedModule.URL() != "" {
 					if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
 						m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.selectedModule.URL(), err))
 					}
 				}
+			default:
+				m.terragruntOptions.Logger.Warnf("Unknown button pressed: %s", currentAction)
+				// Do nothing. This case should never happen, and if it does, we don't want to do anything.
 			}
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):

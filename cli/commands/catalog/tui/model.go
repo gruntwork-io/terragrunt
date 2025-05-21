@@ -34,7 +34,10 @@ const (
 const (
 	scaffoldBtn button = iota
 	viewSourceBtn
-	lastBtn
+)
+
+var (
+	availableButtons = []button{scaffoldBtn, viewSourceBtn}
 )
 
 func (b button) String() string {
@@ -91,8 +94,8 @@ func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model
 	vp := viewport.New(0, 0)
 
 	// Setup the button bar
-	bs := make([]string, lastBtn)
-	for i, b := range []button{scaffoldBtn, viewSourceBtn} {
+	bs := make([]string, len(availableButtons))
+	for i, b := range availableButtons {
 		bs[i] = b.String()
 	}
 
