@@ -1,5 +1,10 @@
 // Package catalog provides the core functionality for the Terragrunt catalog command.
 // It handles the logic for fetching and processing module information from remote repositories.
+//
+// This logic is intentionally isolated from the CLI package, as that package is focused on
+// spinning up the Terminal User Interface (TUI), and forwarding user input to the catalog service.
+//
+// This should result in an implementation that is easier to test, and more maintainable.
 package catalog
 
 import (
