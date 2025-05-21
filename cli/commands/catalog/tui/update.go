@@ -11,9 +11,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 )
 
 func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
@@ -60,7 +61,7 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 					m.state = pagerState
 				case key.Matches(msg, m.delegateKeys.scaffold):
 					m.state = scaffoldState
-					return m, scaffoldModuleCmd(m, selectedModule)
+					return m, scaffoldModuleCmd(m, m.svc, selectedModule)
 				}
 			} else {
 				break
@@ -98,7 +99,7 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			// Choose changes the action depending on the active button
 			if m.activeButton == scaffoldBtn {
 				m.state = scaffoldState
-				return m, scaffoldModuleCmd(m, m.selectedModule)
+				return m, scaffoldModuleCmd(m, m.svc, m.selectedModule)
 			} else {
 				if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
 					m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.releaseNotesURL, err))
@@ -107,7 +108,7 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
 			m.state = scaffoldState
-			return m, scaffoldModuleCmd(m, m.selectedModule)
+			return m, scaffoldModuleCmd(m, m.svc, m.selectedModule)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
 			// because we're on the second screen, we need to go back
@@ -187,8 +188,8 @@ func rendererErrCmd(err error) tea.Cmd {
 type scaffoldFinishedMsg struct{ err error }
 
 // Return a tea.Cmd that will scaffold the given module.
-func scaffoldModuleCmd(m model, module *module.Module) tea.Cmd {
-	return tea.Exec(command.NewScaffold(m.terragruntOptions, module), func(err error) tea.Msg {
+func scaffoldModuleCmd(m model, svc catalog.CatalogService, module *module.Module) tea.Cmd {
+	return tea.Exec(command.NewScaffold(m.terragruntOptions, svc, module), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})
 }

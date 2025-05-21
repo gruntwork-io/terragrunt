@@ -6,8 +6,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -46,6 +47,7 @@ func (b button) String() string {
 type model struct {
 	list              list.Model
 	terragruntOptions *options.TerragruntOptions
+	svc               catalog.CatalogService
 	selectedModule    *module.Module
 	delegateKeys      *delegateKeyMap
 	buttonBar         *buttonbar.ButtonBar
@@ -60,8 +62,9 @@ type model struct {
 	ready             bool
 }
 
-func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
+func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model {
 	var (
+		modules      = svc.Modules()
 		items        = make([]list.Item, 0, len(modules))
 		listKeys     = newListKeyMap()
 		delegateKeys = newDelegateKeyMap()
@@ -103,6 +106,7 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
 		buttonBar:         bb,
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
+		svc:               svc,
 	}
 }
 

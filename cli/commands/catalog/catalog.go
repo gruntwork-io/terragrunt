@@ -2,65 +2,30 @@ package catalog
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const (
-	tempDirFormat = "catalog%x"
-)
-
+// Run is the main entry point for the catalog command.
+// It initializes the catalog service, retrieves modules, and then launches the TUI.
 func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) error {
-	repoURLs := []string{repoURL}
+	svc := catalog.NewCatalogService(opts)
 
-	if repoURL == "" {
-		config, err := config.ReadCatalogConfig(ctx, opts)
-		if err != nil {
-			return err
-		}
-
-		if config != nil && len(config.URLs) > 0 {
-			repoURLs = config.URLs
-		}
+	if repoURL != "" {
+		svc.WithRepoURL(repoURL)
 	}
 
-	repoURLs = util.RemoveDuplicatesFromList(repoURLs)
-
-	var modules module.Modules
-
-	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
-	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
-
-	for _, repoURL := range repoURLs {
-		path := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repoURL)))
-
-		repo, err := module.NewRepo(ctx, opts.Logger, repoURL, path, walkWithSymlinks, allowCAS)
-		if err != nil {
-			return err
-		}
-
-		repoModules, err := repo.FindModules(ctx)
-		if err != nil {
-			return err
-		}
-
-		opts.Logger.Infof("Found %d modules in repository %q", len(repoModules), repoURL)
-
-		modules = append(modules, repoModules...)
+	err := svc.Load(ctx)
+	if err != nil {
+		opts.Logger.Error(err)
 	}
 
-	if len(modules) == 0 {
-		return errors.Errorf("no modules found")
+	if len(svc.Modules()) == 0 {
+		return errors.New("no modules found by the catalog service")
 	}
 
-	return tui.Run(ctx, modules, opts)
+	return tui.Run(ctx, opts, svc)
 }
