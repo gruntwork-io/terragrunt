@@ -3,16 +3,16 @@ package catalog
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 // Run is the main entry point for the catalog command.
 // It initializes the catalog service, retrieves modules, and then launches the TUI.
 func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) error {
-	svc := service.NewCatalogService(opts)
+	svc := catalog.NewCatalogService(opts)
 
 	if repoURL != "" {
 		svc.WithRepoURL(repoURL)

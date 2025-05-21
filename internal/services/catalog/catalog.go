@@ -1,6 +1,6 @@
-// Package service provides the core functionality for the Terragrunt catalog command.
+// Package catalog provides the core functionality for the Terragrunt catalog command.
 // It handles the logic for fetching and processing module information from remote repositories.
-package service
+package catalog
 
 import (
 	"context"
@@ -8,11 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"

@@ -11,10 +11,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 )
 
 func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
@@ -188,7 +188,7 @@ func rendererErrCmd(err error) tea.Cmd {
 type scaffoldFinishedMsg struct{ err error }
 
 // Return a tea.Cmd that will scaffold the given module.
-func scaffoldModuleCmd(m model, svc service.CatalogService, module *module.Module) tea.Cmd {
+func scaffoldModuleCmd(m model, svc catalog.CatalogService, module *module.Module) tea.Cmd {
 	return tea.Exec(command.NewScaffold(m.terragruntOptions, svc, module), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})

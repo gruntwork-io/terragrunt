@@ -6,8 +6,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service/module"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -15,10 +15,10 @@ import (
 type Scaffold struct {
 	module            *module.Module
 	terragruntOptions *options.TerragruntOptions
-	svc               service.CatalogService
+	svc               catalog.CatalogService
 }
 
-func NewScaffold(opts *options.TerragruntOptions, svc service.CatalogService, module *module.Module) *Scaffold {
+func NewScaffold(opts *options.TerragruntOptions, svc catalog.CatalogService, module *module.Module) *Scaffold {
 	return &Scaffold{
 		module:            module,
 		terragruntOptions: opts,
