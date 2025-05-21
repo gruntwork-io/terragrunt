@@ -58,7 +58,7 @@ func TestMockUpdateLockfile(t *testing.T) {
 		expectedLockfile string
 	}{
 		{
-			[]Provider{}, // placeholder, will be set below
+			[]Provider{},
 			``,
 			`
 provider "registry.terraform.io/hashicorp/aws" {
@@ -73,7 +73,7 @@ provider "registry.terraform.io/hashicorp/aws" {
 `,
 		},
 		{
-			[]Provider{}, // placeholder, will be set below
+			[]Provider{},
 			`
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.37.0"
@@ -136,7 +136,6 @@ provider "registry.terraform.io/hashicorp/template" {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			// Set up providers for this test case
 			switch i {
 			case 0:
 				tc.providers = []Provider{
