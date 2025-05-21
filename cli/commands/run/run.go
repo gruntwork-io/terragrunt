@@ -29,6 +29,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -131,9 +132,22 @@ func run(ctx context.Context, terragruntOptions *options.TerragruntOptions, targ
 
 	terragruntOptions.Errors = errConfig
 
-	terragruntOptionsClone, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
-	if err != nil {
-		return err
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var terragruntOptionsClone *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, terragruntOptions.TerragruntConfigPath)
+	if ok {
+		terragruntOptionsClone = found
+	} else {
+		var err error
+
+		terragruntOptionsClone, err = terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
+		if err != nil {
+			return err
+		}
+
+		optsCache.Put(ctx, terragruntOptions.TerragruntConfigPath, terragruntOptionsClone)
 	}
 
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
@@ -672,7 +686,7 @@ func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.Te
 		return nil
 	}
 
-	initOptions, err := prepareInitOptions(terragruntOptions)
+	initOptions, err := prepareInitOptions(ctx, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -689,11 +703,24 @@ func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.Te
 	return nil
 }
 
-func prepareInitOptions(terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, error) {
+func prepareInitOptions(ctx context.Context, terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
-	initOptions, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
-	if err != nil {
-		return nil, err
+
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var initOptions *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, terragruntOptions.TerragruntConfigPath)
+	if ok {
+		initOptions = found
+	} else {
+		var err error
+		initOptions, err = terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		optsCache.Put(ctx, terragruntOptions.TerragruntConfigPath, initOptions)
 	}
 
 	initOptions.TerraformCliArgs = []string{tf.CommandNameInit}

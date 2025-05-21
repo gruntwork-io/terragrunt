@@ -665,9 +665,22 @@ func getOutputJSONWithCaching(ctx *ParsingContext, targetConfig string) ([]byte,
 //
 // That way, everything in that dependency happens within its own ctx.
 func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath string) (*options.TerragruntOptions, error) {
-	targetOptions, err := ctx.TerragruntOptions.CloneWithConfigPath(targetConfigPath)
-	if err != nil {
-		return nil, err
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, targetConfigPath)
+
+	var targetOptions *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, targetConfigPath)
+	if ok {
+		targetOptions = found
+	} else {
+		var err error
+
+		targetOptions, err = ctx.TerragruntOptions.CloneWithConfigPath(targetConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		optsCache.Put(ctx, targetConfigPath, targetOptions)
 	}
 
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath

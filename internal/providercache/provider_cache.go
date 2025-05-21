@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/gruntwork-io/terragrunt/config"
+	internalCache "github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -223,9 +225,22 @@ func (cache *ProviderCache) runTerraformWithCache(
 		return nil, err
 	}
 
-	cloneOpts, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
-	if err != nil {
-		return nil, err
+	optsCache := internalCache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var cloneOpts *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, opts.TerragruntConfigPath)
+	if ok {
+		cloneOpts = found
+	} else {
+		var err error
+
+		cloneOpts, err = opts.CloneWithConfigPath(opts.TerragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		optsCache.Put(ctx, opts.TerragruntConfigPath, cloneOpts)
 	}
 
 	cloneOpts.WorkingDir = opts.WorkingDir
@@ -315,9 +330,22 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 		args = append(args, tf.FlagNameNoColor)
 	}
 
-	cloneOpts, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
-	if err != nil {
-		return nil, err
+	optsCache := internalCache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var cloneOpts *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, opts.TerragruntConfigPath)
+	if ok {
+		cloneOpts = found
+	} else {
+		var err error
+
+		cloneOpts, err = opts.CloneWithConfigPath(opts.TerragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		optsCache.Put(ctx, opts.TerragruntConfigPath, cloneOpts)
 	}
 
 	cloneOpts.Writer = io.Discard

@@ -8,6 +8,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -133,9 +135,20 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 
 		// convert terragrunt output to json
 		if module.Module.outputJSONFile(module.Module.TerragruntOptions) != "" {
-			jsonOptions, err := module.Module.TerragruntOptions.CloneWithConfigPath(module.Module.TerragruntOptions.TerragruntConfigPath)
-			if err != nil {
-				return err
+			optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+			var jsonOptions *options.TerragruntOptions
+
+			found, ok := optsCache.Get(ctx, module.Module.TerragruntOptions.TerragruntConfigPath)
+			if ok {
+				jsonOptions = found
+			} else {
+				var err error
+
+				jsonOptions, err = module.Module.TerragruntOptions.CloneWithConfigPath(module.Module.TerragruntOptions.TerragruntConfigPath)
+				if err != nil {
+					return err
+				}
 			}
 
 			stdout := bytes.Buffer{}

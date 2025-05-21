@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -36,9 +37,22 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		rootDir = gitRoot
 	}
 
-	rootOptions, err := opts.CloneWithConfigPath(rootDir)
-	if err != nil {
-		return err
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var rootOptions *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, rootDir)
+	if ok {
+		rootOptions = found
+	} else {
+		var err error
+
+		rootOptions, err = opts.CloneWithConfigPath(rootDir)
+		if err != nil {
+			return err
+		}
+
+		optsCache.Put(ctx, rootDir, rootOptions)
 	}
 
 	rootOptions.WorkingDir = rootDir

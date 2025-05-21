@@ -10,6 +10,8 @@ import (
 
 	"encoding/hex"
 
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -113,9 +115,22 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 		return nil
 	}
 
-	terragruntOptionsCopy, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
-	if err != nil {
-		return err
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var terragruntOptionsCopy *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, terragruntOptions.TerragruntConfigPath)
+	if ok {
+		terragruntOptionsCopy = found
+	} else {
+		var err error
+
+		terragruntOptionsCopy, err = terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
+		if err != nil {
+			return err
+		}
+
+		optsCache.Put(ctx, terragruntOptions.TerragruntConfigPath, terragruntOptionsCopy)
 	}
 
 	terragruntOptionsCopy.Writer = io.Discard

@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -552,9 +553,22 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 
 	// Clone the options struct so we don't modify the original one. This is especially important as run --all operations
 	// happen concurrently.
-	opts, err := stack.terragruntOptions.CloneWithConfigPath(terragruntConfigPath)
-	if err != nil {
-		return nil, err
+
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var opts *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, terragruntConfigPath)
+	if ok {
+		opts = found
+	} else {
+		var err error
+		opts, err = stack.terragruntOptions.CloneWithConfigPath(terragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		optsCache.Put(ctx, terragruntConfigPath, opts)
 	}
 
 	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run --all
@@ -725,9 +739,22 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 			return externalDependencies, err
 		}
 
-		moduleOpts, err := stack.terragruntOptions.CloneWithConfigPath(config.GetDefaultConfigPath(module.Path))
-		if err != nil {
-			return nil, err
+		optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+		var moduleOpts *options.TerragruntOptions
+
+		found, ok := optsCache.Get(ctx, config.GetDefaultConfigPath(module.Path))
+		if ok {
+			moduleOpts = found
+		} else {
+			var err error
+
+			moduleOpts, err = stack.terragruntOptions.CloneWithConfigPath(config.GetDefaultConfigPath(module.Path))
+			if err != nil {
+				return externalDependencies, err
+			}
+
+			optsCache.Put(ctx, config.GetDefaultConfigPath(module.Path), moduleOpts)
 		}
 
 		for _, externalDependency := range externalDependencies {

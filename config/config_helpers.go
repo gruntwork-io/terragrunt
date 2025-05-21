@@ -700,10 +700,22 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 		ctx.TerragruntOptions.WorkingDir,
 	)
 
-	// We update the ctx of terragruntOptions to the config being read in.
-	opts, err := ctx.TerragruntOptions.CloneWithConfigPath(targetConfig)
-	if err != nil {
-		return cty.NilVal, err
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, targetConfig)
+
+	var opts *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, targetConfig)
+	if ok {
+		opts = found
+	} else {
+		var err error
+
+		opts, err = ctx.TerragruntOptions.CloneWithConfigPath(targetConfig)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		optsCache.Put(ctx, targetConfig, opts)
 	}
 
 	ctx = ctx.WithTerragruntOptions(opts)

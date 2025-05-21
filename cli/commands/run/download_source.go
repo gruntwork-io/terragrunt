@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-getter"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -73,9 +74,22 @@ func downloadTerraformSource(ctx context.Context, source string, opts *options.T
 		return nil, err
 	}
 
-	updatedTerragruntOptions, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
-	if err != nil {
-		return nil, err
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var updatedTerragruntOptions *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, opts.TerragruntConfigPath)
+	if ok {
+		updatedTerragruntOptions = found
+	} else {
+		var err error
+
+		updatedTerragruntOptions, err = opts.CloneWithConfigPath(opts.TerragruntConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		optsCache.Put(ctx, opts.TerragruntConfigPath, updatedTerragruntOptions)
 	}
 
 	opts.Logger.Debugf("Setting working directory to %s", terraformSource.WorkingDir)
@@ -122,9 +136,23 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *tf
 	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
 	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
 	// before and after hooks (if any).
-	terragruntOptionsForDownload, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
-	if err != nil {
-		return err
+
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, config.OptsCacheContextKey)
+
+	var terragruntOptionsForDownload *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, terragruntOptions.TerragruntConfigPath)
+	if ok {
+		terragruntOptionsForDownload = found
+	} else {
+		var err error
+
+		terragruntOptionsForDownload, err = terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
+		if err != nil {
+			return err
+		}
+
+		optsCache.Put(ctx, terragruntOptions.TerragruntConfigPath, terragruntOptionsForDownload)
 	}
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
