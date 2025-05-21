@@ -36,7 +36,7 @@ jobs:
       - attach_workspace:
           at: .
       - go/install:
-          version: "1.20.5"
+          version: "1.24.3"
       - run:
           name: Install sign-binary-helpers
           command: |
@@ -73,7 +73,7 @@ jobs:
       - attach_workspace:
           at: .
       - go/install:
-          version: "1.20.5"
+          version: "1.24.3"
       - run:
           name: Install sign-binary-helpers
           command: |
