@@ -6,8 +6,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/options"
 )

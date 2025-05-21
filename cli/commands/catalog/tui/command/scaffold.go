@@ -6,7 +6,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service/module"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/options"

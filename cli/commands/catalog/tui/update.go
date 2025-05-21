@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pkg/browser"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
 )
