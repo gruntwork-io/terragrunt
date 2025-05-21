@@ -163,10 +163,10 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 	tokenEnvName := "TF_TOKEN_" + strings.ReplaceAll(networkMirrorURL.Hostname(), ".", "_")
 	t.Setenv(tokenEnvName, token)
-	defer os.Unsetenv(tokenEnvName)
+	defer os.Unsetenv(tokenEnvName) //nolint:errcheck
 
 	t.Setenv(tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
-	defer os.Unsetenv(tf.EnvNameTFCLIConfigFile)
+	defer os.Unsetenv(tf.EnvNameTFCLIConfigFile) //nolint:errcheck
 
 	t.Logf("%s=%s", tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 

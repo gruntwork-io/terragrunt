@@ -32,7 +32,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash")
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/download-dir-version-file-local-hash", downloadDir)
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
@@ -56,7 +56,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 	fixturePath := absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash-failed")
 	canonicalURL := "file://" + fixturePath
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-local-hash-failed", downloadDir)
 
@@ -83,7 +83,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash")
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/download-dir-version-file-local-hash", downloadDir)
 
@@ -94,7 +94,8 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	defer f.Close()
 
 	// Modify content of file to simulate change
-	fmt.Fprintln(f, "CHANGED")
+	_, err = fmt.Fprintln(f, "CHANGED")
+	require.NoError(t, err)
 
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 }
@@ -167,7 +168,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world")
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World", false)
 }
@@ -177,7 +178,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *tes
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world")
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
 
@@ -189,7 +190,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world"
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World", false)
 }
@@ -199,7 +200,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *te
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world"
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
 
@@ -211,7 +212,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world?ref=v0.9.7"
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
 
@@ -223,7 +224,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world?ref=v0.9.7"
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
@@ -235,7 +236,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world?ref=v0.9.7"
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
@@ -247,7 +248,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	canonicalURL := "github.com/totallyfakedoesnotexist/notreal.git//foo?ref=v1.2.3"
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
@@ -267,7 +268,7 @@ func TestInvalidModulePath(t *testing.T) {
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world-version-remote/not-existing-path?ref=v0.9.7"
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
@@ -287,7 +288,7 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world/main.tf?ref=v0.9.7"
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	defer os.Remove(downloadDir) //nolint:errcheck
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
@@ -310,14 +311,14 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 
 	downloadDir := tmpDir(t)
 	t.Cleanup(func() {
-		os.RemoveAll(downloadDir)
+		os.RemoveAll(downloadDir) //nolint:errcheck
 	})
 
 	// used to test if an empty folder gets copied
 	testDir := tmpDir(t)
 	require.NoError(t, os.Mkdir(path.Join(testDir, "sub2"), 0700))
 	t.Cleanup(func() {
-		os.Remove(testDir)
+		os.Remove(testDir) //nolint:errcheck
 	})
 
 	testCases := []struct {
