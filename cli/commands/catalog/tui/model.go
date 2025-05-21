@@ -106,6 +106,7 @@ func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model
 		buttonBar:         bb,
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
+		svc:               svc,
 	}
 }
 
