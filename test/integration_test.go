@@ -16,7 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common"
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	print "github.com/gruntwork-io/terragrunt/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
@@ -113,6 +113,7 @@ const (
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
 	testFixtureTfPath                         = "fixtures/tf-path"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
+	testFixtureVersionInvocation              = "fixtures/version-invocation"
 
 	terraformFolder = ".terraform"
 
@@ -1958,7 +1959,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	// Verify that validate-all works as well.
 	showStdout.Reset()
 	showStderr.Reset()
-	err = helpers.RunTerragruntCommand(t, "terragrunt validate-all --non-interactive --working-dir "+dependent2Path, &showStdout, &showStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt validate-all --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -4132,4 +4133,38 @@ func TestTfPath(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Regexp(t, "(?i)(terraform|opentofu)", stdout+stderr)
+}
+
+func TestVersionIsInvokedOnlyOnce(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	// check that version command was invoked only once -version
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	assert.Len(t, matches, 1, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+}
+
+func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionInvocation)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
+	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }
