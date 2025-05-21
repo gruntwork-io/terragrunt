@@ -97,10 +97,11 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.pagerKeys.Choose):
 			// Choose changes the action depending on the active button
-			if m.activeButton == scaffoldBtn {
+			switch m.activeButton {
+			case scaffoldBtn:
 				m.state = scaffoldState
 				return m, scaffoldModuleCmd(m, m.svc, m.selectedModule)
-			} else {
+			case viewSourceBtn:
 				if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
 					m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.releaseNotesURL, err))
 				}
