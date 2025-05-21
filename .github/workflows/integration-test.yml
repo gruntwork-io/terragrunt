@@ -27,11 +27,11 @@ jobs:
             target: ./test
             setup_scripts:
               - .github/scripts/setup/terraform-switch-1-5.sh
-          - name: Fixtures Terraform 1.11
+          - name: Fixtures Terraform 1.12
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-11.sh
+              - .github/scripts/setup/terraform-switch-1-12.sh
           - name: SSH
             os: ubuntu
             target: ./...
@@ -77,14 +77,14 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
               - .github/scripts/setup/terraform-switch-1-5.sh
-          - name: AWS Terraform 1.11
+          - name: AWS Terraform 1.12
             os: ubuntu
             target: ./...
             tags: aws
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-11.sh
+              - .github/scripts/setup/terraform-switch-1-12.sh
           - name: AWSGCP
             os: ubuntu
             target: ./...
@@ -107,12 +107,12 @@ jobs:
               - .github/scripts/setup/windows-setup.ps1
             tags: windows
             run: '^TestWindows'
-          - name: Provider Cache Terraform 1.11
+          - name: Provider Cache Terraform 1.12
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/provider-cache.sh
-              - .github/scripts/setup/terraform-switch-1-11.sh
+              - .github/scripts/setup/terraform-switch-1-12.sh
           - name: Provider Cache Tofu
             os: ubuntu
             target: ./test

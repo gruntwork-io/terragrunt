@@ -5,4 +5,4 @@ gcloud = "520.0.0"
 awscli = "2.27.7"
 "go:golang.org/x/tools/cmd/goimports" = "latest"
 tflint = "0.47.0"
-terraform = ["1.5", "1.11"]
+terraform = ["1.5", "1.12"]
