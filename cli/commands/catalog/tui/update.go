@@ -141,7 +141,6 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				}
 			default:
 				m.terragruntOptions.Logger.Warnf("Unknown button pressed: %s", currentAction)
-				// Do nothing. This case should never happen, and if it does, we don't want to do anything.
 			}
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
