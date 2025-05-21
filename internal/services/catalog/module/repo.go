@@ -136,39 +136,40 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 var githubEnterprisePatternReg = regexp.MustCompile(githubEnterpriseRegex)
 var gitlabSelfHostedPatternReg = regexp.MustCompile(gitlabSelfHostedRegex)
 
-// ModuleURL returns the URL of the module in this repository. `moduleDir` is the path from the repository root.
-func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
+// ModuleURL returns the URL to view this module in a browser.
+// When the module provided is in a format that is not supported by the catalog, it returns an empty string.
+func (repo *Repo) ModuleURL(moduleDir string) string {
 	if repo.RemoteURL == "" {
-		return filepath.Join(repo.path, moduleDir), nil
+		return filepath.Join(repo.path, moduleDir)
 	}
 
 	remote, err := vcsurl.Parse(repo.RemoteURL)
 	if err != nil {
-		return "", errors.New(err)
+		return ""
 	}
 
 	// Simple, predictable hosts
 	switch remote.Host {
 	case githubHost:
-		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
 	case gitlabHost:
-		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
 	case bitbucketHost:
-		return fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.BranchName), nil
+		return fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.BranchName)
 	case azuredevHost:
-		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.BranchName), nil
+		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.BranchName)
 	}
 
 	// // Hosts that require special handling
 	if githubEnterprisePatternReg.MatchString(string(remote.Host)) {
-		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
 	}
 
 	if gitlabSelfHostedPatternReg.MatchString(string(remote.Host)) {
-		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir)
 	}
 
-	return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
+	return ""
 }
 
 type CloneOptions struct {
