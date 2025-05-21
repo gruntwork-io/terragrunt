@@ -9,12 +9,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/hashicorp/go-getter/v2"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/util"
@@ -708,19 +710,31 @@ func ReadStackConfigString(
 }
 
 // ParseStackConfig parses the stack configuration from the given file and values.
-func ParseStackConfig(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File, values *cty.Value) (*StackConfig, error) {
+func ParseStackConfig(ctx *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File, values *cty.Value) (*StackConfig, error) {
 	if values != nil {
-		parser = parser.WithValues(values)
+		ctx = ctx.WithValues(values)
 	}
 
 	//nolint:contextcheck
-	if err := processLocals(parser, opts, file); err != nil {
+	if err := processLocals(ctx, opts, file); err != nil {
 		return nil, errors.New(err)
 	}
-	//nolint:contextcheck
-	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
-	if err != nil {
-		return nil, errors.New(err)
+
+	evalCtxCache := cache.ContextCache[*hcl.EvalContext](ctx, EvalCtxCacheContextKey)
+
+	var evalParsingContext *hcl.EvalContext
+
+	if found, ok := evalCtxCache.Get(ctx, file.ConfigPath); ok {
+		evalParsingContext = found
+	} else {
+		var err error
+
+		evalParsingContext, err = createTerragruntEvalContext(ctx, file.ConfigPath)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		evalCtxCache.Put(ctx, file.ConfigPath, evalParsingContext)
 	}
 
 	config := &StackConfigFile{}
@@ -729,8 +743,10 @@ func ParseStackConfig(parser *ParsingContext, opts *options.TerragruntOptions, f
 	}
 
 	localsParsed := map[string]any{}
-	if parser.Locals != nil {
-		localsParsed, err = ctyhelper.ParseCtyValueToMap(*parser.Locals)
+	if ctx.Locals != nil {
+		var err error
+
+		localsParsed, err = ctyhelper.ParseCtyValueToMap(*ctx.Locals)
 		if err != nil {
 			return nil, errors.New(err)
 		}
@@ -806,11 +822,22 @@ func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory 
 	if err != nil {
 		return nil, errors.New(err)
 	}
-	//nolint:contextcheck
-	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
 
-	if err != nil {
-		return nil, errors.New(err)
+	evalCtxCache := cache.ContextCache[*hcl.EvalContext](ctx, EvalCtxCacheContextKey)
+
+	var evalParsingContext *hcl.EvalContext
+
+	if found, ok := evalCtxCache.Get(ctx, file.ConfigPath); ok {
+		evalParsingContext = found
+	} else {
+		var err error
+
+		evalParsingContext, err = createTerragruntEvalContext(parser, file.ConfigPath)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		evalCtxCache.Put(ctx, file.ConfigPath, evalParsingContext)
 	}
 
 	values := map[string]cty.Value{}

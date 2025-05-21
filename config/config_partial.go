@@ -135,9 +135,21 @@ type terragruntEngine struct {
 func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
 	errs := &errors.MultiError{}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
-	if err != nil {
-		return nil, err
+	evalCtxCache := cache.ContextCache[*hcl.EvalContext](ctx, EvalCtxCacheContextKey)
+
+	var evalParsingContext *hcl.EvalContext
+
+	if found, ok := evalCtxCache.Get(ctx, file.ConfigPath); ok {
+		evalParsingContext = found
+	} else {
+		var err error
+
+		evalParsingContext, err = createTerragruntEvalContext(ctx, file.ConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		evalCtxCache.Put(ctx, file.ConfigPath, evalParsingContext)
 	}
 
 	// Decode just the `include` and `import` blocks, and verify that it's allowed here
@@ -397,9 +409,19 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 	output.IsPartial = true
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
-	if err != nil {
-		return nil, err
+	evalCtxCache := cache.ContextCache[*hcl.EvalContext](ctx, EvalCtxCacheContextKey)
+
+	var evalParsingContext *hcl.EvalContext
+
+	if found, ok := evalCtxCache.Get(ctx, file.ConfigPath); ok {
+		evalParsingContext = found
+	} else {
+		evalParsingContext, err = createTerragruntEvalContext(ctx, file.ConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		evalCtxCache.Put(ctx, file.ConfigPath, evalParsingContext)
 	}
 
 	// Now loop through each requested block / component to decode from the terragrunt config, decode them, and merge

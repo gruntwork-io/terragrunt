@@ -1305,9 +1305,19 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		ctx.DecodedDependencies = retrievedOutputs
 	}
 
-	evalContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
-	if err != nil {
-		errs = errs.Append(err)
+	evalCtxCache := cache.ContextCache[*hcl.EvalContext](ctx, EvalCtxCacheContextKey)
+
+	var evalContext *hcl.EvalContext
+
+	if found, ok := evalCtxCache.Get(ctx, file.ConfigPath); ok {
+		evalContext = found
+	} else {
+		evalContext, err = createTerragruntEvalContext(ctx, file.ConfigPath)
+		if err != nil {
+			errs = errs.Append(err)
+		}
+
+		evalCtxCache.Put(ctx, file.ConfigPath, evalContext)
 	}
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
