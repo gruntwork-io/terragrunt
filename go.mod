@@ -256,7 +256,6 @@ require (
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/terraform-linters/tflint-plugin-sdk v0.22.0 // indirect
 	github.com/terraform-linters/tflint-ruleset-terraform v0.10.0 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect

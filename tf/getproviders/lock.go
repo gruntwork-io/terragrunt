@@ -1,5 +1,3 @@
-//go:generate mockery --name Provider
-
 package getproviders
 
 import (

@@ -1,6 +1,4 @@
-//go:build mocks
-
-package getproviders
+package getproviders_test
 
 import (
 	"context"
@@ -12,13 +10,12 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/tf/getproviders/mocks"
+	"github.com/gruntwork-io/terragrunt/tf/getproviders"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-func mockProviderUpdateLock(t *testing.T, address, version string) Provider {
+func mockProviderUpdateLock(t *testing.T, address, version string) getproviders.Provider {
 	packageDir, err := os.MkdirTemp("", "")
 	require.NoError(t, err)
 	file, err := os.Create(filepath.Join(packageDir, fmt.Sprintf("terraform-provider-v%s", version)))
@@ -39,26 +36,25 @@ func mockProviderUpdateLock(t *testing.T, address, version string) Provider {
 		document += fmt.Sprintf("%s %s\n", sha, packageName)
 	}
 
-	provider := new(mocks.Provider)
-	provider.On("Address").Return(address)
-	provider.On("Version").Return(version)
-	provider.On("PackageDir").Return(packageDir)
-	provider.On("Logger").Return(log.New())
-	provider.On("DocumentSHA256Sums", mock.Anything).Return([]byte(document), nil)
-
-	return provider
+	return &manualMockProvider{
+		addr:          address,
+		ver:           version,
+		pkgDir:        packageDir,
+		docSHA256Sums: []byte(document),
+		logger:        log.New(),
+	}
 }
 
 func TestMockUpdateLockfile(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		providers        []Provider
+		providers        []getproviders.Provider
 		initialLockfile  string
 		expectedLockfile string
 	}{
 		{
-			[]Provider{
+			[]getproviders.Provider{
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/aws", "5.37.0"),
 			},
 			``,
@@ -75,7 +71,7 @@ provider "registry.terraform.io/hashicorp/aws" {
 `,
 		},
 		{
-			[]Provider{
+			[]getproviders.Provider{
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/aws", "5.36.0"),
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/template", "2.2.0"),
 			},
@@ -151,7 +147,7 @@ provider "registry.terraform.io/hashicorp/template" {
 				require.NoError(t, err)
 			}
 
-			err = UpdateLockfile(context.Background(), workingDir, tc.providers)
+			err = getproviders.UpdateLockfile(context.Background(), workingDir, tc.providers)
 			require.NoError(t, err)
 
 			actualLockfile, err := os.ReadFile(lockfilePath)

@@ -1,5 +1,3 @@
-//go:generate mockery --name Provider
-
 // Package getproviders provides an interface for getting providers.
 package getproviders
 
