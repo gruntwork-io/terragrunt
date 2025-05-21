@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -48,12 +48,9 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 
 	repo.logger.Debugf("Found module in directory %q", moduleDir)
 
-	moduleURL, err := repo.ModuleURL(moduleDir)
-	if err != nil {
-		return nil, err
-	}
+	module.url = repo.ModuleURL(moduleDir)
 
-	module.url = moduleURL
+	repo.logger.Debugf("Module URL: %s", module.url)
 
 	modulePath := filepath.Join(module.repoPath, module.moduleDir)
 

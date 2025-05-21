@@ -6,8 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,49 +99,42 @@ func TestModuleURL(t *testing.T) {
 			repo:        newRepo(t, "https://github.com/acme/terraform-aws-modules"),
 			moduleDir:   ".",
 			expectedURL: "https://github.com/acme/terraform-aws-modules/tree/main/.",
-			expectedErr: nil,
 		},
 		{
 			name:        "github enterprise",
 			repo:        newRepo(t, "https://github.acme.com/acme/terraform-aws-modules"),
 			moduleDir:   ".",
 			expectedURL: "https://github.acme.com/acme/terraform-aws-modules/tree/main/.",
-			expectedErr: nil,
 		},
 		{
 			name:        "gitlab",
 			repo:        newRepo(t, "https://gitlab.com/acme/terraform-aws-modules"),
 			moduleDir:   ".",
 			expectedURL: "https://gitlab.com/acme/terraform-aws-modules/-/tree/main/.",
-			expectedErr: nil,
 		},
 		{
 			name:        "gitlab self-hosted",
 			repo:        newRepo(t, "https://gitlab.acme.com/acme/terraform-aws-modules"),
 			moduleDir:   ".",
 			expectedURL: "https://gitlab.acme.com/acme/terraform-aws-modules/-/tree/main/.",
-			expectedErr: nil,
 		},
 		{
 			name:        "bitbucket",
 			repo:        newRepo(t, "https://bitbucket.org/acme/terraform-aws-modules"),
 			moduleDir:   ".",
 			expectedURL: "https://bitbucket.org/acme/terraform-aws-modules/browse/.?at=main",
-			expectedErr: nil,
 		},
 		{
 			name:        "azuredev",
 			repo:        newRepo(t, "https://dev.azure.com/acme/terraform-aws-modules"),
 			moduleDir:   ".",
 			expectedURL: "https://dev.azure.com/_git/acme/terraform-aws-modules?path=.&version=GBmain",
-			expectedErr: nil,
 		},
 		{
 			name:        "unsupported",
 			repo:        newRepo(t, "https://fake.com/acme/terraform-aws-modules"),
 			moduleDir:   ".",
 			expectedURL: "",
-			expectedErr: errors.Errorf("hosting: %q is not supported yet", "fake.com"),
 		},
 	}
 
@@ -150,13 +142,8 @@ func TestModuleURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			url, err := tc.repo.ModuleURL(tc.moduleDir)
+			url := tc.repo.ModuleURL(tc.moduleDir)
 			assert.Equal(t, tc.expectedURL, url)
-			if tc.expectedErr != nil {
-				assert.EqualError(t, err, tc.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
 		})
 	}
 }
