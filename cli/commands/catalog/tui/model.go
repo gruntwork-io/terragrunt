@@ -45,21 +45,21 @@ func (b button) String() string {
 }
 
 type model struct {
-	list              list.Model
-	terragruntOptions *options.TerragruntOptions
-	svc               catalog.CatalogService
-	selectedModule    *module.Module
-	delegateKeys      *delegateKeyMap
-	buttonBar         *buttonbar.ButtonBar
-	releaseNotesURL   string
-	pagerKeys         pagerKeyMap
-	listKeys          list.KeyMap
-	viewport          viewport.Model
-	activeButton      button
-	state             sessionState
-	height            int
-	width             int
-	ready             bool
+	list                list.Model
+	terragruntOptions   *options.TerragruntOptions
+	svc                 catalog.CatalogService
+	selectedModule      *module.Module
+	delegateKeys        *delegateKeyMap
+	buttonBar           *buttonbar.ButtonBar
+	currentPagerButtons []button
+	pagerKeys           pagerKeyMap
+	listKeys            list.KeyMap
+	viewport            viewport.Model
+	activeButton        button
+	state               sessionState
+	height              int
+	width               int
+	ready               bool
 }
 
 func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model {

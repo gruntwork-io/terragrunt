@@ -18,7 +18,10 @@ import (
 )
 
 func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
+	var (
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+	)
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -56,6 +59,25 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 					m.viewport.SetContent(content)
 
+					// Dynamically create button bar based on module URL
+					var pagerButtons []button
+
+					buttonNames := []string{}
+
+					// Always add scaffold button
+					pagerButtons = append(pagerButtons, scaffoldBtn)
+					buttonNames = append(buttonNames, scaffoldBtn.String())
+
+					if selectedModule.URL() != "" {
+						pagerButtons = append(pagerButtons, viewSourceBtn)
+						buttonNames = append(buttonNames, viewSourceBtn.String())
+					}
+
+					m.currentPagerButtons = pagerButtons
+					m.buttonBar = buttonbar.New(buttonNames)
+					// Ensure the button bar is initialized
+					cmds = append(cmds, m.buttonBar.Init())
+
 					// advance state
 					m.selectedModule = selectedModule
 					m.state = pagerState
@@ -76,6 +98,11 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	// Handle keyboard and mouse events for the list
 	m.list, cmd = m.list.Update(msg)
 
+	// Append any commands from button bar initialization
+	if len(cmds) > 0 {
+		return m, tea.Batch(cmd, tea.Batch(cmds...))
+	}
+
 	return m, cmd
 }
 
@@ -87,23 +114,30 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		bb, cmd := m.buttonBar.Update(msg)
-		m.buttonBar = bb.(*buttonbar.ButtonBar)
+		bbModel, barCmd := m.buttonBar.Update(msg)
+		if newButtonBar, ok := bbModel.(*buttonbar.ButtonBar); ok {
+			m.buttonBar = newButtonBar
+		}
 
-		if cmd != nil {
-			cmds = append(cmds, cmd)
+		if barCmd != nil {
+			cmds = append(cmds, barCmd)
 		}
 
 		switch {
 		case key.Matches(msg, m.pagerKeys.Choose):
 			// Choose changes the action depending on the active button
-			switch m.activeButton {
+			// m.activeButton is set by ActiveBtnMsg, which is mapped from m.currentPagerButtons
+			currentAction := m.activeButton
+
+			switch currentAction {
 			case scaffoldBtn:
 				m.state = scaffoldState
 				return m, scaffoldModuleCmd(m, m.svc, m.selectedModule)
-			case viewSourceBtn:
-				if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
-					m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.releaseNotesURL, err))
+			case viewSourceBtn: // This case is only reachable if viewSourceBtn is in m.currentPagerButtons
+				if m.selectedModule.URL() != "" { // Defensive check
+					if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
+						m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.selectedModule.URL(), err))
+					}
 				}
 			}
 
@@ -117,7 +151,10 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case buttonbar.ActiveBtnMsg:
-		m.activeButton = button(msg)
+		// Map the index from buttonbar.ActiveBtnMsg to the actual button type
+		if int(msg) >= 0 && int(msg) < len(m.currentPagerButtons) {
+			m.activeButton = m.currentPagerButtons[int(msg)]
+		}
 	}
 
 	// Handle keyboard and mouse events in the viewport
