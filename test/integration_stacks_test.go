@@ -249,6 +249,32 @@ func TestStacksApplyClean(t *testing.T) {
 	assert.NoDirExists(t, path)
 }
 
+func TestStackCleanRecursively(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureNestedStacks)
+	helpers.CreateGitRepo(t, gitPath)
+	live := util.JoinPath(gitPath, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+live)
+	require.NoError(t, err)
+
+	liveV2 := util.JoinPath(gitPath, "live-v2")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+liveV2)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack clean --working-dir "+gitPath)
+	require.NoError(t, err)
+
+	assert.NoDirExists(t, util.JoinPath(live, ".terragrunt-stack"))
+	assert.NoDirExists(t, util.JoinPath(liveV2, ".terragrunt-stack"))
+
+	assert.Contains(t, stderr, "Deleting stack directory: live/.terragrunt-stack")
+	assert.Contains(t, stderr, "Deleting stack directory: live-v2/.terragrunt-stack")
+}
+
 func TestStacksDestroy(t *testing.T) {
 	t.Parallel()
 
