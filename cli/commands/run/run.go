@@ -103,9 +103,9 @@ func run(ctx context.Context, terragruntOptions *options.TerragruntOptions, targ
 		return err
 	}
 
-	if err := CheckVersionConstraints(ctx, terragruntOptions); err != nil {
-		return target.runErrorCallback(terragruntOptions, nil, err)
-	}
+	// if err := CheckVersionConstraints(ctx, terragruntOptions); err != nil {
+	// 	return target.runErrorCallback(terragruntOptions, nil, err)
+	// }
 
 	terragruntConfig, err := config.ReadTerragruntConfig(ctx, terragruntOptions, config.DefaultParserOptions(terragruntOptions))
 	if err != nil {
@@ -243,9 +243,9 @@ func run(ctx context.Context, terragruntOptions *options.TerragruntOptions, targ
 		}
 	}
 
-	if err := CheckFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
-		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
-	}
+	// if err := CheckFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
+	// 	return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
+	// }
 
 	if terragruntOptions.CheckDependentModules {
 		allowDestroy := confirmActionWithDependentModules(ctx, terragruntOptions, terragruntConfig)

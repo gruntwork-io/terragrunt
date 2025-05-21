@@ -106,7 +106,7 @@ var (
 
 		return []hclparse.Option{
 			hclparse.WithDiagnosticsWriter(writer, opts.Logger.Formatter().DisabledColors()),
-			hclparse.WithFileUpdate(updateBareIncludeBlock),
+			// hclparse.WithFileUpdate(updateBareIncludeBlock),
 			hclparse.WithLogger(opts.Logger),
 		}
 	}
