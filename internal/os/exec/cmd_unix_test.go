@@ -60,7 +60,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 
 	time.Sleep(time.Second)
 	start := time.Now()
-	cmd.Process.Signal(os.Interrupt)
+	cmd.Process.Signal(os.Interrupt) //nolint:errcheck
 
 	err := <-runChannel
 	require.Error(t, err)
@@ -98,7 +98,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 			case err = <-runChannel:
 				return interrupts, err
 			default:
-				cmd.Process.Signal(os.Interrupt)
+				cmd.Process.Signal(os.Interrupt) //nolint:errcheck
 				interrupts++
 			}
 		}

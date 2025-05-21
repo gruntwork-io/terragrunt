@@ -103,7 +103,6 @@ issues:
         - dupl
         - gocyclo
         - lll
-        - errcheck
         - wsl
         - mnd
         - unparam

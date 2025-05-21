@@ -33,7 +33,7 @@ func TestGraph(t *testing.T) {
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
-	modules.WriteDot(&stdout, terragruntOptions)
+	require.NoError(t, modules.WriteDot(&stdout, terragruntOptions))
 	expected := strings.TrimSpace(`
 digraph {
 	"a" ;
@@ -79,7 +79,7 @@ func TestGraphTrimPrefix(t *testing.T) {
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsWithConfigPath("/config/terragrunt.hcl")
-	modules.WriteDot(&stdout, terragruntOptions)
+	require.NoError(t, modules.WriteDot(&stdout, terragruntOptions))
 	expected := strings.TrimSpace(`
 digraph {
 	"a" ;
@@ -122,7 +122,7 @@ func TestGraphFlagExcluded(t *testing.T) {
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
-	modules.WriteDot(&stdout, terragruntOptions)
+	require.NoError(t, modules.WriteDot(&stdout, terragruntOptions))
 	expected := strings.TrimSpace(`
 digraph {
 	"a" [color=red];

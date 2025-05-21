@@ -111,11 +111,11 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 	}
 
 	go func() {
-		server.Serve(ln)
+		server.Serve(ln) //nolint:errcheck
 	}()
 	go func() {
 		<-ctx.Done()
-		server.Shutdown(ctx)
+		server.Shutdown(ctx) //nolint:errcheck
 	}()
 
 	return &url.URL{
@@ -208,10 +208,10 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 
 	zipFile, err := os.Create(filepath.Join(providerDir, provider.archiveName()))
 	require.NoError(t, err)
-	defer zipFile.Close()
+	defer zipFile.Close() //nolint:errcheck
 
 	zipWriter := zip.NewWriter(zipFile)
-	defer zipWriter.Close()
+	defer zipWriter.Close() //nolint:errcheck
 
 	fileInfo, err := file.Stat()
 	require.NoError(t, err)
@@ -286,16 +286,16 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 
 	// pem encode
 	caPEM := new(bytes.Buffer)
-	pem.Encode(caPEM, &pem.Block{
+	require.NoError(t, pem.Encode(caPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caBytes,
-	})
+	}))
 
 	caPrivKeyPEM := new(bytes.Buffer)
-	pem.Encode(caPrivKeyPEM, &pem.Block{
+	require.NoError(t, pem.Encode(caPrivKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
-	})
+	}))
 
 	// set up our server certificate
 	cert := &x509.Certificate{
@@ -323,16 +323,16 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	require.NoError(t, err)
 
 	certPEM := new(bytes.Buffer)
-	pem.Encode(certPEM, &pem.Block{
+	require.NoError(t, pem.Encode(certPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
-	})
+	}))
 
 	certPrivKeyPEM := new(bytes.Buffer)
-	pem.Encode(certPrivKeyPEM, &pem.Block{
+	require.NoError(t, pem.Encode(certPrivKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
-	})
+	}))
 
 	serverCert, err := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
 	require.NoError(t, err)

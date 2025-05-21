@@ -176,7 +176,7 @@ func BenchmarkGitOperations(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		defer os.Remove(tmpFile)
+		defer os.Remove(tmpFile) //nolint:errcheck
 		defer tmp.Close()
 
 		b.ResetTimer()

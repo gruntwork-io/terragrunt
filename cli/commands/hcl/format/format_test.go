@@ -21,7 +21,7 @@ func TestHCLFmt(t *testing.T) {
 	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
+		os.RemoveAll(tmpPath) //nolint:errcheck
 	})
 
 	require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestHCLFmtErrors(t *testing.T) {
 
 	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-errors", t.Name(), func(path string) bool { return true })
 	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
+		os.RemoveAll(tmpPath) //nolint:errcheck
 	})
 	require.NoError(t, err)
 
@@ -137,7 +137,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-check", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
+		os.RemoveAll(tmpPath) //nolint:errcheck
 	})
 
 	require.NoError(t, err)
@@ -183,7 +183,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-check-errors", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
+		os.RemoveAll(tmpPath) //nolint:errcheck
 	})
 
 	require.NoError(t, err)
@@ -229,7 +229,7 @@ func TestHCLFmtFile(t *testing.T) {
 	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
-		os.RemoveAll(tmpPath)
+		os.RemoveAll(tmpPath) //nolint:errcheck
 	})
 
 	require.NoError(t, err)
@@ -319,7 +319,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
 	tmpPath, err := files.CopyFolderToTemp("../../../../test/fixtures/hclfmt-heredoc", t.Name(), func(path string) bool { return true })
-	defer os.RemoveAll(tmpPath)
+	defer os.RemoveAll(tmpPath) //nolint:errcheck
 	require.NoError(t, err)
 
 	expected, err := os.ReadFile("../../../../test/fixtures/hclfmt-heredoc/expected.hcl")

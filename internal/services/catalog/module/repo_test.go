@@ -55,8 +55,8 @@ func TestFindModules(t *testing.T) {
 		t.Run(tc.repoPath, func(t *testing.T) {
 			t.Parallel()
 			// Unfortunately, we are unable to commit the `.git` directory. We have to temporarily rename it while running the tests.
-			os.Rename(filepath.Join(tc.repoPath, "gitdir"), filepath.Join(tc.repoPath, ".git"))
-			defer os.Rename(filepath.Join(tc.repoPath, ".git"), filepath.Join(tc.repoPath, "gitdir"))
+			os.Rename(filepath.Join(tc.repoPath, "gitdir"), filepath.Join(tc.repoPath, ".git"))       //nolint:errcheck
+			defer os.Rename(filepath.Join(tc.repoPath, ".git"), filepath.Join(tc.repoPath, "gitdir")) //nolint:errcheck
 
 			ctx := context.Background()
 
