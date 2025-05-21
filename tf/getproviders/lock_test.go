@@ -16,9 +16,11 @@ import (
 )
 
 func mockProviderUpdateLock(t *testing.T, address, version string) getproviders.Provider {
-	packageDir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-	file, err := os.Create(filepath.Join(packageDir, fmt.Sprintf("terraform-provider-v%s", version)))
+	t.Helper()
+
+	packageDir := t.TempDir()
+
+	file, err := os.Create(filepath.Join(packageDir, "terraform-provider-v"+version))
 	require.NoError(t, err)
 	_, err = file.WriteString(fmt.Sprintf("mock-provider-content-%s-%s", address, version))
 	require.NoError(t, err)
@@ -49,16 +51,16 @@ func TestMockUpdateLockfile(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		providers        []getproviders.Provider
 		initialLockfile  string
 		expectedLockfile string
+		providers        []getproviders.Provider
 	}{
 		{
-			[]getproviders.Provider{
+			providers: []getproviders.Provider{
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/aws", "5.37.0"),
 			},
-			``,
-			`
+			initialLockfile: ``,
+			expectedLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.37.0"
   constraints = "5.37.0"
@@ -71,11 +73,11 @@ provider "registry.terraform.io/hashicorp/aws" {
 `,
 		},
 		{
-			[]getproviders.Provider{
+			providers: []getproviders.Provider{
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/aws", "5.36.0"),
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/template", "2.2.0"),
 			},
-			`
+			initialLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.37.0"
   constraints = "5.37.0"
@@ -96,7 +98,7 @@ provider "registry.terraform.io/hashicorp/azurerm" {
   ]
 }
 `,
-			`
+			expectedLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.36.0"
   constraints = "5.36.0"
@@ -134,8 +136,7 @@ provider "registry.terraform.io/hashicorp/template" {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			workingDir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
+			workingDir := t.TempDir()
 			lockfilePath := filepath.Join(workingDir, ".terraform.lock.hcl")
 
 			if tc.initialLockfile != "" {
@@ -147,7 +148,7 @@ provider "registry.terraform.io/hashicorp/template" {
 				require.NoError(t, err)
 			}
 
-			err = getproviders.UpdateLockfile(context.Background(), workingDir, tc.providers)
+			err := getproviders.UpdateLockfile(context.Background(), workingDir, tc.providers)
 			require.NoError(t, err)
 
 			actualLockfile, err := os.ReadFile(lockfilePath)

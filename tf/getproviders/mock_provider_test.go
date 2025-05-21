@@ -8,12 +8,12 @@ import (
 
 // manualMockProvider is a manually implemented mock for the Provider interface.
 type manualMockProvider struct {
+	docSHA256SumsErr error
+	logger           log.Logger
 	addr             string
 	ver              string
 	pkgDir           string
 	docSHA256Sums    []byte
-	docSHA256SumsErr error
-	logger           log.Logger
 }
 
 func (m *manualMockProvider) Address() string {
