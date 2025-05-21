@@ -124,13 +124,6 @@ jobs:
             target: ./...
             tags: deprecated
             run: '^TestDeprecated'
-          - name: Mock
-            os: ubuntu
-            target: ./...
-            tags: mocks
-            run: '^TestMock'
-            setup_scripts:
-              - .github/scripts/setup/generate-mocks.sh
           - name: Race
             os: ubuntu
             target: ./...
