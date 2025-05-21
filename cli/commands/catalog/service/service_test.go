@@ -61,13 +61,16 @@ func TestListModules_HappyPath(t *testing.T) {
 	opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
 
 	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
-	modulesResult, err := svc.ListModules(context.Background())
 
+	err = svc.Load(context.Background())
 	require.NoError(t, err)
-	require.NotNil(t, modulesResult)
-	assert.Len(t, modulesResult, 2)
-	assert.Equal(t, "module1-title", modulesResult[0].Title())
-	assert.Equal(t, "module2-title", modulesResult[1].Title())
+
+	modules := svc.Modules()
+
+	require.NotNil(t, modules)
+	assert.Len(t, modules, 2)
+	assert.Equal(t, "module1-title", modules[0].Title())
+	assert.Equal(t, "module2-title", modules[1].Title())
 }
 
 func TestListModules_NoRepositoriesConfigured(t *testing.T) {
@@ -81,7 +84,7 @@ func TestListModules_NoRepositoriesConfigured(t *testing.T) {
 
 	// No customNewRepoFunc needed as it should error before trying to create a repo.
 	svc := service.NewCatalogService(opts)
-	_, err := svc.ListModules(context.Background())
+	err := svc.Load(context.Background())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no catalog URLs provided")
@@ -107,12 +110,14 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 	}
 
 	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/only-repo")
-	modulesResult, err := svc.ListModules(context.Background())
+	err := svc.Load(context.Background())
+
+	modules := svc.Modules()
 
 	require.NoError(t, err)
-	require.NotNil(t, modulesResult)
-	assert.Len(t, modulesResult, 1)
-	assert.Equal(t, "moduleA-title", modulesResult[0].Title())
+	require.NotNil(t, modules)
+	assert.Len(t, modules, 1)
+	assert.Equal(t, "moduleA-title", modules[0].Title())
 }
 
 func TestListModules_ErrorFromNewRepo(t *testing.T) {
@@ -127,7 +132,7 @@ func TestListModules_ErrorFromNewRepo(t *testing.T) {
 	}
 
 	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/error-repo")
-	_, err := svc.ListModules(context.Background())
+	err := svc.Load(context.Background())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to find modules in some repositories", "Error message mismatch: %v", err)
@@ -158,7 +163,7 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 	}
 
 	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/find-error-repo")
-	_, err := svc.ListModules(context.Background())
+	err := svc.Load(context.Background())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
@@ -179,9 +184,11 @@ func TestListModules_NoModulesFound(t *testing.T) {
 	}
 
 	svc := service.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/empty-repo")
-	returnedModules, err := svc.ListModules(context.Background())
-
+	err := svc.Load(context.Background())
 	require.Error(t, err)
+
+	modules := svc.Modules()
+
 	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
-	assert.Empty(t, returnedModules, "Should return empty modules slice on 'no modules found' error")
+	assert.Empty(t, modules, "Should return empty modules slice on 'no modules found' error")
 }

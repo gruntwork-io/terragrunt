@@ -30,9 +30,20 @@ const (
 // CatalogService defines the interface for the catalog service.
 // It's responsible for fetching and processing module information.
 type CatalogService interface {
-	// ListModules retrieves all modules from the configured repositories.
-	// It takes the context and returns the found modules or an error.
-	ListModules(ctx context.Context) (module.Modules, error)
+	// Load retrieves all modules from the configured repositories.
+	// It stores discovered modules internally.
+	Load(ctx context.Context) error
+
+	// Modules returns the discovered modules.
+	Modules() module.Modules
+
+	// WithNewRepoFunc allows overriding the default function used to create repository instances.
+	// This is primarily useful for testing.
+	WithNewRepoFunc(fn NewRepoFunc) *catalogServiceImpl
+
+	// WithRepoURL allows overriding the repository URL.
+	// This is primarily useful for testing.
+	WithRepoURL(repoURL string) *catalogServiceImpl
 }
 
 // catalogServiceImpl is the concrete implementation of CatalogService.
@@ -41,6 +52,7 @@ type catalogServiceImpl struct {
 	opts    *options.TerragruntOptions
 	newRepo NewRepoFunc
 	repoURL string
+	modules module.Modules
 }
 
 // NewCatalogService creates a new instance of catalogServiceImpl with default settings.
@@ -69,29 +81,29 @@ func (s *catalogServiceImpl) WithRepoURL(repoURL string) *catalogServiceImpl {
 	return s
 }
 
-// ListModules implements the CatalogService interface.
+// Load implements the CatalogService interface.
 // It contains the core logic for cloning/updating repositories and finding Terragrunt modules within them.
-func (s *catalogServiceImpl) ListModules(ctx context.Context) (module.Modules, error) {
+func (s *catalogServiceImpl) Load(ctx context.Context) error {
 	repoURLs := []string{s.repoURL}
 
 	// If no specific repoURL was provided to the service, try to read from catalog config.
 	if s.repoURL == "" {
 		catalogCfg, err := config.ReadCatalogConfig(ctx, s.opts)
 		if err != nil {
-			return nil, errors.Errorf("failed to read catalog configuration: %w", err)
+			return errors.Errorf("failed to read catalog configuration: %w", err)
 		}
 
 		if catalogCfg != nil && len(catalogCfg.URLs) > 0 {
 			repoURLs = catalogCfg.URLs
 		} else {
-			return nil, errors.Errorf("no catalog URLs provided")
+			return errors.Errorf("no catalog URLs provided")
 		}
 	}
 
 	// Remove duplicates
 	repoURLs = util.RemoveDuplicatesFromList(repoURLs)
 	if len(repoURLs) == 0 || (len(repoURLs) == 1 && repoURLs[0] == "") {
-		return nil, errors.Errorf("no valid repository URLs specified after configuration and flag processing")
+		return errors.Errorf("no valid repository URLs specified after configuration and flag processing")
 	}
 
 	var allModules module.Modules
@@ -140,13 +152,19 @@ func (s *catalogServiceImpl) ListModules(ctx context.Context) (module.Modules, e
 		allModules = append(allModules, repoModules...)
 	}
 
+	s.modules = allModules
+
 	if len(errs) > 0 {
-		return allModules, errors.Errorf("failed to find modules in some repositories: %v", errs)
+		return errors.Errorf("failed to find modules in some repositories: %v", errs)
 	}
 
 	if len(allModules) == 0 {
-		return allModules, errors.Errorf("no modules found in any of the configured repositories")
+		return errors.Errorf("no modules found in any of the configured repositories")
 	}
 
-	return allModules, nil
+	return nil
+}
+
+func (s *catalogServiceImpl) Modules() module.Modules {
+	return s.modules
 }

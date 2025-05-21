@@ -12,26 +12,20 @@ import (
 // Run is the main entry point for the catalog command.
 // It initializes the catalog service, retrieves modules, and then launches the TUI.
 func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) error {
-	catalogService := service.NewCatalogService(opts)
+	svc := service.NewCatalogService(opts)
 
 	if repoURL != "" {
-		catalogService.WithRepoURL(repoURL)
+		svc.WithRepoURL(repoURL)
 	}
 
-	modules, err := catalogService.ListModules(ctx)
+	err := svc.Load(ctx)
 	if err != nil {
-		// The service layer now handles scenarios like no repos configured, returning an error.
-		// It also handles logging for individual repo errors if it continues processing others.
-		return errors.Errorf("failed to list modules: %w", err)
+		opts.Logger.Error(err)
 	}
 
-	// The service returns an error if no modules are found after processing all repositories.
-	// This check might be redundant if the service guarantees an error, but good for safety.
-	if len(modules) == 0 {
-		return errors.Errorf("no modules found by the catalog service")
+	if len(svc.Modules()) == 0 {
+		return errors.New("no modules found by the catalog service")
 	}
 
-	opts.Logger.Debugf("Total modules collected by service: %d. Launching TUI.", len(modules))
-
-	return tui.Run(ctx, modules, opts)
+	return tui.Run(ctx, opts, svc)
 }

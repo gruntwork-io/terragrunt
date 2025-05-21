@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/service"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -60,8 +61,9 @@ type model struct {
 	ready             bool
 }
 
-func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
+func newModel(opts *options.TerragruntOptions, svc service.CatalogService) model {
 	var (
+		modules      = svc.Modules()
 		items        = make([]list.Item, 0, len(modules))
 		listKeys     = newListKeyMap()
 		delegateKeys = newDelegateKeyMap()
