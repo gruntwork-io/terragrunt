@@ -799,6 +799,42 @@ $ terragrunt find --dependencies --format=json | jq
 ]
 ```
 
+##### Find Include
+
+You can also include include configuration in the output using the `--include` flag. When enabled, the JSON output will include the configurations of the `include` block in the discovered units.
+
+```bash
+$ terragrunt find --include --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "bar",
+    "include": {
+      "cloud": "cloud.hcl"
+    }
+  },
+  {
+    "type": "unit",
+    "path": "foo"
+  }
+]
+```
+
+You can use tools like `jq` to filter the output and get all the units that include a specific configuration.
+
+```bash
+$ terragrunt find --include --format=json | jq '[.[] | select(.include.cloud == "cloud.hcl")]'
+[
+  {
+    "type": "unit",
+    "path": "bar",
+    "include": {
+      "cloud": "cloud.hcl"
+    }
+  }
+]
+```
+
 ##### Find Exclude
 
 You can also include exclude configuration in the output using the `--exclude` flag. When enabled, the JSON output will include the configurations of the `exclude` block in the discovered units.

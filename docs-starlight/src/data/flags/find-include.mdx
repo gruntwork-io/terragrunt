@@ -1,0 +1,41 @@
+---
+name: include
+description: Include `include` configuration in the output.
+type: boolean
+env:
+  - TG_INCLUDE
+---
+
+When enabled, JSON output will include the configurations of the `include` block of discovered units.
+
+```bash
+$ terragrunt find --include --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "bar",
+    "include": {
+      "cloud": "cloud.hcl"
+    }
+  },
+  {
+    "type": "unit",
+    "path": "foo"
+  }
+]
+```
+
+You can use tools like `jq` to filter the output and get all the units that include a specific configuration.
+
+```bash
+$ terragrunt find --include --format=json | jq '[.[] | select(.include.cloud == "cloud.hcl")]'
+[
+  {
+    "type": "unit",
+    "path": "bar",
+    "include": {
+      "cloud": "cloud.hcl"
+    }
+  }
+]
+```
