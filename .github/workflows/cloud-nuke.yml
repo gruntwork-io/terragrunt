@@ -41,6 +41,8 @@ jobs:
                 --force \
                 --log-level debug \
                 --resource-type s3 \
+                --resource-type vpc \
+                --resource-type ec2 \
                 --region us-east-1 \
                 --region us-west-2 \
                 --older-than 24h \
