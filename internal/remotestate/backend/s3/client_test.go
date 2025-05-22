@@ -3,7 +3,6 @@
 package s3_test
 
 import (
-	"context"
 	"reflect"
 	"strconv"
 	"sync"
@@ -70,7 +69,7 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			err := client.CreateLockTableIfNecessary(context.Background(), tableName, nil)
+			err := client.CreateLockTableIfNecessary(t.Context(), tableName, nil)
 			assert.NoError(t, err, "Unexpected error: %v", err)
 		}()
 	}
@@ -85,7 +84,7 @@ func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	tableName := "terragrunt-table-does-not-exist"
 	retries := 5
 
-	err := client.WaitForTableToBeActiveWithRandomSleep(context.Background(), tableName, retries, 1*time.Millisecond, 500*time.Millisecond)
+	err := client.WaitForTableToBeActiveWithRandomSleep(t.Context(), tableName, retries, 1*time.Millisecond, 500*time.Millisecond)
 
 	errorMatchs := errors.IsError(err, s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries})
 	assert.True(t, errorMatchs, "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
@@ -101,7 +100,7 @@ func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 		AssertCanWriteToTable(t, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
-		err := client.CreateLockTableIfNecessary(context.Background(), tableName, nil)
+		err := client.CreateLockTableIfNecessary(t.Context(), tableName, nil)
 		require.NoError(t, err, "Unexpected error: %v", err)
 	})
 }
@@ -119,7 +118,7 @@ func TestAwsTableTagging(t *testing.T) {
 		assertTags(t, tags, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
-		err := client.CreateLockTableIfNecessary(context.Background(), tableName, nil)
+		err := client.CreateLockTableIfNecessary(t.Context(), tableName, nil)
 		require.NoError(t, err, "Unexpected error: %v", err)
 	})
 }
@@ -176,7 +175,7 @@ func UniqueTableNameForTest() string {
 func CleanupTableForTest(t *testing.T, tableName string, client *s3backend.Client) {
 	t.Helper()
 
-	err := client.DeleteTable(context.Background(), tableName)
+	err := client.DeleteTable(t.Context(), tableName)
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
@@ -204,7 +203,7 @@ func WithLockTableTagged(t *testing.T, tags map[string]string, client *s3backend
 
 	tableName := UniqueTableNameForTest()
 
-	err := client.CreateLockTableIfNecessary(context.Background(), tableName, tags)
+	err := client.CreateLockTableIfNecessary(t.Context(), tableName, tags)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	defer CleanupTableForTest(t, tableName, client)
 

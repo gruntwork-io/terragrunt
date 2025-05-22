@@ -2,7 +2,6 @@ package flags_test
 
 import (
 	"bytes"
-	"context"
 	"flag"
 	"fmt"
 	"strings"
@@ -155,7 +154,7 @@ func TestFlag_Evaluate(t *testing.T) {
 			t.Parallel()
 
 			logger, output := newLogger()
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = log.ContextWithLogger(ctx, logger)
 
 			for _, testFlag := range tc.flags {

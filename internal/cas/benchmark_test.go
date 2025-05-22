@@ -130,7 +130,7 @@ func BenchmarkGitOperations(b *testing.B) {
 	repoDir := b.TempDir()
 	git := cas.NewGitRunner().WithWorkDir(repoDir)
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	if err := git.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
 		b.Fatal(err)

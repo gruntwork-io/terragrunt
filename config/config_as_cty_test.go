@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"sort"
 	"testing"
 
@@ -230,7 +229,7 @@ func TestStackUnitCtyReading(t *testing.T) {
 	t.Parallel()
 
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx := config.NewParsingContext(context.Background(), options)
+	ctx := config.NewParsingContext(t.Context(), options)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -249,7 +248,7 @@ func TestStackLocalsCtyReading(t *testing.T) {
 	t.Parallel()
 
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx := config.NewParsingContext(context.Background(), options)
+	ctx := config.NewParsingContext(t.Context(), options)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)

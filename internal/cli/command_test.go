@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"testing"
@@ -179,7 +178,7 @@ func TestCommandRun(t *testing.T) {
 			tc := tcFn(action, skip)
 
 			app := &cli.App{App: &urfaveCli.App{Writer: io.Discard}}
-			ctx := cli.NewAppContext(context.Background(), app, tc.args)
+			ctx := cli.NewAppContext(t.Context(), app, tc.args)
 
 			err := tc.command.Run(ctx, tc.args)
 			if tc.expectedErr != nil {

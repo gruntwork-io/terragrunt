@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -29,7 +28,7 @@ stack "projects" {
 
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(context.Background(), opts)
+	ctx := config.NewParsingContext(t.Context(), opts)
 	terragruntStackConfig, err := config.ReadStackConfigString(ctx, opts, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
@@ -102,7 +101,7 @@ stack "network" {
 }
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(context.Background(), opts)
+	ctx := config.NewParsingContext(t.Context(), opts)
 	terragruntStackConfig, err := config.ReadStackConfigString(ctx, opts, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
@@ -160,7 +159,7 @@ locals {
 }
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(context.Background(), opts)
+	ctx := config.NewParsingContext(t.Context(), opts)
 	_, err := config.ReadStackConfigString(ctx, opts, config.DefaultStackFile, invalidCfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid multi-line string")

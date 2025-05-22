@@ -102,7 +102,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 func TestIntegration_TreeStorage(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	l := log.New()
 

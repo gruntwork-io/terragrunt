@@ -1,7 +1,6 @@
 package format_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,7 +34,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
-	err = format.Run(context.Background(), tgOptions)
+	err = format.Run(t.Context(), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -125,7 +124,7 @@ func TestHCLFmtErrors(t *testing.T) {
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = format.Run(context.Background(), newTgOptions)
+			err = format.Run(t.Context(), newTgOptions)
 			require.Error(t, err)
 		})
 	}
@@ -151,7 +150,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(context.Background(), tgOptions)
+	err = format.Run(t.Context(), tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -197,7 +196,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(context.Background(), tgOptions)
+	err = format.Run(t.Context(), tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -243,7 +242,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = format.Run(context.Background(), tgOptions)
+	err = format.Run(t.Context(), tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -307,7 +306,7 @@ func TestHCLFmtStdin(t *testing.T) {
 
 	// format hcl from stdin
 	tgOptions.HclFromStdin = true
-	err = format.Run(context.Background(), tgOptions)
+	err = format.Run(t.Context(), tgOptions)
 	require.NoError(t, err)
 
 	formatted, err := os.ReadFile(tempStdoutFile.Name())
@@ -330,7 +329,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(context.Background(), tgOptions)
+	err = format.Run(t.Context(), tgOptions)
 	require.NoError(t, err)
 
 	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")

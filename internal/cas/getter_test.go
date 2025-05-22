@@ -19,7 +19,7 @@ func TestCASGetterMode(t *testing.T) {
 	testURL, err := url.Parse("https://github.com/gruntwork-io/terragrunt")
 	require.NoError(t, err)
 
-	mode, err := g.Mode(context.Background(), testURL)
+	mode, err := g.Mode(t.Context(), testURL)
 	require.NoError(t, err)
 	assert.Equal(t, getter.ModeDir, mode)
 }
@@ -28,7 +28,7 @@ func TestCASGetterGetFile(t *testing.T) {
 	t.Parallel()
 
 	g := cas.NewCASGetter(nil, nil, &cas.CloneOptions{})
-	err := g.GetFile(context.Background(), &getter.Request{})
+	err := g.GetFile(t.Context(), &getter.Request{})
 	require.Error(t, err)
 	assert.Equal(t, "GetFile not implemented", err.Error())
 }

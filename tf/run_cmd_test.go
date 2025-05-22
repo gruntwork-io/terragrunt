@@ -5,7 +5,6 @@ package tf_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -69,7 +68,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := tf.RunCommandWithOutput(context.Background(), terragruntOptions, "same")
+	out, err := tf.RunCommandWithOutput(t.Context(), terragruntOptions, "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
