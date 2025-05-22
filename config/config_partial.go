@@ -575,7 +575,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			// we use the value they set in their configuration.
 			//
 			// Otherwise, we assume that they've explicitly set the path they want to use via the --tf-path flag.
-			if decoded.TerraformBinary != nil && ctx.TerragruntOptions.TerraformPath == options.TofuDefaultPath {
+			if decoded.TerraformBinary != nil && ctx.TerragruntOptions.TerraformPath == options.DefaultWrappedPath {
 				output.TerraformBinary = *decoded.TerraformBinary
 			}
 
