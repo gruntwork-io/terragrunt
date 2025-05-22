@@ -53,6 +53,9 @@ type Options struct {
 	// Exclude determines if exclude configurations should be included in the output.
 	Exclude bool
 
+	// Include determines if Include configurations should be included in the output.
+	Include bool
+
 	// External determines if external dependencies should be included in the output.
 	External bool
 }

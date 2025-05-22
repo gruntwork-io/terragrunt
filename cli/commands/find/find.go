@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -35,6 +36,10 @@ func Run(ctx context.Context, opts *Options) error {
 
 	if opts.Exclude {
 		d = d.WithParseExclude()
+	}
+
+	if opts.Include {
+		d = d.WithParseInclude()
 	}
 
 	if opts.QueueConstructAs != "" {
@@ -124,6 +129,7 @@ type FoundConfig struct {
 	Path string               `json:"path"`
 
 	Exclude *config.ExcludeConfig `json:"exclude,omitempty"`
+	Include map[string]string     `json:"include,omitempty"`
 
 	Dependencies []string `json:"dependencies,omitempty"`
 }
@@ -159,6 +165,16 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 
 		if opts.Exclude && config.Parsed != nil && config.Parsed.Exclude != nil {
 			foundCfg.Exclude = config.Parsed.Exclude.Clone()
+		}
+
+		if opts.Include && config.Parsed != nil && config.Parsed.ProcessedIncludes != nil {
+			foundCfg.Include = map[string]string{}
+			for _, v := range config.Parsed.ProcessedIncludes {
+				foundCfg.Include[v.Name], err = util.GetPathRelativeTo(v.Path, opts.RootWorkingDir)
+				if err != nil {
+					errs = append(errs, errors.New(err))
+				}
+			}
 		}
 
 		if !opts.Dependencies || len(config.Dependencies) == 0 {
