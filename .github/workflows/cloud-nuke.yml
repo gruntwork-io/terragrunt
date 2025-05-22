@@ -1,4 +1,4 @@
-name: Daily Cloud Nuke
+name: Hourly Cloud Nuke
 on:
   schedule:
     - cron: "0 * * * *" # Runs every hour
