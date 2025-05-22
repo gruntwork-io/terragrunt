@@ -73,4 +73,3 @@ jobs:
           detailed_summary: 'true'
           include_time_in_summary: 'true'
           group_suite: 'true'
-
