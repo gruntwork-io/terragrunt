@@ -168,7 +168,7 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 		}
 
 		if opts.Include && config.Parsed != nil && config.Parsed.ProcessedIncludes != nil {
-			foundCfg.Include = map[string]string{}
+			foundCfg.Include = make(map[string]string, len(config.Parsed.ProcessedIncludes))
 			for _, v := range config.Parsed.ProcessedIncludes {
 				foundCfg.Include[v.Name], err = util.GetPathRelativeTo(v.Path, opts.RootWorkingDir)
 				if err != nil {
