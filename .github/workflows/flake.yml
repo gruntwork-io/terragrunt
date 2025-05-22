@@ -3,10 +3,6 @@ on:
   release:
     types: [prereleased]
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'The tag name of the release'
-        required: true
 
 jobs:
   test:
