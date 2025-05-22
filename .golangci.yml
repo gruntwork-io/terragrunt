@@ -98,6 +98,8 @@ linters:
       checks:
         - all
         - -SA9005
+        - -QF1008
+        - -ST1001
     unparam:
       check-exported: false
   exclusions:

@@ -272,7 +272,7 @@ func outputText(opts *Options, configs FoundConfigs) error {
 
 // shouldColor returns true if the output should be colored.
 func shouldColor(opts *Options) bool {
-	return !(opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected())
+	return !opts.TerragruntOptions.Logger.Formatter().DisabledColors() && !isStdoutRedirected()
 }
 
 // isStdoutRedirected returns true if the stdout is redirected.

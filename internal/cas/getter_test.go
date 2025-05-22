@@ -1,7 +1,6 @@
 package cas_test
 
 import (
-	"context"
 	"net/url"
 	"testing"
 
@@ -108,7 +107,7 @@ func TestCASGetterGet(t *testing.T) {
 			tmpDir := t.TempDir()
 
 			res, err := client.Get(
-				context.TODO(),
+				t.Context(),
 				&getter.Request{
 					Src: tt.url,
 					Dst: tmpDir,

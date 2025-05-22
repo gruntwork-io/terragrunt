@@ -547,7 +547,7 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 
 			fooSlice := toStringSlice(t, foo)
 
-			assert.EqualValues(t, tc.expectedFooInput, fooSlice, "For string '%s' include %v and options %v", tc.str, tc.include, tc.terragruntOptions)
+			assert.Equal(t, tc.expectedFooInput, fooSlice, "For string '%s' include %v and options %v", tc.str, tc.include, tc.terragruntOptions)
 		})
 	}
 }
@@ -591,7 +591,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			assert.True(t, containsFoo)
 
 			fooSlice := toStringSlice(t, foo)
-			assert.EqualValues(t, tc.expectedFooInput, fooSlice, "For string '%s' include %v and options %v", tc.str, tc.include, tc.terragruntOptions)
+			assert.Equal(t, tc.expectedFooInput, fooSlice, "For string '%s' include %v and options %v", tc.str, tc.include, tc.terragruntOptions)
 		})
 	}
 }
@@ -804,7 +804,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			test, containsTest := inputs["test"]
 			assert.True(t, containsTest)
 
-			assert.EqualValues(t, tc.expected, test, "For hcl '%s' include %v and options %v", tc.input, nil, terragruntOptions)
+			assert.Equal(t, tc.expected, test, "For hcl '%s' include %v and options %v", tc.input, nil, terragruntOptions)
 		})
 	}
 }
