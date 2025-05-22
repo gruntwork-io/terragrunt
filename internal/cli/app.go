@@ -208,12 +208,10 @@ func (app *App) setupAutocomplete(arguments []string) error {
 	}
 
 	for _, arg := range arguments {
-		switch {
-		// Check for autocomplete flags
-		case arg == "-"+app.AutocompleteInstallFlag || arg == "--"+app.AutocompleteInstallFlag:
+		switch arg {
+		case "-" + app.AutocompleteInstallFlag, "--" + app.AutocompleteInstallFlag:
 			isAutocompleteInstall = true
-
-		case arg == "-"+app.AutocompleteUninstallFlag || arg == "--"+app.AutocompleteUninstallFlag:
+		case "-" + app.AutocompleteUninstallFlag, "--" + app.AutocompleteUninstallFlag:
 			isAutocompleteUninstall = true
 		}
 	}

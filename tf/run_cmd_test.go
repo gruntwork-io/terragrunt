@@ -5,7 +5,6 @@ package tf_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -69,7 +68,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := tf.RunCommandWithOutput(context.Background(), terragruntOptions, "same")
+	out, err := tf.RunCommandWithOutput(t.Context(), terragruntOptions, "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
@@ -88,7 +87,7 @@ func assertOutputs(
 
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		assert.Equal(t, len(expectedAllOutputs), len(allOutputs))
+		assert.Len(t, allOutputs, len(expectedAllOutputs))
 		for i := range allOutputs {
 			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
 		}

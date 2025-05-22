@@ -1,7 +1,6 @@
 package telemetry_test
 
 import (
-	"context"
 	"io"
 	"testing"
 
@@ -17,7 +16,7 @@ import (
 func TestNewTraceExporter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	http, err := otlptracehttp.New(ctx)
 	require.NoError(t, err)

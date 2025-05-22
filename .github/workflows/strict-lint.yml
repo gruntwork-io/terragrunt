@@ -45,5 +45,5 @@ jobs:
         path: ${{ steps.go-cache-paths.outputs.golanci-lint-cache }}
         key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
 
-    - name: Lint
+    - name: Strict Lint
       run: make run-strict-lint

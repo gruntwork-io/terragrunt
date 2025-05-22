@@ -1,7 +1,6 @@
 package runall_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -20,7 +19,7 @@ func TestMissingRunAllArguments(t *testing.T) {
 
 	tgOptions.TerraformCommand = ""
 
-	err = runall.Run(context.Background(), tgOptions)
+	err = runall.Run(t.Context(), tgOptions)
 	require.Error(t, err)
 
 	var missingCommand runall.MissingCommand

@@ -3,7 +3,6 @@
 package getproviders
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -161,7 +160,7 @@ provider "registry.terraform.io/hashicorp/template" {
 				require.NoError(t, err)
 			}
 
-			err = UpdateLockfile(context.Background(), workingDir, tc.providers)
+			err = UpdateLockfile(t.Context(), workingDir, tc.providers)
 			require.NoError(t, err)
 
 			actualLockfile, err := os.ReadFile(lockfilePath)

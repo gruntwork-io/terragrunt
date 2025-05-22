@@ -1,7 +1,6 @@
 package run_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -255,7 +254,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), terraformSource, terragruntOptions, terragruntConfig)
 	require.Error(t, err)
 	var downloadingTerraformSourceErr run.DownloadingTerraformSourceErr
 	ok := errors.As(err, &downloadingTerraformSourceErr)
@@ -363,7 +362,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), terraformSource, terragruntOptions, terragruntConfig)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
@@ -404,7 +403,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 		},
 	}
 
-	err = run.PopulateTerraformVersion(context.Background(), terragruntOptions)
+	err = run.PopulateTerraformVersion(t.Context(), terragruntOptions)
 	require.NoError(t, err)
 	return terraformSource, terragruntOptions, terragruntConfig, err
 }

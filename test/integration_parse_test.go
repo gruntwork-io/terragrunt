@@ -8,7 +8,6 @@
 package test_test
 
 import (
-	"context"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -51,7 +50,7 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			opts.Experiments.ExperimentMode()
 
-			ctx := config.NewParsingContext(context.Background(), opts)
+			ctx := config.NewParsingContext(t.Context(), opts)
 
 			cfg, _ := config.ParseConfigFile(ctx, file, nil)
 

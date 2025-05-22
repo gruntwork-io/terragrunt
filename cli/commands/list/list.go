@@ -321,7 +321,7 @@ func outputLong(opts *Options, configs ListedConfigs) error {
 
 // shouldColor returns true if the output should be colored.
 func shouldColor(opts *Options) bool {
-	return !(opts.TerragruntOptions.Logger.Formatter().DisabledColors() || isStdoutRedirected())
+	return !opts.TerragruntOptions.Logger.Formatter().DisabledColors() && !isStdoutRedirected()
 }
 
 // renderLong renders the configurations in a long format.

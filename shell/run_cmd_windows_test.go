@@ -25,7 +25,7 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	errCh := make(chan error)
 	expectedWait := 5
 
-	ctx, cancel := context.WithCancelCause(context.Background())
+	ctx, cancel := context.WithCancelCause(t.Context())
 
 	cmdPath := "testdata\\test_sigint_wait.bat"
 

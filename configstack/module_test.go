@@ -2,7 +2,6 @@ package configstack_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"runtime"
 	"strings"
@@ -237,7 +236,7 @@ func TestRunModulesNoModules(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
@@ -257,7 +256,7 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -279,7 +278,7 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.False(t, aRan)
 }
@@ -300,7 +299,7 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA}
-	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesReverseOrder(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -321,7 +320,7 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA}
-	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesIgnoreOrder(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -343,7 +342,7 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -365,7 +364,7 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA}
-	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesReverseOrder(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -387,7 +386,7 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA}
-	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesIgnoreOrder(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -426,7 +425,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -468,7 +467,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModules(context.Background(), opts, 1)
+	err = modules.RunModules(t.Context(), opts, 1)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -510,7 +509,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesReverseOrder(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -552,7 +551,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesIgnoreOrder(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -595,7 +594,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	require.NoError(t, optsErr)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err := modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err := modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -640,7 +639,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -682,7 +681,7 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -734,7 +733,7 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -777,7 +776,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesReverseOrder(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -819,7 +818,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesIgnoreOrder(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -864,7 +863,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -913,7 +912,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -958,7 +957,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesReverseOrder(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrA)
 
 	assert.False(t, aRan)
@@ -1001,7 +1000,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesIgnoreOrder(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -1047,7 +1046,7 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -1090,7 +1089,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
-	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModulesIgnoreOrder(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 
 	assert.True(t, aRan)
@@ -1159,7 +1158,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	require.NoError(t, err)
 
 	assert.True(t, aRan)
@@ -1245,7 +1244,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	require.NoError(t, err)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG}
-	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
+	err = modules.RunModules(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
 
 	assert.True(t, aRan)
@@ -1322,7 +1321,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	require.NoError(t, optsErr)
 
 	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
-	err := modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
+	err := modules.RunModulesReverseOrder(t.Context(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrB, expectedErrA)
 
 	assert.False(t, aRan)

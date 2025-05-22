@@ -649,7 +649,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 	providersPath := util.JoinPath(terragruntOptions.DataDir(), "providers")
 	terraformLockPath := util.JoinPath(terragruntOptions.WorkingDir, tf.TerraformLockFile)
 
-	return !(util.FileExists(pluginsPath) || util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
+	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
 
 // Runs the terraform init command to perform what is referred to as Auto-Init in the README.md.

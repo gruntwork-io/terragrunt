@@ -1,7 +1,6 @@
 package run_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -44,7 +43,7 @@ func TestAction(t *testing.T) {
 
 			fn := run.Action(tc.opts)
 
-			ctx := cli.NewAppContext(context.Background(), cli.NewApp(), nil).
+			ctx := cli.NewAppContext(t.Context(), cli.NewApp(), nil).
 				NewCommandContext(run.NewCommand(tc.opts), []string{"bar"})
 
 			err := fn(ctx)

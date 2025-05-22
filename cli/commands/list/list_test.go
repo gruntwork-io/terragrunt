@@ -1,7 +1,6 @@
 package list_test
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -68,7 +67,7 @@ func TestBasicDiscovery(t *testing.T) {
 	// Set the writer in options
 	opts.Writer = w
 
-	err = list.Run(context.Background(), opts)
+	err = list.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -151,7 +150,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	// Set the writer in options
 	opts.Writer = w
 
-	err = list.Run(context.Background(), opts)
+	err = list.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -233,7 +232,7 @@ dependency "unit2" {
 	// Set the writer in options
 	opts.Writer = w
 
-	err = list.Run(context.Background(), opts)
+	err = list.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -310,7 +309,7 @@ dependency "unit3" {
 	// Set the writer in options
 	opts.Writer = w
 
-	err = list.Run(context.Background(), opts)
+	err = list.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe
@@ -419,7 +418,7 @@ dependency "C" {
 	// Set the writer in options
 	opts.Writer = w
 
-	err = list.Run(context.Background(), opts)
+	err = list.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	// Close the write end of the pipe

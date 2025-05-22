@@ -1,113 +1,192 @@
+version: "2"
 run:
-  timeout: 2m
+  go: "1.24"
   issues-exit-code: 1
   tests: true
-  go: "1.23"
 output:
   formats:
-    - format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
-
-linters-settings:
-  wrapcheck:
-    ignorePackageGlobs:
-      - github.com/gruntwork-io/terragrunt/*
-  lll:
-    line-length: 140
-  staticcheck:
-    checks:
-      - all
-      - '-SA9005'
-  errcheck:
-    check-type-assertions: false
-    check-blank: false
-    exclude-functions:
-      - (*os.File).Close
-  errorlint:
-    errorf: true
-    asserts: true
-    comparison: true
-  gofmt:
-    simplify: true
-  dupl:
-    threshold: 120
-  goconst:
-    min-len: 3
-    min-occurrences: 5
-  revive:
-    min-confidence: 0.8
-  unused:
-    check-exported: false
-  unparam:
-    check-exported: false
-  nakedret:
-    max-func-lines: 20
-  gocritic:
-    disabled-checks:
-      - regexpMust
-      - rangeValCopy
-      - appendAssign
-      - hugeParam
-    enabled-tags:
-      - performance
-    disabled-tags:
-      - experimental
-  govet:
-    enable:
-      - fieldalignment
-
+    text:
+      path: stdout
+      print-linter-name: true
+      print-issued-lines: true
 linters:
   enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - cyclop
+    - decorder
+    - dogsled
     - dupl
-    - errcheck
+    - durationcheck
+    - err113
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forbidigo
+    - forcetypeassert
+    - funlen
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecknoglobals
+    - gochecknoinits
+    - gochecksumtype
+    - gocognit
     - goconst
     - gocritic
-    - goimports
-    - mnd
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
+    - godot
+    - godox
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosmopolitan
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - interfacebloat
+    - intrange
+    - ireturn
+    - lll
+    - loggercheck
+    - maintidx
+    - makezero
+    - mirror
     - misspell
+    - mnd
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - reassign
+    - recvcheck
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagalign
+    - tagliatelle
+    - testableexamples
+    - testifylint
+    - testpackage
+    - thelper
+    - tparallel
     - unconvert
-    - unused
     - unparam
-  enable-all: false
+    - usestdlibvars
+    - usetesting
+    - varnamelen
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    - wsl
+    - zerologlint
   disable:
     - depguard
-    - gosec
-    - gocyclo
     - exhaustruct
-  fast: false
-  mnd:
-    ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
-  presets:
-    - bugs
-    - performance
-    - unused
-    - test
-    # These two are only in the strict lint right now
-    - style
-    - complexity
-
+    - gocyclo
+    - gosec
+  settings:
+    dupl:
+      threshold: 120
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+      exclude-functions:
+        - (*os.File).Close
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+    goconst:
+      min-len: 3
+      min-occurrences: 5
+    gocritic:
+      disabled-checks:
+        - regexpMust
+        - rangeValCopy
+        - appendAssign
+        - hugeParam
+      enabled-tags:
+        - performance
+      disabled-tags:
+        - experimental
+    govet:
+      enable:
+        - fieldalignment
+    lll:
+      line-length: 140
+    nakedret:
+      max-func-lines: 20
+    staticcheck:
+      checks:
+        - all
+        - -SA9005
+    unparam:
+      check-exported: false
+    wrapcheck:
+      ignore-package-globs:
+        - github.com/gruntwork-io/terragrunt/*
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - gocyclo
+          - lll
+          - mnd
+          - unparam
+          - wsl
+        path: _test\.go
+    paths:
+      - docs
+      - _ci
+      - .github
+      - .circleci
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-dirs:
-    - docs
-    - _ci
-    - .github
-    - .circleci
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - dupl
-        - gocyclo
-        - lll
-        - errcheck
-        - wsl
-        - mnd
-        - unparam
-
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
+formatters:
+  enable:
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+  exclusions:
+    generated: lax
+    paths:
+      - docs
+      - _ci
+      - .github
+      - .circleci
+      - third_party$
+      - builtin$
+      - examples$

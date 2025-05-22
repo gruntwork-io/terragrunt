@@ -401,7 +401,7 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 func doesGCSBucketObjectExist(t *testing.T, bucketName, prefix string) bool {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{
 		RemoteStateConfigGCS: gcsbackend.RemoteStateConfigGCS{
@@ -434,7 +434,7 @@ func doesGCSBucketObjectExist(t *testing.T, bucketName, prefix string) bool {
 func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{
 		RemoteStateConfigGCS: gcsbackend.RemoteStateConfigGCS{
@@ -458,7 +458,7 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	bucket := client.Bucket(bucketName)
 
 	attrs, err := bucket.Attrs(ctx)
@@ -479,7 +479,7 @@ func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName 
 func createGCSBucket(t *testing.T, projectID string, location string, bucketName string) {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
 
@@ -504,7 +504,7 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 func deleteGCSBucket(t *testing.T, bucketName string) {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
 

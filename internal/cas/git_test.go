@@ -1,7 +1,6 @@
 package cas_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +14,7 @@ func TestGitRunner_LsRemote(t *testing.T) {
 	t.Parallel()
 	runner := cas.NewGitRunner()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
@@ -48,7 +47,7 @@ func TestGitRunner_LsRemote(t *testing.T) {
 func TestGitRunner_Clone(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("shallow clone", func(t *testing.T) {
 		t.Parallel()
@@ -138,7 +137,7 @@ func TestGetRepoName(t *testing.T) {
 func TestGitRunner_LsTree(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
