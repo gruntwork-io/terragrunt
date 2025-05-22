@@ -251,7 +251,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		if tc.downloadDir != "" {
 			entries, err := os.ReadDir(tc.downloadDir)
 			require.NoError(t, err)
-			assert.Equal(t, len(appDirs), len(entries))
+			assert.Len(t, entries, len(appDirs))
 		}
 
 		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, tc.downloadDir), &stdout, &stderr)

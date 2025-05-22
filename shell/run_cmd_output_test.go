@@ -82,7 +82,7 @@ func assertOutputs(
 
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		assert.Equal(t, len(expectedAllOutputs), len(allOutputs))
+		assert.Len(t, allOutputs, len(expectedAllOutputs))
 		for i := range allOutputs {
 			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
 		}

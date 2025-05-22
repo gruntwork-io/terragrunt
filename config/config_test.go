@@ -1755,14 +1755,14 @@ inputs = {
 	assert.Equal(t, terragruntConfig.Exclude.If, rereadConfig.Exclude.If)
 
 	// Test errors block
-	assert.Equal(t, len(terragruntConfig.Errors.Retry), len(rereadConfig.Errors.Retry))
+	assert.Len(t, terragruntConfig.Errors.Retry, len(rereadConfig.Errors.Retry))
 	if len(terragruntConfig.Errors.Retry) > 0 {
 		assert.Equal(t, terragruntConfig.Errors.Retry[0].Label, rereadConfig.Errors.Retry[0].Label)
 		assert.Equal(t, terragruntConfig.Errors.Retry[0].MaxAttempts, rereadConfig.Errors.Retry[0].MaxAttempts)
 		assert.Equal(t, terragruntConfig.Errors.Retry[0].SleepIntervalSec, rereadConfig.Errors.Retry[0].SleepIntervalSec)
 		assert.Equal(t, terragruntConfig.Errors.Retry[0].RetryableErrors, rereadConfig.Errors.Retry[0].RetryableErrors)
 	}
-	assert.Equal(t, len(terragruntConfig.Errors.Ignore), len(rereadConfig.Errors.Ignore))
+	assert.Len(t, terragruntConfig.Errors.Ignore, len(rereadConfig.Errors.Ignore))
 	if len(terragruntConfig.Errors.Ignore) > 0 {
 		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Label, rereadConfig.Errors.Ignore[0].Label)
 		assert.Equal(t, terragruntConfig.Errors.Ignore[0].IgnorableErrors, rereadConfig.Errors.Ignore[0].IgnorableErrors)
