@@ -1,20 +1,30 @@
-name: Base Tests
-
+name: Flake
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
+  release:
+    types: [prereleased]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'The tag name of the release'
+        required: true
 
 jobs:
   test:
-    name: Test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}-latest
+    name: Flake Test (${{ matrix.flake.name }})
+    runs-on: ${{ matrix.flake.os }}-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos]
+        flake:
+          - name: Ubuntu Base tests
+            os: ubuntu
+            count: 10
+            timeout: 45m
+          - name: macOS Base tests
+            os: macos
+            count: 10
+            timeout: 45m
+
     env:
       MISE_PROFILE: cicd
 
@@ -34,7 +44,6 @@ jobs:
       - id: go-cache-paths
         run: |
           echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
-          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Go Build Cache
@@ -43,29 +52,25 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-base-test-${{ hashFiles('**/go.sum') }}
 
-      - name: Go Mod Cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-go-mod-base-test-${{ hashFiles('**/go.sum') }}
-
       - name: Run Tests
         id: run-tests
         run: |
           set -o pipefail
-          go test -v ./... -timeout 45m | tee >(go-junit-report -set-exit-code > result.xml)
+          go test -v ./... -count=${COUNT} -timeout ${TIMEOUT} | tee >(go-junit-report -set-exit-code > result.xml)
         shell: bash
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ matrix.flake.count }}
+          TIMEOUT: ${{ matrix.flake.timeout }}
 
-      - name: Upload Report (${{ matrix.os }})
+      - name: Upload Report (${{ matrix.flake.name }})
         uses: actions/upload-artifact@v4
         with:
-          name: test-report-${{ matrix.os }}
+          name: test-report-${{ matrix.flake.name }}
           path: result.xml
 
-      - name: Display Test Results (${{ matrix.os }})
+      - name: Display Test Results (${{ matrix.flake.name }})
         uses: mikepenz/action-junit-report@v5
         if: always()
         with:
