@@ -33,8 +33,8 @@ const versionParts = 3
 
 var versionFiles = []string{".terraform-version", ".tool-versions", "mise.toml", ".mise.toml"}
 
-// CheckVersionConstraints checks the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
-// following settings on terragruntOptions:
+// CheckVersionConstraints checks the version constraints of both terragrunt and terraform.
+// Note that as a side effect this will set the following settings on terragruntOptions:
 // - TerraformPath
 // - TerraformVersion
 // - FeatureFlags
@@ -51,17 +51,16 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
-		return err
-	}
-
-	terraformVersionConstraint := DefaultTerraformVersionConstraint
 	if partialTerragruntConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
-	}
+		if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
+			return err
+		}
 
-	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
-		return err
+		terraformVersionConstraint := partialTerragruntConfig.TerraformVersionConstraint
+
+		if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
+			return err
+		}
 	}
 
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
