@@ -68,4 +68,4 @@ jobs:
         with:
           name: terragrunt-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            bin/terragrunt-${{ matrix.os }}-${{ matrix.arch }}* 
+            bin/terragrunt-${{ matrix.os }}-${{ matrix.arch }}*
