@@ -113,6 +113,7 @@ const (
 	testFixtureTfPath                         = "fixtures/tf-path"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
+	testFixtureVersionCheck                   = "fixtures/version-check"
 
 	terraformFolder = ".terraform"
 
@@ -2858,7 +2859,7 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 //
 //nolint:paralleltest
 func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
-	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/version-check")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionCheck)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -4150,12 +4151,29 @@ func TestTfPathOverridesConfig(t *testing.T) {
 	assert.Contains(t, stderr, "Other TF script used!")
 }
 
-func TestVersionIsInvokedOnlyOnce(t *testing.T) {
+func TestVersionIsNeverInvoked(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+
+	// check that version command was invoked only once -version
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+
+	assert.Empty(t, matches, "Expected no occurrence of '-version' command, found %d", len(matches))
+}
+
+func TestVersionIsInvokedOnlyOnce(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionCheck)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionCheck)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
 	require.NoError(t, err)

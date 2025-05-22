@@ -1,4 +1,3 @@
-
 dependency "dependency" {
   config_path = "../dependency"
 }
@@ -10,3 +9,5 @@ dependency "dependency-with-custom-version" {
 inputs = {
   input_value = dependency.dependency.outputs.result
 }
+
+terraform_version_constraint = ">= 0.12.0"
