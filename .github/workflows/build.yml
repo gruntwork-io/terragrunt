@@ -61,4 +61,11 @@ jobs:
           fi
           go build -o "${OUTPUT}" \
             -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME} -extldflags '-static'" \
-            . 
+            .
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terragrunt-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            bin/terragrunt-${{ matrix.os }}-${{ matrix.arch }}* 
