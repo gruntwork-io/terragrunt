@@ -46,6 +46,9 @@ const (
 
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
+
+	// NakedInclude is the control that prevents the use of the `include` block without a label.
+	NakedInclude = "naked-include"
 )
 
 //nolint:lll
@@ -171,6 +174,11 @@ func New() strict.Controls {
 		&Control{
 			Name:        "validate-all",
 			Description: "Prevents the deprecated validate-all command from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        NakedInclude,
+			Description: "Prevents the use of the `include` block without a label.",
 			Category:    stageCategory,
 		},
 	}
