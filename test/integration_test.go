@@ -4129,10 +4129,26 @@ func TestTfPath(t *testing.T) {
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --working-dir "+workingDir)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --working-dir "+workingDir)
 	require.NoError(t, err)
 
-	assert.Regexp(t, "(?i)(terraform|opentofu)", stdout+stderr)
+	assert.Contains(t, stderr, "TF script used!")
+}
+
+func TestTfPathOverridesConfig(t *testing.T) {
+	t.Parallel()
+	// Test that the terragrunt run version command correctly identifies and uses
+	// the terraform_binary path configuration if present
+	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --tf-path ./other-tf.sh --working-dir "+workingDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "Other TF script used!")
 }
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {
