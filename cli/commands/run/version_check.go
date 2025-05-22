@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"encoding/hex"
 
@@ -84,8 +85,14 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	return nil
 }
 
+// TerraformVersionMutex is a global mutex for modifying the TerraformVersion field.
+var TerraformVersionMutex sync.Mutex
+
 // PopulateTerraformVersion populates the currently installed version of Terraform into the given terragruntOptions.
 func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
+	TerraformVersionMutex.Lock()
+	defer TerraformVersionMutex.Unlock()
+
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(terragruntOptions.WorkingDir)
 

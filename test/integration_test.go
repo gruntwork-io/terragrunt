@@ -4175,12 +4175,15 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureVersionCheck)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntVersionCommand(t, "v0.23.21", "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- init", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// check that version command was invoked only once -version
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
-	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
+	matches := versionCmdPattern.FindAllStringIndex(stderr.String(), -1)
 
 	assert.Len(t, matches, 1, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 }
