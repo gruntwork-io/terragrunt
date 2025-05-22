@@ -17,10 +17,6 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-// DefaultTerraformVersionConstraint uses the constraint syntax from https://github.com/hashicorp/go-version
-// This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
-const DefaultTerraformVersionConstraint = ">= v0.12.0"
-
 // TerraformVersionRegex verifies that terraform --version output is in one of the following formats:
 // - OpenTofu v1.6.0-dev
 // - Terraform v0.9.5-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)
