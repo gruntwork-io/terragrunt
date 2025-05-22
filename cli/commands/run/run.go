@@ -535,7 +535,7 @@ func prepareInitCommand(ctx context.Context, terragruntOptions *options.Terragru
 func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	found := false
 
-	filepath.WalkDir(terragruntOptions.WorkingDir, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(terragruntOptions.WorkingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -552,6 +552,10 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
 
 	if !found {
 		return errors.New(NoTerraformFilesFound(terragruntOptions.WorkingDir))
