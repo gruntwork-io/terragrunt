@@ -47,8 +47,8 @@ const (
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
 
-	// NakedInclude is the control that prevents the use of the `include` block without a label.
-	NakedInclude = "naked-include"
+	// BareInclude is the control that prevents the use of the `include` block without a label.
+	BareInclude = "bare-include"
 )
 
 //nolint:lll
@@ -177,7 +177,7 @@ func New() strict.Controls {
 			Category:    stageCategory,
 		},
 		&Control{
-			Name:        NakedInclude,
+			Name:        BareInclude,
 			Description: "Prevents the use of the `include` block without a label.",
 			Category:    stageCategory,
 		},

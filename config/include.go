@@ -806,7 +806,7 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 func updateBareIncludeBlock(file *hclparse.File) error {
 	// To save us from doing a lot of extra work, first going to check to see if the file has a naked include, first.
 	// If it doesn't, we aren't going to bother fully parsing the file.
-	if !detectNakedIncludeUsage(file) {
+	if !detectBareIncludeUsage(file) {
 		return nil
 	}
 

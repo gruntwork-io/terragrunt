@@ -109,7 +109,7 @@ var (
 			hclparse.WithLogger(opts.Logger),
 		}
 
-		strictControl := opts.StrictControls.Find(controls.NakedInclude)
+		strictControl := opts.StrictControls.Find(controls.BareInclude)
 		strictControl.SuppressWarning()
 
 		if err := strictControl.Evaluate(context.Background()); err != nil {
@@ -1394,10 +1394,10 @@ func detectInputsCtyUsage(file *hclparse.File) bool {
 	return false
 }
 
-// detectNakedIncludeUsage detects if an identifier matching include.foo is used in the given HCL file.
+// detectBareIncludeUsage detects if an identifier matching include.foo is used in the given HCL file.
 //
 // This is deprecated functionality, so we look for this to determine if we should throw an error or warning.
-func detectNakedIncludeUsage(file *hclparse.File) bool {
+func detectBareIncludeUsage(file *hclparse.File) bool {
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
 		return false
