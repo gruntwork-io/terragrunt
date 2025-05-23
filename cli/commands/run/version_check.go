@@ -35,7 +35,6 @@ var versionFiles = []string{".terraform-version", ".tool-versions", "mise.toml",
 // - TerraformPath
 // - TerraformVersion
 // - FeatureFlags
-// TODO: Look into a way to refactor this function to avoid the side effect.
 func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	partialTerragruntConfig, err := getTerragruntConfig(ctx, terragruntOptions)
 	if err != nil {
@@ -48,7 +47,26 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	if partialTerragruntConfig.TerraformVersionConstraint != "" {
+	// We might learn the implementation from the version check, but we don't want to
+	// call terraform/tofu version if we don't have to.
+	//
+	// We'll assume that the implementation can be determined based on the DefaultWrappedPath,
+	// and only update this value if we incidentally learn the implementation from a version check.
+	implementation := options.DefaultWrappedPath
+
+	parts := strings.Split(terragruntOptions.TerraformPath, string(filepath.Separator))
+	if len(parts) > 0 {
+		implementation = parts[len(parts)-1]
+	}
+
+	if implementation == string(options.OpenTofuImpl) || implementation == string(options.TerraformImpl) {
+		terragruntOptions.TerraformImplementation = options.TerraformImplementationType(implementation)
+	}
+
+	// If we don't know what the implementation is at this stage (like when the user is using a custom script or shim)
+	// or the user has explicitly set a version constraint,
+	// we need to actually run --version to get the version.
+	if terragruntOptions.TerraformImplementation == options.UnknownImpl || partialTerragruntConfig.TerraformVersionConstraint != "" {
 		if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
 			return err
 		}
@@ -151,8 +169,8 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 	terragruntOptions.TerraformImplementation = tfImplementation
 
 	if tfImplementation == options.UnknownImpl {
-		terragruntOptions.TerraformImplementation = options.TerraformImpl
-		terragruntOptions.Logger.Warnf("Failed to identify Terraform implementation, fallback to terraform version: %s", terraformVersion)
+		terragruntOptions.TerraformImplementation = options.OpenTofuImpl
+		terragruntOptions.Logger.Warnf("Failed to identify Terraform implementation, fallback to tofu version: %s", terraformVersion)
 	} else {
 		terragruntOptions.Logger.Debugf("%s version: %s", tfImplementation, terraformVersion)
 	}
