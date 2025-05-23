@@ -111,10 +111,16 @@ var (
 		}
 
 		strictControl := opts.StrictControls.Find(controls.BareInclude)
-		strictControl.SuppressWarning()
 
-		if err := strictControl.Evaluate(context.Background()); err != nil {
-			return parseOpts
+		// If we can't find the strict control, we're probably in a test
+		// where the option is being hand written. In that case,
+		// we'll assume we're not in strict mode.
+		if strictControl != nil {
+			strictControl.SuppressWarning()
+
+			if err := strictControl.Evaluate(context.Background()); err != nil {
+				return parseOpts
+			}
 		}
 
 		parseOpts = append(parseOpts, hclparse.WithFileUpdate(updateBareIncludeBlock))
