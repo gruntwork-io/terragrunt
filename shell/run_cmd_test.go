@@ -2,7 +2,6 @@ package shell_test
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -19,10 +18,10 @@ func TestRunShellCommand(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	cmd := shell.RunCommand(context.Background(), terragruntOptions, "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), terragruntOptions, "tofu", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunCommand(context.Background(), terragruntOptions, "tofu", "not-a-real-command")
+	cmd = shell.RunCommand(t.Context(), terragruntOptions, "tofu", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -38,7 +37,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stdout
 	terragruntOptions.ErrWriter = stderr
 
-	cmd := shell.RunCommand(context.Background(), terragruntOptions, "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), terragruntOptions, "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
@@ -51,7 +50,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stderr
 	terragruntOptions.ErrWriter = stderr
 
-	cmd = shell.RunCommand(context.Background(), terragruntOptions, "tofu", "--version")
+	cmd = shell.RunCommand(t.Context(), terragruntOptions, "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")
@@ -76,7 +75,7 @@ func TestLastReleaseTag(t *testing.T) {
 
 func TestGitLevelTopDirCaching(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = cache.ContextWithCache(ctx)
 	c := cache.ContextCache[string](ctx, cache.RunCmdCacheContextKey)
 	assert.NotNil(t, c)

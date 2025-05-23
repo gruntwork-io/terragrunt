@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -132,7 +131,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 
 			opts.ScaffoldRootFileName = filepath.Base(tt.configPath)
 
-			config, err := config.ReadCatalogConfig(context.Background(), opts)
+			config, err := config.ReadCatalogConfig(t.Context(), opts)
 
 			if tt.expectedErr == nil {
 				require.NoError(t, err)

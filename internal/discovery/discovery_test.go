@@ -1,7 +1,6 @@
 package discovery_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -80,7 +79,7 @@ func TestDiscovery(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 			require.NoError(t, err)
 
-			configs, err := tt.discovery.Discover(context.Background(), opts)
+			configs, err := tt.discovery.Discover(t.Context(), opts)
 			if !tt.errorExpected {
 				require.NoError(t, err)
 			}
@@ -259,7 +258,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			configs, err := tt.discovery.Discover(context.Background(), opts)
+			configs, err := tt.discovery.Discover(t.Context(), opts)
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -445,7 +444,7 @@ exclude {
 	// Test discovery with exclude parsing
 	d := discovery.NewDiscovery(tmpDir).WithParseExclude()
 
-	cfgs, err := d.Discover(context.Background(), tgOpts)
+	cfgs, err := d.Discover(t.Context(), tgOpts)
 	require.NoError(t, err)
 
 	// Verify we found all configurations

@@ -1,8 +1,6 @@
 module github.com/gruntwork-io/terragrunt
 
-go 1.23.0
-
-toolchain go1.23.5
+go 1.24
 
 require (
 	cloud.google.com/go/storage v1.54.0
@@ -86,6 +84,7 @@ require (
 require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.2
 	github.com/charmbracelet/x/term v0.2.1
+	go.uber.org/mock v0.5.2
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
 )
 
@@ -256,7 +255,6 @@ require (
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/terraform-linters/tflint-plugin-sdk v0.22.0 // indirect
 	github.com/terraform-linters/tflint-ruleset-terraform v0.10.0 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect

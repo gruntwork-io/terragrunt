@@ -1,5 +1,16 @@
 s3:
-  timeout: 10m
+  timeout: 1h
   include:
     names_regex:
       - "^terragrunt-test-bucket-[a-zA-Z0-9]{6}.*"
+
+vpc:
+  include:
+    name_regex:
+      - "^vpc-.*"
+      - "^step-.*"
+
+ec2:
+  include:
+    name_regex:
+      - "^single-instance$"

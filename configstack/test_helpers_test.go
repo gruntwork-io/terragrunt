@@ -33,7 +33,7 @@ func (byPath RunningModuleByPath) Less(i, j int) bool {
 func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformModules, actualModules configstack.TerraformModules, messageAndArgs ...any) {
 	t.Helper()
 
-	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
+	if !assert.Len(t, actualModules, len(expectedModules), messageAndArgs...) {
 		t.Logf("%s != %s", expectedModules, actualModules)
 		return
 	}
@@ -78,7 +78,7 @@ func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, act
 func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*configstack.RunningModule, actualModules map[string]*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()
 
-	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
+	if !assert.Len(t, actualModules, len(expectedModules), messageAndArgs...) {
 		t.Logf("%v != %v", expectedModules, actualModules)
 		return
 	}
@@ -96,7 +96,7 @@ func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*conf
 func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.RunningModule, actualModules []*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()
 
-	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
+	if !assert.Len(t, actualModules, len(expectedModules), messageAndArgs...) {
 		t.Logf("%v != %v", expectedModules, actualModules)
 		return
 	}

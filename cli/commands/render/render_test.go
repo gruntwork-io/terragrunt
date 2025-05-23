@@ -2,7 +2,6 @@ package render_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -25,7 +24,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	opts.RenderMetadata = false
 	opts.Write = false
 
-	err := render.Run(context.Background(), opts)
+	err := render.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	var result map[string]interface{}
@@ -47,7 +46,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	opts.RenderMetadata = true
 	opts.Write = false
 
-	err := render.Run(context.Background(), opts)
+	err := render.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	var result map[string]interface{}
@@ -69,7 +68,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	opts.Write = true
 	opts.OutputPath = outputPath
 
-	err := render.Run(context.Background(), opts)
+	err := render.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	// Verify the file was created and contains valid JSON
@@ -90,7 +89,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	opts, _ := setupTest(t)
 	opts.Format = "invalid"
 
-	err := render.Run(context.Background(), opts)
+	err := render.Run(t.Context(), opts)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid format")
 }
@@ -104,7 +103,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	var renderedBuffer bytes.Buffer
 	opts.TerragruntOptions.Writer = &renderedBuffer
 
-	err := render.Run(context.Background(), opts)
+	err := render.Run(t.Context(), opts)
 	require.NoError(t, err)
 
 	assert.Equal(t, testTerragruntConfigFixture, renderedBuffer.String())

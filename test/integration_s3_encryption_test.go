@@ -3,7 +3,6 @@
 package test_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,7 +47,7 @@ func TestAwsS3SSEAES(t *testing.T) {
 	helpers.RunTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
 
 	client := terraws.NewS3Client(t, helpers.TerraformRemoteStateS3Region)
-	resp, err := client.GetBucketEncryption(context.Background(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
+	resp, err := client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
@@ -74,7 +73,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	helpers.RunTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
 
 	client := terraws.NewS3Client(t, helpers.TerraformRemoteStateS3Region)
-	resp, err := client.GetBucketEncryption(context.Background(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
+	resp, err := client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
@@ -98,7 +97,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 
 	helpers.RunTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
 
-	resp, err = client.GetBucketEncryption(context.Background(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
+	resp, err = client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule = resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
@@ -142,7 +141,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 
 	// verify that encryption key is not reverted
 	client := terraws.NewS3Client(t, helpers.TerraformRemoteStateS3Region)
-	resp, err := client.GetBucketEncryption(context.Background(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
+	resp, err := client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
@@ -176,7 +175,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 
 	// verify that encryption configuration is set
 	client := terraws.NewS3Client(t, helpers.TerraformRemoteStateS3Region)
-	resp, err := client.GetBucketEncryption(context.Background(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
+	resp, err := client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault

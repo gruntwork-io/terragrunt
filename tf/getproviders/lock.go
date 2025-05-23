@@ -1,4 +1,4 @@
-//go:generate mockery --name Provider
+//go:generate mockgen -source=$GOFILE -destination=mocks/mock_$GOFILE -package=mocks
 
 package getproviders
 

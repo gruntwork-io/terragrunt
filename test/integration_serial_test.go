@@ -64,7 +64,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 
 	providerCacheDir := filepath.Join(rootPath, "providers-cache")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	defer ctx.Done()
 
 	cliConfigFilename, err := os.CreateTemp(t.TempDir(), "*")
@@ -108,7 +108,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	providersNetkworMirrorPath := filepath.Join(rootPath, "providers-network-mirror")
 	providersFilesystemMirrorPath := filepath.Join(rootPath, "providers-filesystem-mirror")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	netowrkProvider := FakeProvider{
@@ -251,7 +251,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		if tc.downloadDir != "" {
 			entries, err := os.ReadDir(tc.downloadDir)
 			require.NoError(t, err)
-			assert.Equal(t, len(appDirs), len(entries))
+			assert.Len(t, entries, len(appDirs))
 		}
 
 		helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --non-interactive --working-dir %s  --download-dir=%s", appDir, tc.downloadDir), &stdout, &stderr)

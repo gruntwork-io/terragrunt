@@ -6,7 +6,6 @@ package strict_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -354,7 +353,7 @@ func TestEvaluateControl(t *testing.T) {
 			logger, output := newTestLogger()
 			controls := newTestControls()
 
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = log.ContextWithLogger(ctx, logger)
 
 			for _, name := range tc.enableControls {

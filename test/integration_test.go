@@ -3,7 +3,6 @@ package test_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -207,7 +206,7 @@ func TestDetailedExitCodeError(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
@@ -226,7 +225,7 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
@@ -243,7 +242,7 @@ func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+util.JoinPath(tmpEnvPath, testFixturePath))
@@ -261,7 +260,7 @@ func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+filepath.Join(rootPath, "app1"))
@@ -282,7 +281,7 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
 
 	var exitCode tf.DetailedExitCode
-	ctx := context.Background()
+	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+rootPath)
@@ -4129,10 +4128,26 @@ func TestTfPath(t *testing.T) {
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --working-dir "+workingDir)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --working-dir "+workingDir)
 	require.NoError(t, err)
 
-	assert.Regexp(t, "(?i)(terraform|opentofu)", stdout+stderr)
+	assert.Contains(t, stderr, "TF script used!")
+}
+
+func TestTfPathOverridesConfig(t *testing.T) {
+	t.Parallel()
+	// Test that the terragrunt run version command correctly identifies and uses
+	// the terraform_binary path configuration if present
+	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --tf-path ./other-tf.sh --working-dir "+workingDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "Other TF script used!")
 }
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {

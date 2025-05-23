@@ -91,6 +91,9 @@ type Discovery struct {
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool
 
+	// parseInclude determines whether to parse include configurations.
+	parseInclude bool
+
 	// discoverExternalDependencies determines whether to discover external dependencies.
 	discoverExternalDependencies bool
 
@@ -145,6 +148,15 @@ func (d *Discovery) WithDiscoverDependencies() *Discovery {
 // WithParseExclude sets the ParseExclude flag to true.
 func (d *Discovery) WithParseExclude() *Discovery {
 	d.parseExclude = true
+
+	d.requiresParse = true
+
+	return d
+}
+
+// WithParseInclude sets the ParseExclude flag to true.
+func (d *Discovery) WithParseInclude() *Discovery {
+	d.parseInclude = true
 
 	d.requiresParse = true
 

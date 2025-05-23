@@ -1,7 +1,6 @@
 package module_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -58,7 +57,7 @@ func TestFindModules(t *testing.T) {
 			os.Rename(filepath.Join(tc.repoPath, "gitdir"), filepath.Join(tc.repoPath, ".git"))
 			defer os.Rename(filepath.Join(tc.repoPath, ".git"), filepath.Join(tc.repoPath, "gitdir"))
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			repo, err := module.NewRepo(ctx, log.New(), tc.repoPath, "", false, false)
 			require.NoError(t, err)

@@ -1,7 +1,6 @@
 package cas_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -249,7 +248,7 @@ func TestLinkTree(t *testing.T) {
 			targetDir := t.TempDir()
 
 			// Link the tree
-			err = tree.LinkTree(context.Background(), store, targetDir)
+			err = tree.LinkTree(t.Context(), store, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

@@ -1,7 +1,6 @@
 package telemetry_test
 
 import (
-	"context"
 	"io"
 	"testing"
 
@@ -18,7 +17,7 @@ import (
 func TestNewMetricsExporter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	stdout, err := stdoutmetric.New()
 	require.NoError(t, err)

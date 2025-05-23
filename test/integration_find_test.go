@@ -19,6 +19,7 @@ const (
 	testFixtureFindDAG               = "fixtures/find/dag"
 	testFixtureFindInternalVExternal = "fixtures/find/internal-v-external"
 	testFixtureFindExclude           = "fixtures/exclude/basic"
+	testFixtureFindInclude           = "fixtures/find/include"
 )
 
 func TestFindBasic(t *testing.T) {
@@ -140,6 +141,20 @@ func TestFindExternalDependencies(t *testing.T) {
 
 	assert.Empty(t, stderr)
 	assert.Equal(t, "a-dependent\nb-dependency\n", stdout)
+}
+
+func TestFindInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFindInclude)
+
+	workdir := testFixtureFindInclude
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+workdir+" --include --json")
+	require.NoError(t, err)
+
+	assert.Empty(t, stderr)
+	assert.JSONEq(t, `[{"type":"unit","path":"bar","include":{"cloud":"cloud.hcl"}},{"type":"unit","path":"foo"}]`, stdout)
 }
 
 func TestFindExclude(t *testing.T) {

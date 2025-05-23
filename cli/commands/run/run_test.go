@@ -2,7 +2,6 @@ package run_test
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -264,7 +263,7 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 
 	// Use a path that doesn't exist to induce error
 	tgOptions.TerraformPath = "i-dont-exist"
-	err = run.RunTerraformWithRetry(context.Background(), tgOptions)
+	err = run.RunTerraformWithRetry(t.Context(), tgOptions)
 	require.Error(t, err)
 }
 

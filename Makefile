@@ -30,16 +30,16 @@ install-pre-commit-hook:
 # source. See also: .circleci/config.yml
 build: terragrunt
 terragrunt: $(shell find . \( -type d -name 'vendor' -prune \) \
-                        -o \( -type f -name '*.go'   -print \) ) install-mockery generate-mocks
+                        -o \( -type f -name '*.go'   -print \) )
 	set -xe ;\
 	vtag_maybe_extra=$$(git describe --tags --abbrev=12 --dirty --broken) ;\
-	go build -o $@ -ldflags "-X github.com/gruntwork-io/go-commons/version.Version=$${vtag_maybe_extra} -extldflags '-static'" .
+	go build -o $@ -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$${vtag_maybe_extra} -extldflags '-static'" .
 
 clean:
 	rm -f terragrunt
 
 install-lint:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.6
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
 
 run-lint:
 	golangci-lint run -v --timeout=10m ./...
@@ -47,8 +47,8 @@ run-lint:
 run-strict-lint:
 	golangci-lint run -v --timeout=10m -c .strict.golangci.yml --new-from-rev origin/main ./...
 
-install-mockery:
-	go install github.com/vektra/mockery/v2@v2.44.1
+install-mock-tools:
+	go install go.uber.org/mock/mockgen@v0.5.2
 
 generate-mocks:
 	go generate ./...

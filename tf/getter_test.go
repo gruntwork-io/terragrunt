@@ -1,7 +1,6 @@
 package tf_test
 
 import (
-	"context"
 	"net/url"
 	"path/filepath"
 	"testing"
@@ -17,7 +16,7 @@ import (
 func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	t.Parallel()
 
-	basePath, err := tf.GetModuleRegistryURLBasePath(context.Background(), log.New(), "registry.terraform.io")
+	basePath, err := tf.GetModuleRegistryURLBasePath(t.Context(), log.New(), "registry.terraform.io")
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/modules/", basePath)
 }
@@ -30,7 +29,7 @@ func TestGetTerraformHeader(t *testing.T) {
 		Host:   "registry.terraform.io",
 		Path:   "/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 	}
-	terraformGetHeader, err := tf.GetTerraformGetHeader(context.Background(), log.New(), testModuleURL)
+	terraformGetHeader, err := tf.GetTerraformGetHeader(t.Context(), log.New(), testModuleURL)
 	require.NoError(t, err)
 	assert.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
 }

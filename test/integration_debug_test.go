@@ -2,7 +2,6 @@ package test_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -56,7 +55,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	mockOptions.WorkingDir = rootPath
 	require.NoError(
 		t,
-		tf.RunCommand(context.Background(), mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
+		tf.RunCommand(t.Context(), mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout = bytes.Buffer{}

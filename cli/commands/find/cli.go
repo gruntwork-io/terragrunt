@@ -23,6 +23,7 @@ const (
 	Dependencies   = "dependencies"
 	External       = "external"
 	Exclude        = "exclude"
+	Include        = "include"
 
 	QueueConstructAsFlagName  = "queue-construct-as"
 	QueueConstructAsFlagAlias = "as"
@@ -69,6 +70,12 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(Exclude),
 			Destination: &opts.Exclude,
 			Usage:       "Display exclude configurations in the results (only when using --format=json).",
+		}),
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        Include,
+			EnvVars:     tgPrefix.EnvVars(Include),
+			Destination: &opts.Include,
+			Usage:       "Display include configurations in the results (only when using --format=json).",
 		}),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        External,

@@ -12,7 +12,7 @@ env: &env
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.23.1-tf1.5-tg58.8-pck1.8-ci58.2
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.24.3-tf1.5-tg58.8-pck1.8-ci58.2
 
 version: 2.1
 jobs:
@@ -21,7 +21,7 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
+      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
       - persist_to_workspace:
           root: .
           paths: [bin]
@@ -36,7 +36,7 @@ jobs:
       - attach_workspace:
           at: .
       - go/install:
-          version: "1.20.5"
+          version: "1.24.3"
       - run:
           name: Install sign-binary-helpers
           command: |
@@ -73,7 +73,7 @@ jobs:
       - attach_workspace:
           at: .
       - go/install:
-          version: "1.20.5"
+          version: "1.24.3"
       - run:
           name: Install sign-binary-helpers
           command: |

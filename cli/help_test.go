@@ -2,7 +2,6 @@ package cli_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"runtime"
 	"testing"
@@ -78,7 +77,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 	var out bytes.Buffer
 	app.Writer = &out
 
-	ctx := cli.NewAppContext(context.Background(), app, nil).NewCommandContext(cmd, nil)
+	ctx := cli.NewAppContext(t.Context(), app, nil).NewCommandContext(cmd, nil)
 	require.Error(t, cli.ShowCommandHelp(ctx))
 
 	expectedOutput := fmt.Sprintf(`Usage: terragrunt run [options] -- <tofu/terraform command>

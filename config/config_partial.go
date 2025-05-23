@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/options"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/huandu/go-clone"
@@ -589,7 +590,14 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.TerraformVersionConstraint = *decoded.TerraformVersionConstraint
 			}
 
-			if decoded.TerraformBinary != nil {
+			// By default, we use the tofu binary if it's available.
+			//
+			// If we reach this stage, the user has explicitly set a value for the `terraform_binary` attribute,
+			// _and_ the value is the default tofu path (which is what it is if they don't use the --tf-path flag),
+			// we use the value they set in their configuration.
+			//
+			// Otherwise, we assume that they've explicitly set the path they want to use via the --tf-path flag.
+			if decoded.TerraformBinary != nil && ctx.TerragruntOptions.TerraformPath == options.DefaultWrappedPath {
 				output.TerraformBinary = *decoded.TerraformBinary
 			}
 

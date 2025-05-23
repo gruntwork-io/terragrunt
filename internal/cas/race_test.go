@@ -3,7 +3,6 @@
 package cas_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -50,7 +49,7 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 			tmpDir := t.TempDir()
 
 			res, err := client.Get(
-				context.TODO(),
+				t.Context(),
 				&getter.Request{
 					Src: tt.url,
 					Dst: tmpDir,

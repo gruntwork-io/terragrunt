@@ -2,7 +2,6 @@
 package helpers
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -35,7 +34,7 @@ func RunTerragruntCommand(b *testing.B, args ...string) {
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
 	app := cli.NewApp(opts) //nolint:contextcheck
 
-	ctx := log.ContextWithLogger(context.Background(), opts.Logger)
+	ctx := log.ContextWithLogger(b.Context(), opts.Logger)
 
 	err := app.RunContext(ctx, args)
 	require.NoError(b, err)

@@ -1,7 +1,6 @@
 package find_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -434,7 +433,7 @@ dependency "B" {
 			// Set the writer in options
 			opts.Writer = w
 
-			err = find.Run(context.Background(), opts)
+			err = find.Run(t.Context(), opts)
 			if tt.format == "invalid" || tt.mode == "invalid" {
 				require.Error(t, err)
 				return

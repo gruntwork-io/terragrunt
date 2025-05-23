@@ -1,7 +1,6 @@
 package test_test
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -19,7 +18,7 @@ import (
 func TestCatalogGitRepoUpdate(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tempDir := t.TempDir()
 
@@ -33,7 +32,7 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 func TestScaffoldGitRepo(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tempDir := t.TempDir()
 
@@ -48,7 +47,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 func TestScaffoldGitModule(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tempDir := t.TempDir()
 
@@ -87,7 +86,7 @@ func TestScaffoldGitModule(t *testing.T) {
 func TestScaffoldGitModuleHttps(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tempDir := t.TempDir()
 
@@ -133,7 +132,7 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	cfg, err := config.ReadTerragruntConfig(context.Background(), opts, config.DefaultParserOptions(opts))
+	cfg, err := config.ReadTerragruntConfig(t.Context(), opts, config.DefaultParserOptions(opts))
 	require.NoError(t, err)
 
 	return cfg

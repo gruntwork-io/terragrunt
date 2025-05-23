@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -27,7 +26,7 @@ func TestTerragruntConfigCacheOperation(t *testing.T) {
 
 	testCacheKey := "super-safe-cache-key"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cache := cache.NewCache[config.TerragruntConfig](testCacheName)
 
 	actualResult, found := cache.Get(ctx, testCacheKey)

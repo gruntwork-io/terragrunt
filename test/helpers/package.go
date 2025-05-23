@@ -785,7 +785,7 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	t.Helper()
 
-	return RunTerragruntCommandWithContext(t, context.Background(), command, writer, errwriter)
+	return RunTerragruntCommandWithContext(t, t.Context(), command, writer, errwriter)
 }
 
 func RunTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
@@ -827,7 +827,7 @@ func RunTerragruntCommandWithOutputWithContext(t *testing.T, ctx context.Context
 func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
 	t.Helper()
 
-	return RunTerragruntCommandWithOutputWithContext(t, context.Background(), command)
+	return RunTerragruntCommandWithOutputWithContext(t, t.Context(), command)
 }
 
 func RunTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {

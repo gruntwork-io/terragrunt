@@ -38,6 +38,33 @@ terraform {
 	})
 }
 
+func BenchmarkTwoEmptyTerragruntInits(b *testing.B) {
+	emptyMainTf := ``
+
+	emptyRootConfig := ``
+	includeRootConfig := `include "root" {
+		path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+	source = "."
+}
+`
+
+	tmpDir := b.TempDir()
+
+	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
+	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+
+	helpers.GenerateNUnits(b, tmpDir, 2, includeRootConfig, emptyMainTf)
+
+	b.Run("2 units", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			helpers.Init(b, tmpDir)
+		}
+	})
+}
+
 func BenchmarkManyEmptyTerragruntInits(b *testing.B) {
 	emptyMainTf := ``
 
@@ -90,6 +117,33 @@ terraform {
 	b.Run("1 units", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 
+			helpers.Plan(b, tmpDir)
+		}
+	})
+}
+
+func BenchmarkTwoEmptyTerragruntPlans(b *testing.B) {
+	emptyMainTf := ``
+
+	emptyRootConfig := ``
+	includeRootConfig := `include "root" {
+		path = find_in_parent_folders("root.hcl")
+	}
+
+	terraform {
+		source = "."
+	}
+`
+
+	tmpDir := b.TempDir()
+
+	rootTerragruntConfigPath := filepath.Join(tmpDir, "root.hcl")
+	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
+
+	helpers.GenerateNUnits(b, tmpDir, 2, includeRootConfig, emptyMainTf)
+
+	b.Run("2 units", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
 			helpers.Plan(b, tmpDir)
 		}
 	})

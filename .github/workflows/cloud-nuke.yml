@@ -1,7 +1,7 @@
-name: Daily Cloud Nuke
+name: Hourly Cloud Nuke
 on:
   schedule:
-    - cron: "0 0 * * *" # Runs every day at midnight UTC
+    - cron: "0 * * * *" # Runs every hour
   workflow_dispatch:
 
 
@@ -41,7 +41,9 @@ jobs:
                 --force \
                 --log-level debug \
                 --resource-type s3 \
+                --resource-type vpc \
+                --resource-type ec2 \
                 --region us-east-1 \
                 --region us-west-2 \
-                --older-than 24h \
+                --older-than 1h \
                 --config .github/cloud-nuke/config.yml
