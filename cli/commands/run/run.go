@@ -104,9 +104,9 @@ func run(ctx context.Context, terragruntOptions *options.TerragruntOptions, targ
 		return err
 	}
 
-	// if err := CheckVersionConstraints(ctx, terragruntOptions); err != nil {
-	// 	return target.runErrorCallback(terragruntOptions, nil, err)
-	// }
+	if err := CheckVersionConstraints(ctx, terragruntOptions); err != nil {
+		return target.runErrorCallback(terragruntOptions, nil, err)
+	}
 
 	terragruntConfig, err := config.ReadTerragruntConfig(ctx, terragruntOptions, config.DefaultParserOptions(terragruntOptions))
 	if err != nil {
