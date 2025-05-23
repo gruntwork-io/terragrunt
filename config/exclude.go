@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -90,10 +92,22 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, file.ConfigPath)
-	if err != nil {
-		ctx.TerragruntOptions.Logger.Errorf("Failed to create eval context %s", file.ConfigPath)
-		return nil, err
+	evalCtxCache := cache.ContextCache[*hcl.EvalContext](ctx, EvalCtxCacheContextKey)
+
+	var evalCtx *hcl.EvalContext
+
+	if found, ok := evalCtxCache.Get(ctx, file.ConfigPath); ok {
+		evalCtx = found
+	} else {
+		var err error
+
+		evalCtx, err = createTerragruntEvalContext(ctx, file.ConfigPath)
+		if err != nil {
+			ctx.TerragruntOptions.Logger.Errorf("Failed to create eval context %s", file.ConfigPath)
+			return nil, err
+		}
+
+		evalCtxCache.Put(ctx, file.ConfigPath, evalCtx)
 	}
 
 	evaluatedAttrs := map[string]cty.Value{}

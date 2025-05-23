@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -195,9 +196,21 @@ var outputLocks = sync.Map{}
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Value, error) {
-	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
-	if err != nil {
-		return nil, err
+	evalCtxCache := cache.ContextCache[*hcl.EvalContext](ctx, EvalCtxCacheContextKey)
+
+	var evalParsingContext *hcl.EvalContext
+
+	if found, ok := evalCtxCache.Get(ctx, file.ConfigPath); ok {
+		evalParsingContext = found
+	} else {
+		var err error
+
+		evalParsingContext, err = createTerragruntEvalContext(ctx, file.ConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		evalCtxCache.Put(ctx, file.ConfigPath, evalParsingContext)
 	}
 
 	decodedDependency := TerragruntDependency{}
@@ -652,9 +665,22 @@ func getOutputJSONWithCaching(ctx *ParsingContext, targetConfig string) ([]byte,
 //
 // That way, everything in that dependency happens within its own ctx.
 func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath string) (*options.TerragruntOptions, error) {
-	targetOptions, err := ctx.TerragruntOptions.CloneWithConfigPath(targetConfigPath)
-	if err != nil {
-		return nil, err
+	optsCache := cache.ContextCache[*options.TerragruntOptions](ctx, targetConfigPath)
+
+	var targetOptions *options.TerragruntOptions
+
+	found, ok := optsCache.Get(ctx, targetConfigPath)
+	if ok {
+		targetOptions = found
+	} else {
+		var err error
+
+		targetOptions, err = ctx.TerragruntOptions.CloneWithConfigPath(targetConfigPath)
+		if err != nil {
+			return nil, err
+		}
+
+		optsCache.Put(ctx, targetConfigPath, targetOptions)
 	}
 
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath

@@ -10,6 +10,7 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -111,10 +112,20 @@ func attemptEvaluateLocals(
 
 	ctx.Locals = &localsAsCtyVal
 
-	evalCtx, err := createTerragruntEvalContext(ctx, file.ConfigPath)
-	if err != nil {
-		ctx.TerragruntOptions.Logger.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
-		return nil, evaluatedLocals, false, err
+	evalCtxCache := cache.ContextCache[*hcl.EvalContext](ctx, EvalCtxCacheContextKey)
+
+	var evalCtx *hcl.EvalContext
+
+	if found, ok := evalCtxCache.Get(ctx, file.ConfigPath); ok {
+		evalCtx = found
+	} else {
+		evalCtx, err = createTerragruntEvalContext(ctx, file.ConfigPath)
+		if err != nil {
+			ctx.TerragruntOptions.Logger.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
+			return nil, evaluatedLocals, false, err
+		}
+
+		evalCtxCache.Put(ctx, file.ConfigPath, evalCtx)
 	}
 
 	// Track the locals that were evaluated for logging purposes
