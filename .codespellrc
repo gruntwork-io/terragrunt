@@ -1,3 +1,3 @@
 [codespell]
 skip = go.mod,go.sum,*.svg,Gemfile.lock,bun.lock
-ignore-words-list = dRan,implementors
+ignore-words-list = dRan,implementors,paln
