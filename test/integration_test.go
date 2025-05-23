@@ -1083,60 +1083,73 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 
 	testCases := []struct {
 		expectedErr error
+		name        string
 		expected    string
 		command     []string
 	}{
 		{
+			name:     "version",
 			command:  []string{"version"},
 			expected: wrappedBinary() + " version",
 		},
 		{
+			name:     "version with dash",
 			command:  []string{"--", "version"},
 			expected: wrappedBinary() + " version",
 		},
 		{
+			name:     "version with foo",
 			command:  []string{"--", "version", "foo"},
 			expected: wrappedBinary() + " version",
 		},
 		{
+			name:     "version with foo bar baz",
 			command:  []string{"--", "version", "foo", "bar", "baz"},
 			expected: wrappedBinary() + " version",
 		},
 		{
+			name:     "version with foo bar baz foobar",
 			command:  []string{"--", "version", "foo", "bar", "baz", "foobar"},
 			expected: wrappedBinary() + " version",
 		},
 		{
+			name:     "graph",
 			command:  []string{"--", "graph"},
 			expected: "digraph",
 		},
 		{
+			name:        "paln",
 			command:     []string{"--", "paln"}, //codespell:ignore
 			expected:    "",
 			expectedErr: expectedWrongCommandErr("paln"), //codespell:ignore
 		},
 		{
+			name:     "paln with disable-command-validation",
 			command:  []string{"--disable-command-validation", "--", "paln"}, //codespell:ignore
 			expected: wrappedBinary() + " invocation failed",                 // error caused by running terraform with the wrong command
 		},
 	}
 
 	for _, tc := range testCases {
-		cmd := fmt.Sprintf("terragrunt run --non-interactive --log-level trace --working-dir %s %s", testFixtureExtraArgsPath, strings.Join(tc.command, " "))
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		var (
-			stdout bytes.Buffer
-			stderr bytes.Buffer
-		)
+			cmd := fmt.Sprintf("terragrunt run --non-interactive --log-level trace --working-dir %s %s", testFixtureExtraArgsPath, strings.Join(tc.command, " "))
 
-		err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-		if tc.expectedErr != nil {
-			require.ErrorIs(t, err, tc.expectedErr)
-		}
+			var (
+				stdout bytes.Buffer
+				stderr bytes.Buffer
+			)
 
-		output := stdout.String()
-		errOutput := stderr.String()
-		assert.Contains(t, output+errOutput, tc.expected)
+			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
+			}
+
+			output := stdout.String()
+			errOutput := stderr.String()
+			assert.Contains(t, output+errOutput, tc.expected)
+		})
 	}
 }
 

@@ -480,7 +480,14 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	for range terragruntOptions.RetryMaxAttempts {
 		if out, err := tf.RunCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
-				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+				implementation := options.DefaultWrappedPath
+
+				parts := strings.Split(terragruntOptions.TerraformPath, string(filepath.Separator))
+				if len(parts) > 0 {
+					implementation = parts[len(parts)-1]
+				}
+
+				terragruntOptions.Logger.Errorf("%s invocation failed in %s", implementation, terragruntOptions.WorkingDir)
 
 				return err
 			} else {
