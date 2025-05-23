@@ -13,6 +13,7 @@ const (
 	CommandName = "exec"
 
 	InDownloadDirFlagName = "in-download-dir"
+	TFPathFlagName        = "tf-path"
 )
 
 func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Prefix) cli.Flags {
@@ -34,7 +35,23 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Pr
 			Destination: &cmdOpts.InDownloadDir,
 			Usage:       "Run the provided command in the download directory.",
 		}),
+		NewTFPathFlag(opts, prefix),
 	)
+}
+
+// NewTFPathFlag creates a flag for specifying the OpenTofu/Terraform binary path.
+func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
+
+	return flags.NewFlag(&cli.GenericFlag[string]{
+		Name:        TFPathFlagName,
+		EnvVars:     tgPrefix.EnvVars(TFPathFlagName),
+		Destination: &opts.TerraformPath,
+		Usage:       "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
+	},
+		flags.WithDeprecatedNames(terragruntPrefix.FlagNames("tfpath"), terragruntPrefixControl))
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
