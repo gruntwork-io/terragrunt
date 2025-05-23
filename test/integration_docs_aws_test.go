@@ -33,13 +33,11 @@ func TestAwsDocsOverview(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		t.Cleanup(func() {
-			helpers.DeleteS3Bucket(t, region, s3BucketName)
-		})
-		t.Cleanup(func() {
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
 			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+rootPath)
 			require.NoError(t, err)
-		})
+		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
@@ -59,13 +57,11 @@ func TestAwsDocsOverview(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		t.Cleanup(func() {
-			helpers.DeleteS3Bucket(t, region, s3BucketName)
-		})
-		t.Cleanup(func() {
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
 			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 			require.NoError(t, err)
-		})
+		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
@@ -85,13 +81,11 @@ func TestAwsDocsOverview(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		t.Cleanup(func() {
-			helpers.DeleteS3Bucket(t, region, s3BucketName)
-		})
-		t.Cleanup(func() {
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
 			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 			require.NoError(t, err)
-		})
+		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
@@ -111,13 +105,11 @@ func TestAwsDocsOverview(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		t.Cleanup(func() {
-			helpers.DeleteS3Bucket(t, region, s3BucketName)
-		})
-		t.Cleanup(func() {
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
 			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 			require.NoError(t, err)
-		})
+		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
@@ -137,13 +129,11 @@ func TestAwsDocsOverview(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		t.Cleanup(func() {
-			helpers.DeleteS3Bucket(t, region, s3BucketName)
-		})
-		t.Cleanup(func() {
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
 			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- destroy -auto-approve")
 			require.NoError(t, err)
-		})
+		}()
 
 		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
