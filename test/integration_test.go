@@ -233,6 +233,32 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 	assert.Equal(t, 2, exitCode.Get())
 }
 
+func TestDetailedExitCodeChangesUnit(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+	ctx := t.Context()
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- apply")
+	require.NoError(t, err)
+
+	// delete example.txt from rootPath/app1 to have changes in one unit
+	err = os.Remove(filepath.Join(rootPath, "app1", "example.txt"))
+	require.NoError(t, err)
+
+	// check that the exit code is 2 when there are changes in one unit
+	var exitCode tf.DetailedExitCode
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.Get())
+}
+
 func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	t.Parallel()
 
