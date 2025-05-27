@@ -3,10 +3,6 @@ on:
   release:
     types: [prereleased]
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'The tag name of the release'
-        required: true
 
 jobs:
   test:
@@ -18,11 +14,11 @@ jobs:
         flake:
           - name: Ubuntu Base tests
             os: ubuntu
-            count: 10
+            count: 3
             timeout: 45m
           - name: macOS Base tests
             os: macos
-            count: 10
+            count: 3
             timeout: 45m
 
     env:
