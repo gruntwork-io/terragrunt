@@ -169,6 +169,11 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
 
+	if len(foundFiles) == 0 {
+		opts.Logger.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+		return cty.NilVal, nil
+	}
+
 	outputs := make(map[string]map[string]cty.Value)
 	declaredStacks := make(map[string]string)
 	declaredUnits := make(map[string]*Unit)
