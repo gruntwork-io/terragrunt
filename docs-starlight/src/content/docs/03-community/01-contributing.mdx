@@ -249,6 +249,47 @@ In general, we try to make sure that any test that requires a build tag is also 
 
 For example, all AWS tests are prefixed with `TestAws*`.
 
+Terragrunt also includes integration tests for Google Cloud Platform (GCP). These tests are prefixed with `TestGcp*` and are tagged with the `gcp` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable, similar to AWS tests:
+
+```bash
+GOFLAGS='-tags=gcp' go test -run 'TestGcp*' .
+```
+
+To successfully run the GCP tests, you must set the following environment variables:
+
+- `GCLOUD_SERVICE_KEY`: The service account JSON key used for authentication.
+- `GOOGLE_CLOUD_PROJECT` or `GOOGLE_PROJECT_ID`: The GCP project name.
+- `GOOGLE_COMPUTE_ZONE`: The compute zone name.
+- `GOOGLE_IDENTITY_EMAIL`: The service account identity email.
+- `GCLOUD_SERVICE_KEY_IMPERSONATOR`: (Optional) An additional service account key used in impersonation tests.
+
+Make sure these environment variables are set in your shell before running the tests. For example:
+
+```bash
+export GCLOUD_SERVICE_KEY="/path/to/service-account.json"
+export GOOGLE_CLOUD_PROJECT="your-gcp-project"
+export GOOGLE_COMPUTE_ZONE="us-central1-a"
+export GOOGLE_IDENTITY_EMAIL="service-account@your-gcp-project.iam.gserviceaccount.com"
+export GCLOUD_SERVICE_KEY_IMPERSONATOR="/path/to/impersonator-service-account.json"
+```
+
+The service account used for GCP tests must have the following IAM roles in your GCP project:
+
+- `roles/storage.admin`
+- `roles/iam.serviceAccountTokenCreator`
+
+You can assign these roles using the following gcloud commands:
+
+```bash
+gcloud projects add-iam-policy-binding <gcp-project> \
+  --member="<service-account>" \
+  --role="roles/storage.admin"
+
+gcloud projects add-iam-policy-binding <gcp-project> \
+  --member="<service-account>" \
+  --role="roles/iam.serviceAccountTokenCreator"
+```
+
 #### Race tests
 
 Given that Terragrunt is a tool that frequently involves concurrently running multiple things at once, there's always a risk for race conditions to occur. As such, there are dedicated tests that are run with the `-race` flag in CI to use golang's built-in tooling for identifying race conditions.
@@ -299,7 +340,7 @@ To accomplish these two goals, we have created an `errors` package that has seve
 
 Here is how the `errors` package should be used:
 
-1. Any time you want to create your own error, create a custom type for it, and when instantiating that type, wrap it with a call to `errors.New`. That way, any time you call a method defined in the Terragrunt code, you know the error it returns already has a stacktrace and you don’t have to wrap it yourself.
+1. Any time you want to create your own error, create a custom type for it, and when instantiating that type, wrap it with a call to `errors.New`. That way, any time you call a method defined in the Terragrunt code, you know the error it returns already has a stacktrace and you don't have to wrap it yourself.
 
 2. Any time you get back an error object from a function built into Go or a 3rd party library, immediately wrap it with `errors.New`. This gives us a stacktrace as close to the source as possible.
 
