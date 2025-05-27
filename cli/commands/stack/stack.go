@@ -50,7 +50,12 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
+	stackPath := filepath.Join(opts.WorkingDir, stackDir)
+	if _, statErr := os.Stat(stackPath); os.IsNotExist(statErr) {
+		return errors.Errorf("stack directory %q does not exist", stackPath)
+	}
+
+	opts.WorkingDir = stackPath
 
 	return runall.Run(ctx, opts)
 }

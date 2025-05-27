@@ -84,6 +84,11 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
 
+	if len(foundFiles) == 0 {
+		opts.Logger.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+		return nil
+	}
+
 	for {
 		// check if we have already processed the files
 		processedNewFiles := false
