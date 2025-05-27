@@ -532,6 +532,7 @@ func prepareInitCommand(ctx context.Context, terragruntOptions *options.Terragru
 	return nil
 }
 
+// CheckFolderContainsTerraformCode checks if the folder contains Terraform/OpenTofu code
 func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	found := false
 
@@ -544,7 +545,7 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 			return nil
 		}
 
-		if strings.HasSuffix(path, ".tf") || strings.HasSuffix(path, ".tofu") || strings.HasSuffix(path, ".tf.json") || strings.HasSuffix(path, ".tofu.json") {
+		if isTofuFile(path) {
 			found = true
 
 			return filepath.SkipAll
@@ -562,6 +563,24 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 	}
 
 	return nil
+}
+
+// isTofuFile checks if a given file is an OpenTofu/Terraform file
+func isTofuFile(path string) bool {
+	suffixes := []string{
+		".tf",
+		".tofu",
+		".tf.json",
+		".tofu.json",
+	}
+
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
