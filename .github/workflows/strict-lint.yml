@@ -31,19 +31,19 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
 
     - name: Go Mod Cache
       uses: actions/cache@v4
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-linux-amd64
 
     - name: golangci-lint Cache
       uses: actions/cache@v4
       with:
         path: ${{ steps.go-cache-paths.outputs.golanci-lint-cache }}
-        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-linux-amd64
 
     - name: Strict Lint
       run: make run-strict-lint
