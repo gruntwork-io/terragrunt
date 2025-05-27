@@ -3,6 +3,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -104,11 +105,27 @@ var (
 			writer.WithMsgSeparator(logMsgSeparator),
 		)
 
-		return []hclparse.Option{
+		parseOpts := []hclparse.Option{
 			hclparse.WithDiagnosticsWriter(writer, opts.Logger.Formatter().DisabledColors()),
-			hclparse.WithFileUpdate(updateBareIncludeBlock),
 			hclparse.WithLogger(opts.Logger),
 		}
+
+		strictControl := opts.StrictControls.Find(controls.BareInclude)
+
+		// If we can't find the strict control, we're probably in a test
+		// where the option is being hand written. In that case,
+		// we'll assume we're not in strict mode.
+		if strictControl != nil {
+			strictControl.SuppressWarning()
+
+			if err := strictControl.Evaluate(context.Background()); err != nil {
+				return parseOpts
+			}
+		}
+
+		parseOpts = append(parseOpts, hclparse.WithFileUpdate(updateBareIncludeBlock))
+
+		return parseOpts
 	}
 
 	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
@@ -1382,6 +1399,58 @@ func detectInputsCtyUsage(file *hclparse.File) bool {
 	}
 
 	return false
+}
+
+// detectBareIncludeUsage detects if an identifier matching include.foo is used in the given HCL file.
+//
+// This is deprecated functionality, so we look for this to determine if we should throw an error or warning.
+func detectBareIncludeUsage(file *hclparse.File) bool {
+	switch filepath.Ext(file.ConfigPath) {
+	case ".json":
+		var data map[string]interface{}
+		if err := json.Unmarshal(file.File.Bytes, &data); err != nil {
+			// If JSON is invalid, it can't be a valid bare include structure.
+			// The main parser will handle the invalid JSON error.
+			return false
+		}
+
+		includeBlockUntyped, exists := data[MetadataInclude]
+		if !exists {
+			return false
+		}
+
+		switch includeBlockTyped := includeBlockUntyped.(type) {
+		case map[string]interface{}:
+			// Delegate to the logic from include.go, which checks if the map
+			// represents a bare include block (e.g., only known include attributes).
+			return jsonIsIncludeBlock(includeBlockTyped)
+		case []interface{}:
+			// A bare include in JSON array form must have exactly one element,
+			// and that element must be an include block.
+			if len(includeBlockTyped) == 1 {
+				if firstElement, ok := includeBlockTyped[0].(map[string]interface{}); ok {
+					return jsonIsIncludeBlock(firstElement)
+				}
+			}
+
+			return false
+		default:
+			return false
+		}
+	default:
+		body, ok := file.Body.(*hclsyntax.Body)
+		if !ok {
+			return false
+		}
+
+		for _, block := range body.Blocks {
+			if block.Type == MetadataInclude && len(block.Labels) == 0 {
+				return true
+			}
+		}
+
+		return false
+	}
 }
 
 // iamRoleCache - store for cached values of IAM roles

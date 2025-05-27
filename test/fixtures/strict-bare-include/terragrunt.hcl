@@ -1,0 +1,3 @@
+include {
+  path = "parent.hcl"
+}
