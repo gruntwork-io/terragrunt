@@ -5,7 +5,7 @@ category: migrate
 categories_url: migrate
 excerpt: Migration guide to adopt changes from RFC 3445
 tags: ["migration", "community"]
-order: 503
+order: 603
 nav_title: Documentation
 nav_title_link: /docs/
 slug: cli-redesign
