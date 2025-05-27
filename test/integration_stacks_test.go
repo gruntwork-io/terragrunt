@@ -993,7 +993,7 @@ func TestStacksCyclesErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "Cycle detected")
 }
 
-func TestStacksNoStackDirNoTerragruntStackDirectoryCreated(t *testing.T) {
+func TestStacksNoStackDirDirectoryCreated(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureNoStackNoDir)
@@ -1005,6 +1005,27 @@ func TestStacksNoStackDirNoTerragruntStackDirectoryCreated(t *testing.T) {
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	// validate that the stack directory is not created
 	assert.NoDirExists(t, path)
+}
+
+func TestStacksNoStackCommandFail(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNoStackNoDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStackNoDir)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureNoStackNoDir, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stack directory does not exist")
+}
+
+func TestStacksGeneratePrintWarning(t *testing.T) {
+	t.Parallel()
+
+	rootPath := t.TempDir()
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
+	assert.Contains(t, stderr, "No stack files found")
+	require.NoError(t, err)
 }
 
 func TestStacksNotExistingPathError(t *testing.T) {

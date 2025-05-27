@@ -52,7 +52,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	stackPath := filepath.Join(opts.WorkingDir, stackDir)
 	if _, statErr := os.Stat(stackPath); os.IsNotExist(statErr) {
-		return errors.Errorf("stack directory %q does not exist", stackPath)
+		return errors.Errorf("stack directory does not exist in %s", opts.WorkingDir)
 	}
 
 	opts.WorkingDir = stackPath
