@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/hashicorp/go-multierror"
-	"github.com/mattn/go-zglob"
 
 	"maps"
 
@@ -537,37 +537,31 @@ func prepareInitCommand(ctx context.Context, terragruntOptions *options.Terragru
 }
 
 func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
-	files := []string{}
+	found := false
 
-	hclFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf")
+	err := filepath.WalkDir(terragruntOptions.WorkingDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if strings.HasSuffix(path, ".tf") || strings.HasSuffix(path, ".tofu") || strings.HasSuffix(path, ".tf.json") || strings.HasSuffix(path, ".tofu.json") {
+			found = true
+
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
-	files = append(files, hclFiles...)
-
-	tofuHclFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tofu")
-	if err != nil {
-		return errors.New(err)
-	}
-
-	files = append(files, tofuHclFiles...)
-
-	jsonFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf.json")
-	if err != nil {
-		return errors.New(err)
-	}
-
-	files = append(files, jsonFiles...)
-
-	tofuJSONFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tofu.json")
-	if err != nil {
-		return errors.New(err)
-	}
-
-	files = append(files, tofuJSONFiles...)
-
-	if len(files) == 0 {
+	if !found {
 		return errors.New(NoTerraformFilesFound(terragruntOptions.WorkingDir))
 	}
 

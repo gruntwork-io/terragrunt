@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:stylecheck,revive
-	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:stylecheck,revive
+	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:revive
+	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:revive
 )
 
 const (
