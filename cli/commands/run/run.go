@@ -485,6 +485,10 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 				return err
 			} else {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepInterval)
+				// Reset the exit code to success so that we can retry the command
+				if exitCode := tf.DetailedExitCodeFromContext(ctx); exitCode != nil {
+					exitCode.ResetSuccess()
+				}
 				select {
 				case <-time.After(terragruntOptions.RetrySleepInterval):
 					// try again
