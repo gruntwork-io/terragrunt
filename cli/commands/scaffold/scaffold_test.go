@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +85,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	cfg, err := config.ReadTerragruntConfig(t.Context(), l, opts, config.DefaultParserOptions(l, opts))
 	require.NoError(t, err)

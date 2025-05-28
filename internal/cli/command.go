@@ -4,8 +4,6 @@ import (
 	"errors"
 	libflag "flag"
 	"strings"
-
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Command struct {
@@ -125,7 +123,7 @@ func (cmd *Command) VisibleSubcommands() Commands {
 
 // Run parses the given args for the presence of flags as well as subcommands.
 // If this is the final command, starts its execution.
-func (cmd *Command) Run(ctx *Context, l log.Logger, args Args) (err error) {
+func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	args, err = cmd.parseFlags(ctx, args.Slice())
 	if err != nil {
 		return NewExitError(err, ExitCodeGeneralError)
@@ -143,7 +141,7 @@ func (cmd *Command) Run(ctx *Context, l log.Logger, args Args) (err error) {
 		}
 
 		if subCmd != nil {
-			return subCmd.Run(ctx, l, subCmdArgs)
+			return subCmd.Run(ctx, subCmdArgs)
 		}
 	}
 
@@ -153,23 +151,23 @@ func (cmd *Command) Run(ctx *Context, l log.Logger, args Args) (err error) {
 
 	defer func() {
 		if cmd.After != nil && err == nil {
-			err = cmd.After(ctx, l)
+			err = cmd.After(ctx)
 			err = ctx.App.handleExitCoder(ctx, err)
 		}
 	}()
 
 	if cmd.Before != nil {
-		if err := cmd.Before(ctx, l); err != nil {
+		if err := cmd.Before(ctx); err != nil {
 			return ctx.App.handleExitCoder(ctx, err)
 		}
 	}
 
 	if subCmd != nil && !subCmd.SkipRunning {
-		return subCmd.Run(ctx, l, subCmdArgs)
+		return subCmd.Run(ctx, subCmdArgs)
 	}
 
 	if cmd.Action != nil {
-		if err = cmd.Action(ctx, l); err != nil {
+		if err = cmd.Action(ctx); err != nil {
 			return ctx.App.handleExitCoder(ctx, err)
 		}
 	}
@@ -300,12 +298,12 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 	return undefArgs, err
 }
 
-func (cmd *Command) WrapAction(fn func(ctx *Context, l log.Logger, action ActionFunc) error) *Command {
+func (cmd *Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *Command {
 	clone := *cmd
 
 	action := clone.Action
-	clone.Action = func(ctx *Context, l log.Logger) error {
-		return fn(ctx, l, action)
+	clone.Action = func(ctx *Context) error {
+		return fn(ctx, action)
 	}
 	clone.Subcommands = clone.Subcommands.WrapAction(fn)
 

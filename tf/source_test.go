@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -48,7 +48,7 @@ func TestSplitSourceUrl(t *testing.T) {
 			sourceURL, err := url.Parse(tc.sourceURL)
 			require.NoError(t, err)
 
-			l := log.New()
+			l := logger.CreateLogger()
 
 			actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
 			require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "git::codecommit::ap-northeast-1", sourceURL.Scheme)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
 	require.NoError(t, err)

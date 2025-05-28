@@ -13,8 +13,8 @@ import (
 
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -209,7 +209,7 @@ func TestFileManifest(t *testing.T) {
 	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
 
 	// create a manifest
-	manifest := util.NewFileManifest(log.New(), dir, ".terragrunt-test-manifest")
+	manifest := util.NewFileManifest(logger.CreateLogger(), dir, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
@@ -348,7 +348,7 @@ func TestIncludeInCopy(t *testing.T) {
 		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
 	}
 
-	require.NoError(t, util.CopyFolderContents(log.New(), source, destination, ".terragrunt-test", includeInCopy, nil))
+	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, nil))
 
 	for i, tc := range testCases {
 
@@ -396,7 +396,7 @@ func TestExcludeFromCopy(t *testing.T) {
 		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
 	}
 
-	require.NoError(t, util.CopyFolderContents(log.New(), source, destination, ".terragrunt-test", nil, excludeFromCopy))
+	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", nil, excludeFromCopy))
 
 	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -438,7 +438,7 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
 	}
 
-	require.NoError(t, util.CopyFolderContents(log.New(), source, destination, ".terragrunt-test", includeInCopy, excludeFromCopy))
+	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, excludeFromCopy))
 
 	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {

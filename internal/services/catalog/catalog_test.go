@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +63,7 @@ func TestListModules_HappyPath(t *testing.T) {
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	err = svc.Load(t.Context(), l)
 	require.NoError(t, err)
@@ -86,7 +87,7 @@ func TestListModules_NoRepositoriesConfigured(t *testing.T) {
 
 	// No customNewRepoFunc needed as it should error before trying to create a repo.
 	svc := catalog.NewCatalogService(opts)
-	l := log.New()
+	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
 	require.Error(t, err)
@@ -113,7 +114,7 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/only-repo")
-	l := log.New()
+	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
 	modules := svc.Modules()
@@ -136,7 +137,7 @@ func TestListModules_ErrorFromNewRepo(t *testing.T) {
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/error-repo")
-	l := log.New()
+	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
 	require.Error(t, err)
@@ -168,7 +169,7 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/find-error-repo")
-	l := log.New()
+	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 
 	require.Error(t, err)
@@ -190,7 +191,7 @@ func TestListModules_NoModulesFound(t *testing.T) {
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/empty-repo")
-	l := log.New()
+	l := logger.CreateLogger()
 	err := svc.Load(t.Context(), l)
 	require.Error(t, err)
 

@@ -29,6 +29,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"os"
 	"path/filepath"
@@ -43,7 +44,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,7 +89,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 
 	require.NoError(
 		t,
-		util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy, nil),
+		util.CopyFolderContents(logger.CreateLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy, nil),
 	)
 
 	return tmpDir
@@ -174,7 +174,7 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
-	session, err := awshelper.CreateAwsSession(createLogger(), awsConfig, mockOptions)
+	session, err := awshelper.CreateAwsSession(logger.CreateLogger(), awsConfig, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return s3.New(session)
@@ -193,7 +193,7 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 		RoleArn: iamRoleArn,
 	}
 
-	session, err := awshelper.CreateAwsSession(createLogger(), sessionConfig, mockOptions)
+	session, err := awshelper.CreateAwsSession(logger.CreateLogger(), sessionConfig, mockOptions)
 	require.NoError(t, err, "Error creating DynamoDB client")
 
 	return dynamodb.New(session)
@@ -334,13 +334,6 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 	}
 
 	return relPaths
-}
-
-func createLogger() log.Logger {
-	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
-	formatter.SetDisabledColors(true)
-
-	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
 
 func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
@@ -776,12 +769,12 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
 
-	l := log.New()
+	l := logger.CreateLogger()
 	app := cli.NewApp(l, opts) //nolint:contextcheck
 
 	ctx = log.ContextWithLogger(ctx, l)
 
-	return app.RunContext(ctx, l, args)
+	return app.RunContext(ctx, args)
 }
 
 func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {

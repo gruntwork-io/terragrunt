@@ -38,7 +38,7 @@ func main() {
 	app := cli.NewApp(l, opts)
 
 	ctx := setupContext(l, &exitCode)
-	err := app.RunContext(ctx, l, os.Args)
+	err := app.RunContext(ctx, os.Args)
 
 	checkForErrorsAndExit(l, exitCode.Get())(err)
 }

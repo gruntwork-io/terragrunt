@@ -87,7 +87,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Name:  CommandName,
 		Usage: "Scaffold a new Terragrunt module.",
 		Flags: NewFlags(opts, nil),
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			var moduleURL, templateURL string
 
 			if val := ctx.Args().Get(0); val != "" {

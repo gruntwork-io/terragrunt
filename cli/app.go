@@ -41,6 +41,7 @@ func init() {
 type App struct {
 	*cli.App
 	opts *options.TerragruntOptions
+	l    log.Logger
 }
 
 // NewApp creates the Terragrunt CLI App.
@@ -62,20 +63,20 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
 	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
 	app.Action = cli.ShowAppHelp
 
-	return &App{app, opts}
+	return &App{app, opts, l}
 }
 
 func (app *App) Run(args []string) error {
-	return app.RunContext(context.Background(), log.New(), args)
+	return app.RunContext(context.Background(), args)
 }
 
-func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger) context.Context {
+func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
 	ctx, cancel := context.WithCancelCause(ctx)
 
 	signal.NotifierWithContext(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
 		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
-		l.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
+		app.l.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
 
 		cancel(signal.NewContextCanceledError(sig))
 	}, signal.InterruptSignals...)
@@ -83,11 +84,11 @@ func (app *App) registerGracefullyShutdown(ctx context.Context, l log.Logger) co
 	return ctx
 }
 
-func (app *App) RunContext(ctx context.Context, l log.Logger, args []string) error {
+func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = app.registerGracefullyShutdown(ctx, l)
+	ctx = app.registerGracefullyShutdown(ctx)
 
 	if err := global.NewTelemetryFlags(app.opts, nil).Parse(os.Args); err != nil {
 		return err
@@ -112,14 +113,14 @@ func (app *App) RunContext(ctx context.Context, l log.Logger, args []string) err
 	ctx = run.WithRunVersionCache(ctx)
 
 	defer func(ctx context.Context) {
-		if err := engine.Shutdown(ctx, l, app.opts); err != nil {
+		if err := engine.Shutdown(ctx, app.l, app.opts); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)
 
 	args = removeNoColorFlagDuplicates(args)
 
-	if err := app.App.RunContext(ctx, l, args); err != nil && !errors.IsContextCanceled(err) {
+	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
 		return err
 	}
 
@@ -151,11 +152,11 @@ func removeNoColorFlagDuplicates(args []string) []string {
 }
 
 func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
-	return func(ctx *cli.Context, l log.Logger) error {
+	return func(ctx *cli.Context) error {
 		// setting current context to the options
 		// show help if the args are not specified.
 		if !ctx.Args().Present() {
-			err := cli.ShowAppHelp(ctx, l)
+			err := cli.ShowAppHelp(ctx)
 			// exit the app
 			return cli.NewExitError(err, 0)
 		}

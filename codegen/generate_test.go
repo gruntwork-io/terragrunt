@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,7 +261,7 @@ func TestFmtGeneratedFile(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotNil(t, opts)
 
-			l := log.New()
+			l := logger.CreateLogger()
 			err = codegen.WriteToFile(l, opts, "", config)
 			require.NoError(t, err)
 
@@ -320,7 +320,7 @@ func TestGenerateDisabling(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotNil(t, opts)
 
-			l := log.New()
+			l := logger.CreateLogger()
 			err = codegen.WriteToFile(l, opts, "", config)
 			require.NoError(t, err)
 

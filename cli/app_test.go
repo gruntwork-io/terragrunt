@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -433,7 +434,7 @@ func TestTerragruntVersion(t *testing.T) {
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(log.New(), opts)
+		app := cli.NewApp(logger.CreateLogger(), opts)
 		app.Version = version
 
 		err := app.Run(tc.args)
@@ -449,7 +450,7 @@ func TestTerragruntHelp(t *testing.T) {
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
 	opts := options.NewTerragruntOptions()
-	app := cli.NewApp(log.New(), opts)
+	app := cli.NewApp(logger.CreateLogger(), opts)
 
 	testCases := []struct {
 		expected    string
@@ -488,7 +489,7 @@ func TestTerragruntHelp(t *testing.T) {
 
 			output := &bytes.Buffer{}
 			opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-			app := cli.NewApp(log.New(), opts)
+			app := cli.NewApp(logger.CreateLogger(), opts)
 			err := app.Run(tc.args)
 			require.NoError(t, err, tc)
 
@@ -515,7 +516,7 @@ func TestTerraformHelp(t *testing.T) {
 	for _, tc := range testCases {
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(log.New(), opts)
+		app := cli.NewApp(logger.CreateLogger(), opts)
 		err := app.Run(tc.args)
 		require.NoError(t, err)
 
@@ -529,7 +530,7 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 	output := &bytes.Buffer{}
 
 	opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-	app := cli.NewApp(log.New(), opts)
+	app := cli.NewApp(logger.CreateLogger(), opts)
 
 	err := app.Run([]string{"terragrunt", "plan", "help"})
 	require.Error(t, err)
@@ -543,20 +544,20 @@ func setCommandAction(action clipkg.ActionFunc, cmds ...*clipkg.Command) {
 }
 
 func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
-	emptyAction := func(ctx *clipkg.Context, l log.Logger) error { return nil }
+	emptyAction := func(ctx *clipkg.Context) error { return nil }
 
-	terragruntCommands := commands.New(log.New(), opts)
+	terragruntCommands := commands.New(logger.CreateLogger(), opts)
 	setCommandAction(emptyAction, terragruntCommands...)
 
 	app := clipkg.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = append(global.NewFlags(log.New(), opts, nil), run.NewFlags(log.New(), opts, nil)...)
+	app.Flags = append(global.NewFlags(logger.CreateLogger(), opts, nil), run.NewFlags(logger.CreateLogger(), opts, nil)...)
 	app.Commands = append(
-		commands.NewDeprecatedCommands(log.New(), opts),
-		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(log.New(), opts))
+		commands.NewDeprecatedCommands(logger.CreateLogger(), opts),
+		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(logger.CreateLogger(), opts))
 	app.OsExiter = cli.OSExiter
-	app.Action = func(ctx *clipkg.Context, l log.Logger) error {
+	app.Action = func(ctx *clipkg.Context) error {
 		opts.TerraformCliArgs = append(opts.TerraformCliArgs, ctx.Args()...)
 		return nil
 	}
@@ -604,7 +605,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 
 		output := &bytes.Buffer{}
 		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
-		app := cli.NewApp(log.New(), opts)
+		app := cli.NewApp(logger.CreateLogger(), opts)
 
 		app.Commands = app.Commands.FilterByNames([]string{"hcl", "render", "run"})
 

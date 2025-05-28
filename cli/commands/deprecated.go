@@ -210,15 +210,15 @@ func newDeprecatedDefaultCommands(l log.Logger, opts *options.TerragruntOptions)
 			Usage:      runSubCmd.Usage,
 			Flags:      runCmd.Flags,
 			CustomHelp: runSubCmd.CustomHelp,
-			Before: func(ctx *cli.Context, l log.Logger) error {
+			Before: func(ctx *cli.Context) error {
 				if err := control.Evaluate(ctx); err != nil {
 					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 
 				return nil
 			},
-			Action: func(ctx *cli.Context, l log.Logger) error {
-				return runSubCmd.Action(ctx, l)
+			Action: func(ctx *cli.Context) error {
+				return runSubCmd.Action(ctx)
 			},
 			Hidden:                       true,
 			DisabledErrorOnUndefinedFlag: true,
@@ -268,7 +268,7 @@ func (dep DeprecatedCommand) CLICommand(opts *options.TerragruntOptions) *cli.Co
 		CustomHelp:                   cli.ShowAppHelp,
 		DisabledErrorOnUndefinedFlag: true,
 		Hidden:                       true,
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			if err := control.Evaluate(ctx); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
@@ -279,7 +279,7 @@ func (dep DeprecatedCommand) CLICommand(opts *options.TerragruntOptions) *cli.Co
 			cmd := ctx.App.NewRootCommand().DisableErrorOnMultipleSetFlag()
 			args := append(dep.replaceWithArgs, ctx.Args().Slice()...)
 
-			return cmd.Run(ctx, l, args)
+			return cmd.Run(ctx, args)
 		},
 	}
 }

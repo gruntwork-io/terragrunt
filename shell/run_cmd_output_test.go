@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/stretchr/testify/assert"
@@ -64,7 +64,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	out, err := shell.RunCommandWithOutput(t.Context(), l, terragruntOptions, "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
 

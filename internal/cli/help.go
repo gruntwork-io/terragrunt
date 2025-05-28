@@ -7,7 +7,6 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -23,7 +22,7 @@ var (
 )
 
 // ShowAppHelp prints App help.
-func ShowAppHelp(ctx *Context, l log.Logger) error {
+func ShowAppHelp(ctx *Context) error {
 	tpl := ctx.App.CustomAppHelpTemplate
 	if tpl == "" {
 		tpl = AppHelpTemplate
@@ -46,13 +45,13 @@ func ShowAppHelp(ctx *Context, l log.Logger) error {
 }
 
 // ShowCommandHelp prints command help for the given `ctx`.
-func ShowCommandHelp(ctx *Context, l log.Logger) error {
+func ShowCommandHelp(ctx *Context) error {
 	if ctx.Command.HelpName == "" {
 		ctx.Command.HelpName = ctx.Command.Name
 	}
 
 	if ctx.Command.CustomHelp != nil {
-		if err := ctx.Command.CustomHelp(ctx, l); err != nil {
+		if err := ctx.Command.CustomHelp(ctx); err != nil {
 			return err
 		}
 

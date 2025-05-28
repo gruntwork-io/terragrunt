@@ -98,7 +98,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Aliases: []string{CommandAlias},
 		Usage:   "List relevant Terragrunt configurations.",
 		Flags:   NewFlags(cmdOpts, nil),
-		Before: func(ctx *cli.Context, l log.Logger) error {
+		Before: func(ctx *cli.Context) error {
 			if cmdOpts.Tree {
 				cmdOpts.Format = FormatTree
 			}
@@ -123,7 +123,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 
 			return nil
 		},
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			return Run(ctx, l, cmdOpts)
 		},
 	}

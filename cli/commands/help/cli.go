@@ -14,13 +14,13 @@ const (
 	CommandName = "help"
 )
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                         CommandName,
 		Usage:                        "Show help.",
 		Hidden:                       true,
 		DisabledErrorOnUndefinedFlag: true,
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			return Action(ctx, l, opts)
 		},
 	}
@@ -40,7 +40,7 @@ func Action(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if cmdName := args.CommandName(); cmdName == "" || cmds.Get(cmdName) == nil {
-		return cli.ShowAppHelp(ctx, l)
+		return cli.ShowAppHelp(ctx)
 	}
 
 	const maxCommandDepth = 1000 // Maximum depth of nested subcommands
@@ -59,7 +59,7 @@ func Action(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if ctx.Command != nil {
-		return cli.ShowCommandHelp(ctx, l)
+		return cli.ShowCommandHelp(ctx)
 	}
 
 	return cli.NewExitError(errors.New(cli.InvalidCommandNameError(args.First())), cli.ExitCodeGeneralError)

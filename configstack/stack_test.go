@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	terragruntOptions.WorkingDir = envFolder
 
-	stack, err := configstack.FindStackInSubfolders(t.Context(), log.New(), terragruntOptions)
+	stack, err := configstack.FindStackInSubfolders(t.Context(), logger.CreateLogger(), terragruntOptions)
 	require.NoError(t, err)
 
 	var modulePaths = make([]string, 0, len(stack.Modules))
@@ -146,7 +146,7 @@ func createTestStack() *configstack.Stack {
 		Dependencies: configstack.TerraformModules{mysql, redis},
 	}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
 	stack.Modules = configstack.TerraformModules{
 		accountBaseline,
 		vpc,
@@ -201,8 +201,8 @@ func TestResolveTerraformModulesNoPaths(t *testing.T) {
 
 	configPaths := []string{}
 	expected := configstack.TerraformModules{}
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -224,8 +224,8 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleA}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -247,8 +247,8 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixtures/modules/json-module-a/" + config.DefaultTerragruntJSONConfigPath}
 	expected := configstack.TerraformModules{moduleA}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -273,8 +273,8 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 	configPaths := []string{"../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleB}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -299,7 +299,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 		require.NoError(t, err)
 
-		l := log.New()
+		l := logger.CreateLogger()
 
 		ctx := config.NewParsingContext(t.Context(), l, opts)
 		cfg, err := config.PartialParseConfigFile(ctx, l, configPath, nil)
@@ -360,8 +360,8 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
 	mockOptions.OriginalTerragruntConfigPath = childConfigPath
 
-	stack := configstack.NewStack(log.New(), mockOptions, configstack.WithChildTerragruntConfig(childTerragruntConfig))
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions, configstack.WithChildTerragruntConfig(childTerragruntConfig))
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -386,8 +386,8 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 	configPaths := []string{"../test/fixtures/modules/json-module-b/module-b-child/" + config.DefaultTerragruntJSONConfigPath}
 	expected := configstack.TerraformModules{moduleB}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -412,8 +412,8 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 	configPaths := []string{"../test/fixtures/modules/hcl-module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleB}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -447,8 +447,8 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleA, moduleC}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -482,8 +482,8 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/json-module-c/" + config.DefaultTerragruntJSONConfigPath}
 	expected := configstack.TerraformModules{moduleA, moduleC}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -517,8 +517,8 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixtures/modules/json-module-a/" + config.DefaultTerragruntJSONConfigPath, "../test/fixtures/modules/hcl-module-c/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleA, moduleC}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -549,8 +549,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	stack := configstack.NewStack(log.New(), opts)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 
 	// construct the expected list
 	moduleA.FlagExcluded = true
@@ -598,8 +598,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-abba/" + config.DefaultTerragruntConfigPath}
 
-	stack := configstack.NewStack(log.New(), opts)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 
 	// construct the expected list
 	moduleA.FlagExcluded = true
@@ -641,8 +641,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-abba/" + config.DefaultTerragruntConfigPath}
 
-	stack := configstack.NewStack(log.New(), opts)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	// construct the expected list
 	moduleA.FlagExcluded = true
 	moduleAbba.FlagExcluded = true
@@ -676,8 +676,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	stack := configstack.NewStack(log.New(), opts)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 
 	// construct the expected list
 	moduleC.FlagExcluded = true
@@ -718,8 +718,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	stack := configstack.NewStack(log.New(), opts)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 
 	// construct the expected list
 	moduleA.FlagExcluded = false
@@ -761,8 +761,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	stack := configstack.NewStack(log.New(), opts)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 
 	// construct the expected list
 	moduleC.FlagExcluded = true
@@ -811,8 +811,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-f/" + config.DefaultTerragruntConfigPath}
 
-	stack := configstack.NewStack(log.New(), opts)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 
 	// construct the expected list
 	moduleF.FlagExcluded = true
@@ -876,8 +876,8 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-d/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -936,8 +936,8 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/json-module-b/module-b-child/" + config.DefaultTerragruntJSONConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/json-module-d/" + config.DefaultTerragruntJSONConfigPath}
 	expected := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -988,8 +988,8 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-e/module-e-child/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleA, moduleB, moduleE}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -1023,8 +1023,8 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	configPaths := []string{"../test/fixtures/modules/module-g/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleF, moduleG}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -1082,8 +1082,8 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	configPaths := []string{"../test/fixtures/modules/module-j/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-k/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{moduleH, moduleI, moduleJ, moduleK}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -1093,8 +1093,8 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 
 	configPaths := []string{"../test/fixtures/modules/module-missing-dependency/" + config.DefaultTerragruntConfigPath}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	_, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	_, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.Error(t, actualErr)
 
 	var processingModuleError configstack.ProcessingModuleError
@@ -1117,8 +1117,8 @@ func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
 	configPaths := []string{"../test/fixtures/modules/module-l/" + config.DefaultTerragruntConfigPath}
 	expected := configstack.TerraformModules{}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
-	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), log.New(), configPaths)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -1130,7 +1130,7 @@ func TestBasicDependency(t *testing.T) {
 	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}}
 	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
 
-	stack := configstack.NewStack(log.New(), mockOptions)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
 
 	expected := map[string][]string{
@@ -1154,7 +1154,7 @@ func TestNestedDependencies(t *testing.T) {
 	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
 
 	// Create a mock stack
-	stack := configstack.NewStack(log.New(), mockOptions)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
 
 	// Expected result
@@ -1184,7 +1184,7 @@ func TestCircularDependencies(t *testing.T) {
 	moduleB.Dependencies = configstack.TerraformModules{moduleC}
 	moduleC.Dependencies = configstack.TerraformModules{moduleA} // Circular dependency
 
-	stack := configstack.NewStack(log.New(), mockOptions)
+	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
 
 	expected := map[string][]string{

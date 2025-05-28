@@ -9,7 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	opts.RenderMetadata = false
 	opts.Write = false
 
-	err := render.Run(t.Context(), log.New(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
 	var result map[string]interface{}
@@ -47,7 +47,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	opts.RenderMetadata = true
 	opts.Write = false
 
-	err := render.Run(t.Context(), log.New(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
 	var result map[string]interface{}
@@ -69,7 +69,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	opts.Write = true
 	opts.OutputPath = outputPath
 
-	err := render.Run(t.Context(), log.New(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
 	// Verify the file was created and contains valid JSON
@@ -90,7 +90,7 @@ func TestRenderJSON_InvalidFormat(t *testing.T) {
 	opts, _ := setupTest(t)
 	opts.Format = "invalid"
 
-	err := render.Run(t.Context(), log.New(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid format")
 }
@@ -104,7 +104,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 	var renderedBuffer bytes.Buffer
 	opts.TerragruntOptions.Writer = &renderedBuffer
 
-	err := render.Run(t.Context(), log.New(), opts)
+	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
 	assert.Equal(t, testTerragruntConfigFixture, renderedBuffer.String())

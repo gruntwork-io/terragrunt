@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 // This test makes sure that all the fields from the TerragruntConfig struct are accounted for in the conversion to
@@ -229,7 +229,7 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 func TestStackUnitCtyReading(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx := config.NewParsingContext(t.Context(), l, options)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, l, "../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
@@ -249,7 +249,7 @@ func TestStackUnitCtyReading(t *testing.T) {
 func TestStackLocalsCtyReading(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx := config.NewParsingContext(t.Context(), l, options)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, l, "../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)

@@ -26,7 +26,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Name:  CommandName,
 		Usage: "Launch the user interface for searching and managing your module catalog.",
 		Flags: NewFlags(opts, nil),
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			var repoPath string
 
 			if val := ctx.Args().Get(0); val != "" {

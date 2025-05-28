@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -55,7 +55,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	require.NoError(t, err)
 	mockOptions.WorkingDir = rootPath
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	require.NoError(
 		t,

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/tf/getproviders/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 	provider.EXPECT().Address().Return(address).AnyTimes()
 	provider.EXPECT().Version().Return(version).AnyTimes()
 	provider.EXPECT().PackageDir().Return(packageDir).AnyTimes()
-	provider.EXPECT().Logger().Return(log.New()).AnyTimes()
+	provider.EXPECT().Logger().Return(logger.CreateLogger()).AnyTimes()
 	provider.EXPECT().DocumentSHA256Sums(gomock.Any()).Return([]byte(document), nil).AnyTimes()
 
 	return provider

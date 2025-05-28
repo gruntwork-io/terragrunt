@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -41,7 +42,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = terraformSource.WriteVersionFile(log.New())
+	err = terraformSource.WriteVersionFile(logger.CreateLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +255,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), log.New(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig)
 	require.Error(t, err)
 	var downloadingTerraformSourceErr run.DownloadingTerraformSourceErr
 	ok := errors.As(err, &downloadingTerraformSourceErr)
@@ -362,7 +363,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), log.New(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
@@ -380,7 +381,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool) (*tf.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	t.Helper()
 
-	logger := log.New()
+	logger := logger.CreateLogger()
 	logger.SetOptions(log.WithOutput(io.Discard))
 	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
@@ -410,7 +411,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir string, expected bool) {
 	t.Helper()
 
-	logger := log.New()
+	logger := logger.CreateLogger()
 	logger.SetOptions(log.WithOutput(io.Discard))
 	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
@@ -471,7 +472,7 @@ func readFile(t *testing.T, path string) string {
 func copyFolder(t *testing.T, src string, dest string) {
 	t.Helper()
 
-	logger := log.New()
+	logger := logger.CreateLogger()
 	logger.SetOptions(log.WithOutput(io.Discard))
 
 	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil, nil)

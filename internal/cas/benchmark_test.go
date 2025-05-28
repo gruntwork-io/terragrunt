@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func BenchmarkClone(b *testing.B) {
 	// Use a small, public repository for consistent results
 	repo := "https://github.com/gruntwork-io/terragrunt.git"
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
@@ -87,7 +87,7 @@ func BenchmarkContent(b *testing.B) {
 	// Prepare test data
 	testData := []byte("test content for benchmarking")
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	b.Run("store", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {

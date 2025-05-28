@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -23,7 +23,7 @@ dependencies {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -54,7 +54,7 @@ dependencies {
 prevent_destroy = false
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	_, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -76,7 +76,7 @@ prevent_destroy = true
 skip = true
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock, config.TerragruntFlags)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -100,7 +100,7 @@ skip = true
 func TestPartialParseOmittedItems(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock, config.TerragruntFlags)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, "", nil)
@@ -121,7 +121,7 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/ignore-bad-block-in-parent/child/"+config.DefaultTerragruntConfigPath)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
 	_, err := config.PartialParseConfigFile(ctx, l, opts.TerragruntConfigPath, nil)
@@ -136,7 +136,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts).WithDecodeList(config.TerragruntFlags)
 	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, opts.TerragruntConfigPath, nil)
@@ -157,7 +157,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts).WithDecodeList(config.DependenciesBlock)
 	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, opts.TerragruntConfigPath, nil)
@@ -186,7 +186,7 @@ dependency "vpc" {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -212,7 +212,7 @@ dependency "sql" {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -240,7 +240,7 @@ dependency "sql" {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -269,7 +269,7 @@ dependency "sql" {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock, config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -298,7 +298,7 @@ dependency "sql" {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock, config.DependenciesBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -327,7 +327,7 @@ dependency "sql" {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock, config.DependenciesBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -356,7 +356,7 @@ terraform {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.TerraformSource)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
@@ -381,7 +381,7 @@ dependency "ec2" {
 }
 `
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)

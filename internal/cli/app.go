@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -110,13 +109,13 @@ func (app *App) AddCommands(cmds ...*Command) {
 
 // Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
 func (app *App) Run(arguments []string) error {
-	return app.RunContext(context.Background(), log.New(), arguments)
+	return app.RunContext(context.Background(), arguments)
 }
 
 // RunContext is like Run except it takes a Context that will be
 // passed to its commands and sub-commands. Through this, you can
 // propagate timeouts and cancellation requests
-func (app *App) RunContext(ctx context.Context, l log.Logger, arguments []string) (err error) {
+func (app *App) RunContext(ctx context.Context, arguments []string) (err error) {
 	// remove empty args
 	filteredArguments := []string{}
 
@@ -151,7 +150,7 @@ func (app *App) RunContext(ctx context.Context, l log.Logger, arguments []string
 			}
 		}
 
-		return cmd.Run(ctx, l, args)
+		return cmd.Run(ctx, args)
 	}
 
 	return app.App.RunContext(ctx, arguments)

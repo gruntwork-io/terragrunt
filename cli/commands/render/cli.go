@@ -121,7 +121,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, in the specified format.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
 		Flags:       append(run.NewFlags(l, opts, nil), NewFlags(renderOpts, prefix)...),
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 			renderOpts := renderOpts.Clone()
 			renderOpts.TerragruntOptions = tgOpts
@@ -130,9 +130,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd, run.Run)
+	cmd = runall.WrapCommand(l, opts, cmd, run.Run)
 	// TODO: For backward compatibility, remove after getting rid of the `render-json` command, as supporting the `graph` flag for the `render` command is pointless.
-	cmd = graph.WrapCommand(opts, cmd, run.Run)
+	cmd = graph.WrapCommand(l, opts, cmd, run.Run)
 
 	return cmd
 }

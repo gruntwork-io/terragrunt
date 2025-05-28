@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,7 +19,7 @@ func TestRunShellCommand(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	cmd := shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "--version")
 	require.NoError(t, cmd)
@@ -40,7 +40,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stdout
 	terragruntOptions.ErrWriter = stderr
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	cmd := shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "--version")
 	require.NoError(t, cmd)
@@ -87,7 +87,7 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	assert.Empty(t, c.Cache)
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
-	l := log.New()
+	l := logger.CreateLogger()
 	path := "."
 	path1, err := shell.GitTopLevelDir(ctx, l, terragruntOptions, path)
 	require.NoError(t, err)

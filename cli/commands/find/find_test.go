@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -418,7 +418,7 @@ dependency "B" {
 			tgOpts := options.NewTerragruntOptions()
 			tgOpts.WorkingDir = tmpDir
 
-			l := log.New()
+			l := logger.CreateLogger()
 			l.Formatter().SetDisabledColors(true)
 
 			// Create options

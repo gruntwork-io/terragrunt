@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +16,7 @@ const testHashValue = "abcdef123456"
 func TestContent_Store(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
@@ -89,7 +89,7 @@ func TestContent_Store(t *testing.T) {
 func TestContent_Link(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()

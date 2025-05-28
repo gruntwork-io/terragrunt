@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +67,7 @@ func TestBasicDiscovery(t *testing.T) {
 	// Set the writer in options
 	opts.Writer = w
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	l.Formatter().SetDisabledColors(true)
 
@@ -139,7 +139,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
-	l := log.New()
+	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
 
 	// Create options
@@ -223,7 +223,7 @@ dependency "unit2" {
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
-	l := log.New()
+	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
 
 	// Create options
@@ -302,7 +302,7 @@ dependency "unit3" {
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
-	l := log.New()
+	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
 
 	// Create options
@@ -413,7 +413,7 @@ dependency "C" {
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	l.Formatter().SetDisabledColors(true)
 

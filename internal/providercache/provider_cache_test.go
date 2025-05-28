@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf/cache"
 	"github.com/gruntwork-io/terragrunt/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/tf/cache/services"
@@ -110,7 +110,7 @@ func TestProviderCache(t *testing.T) {
 			defer cancel()
 
 			errGroup, ctx := errgroup.WithContext(ctx)
-			logger := log.New()
+			logger := logger.CreateLogger()
 
 			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, logger)
 			providerHandler := handlers.NewDirectProviderHandler(logger, new(cliconfig.ProviderInstallationDirect), nil)
@@ -184,7 +184,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		unsetEnv(t, "HOME")
 		unsetEnv(t, "XDG_CACHE_HOME")
 
-		_, err := providercache.InitServer(log.New(), &options.TerragruntOptions{
+		_, err := providercache.InitServer(logger.CreateLogger(), &options.TerragruntOptions{
 			ProviderCacheDir: cacheDir,
 		})
 		require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
@@ -196,7 +196,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 
 		t.Setenv("HOME", home)
 
-		_, err := providercache.InitServer(log.New(), &options.TerragruntOptions{
+		_, err := providercache.InitServer(logger.CreateLogger(), &options.TerragruntOptions{
 			ProviderCacheDir: cacheDir,
 		})
 		require.NoError(t, err)

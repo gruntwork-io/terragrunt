@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,7 +54,7 @@ func TestSSHCASGetterGet(t *testing.T) {
 			opts := &cas.CloneOptions{
 				Branch: "main",
 			}
-			l := log.New()
+			l := logger.CreateLogger()
 			g := cas.NewCASGetter(&l, c, opts)
 			client := getter.Client{
 				Getters: []getter.Getter{g},

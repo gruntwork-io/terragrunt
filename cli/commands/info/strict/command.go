@@ -52,8 +52,8 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func ListAction(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context, l log.Logger) error {
-	return func(ctx *cli.Context, l log.Logger) error {
+func ListAction(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
 		var allowedStatuses = []strict.Status{
 			strict.ActiveStatus,
 		}

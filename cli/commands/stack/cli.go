@@ -36,7 +36,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 			&cli.Command{
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
-				Action: func(ctx *cli.Context, l log.Logger) error {
+				Action: func(ctx *cli.Context) error {
 					return RunGenerate(ctx.Context, l, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, nil),
@@ -44,7 +44,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 			&cli.Command{
 				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
-				Action: func(ctx *cli.Context, l log.Logger) error {
+				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, l, opts.OptionsFromContext(ctx))
 				},
 				Flags: defaultFlags(l, opts, nil),
@@ -52,7 +52,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 			&cli.Command{
 				Name:  outputCommandName,
 				Usage: "Run fetch stack output",
-				Action: func(ctx *cli.Context, l log.Logger) error {
+				Action: func(ctx *cli.Context) error {
 					index := ""
 					if val := ctx.Args().Get(0); val != "" {
 						index = val
@@ -64,7 +64,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 			&cli.Command{
 				Name:  cleanCommandName,
 				Usage: "Clean the stack generated from the current directory",
-				Action: func(ctx *cli.Context, l log.Logger) error {
+				Action: func(ctx *cli.Context) error {
 					return RunClean(ctx.Context, l, opts.OptionsFromContext(ctx))
 				},
 			},

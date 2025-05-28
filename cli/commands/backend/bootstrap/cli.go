@@ -20,12 +20,12 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Name:  CommandName,
 		Usage: "Bootstrap OpenTofu/Terraform backend infrastructure.",
 		Flags: NewFlags(l, opts, nil),
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd, run.Run)
+	cmd = runall.WrapCommand(l, opts, cmd, run.Run)
 
 	return cmd
 }

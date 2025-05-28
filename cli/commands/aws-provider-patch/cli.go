@@ -71,21 +71,21 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
 		Hidden: true,
 		Flags:  append(run.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...),
-		Before: func(ctx *cli.Context, l log.Logger) error {
+		Before: func(ctx *cli.Context) error {
 			if err := control.Evaluate(ctx); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
 
 			return nil
 		},
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 		DisabledErrorOnUndefinedFlag: true,
 	}
 
-	cmd = runall.WrapCommand(opts, cmd, run.Run)
-	cmd = graph.WrapCommand(opts, cmd, run.Run)
+	cmd = runall.WrapCommand(l, opts, cmd, run.Run)
+	cmd = graph.WrapCommand(l, opts, cmd, run.Run)
 
 	return cmd
 }

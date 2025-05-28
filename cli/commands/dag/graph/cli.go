@@ -22,13 +22,13 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, _ flags.Prefix) *
 		Name:      CommandName,
 		Usage:     "Graph the Directed Acyclic Graph (DAG) in DOT language.",
 		UsageText: "terragrunt dag graph",
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			return Run(ctx, l, opts)
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd, run.Run)
-	cmd = graph.WrapCommand(opts, cmd, run.Run)
+	cmd = runall.WrapCommand(l, opts, cmd, run.Run)
+	cmd = graph.WrapCommand(l, opts, cmd, run.Run)
 
 	return cmd
 }

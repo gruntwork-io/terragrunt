@@ -7,7 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,7 +80,7 @@ func TestDiscovery(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 			require.NoError(t, err)
 
-			configs, err := tt.discovery.Discover(t.Context(), log.New(), opts)
+			configs, err := tt.discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			if !tt.errorExpected {
 				require.NoError(t, err)
 			}
@@ -259,7 +259,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			configs, err := tt.discovery.Discover(t.Context(), log.New(), opts)
+			configs, err := tt.discovery.Discover(t.Context(), logger.CreateLogger(), opts)
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -441,7 +441,7 @@ exclude {
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	l.Formatter().SetDisabledColors(true)
 

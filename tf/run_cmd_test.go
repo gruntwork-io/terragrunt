@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -43,7 +44,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TerraformPath = terraformPath
 
-		l := log.New()
+		l := logger.CreateLogger()
 		l.SetOptions(log.WithFormatter(logFormatter))
 		l = l.WithField(placeholders.WorkDirKeyName, prefix)
 	}, assertOutputs(t,
@@ -70,7 +71,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	out, err := tf.RunCommandWithOutput(t.Context(), l, terragruntOptions, "same")
 

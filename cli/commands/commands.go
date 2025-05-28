@@ -93,11 +93,11 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	configurationCommands := cli.Commands{
-		hcl.NewCommand(opts),                   // hcl
+		hcl.NewCommand(l, opts),                // hcl
 		info.NewCommand(l, opts),               // info
 		dag.NewCommand(l, opts),                // dag
 		render.NewCommand(l, opts),             // render
-		helpCmd.NewCommand(opts),               // help (hidden)
+		helpCmd.NewCommand(l, opts),            // help (hidden)
 		versionCmd.NewCommand(opts),            // version (hidden)
 		awsproviderpatch.NewCommand(l, opts),   // aws-provider-patch (hidden)
 		outputmodulegroups.NewCommand(l, opts), // output-module-groups (hidden)
@@ -126,8 +126,8 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 }
 
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context, l log.Logger, action cli.ActionFunc) error {
-	return func(ctx *cli.Context, l log.Logger, action cli.ActionFunc) error {
+func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
+	return func(ctx *cli.Context, action cli.ActionFunc) error {
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
@@ -175,7 +175,7 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 		defer cancel()
 
 		if action != nil {
-			return action(cliCtx, l)
+			return action(cliCtx)
 		}
 
 		return nil

@@ -7,7 +7,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	urfaveCli "github.com/urfave/cli/v2"
@@ -158,7 +157,7 @@ func TestCommandRun(t *testing.T) {
 
 			var actualOrder = new(int)
 			action := func(expectedOrder int, expectedArgs []string) cli.ActionFunc {
-				return func(ctx *cli.Context, l log.Logger) error {
+				return func(ctx *cli.Context) error {
 					(*actualOrder)++
 					assert.Equal(t, expectedOrder, *actualOrder)
 
@@ -171,7 +170,7 @@ func TestCommandRun(t *testing.T) {
 				}
 			}
 
-			skip := func(ctx *cli.Context, l log.Logger) error {
+			skip := func(ctx *cli.Context) error {
 				assert.Fail(t, "this action must be skipped")
 				return nil
 			}
@@ -181,7 +180,7 @@ func TestCommandRun(t *testing.T) {
 			app := &cli.App{App: &urfaveCli.App{Writer: io.Discard}}
 			ctx := cli.NewAppContext(t.Context(), app, tc.args)
 
-			err := tc.command.Run(ctx, log.New(), tc.args)
+			err := tc.command.Run(ctx, tc.args)
 			if tc.expectedErr != nil {
 				require.EqualError(t, err, tc.expectedErr.Error(), tc)
 			} else {

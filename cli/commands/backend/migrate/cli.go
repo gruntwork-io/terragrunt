@@ -38,7 +38,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		Usage:     "Migrate OpenTofu/Terraform state from one location to another.",
 		UsageText: usageText,
 		Flags:     NewFlags(l, opts, nil),
-		Action: func(ctx *cli.Context, l log.Logger) error {
+		Action: func(ctx *cli.Context) error {
 			srcPath := ctx.Args().First()
 			if srcPath == "" {
 				return errors.New(usageText)
