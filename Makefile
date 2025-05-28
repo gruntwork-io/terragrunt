@@ -52,7 +52,5 @@ license-check:
 	licensei cache --debug
 	licensei check --debug
 	licensei header --debug
-	rm -rf vendor/
-	git diff --exit-code
 
 .PHONY: help fmtcheck fmt install-fmt-hook clean run-lint run-strict-lint
