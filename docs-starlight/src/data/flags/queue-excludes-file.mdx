@@ -1,11 +1,17 @@
 ---
 name: queue-excludes-file
-description: Path to a file containing Unix-style globs of directories to exclude from the queue of Units to run.
+description: Path to a file with a list of directories that need to be excluded when running `run --all` commands.
 type: string
+defaultVal: .terragrunt-excludes
 env:
   - TG_QUEUE_EXCLUDES_FILE
 ---
 
-Specifies a file containing patterns of directories to exclude when running commands with [`--all`](/docs/reference/cli/commands/run#all).
+Units in these directories will be excluded during execution of the commands. If a relative path is specified, it should be relative from
+[--working-dir](/docs/reference/cli/global-flags#working-directory). This will only exclude the module, not its dependencies.
 
-To learn more about how to use this flag, see the [Stacks](/docs/features/stacks/#the-run---all-command) feature documentation.
+This flag has been designed to integrate nicely with the `hcl validate` command, which can return a list of invalid files delimited by newlines when passed the `--show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
+
+```bash
+terragrunt run --all plan --queue-excludes-file <(terragrunt hcl validate --show-config-path || true)
+```

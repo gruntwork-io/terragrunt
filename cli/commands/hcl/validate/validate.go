@@ -99,6 +99,14 @@ func RunValidate(ctx context.Context, opts *options.TerragruntOptions) error {
 		if err := writeDiagnostics(opts, diags); err != nil {
 			return err
 		}
+
+		// If there were diagnostics and stackErr is currently nil,
+		// create a new error to signal overall validation failure.
+		//
+		// This also ensures a non-zero exit code is returned by Terragrunt.
+		if stackErr == nil {
+			stackErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
+		}
 	}
 
 	return stackErr
