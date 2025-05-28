@@ -28,6 +28,7 @@ jobs:
         uses: jdx/mise-action@v2
         with:
           version: 2025.4.4
+          experimental: true
           mise_toml: |
             [tools]
             python = "3.13.3"

@@ -37,6 +37,7 @@ jobs:
         uses: jdx/mise-action@v2
         with:
           version: 2025.4.4
+          experimental: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
