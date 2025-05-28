@@ -15,3 +15,5 @@ ignored = [
 
 
 [header]
+ignorePaths = ["vendor", ".gen"]
+ignoreFiles = ["mock_*.go", "*_gen.go"]
