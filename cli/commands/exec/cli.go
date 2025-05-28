@@ -13,6 +13,7 @@ const (
 	CommandName = "exec"
 
 	InDownloadDirFlagName = "in-download-dir"
+	TFPathFlagName        = "tf-path"
 )
 
 func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Prefix) cli.Flags {
@@ -27,6 +28,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Pr
 		run.IAMAssumeRoleDurationFlagName,
 		run.IAMAssumeRoleSessionNameFlagName,
 		run.IAMAssumeRoleWebIdentityTokenFlagName,
+		run.TFPathFlagName,
 	),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InDownloadDirFlagName,
