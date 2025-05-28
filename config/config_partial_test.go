@@ -124,10 +124,10 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	_, err := config.PartialParseConfigFile(ctx, l, opts.TerragruntConfigPath, nil)
+	_, err := config.PartialParseConfigFile(ctx.WithDecodeList(config.TerragruntFlags), l, opts.TerragruntConfigPath, nil)
 	require.NoError(t, err)
 
-	_, err = config.PartialParseConfigFile(ctx, l, opts.TerragruntConfigPath, nil)
+	_, err = config.PartialParseConfigFile(ctx.WithDecodeList(config.DependenciesBlock), l, opts.TerragruntConfigPath, nil)
 	assert.Error(t, err)
 }
 
