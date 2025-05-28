@@ -40,6 +40,7 @@ var (
 	downloadURL        = fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/%s/%s", testEngineVersion(), engineAssetArchive)
 )
 
+//nolint:paralleltest
 func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
@@ -53,6 +54,7 @@ func TestEngineLocalPlan(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
+//nolint:paralleltest
 func TestEngineLocalApply(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 

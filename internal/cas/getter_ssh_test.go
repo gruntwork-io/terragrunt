@@ -10,7 +10,6 @@
 package cas_test
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -61,7 +60,7 @@ func TestSSHCASGetterGet(t *testing.T) {
 			}
 
 			res, err := client.Get(
-				context.TODO(),
+				t.Context(),
 				&getter.Request{
 					Src: tt.url,
 					Dst: tmpDir,
