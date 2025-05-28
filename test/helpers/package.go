@@ -29,6 +29,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"os"
@@ -769,7 +770,12 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
 
-	l := logger.CreateLogger()
+	l := log.New(
+		log.WithOutput(errwriter),
+		log.WithLevel(options.DefaultLogLevel),
+		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+	)
+
 	app := cli.NewApp(l, opts) //nolint:contextcheck
 
 	ctx = log.ContextWithLogger(ctx, l)
