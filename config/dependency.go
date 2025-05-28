@@ -155,7 +155,7 @@ func (dep Dependency) isDisabled() bool {
 }
 
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
-func (dep Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext, l log.Logger) bool {
+func (dep Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
@@ -486,7 +486,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, l lo
 			return nil, err
 		}
 
-		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(ctx, l) && dependencyConfig.MockOutputs != nil {
+		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(ctx) && dependencyConfig.MockOutputs != nil {
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 
 			// TODO: Make this exhaustive

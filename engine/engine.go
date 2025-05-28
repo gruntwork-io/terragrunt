@@ -231,7 +231,7 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 		l.Warnf("Skipping verification for %s", downloadFile)
 	}
 
-	if err := extractArchive(l, opts, downloadFile, localEngineFile); err != nil {
+	if err := extractArchive(l, downloadFile, localEngineFile); err != nil {
 		return errors.New(err)
 	}
 
@@ -287,8 +287,8 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 	return r.Tag, nil
 }
 
-func extractArchive(l log.Logger, opts *options.TerragruntOptions, downloadFile string, engineFile string) error {
-	if !isArchiveByHeader(l, opts, downloadFile) {
+func extractArchive(l log.Logger, downloadFile string, engineFile string) error {
+	if !isArchiveByHeader(l, downloadFile) {
 		l.Info("Downloaded file is not an archive, no extraction needed")
 		// move file directly if it is not an archive
 		if err := os.Rename(downloadFile, engineFile); err != nil {
@@ -311,7 +311,7 @@ func extractArchive(l log.Logger, opts *options.TerragruntOptions, downloadFile 
 		}
 	}()
 	// extract archive
-	if err := extract(l, opts, downloadFile, tempDir); err != nil {
+	if err := extract(l, downloadFile, tempDir); err != nil {
 		return errors.New(err)
 	}
 	// process files
@@ -403,8 +403,8 @@ func enginePackageName(e *options.EngineOptions) string {
 }
 
 // isArchiveByHeader checks if a file is an archive by examining its header.
-func isArchiveByHeader(l log.Logger, opts *options.TerragruntOptions, filePath string) bool {
-	archiveType, err := detectFileType(l, opts, filePath)
+func isArchiveByHeader(l log.Logger, filePath string) bool {
+	archiveType, err := detectFileType(l, filePath)
 
 	return err == nil && archiveType != ""
 }
@@ -807,7 +807,7 @@ func ConvertMetaToProtobuf(meta map[string]any) (map[string]*anypb.Any, error) {
 }
 
 // extract extracts a ZIP file into a specified destination directory.
-func extract(l log.Logger, opts *options.TerragruntOptions, zipFile, destDir string) error {
+func extract(l log.Logger, zipFile, destDir string) error {
 	r, err := zip.OpenReader(zipFile)
 	if err != nil {
 		return errors.New(err)
@@ -879,7 +879,7 @@ func extract(l log.Logger, opts *options.TerragruntOptions, zipFile, destDir str
 }
 
 // detectFileType determines the type of file based on its magic bytes.
-func detectFileType(l log.Logger, opts *options.TerragruntOptions, filePath string) (string, error) {
+func detectFileType(l log.Logger, filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", errors.New(err)

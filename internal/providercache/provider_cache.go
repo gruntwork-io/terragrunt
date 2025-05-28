@@ -189,7 +189,7 @@ func (cache *ProviderCache) warmUpCache(
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
-	if err := cache.createLocalCLIConfig(ctx, l, opts, cliConfigFilename, cacheRequestID); err != nil {
+	if err := cache.createLocalCLIConfig(ctx, opts, cliConfigFilename, cacheRequestID); err != nil {
 		return nil, err
 	}
 
@@ -223,7 +223,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 	env map[string]string,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
-	if err := cache.createLocalCLIConfig(ctx, l, opts, cliConfigFilename, ""); err != nil {
+	if err := cache.createLocalCLIConfig(ctx, opts, cliConfigFilename, ""); err != nil {
 		return nil, err
 	}
 
@@ -267,7 +267,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 // It creates two types of configuration depending on the `cacheRequestID` variable set.
 // 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
 // 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
-func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
+func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
 	cfg := cache.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 

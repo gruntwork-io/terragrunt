@@ -67,7 +67,6 @@ func wrapStringSliceToNumberAsFuncImpl(
 
 func wrapStringSliceToBoolAsFuncImpl(
 	ctx *ParsingContext,
-	l log.Logger,
 	toWrap func(ctx *ParsingContext, params []string) (bool, error),
 ) function.Function {
 	return function.New(&function.Spec{

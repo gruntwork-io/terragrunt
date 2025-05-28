@@ -50,6 +50,7 @@ func (b button) String() string {
 
 type model struct {
 	list                list.Model
+	logger              log.Logger
 	terragruntOptions   *options.TerragruntOptions
 	svc                 catalog.CatalogService
 	selectedModule      *module.Module
@@ -64,7 +65,6 @@ type model struct {
 	height              int
 	width               int
 	ready               bool
-	logger              log.Logger
 }
 
 func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model {

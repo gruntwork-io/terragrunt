@@ -294,11 +294,11 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
 			}
 
-			mergeExtraArgs(l, terragruntOptions, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
+			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
-			mergeHooks(l, terragruntOptions, sourceConfig.Terraform.BeforeHooks, &cfg.Terraform.BeforeHooks)
-			mergeHooks(l, terragruntOptions, sourceConfig.Terraform.AfterHooks, &cfg.Terraform.AfterHooks)
-			mergeErrorHooks(l, terragruntOptions, sourceConfig.Terraform.ErrorHooks, &cfg.Terraform.ErrorHooks)
+			mergeHooks(l, sourceConfig.Terraform.BeforeHooks, &cfg.Terraform.BeforeHooks)
+			mergeHooks(l, sourceConfig.Terraform.AfterHooks, &cfg.Terraform.AfterHooks)
+			mergeErrorHooks(l, sourceConfig.Terraform.ErrorHooks, &cfg.Terraform.ErrorHooks)
 		}
 	}
 
@@ -516,11 +516,11 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 				}
 			}
 
-			mergeExtraArgs(l, terragruntOptions, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
+			mergeExtraArgs(l, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
-			mergeHooks(l, terragruntOptions, sourceConfig.Terraform.BeforeHooks, &cfg.Terraform.BeforeHooks)
-			mergeHooks(l, terragruntOptions, sourceConfig.Terraform.AfterHooks, &cfg.Terraform.AfterHooks)
-			mergeErrorHooks(l, terragruntOptions, sourceConfig.Terraform.ErrorHooks, &cfg.Terraform.ErrorHooks)
+			mergeHooks(l, sourceConfig.Terraform.BeforeHooks, &cfg.Terraform.BeforeHooks)
+			mergeHooks(l, sourceConfig.Terraform.AfterHooks, &cfg.Terraform.AfterHooks)
+			mergeErrorHooks(l, sourceConfig.Terraform.ErrorHooks, &cfg.Terraform.ErrorHooks)
 		}
 	}
 
@@ -672,7 +672,7 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 // extra_arguments on the terraform cli.
 // Therefore, if .tfvar files from both the parent and child contain a variable
 // with the same name, the value from the child will win.
-func mergeExtraArgs(l log.Logger, opts *options.TerragruntOptions, childExtraArgs []TerraformExtraArguments, parentExtraArgs *[]TerraformExtraArguments) {
+func mergeExtraArgs(l log.Logger, childExtraArgs []TerraformExtraArguments, parentExtraArgs *[]TerraformExtraArguments) {
 	result := *parentExtraArgs
 	for _, child := range childExtraArgs {
 		parentExtraArgsWithSameName := getIndexOfExtraArgsWithName(result, child.Name)
@@ -718,7 +718,7 @@ func deepMergeInputs(childInputs map[string]any, parentInputs map[string]any) (m
 // If a child's hook has a different name from all of the parent's hooks,
 // then the child's hook will be added to the end of the parent's.
 // Therefore, the child with the same name overrides the parent
-func mergeHooks(l log.Logger, opts *options.TerragruntOptions, childHooks []Hook, parentHooks *[]Hook) {
+func mergeHooks(l log.Logger, childHooks []Hook, parentHooks *[]Hook) {
 	result := *parentHooks
 	for _, child := range childHooks {
 		parentHookWithSameName := getIndexOfHookWithName(result, child.Name)
@@ -740,7 +740,7 @@ func mergeHooks(l log.Logger, opts *options.TerragruntOptions, childHooks []Hook
 // Merge the error hooks (error_hook).
 // Does the same thing as mergeHooks but for error hooks
 // TODO: Figure out more DRY way to do this
-func mergeErrorHooks(l log.Logger, opts *options.TerragruntOptions, childHooks []ErrorHook, parentHooks *[]ErrorHook) {
+func mergeErrorHooks(l log.Logger, childHooks []ErrorHook, parentHooks *[]ErrorHook) {
 	result := *parentHooks
 	for _, child := range childHooks {
 		parentHookWithSameName := getIndexOfErrorHookWithName(result, child.Name)

@@ -49,7 +49,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 		return err
 	}
 
-	tfVariables, err := tfArgumentsToTflintVar(l, opts, hook, config.Terraform)
+	tfVariables, err := tfArgumentsToTflintVar(l, hook, config.Terraform)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 }
 
 // tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
-func tfArgumentsToTflintVar(l log.Logger, opts *options.TerragruntOptions, hook config.Hook,
+func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
 	config *config.TerraformConfig) ([]string, error) {
 	var variables []string
 

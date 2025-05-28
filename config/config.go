@@ -1338,7 +1338,7 @@ func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, include
 		return nil, errors.New(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
 	}
 
-	config, err := convertToTerragruntConfig(ctx, l, file.ConfigPath, terragruntConfigFile)
+	config, err := convertToTerragruntConfig(ctx, file.ConfigPath, terragruntConfigFile)
 	if err != nil {
 		errs = errs.Append(err)
 	}
@@ -1565,7 +1565,7 @@ func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name strin
 }
 
 // Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
-func convertToTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 	errs := &errors.MultiError{}
 
 	if ctx.ConvertToTerragruntConfigFunc != nil {

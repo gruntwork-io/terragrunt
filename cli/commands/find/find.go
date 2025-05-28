@@ -115,7 +115,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	case FormatText:
 		return outputText(l, opts, foundCfgs)
 	case FormatJSON:
-		return outputJSON(l, opts, foundCfgs)
+		return outputJSON(opts, foundCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -204,7 +204,7 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 }
 
 // outputJSON outputs the discovered configurations in JSON format.
-func outputJSON(l log.Logger, opts *Options, configs FoundConfigs) error {
+func outputJSON(opts *Options, configs FoundConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return errors.New(err)

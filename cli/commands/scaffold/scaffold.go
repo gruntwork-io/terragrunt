@@ -375,7 +375,7 @@ func rewriteModuleURL(l log.Logger, opts *options.TerragruntOptions, vars map[st
 	}
 
 	// expand module url
-	parsedValue, err := parseURL(l, opts, moduleURL)
+	parsedValue, err := parseURL(l, moduleURL)
 	if err != nil {
 		l.Warnf("Failed to parse module url %s", moduleURL)
 
@@ -468,7 +468,7 @@ func addRefToModuleURL(ctx context.Context, l log.Logger, opts *options.Terragru
 }
 
 // parseURL parses module url to scheme, host and path
-func parseURL(l log.Logger, opts *options.TerragruntOptions, moduleURL string) (*parsedURL, error) {
+func parseURL(l log.Logger, moduleURL string) (*parsedURL, error) {
 	matches := moduleURLRegex.FindStringSubmatch(moduleURL)
 	if len(matches) != moduleURLParts {
 		l.Warnf("Failed to parse url %s", moduleURL)

@@ -120,7 +120,7 @@ func DownloadTerraformSourceIfNecessary(
 	// read previous source version
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if util.FileExists(terraformSource.VersionFile) {
-		previousVersion, err = readVersionFile(l, terraformSource)
+		previousVersion, err = readVersionFile(terraformSource)
 		if err != nil {
 			return err
 		}
@@ -200,7 +200,7 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *optio
 		}
 	}
 
-	previousVersion, err := readVersionFile(l, terraformSource)
+	previousVersion, err := readVersionFile(terraformSource)
 
 	if err != nil {
 		return false, err
@@ -212,7 +212,7 @@ func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *optio
 // Return the version number stored in the DownloadDir. This version number can be used to check if the Terraform code
 // that has already been downloaded is the same as the version the user is currently requesting. The version number is
 // calculated using the encodeSourceVersion method.
-func readVersionFile(l log.Logger, terraformSource *tf.Source) (string, error) {
+func readVersionFile(terraformSource *tf.Source) (string, error) {
 	return util.ReadFileAsString(terraformSource.VersionFile)
 }
 

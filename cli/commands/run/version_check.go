@@ -151,6 +151,7 @@ func PopulateTerraformVersion(ctx context.Context, l log.Logger, terragruntOptio
 
 	if tfImplementation == options.UnknownImpl {
 		terragruntOptions.TerraformImplementation = options.TerraformImpl
+
 		l.Warnf("Failed to identify Terraform implementation, fallback to terraform version: %s", terraformVersion)
 	} else {
 		l.Debugf("%s version: %s", tfImplementation, terraformVersion)

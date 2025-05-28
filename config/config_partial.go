@@ -391,7 +391,7 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 	}
 
 	// Set parsed Locals on the parsed config
-	output, err := convertToTerragruntConfig(ctx, l, file.ConfigPath, &terragruntConfigFile{})
+	output, err := convertToTerragruntConfig(ctx, file.ConfigPath, &terragruntConfigFile{})
 	if err != nil {
 		return nil, err
 	}

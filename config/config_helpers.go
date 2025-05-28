@@ -179,9 +179,9 @@ func createTerragruntEvalContext(ctx *ParsingContext, l log.Logger, configPath s
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
-		FuncNameStartsWith:  wrapStringSliceToBoolAsFuncImpl(ctx, l, StartsWith),
-		FuncNameEndsWith:    wrapStringSliceToBoolAsFuncImpl(ctx, l, EndsWith),
-		FuncNameStrContains: wrapStringSliceToBoolAsFuncImpl(ctx, l, StrContains),
+		FuncNameStartsWith:  wrapStringSliceToBoolAsFuncImpl(ctx, StartsWith),
+		FuncNameEndsWith:    wrapStringSliceToBoolAsFuncImpl(ctx, EndsWith),
+		FuncNameStrContains: wrapStringSliceToBoolAsFuncImpl(ctx, StrContains),
 		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, l, TimeCmp),
 	}
 

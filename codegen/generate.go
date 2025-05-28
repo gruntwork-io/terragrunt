@@ -113,7 +113,7 @@ func WriteToFile(l log.Logger, opts *options.TerragruntOptions, basePath string,
 		l.Debugf("Skipping generating file at %s because it is disabled", config.Path)
 
 		if targetFileExists {
-			if shouldRemove, err := shouldRemoveWithFileExists(l, opts, targetPath, config.IfDisabled); err != nil {
+			if shouldRemove, err := shouldRemoveWithFileExists(l, targetPath, config.IfDisabled); err != nil {
 				return err
 			} else if shouldRemove {
 				if err := os.Remove(targetPath); err != nil {
@@ -126,7 +126,7 @@ func WriteToFile(l log.Logger, opts *options.TerragruntOptions, basePath string,
 	}
 
 	if targetFileExists {
-		shouldContinue, err := shouldContinueWithFileExists(l, opts, targetPath, config.IfExists)
+		shouldContinue, err := shouldContinueWithFileExists(l, targetPath, config.IfExists)
 		if err != nil || !shouldContinue {
 			return err
 		}
@@ -172,7 +172,7 @@ func WriteToFile(l log.Logger, opts *options.TerragruntOptions, basePath string,
 
 // Whether or not file generation should continue if the file path already exists. The answer depends on the
 // ifExists configuration.
-func shouldContinueWithFileExists(l log.Logger, opts *options.TerragruntOptions, path string, ifExists GenerateConfigExists) (bool, error) {
+func shouldContinueWithFileExists(l log.Logger, path string, ifExists GenerateConfigExists) (bool, error) {
 	// TODO: Make exhaustive
 	switch ifExists { //nolint:exhaustive
 	case ExistsError:
@@ -213,7 +213,7 @@ func shouldContinueWithFileExists(l log.Logger, opts *options.TerragruntOptions,
 }
 
 // shouldRemoveWithFileExists returns true if the already existing file should be removed.
-func shouldRemoveWithFileExists(l log.Logger, opts *options.TerragruntOptions, path string, ifDisable GenerateConfigDisabled) (bool, error) {
+func shouldRemoveWithFileExists(l log.Logger, path string, ifDisable GenerateConfigDisabled) (bool, error) {
 	// TODO: Make exhaustive
 	switch ifDisable { //nolint:exhaustive
 	case DisabledSkip:

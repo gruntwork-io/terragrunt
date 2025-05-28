@@ -171,7 +171,7 @@ func formatTgHCL(l log.Logger, opts *options.TerragruntOptions, tgHclFile string
 	fileUpdated := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && fileUpdated {
-		diff, err := bytesDiff(l, opts, contents, newContents, tgHclFile)
+		diff, err := bytesDiff(l, contents, newContents, tgHclFile)
 		if err != nil {
 			l.Errorf("Failed to generate diff for %s", tgHclFile)
 			return err
@@ -217,7 +217,7 @@ func checkErrors(logger log.Logger, disableColor bool, contents []byte, tgHclFil
 }
 
 // bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting
-func bytesDiff(l log.Logger, opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]byte, error) {
+func bytesDiff(l log.Logger, b1, b2 []byte, path string) ([]byte, error) {
 	f1, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err

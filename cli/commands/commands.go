@@ -278,21 +278,25 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 
 	if len(opts.IncludeDirs) > 0 {
 		l.Debugf("Included directories set. Excluding by default.")
+
 		opts.ExcludeByDefault = true
 	}
 
 	if !opts.ExcludeByDefault && len(opts.ModulesThatInclude) > 0 {
 		l.Debugf("Modules that include set. Excluding by default.")
+
 		opts.ExcludeByDefault = true
 	}
 
 	if !opts.ExcludeByDefault && len(opts.UnitsReading) > 0 {
 		l.Debugf("Units that read set. Excluding by default.")
+
 		opts.ExcludeByDefault = true
 	}
 
 	if !opts.ExcludeByDefault && opts.StrictInclude {
 		l.Debugf("Strict include set. Excluding by default.")
+
 		opts.ExcludeByDefault = true
 	}
 

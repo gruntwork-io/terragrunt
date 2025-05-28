@@ -206,7 +206,7 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
 		}
 
-		defer stack.summarizePlanAllErrors(l, opts, errorStreams)
+		defer stack.summarizePlanAllErrors(l, errorStreams)
 	}
 
 	switch {
@@ -222,7 +222,7 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (stack *Stack) summarizePlanAllErrors(l log.Logger, opts *options.TerragruntOptions, errorStreams []bytes.Buffer) {
+func (stack *Stack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 

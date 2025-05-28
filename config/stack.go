@@ -511,7 +511,7 @@ func processComponent(ctx context.Context, l log.Logger, opts *options.Terragrun
 
 	l.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
 
-	if err := copyFiles(ctx, l, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
+	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
 		return errors.Errorf(
 			"Failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
@@ -562,7 +562,7 @@ func processComponent(ctx context.Context, l log.Logger, opts *options.Terragrun
 	}
 
 	// generate values file
-	if err := writeValues(l, opts, cmp.values, dest); err != nil {
+	if err := writeValues(l, cmp.values, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
@@ -574,8 +574,8 @@ func processComponent(ctx context.Context, l log.Logger, opts *options.Terragrun
 // The function checks if the source is local or remote. If local, it copies the
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
-func copyFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, identifier, sourceDir, src, dest string) error {
-	if isLocal(l, opts, sourceDir, src) {
+func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
+	if isLocal(l, sourceDir, src) {
 		// check if src is absolute path, if not, join with sourceDir
 		var localSrc string
 
@@ -616,7 +616,7 @@ func copyFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 // It checks if the provided source file exists locally. If not, it checks if
 // the path is relative to the working directory. If that also fails, the function
 // attempts to detect the source's getter type and recognizes if it is a file URL.
-func isLocal(l log.Logger, opts *options.TerragruntOptions, workingDir, src string) bool {
+func isLocal(l log.Logger, workingDir, src string) bool {
 	// check initially if the source is a local file
 	if util.FileExists(src) {
 		return true
@@ -752,7 +752,7 @@ func ParseStackConfig(l log.Logger, parser *ParsingContext, opts *options.Terrag
 }
 
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
-func writeValues(l log.Logger, opts *options.TerragruntOptions, values *cty.Value, directory string) error {
+func writeValues(l log.Logger, values *cty.Value, directory string) error {
 	if values == nil {
 		l.Debugf("No values to write in %s", directory)
 		return nil
