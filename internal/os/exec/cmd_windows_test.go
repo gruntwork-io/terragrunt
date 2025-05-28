@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,12 +22,10 @@ func TestWindowsConsolePrepare(t *testing.T) {
 	t.Parallel()
 
 	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
 
-	testOptions := options.NewTerragruntOptionsWithWriters(&stdout, &stderr)
-	testOptions.Logger = log.New(log.WithOutput(&stdout), log.WithLevel(log.DebugLevel))
+	l := log.New(log.WithOutput(&stdout), log.WithLevel(log.DebugLevel))
 
-	exec.PrepareConsole(testOptions.Logger)
+	exec.PrepareConsole(l)
 
 	assert.Contains(t, stdout.String(), "msg=\"failed to get console mode: The handle is invalid.")
 }
