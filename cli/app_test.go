@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -176,7 +177,14 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			t.Parallel()
 
 			opts := options.NewTerragruntOptions()
-			actualOptions, actualErr := runAppTest(tc.args, opts)
+
+			l := log.New(
+				log.WithOutput(os.Stderr),
+				log.WithLevel(defaultLogLevel),
+				log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+			)
+
+			actualOptions, actualErr := runAppTest(l, tc.args, opts)
 
 			if tc.expectedErr != nil {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
@@ -303,7 +311,12 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 			opts := options.NewTerragruntOptions()
-			actualOptions, err := runAppTest(tc.args, opts)
+			l := log.New(
+				log.WithOutput(os.Stderr),
+				log.WithLevel(defaultLogLevel),
+				log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+			)
+			actualOptions, err := runAppTest(l, tc.args, opts)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, []string(actualOptions.TerraformCliArgs), "For args %v", tc.args)
 		})
@@ -349,7 +362,12 @@ func TestParseMultiStringArg(t *testing.T) {
 
 			opts := options.NewTerragruntOptions()
 			opts.ModulesThatInclude = tc.defaultValue
-			actualOptions, actualErr := runAppTest(tc.args, opts)
+			l := log.New(
+				log.WithOutput(os.Stderr),
+				log.WithLevel(defaultLogLevel),
+				log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+			)
+			actualOptions, actualErr := runAppTest(l, tc.args, opts)
 
 			if tc.expectedErr != nil {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
@@ -407,7 +425,12 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 	for _, tc := range testCases {
 		opts := options.NewTerragruntOptions()
 		opts.AwsProviderPatchOverrides = tc.defaultValue
-		actualOptions, actualErr := runAppTest(tc.args, opts)
+		l := log.New(
+			log.WithOutput(os.Stderr),
+			log.WithLevel(defaultLogLevel),
+			log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+		)
+		actualOptions, actualErr := runAppTest(l, tc.args, opts)
 
 		if tc.expectedErr != nil {
 			assert.ErrorContains(t, actualErr, tc.expectedErr.Error())
@@ -543,19 +566,19 @@ func setCommandAction(action clipkg.ActionFunc, cmds ...*clipkg.Command) {
 	}
 }
 
-func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
+func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	emptyAction := func(ctx *clipkg.Context) error { return nil }
 
-	terragruntCommands := commands.New(logger.CreateLogger(), opts)
+	terragruntCommands := commands.New(l, opts)
 	setCommandAction(emptyAction, terragruntCommands...)
 
 	app := clipkg.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = append(global.NewFlags(logger.CreateLogger(), opts, nil), run.NewFlags(logger.CreateLogger(), opts, nil)...)
+	app.Flags = append(global.NewFlags(l, opts, nil), run.NewFlags(l, opts, nil)...)
 	app.Commands = append(
-		commands.NewDeprecatedCommands(logger.CreateLogger(), opts),
-		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(logger.CreateLogger(), opts))
+		commands.NewDeprecatedCommands(l, opts),
+		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx *clipkg.Context) error {
 		opts.TerraformCliArgs = append(opts.TerraformCliArgs, ctx.Args()...)
