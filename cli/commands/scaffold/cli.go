@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -81,12 +82,12 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	}
 }
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Scaffold a new Terragrunt module.",
 		Flags: NewFlags(opts, nil),
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx *cli.Context, l log.Logger) error {
 			var moduleURL, templateURL string
 
 			if val := ctx.Args().Get(0); val != "" {
@@ -101,7 +102,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, opts)
 			}
 
-			return Run(ctx, opts.OptionsFromContext(ctx), moduleURL, templateURL)
+			return Run(ctx, l, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
 }

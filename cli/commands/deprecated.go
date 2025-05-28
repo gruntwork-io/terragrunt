@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -44,7 +45,7 @@ const (
 )
 
 // NewDeprecatedCommands returns a slice of deprecated commands to convert the command to the known alternative.
-func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
+func NewDeprecatedCommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	deprecatedCommands := DeprecatedCommands{
 		// legacy-all commands
 		newDeprecatedLegacyAllCommand(CommandSpinUpName, tf.CommandNameApply),
@@ -141,7 +142,7 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	}
 
 	// `push/untaint/...` all TF commands that are not shortcuts
-	deprecatedDefaultCommands := newDeprecatedDefaultCommands(opts)
+	deprecatedDefaultCommands := newDeprecatedDefaultCommands(l, opts)
 
 	return append(deprecatedCommands.CLICommands(opts), deprecatedDefaultCommands...)
 }
@@ -188,9 +189,9 @@ func newDeprecatedCLIRedesignTFCommands(args cli.Args) DeprecatedCommands {
 	return cmds
 }
 
-func newDeprecatedDefaultCommands(opts *options.TerragruntOptions) cli.Commands {
+func newDeprecatedDefaultCommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	var (
-		runCmd       = run.NewCommand(opts)
+		runCmd       = run.NewCommand(l, opts)
 		cmds         = make(cli.Commands, 0, len(runCmd.Subcommands))
 		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.DefaultCommands)
 	)
@@ -209,15 +210,15 @@ func newDeprecatedDefaultCommands(opts *options.TerragruntOptions) cli.Commands 
 			Usage:      runSubCmd.Usage,
 			Flags:      runCmd.Flags,
 			CustomHelp: runSubCmd.CustomHelp,
-			Before: func(ctx *cli.Context) error {
+			Before: func(ctx *cli.Context, l log.Logger) error {
 				if err := control.Evaluate(ctx); err != nil {
 					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 
 				return nil
 			},
-			Action: func(ctx *cli.Context) error {
-				return runSubCmd.Action(ctx)
+			Action: func(ctx *cli.Context, l log.Logger) error {
+				return runSubCmd.Action(ctx, l)
 			},
 			Hidden:                       true,
 			DisabledErrorOnUndefinedFlag: true,
@@ -267,7 +268,7 @@ func (dep DeprecatedCommand) CLICommand(opts *options.TerragruntOptions) *cli.Co
 		CustomHelp:                   cli.ShowAppHelp,
 		DisabledErrorOnUndefinedFlag: true,
 		Hidden:                       true,
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx *cli.Context, l log.Logger) error {
 			if err := control.Evaluate(ctx); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
@@ -278,7 +279,7 @@ func (dep DeprecatedCommand) CLICommand(opts *options.TerragruntOptions) *cli.Co
 			cmd := ctx.App.NewRootCommand().DisableErrorOnMultipleSetFlag()
 			args := append(dep.replaceWithArgs, ctx.Args().Slice()...)
 
-			return cmd.Run(ctx, args)
+			return cmd.Run(ctx, l, args)
 		},
 	}
 }

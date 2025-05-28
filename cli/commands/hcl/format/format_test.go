@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -34,7 +35,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), log.New(), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -124,7 +125,7 @@ func TestHCLFmtErrors(t *testing.T) {
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = format.Run(t.Context(), newTgOptions)
+			err = format.Run(t.Context(), log.New(), newTgOptions)
 			require.Error(t, err)
 		})
 	}
@@ -150,7 +151,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), log.New(), tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -196,7 +197,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), log.New(), tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -242,7 +243,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), log.New(), tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -306,7 +307,7 @@ func TestHCLFmtStdin(t *testing.T) {
 
 	// format hcl from stdin
 	tgOptions.HclFromStdin = true
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), log.New(), tgOptions)
 	require.NoError(t, err)
 
 	formatted, err := os.ReadFile(tempStdoutFile.Name())
@@ -329,7 +330,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), log.New(), tgOptions)
 	require.NoError(t, err)
 
 	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")

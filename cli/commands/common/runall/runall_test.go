@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ func TestMissingRunAllArguments(t *testing.T) {
 
 	tgOptions.TerraformCommand = ""
 
-	err = runall.Run(t.Context(), tgOptions)
+	err = runall.Run(t.Context(), log.New(), tgOptions)
 	require.Error(t, err)
 
 	var missingCommand runall.MissingCommand

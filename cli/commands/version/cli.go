@@ -4,6 +4,7 @@ package version
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -16,7 +17,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:                        "Show terragrunt version.",
 		Hidden:                       true,
 		DisabledErrorOnUndefinedFlag: true,
-		Action: func(ctx *cli.Context) error {
+		Action: func(ctx *cli.Context, l log.Logger) error {
 			return cli.NewExitError(Action(ctx), 0)
 		},
 	}

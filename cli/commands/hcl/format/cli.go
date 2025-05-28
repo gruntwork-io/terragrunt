@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -85,8 +86,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Aliases: []string{CommandNameAlias},
 		Usage:   "Recursively find HashiCorp Configuration Language (HCL) files and rewrite them into a canonical format.",
 		Flags:   NewFlags(opts, nil),
-		Action: func(ctx *cli.Context) error {
-			return Run(ctx, opts.OptionsFromContext(ctx))
+		Action: func(ctx *cli.Context, l log.Logger) error {
+			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 	}
 

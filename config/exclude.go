@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -69,7 +70,7 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 }
 
 // evaluateExcludeBlocks evaluates the exclude block in the parsed file.
-func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeConfig, error) {
+func evaluateExcludeBlocks(ctx *ParsingContext, l log.Logger, file *hclparse.File) (*ExcludeConfig, error) {
 	excludeBlock, err := file.Blocks(MetadataExclude, false)
 	if err != nil {
 		return nil, err
@@ -86,13 +87,13 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 
 	attrs, err := excludeBlock[0].JustAttributes()
 	if err != nil {
-		ctx.TerragruntOptions.Logger.Debugf("Encountered error while decoding exclude block.")
+		l.Debugf("Encountered error while decoding exclude block.")
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, l, file.ConfigPath)
 	if err != nil {
-		ctx.TerragruntOptions.Logger.Errorf("Failed to create eval context %s", file.ConfigPath)
+		l.Errorf("Failed to create eval context %s", file.ConfigPath)
 		return nil, err
 	}
 
@@ -101,7 +102,7 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 	for _, attr := range attrs {
 		value, err := attr.Value(evalCtx)
 		if err != nil {
-			ctx.TerragruntOptions.Logger.Debugf("Encountered error while evaluating exclude block in file %s", file.ConfigPath)
+			l.Debugf("Encountered error while evaluating exclude block in file %s", file.ConfigPath)
 
 			return nil, err
 		}

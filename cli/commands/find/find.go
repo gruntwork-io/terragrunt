@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -17,7 +18,7 @@ import (
 )
 
 // Run runs the find command.
-func Run(ctx context.Context, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d := discovery.
 		NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors()
@@ -61,12 +62,12 @@ func Run(ctx context.Context, opts *Options) error {
 		"mode":         opts.Mode,
 		"exclude":      opts.Exclude,
 	}, func(ctx context.Context) error {
-		cfgs, discoverErr = d.Discover(ctx, opts.TerragruntOptions)
+		cfgs, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
 
 	if err != nil {
-		opts.Logger.Debugf("Errors encountered while discovering configurations:\n%s", err)
+		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
 
 	switch opts.Mode {
@@ -112,9 +113,9 @@ func Run(ctx context.Context, opts *Options) error {
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(opts, foundCfgs)
+		return outputText(l, opts, foundCfgs)
 	case FormatJSON:
-		return outputJSON(opts, foundCfgs)
+		return outputJSON(l, opts, foundCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -203,7 +204,7 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 }
 
 // outputJSON outputs the discovered configurations in JSON format.
-func outputJSON(opts *Options, configs FoundConfigs) error {
+func outputJSON(l log.Logger, opts *Options, configs FoundConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return errors.New(err)
@@ -273,8 +274,8 @@ func (c *Colorizer) Colorize(config *FoundConfig) string {
 }
 
 // outputText outputs the discovered configurations in text format.
-func outputText(opts *Options, configs FoundConfigs) error {
-	colorizer := NewColorizer(shouldColor(opts))
+func outputText(l log.Logger, opts *Options, configs FoundConfigs) error {
+	colorizer := NewColorizer(shouldColor(l))
 
 	for _, config := range configs {
 		_, err := opts.Writer.Write([]byte(colorizer.Colorize(config) + "\n"))
@@ -287,8 +288,8 @@ func outputText(opts *Options, configs FoundConfigs) error {
 }
 
 // shouldColor returns true if the output should be colored.
-func shouldColor(opts *Options) bool {
-	return !opts.TerragruntOptions.Logger.Formatter().DisabledColors() && !isStdoutRedirected()
+func shouldColor(l log.Logger) bool {
+	return !l.Formatter().DisabledColors() && !isStdoutRedirected()
 }
 
 // isStdoutRedirected returns true if the stdout is redirected.

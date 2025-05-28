@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -89,7 +90,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 	}
 }
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions(opts)
 
 	return &cli.Command{
@@ -97,7 +98,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Aliases: []string{CommandAlias},
 		Usage:   "List relevant Terragrunt configurations.",
 		Flags:   NewFlags(cmdOpts, nil),
-		Before: func(ctx *cli.Context) error {
+		Before: func(ctx *cli.Context, l log.Logger) error {
 			if cmdOpts.Tree {
 				cmdOpts.Format = FormatTree
 			}
@@ -122,8 +123,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			return nil
 		},
-		Action: func(ctx *cli.Context) error {
-			return Run(ctx, cmdOpts)
+		Action: func(ctx *cli.Context, l log.Logger) error {
+			return Run(ctx, l, cmdOpts)
 		},
 	}
 }

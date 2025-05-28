@@ -32,11 +32,14 @@ func RunTerragruntCommand(b *testing.B, args ...string) {
 	errwriter := io.Discard
 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
-	app := cli.NewApp(opts) //nolint:contextcheck
 
-	ctx := log.ContextWithLogger(b.Context(), opts.Logger)
+	l := log.New()
 
-	err := app.RunContext(ctx, args)
+	app := cli.NewApp(l, opts) //nolint:contextcheck
+
+	ctx := log.ContextWithLogger(b.Context(), l)
+
+	err := app.RunContext(ctx, l, args)
 	require.NoError(b, err)
 }
 

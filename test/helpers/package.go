@@ -174,7 +174,7 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
-	session, err := awshelper.CreateAwsSession(awsConfig, mockOptions)
+	session, err := awshelper.CreateAwsSession(createLogger(), awsConfig, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return s3.New(session)
@@ -193,7 +193,7 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 		RoleArn: iamRoleArn,
 	}
 
-	session, err := awshelper.CreateAwsSession(sessionConfig, mockOptions)
+	session, err := awshelper.CreateAwsSession(createLogger(), sessionConfig, mockOptions)
 	require.NoError(t, err, "Error creating DynamoDB client")
 
 	return dynamodb.New(session)
@@ -775,11 +775,13 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 	t.Log(args)
 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
-	app := cli.NewApp(opts) //nolint:contextcheck
 
-	ctx = log.ContextWithLogger(ctx, opts.Logger)
+	l := log.New()
+	app := cli.NewApp(l, opts) //nolint:contextcheck
 
-	return app.RunContext(ctx, args)
+	ctx = log.ContextWithLogger(ctx, l)
+
+	return app.RunContext(ctx, l, args)
 }
 
 func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {

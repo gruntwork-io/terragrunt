@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -25,6 +26,8 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
+	l := log.New()
+
 	errCh := make(chan error)
 	expectedWait := 5
 
@@ -33,7 +36,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata/test_sigint_wait.sh"
 
 	go func() {
-		_, err := shell.RunCommandWithOutput(ctx, terragruntOptions, "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		_, err := shell.RunCommandWithOutput(ctx, l, terragruntOptions, "", false, false, cmdPath, strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

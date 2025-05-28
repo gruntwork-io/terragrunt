@@ -41,7 +41,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = terraformSource.WriteVersionFile()
+	err = terraformSource.WriteVersionFile(log.New())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), log.New(), terraformSource, terragruntOptions, terragruntConfig)
 	require.Error(t, err)
 	var downloadingTerraformSourceErr run.DownloadingTerraformSourceErr
 	ok := errors.As(err, &downloadingTerraformSourceErr)
@@ -362,7 +362,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), log.New(), terraformSource, terragruntOptions, terragruntConfig)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
@@ -387,7 +387,6 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
-		Logger:             logger,
 	}
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -403,7 +402,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 		},
 	}
 
-	err = run.PopulateTerraformVersion(t.Context(), terragruntOptions)
+	err = run.PopulateTerraformVersion(t.Context(), logger, terragruntOptions)
 	require.NoError(t, err)
 	return terraformSource, terragruntOptions, terragruntConfig, err
 }
@@ -418,13 +417,12 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
-		Logger:             logger,
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := run.AlreadyHaveLatestCode(terraformSource, opts)
+	actual, err := run.AlreadyHaveLatestCode(logger, terraformSource, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }

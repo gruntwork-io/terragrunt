@@ -116,6 +116,7 @@ func TestTFRGetterRootDir(t *testing.T) {
 	tfrGetter := new(tf.RegistryGetter)
 	tfrGetter.TerragruntOptions, err = options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
+
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
@@ -134,6 +135,7 @@ func TestTFRGetterSubModule(t *testing.T) {
 
 	tfrGetter := new(tf.RegistryGetter)
 	tfrGetter.TerragruntOptions, _ = options.NewTerragruntOptionsForTest("")
+
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }

@@ -20,19 +20,19 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:                        "Show help.",
 		Hidden:                       true,
 		DisabledErrorOnUndefinedFlag: true,
-		Action: func(ctx *cli.Context) error {
-			return Action(ctx, opts)
+		Action: func(ctx *cli.Context, l log.Logger) error {
+			return Action(ctx, l, opts)
 		},
 	}
 }
 
-func Action(ctx *cli.Context, opts *options.TerragruntOptions) error {
+func Action(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	var (
 		args = ctx.Args()
 		cmds = ctx.App.Commands
 	)
 
-	if opts.Logger.Level() >= log.DebugLevel {
+	if l.Level() >= log.DebugLevel {
 		// https: //github.com/urfave/cli/blob/f035ffaa3749afda2cd26fb824aa940747297ef1/help.go#L401
 		if err := os.Setenv("CLI_TEMPLATE_ERROR_DEBUG", "1"); err != nil {
 			return errors.Errorf("failed to set CLI_TEMPLATE_ERROR_DEBUG environment variable: %w", err)
@@ -40,7 +40,7 @@ func Action(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 
 	if cmdName := args.CommandName(); cmdName == "" || cmds.Get(cmdName) == nil {
-		return cli.ShowAppHelp(ctx)
+		return cli.ShowAppHelp(ctx, l)
 	}
 
 	const maxCommandDepth = 1000 // Maximum depth of nested subcommands
@@ -59,7 +59,7 @@ func Action(ctx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 
 	if ctx.Command != nil {
-		return cli.ShowCommandHelp(ctx)
+		return cli.ShowCommandHelp(ctx, l)
 	}
 
 	return cli.NewExitError(errors.New(cli.InvalidCommandNameError(args.First())), cli.ExitCodeGeneralError)

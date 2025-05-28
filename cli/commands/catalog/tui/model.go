@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // sessionState keeps track of the view we are currently on.
@@ -63,6 +64,7 @@ type model struct {
 	height              int
 	width               int
 	ready               bool
+	logger              log.Logger
 }
 
 func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model {

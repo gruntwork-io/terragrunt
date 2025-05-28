@@ -42,8 +42,10 @@ func TestCommandOutputPrefix(t *testing.T) {
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TerraformPath = terraformPath
-		terragruntOptions.Logger.SetOptions(log.WithFormatter(logFormatter))
-		terragruntOptions.Logger = terragruntOptions.Logger.WithField(placeholders.WorkDirKeyName, prefix)
+
+		l := log.New()
+		l.SetOptions(log.WithFormatter(logFormatter))
+		l = l.WithField(placeholders.WorkDirKeyName, prefix)
 	}, assertOutputs(t,
 		prefixedOutput,
 		Stdout,
@@ -68,7 +70,9 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := tf.RunCommandWithOutput(t.Context(), terragruntOptions, "same")
+	l := log.New()
+
+	out, err := tf.RunCommandWithOutput(t.Context(), l, terragruntOptions, "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

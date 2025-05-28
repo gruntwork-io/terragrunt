@@ -184,7 +184,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		unsetEnv(t, "HOME")
 		unsetEnv(t, "XDG_CACHE_HOME")
 
-		_, err := providercache.InitServer(&options.TerragruntOptions{
+		_, err := providercache.InitServer(log.New(), &options.TerragruntOptions{
 			ProviderCacheDir: cacheDir,
 		})
 		require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
@@ -196,7 +196,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 
 		t.Setenv("HOME", home)
 
-		_, err := providercache.InitServer(&options.TerragruntOptions{
+		_, err := providercache.InitServer(log.New(), &options.TerragruntOptions{
 			ProviderCacheDir: cacheDir,
 		})
 		require.NoError(t, err)

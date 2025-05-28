@@ -71,7 +71,7 @@ func TestScaffoldGitModule(t *testing.T) {
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
 	svc := catalog.NewCatalogService(opts).WithRepoURL("https://github.com/gruntwork-io/terraform-fake-modules.git")
-	cmd := command.NewScaffold(opts, svc, auroraModule)
+	cmd := command.NewScaffold(createLogger(), opts, svc, auroraModule)
 	err = cmd.Run()
 	require.NoError(t, err)
 
@@ -110,7 +110,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
 	svc := catalog.NewCatalogService(opts).WithRepoURL("https://github.com/gruntwork-io/terraform-fake-modules")
-	cmd := command.NewScaffold(opts, svc, auroraModule)
+	cmd := command.NewScaffold(createLogger(), opts, svc, auroraModule)
 	err = cmd.Run()
 	require.NoError(t, err)
 
@@ -132,7 +132,7 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	cfg, err := config.ReadTerragruntConfig(t.Context(), opts, config.DefaultParserOptions(opts))
+	cfg, err := config.ReadTerragruntConfig(t.Context(), log.New(), opts, config.DefaultParserOptions(log.New(), opts))
 	require.NoError(t, err)
 
 	return cfg

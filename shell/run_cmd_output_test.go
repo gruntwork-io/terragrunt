@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -63,7 +64,9 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := shell.RunCommandWithOutput(t.Context(), terragruntOptions, "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	l := log.New()
+
+	out, err := shell.RunCommandWithOutput(t.Context(), l, terragruntOptions, "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

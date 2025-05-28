@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
@@ -21,7 +22,7 @@ const (
 	CommandName = "run"
 )
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:        CommandName,
 		Usage:       "Run an OpenTofu/Terraform command.",
@@ -34,14 +35,14 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			//
 			// "# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
 		},
-		Flags:       NewFlags(opts, nil),
-		Subcommands: NewSubcommands(opts),
-		Action: func(ctx *cli.Context) error {
+		Flags:       NewFlags(l, opts, nil),
+		Subcommands: NewSubcommands(l, opts),
+		Action: func(ctx *cli.Context, l log.Logger) error {
 			if len(ctx.Args()) == 0 {
-				return cli.ShowCommandHelp(ctx)
+				return cli.ShowCommandHelp(ctx, l)
 			}
 
-			return Action(opts)(ctx)
+			return Action(opts)(ctx, l)
 		},
 	}
 
@@ -52,7 +53,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return cmd
 }
 
-func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
+func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	var subcommands = make(cli.Commands, len(tf.CommandNames))
 
 	for i, name := range tf.CommandNames {
@@ -62,9 +63,9 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 			Name:       name,
 			Usage:      usage,
 			Hidden:     !visible,
-			CustomHelp: ShowTFHelp(opts),
-			Action: func(ctx *cli.Context) error {
-				return Action(opts)(ctx)
+			CustomHelp: ShowTFHelp(l, opts),
+			Action: func(ctx *cli.Context, l log.Logger) error {
+				return Action(opts)(ctx, l)
 			},
 		}
 		subcommands[i] = subcommand
@@ -74,7 +75,7 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 }
 
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
-	return func(ctx *cli.Context) error {
+	return func(ctx *cli.Context, l log.Logger) error {
 		if opts.TerraformCommand == tf.CommandNameDestroy {
 			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
 		}
@@ -83,7 +84,7 @@ func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 			return err
 		}
 
-		return Run(ctx.Context, opts.OptionsFromContext(ctx))
+		return Run(ctx.Context, l, opts.OptionsFromContext(ctx))
 	}
 }
 
@@ -108,15 +109,15 @@ func isTerraformPath(opts *options.TerragruntOptions) bool {
 // unless explicitly disabled with --no-stack-generate.
 func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
 	// Wrap the command's action to inject stack generation logic
-	cmd = cmd.WrapAction(func(ctx *cli.Context, action cli.ActionFunc) error {
+	cmd = cmd.WrapAction(func(ctx *cli.Context, l log.Logger, action cli.ActionFunc) error {
 		// Determine if stack generation should occur based on command flags
 		// Stack generation is triggered by --all or --graph flags, unless --no-stack-generate is set
 		shouldGenerateStack := (opts.RunAll || opts.Graph) && !opts.NoStackGenerate
 
 		// Skip stack generation if not needed
 		if !shouldGenerateStack {
-			opts.Logger.Debugf("Skipping stack generation in %s", opts.WorkingDir)
-			return action(ctx)
+			l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
+			return action(ctx, l)
 		}
 
 		// Set the stack config path to the default location in the working directory
@@ -127,7 +128,7 @@ func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *c
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return config.GenerateStacks(ctx, opts)
+			return config.GenerateStacks(ctx, l, opts)
 		})
 
 		// Handle any errors during stack generation
@@ -136,7 +137,7 @@ func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *c
 		}
 
 		// Execute the original command action after successful stack generation
-		return action(ctx)
+		return action(ctx, l)
 	})
 
 	return cmd

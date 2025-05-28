@@ -6,13 +6,14 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	remoteState, err := config.ParseRemoteState(ctx, opts)
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	remoteState, err := config.ParseRemoteState(ctx, l, opts)
 	if err != nil || remoteState == nil {
 		return err
 	}
 
-	return remoteState.Bootstrap(ctx, opts)
+	return remoteState.Bootstrap(ctx, l, opts)
 }

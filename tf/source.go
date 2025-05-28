@@ -27,8 +27,6 @@ const matchCount = 2
 
 // Source represents information about Terraform source code that needs to be downloaded.
 type Source struct {
-	Logger log.Logger
-
 	// A canonical version of RawSource, in URL format
 	CanonicalSourceURL *url.URL
 
@@ -56,7 +54,7 @@ func (src Source) String() string {
 // so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
 // and returned as version. In case of hash error the default encoded source version will be returned.
 // See also the encodeSourceName and ProcessTerraformSource methods.
-func (src Source) EncodeSourceVersion() (string, error) {
+func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 	if IsLocalSource(src.CanonicalSourceURL) {
 		sourceHash := sha256.New()
 		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
@@ -122,7 +120,7 @@ func (src Source) EncodeSourceVersion() (string, error) {
 			return hash, nil
 		}
 
-		src.Logger.WithError(err).Warnf("Could not encode version for local source")
+		l.WithError(err).Warnf("Could not encode version for local source")
 
 		return "", err
 	}
@@ -133,8 +131,8 @@ func (src Source) EncodeSourceVersion() (string, error) {
 // WriteVersionFile writes a file into the DownloadDir that contains
 // the version number of this source code. The version number is
 // calculated using the EncodeSourceVersion method.
-func (src Source) WriteVersionFile() error {
-	version, err := src.EncodeSourceVersion()
+func (src Source) WriteVersionFile(l log.Logger) error {
+	version, err := src.EncodeSourceVersion(l)
 	if err != nil {
 		// If we failed to calculate a SHA of the downloaded source, write a SHA of
 		// some random data into the version file.
@@ -178,7 +176,7 @@ func (src Source) WriteVersionFile() error {
 //  1. Always download source URLs pointing to local file paths.
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
-func NewSource(source string, downloadDir string, workingDir string, logger log.Logger, walkWithSymlinks bool) (*Source, error) {
+func NewSource(l log.Logger, source string, downloadDir string, workingDir string, walkWithSymlinks bool) (*Source, error) {
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
 		return nil, err
@@ -189,7 +187,7 @@ func NewSource(source string, downloadDir string, workingDir string, logger log.
 		return nil, err
 	}
 
-	rootSourceURL, modulePath, err := SplitSourceURL(canonicalSourceURL, logger)
+	rootSourceURL, modulePath, err := SplitSourceURL(l, canonicalSourceURL)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +219,6 @@ func NewSource(source string, downloadDir string, workingDir string, logger log.
 		DownloadDir:        updatedDownloadDir,
 		WorkingDir:         updatedWorkingDir,
 		VersionFile:        versionFile,
-		Logger:             logger,
 		WalkWithSymlinks:   walkWithSymlinks,
 	}, nil
 }
@@ -310,7 +307,7 @@ func IsLocalSource(sourceURL *url.URL) bool {
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
-func SplitSourceURL(sourceURL *url.URL, logger log.Logger) (*url.URL, string, error) {
+func SplitSourceURL(l log.Logger, sourceURL *url.URL) (*url.URL, string, error) {
 	pathSplitOnDoubleSlash := strings.SplitN(sourceURL.Path, "//", 2) //nolint:mnd
 
 	if len(pathSplitOnDoubleSlash) > 1 {
@@ -331,7 +328,7 @@ func SplitSourceURL(sourceURL *url.URL, logger log.Logger) (*url.URL, string, er
 	_, err := os.Stat(sourceURL.Path)
 	if err != nil {
 		// log warning message to notify user that sourceUrl.Path may not work
-		logger.Warnf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceURL.Path)
+		l.Warnf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceURL.Path)
 	}
 
 	return sourceURL, "", nil

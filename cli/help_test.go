@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -78,7 +79,7 @@ func TestCommandHelpTemplate(t *testing.T) {
 	app.Writer = &out
 
 	ctx := cli.NewAppContext(t.Context(), app, nil).NewCommandContext(cmd, nil)
-	require.Error(t, cli.ShowCommandHelp(ctx))
+	require.Error(t, cli.ShowCommandHelp(ctx, log.New()))
 
 	expectedOutput := fmt.Sprintf(`Usage: terragrunt run [options] -- <tofu/terraform command>
 

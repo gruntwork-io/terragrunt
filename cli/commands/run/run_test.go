@@ -73,7 +73,8 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			cfg := &config.TerragruntConfig{Inputs: tc.inputsInConfig}
 
-			require.NoError(t, run.SetTerragruntInputsAsEnvVars(opts, cfg))
+			l := log.New()
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg))
 
 			assert.Equal(t, tc.expected, opts.Env)
 		})
@@ -263,7 +264,8 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 
 	// Use a path that doesn't exist to induce error
 	tgOptions.TerraformPath = "i-dont-exist"
-	err = run.RunTerraformWithRetry(t.Context(), tgOptions)
+	l := log.New()
+	err = run.RunTerraformWithRetry(t.Context(), l, tgOptions)
 	require.Error(t, err)
 }
 
@@ -322,7 +324,8 @@ func TestToTerraformEnvVars(t *testing.T) {
 			t.Parallel()
 			opts, err := options.NewTerragruntOptionsForTest("")
 			require.NoError(t, err)
-			actual, err := run.ToTerraformEnvVars(opts, tc.vars)
+			l := log.New()
+			actual, err := run.ToTerraformEnvVars(l, opts, tc.vars)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -439,7 +442,8 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{tc.extraArgs}},
 		}
 
-		out := run.FilterTerraformExtraArgs(tc.options, &config)
+		l := log.New()
+		out := run.FilterTerraformExtraArgs(l, tc.options, &config)
 
 		assert.Equal(t, tc.expectedArgs, out)
 	}
@@ -481,7 +485,6 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.Logger.SetOptions(log.WithLevel(logLevel))
 	opts.Debug = debug
 
 	return opts

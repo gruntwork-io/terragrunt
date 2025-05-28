@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"slices"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Commands []*Command
@@ -107,7 +109,7 @@ func (commands Commands) Swap(i, j int) {
 	commands[i], commands[j] = commands[j], commands[i]
 }
 
-func (commands Commands) WrapAction(fn func(ctx *Context, action ActionFunc) error) Commands {
+func (commands Commands) WrapAction(fn func(ctx *Context, l log.Logger, action ActionFunc) error) Commands {
 	wrapped := make(Commands, len(commands))
 
 	for i := range commands {

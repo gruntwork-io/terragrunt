@@ -62,7 +62,9 @@ func TestListModules_HappyPath(t *testing.T) {
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
 
-	err = svc.Load(t.Context())
+	l := log.New()
+
+	err = svc.Load(t.Context(), l)
 	require.NoError(t, err)
 
 	modules := svc.Modules()
@@ -84,7 +86,8 @@ func TestListModules_NoRepositoriesConfigured(t *testing.T) {
 
 	// No customNewRepoFunc needed as it should error before trying to create a repo.
 	svc := catalog.NewCatalogService(opts)
-	err := svc.Load(t.Context())
+	l := log.New()
+	err := svc.Load(t.Context(), l)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no catalog URLs provided")
@@ -110,7 +113,8 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/only-repo")
-	err := svc.Load(t.Context())
+	l := log.New()
+	err := svc.Load(t.Context(), l)
 
 	modules := svc.Modules()
 
@@ -132,7 +136,8 @@ func TestListModules_ErrorFromNewRepo(t *testing.T) {
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/error-repo")
-	err := svc.Load(t.Context())
+	l := log.New()
+	err := svc.Load(t.Context(), l)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to find modules in some repositories", "Error message mismatch: %v", err)
@@ -163,7 +168,8 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/find-error-repo")
-	err := svc.Load(t.Context())
+	l := log.New()
+	err := svc.Load(t.Context(), l)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
@@ -184,7 +190,8 @@ func TestListModules_NoModulesFound(t *testing.T) {
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/empty-repo")
-	err := svc.Load(t.Context())
+	l := log.New()
+	err := svc.Load(t.Context(), l)
 	require.Error(t, err)
 
 	modules := svc.Modules()
