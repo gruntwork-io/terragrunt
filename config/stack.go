@@ -88,6 +88,7 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 		if opts.StackAction == "generate" {
 			opts.Logger.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
 		}
+
 		return nil
 	}
 

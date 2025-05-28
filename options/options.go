@@ -118,16 +118,13 @@ type TerragruntOptions struct {
 	SourceMap map[string]string
 	// Environment variables at runtime
 	Env map[string]string
-	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
-	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 	// Current Terraform command being executed by Terragrunt
 	TerraformCommand string
 	// StackOutputFormat format how the stack output is rendered.
-	StackOutputFormat         string
+	StackOutputFormat string
+	// Path to the Terragrunt stack config file.
 	TerragruntStackConfigPath string
 	// Location of the original Terragrunt config file.
 	OriginalTerragruntConfigPath string
@@ -173,6 +170,12 @@ type TerragruntOptions struct {
 	ScaffoldOutputFolder string
 	// Root directory for graph command.
 	GraphRoot string
+	// StackAction represents the stack action being performed (e.g., "generate").
+	StackAction string
+	// IAM Role options that should be used when authenticating to AWS.
+	IAMRoleOptions IAMRoleOptions
+	// IAM Role options set from command line.
+	OriginalIAMRoleOptions IAMRoleOptions
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs cli.Args
 	// Unix-style glob of directories to include when running *-all commands
@@ -269,7 +272,7 @@ type TerragruntOptions struct {
 	RunAllAutoApprove bool
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
-	// HCLValidateStrict is a strict mode for HCL validation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.",
+	// HCLValidateStrict is a strict mode for HCL validation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.
 	HCLValidateStrict bool
 	// HCLValidateInputs checks if the terragrunt configured inputs align with the terraform defined variables.
 	HCLValidateInputs bool
@@ -289,8 +292,6 @@ type TerragruntOptions struct {
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
 	NoStackValidate bool
-	// StackAction represents the stack action being performed (e.g., "generate").
-	StackAction string
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
