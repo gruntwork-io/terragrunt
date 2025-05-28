@@ -34,7 +34,7 @@ func RunTerragruntCommand(b *testing.B, args ...string) {
 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
 
-	l := logger.CreateLogger()
+	l := logger.CreateLogger().WithOptions(log.WithOutput(io.Discard))
 
 	app := cli.NewApp(l, opts) //nolint:contextcheck
 
