@@ -41,8 +41,6 @@ var (
 )
 
 func TestEngineLocalPlan(t *testing.T) {
-	t.Parallel()
-
 	rootPath := setupLocalEngine(t)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --non-interactive --tf-forward-stdout --working-dir %s --log-level trace", rootPath))
@@ -56,8 +54,6 @@ func TestEngineLocalPlan(t *testing.T) {
 }
 
 func TestEngineLocalApply(t *testing.T) {
-	t.Parallel()
-
 	rootPath := setupLocalEngine(t)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir "+rootPath)
