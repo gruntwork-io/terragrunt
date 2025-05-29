@@ -552,7 +552,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, te
 
 	// Clone the options struct so we don't modify the original one. This is especially important as run --all operations
 	// happen concurrently.
-	opts, err := stack.terragruntOptions.CloneWithConfigPath(terragruntConfigPath)
+	l, opts, err := stack.terragruntOptions.CloneWithConfigPath(l, terragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -726,7 +726,7 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, l
 			return externalDependencies, err
 		}
 
-		moduleOpts, err := stack.terragruntOptions.CloneWithConfigPath(config.GetDefaultConfigPath(module.Path))
+		l, moduleOpts, err := stack.terragruntOptions.CloneWithConfigPath(l, config.GetDefaultConfigPath(module.Path))
 		if err != nil {
 			return nil, err
 		}

@@ -131,7 +131,7 @@ func run(ctx context.Context, l log.Logger, terragruntOptions *options.Terragrun
 
 	terragruntOptions.Errors = errConfig
 
-	terragruntOptionsClone, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
+	l, terragruntOptionsClone, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return err
 	}
@@ -696,7 +696,7 @@ func runTerraformInit(ctx context.Context, l log.Logger, originalTerragruntOptio
 		return nil
 	}
 
-	initOptions, err := prepareInitOptions(terragruntOptions)
+	initOptions, err := prepareInitOptions(l, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -713,9 +713,9 @@ func runTerraformInit(ctx context.Context, l log.Logger, originalTerragruntOptio
 	return nil
 }
 
-func prepareInitOptions(terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, error) {
+func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
-	initOptions, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
+	l, initOptions, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}

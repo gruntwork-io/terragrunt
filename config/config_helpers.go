@@ -702,7 +702,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 	)
 
 	// We update the ctx of terragruntOptions to the config being read in.
-	opts, err := ctx.TerragruntOptions.CloneWithConfigPath(targetConfig)
+	l, opts, err := ctx.TerragruntOptions.CloneWithConfigPath(l, targetConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}

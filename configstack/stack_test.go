@@ -218,7 +218,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath}
@@ -241,7 +241,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/json-module-a/"+config.DefaultTerragruntJSONConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/json-module-a/"+config.DefaultTerragruntJSONConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/json-module-a/" + config.DefaultTerragruntJSONConfigPath}
@@ -267,7 +267,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
@@ -344,7 +344,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 				},
 			},
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, childConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, childConfigPath),
 	}
 
 	configPaths := []string{childConfigPath}
@@ -380,7 +380,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/json-module-b/module-b-child/"+config.DefaultTerragruntJSONConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/json-module-b/module-b-child/"+config.DefaultTerragruntJSONConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/json-module-b/module-b-child/" + config.DefaultTerragruntJSONConfigPath}
@@ -406,7 +406,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/hcl-module-b/module-b-child/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/hcl-module-b/module-b-child/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/hcl-module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
@@ -429,7 +429,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -441,7 +441,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
@@ -464,7 +464,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -476,7 +476,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/json-module-c/"+config.DefaultTerragruntJSONConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/json-module-c/"+config.DefaultTerragruntJSONConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/json-module-c/" + config.DefaultTerragruntJSONConfigPath}
@@ -499,7 +499,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/json-module-a/"+config.DefaultTerragruntJSONConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/json-module-a/"+config.DefaultTerragruntJSONConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -511,7 +511,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/hcl-module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/hcl-module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/json-module-a/" + config.DefaultTerragruntJSONConfigPath, "../test/fixtures/modules/hcl-module-c/" + config.DefaultTerragruntConfigPath}
@@ -532,7 +532,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	moduleA := &configstack.TerraformModule{
 		Path:              canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies:      configstack.TerraformModules{},
-		TerragruntOptions: cloneOptions(t, opts, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), opts, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -544,7 +544,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
@@ -569,7 +569,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	moduleA := &configstack.TerraformModule{
 		Path:              canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies:      configstack.TerraformModules{},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -581,7 +581,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleAbba := &configstack.TerraformModule{
@@ -593,7 +593,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-abba/" + config.DefaultTerragruntConfigPath}
@@ -618,7 +618,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	moduleA := &configstack.TerraformModule{
 		Path:              canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies:      configstack.TerraformModules{},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -630,13 +630,13 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleAbba := &configstack.TerraformModule{
 		Path:              canonical(t, "../test/fixtures/modules/module-abba"),
 		Dependencies:      configstack.TerraformModules{},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-abba/" + config.DefaultTerragruntConfigPath}
@@ -666,12 +666,12 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
 		Path:              canonical(t, "../test/fixtures/modules/module-c"),
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
@@ -701,7 +701,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -713,7 +713,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
@@ -744,7 +744,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -756,7 +756,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
@@ -787,7 +787,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -799,13 +799,13 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleF := &configstack.TerraformModule{
 		Path:                 canonical(t, "../test/fixtures/modules/module-f"),
 		Dependencies:         configstack.TerraformModules{},
-		TerragruntOptions:    cloneOptions(t, mockOptions, "../test/fixtures/modules/module-f/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions:    cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-f/"+config.DefaultTerragruntConfigPath),
 		AssumeAlreadyApplied: false,
 	}
 
@@ -833,7 +833,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleB := &configstack.TerraformModule{
@@ -847,7 +847,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -859,7 +859,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleD := &configstack.TerraformModule{
@@ -870,7 +870,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-d/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-d/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-d/" + config.DefaultTerragruntConfigPath}
@@ -893,7 +893,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleB := &configstack.TerraformModule{
@@ -907,7 +907,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/json-module-b/module-b-child/"+config.DefaultTerragruntJSONConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/json-module-b/module-b-child/"+config.DefaultTerragruntJSONConfigPath),
 	}
 
 	moduleC := &configstack.TerraformModule{
@@ -919,7 +919,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleD := &configstack.TerraformModule{
@@ -930,7 +930,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/json-module-d/"+config.DefaultTerragruntJSONConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/json-module-d/"+config.DefaultTerragruntJSONConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/json-module-b/module-b-child/" + config.DefaultTerragruntJSONConfigPath, "../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/json-module-d/" + config.DefaultTerragruntJSONConfigPath}
@@ -953,7 +953,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleB := &configstack.TerraformModule{
@@ -967,7 +967,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleE := &configstack.TerraformModule{
@@ -982,7 +982,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-e/module-e-child/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-e/module-e-child/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-e/module-e-child/" + config.DefaultTerragruntConfigPath}
@@ -1004,7 +1004,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions:    cloneOptions(t, mockOptions, "../test/fixtures/modules/module-f/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions:    cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-f/"+config.DefaultTerragruntConfigPath),
 		AssumeAlreadyApplied: true,
 	}
 
@@ -1017,7 +1017,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-g/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-g/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-g/" + config.DefaultTerragruntConfigPath}
@@ -1039,7 +1039,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions:    cloneOptions(t, mockOptions, "../test/fixtures/modules/module-h/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions:    cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-h/"+config.DefaultTerragruntConfigPath),
 		AssumeAlreadyApplied: true,
 	}
 
@@ -1051,7 +1051,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions:    cloneOptions(t, mockOptions, "../test/fixtures/modules/module-i/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions:    cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-i/"+config.DefaultTerragruntConfigPath),
 		AssumeAlreadyApplied: true,
 	}
 
@@ -1064,7 +1064,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-j/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-j/"+config.DefaultTerragruntConfigPath),
 	}
 
 	moduleK := &configstack.TerraformModule{
@@ -1076,7 +1076,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: cloneOptions(t, mockOptions, "../test/fixtures/modules/module-k/"+config.DefaultTerragruntConfigPath),
+		TerragruntOptions: cloneOptions(t, logger.CreateLogger(), mockOptions, "../test/fixtures/modules/module-k/"+config.DefaultTerragruntConfigPath),
 	}
 
 	configPaths := []string{"../test/fixtures/modules/module-j/" + config.DefaultTerragruntConfigPath, "../test/fixtures/modules/module-k/" + config.DefaultTerragruntConfigPath}

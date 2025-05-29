@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
@@ -483,7 +484,10 @@ func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 
 // CloneWithConfigPath creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
-func (opts *TerragruntOptions) CloneWithConfigPath(configPath string) (*TerragruntOptions, error) {
+//
+// It also adjusts the given logger, as each cloned option has to use a working directory specific logger to enrich
+// log output correctly.
+func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *TerragruntOptions, error) {
 	newOpts := opts.Clone()
 
 	workingDir := filepath.Dir(configPath)
@@ -491,7 +495,9 @@ func (opts *TerragruntOptions) CloneWithConfigPath(configPath string) (*Terragru
 	newOpts.TerragruntConfigPath = configPath
 	newOpts.WorkingDir = workingDir
 
-	return newOpts, nil
+	newLogger := l.Clone().WithField(placeholders.WorkDirKeyName, workingDir)
+
+	return newLogger, newOpts, nil
 }
 
 // Check if argument is planfile TODO check file formatter

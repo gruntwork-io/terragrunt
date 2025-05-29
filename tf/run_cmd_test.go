@@ -11,6 +11,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -36,9 +39,14 @@ func TestCommandOutputPrefix(t *testing.T) {
 		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line))
 	}
 
+	logFormatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
+
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TerraformPath = terraformPath
 
+	}, func(l log.Logger) {
+		l.SetOptions(log.WithFormatter(logFormatter))
+		l = l.WithField(placeholders.WorkDirKeyName, prefix)
 	}, assertOutputs(t,
 		prefixedOutput,
 		Stdout,
@@ -46,7 +54,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	))
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput)) {
+func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), withLogger func(log.Logger), assertResults func(string, *util.CmdOutput)) {
 	t.Helper()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -64,6 +72,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	withOptions(terragruntOptions)
 
 	l := logger.CreateLogger()
+	withLogger(l)
 
 	out, err := tf.RunCommandWithOutput(t.Context(), l, terragruntOptions, "same")
 

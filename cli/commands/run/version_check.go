@@ -114,7 +114,7 @@ func PopulateTerraformVersion(ctx context.Context, l log.Logger, terragruntOptio
 		return nil
 	}
 
-	terragruntOptionsCopy, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
+	l, terragruntOptionsCopy, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return err
 	}

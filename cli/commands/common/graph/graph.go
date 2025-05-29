@@ -37,7 +37,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		rootDir = gitRoot
 	}
 
-	rootOptions, err := opts.CloneWithConfigPath(rootDir)
+	l, rootOptions, err := opts.CloneWithConfigPath(l, rootDir)
 	if err != nil {
 		return err
 	}
