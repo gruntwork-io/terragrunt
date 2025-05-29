@@ -111,11 +111,25 @@ jobs:
           sudo mv gon /usr/local/bin/gon
           sudo chmod +x /usr/local/bin/gon
 
-      - name: Run gon as test
+      - name: Run gon version
         run: |
           gon --version
 
       - name: Show downloaded binaries
         run: |
           ls -lh bin/
-          find bin/ -type f -exec file {} \\;
+          export AC_PASSWORD=${MACOS_AC_PASSWORD}
+          export AC_PROVIDER=${MACOS_AC_PROVIDER}
+          .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
+          .github/scripts/setup/mac-sign.sh --os mac .gon_arm64.hcl
+          echo "Done signing the binary"
+
+          # Replace the files in bin. These are the same file names generated from .gon_amd64.hcl and .gon_arm64.hcl
+          unzip terragrunt_darwin_amd64.zip
+          mv terragrunt_darwin_amd64 bin/
+
+          unzip terragrunt_darwin_arm64.zip
+          mv terragrunt_darwin_arm64 bin/
+
+          codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
+          codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
