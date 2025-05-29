@@ -115,8 +115,15 @@ jobs:
         run: |
           gon --version
 
-      - name: Show downloaded binaries
+      - name: Sign Binaries
+        env:
+          MACOS_AC_PASSWORD: ${{ secrets.MACOS_AC_PASSWORD }}
+          MACOS_AC_PROVIDER: ${{ secrets.MACOS_AC_PROVIDER }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
+          pwd
+          ls -lahrt
           ls -lh bin/
           export AC_PASSWORD=${MACOS_AC_PASSWORD}
           export AC_PROVIDER=${MACOS_AC_PROVIDER}
