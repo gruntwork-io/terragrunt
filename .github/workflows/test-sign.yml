@@ -1,0 +1,49 @@
+name: Test Sign Binary
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test-sign-binary:
+    name: Test Sign
+    runs-on: macos-latest
+    env:
+      MISE_PROFILE: cicd
+      GON_VERSION: v0.0.37
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download gon release
+        run: |
+          curl -L -o gon.zip https://github.com/Bearer/gon/releases/download/${GON_VERSION}/gon_macos.zip
+
+      - name: Extract gon binary
+        run: |
+          unzip gon.zip
+          chmod +x gon
+
+      - name: Run gon as test
+        run: |
+          GON_VERSION=$(./gon --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "GON_VERSION=$GON_VERSION" >> $GITHUB_ENV
+          echo "gon version: $GON_VERSION"
+
+      - name: Upload License Check Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-check-report-ubuntu
+          path: license-check.log 
