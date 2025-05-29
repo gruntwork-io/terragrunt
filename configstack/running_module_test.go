@@ -13,12 +13,13 @@ import (
 
 var mockOptions, _ = options.NewTerragruntOptionsForTest("running_module_test")
 
-func cloneOptions(t *testing.T, l log.Logger, opts *options.TerragruntOptions, terragruntConfigPath string) *options.TerragruntOptions {
+func cloneOptions(t *testing.T, l log.Logger, opts *options.TerragruntOptions, terragruntConfigPath string) (log.Logger, *options.TerragruntOptions) {
 	t.Helper()
 
-	_, newOpts, err := opts.CloneWithConfigPath(l, canonical(t, terragruntConfigPath))
+	l, newOpts, err := opts.CloneWithConfigPath(l, canonical(t, terragruntConfigPath))
 	require.NoError(t, err)
-	return newOpts
+
+	return l, newOpts
 }
 
 func TestToRunningModulesNoModules(t *testing.T) {
