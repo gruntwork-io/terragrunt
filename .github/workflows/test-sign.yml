@@ -51,7 +51,6 @@ jobs:
         run: |
           gon --version
 
-      # Example: Use the downloaded artifact
       - name: Show downloaded binary
         run: |
           ls -lh bin/
