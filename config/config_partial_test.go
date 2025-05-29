@@ -60,7 +60,7 @@ prevent_destroy = false
 	_, err := config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
-	_, err = config.PartialParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	_, err = config.PartialParseConfigString(ctx.WithDecodeList(config.DependenciesBlock), l, config.DefaultTerragruntConfigPath, cfg, nil)
 	assert.Error(t, err)
 }
 
