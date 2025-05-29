@@ -56,7 +56,7 @@ jobs:
           GOARCH: ${{ matrix.arch }}
         run: |
           OUTPUT="bin/terragrunt-${GOOS}-${GOARCH}"
-          if [ "${GOOS}" = "windows" ]; then
+          if [[ "${GOOS}" == "windows" ]]; then
             OUTPUT="${OUTPUT}.exe"
           fi
           go build -o "${OUTPUT}" \
@@ -66,9 +66,9 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: terragrunt-${{ matrix.os }}-${{ matrix.arch }}
+          name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: |
-            bin/terragrunt-${{ matrix.os }}-${{ matrix.arch }}*
+            bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
 
   sign:
     name: Sign Binaries
