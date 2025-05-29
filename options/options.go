@@ -281,8 +281,6 @@ type TerragruntOptions struct {
 	Headless bool
 	// LogDisableErrorSummary is a flag to skip the error summary
 	LogDisableErrorSummary bool
-	// Disable replacing full paths in logs with short relative paths
-	LogShowAbsPaths bool
 	// NoStackGenerate disable stack generation.
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
