@@ -121,7 +121,7 @@ jobs:
           export AC_PASSWORD=${MACOS_AC_PASSWORD}
           export AC_PROVIDER=${MACOS_AC_PROVIDER}
           .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
-          .github/scripts/setup/mac-sign.sh --os mac .gon_arm64.hcl
+          .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
           echo "Done signing the binary"
 
           # Replace the files in bin. These are the same file names generated from .gon_amd64.hcl and .gon_arm64.hcl
