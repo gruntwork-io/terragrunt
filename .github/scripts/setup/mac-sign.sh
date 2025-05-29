@@ -113,3 +113,4 @@ function assert_env_var_not_empty {
 }
 
 main "$@"
+
