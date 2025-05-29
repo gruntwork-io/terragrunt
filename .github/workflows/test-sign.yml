@@ -1,11 +1,10 @@
 name: Test Sign Binary
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
 
 jobs:
   test-sign-binary:
@@ -16,8 +15,10 @@ jobs:
       GON_VERSION: v0.0.37
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bin/
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -41,6 +42,17 @@ jobs:
           unzip gon.zip
           chmod +x gon
 
+      - name: Move gon to system path
+        run: |
+          sudo mv gon /usr/local/bin/gon
+          sudo chmod +x /usr/local/bin/gon
+
       - name: Run gon as test
         run: |
-          ./gon --version
+          gon --version
+
+      # Example: Use the downloaded artifact
+      - name: Show downloaded binary
+        run: |
+          ls -lh bin/
+          file bin/terragrunt-darwin-amd64
