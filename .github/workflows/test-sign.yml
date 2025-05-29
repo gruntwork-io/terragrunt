@@ -27,23 +27,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Cache gon binary
+        id: cache-gon
+        uses: actions/cache@v4
+        with:
+          path: gon
+          key: gon-${{ env.GON_VERSION }}
+
       - name: Download gon release
+        if: steps.cache-gon.outputs.cache-hit != 'true'
         run: |
           curl -L -o gon.zip https://github.com/Bearer/gon/releases/download/${GON_VERSION}/gon_macos.zip
-
-      - name: Extract gon binary
-        run: |
           unzip gon.zip
           chmod +x gon
 
       - name: Run gon as test
         run: |
-          GON_VERSION=$(./gon --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          echo "GON_VERSION=$GON_VERSION" >> $GITHUB_ENV
-          echo "gon version: $GON_VERSION"
-
-      - name: Upload License Check Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: license-check-report-ubuntu
-          path: license-check.log 
+          ./gon --version
