@@ -79,6 +79,9 @@ jobs:
       GON_VERSION: v0.0.37
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
