@@ -120,12 +120,12 @@ func TestHCLFmtErrors(t *testing.T) {
 			t.Parallel()
 
 			tgHclDir := filepath.Join(tmpPath, dir)
-			_, newTgOptions, err := tgOptions.CloneWithConfigPath(logger.CreateLogger(), tgOptions.TerragruntConfigPath)
+			l, newTgOptions, err := tgOptions.CloneWithConfigPath(logger.CreateLogger(), tgOptions.TerragruntConfigPath)
 			require.NoError(t, err)
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = format.Run(t.Context(), logger.CreateLogger(), newTgOptions)
+			err = format.Run(t.Context(), l, newTgOptions)
 			require.Error(t, err)
 		})
 	}

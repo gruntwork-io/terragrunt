@@ -697,7 +697,7 @@ func runTerraformInit(ctx context.Context, l log.Logger, originalTerragruntOptio
 		return nil
 	}
 
-	initOptions, err := prepareInitOptions(l, terragruntOptions)
+	l, initOptions, err := prepareInitOptions(l, terragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -714,11 +714,11 @@ func runTerraformInit(ctx context.Context, l log.Logger, originalTerragruntOptio
 	return nil
 }
 
-func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, error) {
+func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptions) (log.Logger, *options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
-	_, initOptions, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
+	l, initOptions, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
 	if err != nil {
-		return nil, err
+		return l, nil, err
 	}
 
 	initOptions.TerraformCliArgs = []string{tf.CommandNameInit}
@@ -738,7 +738,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, tf.FlagNameNoColor)
 	}
 
-	return initOptions, nil
+	return l, initOptions, nil
 }
 
 // Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.
