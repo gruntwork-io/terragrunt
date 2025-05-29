@@ -119,34 +119,43 @@ func createTestStack() *configstack.Stack {
 	// - mysql; depends on vpc
 	// - redis; depends on vpc
 	// - myapp; depends on mysql and redis
+
+	l := logger.CreateLogger()
+
 	basePath := "/stage/mystack"
 	accountBaseline := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "account-baseline"),
 		FlagExcluded: true,
+		Logger:       l,
 	}
 	vpc := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "vpc"),
 		Dependencies: configstack.TerraformModules{accountBaseline},
+		Logger:       l,
 	}
 	lambda := &configstack.TerraformModule{
 		Path:                 filepath.Join(basePath, "lambda"),
 		Dependencies:         configstack.TerraformModules{vpc},
 		AssumeAlreadyApplied: true,
+		Logger:               l,
 	}
 	mysql := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "mysql"),
 		Dependencies: configstack.TerraformModules{vpc},
+		Logger:       l,
 	}
 	redis := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "redis"),
 		Dependencies: configstack.TerraformModules{vpc},
+		Logger:       l,
 	}
 	myapp := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "myapp"),
 		Dependencies: configstack.TerraformModules{mysql, redis},
+		Logger:       l,
 	}
 
-	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	stack := configstack.NewStack(l, mockOptions)
 	stack.Modules = configstack.TerraformModules{
 		accountBaseline,
 		vpc,
@@ -1264,11 +1273,13 @@ func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
 func TestBasicDependency(t *testing.T) {
 	t.Parallel()
 
-	moduleC := &configstack.TerraformModule{Path: "C", Dependencies: configstack.TerraformModules{}}
-	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}}
-	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
+	l := logger.CreateLogger()
 
-	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	moduleC := &configstack.TerraformModule{Path: "C", Dependencies: configstack.TerraformModules{}, Logger: l}
+	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}, Logger: l}
+	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}, Logger: l}
+
+	stack := configstack.NewStack(l, mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
 
 	expected := map[string][]string{
@@ -1286,13 +1297,15 @@ func TestBasicDependency(t *testing.T) {
 func TestNestedDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleD := &configstack.TerraformModule{Path: "D", Dependencies: configstack.TerraformModules{}}
-	moduleC := &configstack.TerraformModule{Path: "C", Dependencies: configstack.TerraformModules{moduleD}}
-	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}}
-	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
+	l := logger.CreateLogger()
+
+	moduleD := &configstack.TerraformModule{Path: "D", Dependencies: configstack.TerraformModules{}, Logger: l}
+	moduleC := &configstack.TerraformModule{Path: "C", Dependencies: configstack.TerraformModules{moduleD}, Logger: l}
+	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}, Logger: l}
+	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}, Logger: l}
 
 	// Create a mock stack
-	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	stack := configstack.NewStack(l, mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
 
 	// Expected result
@@ -1313,16 +1326,18 @@ func TestNestedDependencies(t *testing.T) {
 func TestCircularDependencies(t *testing.T) {
 	t.Parallel()
 
+	l := logger.CreateLogger()
+
 	// Mock modules with circular dependencies
-	moduleA := &configstack.TerraformModule{Path: "A"}
-	moduleB := &configstack.TerraformModule{Path: "B"}
-	moduleC := &configstack.TerraformModule{Path: "C"}
+	moduleA := &configstack.TerraformModule{Path: "A", Logger: l}
+	moduleB := &configstack.TerraformModule{Path: "B", Logger: l}
+	moduleC := &configstack.TerraformModule{Path: "C", Logger: l}
 
 	moduleA.Dependencies = configstack.TerraformModules{moduleB}
 	moduleB.Dependencies = configstack.TerraformModules{moduleC}
 	moduleC.Dependencies = configstack.TerraformModules{moduleA} // Circular dependency
 
-	stack := configstack.NewStack(logger.CreateLogger(), mockOptions)
+	stack := configstack.NewStack(l, mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
 
 	expected := map[string][]string{
