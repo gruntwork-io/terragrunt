@@ -125,9 +125,6 @@ jobs:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
-          pwd
-          ls -lahrt
-          ls -lh bin/
           export AC_PASSWORD=${MACOS_AC_PASSWORD}
           export AC_PROVIDER=${MACOS_AC_PROVIDER}
           .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
@@ -143,3 +140,9 @@ jobs:
 
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
+
+      - name: Upload Signed Executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-terragrunt-executables
+          path: bin/*
