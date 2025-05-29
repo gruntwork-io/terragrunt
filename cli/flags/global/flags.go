@@ -165,13 +165,10 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogDisableFlagName), terragruntPrefixControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:    ShowLogAbsPathsFlagName,
-			EnvVars: tgPrefix.EnvVars(ShowLogAbsPathsFlagName),
-			Usage:   "Show absolute paths in logs.",
-			Setter: func(val bool) error {
-				l.Formatter().DisableRelativePaths()
-				return nil
-			},
+			Name:        ShowLogAbsPathsFlagName,
+			EnvVars:     tgPrefix.EnvVars(ShowLogAbsPathsFlagName),
+			Destination: &opts.LogShowAbsPaths,
+			Usage:       "Show absolute paths in logs.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedShowLogAbsPathsFlagName), terragruntPrefixControl)),
 
