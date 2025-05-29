@@ -13,7 +13,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -46,7 +45,6 @@ func TestCommandOutputPrefix(t *testing.T) {
 
 	}, func(l log.Logger) {
 		l.SetOptions(log.WithFormatter(logFormatter))
-		l = l.WithField(placeholders.WorkDirKeyName, prefix)
 	}, assertOutputs(t,
 		prefixedOutput,
 		Stdout,

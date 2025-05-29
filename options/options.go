@@ -495,9 +495,9 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	newOpts.TerragruntConfigPath = configPath
 	newOpts.WorkingDir = workingDir
 
-	newLogger := l.Clone().WithField(placeholders.WorkDirKeyName, workingDir)
+	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 
-	return newLogger, newOpts, nil
+	return l, newOpts, nil
 }
 
 // Check if argument is planfile TODO check file formatter

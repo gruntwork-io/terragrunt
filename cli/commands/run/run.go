@@ -103,7 +103,8 @@ func run(ctx context.Context, l log.Logger, terragruntOptions *options.Terragrun
 		return err
 	}
 
-	if err := CheckVersionConstraints(ctx, l, terragruntOptions); err != nil {
+	l, err := CheckVersionConstraints(ctx, l, terragruntOptions)
+	if err != nil {
 		return target.runErrorCallback(l, terragruntOptions, nil, err)
 	}
 
@@ -715,7 +716,7 @@ func runTerraformInit(ctx context.Context, l log.Logger, originalTerragruntOptio
 
 func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
-	l, initOptions, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
+	_, initOptions, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}

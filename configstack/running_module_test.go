@@ -16,7 +16,7 @@ var mockOptions, _ = options.NewTerragruntOptionsForTest("running_module_test")
 func cloneOptions(t *testing.T, l log.Logger, opts *options.TerragruntOptions, terragruntConfigPath string) *options.TerragruntOptions {
 	t.Helper()
 
-	l, newOpts, err := opts.CloneWithConfigPath(l, canonical(t, terragruntConfigPath))
+	_, newOpts, err := opts.CloneWithConfigPath(l, canonical(t, terragruntConfigPath))
 	require.NoError(t, err)
 	return newOpts
 }

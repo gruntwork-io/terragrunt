@@ -33,6 +33,7 @@ const existingModulesCacheName = "existingModules"
 type TerraformModule struct {
 	*Stack
 	TerragruntOptions    *options.TerragruntOptions
+	Logger               log.Logger
 	Path                 string
 	Dependencies         TerraformModules
 	Config               config.TerragruntConfig
@@ -346,36 +347,36 @@ func (modules TerraformModules) WriteDot(l log.Logger, w io.Writer, opts *option
 // RunModules runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (modules TerraformModules) RunModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, parallelism int) error {
+func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
 	runningModules, err := modules.ToRunningModules(NormalOrder)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, l, opts, parallelism)
+	return runningModules.runModules(ctx, opts, parallelism)
 }
 
 // RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, parallelism int) error {
+func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
 	runningModules, err := modules.ToRunningModules(ReverseOrder)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, l, opts, parallelism)
+	return runningModules.runModules(ctx, opts, parallelism)
 }
 
 // RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, parallelism int) error {
+func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
 	runningModules, err := modules.ToRunningModules(IgnoreOrder)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, l, opts, parallelism)
+	return runningModules.runModules(ctx, opts, parallelism)
 }
 
 // ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information

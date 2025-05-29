@@ -211,11 +211,11 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 
 	switch {
 	case opts.IgnoreDependencyOrder:
-		return stack.Modules.RunModulesIgnoreOrder(ctx, l, opts, opts.Parallelism)
+		return stack.Modules.RunModulesIgnoreOrder(ctx, opts, opts.Parallelism)
 	case stackCmd == tf.CommandNameDestroy:
-		return stack.Modules.RunModulesReverseOrder(ctx, l, opts, opts.Parallelism)
+		return stack.Modules.RunModulesReverseOrder(ctx, opts, opts.Parallelism)
 	default:
-		return stack.Modules.RunModules(ctx, l, opts, opts.Parallelism)
+		return stack.Modules.RunModules(ctx, opts, opts.Parallelism)
 	}
 }
 
@@ -575,7 +575,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, te
 
 	if collections.ListContainsElement(opts.ExcludeDirs, modulePath) {
 		// module is excluded
-		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
+		return &TerraformModule{Path: modulePath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
 	parseCtx := config.NewParsingContext(ctx, l, opts).
@@ -655,7 +655,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, te
 		return nil, nil
 	}
 
-	return &TerraformModule{Stack: stack, Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return &TerraformModule{Stack: stack, Path: modulePath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
