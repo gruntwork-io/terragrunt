@@ -55,7 +55,7 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          OUTPUT="bin/terragrunt-${GOOS}-${GOARCH}"
+          OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
           if [[ "${GOOS}" == "windows" ]]; then
             OUTPUT="${OUTPUT}.exe"
           fi
