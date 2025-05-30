@@ -33,6 +33,8 @@ jobs:
         run: |
           set -e
           failed=0
+          mise use -g go:golang.org/x/tools/gopls@v0.18.1
+          gopls version
           while IFS= read -r file; do
             echo "Checking $file"
             # gopls codeaction -kind=quickfix -write returns 1 if changes are made
