@@ -16,6 +16,7 @@ import (
 	"github.com/getsops/sops/v3/cmd/sops/formats"
 	"github.com/getsops/sops/v3/decrypt"
 	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
@@ -77,6 +78,7 @@ const (
 	FuncNameStrContains                             = "strcontains"
 	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
+	FuncNameConstraintCheck                         = "constraint_check"
 
 	sopsCacheName = "sopsCache"
 )
@@ -176,6 +178,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, l log.Logger, configPath s
 		FuncNameReadTfvarsFile:                          wrapStringSliceToStringAsFuncImpl(ctx, l, readTFVarsFile),
 		FuncNameGetWorkingDir:                           wrapVoidToStringAsFuncImpl(ctx, l, getWorkingDir),
 		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, l, markAsRead),
+		FuncNameConstraintCheck:                         wrapStringSliceToBoolAsFuncImpl(ctx, ConstraintCheck),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
@@ -1258,4 +1261,23 @@ func extractSopsErrors(err error) *errors.MultiError {
 	}
 
 	return errs
+}
+
+// ConstraintCheck Implementation of Terraform's StartsWith function
+func ConstraintCheck(ctx *ParsingContext, args []string) (bool, error) {
+	if len(args) != matchedPats {
+		return false, errors.New(WrongNumberOfParamsError{Func: FuncNameConstraintCheck, Expected: "2", Actual: len(args)})
+	}
+
+	v, err := version.NewSemver(args[0])
+	if err != nil {
+		return false, errors.Errorf("invalid version %s: %w", args[0], err)
+	}
+
+	c, err := version.NewConstraint(args[1])
+	if err != nil {
+		return false, errors.Errorf("invalid constraint %s: %w", args[1], err)
+	}
+
+	return c.Check(v), nil
 }
