@@ -126,6 +126,51 @@ provider "registry.terraform.io/hashicorp/template" {
 }
 `,
 		},
+		{
+			[]Provider{},
+			`
+provider "registry.terraform.io/hashicorp/aws" {
+  version     = "5.36.0"
+  constraints = ">= 5.36.0"
+  hashes = [
+    "h1:SHOEBOHEif46z7Bb86YZ5evCtAeK5A4gtHdT8RU5OhA=",
+    "zh:7c810fb11d8b3ded0cb554a27c27a9d002cc644a7a57c29cae01eeea890f0398",
+    "zh:a3366f6b57b0f4b8bf8a5fecf42a834652709a97dd6db1b499c4ab186e33a41f",
+  ]
+}
+			
+provider "registry.terraform.io/hashicorp/template" {
+  version     = "2.1.0"
+  constraints = "<= 2.1.0" 
+  hashes = [
+	"h1:vxE/PD8SWl6Lmh5zRvIW1Y559xfUyuV2T/VeQLXi7f0=",
+    "zh:6fc271665ac28c3fee773b9dc2b8066280ba35b7e9a14a6148194a240c43f42a",
+    "zh:c19f719c9f7ce6d7449fe9c020100faed0705303c7f95beeef81dfd1e4a2004b",
+  ]
+}			
+`,
+			`
+provider "registry.terraform.io/hashicorp/aws" {
+  version     = "5.37.0"
+  constraints = ">= 5.36.0"
+  hashes = [
+    "h1:SHOEBOHEif46z7Bb86YZ5evCtAeK5A4gtHdT8RU5OhA=",
+    "zh:7c810fb11d8b3ded0cb554a27c27a9d002cc644a7a57c29cae01eeea890f0398",
+    "zh:a3366f6b57b0f4b8bf8a5fecf42a834652709a97dd6db1b499c4ab186e33a41f",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/template" {
+  version     = "2.2.0"
+  constraints = "2.2.0"
+  hashes = [
+    "h1:kvJsWhTmFya0WW8jAfY40fDtYhWQ6mOwPQC2ncDNjZs=",
+    "zh:02d170f0a0f453155686baf35c10b5a7a230ef20ca49f6e26de1c2691ac70a59",
+    "zh:d88ec10849d5a1d9d1db458847bbc62049f0282a2139e5176d645b75a0346992",
+  ]
+}
+`,
+		},
 	}
 
 	for i, tc := range testCases {
@@ -143,6 +188,11 @@ provider "registry.terraform.io/hashicorp/template" {
 			case 1:
 				tc.providers = []Provider{
 					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.36.0"),
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
+				}
+			case 2:
+				tc.providers = []Provider{
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0"),
 					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
 				}
 			}
