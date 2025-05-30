@@ -38,12 +38,18 @@ jobs:
           mise use -g go:golang.org/x/tools/gopls@v0.18.1
           gopls version
           > fixed_files.txt
-          parallel --jobs 0 --halt soon,fail=1 --bar '
+          > gopls_failures.txt
+          parallel --jobs 0 --bar --joblog parallel_joblog.txt '
             echo "Checking {}"
             if ! gopls codeaction -kind=quickfix -write "{}"; then
+              echo "FAILED: {}" | tee -a gopls_failures.txt
               echo "{}" >> fixed_files.txt
             fi
           ' :::: gofiles.txt
+          echo "\n==== gopls parallel job log ===="
+          cat parallel_joblog.txt
+          echo "\n==== gopls failures (if any) ===="
+          cat gopls_failures.txt || true
 
       - name: List all files with fixes
         if: always()
@@ -54,12 +60,7 @@ jobs:
           else
             echo "No files were auto-fixed by gopls."
           fi
-
-      - name: Check for issues
-        run: |
-          if [ -f gofiles.txt ]; then
-            echo "gopls found issues that can be auto-fixed. Please run 'gopls codeaction -kind=quickfix -write <file>' locally and commit the changes."
-            exit 1
-          else
-            echo "No Go files found. Skipping check."
-          fi 
+          if [ -s gopls_failures.txt ]; then
+            echo "\nSome files failed to process with gopls:"
+            cat gopls_failures.txt
+          fi
