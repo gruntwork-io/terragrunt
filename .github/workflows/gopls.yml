@@ -29,20 +29,21 @@ jobs:
         run: |
           find . -type f -name '*.go' -not -path './vendor/*' > gofiles.txt
 
+      - name: Install parallel
+        run: sudo apt-get update && sudo apt-get install -y parallel
+
       - name: Run gopls quickfixes
         run: |
           set -e
           mise use -g go:golang.org/x/tools/gopls@v0.18.1
           gopls version
           > fixed_files.txt
-          cat gofiles.txt | xargs -P $(nproc) -I {} sh -c '
+          parallel --jobs 0 --halt soon,fail=1 --bar '
             echo "Checking {}"
-            if gopls codeaction -kind=quickfix -write "{}"; then
-              :
-            else
+            if ! gopls codeaction -kind=quickfix -write "{}"; then
               echo "{}" >> fixed_files.txt
             fi
-          '
+          ' :::: gofiles.txt
 
       - name: List all files with fixes
         if: always()
