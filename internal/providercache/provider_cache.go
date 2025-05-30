@@ -311,7 +311,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 
 func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
 	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
-	errWriter := util.NewTrapWriter(opts.ErrWriter)
+	errWriter := util.NewTrapWriter(opts.LoggingOptions.ErrWriter)
 
 	// add -no-color flag to args if it was set in Terragrunt arguments
 	if util.ListContainsElement(opts.TerraformCliArgs, tf.FlagNameNoColor) &&
@@ -324,8 +324,8 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 		return nil, err
 	}
 
-	cloneOpts.Writer = io.Discard
-	cloneOpts.ErrWriter = errWriter
+	cloneOpts.LoggingOptions.Writer = io.Discard
+	cloneOpts.LoggingOptions.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = args
 	cloneOpts.Env = envs

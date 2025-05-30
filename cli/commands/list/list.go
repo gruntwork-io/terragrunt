@@ -335,12 +335,12 @@ func renderLong(opts *Options, configs ListedConfigs, c *Colorizer) error {
 	}
 
 	for _, config := range configs {
-		_, err := opts.Writer.Write([]byte(c.ColorizeType(config.Type)))
+		_, err := opts.LoggingOptions.Writer.Write([]byte(c.ColorizeType(config.Type)))
 		if err != nil {
 			return errors.New(err)
 		}
 
-		_, err = opts.Writer.Write([]byte(" " + c.Colorize(config)))
+		_, err = opts.LoggingOptions.Writer.Write([]byte(" " + c.Colorize(config)))
 		if err != nil {
 			return errors.New(err)
 		}
@@ -356,19 +356,19 @@ func renderLong(opts *Options, configs ListedConfigs, c *Colorizer) error {
 
 			dependenciesPadding := (longestPathLen - len(config.Path)) + extraDependenciesPadding
 			for range dependenciesPadding {
-				_, err := opts.Writer.Write([]byte(" "))
+				_, err := opts.LoggingOptions.Writer.Write([]byte(" "))
 				if err != nil {
 					return errors.New(err)
 				}
 			}
 
-			_, err = opts.Writer.Write([]byte(strings.Join(colorizedDeps, ", ")))
+			_, err = opts.LoggingOptions.Writer.Write([]byte(strings.Join(colorizedDeps, ", ")))
 			if err != nil {
 				return errors.New(err)
 			}
 		}
 
-		_, err = opts.Writer.Write([]byte("\n"))
+		_, err = opts.LoggingOptions.Writer.Write([]byte("\n"))
 		if err != nil {
 			return errors.New(err)
 		}
@@ -379,7 +379,7 @@ func renderLong(opts *Options, configs ListedConfigs, c *Colorizer) error {
 
 // renderLongHeadings renders the headings for the long format.
 func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
-	_, err := opts.Writer.Write([]byte(c.ColorizeHeading("Type  Path")))
+	_, err := opts.LoggingOptions.Writer.Write([]byte(c.ColorizeHeading("Type  Path")))
 	if err != nil {
 		return errors.New(err)
 	}
@@ -389,19 +389,19 @@ func renderLongHeadings(opts *Options, c *Colorizer, longestPathLen int) error {
 
 		dependenciesPadding := (longestPathLen - len("Path")) + extraDependenciesPadding
 		for range dependenciesPadding {
-			_, err := opts.Writer.Write([]byte(" "))
+			_, err := opts.LoggingOptions.Writer.Write([]byte(" "))
 			if err != nil {
 				return errors.New(err)
 			}
 		}
 
-		_, err = opts.Writer.Write([]byte(c.ColorizeHeading("Dependencies")))
+		_, err = opts.LoggingOptions.Writer.Write([]byte(c.ColorizeHeading("Dependencies")))
 		if err != nil {
 			return errors.New(err)
 		}
 	}
 
-	_, err = opts.Writer.Write([]byte("\n"))
+	_, err = opts.LoggingOptions.Writer.Write([]byte("\n"))
 	if err != nil {
 		return errors.New(err)
 	}
@@ -415,13 +415,13 @@ func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
 
 	for i, config := range configs {
 		if i > 0 && i%maxCols == 0 {
-			_, err := opts.Writer.Write([]byte("\n"))
+			_, err := opts.LoggingOptions.Writer.Write([]byte("\n"))
 			if err != nil {
 				return errors.New(err)
 			}
 		}
 
-		_, err := opts.Writer.Write([]byte(c.Colorize(config)))
+		_, err := opts.LoggingOptions.Writer.Write([]byte(c.Colorize(config)))
 		if err != nil {
 			return errors.New(err)
 		}
@@ -429,14 +429,14 @@ func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
 		// Add padding until the length of maxCols
 		padding := colWidth - len(config.Path)
 		for range padding {
-			_, err := opts.Writer.Write([]byte(" "))
+			_, err := opts.LoggingOptions.Writer.Write([]byte(" "))
 			if err != nil {
 				return errors.New(err)
 			}
 		}
 	}
 
-	_, err := opts.Writer.Write([]byte("\n"))
+	_, err := opts.LoggingOptions.Writer.Write([]byte("\n"))
 	if err != nil {
 		return errors.New(err)
 	}
@@ -624,7 +624,7 @@ func renderTree(opts *Options, configs ListedConfigs, s *TreeStyler, _ string) e
 
 	t = s.Style(t)
 
-	_, err := opts.Writer.Write([]byte(t.String() + "\n"))
+	_, err := opts.LoggingOptions.Writer.Write([]byte(t.String() + "\n"))
 	if err != nil {
 		return errors.New(err)
 	}

@@ -210,7 +210,7 @@ func outputJSON(opts *Options, configs FoundConfigs) error {
 		return errors.New(err)
 	}
 
-	_, err = opts.Writer.Write(append(jsonBytes, []byte("\n")...))
+	_, err = opts.LoggingOptions.Writer.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
 		return errors.New(err)
 	}
@@ -278,7 +278,7 @@ func outputText(l log.Logger, opts *Options, configs FoundConfigs) error {
 	colorizer := NewColorizer(shouldColor(l))
 
 	for _, config := range configs {
-		_, err := opts.Writer.Write([]byte(colorizer.Colorize(config) + "\n"))
+		_, err := opts.LoggingOptions.Writer.Write([]byte(colorizer.Colorize(config) + "\n"))
 		if err != nil {
 			return errors.New(err)
 		}

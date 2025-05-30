@@ -67,8 +67,8 @@ func RunCommandWithOutput(
 		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		var (
-			cmdStderr = io.MultiWriter(opts.ErrWriter, &output.Stderr)
-			cmdStdout = io.MultiWriter(opts.Writer, &output.Stdout)
+			cmdStderr = io.MultiWriter(opts.LoggingOptions.ErrWriter, &output.Stderr)
+			cmdStdout = io.MultiWriter(opts.LoggingOptions.Writer, &output.Stdout)
 		)
 
 		// Pass the traceparent to the child process if it is available in the context.
@@ -129,7 +129,7 @@ func RunCommandWithOutput(
 				Args:           args,
 				Command:        command,
 				WorkingDir:     cmd.Dir,
-				DisableSummary: opts.LogDisableErrorSummary,
+				DisableSummary: opts.LoggingOptions.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -145,7 +145,7 @@ func RunCommandWithOutput(
 				Command:        command,
 				Output:         output,
 				WorkingDir:     cmd.Dir,
-				DisableSummary: opts.LogDisableErrorSummary,
+				DisableSummary: opts.LoggingOptions.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)

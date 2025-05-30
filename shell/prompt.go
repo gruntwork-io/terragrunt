@@ -23,7 +23,7 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, opts *
 		return "yes", nil
 	}
 
-	n, err := opts.ErrWriter.Write([]byte(prompt))
+	n, err := opts.LoggingOptions.ErrWriter.Write([]byte(prompt))
 	if err != nil {
 		l.Error(err)
 

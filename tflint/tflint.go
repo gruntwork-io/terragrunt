@@ -58,7 +58,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Initializing tflint in directory %s", opts.WorkingDir)
 
-	cli, err := cmd.NewCLI(opts.Writer, opts.ErrWriter)
+	cli, err := cmd.NewCLI(opts.LoggingOptions.Writer, opts.LoggingOptions.ErrWriter)
 	if err != nil {
 		return errors.New(err)
 	}

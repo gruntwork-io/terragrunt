@@ -318,7 +318,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InputsDebugFlagName,
 			EnvVars:     tgPrefix.EnvVars(InputsDebugFlagName),
-			Destination: &opts.Debug,
+			Destination: &opts.LoggingOptions.Debug,
 			Usage:       "Write debug.tfvars to working folder to help root-cause issues.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("debug"), terragruntPrefixControl)),
@@ -342,7 +342,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        TFForwardStdoutFlagName,
 			EnvVars:     tgPrefix.EnvVars(TFForwardStdoutFlagName),
-			Destination: &opts.ForwardTFStdout,
+			Destination: &opts.LoggingOptions.ForwardTFStdout,
 			Usage:       "If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("forward-tf-stdout"), terragruntPrefixControl),
