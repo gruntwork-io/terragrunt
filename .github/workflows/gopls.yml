@@ -39,12 +39,15 @@ jobs:
           gopls version
           > fixed_files.txt
           > gopls_failures.txt
-          parallel --jobs 0 --bar --joblog parallel_joblog.txt '
-            echo "Checking {}"
-            if ! gopls codeaction -kind=quickfix -write "{}"; then
+          parallel --jobs 0 --bar --linebuffer --joblog parallel_joblog.txt '
+            echo "START: {}"
+            if gopls codeaction -kind=quickfix -write "{}"; then
+              echo "SUCCESS: {}"
+            else
               echo "FAILED: {}" | tee -a gopls_failures.txt
               echo "{}" >> fixed_files.txt
             fi
+            echo "END: {}"
           ' :::: gofiles.txt
           echo "\n==== gopls parallel job log ===="
           cat parallel_joblog.txt
