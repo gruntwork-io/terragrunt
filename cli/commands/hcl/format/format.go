@@ -44,7 +44,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			return errors.Errorf("both stdin and path flags are specified")
 		}
 
-		return formatFromStdin(l, opts)
+		return formatFromStdin(l, opts.LoggingOptions)
 	}
 
 	// handle when option specifies a particular file
@@ -107,7 +107,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	return formatErrors.ErrorOrNil()
 }
 
-func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
+func formatFromStdin(l log.Logger, opts *options.LoggingOptions) error {
 	contents, err := io.ReadAll(os.Stdin)
 
 	if err != nil {
@@ -124,7 +124,7 @@ func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
 
 	newContents := hclwrite.Format(contents)
 
-	buf := bufio.NewWriter(opts.LoggingOptions.Writer)
+	buf := bufio.NewWriter(opts.Writer)
 
 	if _, err = buf.Write(newContents); err != nil {
 		l.Errorf("Failed to write to stdout")
