@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // sessionState keeps track of the view we are currently on.
@@ -49,6 +50,7 @@ func (b button) String() string {
 
 type model struct {
 	list                list.Model
+	logger              log.Logger
 	terragruntOptions   *options.TerragruntOptions
 	svc                 catalog.CatalogService
 	selectedModule      *module.Module

@@ -25,7 +25,7 @@ import (
 
 // NewRepoFunc defines the signature for a function that creates a new repository.
 // This allows for mocking in tests.
-type NewRepoFunc func(ctx context.Context, logger log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error)
+type NewRepoFunc func(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error)
 
 const (
 	// tempDirFormat is used to create unique temporary directory names for catalog repositories.
@@ -38,13 +38,13 @@ const (
 type CatalogService interface {
 	// Load retrieves all modules from the configured repositories.
 	// It stores discovered modules internally.
-	Load(ctx context.Context) error
+	Load(ctx context.Context, l log.Logger) error
 
 	// Modules returns the discovered modules.
 	Modules() module.Modules
 
 	// Scaffold scaffolds a module.
-	Scaffold(ctx context.Context, opts *options.TerragruntOptions, module *module.Module) error
+	Scaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, module *module.Module) error
 
 	// WithNewRepoFunc allows overriding the default function used to create repository instances.
 	// This is primarily useful for testing.
@@ -92,12 +92,12 @@ func (s *catalogServiceImpl) WithRepoURL(repoURL string) CatalogService {
 
 // Load implements the CatalogService interface.
 // It contains the core logic for cloning/updating repositories and finding Terragrunt modules within them.
-func (s *catalogServiceImpl) Load(ctx context.Context) error {
+func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 	repoURLs := []string{s.repoURL}
 
 	// If no specific repoURL was provided to the service, try to read from catalog config.
 	if s.repoURL == "" {
-		catalogCfg, err := config.ReadCatalogConfig(ctx, s.opts)
+		catalogCfg, err := config.ReadCatalogConfig(ctx, l, s.opts)
 		if err != nil {
 			return errors.Errorf("failed to read catalog configuration: %w", err)
 		}
@@ -125,7 +125,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context) error {
 
 	for _, currentRepoURL := range repoURLs {
 		if currentRepoURL == "" {
-			s.opts.Logger.Warnf("Empty repository URL encountered, skipping.")
+			l.Warnf("Empty repository URL encountered, skipping.")
 			continue
 		}
 
@@ -134,13 +134,13 @@ func (s *catalogServiceImpl) Load(ctx context.Context) error {
 		encodedRepoURL := util.EncodeBase64Sha1(currentRepoURL)
 		tempPath := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, encodedRepoURL))
 
-		s.opts.Logger.Debugf("Processing repository %s in temporary path %s", currentRepoURL, tempPath)
+		l.Debugf("Processing repository %s in temporary path %s", currentRepoURL, tempPath)
 
 		// Initialize the repository. This might involve cloning or updating.
 		// Use the newRepo function stored in the service instance.
-		repo, err := s.newRepo(ctx, s.opts.Logger, currentRepoURL, tempPath, walkWithSymlinks, allowCAS)
+		repo, err := s.newRepo(ctx, l, currentRepoURL, tempPath, walkWithSymlinks, allowCAS)
 		if err != nil {
-			s.opts.Logger.Errorf("Failed to initialize repository %s: %v", currentRepoURL, err)
+			l.Errorf("Failed to initialize repository %s: %v", currentRepoURL, err)
 
 			errs = append(errs, err)
 
@@ -150,14 +150,14 @@ func (s *catalogServiceImpl) Load(ctx context.Context) error {
 		// Find modules within the initialized repository.
 		repoModules, err := repo.FindModules(ctx)
 		if err != nil {
-			s.opts.Logger.Errorf("Failed to find modules in repository %s: %v", currentRepoURL, err)
+			l.Errorf("Failed to find modules in repository %s: %v", currentRepoURL, err)
 
 			errs = append(errs, err)
 
 			continue
 		}
 
-		s.opts.Logger.Infof("Found %d module(s) in repository %q", len(repoModules), currentRepoURL)
+		l.Infof("Found %d module(s) in repository %q", len(repoModules), currentRepoURL)
 		allModules = append(allModules, repoModules...)
 	}
 
@@ -178,8 +178,8 @@ func (s *catalogServiceImpl) Modules() module.Modules {
 	return s.modules
 }
 
-func (s *catalogServiceImpl) Scaffold(ctx context.Context, opts *options.TerragruntOptions, module *module.Module) error {
-	opts.Logger.Infof("Scaffolding module: %q", module.TerraformSourcePath())
+func (s *catalogServiceImpl) Scaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, module *module.Module) error {
+	l.Infof("Scaffolding module: %q", module.TerraformSourcePath())
 
-	return scaffold.Run(ctx, opts, module.TerraformSourcePath(), "")
+	return scaffold.Run(ctx, l, opts, module.TerraformSourcePath(), "")
 }

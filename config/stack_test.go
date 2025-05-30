@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,8 +29,8 @@ stack "projects" {
 
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(t.Context(), opts)
-	terragruntStackConfig, err := config.ReadStackConfigString(ctx, opts, config.DefaultStackFile, cfg, nil)
+	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
 	assert.NotNil(t, terragruntStackConfig)
@@ -101,8 +102,8 @@ stack "network" {
 }
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(t.Context(), opts)
-	terragruntStackConfig, err := config.ReadStackConfigString(ctx, opts, config.DefaultStackFile, cfg, nil)
+	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
 	// Check that config is not nil
@@ -159,8 +160,8 @@ locals {
 }
 `
 	opts := mockOptionsForTest(t)
-	ctx := config.NewParsingContext(t.Context(), opts)
-	_, err := config.ReadStackConfigString(ctx, opts, config.DefaultStackFile, invalidCfg, nil)
+	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	_, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, invalidCfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid multi-line string")
 }

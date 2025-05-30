@@ -6,19 +6,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/info/strict"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
 	CommandName = "info"
 )
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "List of commands to display Terragrunt settings.",
 		Subcommands: cli.Commands{
-			strict.NewCommand(opts),
-			print.NewCommand(opts),
+			strict.NewCommand(l, opts),
+			print.NewCommand(l, opts),
 		},
 		Action: cli.ShowCommandHelp,
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -17,9 +18,9 @@ const (
 
 type TargetPointType byte
 
-type TargetCallbackType func(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
+type TargetCallbackType func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
 
-type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
+type TargetErrorCallbackType func(l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
 
 // Since most terragrunt CLI commands like `render-json`, `aws-provider-patch` ...  require preparatory steps, such as `generate configuration`
 // which is already coded in `terraform.runTerraform` and complicated to extract
@@ -82,14 +83,14 @@ func (target *Target) isPoint(point TargetPointType) bool {
 	return target.point == point
 }
 
-func (target *Target) runCallback(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
-	return target.callbackFunc(ctx, opts, config)
+func (target *Target) runCallback(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
+	return target.callbackFunc(ctx, l, opts, config)
 }
 
-func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
+func (target *Target) runErrorCallback(l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
 	if target.errorCallbackFunc == nil {
 		return e
 	}
 
-	return target.errorCallbackFunc(opts, config, e)
+	return target.errorCallbackFunc(l, opts, config, e)
 }

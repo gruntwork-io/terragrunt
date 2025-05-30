@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -40,11 +41,12 @@ func init() {
 type App struct {
 	*cli.App
 	opts *options.TerragruntOptions
+	l    log.Logger
 }
 
 // NewApp creates the Terragrunt CLI App.
-func NewApp(opts *options.TerragruntOptions) *App {
-	terragruntCommands := commands.New(opts)
+func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
+	terragruntCommands := commands.New(l, opts)
 
 	app := cli.NewApp()
 	app.Name = AppName
@@ -53,15 +55,15 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
-	app.Flags = global.NewFlagsWithDeprecatedMovedFlags(opts)
-	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(opts))
+	app.Flags = global.NewFlagsWithDeprecatedMovedFlags(l, opts)
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.Before = beforeAction(opts)
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
 	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
 	app.Action = cli.ShowAppHelp
 
-	return &App{app, opts}
+	return &App{app, opts, l}
 }
 
 func (app *App) Run(args []string) error {
@@ -74,7 +76,7 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 	signal.NotifierWithContext(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
 		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
-		app.opts.Logger.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
+		app.l.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
 
 		cancel(signal.NewContextCanceledError(sig))
 	}, signal.InterruptSignals...)
@@ -111,7 +113,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx = run.WithRunVersionCache(ctx)
 
 	defer func(ctx context.Context) {
-		if err := engine.Shutdown(ctx, app.opts); err != nil {
+		if err := engine.Shutdown(ctx, app.l, app.opts); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)

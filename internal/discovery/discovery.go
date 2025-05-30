@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -213,17 +212,13 @@ func (c *DiscoveredConfig) ContainsDependencyInAncestry(path string) bool {
 }
 
 // Parse parses the discovered configurations.
-func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOptions, suppressParseErrors bool) error {
+func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool) error {
 	parseOpts := opts.Clone()
 	parseOpts.WorkingDir = c.Path
 
 	// Suppress logging to avoid cluttering the output.
 	parseOpts.Writer = io.Discard
 	parseOpts.ErrWriter = io.Discard
-	parseOpts.Logger = log.New(
-		log.WithOutput(io.Discard),
-		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
-	)
 	parseOpts.SkipOutput = true
 
 	filename := config.DefaultTerragruntConfigPath
@@ -234,7 +229,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOp
 
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, filename)
 
-	parsingCtx := config.NewParsingContext(ctx, parseOpts).WithDecodeList(
+	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
 		config.DependenciesBlock,
 		config.DependencyBlock,
 		config.FeatureFlagsBlock,
@@ -242,15 +237,15 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, opts *options.TerragruntOp
 	)
 
 	//nolint: contextcheck
-	cfg, err := config.ParseConfigFile(parsingCtx, parseOpts.TerragruntConfigPath, nil)
+	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
-			opts.Logger.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 
 			return errors.New(err)
 		}
 
-		opts.Logger.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+		l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
 	}
 
 	c.Parsed = cfg
@@ -283,7 +278,7 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 }
 
 // Discover discovers Terragrunt configurations in the WorkingDir.
-func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
+func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
 	var cfgs DiscoveredConfigs
 
 	processFn := func(path string, info os.FileInfo, err error) error {
@@ -343,7 +338,7 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 	// e.g. dependencies, exclude, etc.
 	if d.requiresParse {
 		for _, cfg := range cfgs {
-			err := cfg.Parse(ctx, opts, d.suppressParseErrors)
+			err := cfg.Parse(ctx, l, opts, d.suppressParseErrors)
 			if err != nil {
 				errs = append(errs, errors.New(err))
 			}
@@ -371,11 +366,11 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 				dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
 			}
 
-			err := dependencyDiscovery.DiscoverAllDependencies(ctx, opts)
+			err := dependencyDiscovery.DiscoverAllDependencies(ctx, l, opts)
 			if err != nil {
-				opts.Logger.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
+				l.Warnf("Parsing errors where encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
 
-				opts.Logger.Debugf("Errors: %w", err)
+				l.Debugf("Errors: %w", err)
 			}
 
 			cfgs = dependencyDiscovery.cfgs
@@ -391,9 +386,9 @@ func (d *Discovery) Discover(ctx context.Context, opts *options.TerragruntOption
 			"config_count": len(cfgs),
 		}, func(ctx context.Context) error {
 			if _, err := cfgs.CycleCheck(); err != nil {
-				opts.Logger.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-				opts.Logger.Debugf("Cycle: %w", err)
+				l.Debugf("Cycle: %w", err)
 
 				cfgs, err = cfgs.RemoveCycles()
 				if err != nil {
@@ -454,7 +449,7 @@ func (d *DependencyDiscovery) WithDiscoveryContext(discoveryContext *DiscoveryCo
 	return d
 }
 
-func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, opts *options.TerragruntOptions) error {
+func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	errs := []error{}
 
 	for _, cfg := range d.cfgs {
@@ -462,7 +457,7 @@ func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, opts 
 			continue
 		}
 
-		err := d.DiscoverDependencies(ctx, opts, cfg)
+		err := d.DiscoverDependencies(ctx, l, opts, cfg)
 		if err != nil {
 			errs = append(errs, errors.New(err))
 		}
@@ -475,7 +470,7 @@ func (d *DependencyDiscovery) DiscoverAllDependencies(ctx context.Context, opts 
 	return nil
 }
 
-func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *options.TerragruntOptions, dCfg *DiscoveredConfig) error {
+func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dCfg *DiscoveredConfig) error {
 	if d.depthRemaining <= 0 {
 		return errors.New("max dependency depth reached while discovering dependencies")
 	}
@@ -488,7 +483,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 
 	// This should only happen if we're discovering an ancestor dependency.
 	if dCfg.Parsed == nil {
-		err := dCfg.Parse(ctx, opts, d.suppressParseErrors)
+		err := dCfg.Parse(ctx, l, opts, d.suppressParseErrors)
 		if err != nil {
 			return errors.New(err)
 		}
@@ -569,7 +564,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, opts *op
 			if d.discoverExternal {
 				d.cfgs = append(d.cfgs, ext)
 
-				err := d.DiscoverDependencies(ctx, opts, ext)
+				err := d.DiscoverDependencies(ctx, l, opts, ext)
 				if err != nil {
 					errs = append(errs, errors.New(err))
 				}

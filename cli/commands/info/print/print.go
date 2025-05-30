@@ -12,14 +12,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, handleTerragruntContextPrint, handleTerragruntContextPrintWithError)
 
-	return run.RunWithTarget(ctx, opts, target)
+	return run.RunWithTarget(ctx, l, opts, target)
 }
 
 // InfoOutput represents the structured output of the info command
@@ -32,21 +33,21 @@ type InfoOutput struct {
 	WorkingDir       string `json:"working_dir"`
 }
 
-func handleTerragruntContextPrint(_ context.Context, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
-	return printTerragruntContext(opts)
+func handleTerragruntContextPrint(_ context.Context, l log.Logger, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
+	return printTerragruntContext(l, opts)
 }
 
-func handleTerragruntContextPrintWithError(opts *options.TerragruntOptions, _ *config.TerragruntConfig, err error) error {
-	opts.Logger.Debugf("Fetching info with error: %v", err)
+func handleTerragruntContextPrintWithError(l log.Logger, opts *options.TerragruntOptions, _ *config.TerragruntConfig, err error) error {
+	l.Debugf("Fetching info with error: %v", err)
 
-	if err := printTerragruntContext(opts); err != nil {
-		opts.Logger.Errorf("Error printing info: %v", err)
+	if err := printTerragruntContext(l, opts); err != nil {
+		l.Errorf("Error printing info: %v", err)
 	}
 
 	return nil
 }
 
-func printTerragruntContext(opts *options.TerragruntOptions) error {
+func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
@@ -58,7 +59,7 @@ func printTerragruntContext(opts *options.TerragruntOptions) error {
 
 	b, err := json.MarshalIndent(group, "", "  ")
 	if err != nil {
-		opts.Logger.Errorf("JSON error marshalling info")
+		l.Errorf("JSON error marshalling info")
 		return errors.New(err)
 	}
 

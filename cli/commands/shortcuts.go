@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -27,9 +28,9 @@ var (
 	}
 )
 
-func NewShortcutsCommands(opts *options.TerragruntOptions) cli.Commands {
+func NewShortcutsCommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	var (
-		runCmd = run.NewCommand(opts)
+		runCmd = run.NewCommand(l, opts)
 		cmds   = make(cli.Commands, 0, len(runCmd.Subcommands))
 	)
 

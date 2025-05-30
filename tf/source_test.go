@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -48,10 +48,9 @@ func TestSplitSourceUrl(t *testing.T) {
 			sourceURL, err := url.Parse(tc.sourceURL)
 			require.NoError(t, err)
 
-			terragruntOptions, err := options.NewTerragruntOptionsForTest("testing")
-			require.NoError(t, err)
+			l := logger.CreateLogger()
 
-			actualRootRepo, actualModulePath, err := tf.SplitSourceURL(sourceURL, terragruntOptions.Logger)
+			actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedSo, actualRootRepo.String())
@@ -95,15 +94,14 @@ func TestToSourceUrl(t *testing.T) {
 func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
 	t.Parallel()
 
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("testing")
-	require.NoError(t, err)
-
 	source := "git::codecommit::ap-northeast-1://my_app_modules//my-app/modules/main-module"
 	sourceURL, err := tf.ToSourceURL(source, ".")
 	require.NoError(t, err)
 	require.Equal(t, "git::codecommit::ap-northeast-1", sourceURL.Scheme)
 
-	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(sourceURL, terragruntOptions.Logger)
+	l := logger.CreateLogger()
+
+	actualRootRepo, actualModulePath, err := tf.SplitSourceURL(l, sourceURL)
 	require.NoError(t, err)
 
 	require.Equal(t, "git::codecommit::ap-northeast-1://my_app_modules", actualRootRepo.String())

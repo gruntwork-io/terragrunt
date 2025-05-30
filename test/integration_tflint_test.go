@@ -111,17 +111,14 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
-	downloadDir, err := os.MkdirTemp("", "download-dir")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	downloadDir := t.TempDir()
 
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
 	modulePath := util.JoinPath(rootPath, testFixtureTflintNoIssuesFound)
-	err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --log-level trace --working-dir %s --download-dir %s", modulePath, downloadDir), out, errOut)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --log-level trace --working-dir %s --download-dir %s", modulePath, downloadDir), out, errOut)
 	require.NoError(t, err)
 
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
@@ -202,10 +199,7 @@ func TestTflintCustomConfig(t *testing.T) {
 func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 	t.Helper()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	tmpDir := t.TempDir()
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 

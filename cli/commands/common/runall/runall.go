@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -29,7 +30,7 @@ var runAllDisabledCommands = map[string]string{
 	// - version        : Supporting `version` with run --all could be useful for sanity checking a multi-version setup.
 }
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
 		return errors.New(MissingCommand{})
 	}
@@ -42,18 +43,18 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, opts)
+	stack, err := configstack.FindStackInSubfolders(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, opts, stack)
+	return RunAllOnStack(ctx, l, opts, stack)
 }
 
-func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *configstack.Stack) error {
-	opts.Logger.Debugf("%s", stack.String())
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stack *configstack.Stack) error {
+	l.Debugf("%s", stack.String())
 
-	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
+	if err := stack.LogModuleDeployOrder(l, opts.TerraformCommand); err != nil {
 		return err
 	}
 
@@ -69,7 +70,7 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(ctx, prompt, opts)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 		if err != nil {
 			return err
 		}
@@ -83,6 +84,6 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return stack.Run(ctx, opts)
+		return stack.Run(ctx, l, opts)
 	})
 }

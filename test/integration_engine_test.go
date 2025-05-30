@@ -3,7 +3,6 @@
 package test_test
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/hashicorp/go-getter/v2"
@@ -38,9 +37,10 @@ const (
 var (
 	engineAssetName    = "terragrunt-iac-engine-opentofu_rpc_" + testEngineVersion() + "_" + runtime.GOOS + "_" + runtime.GOARCH
 	engineAssetArchive = engineAssetName + ".zip"
-	downloadUrl        = fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/%s/%s", testEngineVersion(), engineAssetArchive)
+	downloadURL        = fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/%s/%s", testEngineVersion(), engineAssetArchive)
 )
 
+//nolint:paralleltest
 func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
@@ -54,10 +54,11 @@ func TestEngineLocalPlan(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
+//nolint:paralleltest
 func TestEngineLocalApply(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir %s", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, engineAssetName)
@@ -74,7 +75,7 @@ func TestEngineOpentofu(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuEngine)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir %s", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Tofu Initialization started")
@@ -134,7 +135,7 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 		"__hardcoded_url__": fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.4/terragrunt-iac-engine-opentofu_rpc_v0.0.4_%s_%s.zip", platform, arch),
 	})
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir %s", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Tofu Initialization started")
@@ -161,13 +162,13 @@ func TestEngineChecksumVerification(t *testing.T) {
 
 	// open the file and write some data
 	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_WRONLY, 0600)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	nonExecutableData := []byte{0x00}
 	if _, err := file.Write(nonExecutableData); err != nil {
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
-	assert.NoError(t, file.Close())
+	require.NoError(t, file.Close())
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
 	require.Error(t, err)
 
@@ -283,6 +284,8 @@ func TestEngineTelemetry(t *testing.T) {
 }
 
 func setupEngineCache(t *testing.T) (string, string) {
+	t.Helper()
+
 	// create a temporary folder
 	cacheDir := t.TempDir()
 	t.Setenv("TG_ENGINE_CACHE_PATH", cacheDir)
@@ -294,6 +297,8 @@ func setupEngineCache(t *testing.T) (string, string) {
 }
 
 func setupLocalEngine(t *testing.T) string {
+	t.Helper()
+
 	t.Setenv(envVarExperimental, "1")
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalEngine)
@@ -305,7 +310,7 @@ func setupLocalEngine(t *testing.T) string {
 	if err := os.MkdirAll(engineDir, 0755); err != nil {
 		require.NoError(t, err)
 	}
-	_, err := getter.GetAny(context.TODO(), engineDir, downloadUrl)
+	_, err := getter.GetAny(t.Context(), engineDir, downloadURL)
 	require.NoError(t, err)
 
 	helpers.CopyAndFillMapPlaceholders(t, util.JoinPath(testFixtureLocalEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{

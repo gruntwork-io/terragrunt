@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -20,20 +21,26 @@ func main() {
 
 	opts := options.NewTerragruntOptions()
 
+	l := log.New(
+		log.WithOutput(opts.ErrWriter),
+		log.WithLevel(options.DefaultLogLevel),
+		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+	)
+
 	// Immediately parse the `TG_LOG_LEVEL` environment variable, e.g. to set the TRACE level.
-	if err := global.NewLogLevelFlag(opts, nil).Parse(os.Args); err != nil {
-		opts.Logger.Error(err.Error())
+	if err := global.NewLogLevelFlag(l, opts, nil).Parse(os.Args); err != nil {
+		l.Error(err.Error())
 		os.Exit(1)
 	}
 
-	defer errors.Recover(checkForErrorsAndExit(opts.Logger, exitCode.Get()))
+	defer errors.Recover(checkForErrorsAndExit(l, exitCode.Get()))
 
-	app := cli.NewApp(opts)
+	app := cli.NewApp(l, opts)
 
-	ctx := setupContext(opts, &exitCode)
+	ctx := setupContext(l, &exitCode)
 	err := app.RunContext(ctx, os.Args)
 
-	checkForErrorsAndExit(opts.Logger, exitCode.Get())(err)
+	checkForErrorsAndExit(l, exitCode.Get())(err)
 }
 
 // If there is an error, display it in the console and exit with a non-zero exit code. Otherwise, exit 0.
@@ -65,9 +72,9 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 	}
 }
 
-func setupContext(opts *options.TerragruntOptions, exitCode *tf.DetailedExitCode) context.Context {
+func setupContext(l log.Logger, exitCode *tf.DetailedExitCode) context.Context {
 	ctx := context.Background()
 	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
-	return log.ContextWithLogger(ctx, opts.Logger)
+	return log.ContextWithLogger(ctx, l)
 }

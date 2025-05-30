@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -44,7 +45,7 @@ const (
 )
 
 // NewDeprecatedCommands returns a slice of deprecated commands to convert the command to the known alternative.
-func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
+func NewDeprecatedCommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	deprecatedCommands := DeprecatedCommands{
 		// legacy-all commands
 		newDeprecatedLegacyAllCommand(CommandSpinUpName, tf.CommandNameApply),
@@ -141,7 +142,7 @@ func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	}
 
 	// `push/untaint/...` all TF commands that are not shortcuts
-	deprecatedDefaultCommands := newDeprecatedDefaultCommands(opts)
+	deprecatedDefaultCommands := newDeprecatedDefaultCommands(l, opts)
 
 	return append(deprecatedCommands.CLICommands(opts), deprecatedDefaultCommands...)
 }
@@ -188,9 +189,9 @@ func newDeprecatedCLIRedesignTFCommands(args cli.Args) DeprecatedCommands {
 	return cmds
 }
 
-func newDeprecatedDefaultCommands(opts *options.TerragruntOptions) cli.Commands {
+func newDeprecatedDefaultCommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	var (
-		runCmd       = run.NewCommand(opts)
+		runCmd       = run.NewCommand(l, opts)
 		cmds         = make(cli.Commands, 0, len(runCmd.Subcommands))
 		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.DefaultCommands)
 	)

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +59,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := t.Context()
 
-			repo, err := module.NewRepo(ctx, log.New(), tc.repoPath, "", false, false)
+			repo, err := module.NewRepo(ctx, logger.CreateLogger(), tc.repoPath, "", false, false)
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)

@@ -8,16 +8,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	remoteState, err := config.ParseRemoteState(ctx, opts)
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	remoteState, err := config.ParseRemoteState(ctx, l, opts)
 	if err != nil || remoteState == nil {
 		return err
 	}
 
 	if !opts.ForceBackendDelete {
-		enabled, err := remoteState.IsVersionControlEnabled(ctx, opts)
+		enabled, err := remoteState.IsVersionControlEnabled(ctx, l, opts)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -32,5 +33,5 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return errors.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
-	return remoteState.Delete(ctx, opts)
+	return remoteState.Delete(ctx, l, opts)
 }

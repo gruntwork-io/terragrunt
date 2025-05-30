@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConfig_IsEqual(t *testing.T) {
 	t.Parallel()
 
-	logger := log.New()
+	logger := logger.CreateLogger()
 
 	testCases := []struct { //nolint: govet
 		name          string

@@ -33,6 +33,7 @@ const existingModulesCacheName = "existingModules"
 type TerraformModule struct {
 	*Stack
 	TerragruntOptions    *options.TerragruntOptions
+	Logger               log.Logger
 	Path                 string
 	Dependencies         TerraformModules
 	Config               config.TerragruntConfig
@@ -100,11 +101,11 @@ func (module *TerraformModule) checkForCyclesUsingDepthFirstSearch(visitedPaths 
 }
 
 // planFile - return plan file location, if output folder is set
-func (module *TerraformModule) planFile(opts *options.TerragruntOptions) string {
+func (module *TerraformModule) planFile(l log.Logger, opts *options.TerragruntOptions) string {
 	var planFile string
 
 	// set plan file location if output folder is set
-	planFile = module.outputFile(opts)
+	planFile = module.outputFile(l, opts)
 
 	planCommand := module.TerragruntOptions.TerraformCommand == tf.CommandNamePlan || module.TerragruntOptions.TerraformCommand == tf.CommandNameShow
 
@@ -117,16 +118,16 @@ func (module *TerraformModule) planFile(opts *options.TerragruntOptions) string 
 }
 
 // outputFile - return plan file location, if output folder is set
-func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
-	return module.getPlanFilePath(opts, opts.OutputFolder, tf.TerraformPlanFile)
+func (module *TerraformModule) outputFile(l log.Logger, opts *options.TerragruntOptions) string {
+	return module.getPlanFilePath(l, opts, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
 // outputJSONFile - return plan JSON file location, if JSON output folder is set
-func (module *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string {
-	return module.getPlanFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+func (module *TerraformModule) outputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
+	return module.getPlanFilePath(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 
-func (module *TerraformModule) getPlanFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
+func (module *TerraformModule) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}
@@ -139,7 +140,7 @@ func (module *TerraformModule) getPlanFilePath(opts *options.TerragruntOptions, 
 		if absDir, err := filepath.Abs(dir); err == nil {
 			dir = absDir
 		} else {
-			opts.Logger.Warnf("Failed to get absolute path for %s: %v", dir, err)
+			l.Warnf("Failed to get absolute path for %s: %v", dir, err)
 		}
 	}
 
@@ -156,26 +157,26 @@ func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 // Note that we skip the prompt for `run --all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
 // with the --queue-include-external or --queue-include-dir flags.
-func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.Context, dependency *TerraformModule, opts *options.TerragruntOptions) (bool, error) {
+func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.Context, l log.Logger, dependency *TerraformModule, opts *options.TerragruntOptions) (bool, error) {
 	if opts.IncludeExternalDependencies {
-		opts.Logger.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		l.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return true, nil
 	}
 
 	if opts.NonInteractive {
-		opts.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run --all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		l.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run --all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil
 	}
 
 	stackCmd := opts.TerraformCommand
 	if stackCmd == "destroy" {
-		opts.Logger.Debugf("run --all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run --all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		l.Debugf("run --all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run --all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil
 	}
 
-	opts.Logger.Infof("Module %s has external dependency %s", module.Path, dependency.Path)
+	l.Infof("Module %s has external dependency %s", module.Path, dependency.Path)
 
-	return shell.PromptUserForYesNo(ctx, "Should Terragrunt apply the external dependency?", opts)
+	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt apply the external dependency?", opts)
 }
 
 // Get the list of modules this module depends on
@@ -220,13 +221,13 @@ type TerraformModules []*TerraformModule
 // 1. Find root git top level directory and build list of modules
 // 2. Iterate over includes from opts if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(ctx context.Context, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) TerraformModules {
+func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) TerraformModules {
 	var (
 		pathsToCheck      []string
 		matchedModulesMap = make(TerraformModulesMap)
 	)
 
-	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, opts, opts.WorkingDir); err == nil {
+	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir); err == nil {
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else {
 		// detection failed, trying to use include directories as source for stacks
@@ -245,7 +246,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, opts *options.Terragrunt
 
 		cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
 		if err != nil {
-			opts.Logger.Debugf("Failed to build terragrunt options from %s %v", dir, err)
+			l.Debugf("Failed to build terragrunt options from %s %v", dir, err)
 			continue
 		}
 
@@ -253,14 +254,13 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, opts *options.Terragrunt
 		cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 		cfgOptions.TerraformCommand = opts.TerraformCommand
 		cfgOptions.NonInteractive = true
-		cfgOptions.Logger = cfgOptions.Logger.WithOptions(log.WithHooks(NewForceLogLevelHook(log.DebugLevel)))
 
 		// build stack from config directory
-		stack, err := FindStackInSubfolders(ctx, cfgOptions, WithChildTerragruntConfig(terragruntConfig))
+		stack, err := FindStackInSubfolders(ctx, l, cfgOptions, WithChildTerragruntConfig(terragruntConfig))
 		if err != nil {
 			// log error as debug since in some cases stack building may fail because parent files can be designed
 			// to work with relative paths from downstream modules
-			opts.Logger.Debugf("Failed to build module stack %v", err)
+			l.Debugf("Failed to build module stack %v", err)
 			continue
 		}
 
@@ -299,14 +299,14 @@ func (modules TerraformModules) FindByPath(path string) *TerraformModule {
 // for a directed graph. It can be used to dump a .dot file.
 // This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
 // adding some styling to modules that are excluded from the execution in *-all commands
-func (modules TerraformModules) WriteDot(w io.Writer, opts *options.TerragruntOptions) error {
+func (modules TerraformModules) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntOptions) error {
 	if _, err := w.Write([]byte("digraph {\n")); err != nil {
 		return errors.New(err)
 	}
 	defer func(w io.Writer, p []byte) {
 		_, err := w.Write(p)
 		if err != nil {
-			opts.Logger.Warnf("Failed to close graphviz output: %v", err)
+			l.Warnf("Failed to close graphviz output: %v", err)
 		}
 	}(w, []byte("}\n"))
 
@@ -503,7 +503,7 @@ func (modules TerraformModules) flagUnitsThatAreIncluded(opts *options.Terragrun
 }
 
 // flagExcludedUnits iterates over a module slice and flags all modules that are excluded based on the exclude block.
-func (modules TerraformModules) flagExcludedUnits(opts *options.TerragruntOptions) TerraformModules {
+func (modules TerraformModules) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions) TerraformModules {
 	for _, module := range modules {
 		excludeConfig := module.Config.Exclude
 
@@ -516,12 +516,12 @@ func (modules TerraformModules) flagExcludedUnits(opts *options.TerragruntOption
 		}
 
 		if excludeConfig.If {
-			opts.Logger.Debugf("Module %s is excluded by exclude block", module.Path)
+			l.Debugf("Module %s is excluded by exclude block", module.Path)
 			module.FlagExcluded = true
 		}
 
 		if excludeConfig.ExcludeDependencies != nil && *excludeConfig.ExcludeDependencies {
-			opts.Logger.Debugf("Excluding dependencies for module %s by exclude block", module.Path)
+			l.Debugf("Excluding dependencies for module %s by exclude block", module.Path)
 
 			for _, dependency := range module.Dependencies {
 				dependency.FlagExcluded = true
