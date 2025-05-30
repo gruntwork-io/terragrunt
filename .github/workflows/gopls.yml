@@ -1,0 +1,43 @@
+name: Gopls Quickfix Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  gopls-quickfix:
+    name: Gopls Quickfix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find Go files
+        id: gofiles
+        run: |
+          find . -type f -name '*.go' -not -path './vendor/*' > gofiles.txt
+
+      - name: Run gopls quickfix
+        run: |
+          set -e
+          failed=0
+          while IFS= read -r file; do
+            echo "Checking $file"
+            # gopls codeaction -kind=quickfix -write returns 1 if changes are made
+            gopls codeaction -kind=quickfix -write "$file" || failed=1
+          done < gofiles.txt
+          if [ "$failed" -eq 1 ]; then
+            echo "gopls found issues that can be auto-fixed. Please run 'gopls codeaction -kind=quickfix -write <file>' locally and commit the changes."
+            exit 1
+          fi 
