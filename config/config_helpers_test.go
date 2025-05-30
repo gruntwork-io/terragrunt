@@ -1289,3 +1289,58 @@ func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, par
 	}
 	return trackInclude
 }
+
+func TestConstraintCheck(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		config *options.TerragruntOptions
+		err    string
+		args   []string
+		value  bool
+	}{
+		{
+			config: terragruntOptionsForTest(t, ""),
+			args:   []string{"1.2", ">= 1.0, < 1.4"},
+			value:  true,
+		},
+		{
+			config: terragruntOptionsForTest(t, ""),
+			args:   []string{"1.0", ">= 1.0, < 1.4"},
+			value:  true,
+		},
+		{
+			config: terragruntOptionsForTest(t, ""),
+			args:   []string{"1.4", ">= 1.0, < 1.4"},
+			value:  false,
+		},
+		{
+			config: terragruntOptionsForTest(t, ""),
+			args:   []string{"1.E", ">= 1.0, < 1.4"},
+			value:  false,
+			err:    "invalid version 1.E: Malformed version: 1.E",
+		},
+		{
+			config: terragruntOptionsForTest(t, ""),
+			args:   []string{"1.4", ">== 1.0, < 1.4"},
+			value:  false,
+			err:    "invalid constraint >== 1.0, < 1.4: Malformed constraint: >== 1.0",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("constraint_check(%#v, %#v)", tc.args[0], tc.args[1]), func(t *testing.T) {
+			t.Parallel()
+
+			ctx := config.NewParsingContext(context.Background(), tc.config)
+			actual, err := config.ConstraintCheck(ctx, tc.args)
+			if tc.err != "" {
+				require.EqualError(t, err, tc.err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tc.value, actual)
+		})
+	}
+}
