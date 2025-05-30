@@ -18,7 +18,7 @@ func TestMissingRunAllArguments(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	tgOptions.TerraformCommand = ""
+	tgOptions.RunOptions.TerraformCommand = ""
 
 	err = runall.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.Error(t, err)

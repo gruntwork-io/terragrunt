@@ -159,7 +159,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 
 	assert.Equal(t, expected.TerragruntConfigPath, actual.TerragruntConfigPath, messageAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, messageAndArgs...)
-	assert.Equal(t, expected.TerraformCliArgs, actual.TerraformCliArgs, messageAndArgs...)
+	assert.Equal(t, expected.RunOptions.TerraformCliArgs, actual.RunOptions.TerraformCliArgs, messageAndArgs...)
 	assert.Equal(t, expected.WorkingDir, actual.WorkingDir, messageAndArgs...)
 }
 

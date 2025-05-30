@@ -264,7 +264,7 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Use a path that doesn't exist to induce error
-	tgOptions.TerraformPath = "i-dont-exist"
+	tgOptions.RunOptions.TerraformPath = "i-dont-exist"
 	l := logger.CreateLogger()
 	err = run.RunTerraformWithRetry(t.Context(), l, tgOptions)
 	require.Error(t, err)
@@ -481,7 +481,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	}
 
 	opts.WorkingDir = workingDir
-	opts.TerraformCliArgs = terraformCliArgs
+	opts.RunOptions.TerraformCliArgs = terraformCliArgs
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors

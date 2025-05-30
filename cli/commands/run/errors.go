@@ -55,7 +55,7 @@ type MaxRetriesExceeded struct {
 }
 
 func (err MaxRetriesExceeded) Error() string {
-	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.RetryMaxAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
+	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.RetryMaxAttempts, err.Opts.RunOptions.TerraformPath, strings.Join(err.Opts.RunOptions.TerraformCliArgs, " "))
 }
 
 type RunAllDisabledErr struct {

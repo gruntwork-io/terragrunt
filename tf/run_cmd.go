@@ -63,7 +63,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 		opts.LoggingOptions.Writer, opts.LoggingOptions.ErrWriter = logTFOutput(l, opts, args)
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, opts, "", false, needsPTY, opts.TerraformPath, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, opts, "", false, needsPTY, opts.RunOptions.TerraformPath, args...)
 
 	if err != nil && util.ListContainsElement(args, FlagNameDetailedExitCode) {
 		code, _ := util.GetExitCode(err)
@@ -86,7 +86,7 @@ func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args cli.Args) (
 	)
 
 	logger := l.
-		WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath)).
+		WithField(placeholders.TFPathKeyName, filepath.Base(opts.RunOptions.TerraformPath)).
 		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
 		WithField(placeholders.TFCmdKeyName, args.CommandName())
 

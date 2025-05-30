@@ -36,7 +36,7 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) cli.HelpFunc {
 
 		cli.HelpPrinterCustom(ctx, TFCommandHelpTemplate, map[string]any{
 			"isTerraformPath": func() bool {
-				return isTerraformPath(opts)
+				return isTerraformPath(opts.RunOptions)
 			},
 			"runTFHelp": func() string {
 				return runTFHelp(ctx, l, opts)
@@ -63,7 +63,7 @@ func runTFHelp(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) 
 			err = processError.Err
 		}
 
-		return fmt.Sprintf("Failed to execute \"%s %s\": %s", opts.TerraformPath, strings.Join(terraformHelpCmd, " "), err.Error())
+		return fmt.Sprintf("Failed to execute \"%s %s\": %s", opts.RunOptions.TerraformPath, strings.Join(terraformHelpCmd, " "), err.Error())
 	}
 
 	result := out.Stdout.String()

@@ -76,11 +76,11 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 
 func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
-		if opts.TerraformCommand == tf.CommandNameDestroy {
-			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
+		if opts.RunOptions.TerraformCommand == tf.CommandNameDestroy {
+			opts.RunOptions.CheckDependentModules = !opts.RunOptions.NoDestroyDependenciesCheck
 		}
 
-		if err := validateCommand(opts); err != nil {
+		if err := validateCommand(opts.RunOptions); err != nil {
 			return err
 		}
 
@@ -88,7 +88,7 @@ func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 	}
 }
 
-func validateCommand(opts *options.TerragruntOptions) error {
+func validateCommand(opts *options.RunOptions) error {
 	if opts.DisableCommandValidation || collections.ListContainsElement(tf.CommandNames, opts.TerraformCommand) {
 		return nil
 	}
@@ -100,7 +100,7 @@ func validateCommand(opts *options.TerragruntOptions) error {
 	return WrongTofuCommand(opts.TerraformCommand)
 }
 
-func isTerraformPath(opts *options.TerragruntOptions) bool {
+func isTerraformPath(opts *options.RunOptions) bool {
 	return strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath)
 }
 

@@ -55,7 +55,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 	l.Debugf(
 		"\tterraform -chdir=\"%s\" %s -var-file=\"%s\" ",
 		opts.WorkingDir,
-		strings.Join(opts.TerraformCliArgs, " "),
+		strings.Join(opts.RunOptions.TerraformCliArgs, " "),
 		fileName,
 	)
 

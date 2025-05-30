@@ -159,7 +159,7 @@ func (dep Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool 
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
+			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.RunOptions.TerraformCommand)
 
 	return allowedCommand && dep.getMockOutputsMergeStrategy() != NoMerge
 }
@@ -544,7 +544,7 @@ func (dep Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
+			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.RunOptions.TerraformCommand)
 
 	return defaultOutputsSet && allowedCommand || isRenderJSONCommand(ctx) || isRenderCommand(ctx)
 }
@@ -600,12 +600,12 @@ func isAwsS3NoSuchKey(err error) bool {
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
 func isRenderJSONCommand(ctx *ParsingContext) bool {
-	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderJSONCommand)
+	return util.ListContainsElement(ctx.TerragruntOptions.RunOptions.TerraformCliArgs, renderJSONCommand)
 }
 
 // isRenderCommand will return true if terragrunt was invoked with render
 func isRenderCommand(ctx *ParsingContext) bool {
-	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderCommand)
+	return util.ListContainsElement(ctx.TerragruntOptions.RunOptions.TerraformCliArgs, renderCommand)
 }
 
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.
@@ -685,9 +685,9 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 
 	targetOptions.LoggingOptions.ForwardTFStdout = false
 	// just read outputs, so no need to check for dependent modules
-	targetOptions.CheckDependentModules = false
-	targetOptions.TerraformCommand = "output"
-	targetOptions.TerraformCliArgs = []string{"output", "-json"}
+	targetOptions.RunOptions.CheckDependentModules = false
+	targetOptions.RunOptions.TerraformCommand = "output"
+	targetOptions.RunOptions.TerraformCliArgs = []string{"output", "-json"}
 
 	// DownloadDir needs to be updated to be in the ctx of the new config, if using default
 	_, originalDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(ctx.TerragruntOptions.TerragruntConfigPath)
@@ -718,7 +718,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	}
 
 	if partialTerragruntConfig.TerraformBinary != "" {
-		targetOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
+		targetOptions.RunOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 
 	// If the Source is set, then we need to recompute it in the ctx of the target config.

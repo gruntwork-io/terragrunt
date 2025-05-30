@@ -107,7 +107,7 @@ func (module *TerraformModule) planFile(l log.Logger, opts *options.TerragruntOp
 	// set plan file location if output folder is set
 	planFile = module.outputFile(l, opts)
 
-	planCommand := module.TerragruntOptions.TerraformCommand == tf.CommandNamePlan || module.TerragruntOptions.TerraformCommand == tf.CommandNameShow
+	planCommand := module.TerragruntOptions.RunOptions.TerraformCommand == tf.CommandNamePlan || module.TerragruntOptions.RunOptions.TerraformCommand == tf.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified planFile, save plan in working dir
 	if planCommand && planFile == "" && module.TerragruntOptions.JSONOutputFolder != "" {
@@ -168,7 +168,7 @@ func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.
 		return false, nil
 	}
 
-	stackCmd := opts.TerraformCommand
+	stackCmd := opts.RunOptions.TerraformCommand
 	if stackCmd == "destroy" {
 		l.Debugf("run --all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run --all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil
@@ -252,7 +252,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 
 		cfgOptions.Env = opts.Env
 		cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-		cfgOptions.TerraformCommand = opts.TerraformCommand
+		cfgOptions.RunOptions.TerraformCommand = opts.RunOptions.TerraformCommand
 		cfgOptions.NonInteractive = true
 
 		// build stack from config directory
@@ -503,7 +503,7 @@ func (modules TerraformModules) flagUnitsThatAreIncluded(opts *options.Terragrun
 }
 
 // flagExcludedUnits iterates over a module slice and flags all modules that are excluded based on the exclude block.
-func (modules TerraformModules) flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions) TerraformModules {
+func (modules TerraformModules) flagExcludedUnits(l log.Logger, opts *options.RunOptions) TerraformModules {
 	for _, module := range modules {
 		excludeConfig := module.Config.Exclude
 

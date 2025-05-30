@@ -128,9 +128,9 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
 func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]any{
-			"terraformCommand": opts.TerraformCommand,
-			"args":             opts.TerraformCliArgs,
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.RunOptions.TerraformCommand), map[string]any{
+			"terraformCommand": opts.RunOptions.TerraformCommand,
+			"args":             opts.RunOptions.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context) error {
 			ctx.Context = childCtx //nolint:fatcontext
@@ -210,8 +210,8 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		args = append(args, tf.FlagNameNoColor)
 	}
 
-	opts.TerraformCommand = cmdName
-	opts.TerraformCliArgs = args
+	opts.RunOptions.TerraformCommand = cmdName
+	opts.RunOptions.TerraformCliArgs = args
 
 	opts.Env = env.Parse(os.Environ())
 
@@ -269,7 +269,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		return errors.New(err)
 	}
 
-	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
+	opts.RunOptions.TerraformPath = filepath.ToSlash(opts.RunOptions.TerraformPath)
 
 	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
 	if err != nil {
@@ -332,7 +332,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	}
 
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
-	opts.OriginalTerraformCommand = opts.TerraformCommand
+	opts.RunOptions.OriginalTerraformCommand = opts.RunOptions.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
 	opts.RunTerragrunt = runCmd.Run

@@ -85,7 +85,7 @@ func RunCommandWithOutput(
 			cmdStdout = io.MultiWriter(&output.Stdout)
 		}
 
-		if command == opts.TerraformPath {
+		if command == opts.RunOptions.TerraformPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 			if opts.Engine != nil && opts.EngineEnabled {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))

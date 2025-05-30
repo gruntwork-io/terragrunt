@@ -563,7 +563,7 @@ func PathRelativeFromInclude(ctx *ParsingContext, l log.Logger, params []string)
 
 // getTerraformCommand returns the current terraform command in execution
 func getTerraformCommand(ctx *ParsingContext, l log.Logger) (string, error) {
-	return ctx.TerragruntOptions.TerraformCommand, nil
+	return ctx.TerragruntOptions.RunOptions.TerraformCommand, nil
 }
 
 // getWorkingDir returns the current working dir
@@ -602,7 +602,7 @@ func getWorkingDir(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(ctx *ParsingContext, l log.Logger) ([]string, error) {
-	return ctx.TerragruntOptions.TerraformCliArgs, nil
+	return ctx.TerragruntOptions.RunOptions.TerraformCliArgs, nil
 }
 
 // getDefaultRetryableErrors returns default retryable errors

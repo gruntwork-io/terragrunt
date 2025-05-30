@@ -92,6 +92,8 @@ const (
 type TerragruntOptions struct {
 	// LoggingOptions defines configuration for logging and output.
 	LoggingOptions *LoggingOptions
+	// RunOptions defines options for running Terraform/OpenTofu.
+	RunOptions *RunOptions
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -104,8 +106,6 @@ type TerragruntOptions struct {
 	AwsProviderPatchOverrides map[string]string
 	// A command that can be used to run Terragrunt with the given options.
 	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error
-	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// ReadFiles is a map of files to the Units that read them using HCL functions in the unit.
 	ReadFiles *xsync.MapOf[string, []string] `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
@@ -120,10 +120,9 @@ type TerragruntOptions struct {
 	OriginalIAMRoleOptions IAMRoleOptions
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
-	// Current Terraform command being executed by Terragrunt
-	TerraformCommand string
 	// StackOutputFormat format how the stack output is rendered.
-	StackOutputFormat         string
+	StackOutputFormat string
+	// The path to the Terragrunt stack config file.
 	TerragruntStackConfigPath string
 	// Location of the original Terragrunt config file.
 	OriginalTerragruntConfigPath string
@@ -133,14 +132,8 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
-	// Location of the terraform binary
-	TerraformPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
-	// Original Terraform command being executed by Terragrunt.
-	OriginalTerraformCommand string
-	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
-	TerraformImplementation TerraformImplementationType
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 	// The path to store unpacked providers.
@@ -169,8 +162,6 @@ type TerragruntOptions struct {
 	ScaffoldOutputFolder string
 	// Root directory for graph command.
 	GraphRoot string
-	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs cli.Args
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
 	// Unix-style glob of directories to exclude when running *-all commands
@@ -207,8 +198,6 @@ type TerragruntOptions struct {
 	FailIfBucketCreationRequired bool
 	// Controls if s3 bucket should be updated or skipped
 	DisableBucketUpdate bool
-	// Disables validation terraform command
-	DisableCommandValidation bool
 	// If True then HCL from StdIn must should be formatted.
 	HclFromStdin bool
 	// Show diff, by default it's disabled.
@@ -229,18 +218,12 @@ type TerragruntOptions struct {
 	ExcludeByDefault bool
 	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
 	FetchDependencyOutputFromState bool
-	// True if is required to show dependent modules and confirm action
-	CheckDependentModules bool
-	// True if is required not to show dependent modules and confirm action
-	NoDestroyDependenciesCheck bool
 	// Include fields metadata in render-json
 	RenderJSONWithMetadata bool
 	// Whether we should automatically retry errored Terraform commands
 	AutoRetry bool
 	// Flag to enable engine for running IaC operations.
 	EngineEnabled bool
-	// Whether we should automatically run terraform init if necessary when executing other commands
-	AutoInit bool
 	// Allows to skip the output of all dependencies.
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
@@ -307,6 +290,30 @@ type LoggingOptions struct {
 	LogShowAbsPaths bool
 }
 
+// RunOptions defines options for running Terraform/OpenTofu.
+type RunOptions struct {
+	// Location of the terraform binary
+	TerraformPath string
+	// Current Terraform command being executed by Terragrunt
+	TerraformCommand string
+	// Original Terraform command being executed by Terragrunt.
+	OriginalTerraformCommand string
+	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
+	TerraformCliArgs cli.Args
+	// Version of terraform (obtained by running 'terraform version')
+	TerraformVersion *version.Version `clone:"shadowcopy"`
+	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
+	TerraformImplementation TerraformImplementationType
+	// Whether we should automatically run terraform init if necessary when running other commands
+	AutoInit bool
+	// Disables validation terraform command
+	DisableCommandValidation bool
+	// CheckDependentModules is a flag to check dependent modules
+	CheckDependentModules bool
+	// NoDestroyDependenciesCheck is a flag to not check dependent modules for destroy
+	NoDestroyDependenciesCheck bool
+}
+
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
@@ -362,15 +369,16 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		LoggingOptions:                 &LoggingOptions{Writer: stdout, ErrWriter: stderr},
-		TerraformPath:                  DefaultWrappedPath,
+		LoggingOptions: &LoggingOptions{Writer: stdout, ErrWriter: stderr},
+		RunOptions: &RunOptions{
+			TerraformPath:           DefaultWrappedPath,
+			AutoInit:                true,
+			TerraformCliArgs:        []string{},
+			TerraformImplementation: UnknownImpl,
+		},
 		ExcludesFile:                   defaultExcludesFile,
-		OriginalTerraformCommand:       "",
-		TerraformCommand:               "",
-		AutoInit:                       true,
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
-		TerraformCliArgs:               []string{},
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
@@ -394,7 +402,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
 		JSONOut:                        DefaultJSONOutName,
-		TerraformImplementation:        UnknownImpl,
 		JSONDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
@@ -531,7 +538,7 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 }
 
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
-func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
+func (opts *RunOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
 	commandLength := 1
@@ -557,7 +564,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
-func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
+func (opts *RunOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	opts.TerraformCliArgs = append(opts.TerraformCliArgs, argsToAppend...)
 }
 

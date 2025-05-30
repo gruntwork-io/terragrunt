@@ -148,7 +148,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(NoAutoInitFlagName),
 			Usage:       "Don't automatically run 'terraform/tofu init' during other terragrunt commands. You must run 'terragrunt init' manually.",
 			Negative:    true,
-			Destination: &opts.AutoInit,
+			Destination: &opts.RunOptions.AutoInit,
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("no-auto-init"), terragruntPrefixControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
@@ -407,7 +407,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DisableCommandValidationFlagName,
 			EnvVars:     tgPrefix.EnvVars(DisableCommandValidationFlagName),
-			Destination: &opts.DisableCommandValidation,
+			Destination: &opts.RunOptions.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the tofu/terraform command.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("disable-command-validation"), terragruntPrefixControl)),
@@ -415,7 +415,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoDestroyDependenciesCheckFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoDestroyDependenciesCheckFlagName),
-			Destination: &opts.NoDestroyDependenciesCheck,
+			Destination: &opts.RunOptions.NoDestroyDependenciesCheck,
 			Usage:       "When this flag is set, Terragrunt will not check for dependent units when destroying.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("no-destroy-dependencies-check"), terragruntPrefixControl)),
@@ -544,7 +544,7 @@ func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 	return flags.NewFlag(&cli.GenericFlag[string]{
 		Name:        TFPathFlagName,
 		EnvVars:     tgPrefix.EnvVars(TFPathFlagName),
-		Destination: &opts.TerraformPath,
+		Destination: &opts.RunOptions.TerraformPath,
 		Usage:       "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
 	},
 		flags.WithDeprecatedNames(terragruntPrefix.FlagNames("tfpath"), terragruntPrefixControl))
