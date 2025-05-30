@@ -22,6 +22,7 @@ jobs:
           experimental: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MISE_PROFILE: cicd
 
       - name: Find Go files
         id: gofiles
