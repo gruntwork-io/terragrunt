@@ -22,7 +22,7 @@ func main() {
 	opts := options.NewTerragruntOptions()
 
 	l := log.New(
-		log.WithOutput(opts.ErrWriter),
+		log.WithOutput(opts.LoggingOptions.ErrWriter),
 		log.WithLevel(options.DefaultLogLevel),
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)

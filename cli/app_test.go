@@ -216,7 +216,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
 	assert.Equal(t, expected.IAMRoleOptions, actual.IAMRoleOptions, msgAndArgs...)
 	assert.Equal(t, expected.OriginalIAMRoleOptions, actual.OriginalIAMRoleOptions, msgAndArgs...)
-	assert.Equal(t, expected.Debug, actual.Debug, msgAndArgs...)
+	assert.Equal(t, expected.LoggingOptions.Debug, actual.LoggingOptions.Debug, msgAndArgs...)
 	assert.Equal(t, expected.SourceMap, actual.SourceMap, msgAndArgs...)
 }
 
@@ -238,7 +238,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.Debug = debug
+	opts.LoggingOptions.Debug = debug
 
 	return opts
 }

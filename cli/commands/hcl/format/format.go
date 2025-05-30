@@ -44,7 +44,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			return errors.Errorf("both stdin and path flags are specified")
 		}
 
-		return formatFromStdin(l, opts)
+		return formatFromStdin(l, opts.LoggingOptions)
 	}
 
 	// handle when option specifies a particular file
@@ -107,7 +107,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	return formatErrors.ErrorOrNil()
 }
 
-func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
+func formatFromStdin(l log.Logger, opts *options.LoggingOptions) error {
 	contents, err := io.ReadAll(os.Stdin)
 
 	if err != nil {
@@ -177,7 +177,7 @@ func formatTgHCL(l log.Logger, opts *options.TerragruntOptions, tgHclFile string
 			return err
 		}
 
-		_, err = fmt.Fprintf(opts.Writer, "%s\n", diff)
+		_, err = fmt.Fprintf(opts.LoggingOptions.Writer, "%s\n", diff)
 		if err != nil {
 			l.Errorf("Failed to print diff for %s", tgHclFile)
 			return err

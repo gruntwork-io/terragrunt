@@ -238,7 +238,7 @@ func run(ctx context.Context, l log.Logger, terragruntOptions *options.Terragrun
 
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
-	if updatedTerragruntOptions.Debug {
+	if updatedTerragruntOptions.LoggingOptions.Debug {
 		if err := WriteTerragruntDebugFile(l, updatedTerragruntOptions, terragruntConfig); err != nil {
 			return target.runErrorCallback(l, terragruntOptions, terragruntConfig, err)
 		}
@@ -378,13 +378,13 @@ func runTerragruntWithConfig(
 func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) bool {
 	modules := configstack.FindWhereWorkingDirIsIncluded(ctx, l, opts, cfg)
 	if len(modules) != 0 {
-		if _, err := opts.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
+		if _, err := opts.LoggingOptions.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
 			l.Error(err)
 			return false
 		}
 
 		for _, module := range modules {
-			if _, err := opts.ErrWriter.Write([]byte(module.Path + "\n")); err != nil {
+			if _, err := opts.LoggingOptions.ErrWriter.Write([]byte(module.Path + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}
@@ -724,14 +724,14 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 	initOptions.TerraformCliArgs = []string{tf.CommandNameInit}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = tf.CommandNameInit
-	initOptions.Headless = true
+	initOptions.LoggingOptions.Headless = true
 
 	initOutputForCommands := []string{tf.CommandNamePlan, tf.CommandNameApply}
 	terraformCommand := terragruntOptions.TerraformCliArgs.First()
 
 	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
-		initOptions.Writer = io.Discard
+		initOptions.LoggingOptions.Writer = io.Discard
 	}
 
 	if collections.ListContainsElement(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {

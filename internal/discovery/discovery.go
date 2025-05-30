@@ -217,8 +217,8 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	parseOpts.WorkingDir = c.Path
 
 	// Suppress logging to avoid cluttering the output.
-	parseOpts.Writer = io.Discard
-	parseOpts.ErrWriter = io.Discard
+	parseOpts.LoggingOptions.Writer = io.Discard
+	parseOpts.LoggingOptions.ErrWriter = io.Discard
 	parseOpts.SkipOutput = true
 
 	filename := config.DefaultTerragruntConfigPath

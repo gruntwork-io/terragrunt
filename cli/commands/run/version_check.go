@@ -122,8 +122,8 @@ func PopulateTerraformVersion(ctx context.Context, l log.Logger, terragruntOptio
 		return l, err
 	}
 
-	terragruntOptionsCopy.Writer = io.Discard
-	terragruntOptionsCopy.ErrWriter = io.Discard
+	terragruntOptionsCopy.LoggingOptions.Writer = io.Discard
+	terragruntOptionsCopy.LoggingOptions.ErrWriter = io.Discard
 
 	for key := range terragruntOptionsCopy.Env {
 		if strings.HasPrefix(key, "TF_CLI_ARGS") {

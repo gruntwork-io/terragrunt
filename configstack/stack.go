@@ -154,7 +154,7 @@ func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, erro
 
 // Graph creates a graphviz representation of the modules
 func (stack *Stack) Graph(l log.Logger, opts *options.TerragruntOptions) {
-	err := stack.Modules.WriteDot(l, opts.Writer, opts)
+	err := stack.Modules.WriteDot(l, opts.LoggingOptions.Writer, opts)
 	if err != nil {
 		l.Warnf("Failed to graph dot: %v", err)
 	}
@@ -203,7 +203,7 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 
 		for n, module := range stack.Modules {
-			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+			module.TerragruntOptions.LoggingOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.LoggingOptions.ErrWriter)
 		}
 
 		defer stack.summarizePlanAllErrors(l, errorStreams)

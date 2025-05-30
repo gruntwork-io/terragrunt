@@ -116,7 +116,7 @@ func (module *RunningModule) waitForDependencies() error {
 func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions) error {
 	module.Logger.Debugf("Running %s", module.Module.Path)
 
-	opts.Writer = NewModuleWriter(opts.Writer)
+	opts.LoggingOptions.Writer = NewModuleWriter(opts.LoggingOptions.Writer)
 
 	defer module.Module.FlushOutput() //nolint:errcheck
 
@@ -143,9 +143,9 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			}
 
 			stdout := bytes.Buffer{}
-			jsonOptions.ForwardTFStdout = true
-			jsonOptions.JSONLogFormat = false
-			jsonOptions.Writer = &stdout
+			jsonOptions.LoggingOptions.ForwardTFStdout = true
+			jsonOptions.LoggingOptions.JSONLogFormat = false
+			jsonOptions.LoggingOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = tf.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.planFile(l, rootOptions)}
 

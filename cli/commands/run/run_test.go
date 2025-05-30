@@ -486,7 +486,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.Debug = debug
+	opts.LoggingOptions.Debug = debug
 
 	return opts
 }
