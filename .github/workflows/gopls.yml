@@ -32,38 +32,24 @@ jobs:
       - name: Install parallel
         run: sudo apt-get update && sudo apt-get install -y parallel
 
-      - name: Run gopls quickfixes
+        - name: Run gopls quickfixes
         run: |
           set -e
           mise use -g go:golang.org/x/tools/gopls@v0.18.1
           gopls version
           > fixed_files.txt
           > gopls_failures.txt
-          parallel --jobs 0 --bar --linebuffer --joblog parallel_joblog.txt '
-            echo "START: {}"
+          parallel --jobs 0 --ungroup --linebuffer --joblog parallel_joblog.txt '
+            stdbuf -oL echo "START: {}"
             if gopls codeaction -kind=quickfix -write "{}"; then
-              echo "SUCCESS: {}"
+              stdbuf -oL echo "SUCCESS: {}"
             else
-              echo "FAILED: {}" | tee -a gopls_failures.txt
-              echo "{}" >> fixed_files.txt
+              stdbuf -oL echo "FAILED: {}" | tee -a gopls_failures.txt
+              stdbuf -oL echo "{}" >> fixed_files.txt
             fi
-            echo "END: {}"
+            stdbuf -oL echo "END: {}"
           ' :::: gofiles.txt
           echo "\n==== gopls parallel job log ===="
           cat parallel_joblog.txt
           echo "\n==== gopls failures (if any) ===="
           cat gopls_failures.txt || true
-
-      - name: List all files with fixes
-        if: always()
-        run: |
-          if [ -s fixed_files.txt ]; then
-            echo "The following files were auto-fixed by gopls:"
-            cat fixed_files.txt
-          else
-            echo "No files were auto-fixed by gopls."
-          fi
-          if [ -s gopls_failures.txt ]; then
-            echo "\nSome files failed to process with gopls:"
-            cat gopls_failures.txt
-          fi
