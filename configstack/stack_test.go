@@ -40,7 +40,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 		t.Fatalf("Failed when calling method under test: %s\n", err.Error())
 	}
 
-	terragruntOptions.WorkingDir = envFolder
+	terragruntOptions.DirOptions.WorkingDir = envFolder
 
 	stack, err := configstack.FindStackInSubfolders(t.Context(), logger.CreateLogger(), terragruntOptions)
 	require.NoError(t, err)

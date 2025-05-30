@@ -56,7 +56,7 @@ func RunCommandWithOutput(
 	)
 
 	if workingDir == "" {
-		commandDir = opts.WorkingDir
+		commandDir = opts.DirOptions.WorkingDir
 	}
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+command, map[string]any{

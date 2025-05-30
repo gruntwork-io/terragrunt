@@ -114,7 +114,7 @@ func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions
 
 	// Check to see if you can find the recommended parent config name first,
 	// if a user has it defined, go ahead and use it.
-	dir := opts.WorkingDir
+	dir := opts.DirOptions.WorkingDir
 
 	prevDir := ""
 	for foldersToCheck := opts.MaxFoldersToCheck; dir != prevDir && dir != "" && foldersToCheck > 0; foldersToCheck-- {

@@ -65,17 +65,17 @@ type ProviderCache struct {
 func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, error) {
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
-	if opts.ProviderCacheDir == "" {
+	if opts.DirOptions.ProviderCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
 			return nil, err
 		}
 
-		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
+		opts.DirOptions.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
 	var err error
-	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
+	if opts.DirOptions.ProviderCacheDir, err = filepath.Abs(opts.DirOptions.ProviderCacheDir); err != nil {
 		return nil, errors.New(err)
 	}
 
@@ -97,7 +97,7 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, 
 		return nil, err
 	}
 
-	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), l)
+	providerService := services.NewProviderService(opts.DirOptions.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), l)
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, cliCfg.CredentialsSource())
 
 	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, opts.ProviderCacheRegistryNames)
@@ -136,7 +136,7 @@ func (cache *ProviderCache) TerraformCommandHook(
 	// To prevent a loop
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	cliConfigFilename := filepath.Join(opts.WorkingDir, localCLIFilename)
+	cliConfigFilename := filepath.Join(opts.DirOptions.WorkingDir, localCLIFilename)
 
 	if !filepath.IsAbs(cliConfigFilename) {
 		absPath, err := filepath.Abs(cliConfigFilename)
@@ -193,7 +193,7 @@ func (cache *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	l.Infof("Caching terraform providers for %s", opts.WorkingDir)
+	l.Infof("Caching terraform providers for %s", opts.DirOptions.WorkingDir)
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
@@ -209,7 +209,7 @@ func (cache *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	err = getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches)
+	err = getproviders.UpdateLockfile(ctx, opts.DirOptions.WorkingDir, caches)
 
 	return nil, err
 }
@@ -232,7 +232,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 		return nil, err
 	}
 
-	cloneOpts.WorkingDir = opts.WorkingDir
+	cloneOpts.DirOptions.WorkingDir = opts.DirOptions.WorkingDir
 	cloneOpts.RunOptions.Env = env
 
 	return tf.RunCommandWithOutput(ctx, l, cloneOpts, args...)
@@ -290,7 +290,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 
 	if cacheRequestID == "" {
 		cfg.AddProviderInstallationMethods(
-			cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
+			cliconfig.NewProviderInstallationFilesystemMirror(opts.DirOptions.ProviderCacheDir, providerInstallationIncludes, nil),
 		)
 	} else {
 		cfg.ProviderInstallation = nil
@@ -326,7 +326,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 
 	cloneOpts.LoggingOptions.Writer = io.Discard
 	cloneOpts.LoggingOptions.ErrWriter = errWriter
-	cloneOpts.WorkingDir = opts.WorkingDir
+	cloneOpts.DirOptions.WorkingDir = opts.DirOptions.WorkingDir
 	cloneOpts.RunOptions.TerraformCliArgs = args
 	cloneOpts.RunOptions.Env = envs
 

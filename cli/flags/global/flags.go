@@ -147,7 +147,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        WorkingDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(WorkingDirFlagName),
-			Destination: &opts.WorkingDir,
+			Destination: &opts.DirOptions.WorkingDir,
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedWorkingDirFlagName), terragruntPrefixControl)),

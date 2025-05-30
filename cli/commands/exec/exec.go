@@ -30,11 +30,11 @@ func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {
 		var (
 			command = args.CommandName()
 			args    = args.Tail()
-			dir     = opts.WorkingDir
+			dir     = opts.DirOptions.WorkingDir
 		)
 
 		if !cmdOpts.InDownloadDir {
-			dir = opts.RootWorkingDir
+			dir = opts.DirOptions.RootWorkingDir
 		}
 
 		return run.RunActionWithHooks(ctx, l, command, opts, cfg, func(ctx context.Context) error {

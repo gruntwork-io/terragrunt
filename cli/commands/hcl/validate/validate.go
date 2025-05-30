@@ -127,7 +127,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 }
 
 func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
+	required, optional, err := tf.ModuleVariables(opts.DirOptions.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -345,7 +345,7 @@ func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOpt
 
 // getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
 func getTerraformInputNamesFromAutomaticVarFiles(l log.Logger, opts *options.TerragruntOptions) ([]string, error) {
-	base := opts.WorkingDir
+	base := opts.DirOptions.WorkingDir
 	automaticVarFiles := []string{}
 
 	tfTFVarsFile := filepath.Join(base, "terraform.tfvars")

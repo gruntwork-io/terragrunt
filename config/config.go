@@ -187,12 +187,12 @@ func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, opts *options.Terragru
 	if sourceURL != "" {
 		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
-		tfSource, err := tf.NewSource(l, sourceURL, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
+		tfSource, err := tf.NewSource(l, sourceURL, opts.DirOptions.DownloadDir, opts.DirOptions.WorkingDir, walkWithSymlinks)
 		if err != nil {
 			return nil, err
 		}
 
-		opts.WorkingDir = tfSource.WorkingDir
+		opts.DirOptions.WorkingDir = tfSource.WorkingDir
 	}
 
 	return cfg.RemoteState, nil
@@ -1137,7 +1137,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 		return false, err
 	}
 
-	canonicalDownloadPath, err := util.CanonicalPath(terragruntOptions.DownloadDir, "")
+	canonicalDownloadPath, err := util.CanonicalPath(terragruntOptions.DirOptions.DownloadDir, "")
 	if err != nil {
 		return false, err
 	}
@@ -1170,7 +1170,7 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "parse_config_file", map[string]any{
 		"config_path": configPath,
-		"working_dir": ctx.TerragruntOptions.WorkingDir,
+		"working_dir": ctx.TerragruntOptions.DirOptions.WorkingDir,
 	}, func(_ context.Context) error {
 		childKey := "nil"
 		if includeFromChild != nil {
@@ -1194,7 +1194,7 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 
 		var (
 			file     *hclparse.File
-			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.DirOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
 		)
 
 		// TODO: Remove lint ignore
@@ -1820,7 +1820,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 	for _, dependencyPath := range dependencies.Paths {
 		fullPath := filepath.FromSlash(dependencyPath)
 		if !filepath.IsAbs(fullPath) {
-			fullPath = path.Join(ctx.TerragruntOptions.WorkingDir, fullPath)
+			fullPath = path.Join(ctx.TerragruntOptions.DirOptions.WorkingDir, fullPath)
 		}
 
 		if !util.IsDir(fullPath) {

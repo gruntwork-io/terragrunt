@@ -204,8 +204,8 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	// Normalize path separators for cross-platform compatibility
 	expectedConfigPath := filepath.ToSlash(expected.TerragruntConfigPath)
 	actualConfigPath := filepath.ToSlash(actual.TerragruntConfigPath)
-	expectedWorkingDir := filepath.ToSlash(expected.WorkingDir)
-	actualWorkingDir := filepath.ToSlash(actual.WorkingDir)
+	expectedWorkingDir := filepath.ToSlash(expected.DirOptions.WorkingDir)
+	actualWorkingDir := filepath.ToSlash(actual.DirOptions.WorkingDir)
 
 	assert.Equal(t, expectedConfigPath, actualConfigPath, msgAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, msgAndArgs...)
@@ -232,7 +232,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 		t.Fatalf("error: %v\n", errors.New(err))
 	}
 
-	opts.WorkingDir = workingDir
+	opts.DirOptions.WorkingDir = workingDir
 	opts.RunOptions.TerraformCliArgs = terraformCliArgs
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource

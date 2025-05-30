@@ -416,7 +416,7 @@ dependency "B" {
 			tmpDir := tt.setup(t)
 
 			tgOpts := options.NewTerragruntOptions()
-			tgOpts.WorkingDir = tmpDir
+			tgOpts.DirOptions.WorkingDir = tmpDir
 
 			l := logger.CreateLogger()
 			l.Formatter().SetDisabledColors(true)

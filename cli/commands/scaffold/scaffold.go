@@ -119,16 +119,16 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 
 	outputDir := opts.ScaffoldOutputFolder
 	if outputDir == "" {
-		outputDir = opts.WorkingDir
+		outputDir = opts.DirOptions.WorkingDir
 	}
 
 	// scaffold only in empty directories
-	if empty, err := util.IsDirectoryEmpty(opts.WorkingDir); !empty || err != nil {
+	if empty, err := util.IsDirectoryEmpty(opts.DirOptions.WorkingDir); !empty || err != nil {
 		if err != nil {
 			return err
 		}
 
-		l.Warnf("The working directory %s is not empty.", opts.WorkingDir)
+		l.Warnf("The working directory %s is not empty.", opts.DirOptions.WorkingDir)
 	}
 
 	if moduleURL == "" {
@@ -341,7 +341,7 @@ func parseVariables(l log.Logger, opts *options.TerragruntOptions, moduleDir str
 
 // parseModuleURL - parse module url and rewrite it if required
 func parseModuleURL(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, vars map[string]any, moduleURL string) (string, error) {
-	parsedModuleURL, err := tf.ToSourceURL(moduleURL, opts.WorkingDir)
+	parsedModuleURL, err := tf.ToSourceURL(moduleURL, opts.DirOptions.WorkingDir)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -379,7 +379,7 @@ func rewriteModuleURL(l log.Logger, opts *options.TerragruntOptions, vars map[st
 	if err != nil {
 		l.Warnf("Failed to parse module url %s", moduleURL)
 
-		parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
+		parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.DirOptions.WorkingDir)
 		if err != nil {
 			return nil, errors.New(err)
 		}
@@ -399,7 +399,7 @@ func rewriteModuleURL(l log.Logger, opts *options.TerragruntOptions, vars map[st
 	}
 
 	// persist changes in url.URL
-	parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
+	parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.DirOptions.WorkingDir)
 	if err != nil {
 		return nil, errors.New(err)
 	}

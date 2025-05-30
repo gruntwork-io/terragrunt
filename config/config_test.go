@@ -1233,7 +1233,7 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
-	terragruntOptions.DownloadDir = "../test/fixtures/config-files/multiple-configs/subdir-2"
+	terragruntOptions.DirOptions.DownloadDir = "../test/fixtures/config-files/multiple-configs/subdir-2"
 
 	actual, err := config.FindConfigFilesInPath("../test/fixtures/config-files/multiple-configs", terragruntOptions)
 
@@ -1601,7 +1601,7 @@ dependency "dep" {
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
-	ctx.TerragruntOptions.WorkingDir = unitPath
+	ctx.TerragruntOptions.DirOptions.WorkingDir = unitPath
 
 	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)

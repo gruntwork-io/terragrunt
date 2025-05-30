@@ -50,11 +50,11 @@ func handleTerragruntContextPrintWithError(l log.Logger, opts *options.Terragrun
 func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
 		ConfigPath:       opts.TerragruntConfigPath,
-		DownloadDir:      opts.DownloadDir,
+		DownloadDir:      opts.DirOptions.DownloadDir,
 		IAMRole:          opts.IAMRoleOptions.RoleARN,
 		TerraformBinary:  opts.RunOptions.TerraformPath,
 		TerraformCommand: opts.RunOptions.TerraformCommand,
-		WorkingDir:       opts.WorkingDir,
+		WorkingDir:       opts.DirOptions.WorkingDir,
 	}
 
 	b, err := json.MarshalIndent(group, "", "  ")

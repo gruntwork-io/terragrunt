@@ -23,7 +23,7 @@ const (
 
 // RunGenerate runs the stack command.
 func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
+	opts.TerragruntStackConfigPath = filepath.Join(opts.DirOptions.WorkingDir, config.DefaultStackFile)
 
 	if opts.NoStackGenerate {
 		l.Debugf("Skipping stack generation for %s", opts.TerragruntStackConfigPath)
@@ -32,7 +32,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
-		"working_dir":       opts.WorkingDir,
+		"working_dir":       opts.DirOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		return config.GenerateStacks(ctx, l, opts)
 	})
@@ -42,7 +42,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
-		"working_dir":       opts.WorkingDir,
+		"working_dir":       opts.DirOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		return RunGenerate(ctx, l, opts)
 	})
@@ -51,7 +51,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
+	opts.DirOptions.WorkingDir = filepath.Join(opts.DirOptions.WorkingDir, stackDir)
 
 	return runall.Run(ctx, l, opts)
 }
@@ -63,7 +63,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 	// collect outputs
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_output", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
-		"working_dir":       opts.WorkingDir,
+		"working_dir":       opts.DirOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		stackOutputs, err := config.StackOutput(ctx, l, opts)
 		outputs = stackOutputs
@@ -143,7 +143,7 @@ func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 	telemeter := telemetry.TelemeterFromContext(ctx)
 	err := telemeter.Collect(ctx, "stack_clean", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
-		"working_dir":       opts.WorkingDir,
+		"working_dir":       opts.DirOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		errs := &errors.MultiError{}
 
@@ -157,7 +157,7 @@ func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 			}
 
 			if d.IsDir() && d.Name() == stackDir {
-				relPath, relErr := filepath.Rel(opts.WorkingDir, path)
+				relPath, relErr := filepath.Rel(opts.DirOptions.WorkingDir, path)
 				if relErr != nil {
 					relPath = path // fallback to absolute if error
 				}
@@ -176,7 +176,7 @@ func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 			return nil
 		}
 
-		if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil {
+		if walkErr := filepath.WalkDir(opts.DirOptions.WorkingDir, walkFn); walkErr != nil {
 			errs = errs.Append(walkErr)
 		}
 
@@ -184,7 +184,7 @@ func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 	})
 
 	if err != nil {
-		return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
+		return errors.Errorf("failed to clean stack directories under %q: %w", opts.DirOptions.WorkingDir, err)
 	}
 
 	return nil

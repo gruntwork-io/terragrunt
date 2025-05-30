@@ -25,10 +25,10 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 	l.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,
-		opts.WorkingDir,
+		opts.DirOptions.WorkingDir,
 	)
 
-	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
+	required, optional, err := tf.ModuleVariables(opts.DirOptions.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 	l.Debugf("Run this command to replicate how terraform was invoked:")
 	l.Debugf(
 		"\tterraform -chdir=\"%s\" %s -var-file=\"%s\" ",
-		opts.WorkingDir,
+		opts.DirOptions.WorkingDir,
 		strings.Join(opts.RunOptions.TerraformCliArgs, " "),
 		fileName,
 	)

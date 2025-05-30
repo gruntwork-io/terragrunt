@@ -94,6 +94,8 @@ type TerragruntOptions struct {
 	LoggingOptions *LoggingOptions
 	// RunOptions defines options for running Terraform/OpenTofu.
 	RunOptions *RunOptions
+	// DirOptions defines options related to directories
+	DirOptions *DirOptions
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -124,18 +126,10 @@ type TerragruntOptions struct {
 	TerragruntStackConfigPath string
 	// Location of the original Terragrunt config file.
 	OriginalTerragruntConfigPath string
-	// Unlike `WorkingDir`, this path is the same for all dependencies and points to the root working directory specified in the CLI.
-	RootWorkingDir string
 	// Download Terraform configurations from the specified source location into a temporary folder
 	Source string
-	// The working directory in which to run Terraform
-	WorkingDir string
-	// Download Terraform configurations specified in the Source parameter into this folder
-	DownloadDir string
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
-	// The path to store unpacked providers.
-	ProviderCacheDir string
 	// Custom log level for engine
 	EngineLogLevel string
 	// Path to cache directory for engine files
@@ -314,6 +308,18 @@ type RunOptions struct {
 	NoDestroyDependenciesCheck bool
 }
 
+// DirOptions defines options related to directories
+type DirOptions struct {
+	// The working directory in which to run Terraform
+	WorkingDir string
+	// Download Terraform configurations specified in the Source parameter into this folder
+	DownloadDir string
+	// RootWorkingDir is the root working directory
+	RootWorkingDir string
+	// ProviderCacheDir is the path to store unpacked providers.
+	ProviderCacheDir string
+}
+
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
@@ -377,6 +383,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 			TerraformImplementation: UnknownImpl,
 			Env:                     map[string]string{},
 		},
+		DirOptions:                     &DirOptions{},
 		ExcludesFile:                   defaultExcludesFile,
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
@@ -428,9 +435,9 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 		return nil, errors.New(err)
 	}
 
-	opts.WorkingDir = workingDir
-	opts.RootWorkingDir = workingDir
-	opts.DownloadDir = downloadDir
+	opts.DirOptions.WorkingDir = workingDir
+	opts.DirOptions.RootWorkingDir = workingDir
+	opts.DirOptions.DownloadDir = downloadDir
 
 	return opts, nil
 }
@@ -504,7 +511,7 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	workingDir := filepath.Dir(configPath)
 
 	newOpts.TerragruntConfigPath = configPath
-	newOpts.WorkingDir = workingDir
+	newOpts.DirOptions.WorkingDir = workingDir
 
 	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 
@@ -585,7 +592,7 @@ func (opts *TerragruntOptions) DataDir() string {
 		return tfDataDir
 	}
 
-	return util.JoinPath(opts.WorkingDir, tfDataDir)
+	return util.JoinPath(opts.DirOptions.WorkingDir, tfDataDir)
 }
 
 // AppendReadFile appends to the list of files read by a given unit.
@@ -757,7 +764,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 }
 
 func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
-	workingDir := opts.WorkingDir
+	workingDir := opts.DirOptions.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 

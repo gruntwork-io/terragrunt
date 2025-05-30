@@ -132,11 +132,11 @@ func (module *TerraformModule) getPlanFilePath(l log.Logger, opts *options.Terra
 		return ""
 	}
 
-	path, _ := filepath.Rel(opts.WorkingDir, module.Path)
+	path, _ := filepath.Rel(opts.DirOptions.WorkingDir, module.Path)
 	dir := filepath.Join(outputFolder, path)
 
 	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(opts.WorkingDir, dir)
+		dir = filepath.Join(opts.DirOptions.WorkingDir, dir)
 		if absDir, err := filepath.Abs(dir); err == nil {
 			dir = absDir
 		} else {
@@ -227,7 +227,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 		matchedModulesMap = make(TerraformModulesMap)
 	)
 
-	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir); err == nil {
+	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, opts, opts.DirOptions.WorkingDir); err == nil {
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else {
 		// detection failed, trying to use include directories as source for stacks
@@ -266,7 +266,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 
 		dependentModules := stack.ListStackDependentModules()
 
-		deps, found := dependentModules[opts.WorkingDir]
+		deps, found := dependentModules[opts.DirOptions.WorkingDir]
 		if found {
 			for _, module := range stack.Modules {
 				if slices.Contains(deps, module.Path) {
@@ -457,7 +457,7 @@ func (modules TerraformModules) flagUnitsThatAreIncluded(opts *options.Terragrun
 	modulesThatIncludeCanonicalPaths := []string{}
 
 	for _, includePath := range unitsThatInclude {
-		canonicalPath, err := util.CanonicalPath(includePath, opts.WorkingDir)
+		canonicalPath, err := util.CanonicalPath(includePath, opts.DirOptions.WorkingDir)
 		if err != nil {
 			return nil, err
 		}
@@ -542,7 +542,7 @@ func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOption
 
 	for _, path := range opts.UnitsReading {
 		if !filepath.IsAbs(path) {
-			path = filepath.Join(opts.WorkingDir, path)
+			path = filepath.Join(opts.DirOptions.WorkingDir, path)
 			path = filepath.Clean(path)
 		}
 

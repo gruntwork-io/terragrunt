@@ -182,7 +182,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        DownloadDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(DownloadDirFlagName),
-			Destination: &opts.DownloadDir,
+			Destination: &opts.DirOptions.DownloadDir,
 			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.",
 		}, flags.WithDeprecatedNamesEnvVars(
 			terragruntPrefix.FlagNames("download-dir"),
@@ -433,7 +433,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        ProviderCacheDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheDirFlagName),
-			Destination: &opts.ProviderCacheDir,
+			Destination: &opts.DirOptions.ProviderCacheDir,
 			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("provider-cache-dir"), terragruntPrefixControl)),

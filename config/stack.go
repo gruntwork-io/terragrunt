@@ -80,9 +80,9 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 	defer wp.Stop()
 	// initial files setting as stack file
 
-	foundFiles, err := listStackFiles(l, opts, opts.WorkingDir)
+	foundFiles, err := listStackFiles(l, opts, opts.DirOptions.WorkingDir)
 	if err != nil {
-		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
+		return errors.Errorf("Failed to list stack files in %s %w", opts.DirOptions.WorkingDir, err)
 	}
 
 	for {
@@ -112,7 +112,7 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 			break
 		}
 
-		newFiles, err := listStackFiles(l, opts, opts.WorkingDir)
+		newFiles, err := listStackFiles(l, opts, opts.DirOptions.WorkingDir)
 
 		if err != nil {
 			return errors.Errorf("Failed to list stack files %w", err)
@@ -158,11 +158,11 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 // Errors can occur during stack file listing, value reading, stack config parsing, output reading,
 // or when converting the final output structure to cty.Value format.
 func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (cty.Value, error) {
-	l.Debugf("Generating output from %s", opts.WorkingDir)
+	l.Debugf("Generating output from %s", opts.DirOptions.WorkingDir)
 
-	foundFiles, err := listStackFiles(l, opts, opts.WorkingDir)
+	foundFiles, err := listStackFiles(l, opts, opts.DirOptions.WorkingDir)
 	if err != nil {
-		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
+		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.DirOptions.WorkingDir, err)
 	}
 
 	outputs := make(map[string]map[string]cty.Value)

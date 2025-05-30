@@ -22,7 +22,7 @@ import (
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d := discovery.
-		NewDiscovery(opts.WorkingDir).
+		NewDiscovery(opts.DirOptions.WorkingDir).
 		WithSuppressParseErrors()
 
 	if opts.Hidden {
@@ -51,7 +51,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	// Wrap discovery with telemetry
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
-		"working_dir":  opts.WorkingDir,
+		"working_dir":  opts.DirOptions.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": shouldDiscoverDependencies(opts),
 		"external":     opts.External,
@@ -69,7 +69,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		cfgs = cfgs.Sort()
 	case ModeDAG:
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_mode_dag", map[string]any{
-			"working_dir":  opts.WorkingDir,
+			"working_dir":  opts.DirOptions.WorkingDir,
 			"config_count": len(cfgs),
 		}, func(ctx context.Context) error {
 			q, queueErr := queue.NewQueue(cfgs)
@@ -94,7 +94,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	var listedCfgs ListedConfigs
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discovered_to_listed", map[string]any{
-		"working_dir":  opts.WorkingDir,
+		"working_dir":  opts.DirOptions.WorkingDir,
 		"config_count": len(cfgs),
 	}, func(ctx context.Context) error {
 		var convErr error
@@ -187,7 +187,7 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.WorkingDir, config.Path)
+		relPath, err := filepath.Rel(opts.DirOptions.WorkingDir, config.Path)
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
@@ -208,7 +208,7 @@ func discoveredToListed(configs discovery.DiscoveredConfigs, opts *Options) (Lis
 		listedCfg.Dependencies = make([]*ListedConfig, len(config.Dependencies))
 
 		for i, dep := range config.Dependencies {
-			relDepPath, err := filepath.Rel(opts.WorkingDir, dep.Path)
+			relDepPath, err := filepath.Rel(opts.DirOptions.WorkingDir, dep.Path)
 			if err != nil {
 				errs = append(errs, errors.New(err))
 

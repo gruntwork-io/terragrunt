@@ -51,7 +51,7 @@ func TestBasicDiscovery(t *testing.T) {
 	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = tmpDir
+	tgOpts.DirOptions.WorkingDir = tmpDir
 
 	// Create options
 	opts := list.NewOptions(tgOpts)
@@ -137,7 +137,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = tmpDir
+	tgOpts.DirOptions.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
@@ -221,7 +221,7 @@ dependency "unit2" {
 	expectedPaths := []string{"unit1", "unit2", "unit3"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = tmpDir
+	tgOpts.DirOptions.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
@@ -300,7 +300,7 @@ dependency "unit3" {
 	expectedPaths := []string{"unit3", "unit2", "unit1"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = tmpDir
+	tgOpts.DirOptions.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
@@ -411,7 +411,7 @@ dependency "C" {
 	expectedPaths := []string{"A", "B", "C", "D", "E", "F"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.WorkingDir = tmpDir
+	tgOpts.DirOptions.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 
