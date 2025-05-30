@@ -29,18 +29,36 @@ jobs:
         run: |
           find . -type f -name '*.go' -not -path './vendor/*' > gofiles.txt
 
-      - name: Run gopls quickfix
+      - name: Run gopls quickfixes
         run: |
           set -e
-          failed=0
           mise use -g go:golang.org/x/tools/gopls@v0.18.1
           gopls version
-          while IFS= read -r file; do
-            echo "Checking $file"
-            # gopls codeaction -kind=quickfix -write returns 1 if changes are made
-            gopls codeaction -kind=quickfix -write "$file" || failed=1
-          done < gofiles.txt
-          if [ "$failed" -eq 1 ]; then
+          > fixed_files.txt
+          cat gofiles.txt | xargs -P $(nproc) -I {} sh -c '
+            echo "Checking {}"
+            if gopls codeaction -kind=quickfix -write "{}"; then
+              :
+            else
+              echo "{}" >> fixed_files.txt
+            fi
+          '
+
+      - name: List all files with fixes
+        if: always()
+        run: |
+          if [ -s fixed_files.txt ]; then
+            echo "The following files were auto-fixed by gopls:"
+            cat fixed_files.txt
+          else
+            echo "No files were auto-fixed by gopls."
+          fi
+
+      - name: Check for issues
+        run: |
+          if [ -f gofiles.txt ]; then
             echo "gopls found issues that can be auto-fixed. Please run 'gopls codeaction -kind=quickfix -write <file>' locally and commit the changes."
             exit 1
+          else
+            echo "No Go files found. Skipping check."
           fi 
