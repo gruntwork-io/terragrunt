@@ -807,7 +807,7 @@ func FilterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 		for _, argCmd := range arg.Commands {
 			if cmd == argCmd {
-				lastArg := terragruntOptions.TerraformCliArgs.Last()
+				lastArg := terragruntOptions.TerraformCliArgs.CommandNameN(1)
 				skipVars := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) && util.IsFile(lastArg)
 
 				// The following is a fix for GH-493.
