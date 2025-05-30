@@ -29,6 +29,8 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 		return nil
 	}
 
+	opts.StackAction = "generate"
+
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
@@ -39,6 +41,8 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // Run execute stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+	opts.StackAction = "run"
+
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
@@ -50,13 +54,20 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
+	stackPath := filepath.Join(opts.WorkingDir, stackDir)
+	if _, statErr := os.Stat(stackPath); os.IsNotExist(statErr) {
+		return errors.Errorf("stack directory does not exist in %s", opts.WorkingDir)
+	}
+
+	opts.WorkingDir = stackPath
 
 	return runall.Run(ctx, opts)
 }
 
 // RunOutput stack output.
 func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
+	opts.StackAction = "output"
+
 	var outputs cty.Value
 
 	// collect outputs
