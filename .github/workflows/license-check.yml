@@ -2,10 +2,6 @@ name: License Check
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 jobs:
   license-check:
@@ -39,4 +35,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: license-check-report-ubuntu
-          path: license-check.log 
+          path: license-check.log

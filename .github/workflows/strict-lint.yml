@@ -1,8 +1,7 @@
 name: Strict Lint
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  push:
 
 jobs:
   lint:
