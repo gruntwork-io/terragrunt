@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,9 @@ import (
 func TestAwsIsAddedInUserAgent(t *testing.T) {
 	t.Parallel()
 
-	sess, err := awshelper.CreateAwsSession(nil, options.NewTerragruntOptions())
+	l := logger.CreateLogger()
+
+	sess, err := awshelper.CreateAwsSession(l, nil, options.NewTerragruntOptions())
 	require.NoError(t, err)
 
 	op := &request.Operation{
@@ -38,7 +41,9 @@ func TestAwsIsAddedInUserAgent(t *testing.T) {
 func TestAwsSessionValidationFail(t *testing.T) {
 	t.Parallel()
 
-	sess, err := awshelper.CreateAwsSession(&awshelper.AwsSessionConfig{
+	l := logger.CreateLogger()
+
+	sess, err := awshelper.CreateAwsSession(l, &awshelper.AwsSessionConfig{
 		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
 	}, options.NewTerragruntOptions())

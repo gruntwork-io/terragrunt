@@ -207,6 +207,12 @@ Throw an error when using commands that were deprecated as part of the CLI redes
 
 **Reason**: These commands have been deprecated in favor of more consistent and intuitive commands as part of the CLI redesign. For more information, see the [CLI Redesign Migration Guide](/docs/migrate/cli-redesign/).
 
+### bare-include
+
+Throw an error when using a bare include.
+
+**Reason**: Backwards compatibility for supporting bare includes results in a performance penalty for Terragrunt, and deprecating support provides a significant performance improvement. For more information, see the [Bare Include Migration Guide](/docs/migrate/bare-include/).
+
 ## Control Categories
 
 Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
@@ -39,10 +40,10 @@ var versionFiles = []string{".terraform-version", ".tool-versions", "mise.toml",
 // - TerraformVersion
 // - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
-func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	partialTerragruntConfig, err := getTerragruntConfig(ctx, terragruntOptions)
+func CheckVersionConstraints(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (log.Logger, error) {
+	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, terragruntOptions)
 	if err != nil {
-		return err
+		return l, err
 	}
 
 	// Change the terraform binary path before checking the version
@@ -51,8 +52,9 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
-		return err
+	l, err = PopulateTerraformVersion(ctx, l, terragruntOptions)
+	if err != nil {
+		return l, err
 	}
 
 	terraformVersionConstraint := DefaultTerraformVersionConstraint
@@ -61,12 +63,12 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	}
 
 	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
-		return err
+		return l, err
 	}
 
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
 		if err := CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
-			return err
+			return l, err
 		}
 	}
 
@@ -77,7 +79,7 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 			defaultValue, err := flag.DefaultAsString()
 
 			if err != nil {
-				return err
+				return l, err
 			}
 
 			if _, exists := terragruntOptions.FeatureFlags.Load(flagName); !exists {
@@ -86,36 +88,38 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 		}
 	}
 
-	return nil
+	return l, nil
 }
 
 // PopulateTerraformVersion populates the currently installed version of Terraform into the given terragruntOptions.
-func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
+//
+// The caller also gets a copy of the logger with the config path set.
+func PopulateTerraformVersion(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (log.Logger, error) {
 	versionCache := GetRunVersionCache(ctx)
 	cacheKey := computeVersionFilesCacheKey(terragruntOptions.WorkingDir)
 
 	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
 		terraformVersion, err := ParseTerraformVersion(cachedOutput)
 		if err != nil {
-			return err
+			return l, err
 		}
 
 		tfImplementation, err := parseTerraformImplementationType(cachedOutput)
 
 		if err != nil {
-			return err
+			return l, err
 		}
 
 		terragruntOptions.TerraformVersion = terraformVersion
 
 		terragruntOptions.TerraformImplementation = tfImplementation
 
-		return nil
+		return l, nil
 	}
 
-	terragruntOptionsCopy, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
+	l, terragruntOptionsCopy, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
 	if err != nil {
-		return err
+		return l, err
 	}
 
 	terragruntOptionsCopy.Writer = io.Discard
@@ -127,9 +131,9 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 		}
 	}
 
-	output, err := tf.RunCommandWithOutput(ctx, terragruntOptionsCopy, tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, terragruntOptionsCopy, tf.FlagNameVersion)
 	if err != nil {
-		return err
+		return l, err
 	}
 
 	// Save output to cache
@@ -137,12 +141,12 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 
 	terraformVersion, err := ParseTerraformVersion(output.Stdout.String())
 	if err != nil {
-		return err
+		return l, err
 	}
 
 	tfImplementation, err := parseTerraformImplementationType(output.Stdout.String())
 	if err != nil {
-		return err
+		return l, err
 	}
 
 	terragruntOptions.TerraformVersion = terraformVersion
@@ -150,12 +154,13 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 
 	if tfImplementation == options.UnknownImpl {
 		terragruntOptions.TerraformImplementation = options.TerraformImpl
-		terragruntOptions.Logger.Warnf("Failed to identify Terraform implementation, fallback to terraform version: %s", terraformVersion)
+
+		l.Warnf("Failed to identify Terraform implementation, fallback to terraform version: %s", terraformVersion)
 	} else {
-		terragruntOptions.Logger.Debugf("%s version: %s", tfImplementation, terraformVersion)
+		l.Debugf("%s version: %s", tfImplementation, terraformVersion)
 	}
 
-	return nil
+	return l, nil
 }
 
 // CheckTerraformVersion checks that the currently installed Terraform version works meets the specified version constraint and return an error

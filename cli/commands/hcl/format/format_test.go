@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -34,7 +35,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
@@ -119,12 +120,12 @@ func TestHCLFmtErrors(t *testing.T) {
 			t.Parallel()
 
 			tgHclDir := filepath.Join(tmpPath, dir)
-			newTgOptions, err := tgOptions.CloneWithConfigPath(tgOptions.TerragruntConfigPath)
+			l, newTgOptions, err := tgOptions.CloneWithConfigPath(logger.CreateLogger(), tgOptions.TerragruntConfigPath)
 			require.NoError(t, err)
 
 			newTgOptions.WorkingDir = tgHclDir
 
-			err = format.Run(t.Context(), newTgOptions)
+			err = format.Run(t.Context(), l, newTgOptions)
 			require.Error(t, err)
 		})
 	}
@@ -150,7 +151,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -196,7 +197,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -242,7 +243,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -306,7 +307,7 @@ func TestHCLFmtStdin(t *testing.T) {
 
 	// format hcl from stdin
 	tgOptions.HclFromStdin = true
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
 
 	formatted, err := os.ReadFile(tempStdoutFile.Name())
@@ -329,7 +330,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = format.Run(t.Context(), tgOptions)
+	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
 
 	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")

@@ -46,6 +46,9 @@ const (
 
 	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
 	CLIRedesign = "cli-redesign"
+
+	// BareInclude is the control that prevents the use of the `include` block without a label.
+	BareInclude = "bare-include"
 )
 
 //nolint:lll
@@ -172,6 +175,13 @@ func New() strict.Controls {
 			Name:        "validate-all",
 			Description: "Prevents the deprecated validate-all command from being used.",
 			Category:    stageCategory,
+		},
+		&Control{
+			Name:        BareInclude,
+			Description: "Prevents the use of the `include` block without a label.",
+			Category:    stageCategory,
+			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
+			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/bare-include/",
 		},
 	}
 

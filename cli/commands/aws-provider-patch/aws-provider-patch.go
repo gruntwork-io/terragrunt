@@ -16,18 +16,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const defaultKeyParts = 2
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
 
-	return run.RunWithTarget(ctx, opts, target)
+	return run.RunWithTarget(ctx, l, opts, target)
 }
 
-func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runAwsProviderPatch(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
 		return errors.New(MissingOverrideAttrError(OverrideAttrFlagName))
 	}
@@ -38,7 +39,7 @@ func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, c
 	}
 
 	for _, terraformFile := range terraformFilesInModules {
-		opts.Logger.Debugf("Looking at file %s", terraformFile)
+		l.Debugf("Looking at file %s", terraformFile)
 
 		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
 		if err != nil {
@@ -51,7 +52,7 @@ func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, c
 		}
 
 		if codeWasUpdated {
-			opts.Logger.Debugf("Patching AWS provider in %s", terraformFile)
+			l.Debugf("Patching AWS provider in %s", terraformFile)
 
 			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, []byte(updatedTerraformFileContents)); err != nil {
 				return err

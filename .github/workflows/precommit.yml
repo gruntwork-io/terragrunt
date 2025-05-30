@@ -2,10 +2,6 @@ name: Pre-commit
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 jobs:
   precommit:
@@ -35,13 +31,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
 
       - name: Run pre-commit hooks
         env:
           GOPROXY: direct
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
+          GOOS: linux
+          GOARCH: amd64
         run: |
           pre-commit install
           pre-commit run --all-files

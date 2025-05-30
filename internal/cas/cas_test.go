@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCAS_Clone(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("clone new repository", func(t *testing.T) {
 		t.Parallel()

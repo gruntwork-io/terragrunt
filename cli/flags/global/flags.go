@@ -88,8 +88,8 @@ var experimentalCommands = []string{
 }
 
 // NewFlagsWithDeprecatedMovedFlags returns global flags along with flags that have been moved to other commands and hidden from CLI help.
-func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags {
-	globalFlags := NewFlags(opts, nil)
+func NewFlagsWithDeprecatedMovedFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
+	globalFlags := NewFlags(l, opts, nil)
 
 	// Since the flags we take from the command may already have deprecated flags,
 	// and we create new strict controls each time we call `commands.New` which will then be evaluated,
@@ -100,7 +100,7 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 	cmdOpts := opts.Clone()
 	cmdOpts.StrictControls = nil
 
-	commands := commands.New(cmdOpts)
+	commands := commands.New(l, cmdOpts)
 
 	var seen []string
 
@@ -135,14 +135,14 @@ func NewFlagsWithDeprecatedMovedFlags(opts *options.TerragruntOptions) cli.Flags
 }
 
 // NewFlags creates and returns global flags common for all commands.
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
 	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 	legacyLogsControl := flags.StrictControlsByGlobalFlags(opts.StrictControls, controls.LegacyLogs)
 
 	flags := cli.Flags{
-		NewLogLevelFlag(opts, prefix),
+		NewLogLevelFlag(l, opts, prefix),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        WorkingDirFlagName,
@@ -157,7 +157,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			EnvVars: tgPrefix.EnvVars(LogDisableFlagName),
 			Usage:   "Disable logging.",
 			Setter: func(val bool) error {
-				opts.Logger.Formatter().SetDisabledOutput(val)
+				l.Formatter().SetDisabledOutput(val)
 				opts.ForwardTFStdout = true
 				return nil
 			},
@@ -177,7 +177,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			EnvVars: tgPrefix.EnvVars(NoColorFlagName),
 			Usage:   "Disable color output.",
 			Setter: func(val bool) error {
-				opts.Logger.Formatter().SetDisabledColors(val)
+				l.Formatter().SetDisabledColors(val)
 				return nil
 			},
 		},
@@ -187,7 +187,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:    LogFormatFlagName,
 			EnvVars: tgPrefix.EnvVars(LogFormatFlagName),
 			Usage:   "Set the log format.",
-			Setter:  opts.Logger.Formatter().SetFormat,
+			Setter:  l.Formatter().SetFormat,
 			Action: func(_ *cli.Context, val string) error {
 				switch val {
 				case format.BareFormatName:
@@ -222,7 +222,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Name:    LogCustomFormatFlagName,
 			EnvVars: tgPrefix.EnvVars(LogCustomFormatFlagName),
 			Usage:   "Set the custom log formatting.",
-			Setter:  opts.Logger.Formatter().SetCustomFormat,
+			Setter:  l.Formatter().SetCustomFormat,
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogCustomFormatFlagName), terragruntPrefixControl)),
 
@@ -258,7 +258,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
 			Setter:  opts.Experiments.EnableExperiment,
 			Action: func(_ *cli.Context, val []string) error {
-				opts.Experiments.NotifyCompletedExperiments(opts.Logger)
+				opts.Experiments.NotifyCompletedExperiments(l)
 
 				return nil
 			},
@@ -277,7 +277,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 			Action: func(_ *cli.Context, _ bool) error {
-				opts.StrictControls.LogEnabled(opts.Logger)
+				opts.StrictControls.LogEnabled(l)
 
 				return nil
 			},
@@ -292,7 +292,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return opts.StrictControls.EnableControl(val)
 			},
 			Action: func(_ *cli.Context, _ []string) error {
-				opts.StrictControls.LogEnabled(opts.Logger)
+				opts.StrictControls.LogEnabled(l)
 
 				return nil
 			},
@@ -302,7 +302,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 	flags = flags.Add(NewTelemetryFlags(opts, nil)...)
 	flags = flags.Sort()
-	flags = flags.Add(NewHelpVersionFlags(opts)...)
+	flags = flags.Add(NewHelpVersionFlags(l, opts)...)
 
 	return flags
 }
@@ -355,7 +355,7 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 	}
 }
 
-func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
+func NewLogLevelFlag(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) *flags.Flag {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
 	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
@@ -363,8 +363,8 @@ func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flag
 	return flags.NewFlag(&cli.GenericFlag[string]{
 		Name:        LogLevelFlagName,
 		EnvVars:     tgPrefix.EnvVars(LogLevelFlagName),
-		DefaultText: opts.Logger.Level().String(),
-		Setter:      opts.Logger.SetLevel,
+		DefaultText: l.Level().String(),
+		Setter:      l.SetLevel,
 		Usage:       fmt.Sprintf("Sets the logging level for Terragrunt. Supported levels: %s.", log.AllLevels),
 		Action: func(_ *cli.Context, val string) error {
 			// Before the release of v0.67.0, these levels actually disabled logs, since we do not use these levels for logging.
@@ -376,7 +376,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flag
 
 			if collections.ListContainsElement(removedLevels, val) {
 				opts.ForwardTFStdout = true
-				opts.Logger.Formatter().SetDisabledOutput(true)
+				l.Formatter().SetDisabledOutput(true)
 			}
 
 			return nil
@@ -384,14 +384,14 @@ func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flag
 	}, flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogLevelFlagName), terragruntPrefixControl))
 }
 
-func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewHelpVersionFlags(l log.Logger, opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.BoolFlag{
 			Name:    HelpFlagName,  // --help, -help
 			Aliases: []string{"h"}, //  -h
 			Usage:   "Show help.",
 			Action: func(ctx *cli.Context, _ bool) error {
-				return help.Action(ctx, opts)
+				return help.Action(ctx, l, opts)
 			},
 		},
 		&cli.BoolFlag{

@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
@@ -21,7 +22,7 @@ const (
 	CommandName = "run"
 )
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmd := &cli.Command{
 		Name:        CommandName,
 		Usage:       "Run an OpenTofu/Terraform command.",
@@ -34,25 +35,25 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			//
 			// "# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
 		},
-		Flags:       NewFlags(opts, nil),
-		Subcommands: NewSubcommands(opts),
+		Flags:       NewFlags(l, opts, nil),
+		Subcommands: NewSubcommands(l, opts),
 		Action: func(ctx *cli.Context) error {
 			if len(ctx.Args()) == 0 {
 				return cli.ShowCommandHelp(ctx)
 			}
 
-			return Action(opts)(ctx)
+			return Action(l, opts)(ctx)
 		},
 	}
 
-	cmd = runall.WrapCommand(opts, cmd, Run)
-	cmd = graph.WrapCommand(opts, cmd, Run)
-	cmd = wrapWithStackGenerate(opts, cmd)
+	cmd = runall.WrapCommand(l, opts, cmd, Run)
+	cmd = graph.WrapCommand(l, opts, cmd, Run)
+	cmd = wrapWithStackGenerate(l, opts, cmd)
 
 	return cmd
 }
 
-func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
+func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	var subcommands = make(cli.Commands, len(tf.CommandNames))
 
 	for i, name := range tf.CommandNames {
@@ -62,9 +63,9 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 			Name:       name,
 			Usage:      usage,
 			Hidden:     !visible,
-			CustomHelp: ShowTFHelp(opts),
+			CustomHelp: ShowTFHelp(l, opts),
 			Action: func(ctx *cli.Context) error {
-				return Action(opts)(ctx)
+				return Action(l, opts)(ctx)
 			},
 		}
 		subcommands[i] = subcommand
@@ -73,7 +74,7 @@ func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 	return subcommands
 }
 
-func Action(opts *options.TerragruntOptions) cli.ActionFunc {
+func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		if opts.TerraformCommand == tf.CommandNameDestroy {
 			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
@@ -83,7 +84,7 @@ func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 			return err
 		}
 
-		return Run(ctx.Context, opts.OptionsFromContext(ctx))
+		return Run(ctx.Context, l, opts.OptionsFromContext(ctx))
 	}
 }
 
@@ -106,7 +107,7 @@ func isTerraformPath(opts *options.TerragruntOptions) bool {
 // wrapWithStackGenerate wraps a CLI command to handle automatic stack generation.
 // It generates a stack configuration file when running terragrunt with --all or --graph flags,
 // unless explicitly disabled with --no-stack-generate.
-func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
+func wrapWithStackGenerate(l log.Logger, opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
 	// Wrap the command's action to inject stack generation logic
 	cmd = cmd.WrapAction(func(ctx *cli.Context, action cli.ActionFunc) error {
 		// Determine if stack generation should occur based on command flags
@@ -115,7 +116,7 @@ func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *c
 
 		// Skip stack generation if not needed
 		if !shouldGenerateStack {
-			opts.Logger.Debugf("Skipping stack generation in %s", opts.WorkingDir)
+			l.Debugf("Skipping stack generation in %s", opts.WorkingDir)
 			return action(ctx)
 		}
 
@@ -127,7 +128,7 @@ func wrapWithStackGenerate(opts *options.TerragruntOptions, cmd *cli.Command) *c
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return config.GenerateStacks(ctx, opts)
+			return config.GenerateStacks(ctx, l, opts)
 		})
 
 		// Handle any errors during stack generation

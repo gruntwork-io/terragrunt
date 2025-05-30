@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -27,7 +28,7 @@ const (
 )
 
 // NewCommand builds the command for stack.
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Terragrunt stack commands.",
@@ -36,17 +37,17 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Name:  generateCommandName,
 				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx *cli.Context) error {
-					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
+					return RunGenerate(ctx.Context, l, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(opts, nil),
+				Flags: defaultFlags(l, opts, nil),
 			},
 			&cli.Command{
 				Name:  runCommandName,
 				Usage: "Run a command on the stack generated from the current directory",
 				Action: func(ctx *cli.Context) error {
-					return Run(ctx.Context, opts.OptionsFromContext(ctx))
+					return Run(ctx.Context, l, opts.OptionsFromContext(ctx))
 				},
-				Flags: defaultFlags(opts, nil),
+				Flags: defaultFlags(l, opts, nil),
 			},
 			&cli.Command{
 				Name:  outputCommandName,
@@ -56,15 +57,15 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 					if val := ctx.Args().Get(0); val != "" {
 						index = val
 					}
-					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx), index)
+					return RunOutput(ctx.Context, l, opts.OptionsFromContext(ctx), index)
 				},
-				Flags: outputFlags(opts, nil),
+				Flags: outputFlags(l, opts, nil),
 			},
 			&cli.Command{
 				Name:  cleanCommandName,
 				Usage: "Clean the stack generated from the current directory",
 				Action: func(ctx *cli.Context) error {
-					return RunClean(ctx.Context, opts.OptionsFromContext(ctx))
+					return RunClean(ctx.Context, l, opts.OptionsFromContext(ctx))
 				},
 			},
 		},
@@ -72,7 +73,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func defaultFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func defaultFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	flags := cli.Flags{
@@ -85,10 +86,10 @@ func defaultFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flag
 		}),
 	}
 
-	return append(run.NewFlags(opts, nil), flags...)
+	return append(run.NewFlags(l, opts, nil), flags...)
 }
 
-func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func outputFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	flags := cli.Flags{
@@ -116,5 +117,5 @@ func outputFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags
 		}),
 	}
 
-	return append(defaultFlags(opts, prefix), flags...)
+	return append(defaultFlags(l, opts, prefix), flags...)
 }

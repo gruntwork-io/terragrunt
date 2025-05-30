@@ -1,0 +1,38 @@
+name: License Check
+
+on:
+  push:
+
+jobs:
+  license-check:
+    name: License Check
+    runs-on: ubuntu-latest
+    env:
+      MISE_PROFILE: cicd
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run License Check
+        id: run-license-check
+        run: |
+          set -o pipefail
+          make license-check | tee license-check.log
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload License Check Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-check-report-ubuntu
+          path: license-check.log

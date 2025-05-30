@@ -2,10 +2,6 @@ name: Integration Tests
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 jobs:
   test:
@@ -17,21 +13,21 @@ jobs:
       fail-fast: false
       matrix:
         integration:
-          - name: Fixtures OpenTofu 1.9
+          - name: Fixtures with OpenTofu
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
-          - name: Fixtures Terraform 1.5
+          - name: Fixtures with Latest OSS Terraform
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-5.sh
-          - name: Fixtures Terraform 1.12
+              - .github/scripts/setup/terraform-switch-latest-oss.sh
+          - name: Fixtures with Latest Terraform
             os: ubuntu
             target: ./test
             setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-12.sh
+              - .github/scripts/setup/terraform-switch-latest.sh
           - name: SSH
             os: ubuntu
             target: ./...
@@ -69,22 +65,22 @@ jobs:
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
               - .github/scripts/setup/tofu-switch.sh
-          - name: AWS Terraform 1.5
+          - name: AWS with Latest OSS Terraform
             os: ubuntu
             target: ./...
             tags: aws
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-5.sh
-          - name: AWS Terraform 1.12
+              - .github/scripts/setup/terraform-switch-latest-oss.sh
+          - name: AWS with Latest Terraform
             os: ubuntu
             target: ./...
             tags: aws
             run: '^TestAws'
             secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
             setup_scripts:
-              - .github/scripts/setup/terraform-switch-1-12.sh
+              - .github/scripts/setup/terraform-switch-latest.sh
           - name: AWSGCP
             os: ubuntu
             target: ./...
@@ -107,13 +103,13 @@ jobs:
               - .github/scripts/setup/windows-setup.ps1
             tags: windows
             run: '^TestWindows'
-          - name: Provider Cache Terraform 1.12
+          - name: Provider Cache with Latest Terraform
             os: ubuntu
             target: ./test
             setup_scripts:
               - .github/scripts/setup/provider-cache.sh
-              - .github/scripts/setup/terraform-switch-1-12.sh
-          - name: Provider Cache Tofu
+              - .github/scripts/setup/terraform-switch-latest.sh
+          - name: Provider Cache with Tofu
             os: ubuntu
             target: ./test
             setup_scripts:
@@ -206,7 +202,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-integration-test-${{ matrix.integration.name }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
 
       - name: Run Tests
         run: |

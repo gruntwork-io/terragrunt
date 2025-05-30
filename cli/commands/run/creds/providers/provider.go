@@ -3,6 +3,8 @@ package providers
 
 import (
 	"context"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -20,5 +22,5 @@ type Provider interface {
 	// Name returns the name of the provider.
 	Name() string
 	// GetCredentials returns a set of credentials.
-	GetCredentials(ctx context.Context) (*Credentials, error)
+	GetCredentials(ctx context.Context, l log.Logger) (*Credentials, error)
 }

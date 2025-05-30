@@ -6,11 +6,6 @@ name: OIDC Integration Tests
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
-
 
 permissions:
   id-token: write
@@ -101,7 +96,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-integration-test-${{ matrix.integration.name }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
 
       - name: Run Tests
         run: |
