@@ -39,7 +39,7 @@ jobs:
           gopls version
           > fixed_files.txt
           > gopls_failures.txt
-          parallel --jobs 0 --ungroup --linebuffer --joblog parallel_joblog.txt '
+          parallel --jobs 0 --linebuffer --joblog parallel_joblog.txt '
             stdbuf -oL echo "START: {}"
             if gopls codeaction -kind=quickfix -write "{}"; then
               stdbuf -oL echo "SUCCESS: {}"
