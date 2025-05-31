@@ -23,15 +23,15 @@ const (
 
 // RunGenerate runs the stack command.
 func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	opts.TerragruntStackConfigPath = filepath.Join(opts.DirOptions.WorkingDir, config.DefaultStackFile)
+	opts.ConfigOptions.TerragruntStackConfigPath = filepath.Join(opts.DirOptions.WorkingDir, config.DefaultStackFile)
 
 	if opts.NoStackGenerate {
-		l.Debugf("Skipping stack generation for %s", opts.TerragruntStackConfigPath)
+		l.Debugf("Skipping stack generation for %s", opts.ConfigOptions.TerragruntStackConfigPath)
 		return nil
 	}
 
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
-		"stack_config_path": opts.TerragruntStackConfigPath,
+		"stack_config_path": opts.ConfigOptions.TerragruntStackConfigPath,
 		"working_dir":       opts.DirOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		return config.GenerateStacks(ctx, l, opts)
@@ -41,7 +41,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 // Run execute stack command.
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
-		"stack_config_path": opts.TerragruntStackConfigPath,
+		"stack_config_path": opts.ConfigOptions.TerragruntStackConfigPath,
 		"working_dir":       opts.DirOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		return RunGenerate(ctx, l, opts)
@@ -62,7 +62,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 
 	// collect outputs
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_output", map[string]any{
-		"stack_config_path": opts.TerragruntStackConfigPath,
+		"stack_config_path": opts.ConfigOptions.TerragruntStackConfigPath,
 		"working_dir":       opts.DirOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		stackOutputs, err := config.StackOutput(ctx, l, opts)
@@ -142,7 +142,7 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	telemeter := telemetry.TelemeterFromContext(ctx)
 	err := telemeter.Collect(ctx, "stack_clean", map[string]any{
-		"stack_config_path": opts.TerragruntStackConfigPath,
+		"stack_config_path": opts.ConfigOptions.TerragruntStackConfigPath,
 		"working_dir":       opts.DirOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		errs := &errors.MultiError{}

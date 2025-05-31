@@ -60,7 +60,7 @@ func renderHCL(_ context.Context, l log.Logger, opts *Options, cfg *config.Terra
 		return writeRendered(l, opts, buf.Bytes())
 	}
 
-	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
+	l.Infof("Rendering config %s", opts.ConfigOptions.TerragruntConfigPath)
 
 	_, err := cfg.WriteTo(opts.LoggingOptions.Writer)
 	if err != nil {
@@ -80,7 +80,7 @@ func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.Te
 		}
 
 		cfg.DependentModulesPath = dependentModulesPath
-		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]any{config.FoundInFile: opts.TerragruntConfigPath})
+		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]any{config.FoundInFile: opts.ConfigOptions.TerragruntConfigPath})
 	}
 
 	var terragruntConfigCty cty.Value
@@ -110,7 +110,7 @@ func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.Te
 		return writeRendered(l, opts, jsonBytes)
 	}
 
-	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
+	l.Infof("Rendering config %s", opts.ConfigOptions.TerragruntConfigPath)
 
 	_, err = opts.LoggingOptions.Writer.Write(jsonBytes)
 	if err != nil {
@@ -123,7 +123,7 @@ func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.Te
 func writeRendered(l log.Logger, opts *Options, data []byte) error {
 	outPath := opts.OutputPath
 	if !filepath.IsAbs(outPath) {
-		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
+		terragruntConfigDir := filepath.Dir(opts.ConfigOptions.TerragruntConfigPath)
 		outPath = filepath.Join(terragruntConfigDir, outPath)
 	}
 
@@ -131,7 +131,7 @@ func writeRendered(l log.Logger, opts *Options, data []byte) error {
 		return err
 	}
 
-	l.Debugf("Rendering config %s to %s", opts.TerragruntConfigPath, outPath)
+	l.Debugf("Rendering config %s to %s", opts.ConfigOptions.TerragruntConfigPath, outPath)
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(outPath, data, ownerWriteGlobalReadPerms); err != nil {

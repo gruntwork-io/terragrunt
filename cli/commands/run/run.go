@@ -132,7 +132,7 @@ func run(ctx context.Context, l log.Logger, terragruntOptions *options.Terragrun
 
 	terragruntOptions.Errors = errConfig
 
-	l, terragruntOptionsClone, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
+	l, terragruntOptionsClone, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.ConfigOptions.TerragruntConfigPath)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func run(ctx context.Context, l log.Logger, terragruntOptions *options.Terragrun
 	if terragruntConfig.Skip != nil && *terragruntConfig.Skip {
 		l.Infof(
 			"Skipping terragrunt module %s due to skip = true.",
-			terragruntOptions.TerragruntConfigPath,
+			terragruntOptions.ConfigOptions.TerragruntConfigPath,
 		)
 
 		return nil
@@ -168,7 +168,7 @@ func run(ctx context.Context, l log.Logger, terragruntOptions *options.Terragrun
 	}
 
 	// get the default download dir
-	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.ConfigOptions.TerragruntConfigPath)
 	if err != nil {
 		return target.runErrorCallback(l, terragruntOptions, terragruntConfig, err)
 	}
@@ -716,7 +716,7 @@ func runTerraformInit(ctx context.Context, l log.Logger, originalTerragruntOptio
 
 func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptions) (log.Logger, *options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
-	l, initOptions, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.TerragruntConfigPath)
+	l, initOptions, err := terragruntOptions.CloneWithConfigPath(l, terragruntOptions.ConfigOptions.TerragruntConfigPath)
 	if err != nil {
 		return l, nil, err
 	}
@@ -941,7 +941,7 @@ func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.Terrag
 	return config.PartialParseConfigFile( //nolint: contextcheck
 		configCtx,
 		l,
-		opts.TerragruntConfigPath,
+		opts.ConfigOptions.TerragruntConfigPath,
 		nil,
 	)
 }

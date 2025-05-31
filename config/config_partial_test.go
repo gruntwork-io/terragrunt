@@ -124,10 +124,10 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	_, err := config.PartialParseConfigFile(ctx.WithDecodeList(config.TerragruntFlags), l, opts.TerragruntConfigPath, nil)
+	_, err := config.PartialParseConfigFile(ctx.WithDecodeList(config.TerragruntFlags), l, opts.ConfigOptions.TerragruntConfigPath, nil)
 	require.NoError(t, err)
 
-	_, err = config.PartialParseConfigFile(ctx.WithDecodeList(config.DependenciesBlock), l, opts.TerragruntConfigPath, nil)
+	_, err = config.PartialParseConfigFile(ctx.WithDecodeList(config.DependenciesBlock), l, opts.ConfigOptions.TerragruntConfigPath, nil)
 	assert.Error(t, err)
 }
 
@@ -139,7 +139,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts).WithDecodeList(config.TerragruntFlags)
-	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, opts.TerragruntConfigPath, nil)
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, opts.ConfigOptions.TerragruntConfigPath, nil)
 	require.NoError(t, err)
 
 	assert.True(t, terragruntConfig.IsPartial)
@@ -160,7 +160,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts).WithDecodeList(config.DependenciesBlock)
-	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, opts.TerragruntConfigPath, nil)
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, l, opts.ConfigOptions.TerragruntConfigPath, nil)
 	require.NoError(t, err)
 
 	assert.True(t, terragruntConfig.IsPartial)

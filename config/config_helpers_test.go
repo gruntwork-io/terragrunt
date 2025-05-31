@@ -204,7 +204,7 @@ func TestRunCommand(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 
-		t.Run(tc.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
+		t.Run(tc.terragruntOptions.ConfigOptions.TerragruntConfigPath, func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
@@ -387,7 +387,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		// get updated due to concurrency within the scope of t.Run(..) below
 		tc := tc
 
-		t.Run(fmt.Sprintf("%s--%s", tc.str, tc.terragruntOptions.TerragruntConfigPath), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s--%s", tc.str, tc.terragruntOptions.ConfigOptions.TerragruntConfigPath), func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
@@ -805,7 +805,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
 			l := logger.CreateLogger()
 			ctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
-			actual, err := config.ParseConfigString(ctx, l, terragruntOptions.TerragruntConfigPath, configString, nil)
+			actual, err := config.ParseConfigString(ctx, l, terragruntOptions.ConfigOptions.TerragruntConfigPath, configString, nil)
 			require.NoError(t, err, "For hcl '%s' include %v and options %v, unexpected error: %v", tc.input, nil, terragruntOptions, err)
 
 			assert.NotNil(t, actual)

@@ -20,8 +20,8 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 }
 
 func getTfPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
-	if !util.FileExists(opts.TerragruntConfigPath) {
-		l.Debugf("Did not find the config file %s", opts.TerragruntConfigPath)
+	if !util.FileExists(opts.ConfigOptions.TerragruntConfigPath) {
+		l.Debugf("Did not find the config file %s", opts.ConfigOptions.TerragruntConfigPath)
 
 		return "", nil
 	}

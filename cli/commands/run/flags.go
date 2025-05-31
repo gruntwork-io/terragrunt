@@ -136,7 +136,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        ConfigFlagName,
 			EnvVars:     tgPrefix.EnvVars(ConfigFlagName),
-			Destination: &opts.TerragruntConfigPath,
+			Destination: &opts.ConfigOptions.TerragruntConfigPath,
 			Usage:       "The path to the Terragrunt config file. Default is terragrunt.hcl.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("config"), terragruntPrefixControl)),

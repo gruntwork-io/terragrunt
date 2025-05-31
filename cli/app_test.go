@@ -202,8 +202,8 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	t.Helper()
 
 	// Normalize path separators for cross-platform compatibility
-	expectedConfigPath := filepath.ToSlash(expected.TerragruntConfigPath)
-	actualConfigPath := filepath.ToSlash(actual.TerragruntConfigPath)
+	expectedConfigPath := filepath.ToSlash(expected.ConfigOptions.TerragruntConfigPath)
+	actualConfigPath := filepath.ToSlash(actual.ConfigOptions.TerragruntConfigPath)
 	expectedWorkingDir := filepath.ToSlash(expected.DirOptions.WorkingDir)
 	actualWorkingDir := filepath.ToSlash(actual.DirOptions.WorkingDir)
 

@@ -468,7 +468,7 @@ type componentToProcess struct {
 func processComponent(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmp *componentToProcess) error {
 	source := cmp.source
 	// Adjust source path using the provided source mapping configuration if available
-	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.TerragruntStackConfigPath)
+	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.ConfigOptions.TerragruntStackConfigPath)
 
 	if err != nil {
 		return errors.Errorf("failed to adjust source %s: %w", cmp.source, err)
@@ -868,7 +868,7 @@ func processLocals(l log.Logger, parser *ParsingContext, opts *options.Terragrun
 		)
 
 		if err != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", opts.TerragruntStackConfigPath)
+			l.Debugf("Encountered error while evaluating locals in file %s", opts.ConfigOptions.TerragruntStackConfigPath)
 
 			return errors.New(err)
 		}

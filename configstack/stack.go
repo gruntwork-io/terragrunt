@@ -254,7 +254,7 @@ func (stack *Stack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntO
 		planFile := module.planFile(l, opts)
 
 		if planFile != "" {
-			l.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
 
 			if module.TerragruntOptions.RunOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
@@ -559,7 +559,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, te
 
 	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run --all
 	// from, which is not what any of the modules will want.
-	opts.OriginalTerragruntConfigPath = terragruntConfigPath
+	opts.ConfigOptions.OriginalTerragruntConfigPath = terragruntConfigPath
 
 	// If `childTerragruntConfig.ProcessedIncludes` contains the path `terragruntConfigPath`, then this is a parent config
 	// which implies that `TerragruntConfigPath` must refer to a child configuration file, and the defined `IncludeConfig` must contain the path to the file itself
@@ -570,7 +570,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, te
 		includeConfig = &config.IncludeConfig{
 			Path: terragruntConfigPath,
 		}
-		opts.TerragruntConfigPath = stack.terragruntOptions.OriginalTerragruntConfigPath
+		opts.ConfigOptions.OriginalTerragruntConfigPath = stack.terragruntOptions.ConfigOptions.OriginalTerragruntConfigPath
 	}
 
 	if collections.ListContainsElement(opts.ExcludeDirs, modulePath) {
@@ -627,7 +627,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, te
 
 	opts.Source = terragruntSource
 
-	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(stack.terragruntOptions.TerragruntConfigPath)
+	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(stack.terragruntOptions.ConfigOptions.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -640,7 +640,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, te
 			return nil, err
 		}
 
-		l.Debugf("Setting download directory for module %s to %s", filepath.Dir(opts.TerragruntConfigPath), downloadDir)
+		l.Debugf("Setting download directory for module %s to %s", filepath.Dir(opts.ConfigOptions.TerragruntConfigPath), downloadDir)
 		opts.DirOptions.DownloadDir = downloadDir
 	}
 

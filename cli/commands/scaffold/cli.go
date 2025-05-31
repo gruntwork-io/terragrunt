@@ -39,7 +39,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 					return errors.New("root-file-name flag cannot be empty")
 				}
 
-				if value != opts.TerragruntConfigPath {
+				if value != opts.ConfigOptions.TerragruntConfigPath {
 					opts.ScaffoldRootFileName = value
 
 					return nil

@@ -43,7 +43,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 		return err
 	}
 
-	configFolder := filepath.Dir(opts.TerragruntConfigPath)
+	configFolder := filepath.Dir(opts.ConfigOptions.TerragruntConfigPath)
 
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
 	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {

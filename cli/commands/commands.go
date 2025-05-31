@@ -257,14 +257,14 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	opts.DirOptions.DownloadDir = filepath.ToSlash(downloadDir)
 
 	// --- Terragrunt ConfigPath
-	if opts.TerragruntConfigPath == "" {
-		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.DirOptions.WorkingDir)
-	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
+	if opts.ConfigOptions.TerragruntConfigPath == "" {
+		opts.ConfigOptions.TerragruntConfigPath = config.GetDefaultConfigPath(opts.DirOptions.WorkingDir)
+	} else if !filepath.IsAbs(opts.ConfigOptions.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runCmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
-		opts.TerragruntConfigPath = util.JoinPath(opts.DirOptions.WorkingDir, opts.TerragruntConfigPath)
+		opts.ConfigOptions.TerragruntConfigPath = util.JoinPath(opts.DirOptions.WorkingDir, opts.ConfigOptions.TerragruntConfigPath)
 	}
 
-	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
+	opts.ConfigOptions.TerragruntConfigPath, err = filepath.Abs(opts.ConfigOptions.TerragruntConfigPath)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -331,7 +331,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.Parallelism = 1
 	}
 
-	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
+	opts.ConfigOptions.OriginalTerragruntConfigPath = opts.ConfigOptions.TerragruntConfigPath
 	opts.RunOptions.OriginalTerraformCommand = opts.RunOptions.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 

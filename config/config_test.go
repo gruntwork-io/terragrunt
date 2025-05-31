@@ -522,14 +522,16 @@ include {
 `, "root.hcl")
 
 	opts := &options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
-		NonInteractive:       true,
+		ConfigOptions: &options.ConfigOptions{
+			TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+		},
+		NonInteractive: true,
 	}
 
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -559,7 +561,7 @@ include {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -601,7 +603,7 @@ remote_state {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -651,7 +653,7 @@ dependencies {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -702,7 +704,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -1355,9 +1357,11 @@ terraform {
 }
 `
 	opts := &options.TerragruntOptions{
-		TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/" + config.DefaultTerragruntConfigPath,
-		NonInteractive:       true,
-		MaxFoldersToCheck:    5,
+		ConfigOptions: &options.ConfigOptions{
+			TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/" + config.DefaultTerragruntConfigPath,
+		},
+		NonInteractive:    true,
+		MaxFoldersToCheck: 5,
 	}
 
 	l := createLogger()

@@ -227,7 +227,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		filename = config.DefaultStackFile
 	}
 
-	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.DirOptions.WorkingDir, filename)
+	parseOpts.ConfigOptions.TerragruntConfigPath = filepath.Join(parseOpts.DirOptions.WorkingDir, filename)
 
 	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
 		config.DependenciesBlock,
@@ -237,15 +237,15 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 	)
 
 	//nolint: contextcheck
-	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
+	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.ConfigOptions.TerragruntConfigPath, nil)
 	if err != nil {
 		if !suppressParseErrors || cfg == nil {
-			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+			l.Debugf("Unrecoverable parse error for %s: %s", parseOpts.ConfigOptions.TerragruntConfigPath, err)
 
 			return errors.New(err)
 		}
 
-		l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)
+		l.Debugf("Suppressing parse error for %s: %s", parseOpts.ConfigOptions.TerragruntConfigPath, err)
 	}
 
 	c.Parsed = cfg

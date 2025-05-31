@@ -49,7 +49,7 @@ func handleTerragruntContextPrintWithError(l log.Logger, opts *options.Terragrun
 
 func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
-		ConfigPath:       opts.TerragruntConfigPath,
+		ConfigPath:       opts.ConfigOptions.TerragruntConfigPath,
 		DownloadDir:      opts.DirOptions.DownloadDir,
 		IAMRole:          opts.IAMRoleOptions.RoleARN,
 		TerraformBinary:  opts.RunOptions.TerraformPath,

@@ -227,7 +227,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 		return nil, err
 	}
 
-	l, cloneOpts, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	l, cloneOpts, err := opts.CloneWithConfigPath(l, opts.ConfigOptions.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 		args = append(args, tf.FlagNameNoColor)
 	}
 
-	l, cloneOpts, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	l, cloneOpts, err := opts.CloneWithConfigPath(l, opts.ConfigOptions.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}

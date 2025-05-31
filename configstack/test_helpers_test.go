@@ -157,7 +157,7 @@ func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArg
 func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual options.TerragruntOptions, messageAndArgs ...any) {
 	t.Helper()
 
-	assert.Equal(t, expected.TerragruntConfigPath, actual.TerragruntConfigPath, messageAndArgs...)
+	assert.Equal(t, expected.ConfigOptions.TerragruntConfigPath, actual.ConfigOptions.TerragruntConfigPath, messageAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, messageAndArgs...)
 	assert.Equal(t, expected.RunOptions.TerraformCliArgs, actual.RunOptions.TerraformCliArgs, messageAndArgs...)
 	assert.Equal(t, expected.DirOptions.WorkingDir, actual.DirOptions.WorkingDir, messageAndArgs...)

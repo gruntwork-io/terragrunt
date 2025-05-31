@@ -121,11 +121,11 @@ func wrapWithStackGenerate(l log.Logger, opts *options.TerragruntOptions, cmd *c
 		}
 
 		// Set the stack config path to the default location in the working directory
-		opts.TerragruntStackConfigPath = filepath.Join(opts.DirOptions.WorkingDir, config.DefaultStackFile)
+		opts.ConfigOptions.TerragruntStackConfigPath = filepath.Join(opts.DirOptions.WorkingDir, config.DefaultStackFile)
 
 		// Generate the stack configuration with telemetry tracking
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
-			"stack_config_path": opts.TerragruntStackConfigPath,
+			"stack_config_path": opts.ConfigOptions.TerragruntStackConfigPath,
 			"working_dir":       opts.DirOptions.WorkingDir,
 		}, func(ctx context.Context) error {
 			return config.GenerateStacks(ctx, l, opts)

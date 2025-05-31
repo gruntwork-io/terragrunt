@@ -216,7 +216,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
 			if flag.Default == nil {
-				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntOptions.TerragruntConfigPath))
+				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath))
 				continue
 			}
 
@@ -313,14 +313,14 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, l log.Logger, file *
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
-			l.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.TerragruntConfigPath, ctx.PartialParseDecodeList)
+			l.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath, ctx.PartialParseDecodeList)
 
 			deepCopy := clone.Clone(config).(*TerragruntConfig)
 
 			return deepCopy, nil
 		}
 
-		l.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.TerragruntConfigPath, ctx.PartialParseDecodeList)
+		l.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath, ctx.PartialParseDecodeList)
 	}
 
 	config, err := PartialParseConfig(ctx, l, file, includeFromChild)
@@ -699,13 +699,13 @@ func processExcludes(ctx *ParsingContext, l log.Logger, config *TerragruntConfig
 
 func partialParseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
+		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path
 
 	if !filepath.IsAbs(includePath) {
-		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), includePath)
+		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath), includePath)
 	}
 
 	return PartialParseConfigFile(

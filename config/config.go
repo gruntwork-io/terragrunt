@@ -975,7 +975,7 @@ func GetTerraformSourceURL(terragruntOptions *options.TerragruntOptions, terragr
 	case terragruntOptions.Source != "":
 		return terragruntOptions.Source, nil
 	case terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil:
-		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.OriginalTerragruntConfigPath)
+		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.ConfigOptions.OriginalTerragruntConfigPath)
 	default:
 		return "", nil
 	}
@@ -1095,7 +1095,7 @@ func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]
 			return filepath.SkipDir
 		}
 
-		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(opts.TerragruntConfigPath)) {
+		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(opts.ConfigOptions.TerragruntConfigPath)) {
 			if !filepath.IsAbs(configFile) {
 				configFile = util.JoinPath(path, configFile)
 			}
@@ -1152,13 +1152,13 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 
 // ReadTerragruntConfig reads the Terragrunt config file from its default location
 func ReadTerragruntConfig(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
+	l.Debugf("Reading Terragrunt config file at %s", terragruntOptions.ConfigOptions.TerragruntConfigPath)
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 	parsingCtx := NewParsingContext(ctx, l, terragruntOptions).WithParseOption(parserOptions)
 
 	// TODO: Remove lint ignore
-	return ParseConfigFile(parsingCtx, l, terragruntOptions.TerragruntConfigPath, nil) //nolint:contextcheck
+	return ParseConfigFile(parsingCtx, l, terragruntOptions.ConfigOptions.TerragruntConfigPath, nil) //nolint:contextcheck
 }
 
 // ParseConfigFile parses the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config

@@ -268,7 +268,7 @@ func getPathToRepoRoot(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // GetTerragruntDir returns the directory where the Terragrunt configuration file lives.
 func GetTerragruntDir(ctx *ParsingContext, l log.Logger) (string, error) {
-	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.TerragruntConfigPath)
+	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -281,7 +281,7 @@ func GetTerragruntDir(ctx *ParsingContext, l log.Logger) (string, error) {
 // calls read_terragrunt_config("/foo/bar.hcl"), and within bar.hcl, you call get_original_terragrunt_dir(), you'll
 // get back /terraform-code.
 func getOriginalTerragruntDir(ctx *ParsingContext, l log.Logger) (string, error) {
-	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.OriginalTerragruntConfigPath)
+	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.ConfigOptions.OriginalTerragruntConfigPath)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -296,7 +296,7 @@ func GetParentTerragruntDir(ctx *ParsingContext, l log.Logger, params []string) 
 		return "", errors.New(err)
 	}
 
-	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+	currentPath := filepath.Dir(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
 
 	parentPath, err = filepath.Abs(filepath.Join(currentPath, parentPath))
 	if err != nil {
@@ -340,7 +340,7 @@ func RunCommand(ctx *ParsingContext, l log.Logger, args []string) (string, error
 	}
 
 	suppressOutput := false
-	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+	currentPath := filepath.Dir(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
 	cachePath := currentPath
 
 	checkOptions := true
@@ -440,7 +440,7 @@ func FindInParentFolders(
 		return "", errors.New(WrongNumberOfParamsError{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
 
-	previousDir, err := filepath.Abs(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
+	previousDir, err := filepath.Abs(filepath.Dir(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath))
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -476,7 +476,7 @@ func FindInParentFolders(
 			}
 
 			return "", errors.New(ParentFileNotFoundError{
-				Path:  ctx.TerragruntOptions.TerragruntConfigPath,
+				Path:  ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath,
 				File:  fileToFindStr,
 				Cause: "Traversed all the way to the root",
 			})
@@ -495,7 +495,7 @@ func FindInParentFolders(
 	}
 
 	return "", errors.New(ParentFileNotFoundError{
-		Path:  ctx.TerragruntOptions.TerragruntConfigPath,
+		Path:  ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath,
 		File:  fileToFindStr,
 		Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", ctx.TerragruntOptions.MaxFoldersToCheck),
 	})
@@ -526,7 +526,7 @@ func PathRelativeToInclude(ctx *ParsingContext, l log.Logger, params []string) (
 		return ".", nil
 	}
 
-	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+	currentPath := filepath.Dir(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
 	includePath := filepath.Dir(included.Path)
 
 	if !filepath.IsAbs(includePath) {
@@ -552,7 +552,7 @@ func PathRelativeFromInclude(ctx *ParsingContext, l log.Logger, params []string)
 	}
 
 	includePath := filepath.Dir(included.Path)
-	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+	currentPath := filepath.Dir(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
 
 	if !filepath.IsAbs(includePath) {
 		includePath = util.JoinPath(currentPath, includePath)
@@ -576,7 +576,7 @@ func getWorkingDir(ctx *ParsingContext, l log.Logger) (string, error) {
 		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 	}
 
-	terragruntConfig, err := ParseConfigFile(ctx, l, ctx.TerragruntOptions.TerragruntConfigPath, nil)
+	terragruntConfig, err := ParseConfigFile(ctx, l, ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -677,7 +677,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, l log.Logger, configPath string,
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(configPath, ctx.TerragruntOptions.TerragruntConfigPath)
+	targetConfig := getCleanedTargetConfigPath(configPath, ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
 
 	targetConfigFileExists := util.FileExists(targetConfig)
 

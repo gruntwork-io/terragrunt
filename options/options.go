@@ -96,6 +96,8 @@ type TerragruntOptions struct {
 	RunOptions *RunOptions
 	// DirOptions defines options related to directories
 	DirOptions *DirOptions
+	// ConfigOptions defines options related to Terragrunt configuration.
+	ConfigOptions *ConfigOptions
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -122,10 +124,6 @@ type TerragruntOptions struct {
 	ProviderCacheToken string
 	// StackOutputFormat format how the stack output is rendered.
 	StackOutputFormat string
-	// The path to the Terragrunt stack config file.
-	TerragruntStackConfigPath string
-	// Location of the original Terragrunt config file.
-	OriginalTerragruntConfigPath string
 	// Download Terraform configurations from the specified source location into a temporary folder
 	Source string
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
@@ -144,8 +142,6 @@ type TerragruntOptions struct {
 	HclFile string
 	// The hostname of the Terragrunt Provider Cache server.
 	ProviderCacheHostname string
-	// Location of the Terragrunt config file
-	TerragruntConfigPath string
 	// Name of the root Terragrunt configuration file, if used.
 	ScaffoldRootFileName string
 	// Path to a file with a list of directories that need to be excluded when running *-all commands.
@@ -320,6 +316,16 @@ type DirOptions struct {
 	ProviderCacheDir string
 }
 
+// ConfigOptions defines options related to Terragrunt configuration.
+type ConfigOptions struct {
+	// The path to the Terragrunt config file.
+	TerragruntConfigPath string
+	// The path to the original Terragrunt config file.
+	OriginalTerragruntConfigPath string
+	// The path to the Terragrunt stack config file.
+	TerragruntStackConfigPath string
+}
+
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
@@ -428,7 +434,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
 	opts := NewTerragruntOptions()
-	opts.TerragruntConfigPath = terragruntConfigPath
+	opts.ConfigOptions.TerragruntConfigPath = terragruntConfigPath
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
@@ -510,7 +516,7 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 
 	workingDir := filepath.Dir(configPath)
 
-	newOpts.TerragruntConfigPath = configPath
+	newOpts.ConfigOptions.TerragruntConfigPath = configPath
 	newOpts.DirOptions.WorkingDir = workingDir
 
 	l = l.WithField(placeholders.WorkDirKeyName, workingDir)

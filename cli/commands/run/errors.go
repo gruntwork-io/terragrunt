@@ -33,7 +33,7 @@ type BackendNotDefined struct {
 }
 
 func (err BackendNotDefined) Error() string {
-	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n", err.Opts.TerragruntConfigPath, err.Opts.DirOptions.WorkingDir, err.BackendType)
+	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n", err.Opts.ConfigOptions.TerragruntConfigPath, err.Opts.DirOptions.WorkingDir, err.BackendType)
 }
 
 type NoTerraformFilesFound string
@@ -47,7 +47,7 @@ type ModuleIsProtected struct {
 }
 
 func (err ModuleIsProtected) Error() string {
-	return fmt.Sprintf("Module is protected by the prevent_destroy flag in %s. Set it to false or delete it to allow destroying of the module.", err.Opts.TerragruntConfigPath)
+	return fmt.Sprintf("Module is protected by the prevent_destroy flag in %s. Set it to false or delete it to allow destroying of the module.", err.Opts.ConfigOptions.TerragruntConfigPath)
 }
 
 type MaxRetriesExceeded struct {

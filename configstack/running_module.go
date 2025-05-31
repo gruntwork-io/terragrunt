@@ -137,7 +137,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 
 		// convert terragrunt output to json
 		if module.Module.outputJSONFile(module.Logger, module.Module.TerragruntOptions) != "" {
-			l, jsonOptions, err := module.Module.TerragruntOptions.CloneWithConfigPath(module.Logger, module.Module.TerragruntOptions.TerragruntConfigPath)
+			l, jsonOptions, err := module.Module.TerragruntOptions.CloneWithConfigPath(module.Logger, module.Module.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
 			if err != nil {
 				return err
 			}

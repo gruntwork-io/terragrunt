@@ -59,7 +59,7 @@ func TestListModules_HappyPath(t *testing.T) {
 
 	unitDir := filepath.Join(tmpDir, "unit")
 	os.MkdirAll(unitDir, 0755)
-	opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
+	opts.ConfigOptions.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
 
@@ -83,7 +83,7 @@ func TestListModules_NoRepositoriesConfigured(t *testing.T) {
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	tmpDir := t.TempDir()
-	opts.TerragruntConfigPath = filepath.Join(tmpDir, "nonexistent-terragrunt.hcl")
+	opts.ConfigOptions.TerragruntConfigPath = filepath.Join(tmpDir, "nonexistent-terragrunt.hcl")
 
 	// No customNewRepoFunc needed as it should error before trying to create a repo.
 	svc := catalog.NewCatalogService(opts)

@@ -251,7 +251,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 		}
 
 		cfgOptions.RunOptions.Env = opts.RunOptions.Env
-		cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
+		cfgOptions.ConfigOptions.OriginalTerragruntConfigPath = opts.ConfigOptions.OriginalTerragruntConfigPath
 		cfgOptions.RunOptions.TerraformCommand = opts.RunOptions.TerraformCommand
 		cfgOptions.NonInteractive = true
 
@@ -311,7 +311,7 @@ func (modules TerraformModules) WriteDot(l log.Logger, w io.Writer, opts *option
 	}(w, []byte("}\n"))
 
 	// all paths are relative to the TerragruntConfigPath
-	prefix := filepath.Dir(opts.TerragruntConfigPath) + "/"
+	prefix := filepath.Dir(opts.ConfigOptions.TerragruntConfigPath) + "/"
 
 	for _, source := range modules {
 		// apply a different coloring for excluded nodes

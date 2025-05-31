@@ -383,7 +383,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	expected := configstack.TerraformModules{moduleM}
 
 	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	mockOptions.OriginalTerragruntConfigPath = childConfigPath
+	mockOptions.ConfigOptions.OriginalTerragruntConfigPath = childConfigPath
 
 	stack := configstack.NewStack(l, mockOptions, configstack.WithChildTerragruntConfig(childTerragruntConfig))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
