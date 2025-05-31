@@ -401,7 +401,7 @@ func getEnvironmentVariable(ctx *ParsingContext, l log.Logger, parameters []stri
 		return "", errors.New(err)
 	}
 
-	envValue, exists := ctx.TerragruntOptions.Env[parameterMap.Name]
+	envValue, exists := ctx.TerragruntOptions.RunOptions.Env[parameterMap.Name]
 
 	if !exists {
 		if parameterMap.IsRequired {
@@ -563,7 +563,7 @@ func PathRelativeFromInclude(ctx *ParsingContext, l log.Logger, params []string)
 
 // getTerraformCommand returns the current terraform command in execution
 func getTerraformCommand(ctx *ParsingContext, l log.Logger) (string, error) {
-	return ctx.TerragruntOptions.TerraformCommand, nil
+	return ctx.TerragruntOptions.RunOptions.TerraformCommand, nil
 }
 
 // getWorkingDir returns the current working dir
@@ -602,7 +602,7 @@ func getWorkingDir(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(ctx *ParsingContext, l log.Logger) ([]string, error) {
-	return ctx.TerragruntOptions.TerraformCliArgs, nil
+	return ctx.TerragruntOptions.RunOptions.TerraformCliArgs, nil
 }
 
 // getDefaultRetryableErrors returns default retryable errors
@@ -922,7 +922,7 @@ func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string
 	// for decryption, we have to rely on environment variables to pass these configurations.
 	// This can cause a race condition, so we have to be careful to avoid having anything else
 	// running concurrently that might interfere with the environment variables.
-	env := ctx.TerragruntOptions.Env
+	env := ctx.TerragruntOptions.RunOptions.Env
 	if len(env) > 0 {
 		locks.EnvLock.Lock()
 		defer locks.EnvLock.Unlock()

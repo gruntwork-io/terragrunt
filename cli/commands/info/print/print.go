@@ -52,8 +52,8 @@ func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
 		IAMRole:          opts.IAMRoleOptions.RoleARN,
-		TerraformBinary:  opts.TerraformPath,
-		TerraformCommand: opts.TerraformCommand,
+		TerraformBinary:  opts.RunOptions.TerraformPath,
+		TerraformCommand: opts.RunOptions.TerraformCommand,
 		WorkingDir:       opts.WorkingDir,
 	}
 

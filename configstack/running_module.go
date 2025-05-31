@@ -67,7 +67,7 @@ func newRunningModule(module *TerraformModule) *RunningModule {
 func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, semaphore chan struct{}) {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "wait_for_module_ready", map[string]any{
 		"path":             module.Module.Path,
-		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
+		"terraformCommand": module.Module.TerragruntOptions.RunOptions.TerraformCommand,
 	}, func(_ context.Context) error {
 		return module.waitForDependencies()
 	})
@@ -80,7 +80,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 	if err == nil {
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_module", map[string]any{
 			"path":             module.Module.Path,
-			"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
+			"terraformCommand": module.Module.TerragruntOptions.RunOptions.TerraformCommand,
 		}, func(ctx context.Context) error {
 			return module.runNow(ctx, opts)
 		})
@@ -146,8 +146,8 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			jsonOptions.LoggingOptions.ForwardTFStdout = true
 			jsonOptions.LoggingOptions.JSONLogFormat = false
 			jsonOptions.LoggingOptions.Writer = &stdout
-			jsonOptions.TerraformCommand = tf.CommandNameShow
-			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.planFile(l, rootOptions)}
+			jsonOptions.RunOptions.TerraformCommand = tf.CommandNameShow
+			jsonOptions.RunOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.planFile(l, rootOptions)}
 
 			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions); err != nil {
 				return err

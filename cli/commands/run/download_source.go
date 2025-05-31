@@ -111,7 +111,7 @@ func DownloadTerraformSourceIfNecessary(
 			return err
 		}
 
-		l.Debugf("%s files in %s are up to date. Will not download again.", opts.TerraformImplementation, terraformSource.WorkingDir)
+		l.Debugf("%s files in %s are up to date. Will not download again.", opts.RunOptions.TerraformImplementation, terraformSource.WorkingDir)
 
 		return nil
 	}
@@ -134,7 +134,7 @@ func DownloadTerraformSourceIfNecessary(
 		return err
 	}
 
-	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
+	terragruntOptionsForDownload.RunOptions.TerraformCommand = tf.CommandNameInitFromModule
 	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, func(_ context.Context) error {
 		return downloadSource(ctx, l, terraformSource, opts, cfg)
 	})

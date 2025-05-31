@@ -56,7 +56,7 @@ func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHo
 	errorMessage := customMultierror.Error()
 
 	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
+		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.RunOptions.TerraformCommand) {
 			l.Infof("Executing hook: %s", curHook.Name)
 
 			workingDir := ""
@@ -139,7 +139,7 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	//
 	// resolves: https://github.com/gruntwork-io/terragrunt/issues/459
 	hasErrors := previousExecErrors.ErrorOrNil() != nil
-	isCommandInHook := util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand)
+	isCommandInHook := util.ListContainsElement(hook.Commands, terragruntOptions.RunOptions.TerraformCommand)
 
 	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
 }
@@ -202,10 +202,10 @@ func executeTFLint(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 func terragruntOptionsWithHookEnvs(opts *options.TerragruntOptions, hookName string) *options.TerragruntOptions {
 	newOpts := *opts
-	newOpts.Env = cloner.Clone(opts.Env)
-	newOpts.Env[HookCtxTFPathEnvName] = opts.TerraformPath
-	newOpts.Env[HookCtxCommandEnvName] = opts.TerraformCommand
-	newOpts.Env[HookCtxHookNameEnvName] = hookName
+	newOpts.RunOptions.Env = cloner.Clone(opts.RunOptions.Env)
+	newOpts.RunOptions.Env[HookCtxTFPathEnvName] = opts.RunOptions.TerraformPath
+	newOpts.RunOptions.Env[HookCtxCommandEnvName] = opts.RunOptions.TerraformCommand
+	newOpts.RunOptions.Env[HookCtxHookNameEnvName] = hookName
 
 	return &newOpts
 }

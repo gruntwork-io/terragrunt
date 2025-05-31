@@ -13,7 +13,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 	if tfPath, err := getTfPathFromConfig(ctx, l, opts); err != nil {
 		return err
 	} else if tfPath != "" {
-		opts.TerraformPath = tfPath
+		opts.RunOptions.TerraformPath = tfPath
 	}
 
 	return tf.RunCommand(ctx, l, opts, tf.CommandNameVersion)

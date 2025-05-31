@@ -40,7 +40,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 
 		getter.obtainedCreds[provider.Name()] = creds
 
-		maps.Copy(opts.Env, creds.Envs)
+		maps.Copy(opts.RunOptions.Env, creds.Envs)
 	}
 
 	return nil

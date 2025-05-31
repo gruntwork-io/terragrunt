@@ -76,7 +76,7 @@ func RunCommandWithOutput(
 
 		if traceParent != "" {
 			l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
-			opts.Env[telemetry.TraceParentEnv] = traceParent
+			opts.RunOptions.Env[telemetry.TraceParentEnv] = traceParent
 		}
 
 		if suppressStdout {
@@ -85,7 +85,7 @@ func RunCommandWithOutput(
 			cmdStdout = io.MultiWriter(&output.Stdout)
 		}
 
-		if command == opts.TerraformPath {
+		if command == opts.RunOptions.TerraformPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 			if opts.Engine != nil && opts.EngineEnabled {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
@@ -119,7 +119,7 @@ func RunCommandWithOutput(
 		cmd.Configure(
 			exec.WithLogger(l),
 			exec.WithUsePTY(needsPTY),
-			exec.WithEnv(opts.Env),
+			exec.WithEnv(opts.RunOptions.Env),
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
 		)
 

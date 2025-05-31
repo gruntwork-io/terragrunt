@@ -573,7 +573,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 		AllocatePseudoTty: runOptions.AllocatePseudoTty,
 		WorkingDir:        runOptions.WorkingDir,
 		Meta:              meta,
-		EnvVars:           runOptions.TerragruntOptions.Env,
+		EnvVars:           runOptions.TerragruntOptions.RunOptions.Env,
 	})
 	if err != nil {
 		return nil, errors.New(err)
@@ -672,7 +672,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 	l.Debugf("Running init for engine in %s", runOptions.WorkingDir)
 
 	request, err := (*client).Init(ctx, &proto.InitRequest{
-		EnvVars:    runOptions.TerragruntOptions.Env,
+		EnvVars:    runOptions.TerragruntOptions.RunOptions.Env,
 		WorkingDir: runOptions.WorkingDir,
 		Meta:       meta,
 	})
@@ -709,7 +709,7 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 	request, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
 		WorkingDir: runOptions.WorkingDir,
 		Meta:       meta,
-		EnvVars:    runOptions.TerragruntOptions.Env,
+		EnvVars:    runOptions.TerragruntOptions.RunOptions.Env,
 	})
 
 	if err != nil {

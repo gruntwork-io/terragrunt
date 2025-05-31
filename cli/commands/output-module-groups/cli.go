@@ -49,7 +49,7 @@ func subCommandFunc(l log.Logger, cmd string, opts *options.TerragruntOptions) *
 		Usage:                        "Recursively find terragrunt modules in the current directory tree and output the dependency order as a list of list in JSON for the " + cmd,
 		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
-			opts.TerraformCommand = cmd
+			opts.RunOptions.TerraformCommand = cmd
 			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 	}

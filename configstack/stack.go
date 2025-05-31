@@ -161,7 +161,7 @@ func (stack *Stack) Graph(l log.Logger, opts *options.TerragruntOptions) {
 }
 
 func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	stackCmd := opts.TerraformCommand
+	stackCmd := opts.RunOptions.TerraformCommand
 
 	// prepare folder for output hierarchy if output folder is set
 	if opts.OutputFolder != "" {
@@ -180,7 +180,7 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
-		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
+		opts.RunOptions.TerraformCliArgs = util.StringListInsert(opts.RunOptions.TerraformCliArgs, "-input=false", 1)
 		stack.syncTerraformCliArgs(l, opts)
 	}
 
@@ -192,7 +192,7 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
 		if opts.RunAllAutoApprove {
-			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+			opts.RunOptions.TerraformCliArgs = util.StringListInsert(opts.RunOptions.TerraformCliArgs, "-auto-approve", 1)
 		}
 
 		stack.syncTerraformCliArgs(l, opts)
@@ -249,18 +249,18 @@ func (stack *Stack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Bu
 // Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
 func (stack *Stack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, module := range stack.Modules {
-		module.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
+		module.TerragruntOptions.RunOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.RunOptions.TerraformCliArgs)
 
 		planFile := module.planFile(l, opts)
 
 		if planFile != "" {
 			l.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
 
-			if module.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
+			if module.TerragruntOptions.RunOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
-				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, "-out="+planFile, len(module.TerragruntOptions.TerraformCliArgs))
+				module.TerragruntOptions.RunOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.RunOptions.TerraformCliArgs, "-out="+planFile, len(module.TerragruntOptions.RunOptions.TerraformCliArgs))
 			} else {
-				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, planFile, len(module.TerragruntOptions.TerraformCliArgs))
+				module.TerragruntOptions.RunOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.RunOptions.TerraformCliArgs, planFile, len(module.TerragruntOptions.RunOptions.TerraformCliArgs))
 			}
 		}
 	}
@@ -436,7 +436,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, l log.Logger, t
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result := withUnitsThatAreIncludedByOthers.flagExcludedUnits(l, stack.terragruntOptions)
+		result := withUnitsThatAreIncludedByOthers.flagExcludedUnits(l, stack.terragruntOptions.RunOptions)
 		withExcludedUnits = result
 
 		return nil
@@ -666,7 +666,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, l log.Logg
 		return TerraformModulesMap{}, nil
 	}
 
-	key := fmt.Sprintf("%s-%s-%v-%v", module.Path, stack.terragruntOptions.WorkingDir, skipExternal, stack.terragruntOptions.TerraformCommand)
+	key := fmt.Sprintf("%s-%s-%v-%v", module.Path, stack.terragruntOptions.WorkingDir, skipExternal, stack.terragruntOptions.RunOptions.TerraformCommand)
 	if value, ok := existingModules.Get(ctx, key); ok {
 		return *value, nil
 	}

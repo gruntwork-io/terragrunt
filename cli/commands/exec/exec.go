@@ -17,7 +17,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 
 	if !cmdOpts.InDownloadDir {
 		targetConfigPoint = run.TargetPointSetInputsAsEnvVars
-		opts.AutoInit = false
+		opts.RunOptions.AutoInit = false
 	}
 
 	target := run.NewTarget(targetConfigPoint, runTargetCommand(cmdOpts, args))

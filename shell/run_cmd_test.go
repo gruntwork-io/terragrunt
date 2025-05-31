@@ -36,7 +36,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
-	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "--version")
+	terragruntOptions.RunOptions.TerraformCliArgs = append(terragruntOptions.RunOptions.TerraformCliArgs, "--version")
 	terragruntOptions.LoggingOptions.Writer = stdout
 	terragruntOptions.LoggingOptions.ErrWriter = stderr
 
@@ -51,7 +51,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stdout = new(bytes.Buffer)
 	stderr = new(bytes.Buffer)
 
-	terragruntOptions.TerraformCliArgs = []string{}
+	terragruntOptions.RunOptions.TerraformCliArgs = []string{}
 	terragruntOptions.LoggingOptions.Writer = stderr
 	terragruntOptions.LoggingOptions.ErrWriter = stderr
 

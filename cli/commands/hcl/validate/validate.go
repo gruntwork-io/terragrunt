@@ -258,7 +258,7 @@ func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, c
 // variables. This will return the list of names of variables that are set in this way by the given terragrunt
 // configuration.
 func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
-	envVars := opts.Env
+	envVars := opts.RunOptions.Env
 
 	// Make sure to check if there are configured env vars in the parsed terragrunt config.
 	if terragruntConfig.Terraform != nil {
@@ -314,7 +314,7 @@ func getTerraformInputNamesFromVarFiles(l log.Logger, opts *options.TerragruntOp
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
 // config and those that are directly passed in via the CLI.
 func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
-	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.TerraformCliArgs)
+	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.RunOptions.TerraformCliArgs)
 	if err != nil {
 		return inputNames, err
 	}
