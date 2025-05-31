@@ -310,7 +310,7 @@ func runTerragruntWithConfig(
 
 		opts.RunOptions.InsertTerraformCliArgs(args...)
 
-		maps.Copy(opts.Env, filterTerraformEnvVarsFromExtraArgs(opts, cfg))
+		maps.Copy(opts.RunOptions.Env, filterTerraformEnvVarsFromExtraArgs(opts, cfg))
 	}
 
 	if err := SetTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
@@ -469,14 +469,14 @@ func SetTerragruntInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions,
 		return err
 	}
 
-	if opts.Env == nil {
-		opts.Env = map[string]string{}
+	if opts.RunOptions.Env == nil {
+		opts.RunOptions.Env = map[string]string{}
 	}
 
 	for key, value := range asEnvVars {
 		// Don't override any env vars the user has already set
-		if _, envVarAlreadySet := opts.Env[key]; !envVarAlreadySet {
-			opts.Env[key] = value
+		if _, envVarAlreadySet := opts.RunOptions.Env[key]; !envVarAlreadySet {
+			opts.RunOptions.Env[key] = value
 		}
 	}
 

@@ -202,10 +202,10 @@ func executeTFLint(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 func terragruntOptionsWithHookEnvs(opts *options.TerragruntOptions, hookName string) *options.TerragruntOptions {
 	newOpts := *opts
-	newOpts.Env = cloner.Clone(opts.Env)
-	newOpts.Env[HookCtxTFPathEnvName] = opts.RunOptions.TerraformPath
-	newOpts.Env[HookCtxCommandEnvName] = opts.RunOptions.TerraformCommand
-	newOpts.Env[HookCtxHookNameEnvName] = hookName
+	newOpts.RunOptions.Env = cloner.Clone(opts.RunOptions.Env)
+	newOpts.RunOptions.Env[HookCtxTFPathEnvName] = opts.RunOptions.TerraformPath
+	newOpts.RunOptions.Env[HookCtxCommandEnvName] = opts.RunOptions.TerraformCommand
+	newOpts.RunOptions.Env[HookCtxHookNameEnvName] = hookName
 
 	return &newOpts
 }

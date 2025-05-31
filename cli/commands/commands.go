@@ -213,7 +213,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	opts.RunOptions.TerraformCommand = cmdName
 	opts.RunOptions.TerraformCliArgs = args
 
-	opts.Env = env.Parse(os.Environ())
+	opts.RunOptions.Env = env.Parse(os.Environ())
 
 	// --- Working Dir
 	if opts.WorkingDir == "" {

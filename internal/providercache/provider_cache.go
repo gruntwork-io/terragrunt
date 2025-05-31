@@ -233,7 +233,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 	}
 
 	cloneOpts.WorkingDir = opts.WorkingDir
-	cloneOpts.Env = env
+	cloneOpts.RunOptions.Env = env
 
 	return tf.RunCommandWithOutput(ctx, l, cloneOpts, args...)
 }
@@ -328,7 +328,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	cloneOpts.LoggingOptions.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.RunOptions.TerraformCliArgs = args
-	cloneOpts.Env = envs
+	cloneOpts.RunOptions.Env = envs
 
 	output, err := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.RunOptions.TerraformCliArgs...)
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
@@ -346,8 +346,8 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
 func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
 	// make copy + ensure non-nil
-	envs := make(map[string]string, len(opts.Env))
-	for k, v := range opts.Env {
+	envs := make(map[string]string, len(opts.RunOptions.Env))
+	for k, v := range opts.RunOptions.Env {
 		envs[k] = v
 	}
 

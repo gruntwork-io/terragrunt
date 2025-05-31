@@ -401,7 +401,7 @@ func getEnvironmentVariable(ctx *ParsingContext, l log.Logger, parameters []stri
 		return "", errors.New(err)
 	}
 
-	envValue, exists := ctx.TerragruntOptions.Env[parameterMap.Name]
+	envValue, exists := ctx.TerragruntOptions.RunOptions.Env[parameterMap.Name]
 
 	if !exists {
 		if parameterMap.IsRequired {
@@ -922,7 +922,7 @@ func sopsDecryptFile(ctx *ParsingContext, l log.Logger, params []string) (string
 	// for decryption, we have to rely on environment variables to pass these configurations.
 	// This can cause a race condition, so we have to be careful to avoid having anything else
 	// running concurrently that might interfere with the environment variables.
-	env := ctx.TerragruntOptions.Env
+	env := ctx.TerragruntOptions.RunOptions.Env
 	if len(env) > 0 {
 		locks.EnvLock.Lock()
 		defer locks.EnvLock.Unlock()

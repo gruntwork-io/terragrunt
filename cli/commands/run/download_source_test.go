@@ -394,7 +394,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 	require.NoError(t, err)
 
 	terragruntOptions.SourceUpdate = sourceUpdate
-	terragruntOptions.Env = env.Parse(os.Environ())
+	terragruntOptions.RunOptions.Env = env.Parse(os.Environ())
 
 	terragruntConfig := &config.TerragruntConfig{
 		Terraform: &config.TerraformConfig{

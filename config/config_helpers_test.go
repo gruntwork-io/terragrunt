@@ -682,7 +682,7 @@ func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[st
 	t.Helper()
 
 	opts := terragruntOptionsForTest(t, configPath)
-	opts.Env = env
+	opts.RunOptions.Env = env
 	return opts
 }
 

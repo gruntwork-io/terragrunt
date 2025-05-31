@@ -72,8 +72,8 @@ func terragruntDebugFileContents(
 	moduleVariables []string,
 ) ([]byte, error) {
 	envVars := map[string]string{}
-	if opts.Env != nil {
-		envVars = opts.Env
+	if opts.RunOptions.Env != nil {
+		envVars = opts.RunOptions.Env
 	}
 
 	jsonValuesByKey := make(map[string]any)

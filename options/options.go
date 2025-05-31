@@ -112,8 +112,6 @@ type TerragruntOptions struct {
 	Errors *ErrorsConfig
 	// Map to replace terraform source locations.
 	SourceMap map[string]string
-	// Environment variables at runtime
-	Env map[string]string
 	// IAM Role options that should be used when authenticating to AWS.
 	IAMRoleOptions IAMRoleOptions
 	// IAM Role options set from command line.
@@ -292,18 +290,20 @@ type LoggingOptions struct {
 
 // RunOptions defines options for running Terraform/OpenTofu.
 type RunOptions struct {
+	// Environment variables at runtime
+	Env map[string]string
+	// Version of terraform (obtained by running 'terraform version')
+	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// Location of the terraform binary
 	TerraformPath string
 	// Current Terraform command being executed by Terragrunt
 	TerraformCommand string
 	// Original Terraform command being executed by Terragrunt.
 	OriginalTerraformCommand string
-	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs cli.Args
-	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
 	TerraformImplementation TerraformImplementationType
+	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
+	TerraformCliArgs cli.Args
 	// Whether we should automatically run terraform init if necessary when running other commands
 	AutoInit bool
 	// Disables validation terraform command
@@ -375,11 +375,11 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 			AutoInit:                true,
 			TerraformCliArgs:        []string{},
 			TerraformImplementation: UnknownImpl,
+			Env:                     map[string]string{},
 		},
 		ExcludesFile:                   defaultExcludesFile,
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
-		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
 		SourceUpdate:                   false,
@@ -570,7 +570,7 @@ func (opts *RunOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 
 // TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
 func (opts *TerragruntOptions) TerraformDataDir() string {
-	if tfDataDir, ok := opts.Env["TF_DATA_DIR"]; ok {
+	if tfDataDir, ok := opts.RunOptions.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
 

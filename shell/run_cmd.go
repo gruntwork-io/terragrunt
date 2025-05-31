@@ -76,7 +76,7 @@ func RunCommandWithOutput(
 
 		if traceParent != "" {
 			l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
-			opts.Env[telemetry.TraceParentEnv] = traceParent
+			opts.RunOptions.Env[telemetry.TraceParentEnv] = traceParent
 		}
 
 		if suppressStdout {
@@ -119,7 +119,7 @@ func RunCommandWithOutput(
 		cmd.Configure(
 			exec.WithLogger(l),
 			exec.WithUsePTY(needsPTY),
-			exec.WithEnv(opts.Env),
+			exec.WithEnv(opts.RunOptions.Env),
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
 		)
 

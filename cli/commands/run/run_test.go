@@ -70,14 +70,14 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
-			opts.Env = tc.envVarsInOpts
+			opts.RunOptions.Env = tc.envVarsInOpts
 
 			cfg := &config.TerragruntConfig{Inputs: tc.inputsInConfig}
 
 			l := logger.CreateLogger()
 			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg))
 
-			assert.Equal(t, tc.expected, opts.Env)
+			assert.Equal(t, tc.expected, opts.RunOptions.Env)
 		})
 	}
 }

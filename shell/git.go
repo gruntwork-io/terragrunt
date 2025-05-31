@@ -37,7 +37,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, terragruntOptions *option
 		return "", err
 	}
 
-	opts.Env = terragruntOptions.Env
+	opts.RunOptions.Env = terragruntOptions.RunOptions.Env
 	opts.LoggingOptions.Writer = &stdout
 	opts.LoggingOptions.ErrWriter = &stderr
 
@@ -67,7 +67,7 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return nil, err
 	}
 
-	gitOpts.Env = opts.Env
+	gitOpts.RunOptions.Env = opts.RunOptions.Env
 	gitOpts.LoggingOptions.Writer = &stdout
 	gitOpts.LoggingOptions.ErrWriter = &stderr
 

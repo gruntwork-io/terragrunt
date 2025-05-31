@@ -250,7 +250,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 			continue
 		}
 
-		cfgOptions.Env = opts.Env
+		cfgOptions.RunOptions.Env = opts.RunOptions.Env
 		cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 		cfgOptions.RunOptions.TerraformCommand = opts.RunOptions.TerraformCommand
 		cfgOptions.NonInteractive = true

@@ -1158,7 +1158,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
-	terragruntOptions.Env["TF_DATA_DIR"] = ".tf_data"
+	terragruntOptions.RunOptions.Env["TF_DATA_DIR"] = ".tf_data"
 
 	actual, err := config.FindConfigFilesInPath("../test/fixtures/config-files/ignore-terraform-data-dir", terragruntOptions)
 
@@ -1176,7 +1176,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
-	terragruntOptions.Env["TF_DATA_DIR"] = "subdir/.tf_data"
+	terragruntOptions.RunOptions.Env["TF_DATA_DIR"] = "subdir/.tf_data"
 
 	actual, err := config.FindConfigFilesInPath("../test/fixtures/config-files/ignore-terraform-data-dir", terragruntOptions)
 
@@ -1193,7 +1193,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	workingDir := filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/")
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
 	require.NoError(t, err)
-	terragruntOptions.Env["TF_DATA_DIR"] = filepath.Join(workingDir, ".tf_data")
+	terragruntOptions.RunOptions.Env["TF_DATA_DIR"] = filepath.Join(workingDir, ".tf_data")
 
 	actual, err := config.FindConfigFilesInPath(workingDir, terragruntOptions)
 	require.NoError(t, err, "Unexpected error: %v", err)
