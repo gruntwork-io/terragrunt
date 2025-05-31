@@ -214,7 +214,7 @@ func (c *DiscoveredConfig) ContainsDependencyInAncestry(path string) bool {
 // Parse parses the discovered configurations.
 func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool) error {
 	parseOpts := opts.Clone()
-	parseOpts.WorkingDir = c.Path
+	parseOpts.DirOptions.WorkingDir = c.Path
 
 	// Suppress logging to avoid cluttering the output.
 	parseOpts.LoggingOptions.Writer = io.Discard
@@ -227,7 +227,7 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		filename = config.DefaultStackFile
 	}
 
-	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, filename)
+	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.DirOptions.WorkingDir, filename)
 
 	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
 		config.DependenciesBlock,

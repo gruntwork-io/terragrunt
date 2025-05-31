@@ -137,7 +137,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
-			opts.WorkingDir = tc.workingDir
+			opts.DirOptions.WorkingDir = tc.workingDir
 			err = run.CheckFolderContainsTerraformCode(opts)
 			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
@@ -480,7 +480,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 		t.Fatalf("error: %v\n", errors.New(err))
 	}
 
-	opts.WorkingDir = workingDir
+	opts.DirOptions.WorkingDir = workingDir
 	opts.RunOptions.TerraformCliArgs = terraformCliArgs
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource

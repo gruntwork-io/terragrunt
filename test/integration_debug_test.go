@@ -53,7 +53,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	// without going through terragrunt.
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	require.NoError(t, err)
-	mockOptions.WorkingDir = rootPath
+	mockOptions.DirOptions.WorkingDir = rootPath
 
 	l := logger.CreateLogger()
 

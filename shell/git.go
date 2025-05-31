@@ -62,7 +62,7 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.WorkingDir)
+	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.DirOptions.WorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	gitOpts.LoggingOptions.Writer = &stdout
 	gitOpts.LoggingOptions.ErrWriter = &stderr
 
-	output, err := RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	output, err := RunCommandWithOutput(ctx, l, opts, opts.DirOptions.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}

@@ -96,7 +96,7 @@ func CheckVersionConstraints(ctx context.Context, l log.Logger, terragruntOption
 // The caller also gets a copy of the logger with the config path set.
 func PopulateTerraformVersion(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (log.Logger, error) {
 	versionCache := GetRunVersionCache(ctx)
-	cacheKey := computeVersionFilesCacheKey(terragruntOptions.WorkingDir)
+	cacheKey := computeVersionFilesCacheKey(terragruntOptions.DirOptions.WorkingDir)
 
 	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
 		terraformVersion, err := ParseTerraformVersion(cachedOutput)

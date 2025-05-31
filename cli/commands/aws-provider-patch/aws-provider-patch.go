@@ -110,7 +110,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 		if module.Key != "" && module.Dir != "" {
 			moduleAbsPath := module.Dir
 			if !filepath.IsAbs(moduleAbsPath) {
-				moduleAbsPath = util.JoinPath(opts.WorkingDir, moduleAbsPath)
+				moduleAbsPath = util.JoinPath(opts.DirOptions.WorkingDir, moduleAbsPath)
 			}
 
 			// Ideally, we'd use a builtin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,

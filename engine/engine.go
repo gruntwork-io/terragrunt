@@ -85,7 +85,7 @@ func Run(
 		return nil, errors.New(err)
 	}
 
-	workingDir := runOptions.TerragruntOptions.WorkingDir
+	workingDir := runOptions.TerragruntOptions.DirOptions.WorkingDir
 	instance, found := engineClients.Load(workingDir)
 	// initialize engine for working directory
 	if !found {
@@ -616,13 +616,13 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 		return nil, errors.New(err)
 	}
 
-	l.Debugf("Engine execution done in %v", opts.WorkingDir)
+	l.Debugf("Engine execution done in %v", opts.DirOptions.WorkingDir)
 
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
 			Err:            errors.Errorf("command failed with exit code %d", resultCode),
 			Output:         output,
-			WorkingDir:     opts.WorkingDir,
+			WorkingDir:     opts.DirOptions.WorkingDir,
 			Command:        runOptions.Command,
 			Args:           runOptions.Args,
 			DisableSummary: opts.LoggingOptions.LogDisableErrorSummary,

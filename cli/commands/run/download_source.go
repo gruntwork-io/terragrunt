@@ -38,7 +38,7 @@ const fileURIScheme = "file://"
 func downloadTerraformSource(ctx context.Context, l log.Logger, source string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
-	terraformSource, err := tf.NewSource(l, source, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
+	terraformSource, err := tf.NewSource(l, source, opts.DirOptions.DownloadDir, opts.DirOptions.WorkingDir, walkWithSymlinks)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func downloadTerraformSource(ctx context.Context, l log.Logger, source string, o
 		return nil, err
 	}
 
-	l.Debugf("Copying files from %s into %s", opts.WorkingDir, terraformSource.WorkingDir)
+	l.Debugf("Copying files from %s into %s", opts.DirOptions.WorkingDir, terraformSource.WorkingDir)
 
 	var includeInCopy, excludeFromCopy []string
 
@@ -64,7 +64,7 @@ func downloadTerraformSource(ctx context.Context, l log.Logger, source string, o
 
 	err = util.CopyFolderContents(
 		l,
-		opts.WorkingDir,
+		opts.DirOptions.WorkingDir,
 		terraformSource.WorkingDir,
 		ModuleManifestName,
 		includeInCopy,
@@ -80,7 +80,7 @@ func downloadTerraformSource(ctx context.Context, l log.Logger, source string, o
 	}
 
 	l.Debugf("Setting working directory to %s", terraformSource.WorkingDir)
-	updatedTerragruntOptions.WorkingDir = terraformSource.WorkingDir
+	updatedTerragruntOptions.DirOptions.WorkingDir = terraformSource.WorkingDir
 
 	return updatedTerragruntOptions, nil
 }

@@ -175,8 +175,8 @@ func run(ctx context.Context, l log.Logger, terragruntOptions *options.Terragrun
 
 	// if the download dir hasn't been changed from default, and is set in the config,
 	// then use it
-	if terragruntOptions.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
-		terragruntOptions.DownloadDir = terragruntConfig.DownloadDir
+	if terragruntOptions.DirOptions.DownloadDir == defaultDownloadDir && terragruntConfig.DownloadDir != "" {
+		terragruntOptions.DirOptions.DownloadDir = terragruntConfig.DownloadDir
 	}
 
 	// Override the default value of retryable errors using the value set in the config file
@@ -265,13 +265,13 @@ func run(ctx context.Context, l log.Logger, terragruntOptions *options.Terragrun
 }
 
 func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
+	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DirOptions.DownloadDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	defer actualLock.Unlock()
 	actualLock.Lock()
 
 	for _, config := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts, opts.WorkingDir, config); err != nil {
+		if err := codegen.WriteToFile(l, opts, opts.DirOptions.WorkingDir, config); err != nil {
 			return err
 		}
 	}
@@ -367,7 +367,7 @@ func runTerragruntWithConfig(
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			lockFileError = config.CopyLockFile(l, opts, opts.WorkingDir, originalOpts.WorkingDir)
+			lockFileError = config.CopyLockFile(l, opts, opts.DirOptions.WorkingDir, originalOpts.DirOptions.WorkingDir)
 		}
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
@@ -488,7 +488,7 @@ func RunTerraformWithRetry(ctx context.Context, l log.Logger, terragruntOptions 
 	for range terragruntOptions.RetryMaxAttempts {
 		if out, err := tf.RunCommandWithOutput(ctx, l, terragruntOptions, terragruntOptions.RunOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
-				l.Errorf("%s invocation failed in %s", terragruntOptions.RunOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+				l.Errorf("%s invocation failed in %s", terragruntOptions.RunOptions.TerraformImplementation, terragruntOptions.DirOptions.WorkingDir)
 
 				return err
 			} else {
@@ -548,7 +548,7 @@ func prepareInitCommand(ctx context.Context, l log.Logger, terragruntOptions *op
 func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	found := false
 
-	err := filepath.WalkDir(terragruntOptions.WorkingDir, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(terragruntOptions.DirOptions.WorkingDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -571,7 +571,7 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 	}
 
 	if !found {
-		return errors.New(NoTerraformFilesFound(terragruntOptions.WorkingDir))
+		return errors.New(NoTerraformFilesFound(terragruntOptions.DirOptions.WorkingDir))
 	}
 
 	return nil
@@ -602,7 +602,7 @@ func checkTerraformCodeDefinesBackend(opts *options.TerragruntOptions, backendTy
 		return errors.New(err)
 	}
 
-	definesBackend, err := util.Grep(terraformBackendRegexp, opts.WorkingDir+"/**/*.tf")
+	definesBackend, err := util.Grep(terraformBackendRegexp, opts.DirOptions.WorkingDir+"/**/*.tf")
 	if err != nil {
 		return err
 	}
@@ -616,7 +616,7 @@ func checkTerraformCodeDefinesBackend(opts *options.TerragruntOptions, backendTy
 		return errors.New(err)
 	}
 
-	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, opts.WorkingDir+"/**/*.tf.json")
+	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, opts.DirOptions.WorkingDir+"/**/*.tf.json")
 	if err != nil {
 		return err
 	}
@@ -672,7 +672,7 @@ func needsInit(ctx context.Context, l log.Logger, terragruntOptions *options.Ter
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 	pluginsPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
 	providersPath := util.JoinPath(terragruntOptions.DataDir(), "providers")
-	terraformLockPath := util.JoinPath(terragruntOptions.WorkingDir, tf.TerraformLockFile)
+	terraformLockPath := util.JoinPath(terragruntOptions.DirOptions.WorkingDir, tf.TerraformLockFile)
 
 	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
@@ -706,7 +706,7 @@ func runTerraformInit(ctx context.Context, l log.Logger, originalTerragruntOptio
 		return err
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := util.JoinPath(terragruntOptions.DirOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return os.Remove(moduleNeedInit)
 	}
@@ -722,7 +722,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 	}
 
 	initOptions.RunOptions.TerraformCliArgs = []string{tf.CommandNameInit}
-	initOptions.WorkingDir = terragruntOptions.WorkingDir
+	initOptions.DirOptions.WorkingDir = terragruntOptions.DirOptions.WorkingDir
 	initOptions.RunOptions.TerraformCommand = tf.CommandNameInit
 	initOptions.LoggingOptions.Headless = true
 
@@ -751,12 +751,12 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 		return false, nil
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := util.JoinPath(terragruntOptions.DirOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return true, nil
 	}
 
-	return util.Grep(ModuleRegex, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TerraformExtensionGlob))
+	return util.Grep(ModuleRegex, fmt.Sprintf("%s/%s", terragruntOptions.DirOptions.WorkingDir, TerraformExtensionGlob))
 }
 
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
@@ -919,7 +919,7 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 		return "", errors.New(err)
 	}
 
-	varFile := filepath.Join(terragruntOptions.WorkingDir, NullTFVarsFile)
+	varFile := filepath.Join(terragruntOptions.DirOptions.WorkingDir, NullTFVarsFile)
 
 	const ownerReadWritePermissions = 0600
 	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {

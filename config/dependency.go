@@ -241,7 +241,7 @@ func decodeDependencies(ctx *ParsingContext, l log.Logger, decodedDependency Ter
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
-			cacheKey := ctx.TerragruntOptions.WorkingDir + depPath
+			cacheKey := ctx.TerragruntOptions.DirOptions.WorkingDir + depPath
 
 			cachedDependency, found := depCache.Get(ctx, cacheKey)
 			if !found {
@@ -662,9 +662,9 @@ func cloneTerragruntOptionsForDependency(ctx *ParsingContext, l log.Logger, targ
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath
 
 	// `needUpdateDownloadDir` is true if `DownloadDir` was not explicitly specified by the user and we need to assign the default download dir, otherwise leave as is.
-	needUpdateDownloadDir := filepath.Join(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), util.TerragruntCacheDir) == ctx.TerragruntOptions.DownloadDir
+	needUpdateDownloadDir := filepath.Join(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), util.TerragruntCacheDir) == ctx.TerragruntOptions.DirOptions.DownloadDir
 	if needUpdateDownloadDir {
-		targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
+		targetOptions.DirOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
 	}
 
 	// Clear IAMRoleOptions in case if it is different from one passed through CLI to allow dependencies to define own iam roles
@@ -696,13 +696,13 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	}
 
 	// Using default, so compute new download dir and update
-	if ctx.TerragruntOptions.DownloadDir == originalDefaultDownloadDir {
+	if ctx.TerragruntOptions.DirOptions.DownloadDir == originalDefaultDownloadDir {
 		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
 		if err != nil {
 			return l, nil, errors.New(err)
 		}
 
-		targetOptions.DownloadDir = downloadDir
+		targetOptions.DirOptions.DownloadDir = downloadDir
 	}
 
 	targetParsingContext := ctx.WithTerragruntOptions(targetOptions)
@@ -857,7 +857,7 @@ func terragruntAlreadyInit(l log.Logger, opts *options.TerragruntOptions, config
 	} else {
 		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
-		terraformSource, err := tf.NewSource(l, sourceURL, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
+		terraformSource, err := tf.NewSource(l, sourceURL, opts.DirOptions.DownloadDir, opts.DirOptions.WorkingDir, walkWithSymlinks)
 		if err != nil {
 			return false, "", err
 		}
@@ -917,11 +917,11 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Create working directory where we will run terraform in. We will create the temporary directory in the download
 	// directory for consistency with other file generation capabilities of terragrunt. Make sure it is cleaned up
 	// before the function returns.
-	if err := util.EnsureDirectory(ctx.TerragruntOptions.DownloadDir); err != nil {
+	if err := util.EnsureDirectory(ctx.TerragruntOptions.DirOptions.DownloadDir); err != nil {
 		return nil, err
 	}
 
-	tempWorkDir, err := os.MkdirTemp(ctx.TerragruntOptions.DownloadDir, "")
+	tempWorkDir, err := os.MkdirTemp(ctx.TerragruntOptions.DirOptions.DownloadDir, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1069,7 +1069,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, l log.Logger, w
 		return nil, err
 	}
 
-	targetTGOptions.WorkingDir = workingDir
+	targetTGOptions.DirOptions.WorkingDir = workingDir
 	targetTGOptions.LoggingOptions.Writer = io.Discard
 	targetTGOptions.Engine = ctx.TerragruntOptions.Engine
 
@@ -1176,7 +1176,7 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, l log.Logger, work
 		return err
 	}
 
-	initTGOptions.WorkingDir = workingDir
+	initTGOptions.DirOptions.WorkingDir = workingDir
 	initTGOptions.LoggingOptions.ErrWriter = &stderr
 
 	if err = tf.RunCommand(ctx, l, initTGOptions, tf.CommandNameInit, "-get=false"); err != nil {

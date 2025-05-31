@@ -56,7 +56,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	variables = append(variables, tfVariables...)
 
-	l.Debugf("Initializing tflint in directory %s", opts.WorkingDir)
+	l.Debugf("Initializing tflint in directory %s", opts.DirOptions.WorkingDir)
 
 	cli, err := cmd.NewCLI(opts.LoggingOptions.Writer, opts.LoggingOptions.ErrWriter)
 	if err != nil {
@@ -66,11 +66,11 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	tflintArgs, externalTfLint := tflintArguments(hook.Execute[1:])
 
 	// tflint init
-	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.WorkingDir}
+	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.DirOptions.WorkingDir}
 	if externalTfLint {
 		l.Debugf("Running external tflint init with args %v", initArgs)
 
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
+		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.DirOptions.WorkingDir, false, false,
 			initArgs[0], initArgs[1:]...)
 		if err != nil {
 			return errors.New(ErrorRunningTflint{args: initArgs})
@@ -88,7 +88,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	args := []string{
 		"tflint",
 		"--config", configFile,
-		"--chdir", opts.WorkingDir,
+		"--chdir", opts.DirOptions.WorkingDir,
 	}
 	args = append(args, variables...)
 	args = append(args, tflintArgs...)
@@ -96,7 +96,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	if externalTfLint {
 		l.Debugf("Running external tflint with args %v", args)
 
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
+		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.DirOptions.WorkingDir, false, false,
 			args[0], args[1:]...)
 		if err != nil {
 			return errors.New(ErrorRunningTflint{args: args})
@@ -239,7 +239,7 @@ func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
 
 // findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
 func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (string, error) {
-	previousDir := opts.WorkingDir
+	previousDir := opts.DirOptions.WorkingDir
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check

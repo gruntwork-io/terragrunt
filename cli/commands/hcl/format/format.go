@@ -35,7 +35,7 @@ var excludePaths = []string{
 }
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	workingDir := opts.WorkingDir
+	workingDir := opts.DirOptions.WorkingDir
 	targetFile := opts.HclFile
 	stdIn := opts.HclFromStdin
 
@@ -58,7 +58,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return formatTgHCL(l, opts, targetFile)
 	}
 
-	l.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
+	l.Debugf("Formatting hcl files from the directory tree %s.", opts.DirOptions.WorkingDir)
 	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
