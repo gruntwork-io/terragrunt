@@ -204,7 +204,7 @@ func TestRunCommand(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 
-		t.Run(tc.terragruntOptions.ConfigOptions.TerragruntConfigPath, func(t *testing.T) {
+		t.Run(tc.terragruntOptions.Config.TerragruntConfigPath, func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
@@ -387,7 +387,7 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		// get updated due to concurrency within the scope of t.Run(..) below
 		tc := tc
 
-		t.Run(fmt.Sprintf("%s--%s", tc.str, tc.terragruntOptions.ConfigOptions.TerragruntConfigPath), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s--%s", tc.str, tc.terragruntOptions.Config.TerragruntConfigPath), func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
@@ -565,7 +565,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 
 	for _, cliArgs := range [][]string{nil, {}, {"apply"}, {"plan", "-out=planfile"}} {
 		opts := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-		opts.RunOptions.TerraformCliArgs = cliArgs
+		opts.Run.TerraformCliArgs = cliArgs
 		expectedFooInput := cliArgs
 		// Expecting nil to be returned for get_terraform_cli_args() call for
 		// either nil or empty array of input args
@@ -682,7 +682,7 @@ func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[st
 	t.Helper()
 
 	opts := terragruntOptionsForTest(t, configPath)
-	opts.RunOptions.Env = env
+	opts.Run.Env = env
 	return opts
 }
 
@@ -805,7 +805,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
 			l := logger.CreateLogger()
 			ctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
-			actual, err := config.ParseConfigString(ctx, l, terragruntOptions.ConfigOptions.TerragruntConfigPath, configString, nil)
+			actual, err := config.ParseConfigString(ctx, l, terragruntOptions.Config.TerragruntConfigPath, configString, nil)
 			require.NoError(t, err, "For hcl '%s' include %v and options %v, unexpected error: %v", tc.input, nil, terragruntOptions, err)
 
 			assert.NotNil(t, actual)

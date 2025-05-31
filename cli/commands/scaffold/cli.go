@@ -39,7 +39,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 					return errors.New("root-file-name flag cannot be empty")
 				}
 
-				if value != opts.ConfigOptions.TerragruntConfigPath {
+				if value != opts.Config.TerragruntConfigPath {
 					opts.ScaffoldRootFileName = value
 
 					return nil
@@ -114,7 +114,7 @@ func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions
 
 	// Check to see if you can find the recommended parent config name first,
 	// if a user has it defined, go ahead and use it.
-	dir := opts.DirOptions.WorkingDir
+	dir := opts.Dir.WorkingDir
 
 	prevDir := ""
 	for foldersToCheck := opts.MaxFoldersToCheck; dir != prevDir && dir != "" && foldersToCheck > 0; foldersToCheck-- {

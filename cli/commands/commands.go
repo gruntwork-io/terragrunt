@@ -128,10 +128,10 @@ func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
 func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.RunOptions.TerraformCommand), map[string]any{
-			"terraformCommand": opts.RunOptions.TerraformCommand,
-			"args":             opts.RunOptions.TerraformCliArgs,
-			"dir":              opts.DirOptions.WorkingDir,
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.Run.TerraformCommand), map[string]any{
+			"terraformCommand": opts.Run.TerraformCommand,
+			"args":             opts.Run.TerraformCliArgs,
+			"dir":              opts.Dir.WorkingDir,
 		}, func(childCtx context.Context) error {
 			ctx.Context = childCtx //nolint:fatcontext
 			if err := initialSetup(ctx, l, opts); err != nil {
@@ -210,68 +210,68 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		args = append(args, tf.FlagNameNoColor)
 	}
 
-	opts.RunOptions.TerraformCommand = cmdName
-	opts.RunOptions.TerraformCliArgs = args
+	opts.Run.TerraformCommand = cmdName
+	opts.Run.TerraformCliArgs = args
 
-	opts.RunOptions.Env = env.Parse(os.Environ())
+	opts.Run.Env = env.Parse(os.Environ())
 
 	// --- Working Dir
-	if opts.DirOptions.WorkingDir == "" {
+	if opts.Dir.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return errors.New(err)
 		}
 
-		opts.DirOptions.WorkingDir = currentDir
+		opts.Dir.WorkingDir = currentDir
 	}
 
-	opts.DirOptions.WorkingDir = filepath.ToSlash(opts.DirOptions.WorkingDir)
+	opts.Dir.WorkingDir = filepath.ToSlash(opts.Dir.WorkingDir)
 
-	workingDir, err := filepath.Abs(opts.DirOptions.WorkingDir)
+	workingDir, err := filepath.Abs(opts.Dir.WorkingDir)
 	if err != nil {
 		return errors.New(err)
 	}
 
 	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 
-	opts.DirOptions.RootWorkingDir = filepath.ToSlash(workingDir)
+	opts.Dir.RootWorkingDir = filepath.ToSlash(workingDir)
 
-	if err := l.Formatter().SetBaseDir(opts.DirOptions.RootWorkingDir); err != nil {
+	if err := l.Formatter().SetBaseDir(opts.Dir.RootWorkingDir); err != nil {
 		return err
 	}
 
-	if opts.LoggingOptions.LogShowAbsPaths {
+	if opts.Logging.LogShowAbsPaths {
 		l.Formatter().DisableRelativePaths()
 	}
 
 	// --- Download Dir
-	if opts.DirOptions.DownloadDir == "" {
-		opts.DirOptions.DownloadDir = util.JoinPath(opts.DirOptions.WorkingDir, util.TerragruntCacheDir)
+	if opts.Dir.DownloadDir == "" {
+		opts.Dir.DownloadDir = util.JoinPath(opts.Dir.WorkingDir, util.TerragruntCacheDir)
 	}
 
-	downloadDir, err := filepath.Abs(opts.DirOptions.DownloadDir)
+	downloadDir, err := filepath.Abs(opts.Dir.DownloadDir)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	opts.DirOptions.DownloadDir = filepath.ToSlash(downloadDir)
+	opts.Dir.DownloadDir = filepath.ToSlash(downloadDir)
 
 	// --- Terragrunt ConfigPath
-	if opts.ConfigOptions.TerragruntConfigPath == "" {
-		opts.ConfigOptions.TerragruntConfigPath = config.GetDefaultConfigPath(opts.DirOptions.WorkingDir)
-	} else if !filepath.IsAbs(opts.ConfigOptions.TerragruntConfigPath) &&
+	if opts.Config.TerragruntConfigPath == "" {
+		opts.Config.TerragruntConfigPath = config.GetDefaultConfigPath(opts.Dir.WorkingDir)
+	} else if !filepath.IsAbs(opts.Config.TerragruntConfigPath) &&
 		(cliCtx.Command.Name == runCmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
-		opts.ConfigOptions.TerragruntConfigPath = util.JoinPath(opts.DirOptions.WorkingDir, opts.ConfigOptions.TerragruntConfigPath)
+		opts.Config.TerragruntConfigPath = util.JoinPath(opts.Dir.WorkingDir, opts.Config.TerragruntConfigPath)
 	}
 
-	opts.ConfigOptions.TerragruntConfigPath, err = filepath.Abs(opts.ConfigOptions.TerragruntConfigPath)
+	opts.Config.TerragruntConfigPath, err = filepath.Abs(opts.Config.TerragruntConfigPath)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	opts.RunOptions.TerraformPath = filepath.ToSlash(opts.RunOptions.TerraformPath)
+	opts.Run.TerraformPath = filepath.ToSlash(opts.Run.TerraformPath)
 
-	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.DirOptions.WorkingDir, opts.ExcludeDirs...)
+	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.Dir.WorkingDir, opts.ExcludeDirs...)
 	if err != nil {
 		return err
 	}
@@ -300,12 +300,12 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.ExcludeByDefault = true
 	}
 
-	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.DirOptions.WorkingDir, opts.IncludeDirs...)
+	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.Dir.WorkingDir, opts.IncludeDirs...)
 	if err != nil {
 		return err
 	}
 
-	excludeDirs, err := util.GetExcludeDirsFromFile(opts.DirOptions.WorkingDir, opts.ExcludesFile)
+	excludeDirs, err := util.GetExcludeDirsFromFile(opts.Dir.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
@@ -331,11 +331,11 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		opts.Parallelism = 1
 	}
 
-	opts.ConfigOptions.OriginalTerragruntConfigPath = opts.ConfigOptions.TerragruntConfigPath
-	opts.RunOptions.OriginalTerraformCommand = opts.RunOptions.TerraformCommand
+	opts.Config.OriginalTerragruntConfigPath = opts.Config.TerragruntConfigPath
+	opts.Run.OriginalTerraformCommand = opts.Run.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
-	opts.RunTerragrunt = runCmd.Run
+	opts.RunCommand = runCmd.Run
 
 	exec.PrepareConsole(l)
 

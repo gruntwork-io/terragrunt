@@ -40,7 +40,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 		t.Fatalf("Failed when calling method under test: %s\n", err.Error())
 	}
 
-	terragruntOptions.DirOptions.WorkingDir = envFolder
+	terragruntOptions.Dir.WorkingDir = envFolder
 
 	stack, err := configstack.FindStackInSubfolders(t.Context(), logger.CreateLogger(), terragruntOptions)
 	require.NoError(t, err)
@@ -257,8 +257,11 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
-		TerragruntOptions: opts,
-		Logger:            l,
+		Dir:           opts.Dir,
+		Run:           opts.Run,
+		ConfigOptions: opts.Config,
+		Logging:       opts.Logging,
+		Logger:        l,
 	}
 
 	configPaths := []string{"../test/fixtures/modules/json-module-a/" + config.DefaultTerragruntJSONConfigPath}
@@ -383,7 +386,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	expected := configstack.TerraformModules{moduleM}
 
 	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
-	mockOptions.ConfigOptions.OriginalTerragruntConfigPath = childConfigPath
+	mockOptions.Config.OriginalTerragruntConfigPath = childConfigPath
 
 	stack := configstack.NewStack(l, mockOptions, configstack.WithChildTerragruntConfig(childTerragruntConfig))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)

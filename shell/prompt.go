@@ -12,18 +12,24 @@ import (
 )
 
 // PromptUserForInput prompts the user for text in the CLI. Returns the text entered by the user.
-func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, opts *options.TerragruntOptions) (string, error) {
+func PromptUserForInput(
+	ctx context.Context,
+	l log.Logger,
+	prompt string,
+	logging *options.LoggingOptions,
+	nonInteractive bool,
+) (string, error) {
 	// We are writing directly to ErrWriter so the prompt is always visible
 	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and
 	// a message about assuming `yes` to Debug, so
-	if opts.NonInteractive {
+	if nonInteractive {
 		l.Debugf(prompt)
 		l.Debugf("The non-interactive flag is set to true, so assuming 'yes' for all prompts")
 
 		return "yes", nil
 	}
 
-	n, err := opts.LoggingOptions.ErrWriter.Write([]byte(prompt))
+	n, err := logging.ErrWriter.Write([]byte(prompt))
 	if err != nil {
 		l.Error(err)
 
@@ -61,8 +67,14 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, opts *
 }
 
 // PromptUserForYesNo prompts the user for a yes/no response and return true if they entered yes.
-func PromptUserForYesNo(ctx context.Context, l log.Logger, prompt string, opts *options.TerragruntOptions) (bool, error) {
-	resp, err := PromptUserForInput(ctx, l, prompt+" (y/n) ", opts)
+func PromptUserForYesNo(
+	ctx context.Context,
+	l log.Logger,
+	prompt string,
+	logging *options.LoggingOptions,
+	nonInteractive bool,
+) (bool, error) {
+	resp, err := PromptUserForInput(ctx, l, prompt+" (y/n) ", logging, nonInteractive)
 	if err != nil {
 		return false, errors.New(err)
 	}

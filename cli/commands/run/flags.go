@@ -136,7 +136,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        ConfigFlagName,
 			EnvVars:     tgPrefix.EnvVars(ConfigFlagName),
-			Destination: &opts.ConfigOptions.TerragruntConfigPath,
+			Destination: &opts.Config.TerragruntConfigPath,
 			Usage:       "The path to the Terragrunt config file. Default is terragrunt.hcl.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("config"), terragruntPrefixControl)),
@@ -148,7 +148,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(NoAutoInitFlagName),
 			Usage:       "Don't automatically run 'terraform/tofu init' during other terragrunt commands. You must run 'terragrunt init' manually.",
 			Negative:    true,
-			Destination: &opts.RunOptions.AutoInit,
+			Destination: &opts.Run.AutoInit,
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("no-auto-init"), terragruntPrefixControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
@@ -182,7 +182,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        DownloadDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(DownloadDirFlagName),
-			Destination: &opts.DirOptions.DownloadDir,
+			Destination: &opts.Dir.DownloadDir,
 			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.",
 		}, flags.WithDeprecatedNamesEnvVars(
 			terragruntPrefix.FlagNames("download-dir"),
@@ -318,7 +318,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InputsDebugFlagName,
 			EnvVars:     tgPrefix.EnvVars(InputsDebugFlagName),
-			Destination: &opts.LoggingOptions.Debug,
+			Destination: &opts.Logging.Debug,
 			Usage:       "Write debug.tfvars to working folder to help root-cause issues.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("debug"), terragruntPrefixControl)),
@@ -342,7 +342,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        TFForwardStdoutFlagName,
 			EnvVars:     tgPrefix.EnvVars(TFForwardStdoutFlagName),
-			Destination: &opts.LoggingOptions.ForwardTFStdout,
+			Destination: &opts.Logging.ForwardTFStdout,
 			Usage:       "If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("forward-tf-stdout"), terragruntPrefixControl),
@@ -407,7 +407,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DisableCommandValidationFlagName,
 			EnvVars:     tgPrefix.EnvVars(DisableCommandValidationFlagName),
-			Destination: &opts.RunOptions.DisableCommandValidation,
+			Destination: &opts.Run.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the tofu/terraform command.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("disable-command-validation"), terragruntPrefixControl)),
@@ -415,7 +415,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        NoDestroyDependenciesCheckFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoDestroyDependenciesCheckFlagName),
-			Destination: &opts.RunOptions.NoDestroyDependenciesCheck,
+			Destination: &opts.Run.NoDestroyDependenciesCheck,
 			Usage:       "When this flag is set, Terragrunt will not check for dependent units when destroying.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("no-destroy-dependencies-check"), terragruntPrefixControl)),
@@ -433,7 +433,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        ProviderCacheDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheDirFlagName),
-			Destination: &opts.DirOptions.ProviderCacheDir,
+			Destination: &opts.Dir.ProviderCacheDir,
 			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("provider-cache-dir"), terragruntPrefixControl)),
@@ -544,7 +544,7 @@ func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 	return flags.NewFlag(&cli.GenericFlag[string]{
 		Name:        TFPathFlagName,
 		EnvVars:     tgPrefix.EnvVars(TFPathFlagName),
-		Destination: &opts.RunOptions.TerraformPath,
+		Destination: &opts.Run.TerraformPath,
 		Usage:       "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
 	},
 		flags.WithDeprecatedNames(terragruntPrefix.FlagNames("tfpath"), terragruntPrefixControl))

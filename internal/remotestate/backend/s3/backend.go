@@ -211,7 +211,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		tableKey := path.Join(bucketName, bucketKey+stateIDSuffix)
 
 		prompt := fmt.Sprintf("DynamoDB table %s key %s will be deleted. Do you want to continue?", tableName, tableKey)
-		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.Logging, opts.NonInteractive); err != nil {
 			return err
 		} else if yes {
 			if err := client.DeleteTableItemIfNecessary(ctx, l, tableName, tableKey); err != nil {
@@ -221,7 +221,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 	}
 
 	prompt := fmt.Sprintf("S3 bucket %s key %s will be deleted. Do you want to continue?", bucketName, bucketKey)
-	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.Logging, opts.NonInteractive); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteS3ObjectIfNecessary(ctx, l, bucketName, bucketKey)
@@ -249,7 +249,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 
 	if tableName != "" {
 		prompt := fmt.Sprintf("DynamoDB table %s will be completely deleted. Do you want to continue?", tableName)
-		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.Logging, opts.NonInteractive); err != nil {
 			return err
 		} else if yes {
 			if err := client.DeleteTableIfNecessary(ctx, l, tableName); err != nil {
@@ -259,7 +259,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 	}
 
 	prompt := fmt.Sprintf("S3 bucket %s will be completely deleted. Do you want to continue?", bucketName)
-	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.Logging, opts.NonInteractive); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteS3BucketIfNecessary(ctx, l, bucketName)

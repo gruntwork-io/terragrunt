@@ -51,7 +51,7 @@ func TestBasicDiscovery(t *testing.T) {
 	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.DirOptions.WorkingDir = tmpDir
+	tgOpts.Dir.WorkingDir = tmpDir
 
 	// Create options
 	opts := list.NewOptions(tgOpts)
@@ -65,7 +65,7 @@ func TestBasicDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.LoggingOptions.Writer = w
+	opts.Logging.Writer = w
 
 	l := logger.CreateLogger()
 
@@ -137,7 +137,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.DirOptions.WorkingDir = tmpDir
+	tgOpts.Dir.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
@@ -154,7 +154,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.LoggingOptions.Writer = w
+	opts.Logging.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -221,7 +221,7 @@ dependency "unit2" {
 	expectedPaths := []string{"unit1", "unit2", "unit3"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.DirOptions.WorkingDir = tmpDir
+	tgOpts.Dir.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
@@ -238,7 +238,7 @@ dependency "unit2" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.LoggingOptions.Writer = w
+	opts.Logging.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -300,7 +300,7 @@ dependency "unit3" {
 	expectedPaths := []string{"unit3", "unit2", "unit1"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.DirOptions.WorkingDir = tmpDir
+	tgOpts.Dir.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 	l.Formatter().SetDisabledColors(true)
@@ -317,7 +317,7 @@ dependency "unit3" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.LoggingOptions.Writer = w
+	opts.Logging.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -411,7 +411,7 @@ dependency "C" {
 	expectedPaths := []string{"A", "B", "C", "D", "E", "F"}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.DirOptions.WorkingDir = tmpDir
+	tgOpts.Dir.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 
@@ -429,7 +429,7 @@ dependency "C" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.LoggingOptions.Writer = w
+	opts.Logging.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)

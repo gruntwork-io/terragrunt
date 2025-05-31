@@ -57,16 +57,22 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// Specify a single (locking) buffer for both as a way to check that the output is being written in the correct
 	// order
 	var allOutputBuffer BufferWithLocking
-	terragruntOptions.LoggingOptions.Writer = &allOutputBuffer
-	terragruntOptions.LoggingOptions.ErrWriter = &allOutputBuffer
+	terragruntOptions.Logging.Writer = &allOutputBuffer
+	terragruntOptions.Logging.ErrWriter = &allOutputBuffer
 
-	terragruntOptions.RunOptions.TerraformCliArgs = append(terragruntOptions.RunOptions.TerraformCliArgs, "same")
+	terragruntOptions.Run.TerraformCliArgs = append(terragruntOptions.Run.TerraformCliArgs, "same")
 
 	withOptions(terragruntOptions)
 
 	l := logger.CreateLogger()
 
-	out, err := shell.RunCommandWithOutput(t.Context(), l, terragruntOptions, "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	out, err := shell.RunCommandWithOutput(t.Context(), l, &shell.RunCommandOptions{
+		Dir:       terragruntOptions.Dir,
+		Logging:   terragruntOptions.Logging,
+		Run:       terragruntOptions.Run,
+		Telemetry: terragruntOptions.Telemetry,
+		Engine:    terragruntOptions.Engine,
+	}, "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

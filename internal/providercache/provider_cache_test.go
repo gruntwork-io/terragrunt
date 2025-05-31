@@ -185,7 +185,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		unsetEnv(t, "XDG_CACHE_HOME")
 
 		_, err := providercache.InitServer(logger.CreateLogger(), &options.TerragruntOptions{
-			DirOptions: &options.DirOptions{
+			Dir: &options.DirOptions{
 				ProviderCacheDir: cacheDir,
 			},
 		})
@@ -199,7 +199,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		t.Setenv("HOME", home)
 
 		_, err := providercache.InitServer(logger.CreateLogger(), &options.TerragruntOptions{
-			DirOptions: &options.DirOptions{
+			Dir: &options.DirOptions{
 				ProviderCacheDir: cacheDir,
 			},
 		})

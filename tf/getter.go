@@ -99,7 +99,7 @@ func (tfrGetter *RegistryGetter) registryDomain() string {
 		return defaultRegistry
 	}
 	// if binary is set to use OpenTofu registry, use OpenTofu as default registry
-	if tfrGetter.TerragruntOptions.RunOptions.TerraformImplementation == options.OpenTofuImpl {
+	if tfrGetter.TerragruntOptions.Run.TerraformImplementation == options.OpenTofuImpl {
 		return defaultOtRegistryDomain
 	}
 

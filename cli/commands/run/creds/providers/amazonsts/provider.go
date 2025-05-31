@@ -11,17 +11,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 // Provider obtains credentials by making API requests to Amazon STS.
 type Provider struct {
-	terragruntOptions *options.TerragruntOptions
+	auth       *options.AuthOptions
+	runCmdOpts *shell.RunCommandOptions
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, opts *options.TerragruntOptions) providers.Provider {
+func NewProvider(l log.Logger, auth *options.AuthOptions, runCmdOpts *shell.RunCommandOptions) providers.Provider {
 	return &Provider{
-		terragruntOptions: opts,
+		auth:       auth,
+		runCmdOpts: runCmdOpts,
 	}
 }
 
@@ -32,7 +35,7 @@ func (provider *Provider) Name() string {
 
 // GetCredentials implements providers.GetCredentials
 func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
-	iamRoleOpts := provider.terragruntOptions.IAMRoleOptions
+	iamRoleOpts := provider.auth.IAMRoleOptions
 	if iamRoleOpts.RoleARN == "" {
 		return nil, nil
 	}

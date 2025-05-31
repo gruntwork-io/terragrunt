@@ -17,7 +17,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 
 	if !cmdOpts.InDownloadDir {
 		targetConfigPoint = run.TargetPointSetInputsAsEnvVars
-		opts.RunOptions.AutoInit = false
+		opts.Run.AutoInit = false
 	}
 
 	target := run.NewTarget(targetConfigPoint, runTargetCommand(cmdOpts, args))
@@ -30,11 +30,11 @@ func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {
 		var (
 			command = args.CommandName()
 			args    = args.Tail()
-			dir     = opts.DirOptions.WorkingDir
+			dir     = opts.Dir.WorkingDir
 		)
 
 		if !cmdOpts.InDownloadDir {
-			dir = opts.DirOptions.RootWorkingDir
+			dir = opts.Dir.RootWorkingDir
 		}
 
 		return run.RunActionWithHooks(ctx, l, command, opts, cfg, func(ctx context.Context) error {

@@ -49,12 +49,12 @@ func handleTerragruntContextPrintWithError(l log.Logger, opts *options.Terragrun
 
 func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error {
 	group := InfoOutput{
-		ConfigPath:       opts.ConfigOptions.TerragruntConfigPath,
-		DownloadDir:      opts.DirOptions.DownloadDir,
+		ConfigPath:       opts.Config.TerragruntConfigPath,
+		DownloadDir:      opts.Dir.DownloadDir,
 		IAMRole:          opts.IAMRoleOptions.RoleARN,
-		TerraformBinary:  opts.RunOptions.TerraformPath,
-		TerraformCommand: opts.RunOptions.TerraformCommand,
-		WorkingDir:       opts.DirOptions.WorkingDir,
+		TerraformBinary:  opts.Run.TerraformPath,
+		TerraformCommand: opts.Run.TerraformCommand,
+		WorkingDir:       opts.Dir.WorkingDir,
 	}
 
 	b, err := json.MarshalIndent(group, "", "  ")
@@ -63,7 +63,7 @@ func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error
 		return errors.New(err)
 	}
 
-	if _, err := fmt.Fprintf(opts.LoggingOptions.Writer, "%s\n", b); err != nil {
+	if _, err := fmt.Fprintf(opts.Logging.Writer, "%s\n", b); err != nil {
 		return errors.New(err)
 	}
 

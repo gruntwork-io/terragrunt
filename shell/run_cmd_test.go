@@ -21,10 +21,22 @@ func TestRunShellCommand(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, &shell.RunCommandOptions{
+		Dir:       terragruntOptions.Dir,
+		Logging:   terragruntOptions.Logging,
+		Run:       terragruntOptions.Run,
+		Telemetry: terragruntOptions.Telemetry,
+		Engine:    terragruntOptions.Engine,
+	}, "tofu", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "not-a-real-command")
+	cmd = shell.RunCommand(t.Context(), l, &shell.RunCommandOptions{
+		Dir:       terragruntOptions.Dir,
+		Logging:   terragruntOptions.Logging,
+		Run:       terragruntOptions.Run,
+		Telemetry: terragruntOptions.Telemetry,
+		Engine:    terragruntOptions.Engine,
+	}, "tofu", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -36,13 +48,19 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
-	terragruntOptions.RunOptions.TerraformCliArgs = append(terragruntOptions.RunOptions.TerraformCliArgs, "--version")
-	terragruntOptions.LoggingOptions.Writer = stdout
-	terragruntOptions.LoggingOptions.ErrWriter = stderr
+	terragruntOptions.Run.TerraformCliArgs = append(terragruntOptions.Run.TerraformCliArgs, "--version")
+	terragruntOptions.Logging.Writer = stdout
+	terragruntOptions.Logging.ErrWriter = stderr
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, &shell.RunCommandOptions{
+		Dir:       terragruntOptions.Dir,
+		Logging:   terragruntOptions.Logging,
+		Run:       terragruntOptions.Run,
+		Telemetry: terragruntOptions.Telemetry,
+		Engine:    terragruntOptions.Engine,
+	}, "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
@@ -51,11 +69,17 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stdout = new(bytes.Buffer)
 	stderr = new(bytes.Buffer)
 
-	terragruntOptions.RunOptions.TerraformCliArgs = []string{}
-	terragruntOptions.LoggingOptions.Writer = stderr
-	terragruntOptions.LoggingOptions.ErrWriter = stderr
+	terragruntOptions.Run.TerraformCliArgs = []string{}
+	terragruntOptions.Logging.Writer = stderr
+	terragruntOptions.Logging.ErrWriter = stderr
 
-	cmd = shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "--version")
+	cmd = shell.RunCommand(t.Context(), l, &shell.RunCommandOptions{
+		Dir:       terragruntOptions.Dir,
+		Logging:   terragruntOptions.Logging,
+		Run:       terragruntOptions.Run,
+		Telemetry: terragruntOptions.Telemetry,
+		Engine:    terragruntOptions.Engine,
+	}, "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")

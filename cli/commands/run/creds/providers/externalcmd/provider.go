@@ -18,24 +18,26 @@ import (
 
 // Provider runs external command that returns a json string with credentials.
 type Provider struct {
-	terragruntOptions *options.TerragruntOptions
+	auth       *options.AuthOptions
+	runCmdOpts *shell.RunCommandOptions
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, opts *options.TerragruntOptions) providers.Provider {
+func NewProvider(l log.Logger, auth *options.AuthOptions, runCmdOpts *shell.RunCommandOptions) providers.Provider {
 	return &Provider{
-		terragruntOptions: opts,
+		auth:       auth,
+		runCmdOpts: runCmdOpts,
 	}
 }
 
 // Name implements providers.Name
 func (provider *Provider) Name() string {
-	return fmt.Sprintf("external %s command", provider.terragruntOptions.AuthProviderCmd)
+	return fmt.Sprintf("external %s command", provider.auth.AuthProviderCmd)
 }
 
 // GetCredentials implements providers.GetCredentials
 func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
-	command := provider.terragruntOptions.AuthProviderCmd
+	command := provider.auth.AuthProviderCmd
 	if command == "" {
 		return nil, nil
 	}
@@ -47,7 +49,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 		args = parts[1:]
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, provider.terragruntOptions, "", true, false, command, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, provider.runCmdOpts, "", true, false, command, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +70,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	}
 
 	if resp.AWSCredentials != nil {
-		if envs := resp.AWSCredentials.Envs(ctx, l, provider.terragruntOptions); envs != nil {
+		if envs := resp.AWSCredentials.Envs(ctx, l, provider.auth); envs != nil {
 			l.Debugf("Obtaining AWS credentials from the %s.", provider.Name())
 			maps.Copy(creds.Envs, envs)
 		}
@@ -77,7 +79,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	}
 
 	if resp.AWSRole != nil {
-		if envs := resp.AWSRole.Envs(ctx, l, provider.terragruntOptions); envs != nil {
+		if envs := resp.AWSRole.Envs(ctx, l, provider.auth, provider.runCmdOpts); envs != nil {
 			l.Debugf("Assuming AWS role %s using the %s.", resp.AWSRole.RoleARN, provider.Name())
 			maps.Copy(creds.Envs, envs)
 		}
@@ -107,9 +109,17 @@ type AWSRole struct {
 	Duration         int64  `json:"duration"`
 }
 
-func (role *AWSRole) Envs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) map[string]string {
+func (role *AWSRole) Envs(
+	ctx context.Context,
+	l log.Logger,
+	auth *options.AuthOptions,
+	runCmdOpts *shell.RunCommandOptions,
+) map[string]string {
 	if role.RoleARN == "" {
-		l.Warnf("The command %s completed successfully, but AWS role assumption contains empty required value: roleARN, nothing is being done.", opts.AuthProviderCmd)
+		l.Warnf(
+			"The command %s completed successfully, but AWS role assumption contains empty required value: roleARN, nothing is being done.",
+			auth.AuthProviderCmd,
+		)
 		return nil
 	}
 
@@ -124,7 +134,7 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, opts *options.Terra
 	}
 
 	// Construct minimal TerragruntOptions for role assumption.
-	providerOpts := options.TerragruntOptions{
+	providerOpts := options.AuthOptions{
 		IAMRoleOptions: options.IAMRoleOptions{
 			RoleARN:               role.RoleARN,
 			AssumeRoleDuration:    duration,
@@ -136,7 +146,7 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, opts *options.Terra
 		providerOpts.IAMRoleOptions.WebIdentityToken = role.WebIdentityToken
 	}
 
-	provider := amazonsts.NewProvider(l, &providerOpts)
+	provider := amazonsts.NewProvider(l, &providerOpts, runCmdOpts)
 
 	creds, err := provider.GetCredentials(ctx, l)
 	if err != nil {
@@ -145,7 +155,11 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, opts *options.Terra
 	}
 
 	if creds == nil {
-		l.Warnf("The command %s completed successfully, but failed to assume role %s, nothing is being done.", opts.AuthProviderCmd, role.RoleARN)
+		l.Warnf(
+			"The command %s completed successfully, but failed to assume role %s, nothing is being done.",
+			auth.AuthProviderCmd,
+			role.RoleARN,
+		)
 		return nil
 	}
 
@@ -159,7 +173,11 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, opts *options.Terra
 	return envs
 }
 
-func (creds *AWSCredentials) Envs(_ context.Context, l log.Logger, opts *options.TerragruntOptions) map[string]string {
+func (creds *AWSCredentials) Envs(
+	_ context.Context,
+	l log.Logger,
+	auth *options.AuthOptions,
+) map[string]string {
 	var emptyFields []string
 
 	if creds.AccessKeyID == "" {
@@ -171,7 +189,11 @@ func (creds *AWSCredentials) Envs(_ context.Context, l log.Logger, opts *options
 	}
 
 	if len(emptyFields) > 0 {
-		l.Warnf("The command %s completed successfully, but AWS credentials contains empty required values: %s, nothing is being done.", opts.AuthProviderCmd, strings.Join(emptyFields, ", "))
+		l.Warnf(
+			"The command %s completed successfully, but AWS credentials contains empty required values: %s, nothing is being done.",
+			auth.AuthProviderCmd,
+			strings.Join(emptyFields, ", "),
+		)
 		return nil
 	}
 

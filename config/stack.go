@@ -80,9 +80,9 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 	defer wp.Stop()
 	// initial files setting as stack file
 
-	foundFiles, err := listStackFiles(l, opts, opts.DirOptions.WorkingDir)
+	foundFiles, err := listStackFiles(l, opts, opts.Dir.WorkingDir)
 	if err != nil {
-		return errors.Errorf("Failed to list stack files in %s %w", opts.DirOptions.WorkingDir, err)
+		return errors.Errorf("Failed to list stack files in %s %w", opts.Dir.WorkingDir, err)
 	}
 
 	for {
@@ -112,7 +112,7 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 			break
 		}
 
-		newFiles, err := listStackFiles(l, opts, opts.DirOptions.WorkingDir)
+		newFiles, err := listStackFiles(l, opts, opts.Dir.WorkingDir)
 
 		if err != nil {
 			return errors.Errorf("Failed to list stack files %w", err)
@@ -158,11 +158,11 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 // Errors can occur during stack file listing, value reading, stack config parsing, output reading,
 // or when converting the final output structure to cty.Value format.
 func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (cty.Value, error) {
-	l.Debugf("Generating output from %s", opts.DirOptions.WorkingDir)
+	l.Debugf("Generating output from %s", opts.Dir.WorkingDir)
 
-	foundFiles, err := listStackFiles(l, opts, opts.DirOptions.WorkingDir)
+	foundFiles, err := listStackFiles(l, opts, opts.Dir.WorkingDir)
 	if err != nil {
-		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.DirOptions.WorkingDir, err)
+		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.Dir.WorkingDir, err)
 	}
 
 	outputs := make(map[string]map[string]cty.Value)
@@ -468,7 +468,7 @@ type componentToProcess struct {
 func processComponent(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmp *componentToProcess) error {
 	source := cmp.source
 	// Adjust source path using the provided source mapping configuration if available
-	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.ConfigOptions.TerragruntStackConfigPath)
+	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.Config.TerragruntStackConfigPath)
 
 	if err != nil {
 		return errors.Errorf("failed to adjust source %s: %w", cmp.source, err)
@@ -868,7 +868,7 @@ func processLocals(l log.Logger, parser *ParsingContext, opts *options.Terragrun
 		)
 
 		if err != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", opts.ConfigOptions.TerragruntStackConfigPath)
+			l.Debugf("Encountered error while evaluating locals in file %s", opts.Config.TerragruntStackConfigPath)
 
 			return errors.New(err)
 		}

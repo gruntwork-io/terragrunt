@@ -416,7 +416,7 @@ dependency "B" {
 			tmpDir := tt.setup(t)
 
 			tgOpts := options.NewTerragruntOptions()
-			tgOpts.DirOptions.WorkingDir = tmpDir
+			tgOpts.Dir.WorkingDir = tmpDir
 
 			l := logger.CreateLogger()
 			l.Formatter().SetDisabledColors(true)
@@ -434,7 +434,7 @@ dependency "B" {
 			require.NoError(t, err)
 
 			// Set the writer in options
-			opts.LoggingOptions.Writer = w
+			opts.Logging.Writer = w
 
 			err = find.Run(t.Context(), l, opts)
 			if tt.format == "invalid" || tt.mode == "invalid" {

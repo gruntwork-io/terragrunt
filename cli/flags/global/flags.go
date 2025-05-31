@@ -147,7 +147,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        WorkingDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(WorkingDirFlagName),
-			Destination: &opts.DirOptions.WorkingDir,
+			Destination: &opts.Dir.WorkingDir,
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedWorkingDirFlagName), terragruntPrefixControl)),
@@ -158,7 +158,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:   "Disable logging.",
 			Setter: func(val bool) error {
 				l.Formatter().SetDisabledOutput(val)
-				opts.LoggingOptions.ForwardTFStdout = true
+				opts.Logging.ForwardTFStdout = true
 				return nil
 			},
 		},
@@ -167,7 +167,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        ShowLogAbsPathsFlagName,
 			EnvVars:     tgPrefix.EnvVars(ShowLogAbsPathsFlagName),
-			Destination: &opts.LoggingOptions.LogShowAbsPaths,
+			Destination: &opts.Logging.LogShowAbsPaths,
 			Usage:       "Show absolute paths in logs.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedShowLogAbsPathsFlagName), terragruntPrefixControl)),
@@ -191,9 +191,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Action: func(_ *cli.Context, val string) error {
 				switch val {
 				case format.BareFormatName:
-					opts.LoggingOptions.ForwardTFStdout = true
+					opts.Logging.ForwardTFStdout = true
 				case format.JSONFormatName:
-					opts.LoggingOptions.JSONLogFormat = true
+					opts.Logging.JSONLogFormat = true
 				}
 
 				return nil
@@ -203,13 +203,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				Name:        terragruntPrefix.FlagName(DeprecatedDisableLogFormattingFlagName),
 				EnvVars:     terragruntPrefix.EnvVars(DeprecatedDisableLogFormattingFlagName),
-				Destination: &opts.LoggingOptions.DisableLogFormatting,
+				Destination: &opts.Logging.DisableLogFormatting,
 				Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			}, flags.NewValue(format.KeyValueFormatName), legacyLogsControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				Name:        terragruntPrefix.FlagName(DeprecatedJSONLogFlagName),
 				EnvVars:     terragruntPrefix.EnvVars(DeprecatedJSONLogFlagName),
-				Destination: &opts.LoggingOptions.JSONLogFormat,
+				Destination: &opts.Logging.JSONLogFormat,
 				Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 			}, flags.NewValue(format.JSONFormatName), legacyLogsControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
@@ -375,7 +375,7 @@ func NewLogLevelFlag(l log.Logger, opts *options.TerragruntOptions, prefix flags
 			}
 
 			if collections.ListContainsElement(removedLevels, val) {
-				opts.LoggingOptions.ForwardTFStdout = true
+				opts.Logging.ForwardTFStdout = true
 				l.Formatter().SetDisabledOutput(true)
 			}
 

@@ -90,14 +90,18 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// LoggingOptions defines configuration for logging and output.
-	LoggingOptions *LoggingOptions
-	// RunOptions defines options for running Terraform/OpenTofu.
-	RunOptions *RunOptions
-	// DirOptions defines options related to directories
-	DirOptions *DirOptions
-	// ConfigOptions defines options related to Terragrunt configuration.
-	ConfigOptions *ConfigOptions
+	// Logging defines configuration for logging and output.
+	Logging *LoggingOptions
+	// Run defines options for running Terraform/OpenTofu.
+	Run *RunOptions
+	// Dir defines options related to directories
+	Dir *DirOptions
+	// Config defines options related to Terragrunt configuration.
+	Config *ConfigOptions
+	// Auth defines options for authentication.
+	Auth *AuthOptions
+	// Output defines options for output.
+	Output *OutputOptions
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -109,17 +113,13 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
 	// A command that can be used to run Terragrunt with the given options.
-	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error
+	RunCommand RunCommand
 	// ReadFiles is a map of files to the Units that read them using HCL functions in the unit.
 	ReadFiles *xsync.MapOf[string, []string] `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
 	// Map to replace terraform source locations.
 	SourceMap map[string]string
-	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
-	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 	// StackOutputFormat format how the stack output is rendered.
@@ -128,16 +128,6 @@ type TerragruntOptions struct {
 	Source string
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
-	// Custom log level for engine
-	EngineLogLevel string
-	// Path to cache directory for engine files
-	EngineCachePath string
-	// The command and arguments that can be used to fetch authentication configurations.
-	AuthProviderCmd string
-	// Folder to store JSON representation of output files.
-	JSONOutputFolder string
-	// Folder to store output files.
-	OutputFolder string
 	// The file which hclfmt should be specifically run on
 	HclFile string
 	// The hostname of the Terragrunt Provider Cache server.
@@ -210,16 +200,12 @@ type TerragruntOptions struct {
 	RenderJSONWithMetadata bool
 	// Whether we should automatically retry errored Terraform commands
 	AutoRetry bool
-	// Flag to enable engine for running IaC operations.
-	EngineEnabled bool
 	// Allows to skip the output of all dependencies.
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
 	// If set to true, apply all external dependencies when running *-all commands
 	IncludeExternalDependencies bool
-	// Skip checksum check for engine package.
-	EngineSkipChecksumCheck bool
 	// If set to true, skip any external dependencies when running *-all commands
 	IgnoreExternalDependencies bool
 	// If set to true, ignore the dependency order when running *-all command.
@@ -255,6 +241,9 @@ type TerragruntOptions struct {
 	// ForceBackendMigrate forces the backend to be migrated, even if the bucket is not versioned.
 	ForceBackendMigrate bool
 }
+
+// RunCommand is a function that runs a command with the given options.
+type RunCommand func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error
 
 // LoggingOptions defines configuration for logging and output.
 type LoggingOptions struct {
@@ -326,20 +315,52 @@ type ConfigOptions struct {
 	TerragruntStackConfigPath string
 }
 
+// EngineOptions defines options for the Terragrunt engine.
+type EngineOptions struct {
+	// EngineConfig is the configuration for the Terragrunt engine, as defined in configuration.
+	EngineConfig *EngineConfig
+	// EngineEnabled is a flag to enable the Terragrunt engine.
+	EngineEnabled bool
+	// EngineSkipChecksumCheck is a flag to skip the checksum check for the Terragrunt engine.
+	EngineSkipChecksumCheck bool
+	// EngineLogLevel is the log level for the Terragrunt engine.
+	EngineLogLevel string
+	// EngineCachePath is the path to the cache directory for the Terragrunt engine.
+	EngineCachePath string
+}
+
+// AuthOptions defines options for authentication.
+type AuthOptions struct {
+	// IAMRoleOptions are the options for IAM role authentication.
+	IAMRoleOptions IAMRoleOptions
+	// IAM Role options set from command line.
+	OriginalIAMRoleOptions IAMRoleOptions
+	// The command and arguments that can be used to fetch authentication configurations.
+	AuthProviderCmd string
+}
+
+// OutputOptions defines options for output.
+type OutputOptions struct {
+	// Folder to store JSON representation of output files.
+	JSONOutputFolder string
+	// Folder to store output files.
+	OutputFolder string
+}
+
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
 // WithIAMRoleARN adds the provided role ARN to IamRoleOptions
 func WithIAMRoleARN(arn string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
-		t.IAMRoleOptions.RoleARN = arn
+		t.Auth.IAMRoleOptions.RoleARN = arn
 	}
 }
 
 // WithIAMWebIdentityToken adds the provided WebIdentity token to IamRoleOptions
 func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
-		t.IAMRoleOptions.WebIdentityToken = token
+		t.Auth.IAMRoleOptions.WebIdentityToken = token
 	}
 }
 
@@ -381,15 +402,15 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		LoggingOptions: &LoggingOptions{Writer: stdout, ErrWriter: stderr},
-		RunOptions: &RunOptions{
+		Logging: &LoggingOptions{Writer: stdout, ErrWriter: stderr},
+		Run: &RunOptions{
 			TerraformPath:           DefaultWrappedPath,
 			AutoInit:                true,
 			TerraformCliArgs:        []string{},
 			TerraformImplementation: UnknownImpl,
 			Env:                     map[string]string{},
 		},
-		DirOptions:                     &DirOptions{},
+		Dir:                            &DirOptions{},
 		ExcludesFile:                   defaultExcludesFile,
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
@@ -416,12 +437,11 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		UsePartialParseConfigCache:     false,
 		JSONOut:                        DefaultJSONOutName,
 		JSONDisableDependentModules:    false,
-		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error {
+		RunCommand: func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
-		OutputFolder:               "",
-		JSONOutputFolder:           "",
+		Output:                     &OutputOptions{},
 		FeatureFlags:               xsync.NewMapOf[string, string](),
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
 		StrictControls:             controls.New(),
@@ -434,16 +454,16 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
 	opts := NewTerragruntOptions()
-	opts.ConfigOptions.TerragruntConfigPath = terragruntConfigPath
+	opts.Config.TerragruntConfigPath = terragruntConfigPath
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	opts.DirOptions.WorkingDir = workingDir
-	opts.DirOptions.RootWorkingDir = workingDir
-	opts.DirOptions.DownloadDir = downloadDir
+	opts.Dir.WorkingDir = workingDir
+	opts.Dir.RootWorkingDir = workingDir
+	opts.Dir.DownloadDir = downloadDir
 
 	return opts, nil
 }
@@ -498,9 +518,33 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	return opts
 }
 
-// Clone performs a deep copy of `opts` with shadow copies of: interfaces, and funcs.
+// Clone performs a deep copy of `configOpts` with shadow copies of: interfaces, and funcs.
 // Fields with "clone" tags can override this behavior.
-func (opts *TerragruntOptions) Clone() *TerragruntOptions {
+func (opts *ConfigOptions) Clone() *ConfigOptions {
+	newOpts := cloner.Clone(opts)
+
+	return newOpts
+}
+
+// Clone performs a deep copy of `dirOpts` with shadow copies of: interfaces, and funcs.
+// Fields with "clone" tags can override this behavior.
+func (opts *DirOptions) Clone() *DirOptions {
+	newOpts := cloner.Clone(opts)
+
+	return newOpts
+}
+
+// Clone performs a deep copy of `loggingOpts` with shadow copies of: interfaces, and funcs.
+// Fields with "clone" tags can override this behavior.
+func (opts *LoggingOptions) Clone() *LoggingOptions {
+	newOpts := cloner.Clone(opts)
+
+	return newOpts
+}
+
+// Clone performs a deep copy of `runOpts` with shadow copies of: interfaces, and funcs.
+// Fields with "clone" tags can override this behavior.
+func (opts *RunOptions) Clone() *RunOptions {
 	newOpts := cloner.Clone(opts)
 
 	return newOpts
@@ -511,17 +555,69 @@ func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 //
 // It also adjusts the given logger, as each cloned option has to use a working directory specific logger to enrich
 // log output correctly.
-func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *TerragruntOptions, error) {
-	newOpts := opts.Clone()
+// func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *TerragruntOptions, error) {
+// 	newOpts := opts.Clone()
 
+// 	workingDir := filepath.Dir(configPath)
+
+// 	newOpts.ConfigOptions.TerragruntConfigPath = configPath
+// 	newOpts.DirOptions.WorkingDir = workingDir
+
+// 	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
+
+// 	return l, newOpts, nil
+// }
+
+// CloneConfigsWithPath creates a copy of the ConfigOptions and DirOptions, but with different values for the given variables.
+// This is useful for creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
+//
+// It also adjusts the given logger, as each cloned option has to use a working directory specific logger to enrich
+// log output correctly.
+func CloneConfigsWithPath(
+	l log.Logger,
+	configOpts *ConfigOptions,
+	dirOpts *DirOptions,
+	configPath string,
+) (log.Logger, *ConfigOptions, *DirOptions) {
 	workingDir := filepath.Dir(configPath)
 
-	newOpts.ConfigOptions.TerragruntConfigPath = configPath
-	newOpts.DirOptions.WorkingDir = workingDir
+	newConfigOpts := configOpts.Clone()
+	newDirOpts := dirOpts.Clone()
+
+	newConfigOpts.TerragruntConfigPath = configPath
+	newDirOpts.WorkingDir = workingDir
 
 	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 
-	return l, newOpts, nil
+	return l, newConfigOpts, newDirOpts
+}
+
+// CloneLoggingOptionsWithWriters creates a copy of the LoggingOptions, but with different values for the given variables.
+// This is useful for creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
+//
+// It also adjusts the given logger, as each cloned option has to use a working directory specific logger to enrich
+// log output correctly.
+func CloneLoggingOptionsWithWriters(loggingOpts *LoggingOptions, writer io.Writer, errWriter io.Writer) *LoggingOptions {
+	newLoggingOpts := loggingOpts.Clone()
+
+	newLoggingOpts.Writer = writer
+	newLoggingOpts.ErrWriter = errWriter
+
+	return newLoggingOpts
+}
+
+// CloneRunOptionsWithArgsAndEnvs creates a copy of the RunOptions, but with different values for the given variables.
+// This is useful for creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
+//
+// It also adjusts the given logger, as each cloned option has to use a working directory specific logger to enrich
+// log output correctly.
+func CloneRunOptionsWithArgsAndEnvs(runOptions *RunOptions, args cli.Args, envs map[string]string) *RunOptions {
+	newRunOpts := runOptions.Clone()
+
+	newRunOpts.TerraformCliArgs = args
+	newRunOpts.Env = envs
+
+	return newRunOpts
 }
 
 // Check if argument is planfile TODO check file formatter
@@ -583,7 +679,7 @@ func (opts *RunOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 
 // TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
 func (opts *TerragruntOptions) TerraformDataDir() string {
-	if tfDataDir, ok := opts.RunOptions.Env["TF_DATA_DIR"]; ok {
+	if tfDataDir, ok := opts.Run.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
 
@@ -598,7 +694,7 @@ func (opts *TerragruntOptions) DataDir() string {
 		return tfDataDir
 	}
 
-	return util.JoinPath(opts.DirOptions.WorkingDir, tfDataDir)
+	return util.JoinPath(opts.Dir.WorkingDir, tfDataDir)
 }
 
 // AppendReadFile appends to the list of files read by a given unit.
@@ -671,8 +767,8 @@ func identifyDefaultWrappedExecutable() string {
 	return TerraformDefaultPath
 }
 
-// EngineOptions Options for the Terragrunt engine.
-type EngineOptions struct {
+// EngineConfig Options for the Terragrunt engine.
+type EngineConfig struct {
 	Meta    map[string]any
 	Source  string
 	Version string
@@ -770,7 +866,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 }
 
 func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
-	workingDir := opts.DirOptions.WorkingDir
+	workingDir := opts.Dir.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 

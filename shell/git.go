@@ -37,11 +37,17 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, terragruntOptions *option
 		return "", err
 	}
 
-	opts.RunOptions.Env = terragruntOptions.RunOptions.Env
-	opts.LoggingOptions.Writer = &stdout
-	opts.LoggingOptions.ErrWriter = &stderr
+	opts.Run.Env = terragruntOptions.Run.Env
+	opts.Logging.Writer = &stdout
+	opts.Logging.ErrWriter = &stderr
 
-	cmd, err := RunCommandWithOutput(ctx, l, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	cmd, err := RunCommandWithOutput(ctx, l, &RunCommandOptions{
+		Dir:       opts.Dir,
+		Logging:   opts.Logging,
+		Run:       opts.Run,
+		Telemetry: opts.Telemetry,
+		Engine:    opts.Engine,
+	}, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
@@ -62,16 +68,22 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.DirOptions.WorkingDir)
+	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.Dir.WorkingDir)
 	if err != nil {
 		return nil, err
 	}
 
-	gitOpts.RunOptions.Env = opts.RunOptions.Env
-	gitOpts.LoggingOptions.Writer = &stdout
-	gitOpts.LoggingOptions.ErrWriter = &stderr
+	gitOpts.Run.Env = opts.Run.Env
+	gitOpts.Logging.Writer = &stdout
+	gitOpts.Logging.ErrWriter = &stderr
 
-	output, err := RunCommandWithOutput(ctx, l, opts, opts.DirOptions.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	output, err := RunCommandWithOutput(ctx, l, &RunCommandOptions{
+		Dir:       opts.Dir,
+		Logging:   opts.Logging,
+		Run:       opts.Run,
+		Telemetry: opts.Telemetry,
+		Engine:    opts.Engine,
+	}, opts.Dir.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}

@@ -28,13 +28,13 @@ var fieldsCopyLocks = util.NewKeyLocks()
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath))
+		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.Config.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path
 
 	if !filepath.IsAbs(includePath) {
-		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath), includePath)
+		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.Config.TerragruntConfigPath), includePath)
 	}
 
 	// These condition are here to specifically handle the `run --all` command. During any `run --all` call, terragrunt
@@ -783,7 +783,7 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 		// tgInc appears in a parent that is already included, which means a nested include block. This is not
 		// something we currently support.
 		err := errors.New(TooManyLevelsOfInheritanceError{
-			ConfigPath:             ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath,
+			ConfigPath:             ctx.TerragruntOptions.Config.TerragruntConfigPath,
 			FirstLevelIncludePath:  includeFromChild.Path,
 			SecondLevelIncludePath: strings.Join(includedPaths, ","),
 		})

@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -42,7 +43,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	logFormatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
-		terragruntOptions.RunOptions.TerraformPath = terraformPath
+		terragruntOptions.Run.TerraformPath = terraformPath
 	}, func(l log.Logger) log.Logger {
 		l.SetOptions(log.WithFormatter(logFormatter))
 		return l.WithField(placeholders.WorkDirKeyName, prefix)
@@ -62,18 +63,24 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// Specify a single (locking) buffer for both as a way to check that the output is being written in the correct
 	// order
 	var allOutputBuffer BufferWithLocking
-	terragruntOptions.LoggingOptions.Writer = &allOutputBuffer
-	terragruntOptions.LoggingOptions.ErrWriter = &allOutputBuffer
+	terragruntOptions.Logging.Writer = &allOutputBuffer
+	terragruntOptions.Logging.ErrWriter = &allOutputBuffer
 
-	terragruntOptions.RunOptions.TerraformCliArgs = append(terragruntOptions.RunOptions.TerraformCliArgs, "same")
-	terragruntOptions.RunOptions.TerraformPath = "testdata/test_outputs.sh"
+	terragruntOptions.Run.TerraformCliArgs = append(terragruntOptions.Run.TerraformCliArgs, "same")
+	terragruntOptions.Run.TerraformPath = "testdata/test_outputs.sh"
 
 	withOptions(terragruntOptions)
 
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	out, err := tf.RunCommandWithOutput(t.Context(), l, terragruntOptions, "same")
+	out, err := tf.RunCommandWithOutput(t.Context(), l, &shell.RunCommandOptions{
+		Dir:       terragruntOptions.Dir,
+		Logging:   terragruntOptions.Logging,
+		Run:       terragruntOptions.Run,
+		Telemetry: terragruntOptions.Telemetry,
+		Engine:    terragruntOptions.Engine,
+	}, "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

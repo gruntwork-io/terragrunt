@@ -32,7 +32,7 @@ func TestHCLFmt(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	tgOptions.DirOptions.WorkingDir = tmpPath
+	tgOptions.Dir.WorkingDir = tmpPath
 	tgOptions.HclExclude = []string{".history"}
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
@@ -120,7 +120,7 @@ func TestHCLFmtErrors(t *testing.T) {
 			t.Parallel()
 
 			tgHclDir := filepath.Join(tmpPath, dir)
-			l, newTgOptions, err := tgOptions.CloneWithConfigPath(logger.CreateLogger(), tgOptions.ConfigOptions.TerragruntConfigPath)
+			l, newTgOptions, err := tgOptions.CloneWithConfigPath(logger.CreateLogger(), tgOptions.Config.TerragruntConfigPath)
 			require.NoError(t, err)
 
 			newTgOptions.DirOptions.WorkingDir = tgHclDir
@@ -149,7 +149,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	tgOptions.Check = true
-	tgOptions.DirOptions.WorkingDir = tmpPath
+	tgOptions.Dir.WorkingDir = tmpPath
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	tgOptions.Check = true
-	tgOptions.DirOptions.WorkingDir = tmpPath
+	tgOptions.Dir.WorkingDir = tmpPath
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.Error(t, err)
@@ -242,7 +242,7 @@ func TestHCLFmtFile(t *testing.T) {
 
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
-	tgOptions.DirOptions.WorkingDir = tmpPath
+	tgOptions.Dir.WorkingDir = tmpPath
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
 
@@ -328,7 +328,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	tgOptions.DirOptions.WorkingDir = tmpPath
+	tgOptions.Dir.WorkingDir = tmpPath
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)

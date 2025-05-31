@@ -67,7 +67,7 @@ func EvaluateLocalsBlock(ctx *ParsingContext, l log.Logger, file *hclparse.File)
 		)
 
 		if err != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
+			l.Debugf("Encountered error while evaluating locals in file %s", ctx.TerragruntOptions.Config.TerragruntConfigPath)
 			return evaluatedLocals, err
 		}
 	}

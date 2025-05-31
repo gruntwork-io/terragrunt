@@ -84,7 +84,7 @@ func ReadCatalogConfig(parentCtx context.Context, l log.Logger, opts *options.Te
 		return nil, err
 	}
 
-	opts.ConfigOptions.TerragruntConfigPath = configPath
+	opts.Config.TerragruntConfigPath = configPath
 
 	ctx := NewParsingContext(parentCtx, l, opts)
 	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
@@ -101,14 +101,14 @@ func ReadCatalogConfig(parentCtx context.Context, l log.Logger, opts *options.Te
 
 func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, string, error) {
 	var (
-		configPath        = filepath.Join(filepath.Dir(opts.ConfigOptions.TerragruntConfigPath), opts.ScaffoldRootFileName)
+		configPath        = filepath.Join(filepath.Dir(opts.Config.TerragruntConfigPath), opts.ScaffoldRootFileName)
 		configName        = opts.ScaffoldRootFileName
 		catalogConfigPath string
 	)
 
 	for {
 		opts = &options.TerragruntOptions{
-			ConfigOptions: &options.ConfigOptions{
+			Config: &options.ConfigOptions{
 				TerragruntConfigPath: filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName),
 			},
 			NonInteractive:       opts.NonInteractive,

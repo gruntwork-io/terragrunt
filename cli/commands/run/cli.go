@@ -76,11 +76,11 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) cli.Commands 
 
 func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
-		if opts.RunOptions.TerraformCommand == tf.CommandNameDestroy {
-			opts.RunOptions.CheckDependentModules = !opts.RunOptions.NoDestroyDependenciesCheck
+		if opts.Run.TerraformCommand == tf.CommandNameDestroy {
+			opts.Run.CheckDependentModules = !opts.Run.NoDestroyDependenciesCheck
 		}
 
-		if err := validateCommand(opts.RunOptions); err != nil {
+		if err := validateCommand(opts.Run); err != nil {
 			return err
 		}
 
@@ -116,17 +116,17 @@ func wrapWithStackGenerate(l log.Logger, opts *options.TerragruntOptions, cmd *c
 
 		// Skip stack generation if not needed
 		if !shouldGenerateStack {
-			l.Debugf("Skipping stack generation in %s", opts.DirOptions.WorkingDir)
+			l.Debugf("Skipping stack generation in %s", opts.Dir.WorkingDir)
 			return action(ctx)
 		}
 
 		// Set the stack config path to the default location in the working directory
-		opts.ConfigOptions.TerragruntStackConfigPath = filepath.Join(opts.DirOptions.WorkingDir, config.DefaultStackFile)
+		opts.Config.TerragruntStackConfigPath = filepath.Join(opts.Dir.WorkingDir, config.DefaultStackFile)
 
 		// Generate the stack configuration with telemetry tracking
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
-			"stack_config_path": opts.ConfigOptions.TerragruntStackConfigPath,
-			"working_dir":       opts.DirOptions.WorkingDir,
+			"stack_config_path": opts.Config.TerragruntStackConfigPath,
+			"working_dir":       opts.Dir.WorkingDir,
 		}, func(ctx context.Context) error {
 			return config.GenerateStacks(ctx, l, opts)
 		})

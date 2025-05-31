@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -28,8 +29,19 @@ const (
 	tfExternalTFLint = "--terragrunt-external-tflint"
 )
 
+type RunTflintOptions struct {
+	Run               *options.RunOptions
+	Logging           *options.LoggingOptions
+	Dir               *options.DirOptions
+	Telemetry         *telemetry.Options
+	Engine            *options.EngineOptions
+	Config            *config.TerragruntConfig
+	Hook              config.Hook
+	MaxFoldersToCheck int
+}
+
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, hook config.Hook) error {
+func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *RunTflintOptions, config *config.TerragruntConfig, hook config.Hook) error {
 	// try to fetch configuration file from hook parameters
 	configFile := tflintConfigFilePath(hook.Execute)
 	if configFile == "" {
@@ -56,9 +68,9 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	variables = append(variables, tfVariables...)
 
-	l.Debugf("Initializing tflint in directory %s", opts.DirOptions.WorkingDir)
+	l.Debugf("Initializing tflint in directory %s", opts.Dir.WorkingDir)
 
-	cli, err := cmd.NewCLI(opts.LoggingOptions.Writer, opts.LoggingOptions.ErrWriter)
+	cli, err := cmd.NewCLI(opts.Logging.Writer, opts.Logging.ErrWriter)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -66,11 +78,17 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	tflintArgs, externalTfLint := tflintArguments(hook.Execute[1:])
 
 	// tflint init
-	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.DirOptions.WorkingDir}
+	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.Dir.WorkingDir}
 	if externalTfLint {
 		l.Debugf("Running external tflint init with args %v", initArgs)
 
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.DirOptions.WorkingDir, false, false,
+		_, err := shell.RunCommandWithOutput(ctx, l, &shell.RunCommandOptions{
+			Dir:       opts.Dir,
+			Logging:   opts.Logging,
+			Run:       opts.Run,
+			Telemetry: opts.Telemetry,
+			Engine:    opts.Engine,
+		}, opts.Dir.WorkingDir, false, false,
 			initArgs[0], initArgs[1:]...)
 		if err != nil {
 			return errors.New(ErrorRunningTflint{args: initArgs})
@@ -88,7 +106,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	args := []string{
 		"tflint",
 		"--config", configFile,
-		"--chdir", opts.DirOptions.WorkingDir,
+		"--chdir", opts.Dir.WorkingDir,
 	}
 	args = append(args, variables...)
 	args = append(args, tflintArgs...)
@@ -96,7 +114,13 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	if externalTfLint {
 		l.Debugf("Running external tflint with args %v", args)
 
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.DirOptions.WorkingDir, false, false,
+		_, err := shell.RunCommandWithOutput(ctx, l, &shell.RunCommandOptions{
+			Dir:       opts.Dir,
+			Logging:   opts.Logging,
+			Run:       opts.Run,
+			Telemetry: opts.Telemetry,
+			Engine:    opts.Engine,
+		}, opts.Dir.WorkingDir, false, false,
 			args[0], args[1:]...)
 		if err != nil {
 			return errors.New(ErrorRunningTflint{args: args})
@@ -238,8 +262,8 @@ func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
 }
 
 // findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
-func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (string, error) {
-	previousDir := opts.DirOptions.WorkingDir
+func findTflintConfigInProject(l log.Logger, opts *RunTflintOptions) (string, error) {
+	previousDir := opts.Dir.WorkingDir
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check

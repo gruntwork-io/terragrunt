@@ -202,21 +202,21 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	t.Helper()
 
 	// Normalize path separators for cross-platform compatibility
-	expectedConfigPath := filepath.ToSlash(expected.ConfigOptions.TerragruntConfigPath)
-	actualConfigPath := filepath.ToSlash(actual.ConfigOptions.TerragruntConfigPath)
-	expectedWorkingDir := filepath.ToSlash(expected.DirOptions.WorkingDir)
-	actualWorkingDir := filepath.ToSlash(actual.DirOptions.WorkingDir)
+	expectedConfigPath := filepath.ToSlash(expected.Config.TerragruntConfigPath)
+	actualConfigPath := filepath.ToSlash(actual.Config.TerragruntConfigPath)
+	expectedWorkingDir := filepath.ToSlash(expected.Dir.WorkingDir)
+	actualWorkingDir := filepath.ToSlash(actual.Dir.WorkingDir)
 
 	assert.Equal(t, expectedConfigPath, actualConfigPath, msgAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, msgAndArgs...)
 	assert.Equal(t, expected.IncludeExternalDependencies, actual.IncludeExternalDependencies, msgAndArgs...)
-	assert.Equal(t, expected.RunOptions.TerraformCliArgs, actual.RunOptions.TerraformCliArgs, msgAndArgs...)
+	assert.Equal(t, expected.Run.TerraformCliArgs, actual.Run.TerraformCliArgs, msgAndArgs...)
 	assert.Equal(t, expectedWorkingDir, actualWorkingDir, msgAndArgs...)
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
 	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
 	assert.Equal(t, expected.IAMRoleOptions, actual.IAMRoleOptions, msgAndArgs...)
 	assert.Equal(t, expected.OriginalIAMRoleOptions, actual.OriginalIAMRoleOptions, msgAndArgs...)
-	assert.Equal(t, expected.LoggingOptions.Debug, actual.LoggingOptions.Debug, msgAndArgs...)
+	assert.Equal(t, expected.Logging.Debug, actual.Logging.Debug, msgAndArgs...)
 	assert.Equal(t, expected.SourceMap, actual.SourceMap, msgAndArgs...)
 }
 
@@ -232,13 +232,13 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 		t.Fatalf("error: %v\n", errors.New(err))
 	}
 
-	opts.DirOptions.WorkingDir = workingDir
-	opts.RunOptions.TerraformCliArgs = terraformCliArgs
+	opts.Dir.WorkingDir = workingDir
+	opts.Run.TerraformCliArgs = terraformCliArgs
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.LoggingOptions.Debug = debug
+	opts.Logging.Debug = debug
 
 	return opts
 }
@@ -318,7 +318,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			)
 			actualOptions, err := runAppTest(l, tc.args, opts)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, []string(actualOptions.RunOptions.TerraformCliArgs), "For args %v", tc.args)
+			assert.Equal(t, tc.expected, []string(actualOptions.Run.TerraformCliArgs), "For args %v", tc.args)
 		})
 	}
 }
@@ -581,7 +581,7 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 		terragruntCommands...).WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx *clipkg.Context) error {
-		opts.RunOptions.TerraformCliArgs = append(opts.RunOptions.TerraformCliArgs, ctx.Args()...)
+		opts.Run.TerraformCliArgs = append(opts.Run.TerraformCliArgs, ctx.Args()...)
 		return nil
 	}
 	app.ExitErrHandler = cli.ExitErrHandler

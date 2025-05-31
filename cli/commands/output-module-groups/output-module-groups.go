@@ -15,12 +15,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	js, err := stack.JSONModuleDeployOrder(opts.RunOptions.TerraformCommand)
+	js, err := stack.JSONModuleDeployOrder(opts.Run.TerraformCommand)
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(opts.LoggingOptions.Writer, "%s\n", js)
+	_, err = fmt.Fprintf(opts.Logging.Writer, "%s\n", js)
 	if err != nil {
 		return err
 	}

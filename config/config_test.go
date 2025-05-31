@@ -522,7 +522,7 @@ include {
 `, "root.hcl")
 
 	opts := &options.TerragruntOptions{
-		ConfigOptions: &options.ConfigOptions{
+		Config: &options.ConfigOptions{
 			TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
 		},
 		NonInteractive: true,
@@ -531,7 +531,7 @@ include {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.Config.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -561,7 +561,7 @@ include {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.Config.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -603,7 +603,7 @@ remote_state {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.Config.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
@@ -653,7 +653,7 @@ dependencies {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.Config.TerragruntConfigPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -704,7 +704,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 	l := createLogger()
 
 	ctx := config.NewParsingContext(t.Context(), l, opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.ConfigOptions.TerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.Config.TerragruntConfigPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -1160,7 +1160,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
-	terragruntOptions.RunOptions.Env["TF_DATA_DIR"] = ".tf_data"
+	terragruntOptions.Run.Env["TF_DATA_DIR"] = ".tf_data"
 
 	actual, err := config.FindConfigFilesInPath("../test/fixtures/config-files/ignore-terraform-data-dir", terragruntOptions)
 
@@ -1178,7 +1178,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
-	terragruntOptions.RunOptions.Env["TF_DATA_DIR"] = "subdir/.tf_data"
+	terragruntOptions.Run.Env["TF_DATA_DIR"] = "subdir/.tf_data"
 
 	actual, err := config.FindConfigFilesInPath("../test/fixtures/config-files/ignore-terraform-data-dir", terragruntOptions)
 
@@ -1195,7 +1195,7 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	workingDir := filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/")
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
 	require.NoError(t, err)
-	terragruntOptions.RunOptions.Env["TF_DATA_DIR"] = filepath.Join(workingDir, ".tf_data")
+	terragruntOptions.Run.Env["TF_DATA_DIR"] = filepath.Join(workingDir, ".tf_data")
 
 	actual, err := config.FindConfigFilesInPath(workingDir, terragruntOptions)
 	require.NoError(t, err, "Unexpected error: %v", err)
@@ -1235,7 +1235,7 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 	}
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("test")
 	require.NoError(t, err)
-	terragruntOptions.DirOptions.DownloadDir = "../test/fixtures/config-files/multiple-configs/subdir-2"
+	terragruntOptions.Dir.DownloadDir = "../test/fixtures/config-files/multiple-configs/subdir-2"
 
 	actual, err := config.FindConfigFilesInPath("../test/fixtures/config-files/multiple-configs", terragruntOptions)
 
@@ -1357,7 +1357,7 @@ terraform {
 }
 `
 	opts := &options.TerragruntOptions{
-		ConfigOptions: &options.ConfigOptions{
+		Config: &options.ConfigOptions{
 			TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/" + config.DefaultTerragruntConfigPath,
 		},
 		NonInteractive:    true,
@@ -1605,7 +1605,7 @@ dependency "dep" {
 
 	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
-	ctx.TerragruntOptions.DirOptions.WorkingDir = unitPath
+	ctx.TerragruntOptions.Dir.WorkingDir = unitPath
 
 	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)

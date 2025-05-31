@@ -178,9 +178,9 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 
 func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Credentials {
 	var (
-		accessKeyID     = opts.RunOptions.Env["AWS_ACCESS_KEY_ID"]
-		secretAccessKey = opts.RunOptions.Env["AWS_SECRET_ACCESS_KEY"]
-		sessionToken    = opts.RunOptions.Env["AWS_SESSION_TOKEN"]
+		accessKeyID     = opts.Run.Env["AWS_ACCESS_KEY_ID"]
+		secretAccessKey = opts.Run.Env["AWS_SECRET_ACCESS_KEY"]
+		sessionToken    = opts.Run.Env["AWS_SESSION_TOKEN"]
 	)
 
 	if accessKeyID == "" || secretAccessKey == "" {

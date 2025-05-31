@@ -70,14 +70,14 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
-			opts.RunOptions.Env = tc.envVarsInOpts
+			opts.Run.Env = tc.envVarsInOpts
 
 			cfg := &config.TerragruntConfig{Inputs: tc.inputsInConfig}
 
 			l := logger.CreateLogger()
 			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg))
 
-			assert.Equal(t, tc.expected, opts.RunOptions.Env)
+			assert.Equal(t, tc.expected, opts.Run.Env)
 		})
 	}
 }
@@ -137,7 +137,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
-			opts.DirOptions.WorkingDir = tc.workingDir
+			opts.Dir.WorkingDir = tc.workingDir
 			err = run.CheckFolderContainsTerraformCode(opts)
 			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
@@ -264,7 +264,7 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Use a path that doesn't exist to induce error
-	tgOptions.RunOptions.TerraformPath = "i-dont-exist"
+	tgOptions.Run.TerraformPath = "i-dont-exist"
 	l := logger.CreateLogger()
 	err = run.RunTerraformWithRetry(t.Context(), l, tgOptions)
 	require.Error(t, err)
@@ -480,13 +480,13 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 		t.Fatalf("error: %v\n", errors.New(err))
 	}
 
-	opts.DirOptions.WorkingDir = workingDir
-	opts.RunOptions.TerraformCliArgs = terraformCliArgs
+	opts.Dir.WorkingDir = workingDir
+	opts.Run.TerraformCliArgs = terraformCliArgs
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.LoggingOptions.Debug = debug
+	opts.Logging.Debug = debug
 
 	return opts
 }

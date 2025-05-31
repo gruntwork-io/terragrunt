@@ -13,15 +13,15 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 	if tfPath, err := getTfPathFromConfig(ctx, l, opts); err != nil {
 		return err
 	} else if tfPath != "" {
-		opts.RunOptions.TerraformPath = tfPath
+		opts.Run.TerraformPath = tfPath
 	}
 
 	return tf.RunCommand(ctx, l, opts, tf.CommandNameVersion)
 }
 
 func getTfPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
-	if !util.FileExists(opts.ConfigOptions.TerragruntConfigPath) {
-		l.Debugf("Did not find the config file %s", opts.ConfigOptions.TerragruntConfigPath)
+	if !util.FileExists(opts.Config.TerragruntConfigPath) {
+		l.Debugf("Did not find the config file %s", opts.Config.TerragruntConfigPath)
 
 		return "", nil
 	}

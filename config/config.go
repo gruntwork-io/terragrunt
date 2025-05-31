@@ -98,7 +98,7 @@ var (
 		DefaultTerragruntConfigPath,
 	}
 
-	DefaultParserOptions = func(l log.Logger, opts *options.TerragruntOptions) []hclparse.Option {
+	DefaultParserOptions = func(l log.Logger, opts *ParsingContextOptions) []hclparse.Option {
 		writer := writer.New(
 			writer.WithLogger(l),
 			writer.WithDefaultLevel(log.ErrorLevel),
@@ -187,12 +187,12 @@ func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, opts *options.Terragru
 	if sourceURL != "" {
 		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
-		tfSource, err := tf.NewSource(l, sourceURL, opts.DirOptions.DownloadDir, opts.DirOptions.WorkingDir, walkWithSymlinks)
+		tfSource, err := tf.NewSource(l, sourceURL, opts.Dir.DownloadDir, opts.Dir.WorkingDir, walkWithSymlinks)
 		if err != nil {
 			return nil, err
 		}
 
-		opts.DirOptions.WorkingDir = tfSource.WorkingDir
+		opts.Dir.WorkingDir = tfSource.WorkingDir
 	}
 
 	return cfg.RemoteState, nil
@@ -975,7 +975,7 @@ func GetTerraformSourceURL(terragruntOptions *options.TerragruntOptions, terragr
 	case terragruntOptions.Source != "":
 		return terragruntOptions.Source, nil
 	case terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil:
-		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.ConfigOptions.OriginalTerragruntConfigPath)
+		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.Config.OriginalTerragruntConfigPath)
 	default:
 		return "", nil
 	}
@@ -1095,7 +1095,7 @@ func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]
 			return filepath.SkipDir
 		}
 
-		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(opts.ConfigOptions.TerragruntConfigPath)) {
+		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(opts.Config.TerragruntConfigPath)) {
 			if !filepath.IsAbs(configFile) {
 				configFile = util.JoinPath(path, configFile)
 			}
@@ -1137,7 +1137,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 		return false, err
 	}
 
-	canonicalDownloadPath, err := util.CanonicalPath(terragruntOptions.DirOptions.DownloadDir, "")
+	canonicalDownloadPath, err := util.CanonicalPath(terragruntOptions.Dir.DownloadDir, "")
 	if err != nil {
 		return false, err
 	}
@@ -1152,13 +1152,13 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 
 // ReadTerragruntConfig reads the Terragrunt config file from its default location
 func ReadTerragruntConfig(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", terragruntOptions.ConfigOptions.TerragruntConfigPath)
+	l.Debugf("Reading Terragrunt config file at %s", terragruntOptions.Config.TerragruntConfigPath)
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 	parsingCtx := NewParsingContext(ctx, l, terragruntOptions).WithParseOption(parserOptions)
 
 	// TODO: Remove lint ignore
-	return ParseConfigFile(parsingCtx, l, terragruntOptions.ConfigOptions.TerragruntConfigPath, nil) //nolint:contextcheck
+	return ParseConfigFile(parsingCtx, l, terragruntOptions.Config.TerragruntConfigPath, nil) //nolint:contextcheck
 }
 
 // ParseConfigFile parses the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
@@ -1170,7 +1170,7 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "parse_config_file", map[string]any{
 		"config_path": configPath,
-		"working_dir": ctx.TerragruntOptions.DirOptions.WorkingDir,
+		"working_dir": ctx.TerragruntOptions.Dir.WorkingDir,
 	}, func(_ context.Context) error {
 		childKey := "nil"
 		if includeFromChild != nil {
@@ -1194,7 +1194,7 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 
 		var (
 			file     *hclparse.File
-			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.DirOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.Dir.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
 		)
 
 		// TODO: Remove lint ignore
@@ -1820,7 +1820,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 	for _, dependencyPath := range dependencies.Paths {
 		fullPath := filepath.FromSlash(dependencyPath)
 		if !filepath.IsAbs(fullPath) {
-			fullPath = path.Join(ctx.TerragruntOptions.DirOptions.WorkingDir, fullPath)
+			fullPath = path.Join(ctx.TerragruntOptions.Dir.WorkingDir, fullPath)
 		}
 
 		if !util.IsDir(fullPath) {
@@ -1944,7 +1944,7 @@ func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (m
 }
 
 // EngineOptions fetch engine options
-func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
+func (cfg *TerragruntConfig) EngineOptions() (*options.EngineConfig, error) {
 	if cfg.Engine == nil {
 		return nil, nil
 	}
@@ -1973,7 +1973,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineOptions{
+	return &options.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,

@@ -31,14 +31,14 @@ var runAllDisabledCommands = map[string]string{
 }
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if opts.RunOptions.TerraformCommand == "" {
+	if opts.Run.TerraformCommand == "" {
 		return errors.New(MissingCommand{})
 	}
 
-	reason, isDisabled := runAllDisabledCommands[opts.RunOptions.TerraformCommand]
+	reason, isDisabled := runAllDisabledCommands[opts.Run.TerraformCommand]
 	if isDisabled {
 		return RunAllDisabledErr{
-			command: opts.RunOptions.TerraformCommand,
+			command: opts.Run.TerraformCommand,
 			reason:  reason,
 		}
 	}
@@ -54,13 +54,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stack *configstack.Stack) error {
 	l.Debugf("%s", stack.String())
 
-	if err := stack.LogModuleDeployOrder(l, opts.RunOptions.TerraformCommand); err != nil {
+	if err := stack.LogModuleDeployOrder(l, opts.Run.TerraformCommand); err != nil {
 		return err
 	}
 
 	var prompt string
 
-	switch opts.RunOptions.TerraformCommand {
+	switch opts.Run.TerraformCommand {
 	case tf.CommandNameApply:
 		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?"
 	case tf.CommandNameDestroy:
@@ -81,8 +81,8 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	}
 
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_all_on_stack", map[string]any{
-		"terraform_command": opts.RunOptions.TerraformCommand,
-		"working_dir":       opts.DirOptions.WorkingDir,
+		"terraform_command": opts.Run.TerraformCommand,
+		"working_dir":       opts.Dir.WorkingDir,
 	}, func(ctx context.Context) error {
 		return stack.Run(ctx, l, opts)
 	})

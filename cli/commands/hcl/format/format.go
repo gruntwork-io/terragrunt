@@ -35,7 +35,7 @@ var excludePaths = []string{
 }
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	workingDir := opts.DirOptions.WorkingDir
+	workingDir := opts.Dir.WorkingDir
 	targetFile := opts.HclFile
 	stdIn := opts.HclFromStdin
 
@@ -44,7 +44,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			return errors.Errorf("both stdin and path flags are specified")
 		}
 
-		return formatFromStdin(l, opts.LoggingOptions)
+		return formatFromStdin(l, opts.Logging)
 	}
 
 	// handle when option specifies a particular file
@@ -58,7 +58,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return formatTgHCL(l, opts, targetFile)
 	}
 
-	l.Debugf("Formatting hcl files from the directory tree %s.", opts.DirOptions.WorkingDir)
+	l.Debugf("Formatting hcl files from the directory tree %s.", opts.Dir.WorkingDir)
 	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
@@ -177,7 +177,7 @@ func formatTgHCL(l log.Logger, opts *options.TerragruntOptions, tgHclFile string
 			return err
 		}
 
-		_, err = fmt.Fprintf(opts.LoggingOptions.Writer, "%s\n", diff)
+		_, err = fmt.Fprintf(opts.Logging.Writer, "%s\n", diff)
 		if err != nil {
 			l.Errorf("Failed to print diff for %s", tgHclFile)
 			return err

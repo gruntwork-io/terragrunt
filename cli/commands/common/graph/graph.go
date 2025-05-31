@@ -29,7 +29,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, err := shell.GitTopLevelDir(ctx, l, opts, opts.DirOptions.WorkingDir)
+		gitRoot, err := shell.GitTopLevelDir(ctx, l, opts, opts.Dir.WorkingDir)
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	dependentModules := stack.ListStackDependentModules()
 
-	workDir := opts.DirOptions.WorkingDir
+	workDir := opts.Dir.WorkingDir
 	modulesToInclude := dependentModules[workDir]
 	// workdir to list too
 	modulesToInclude = append(modulesToInclude, workDir)

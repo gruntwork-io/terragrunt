@@ -41,8 +41,8 @@ func WrapCommand(l log.Logger, opts *options.TerragruntOptions, cmd *cli.Command
 			return action(cliCtx)
 		}
 
-		opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-			if opts.RunOptions.TerraformCommand == cmd.Name {
+		opts.RunCommand = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+			if opts.Run.TerraformCommand == cmd.Name {
 				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
 
 				return action(cliCtx)

@@ -16,14 +16,14 @@ import (
 func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *options.TerragruntOptions) error {
 	var err error
 
-	srcPath, err = util.CanonicalPath(srcPath, opts.DirOptions.WorkingDir)
+	srcPath, err = util.CanonicalPath(srcPath, opts.Dir.WorkingDir)
 	if err != nil {
 		return err
 	}
 
 	l.Debugf("Source unit path %s", srcPath)
 
-	dstPath, err = util.CanonicalPath(dstPath, opts.DirOptions.WorkingDir)
+	dstPath, err = util.CanonicalPath(dstPath, opts.Dir.WorkingDir)
 	if err != nil {
 		return err
 	}

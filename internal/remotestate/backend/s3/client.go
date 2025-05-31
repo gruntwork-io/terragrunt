@@ -120,7 +120,7 @@ func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", bucketName)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.Logging, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		return backend.BucketCreationNotAllowed(bucketName)
 	}
 
-	needsUpdate, bucketUpdatesRequired, err := client.checkIfS3BucketNeedsUpdate(ctx, l, bucketName)
+	needsUpdate, bucketUpdatesRequired, err := client.checkIfS3BucketNeedsUpdate(ctx, l, bucketName, opts.Logging, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	prompt := fmt.Sprintf("Remote state S3 bucket %s is res of date. Would you like Terragrunt to update it?", bucketName)
 
-	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.Logging, opts.NonInteractive)
 	if err != nil {
 		return err
 	}
@@ -311,7 +311,13 @@ type S3BucketUpdatesRequired struct {
 	PublicAccess  bool
 }
 
-func (client *Client) checkIfS3BucketNeedsUpdate(ctx context.Context, l log.Logger, bucketName string) (bool, S3BucketUpdatesRequired, error) {
+func (client *Client) checkIfS3BucketNeedsUpdate(
+	ctx context.Context,
+	l log.Logger,
+	bucketName string,
+	logging *options.LoggingOptions,
+	nonInteractive bool,
+) (bool, S3BucketUpdatesRequired, error) {
 	var (
 		updates  []string
 		toUpdate S3BucketUpdatesRequired
@@ -435,7 +441,11 @@ func (client *Client) CheckIfVersioningEnabled(ctx context.Context, l log.Logger
 }
 
 // CreateS3BucketWithVersioningSSEncryptionAndAccessLogging creates the given S3 bucket and enable versioning for it.
-func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) error {
 	cfg := &client.RemoteStateConfigS3
 
 	l.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", cfg.Bucket)
@@ -513,7 +523,12 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 	return nil
 }
 
-func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.Logger, logsBucketName string, opts *options.TerragruntOptions) error {
+func (client *Client) CreateLogsS3BucketIfNecessary(
+	ctx context.Context,
+	l log.Logger,
+	logsBucketName string,
+	opts *options.TerragruntOptions,
+) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, logsBucketName); err != nil || exists {
 		return err
 	}
@@ -524,7 +539,7 @@ func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.L
 
 	prompt := fmt.Sprintf("Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", logsBucketName)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.Logging, opts.NonInteractive)
 	if err != nil {
 		return err
 	}

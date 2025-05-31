@@ -213,12 +213,22 @@ func (c *DiscoveredConfig) ContainsDependencyInAncestry(path string) bool {
 
 // Parse parses the discovered configurations.
 func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, suppressParseErrors bool) error {
-	parseOpts := opts.Clone()
-	parseOpts.DirOptions.WorkingDir = c.Path
+	parseOpts := &config.ParsingContextOptions{
+		ConfigOptions:  opts.Config,
+		Dir:            opts.Dir,
+		Logging:        opts.Logging,
+		StrictControls: opts.StrictControls,
+		SkipOutput:     opts.SkipOutput,
+	}
+
+	parseOpts.Dir = parseOpts.Dir.Clone()
+	parseOpts.Dir.WorkingDir = c.Path
 
 	// Suppress logging to avoid cluttering the output.
-	parseOpts.LoggingOptions.Writer = io.Discard
-	parseOpts.LoggingOptions.ErrWriter = io.Discard
+	parseOpts.Logging = parseOpts.Logging.Clone()
+	parseOpts.Logging.Writer = io.Discard
+	parseOpts.Logging.ErrWriter = io.Discard
+
 	parseOpts.SkipOutput = true
 
 	filename := config.DefaultTerragruntConfigPath
@@ -227,7 +237,8 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 		filename = config.DefaultStackFile
 	}
 
-	parseOpts.ConfigOptions.TerragruntConfigPath = filepath.Join(parseOpts.DirOptions.WorkingDir, filename)
+	parseOpts.ConfigOptions = parseOpts.ConfigOptions.Clone()
+	parseOpts.ConfigOptions.TerragruntConfigPath = filepath.Join(parseOpts.Dir.WorkingDir, filename)
 
 	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
 		config.DependenciesBlock,

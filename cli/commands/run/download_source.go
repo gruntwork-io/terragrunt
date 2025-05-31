@@ -38,7 +38,7 @@ const fileURIScheme = "file://"
 func downloadTerraformSource(ctx context.Context, l log.Logger, source string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
-	terraformSource, err := tf.NewSource(l, source, opts.DirOptions.DownloadDir, opts.DirOptions.WorkingDir, walkWithSymlinks)
+	terraformSource, err := tf.NewSource(l, source, opts.Dir.DownloadDir, opts.Dir.WorkingDir, walkWithSymlinks)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func downloadTerraformSource(ctx context.Context, l log.Logger, source string, o
 		return nil, err
 	}
 
-	l.Debugf("Copying files from %s into %s", opts.DirOptions.WorkingDir, terraformSource.WorkingDir)
+	l.Debugf("Copying files from %s into %s", opts.Dir.WorkingDir, terraformSource.WorkingDir)
 
 	var includeInCopy, excludeFromCopy []string
 
@@ -64,7 +64,7 @@ func downloadTerraformSource(ctx context.Context, l log.Logger, source string, o
 
 	err = util.CopyFolderContents(
 		l,
-		opts.DirOptions.WorkingDir,
+		opts.Dir.WorkingDir,
 		terraformSource.WorkingDir,
 		ModuleManifestName,
 		includeInCopy,
@@ -74,7 +74,7 @@ func downloadTerraformSource(ctx context.Context, l log.Logger, source string, o
 		return nil, err
 	}
 
-	l, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.ConfigOptions.TerragruntConfigPath)
+	l, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.Config.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func DownloadTerraformSourceIfNecessary(
 			return err
 		}
 
-		l.Debugf("%s files in %s are up to date. Will not download again.", opts.RunOptions.TerraformImplementation, terraformSource.WorkingDir)
+		l.Debugf("%s files in %s are up to date. Will not download again.", opts.Run.TerraformImplementation, terraformSource.WorkingDir)
 
 		return nil
 	}
@@ -129,7 +129,7 @@ func DownloadTerraformSourceIfNecessary(
 	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
 	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
 	// before and after hooks (if any).
-	l, terragruntOptionsForDownload, err := opts.CloneWithConfigPath(l, opts.ConfigOptions.TerragruntConfigPath)
+	l, terragruntOptionsForDownload, err := opts.CloneWithConfigPath(l, opts.Config.TerragruntConfigPath)
 	if err != nil {
 		return err
 	}

@@ -137,7 +137,7 @@ func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logg
 
 	prompt := fmt.Sprintf("Remote state GCS bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", bucketName)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.Logging, opts.NonInteractive)
 	if err != nil {
 		return err
 	}

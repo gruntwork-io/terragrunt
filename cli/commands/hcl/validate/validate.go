@@ -70,7 +70,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-	opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	opts.RunCommand = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 		_, err := config.ReadTerragruntConfig(ctx, l, opts, parseOptions)
 		return err
 	}
@@ -111,7 +111,7 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 		render = view.NewJSONRender()
 	}
 
-	writer := view.NewWriter(opts.LoggingOptions.Writer, render)
+	writer := view.NewWriter(opts.Logging.Writer, render)
 
 	if opts.HCLValidateShowConfigPath {
 		return writer.ShowConfigPath(diags)
@@ -127,7 +127,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 }
 
 func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-	required, optional, err := tf.ModuleVariables(opts.DirOptions.WorkingDir)
+	required, optional, err := tf.ModuleVariables(opts.Dir.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -258,7 +258,7 @@ func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, c
 // variables. This will return the list of names of variables that are set in this way by the given terragrunt
 // configuration.
 func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
-	envVars := opts.RunOptions.Env
+	envVars := opts.Run.Env
 
 	// Make sure to check if there are configured env vars in the parsed terragrunt config.
 	if terragruntConfig.Terraform != nil {
@@ -314,7 +314,7 @@ func getTerraformInputNamesFromVarFiles(l log.Logger, opts *options.TerragruntOp
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
 // config and those that are directly passed in via the CLI.
 func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
-	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.RunOptions.TerraformCliArgs)
+	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.Run.TerraformCliArgs)
 	if err != nil {
 		return inputNames, err
 	}
@@ -345,7 +345,7 @@ func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOpt
 
 // getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
 func getTerraformInputNamesFromAutomaticVarFiles(l log.Logger, opts *options.TerragruntOptions) ([]string, error) {
-	base := opts.DirOptions.WorkingDir
+	base := opts.Dir.WorkingDir
 	automaticVarFiles := []string{}
 
 	tfTFVarsFile := filepath.Join(base, "terraform.tfvars")

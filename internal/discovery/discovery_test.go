@@ -199,8 +199,8 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 
 	// Create base options that will be cloned for each test
 	opts := options.NewTerragruntOptions()
-	opts.DirOptions.WorkingDir = internalDir
-	opts.DirOptions.RootWorkingDir = internalDir
+	opts.Dir.WorkingDir = internalDir
+	opts.Dir.RootWorkingDir = internalDir
 
 	tests := []struct {
 		name      string
@@ -439,7 +439,7 @@ exclude {
 	}
 
 	tgOpts := options.NewTerragruntOptions()
-	tgOpts.DirOptions.WorkingDir = tmpDir
+	tgOpts.Dir.WorkingDir = tmpDir
 
 	l := logger.CreateLogger()
 

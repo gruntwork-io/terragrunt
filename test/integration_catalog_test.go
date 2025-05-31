@@ -121,18 +121,28 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	assert.True(t, found)
 	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5")
 
-	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+opts.DirOptions.WorkingDir)
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+opts.Dir.WorkingDir)
 }
 
 func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.TerragruntConfig {
 	t.Helper()
 
-	assert.FileExists(t, opts.DirOptions.WorkingDir+"/terragrunt.hcl")
+	assert.FileExists(t, opts.Dir.WorkingDir+"/terragrunt.hcl")
 
-	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.DirOptions.WorkingDir, "terragrunt.hcl"))
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.Dir.WorkingDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	cfg, err := config.ReadTerragruntConfig(t.Context(), logger.CreateLogger(), opts, config.DefaultParserOptions(logger.CreateLogger(), opts))
+	cfg, err := config.ReadTerragruntConfig(
+		t.Context(),
+		logger.CreateLogger(),
+		opts,
+		config.DefaultParserOptions(logger.CreateLogger(), &config.ParsingContextOptions{
+			Dir:            opts.Dir,
+			Logging:        opts.Logging,
+			StrictControls: opts.StrictControls,
+			SkipOutput:     opts.SkipOutput,
+		}),
+	)
 	require.NoError(t, err)
 
 	return cfg

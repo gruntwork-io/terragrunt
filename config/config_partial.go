@@ -216,7 +216,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
 			if flag.Default == nil {
-				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath))
+				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntOptions.Config.TerragruntConfigPath))
 				continue
 			}
 
@@ -313,14 +313,14 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, l log.Logger, file *
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
-			l.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath, ctx.PartialParseDecodeList)
+			l.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.Config.TerragruntConfigPath, ctx.PartialParseDecodeList)
 
 			deepCopy := clone.Clone(config).(*TerragruntConfig)
 
 			return deepCopy, nil
 		}
 
-		l.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath, ctx.PartialParseDecodeList)
+		l.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.Config.TerragruntConfigPath, ctx.PartialParseDecodeList)
 	}
 
 	config, err := PartialParseConfig(ctx, l, file, includeFromChild)
@@ -574,7 +574,7 @@ func PartialParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, 
 			// we use the value they set in their configuration.
 			//
 			// Otherwise, we assume that they've explicitly set the path they want to use via the --tf-path flag.
-			if decoded.TerraformBinary != nil && ctx.TerragruntOptions.RunOptions.TerraformPath == options.DefaultWrappedPath {
+			if decoded.TerraformBinary != nil && ctx.TerragruntOptions.Run.TerraformPath == options.DefaultWrappedPath {
 				output.TerraformBinary = *decoded.TerraformBinary
 			}
 
@@ -699,13 +699,13 @@ func processExcludes(ctx *ParsingContext, l log.Logger, config *TerragruntConfig
 
 func partialParseIncludedConfig(ctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath))
+		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.Config.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path
 
 	if !filepath.IsAbs(includePath) {
-		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.ConfigOptions.TerragruntConfigPath), includePath)
+		includePath = util.JoinPath(filepath.Dir(ctx.TerragruntOptions.Config.TerragruntConfigPath), includePath)
 	}
 
 	return PartialParseConfigFile(

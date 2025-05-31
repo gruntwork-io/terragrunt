@@ -69,7 +69,25 @@ func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, act
 		assert.Equal(t, expected.AssumeAlreadyApplied, actual.AssumeAlreadyApplied, messageAndArgs...)
 		assert.Equal(t, expected.FlagExcluded, actual.FlagExcluded, messageAndArgs...)
 
-		assertOptionsEqual(t, *expected.TerragruntOptions, *actual.TerragruntOptions, messageAndArgs...)
+		// assertOptionsEqual(t, *expected.TerragruntOptions, *actual.TerragruntOptions, messageAndArgs...)
+		assertOptionsEqual(
+			t,
+			options.TerragruntOptions{
+				Config: &options.ConfigOptions{
+					TerragruntConfigPath: expected.ConfigOptions.TerragruntConfigPath,
+				},
+				Run: expected.Run,
+				Dir: expected.Dir,
+			},
+			options.TerragruntOptions{
+				Config: &options.ConfigOptions{
+					TerragruntConfigPath: actual.ConfigOptions.TerragruntConfigPath,
+				},
+				Run: actual.Run,
+				Dir: actual.Dir,
+			},
+			messageAndArgs...,
+		)
 		assertModuleListsEqual(t, expected.Dependencies, actual.Dependencies, messageAndArgs...)
 	}
 }
@@ -157,10 +175,10 @@ func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArg
 func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual options.TerragruntOptions, messageAndArgs ...any) {
 	t.Helper()
 
-	assert.Equal(t, expected.ConfigOptions.TerragruntConfigPath, actual.ConfigOptions.TerragruntConfigPath, messageAndArgs...)
+	assert.Equal(t, expected.Config.TerragruntConfigPath, actual.Config.TerragruntConfigPath, messageAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, messageAndArgs...)
-	assert.Equal(t, expected.RunOptions.TerraformCliArgs, actual.RunOptions.TerraformCliArgs, messageAndArgs...)
-	assert.Equal(t, expected.DirOptions.WorkingDir, actual.DirOptions.WorkingDir, messageAndArgs...)
+	assert.Equal(t, expected.Run.TerraformCliArgs, actual.Run.TerraformCliArgs, messageAndArgs...)
+	assert.Equal(t, expected.Dir.WorkingDir, actual.Dir.WorkingDir, messageAndArgs...)
 }
 
 // Return the absolute path for the given path
@@ -193,7 +211,7 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 	if err != nil {
 		t.Fatalf("Error creating terragrunt options for test %v", err)
 	}
-	opts.RunTerragrunt = func(_ context.Context, _ log.Logger, _ *options.TerragruntOptions) error {
+	opts.RunCommand = func(_ context.Context, _ log.Logger, _ *options.TerragruntOptions) error {
 		*executed = true
 		return toReturnFromTerragruntCommand
 	}

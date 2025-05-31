@@ -67,7 +67,7 @@ func newRunningModule(module *TerraformModule) *RunningModule {
 func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, semaphore chan struct{}) {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "wait_for_module_ready", map[string]any{
 		"path":             module.Module.Path,
-		"terraformCommand": module.Module.TerragruntOptions.RunOptions.TerraformCommand,
+		"terraformCommand": module.Module.Run.TerraformCommand,
 	}, func(_ context.Context) error {
 		return module.waitForDependencies()
 	})
@@ -80,7 +80,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 	if err == nil {
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_module", map[string]any{
 			"path":             module.Module.Path,
-			"terraformCommand": module.Module.TerragruntOptions.RunOptions.TerraformCommand,
+			"terraformCommand": module.Module.Run.TerraformCommand,
 		}, func(ctx context.Context) error {
 			return module.runNow(ctx, opts)
 		})
@@ -99,7 +99,7 @@ func (module *RunningModule) waitForDependencies() error {
 		delete(module.Dependencies, doneDependency.Module.Path)
 
 		if doneDependency.Err != nil {
-			if module.Module.TerragruntOptions.IgnoreDependencyErrors {
+			if module.Module.IgnoreDependencyErrors {
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
@@ -113,14 +113,14 @@ func (module *RunningModule) waitForDependencies() error {
 	return nil
 }
 
-func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions) error {
+func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.LoggingOptions, runCommand options.RunCommand) error {
 	module.Logger.Debugf("Running %s", module.Module.Path)
 
-	opts.LoggingOptions.Writer = NewModuleWriter(opts.LoggingOptions.Writer)
+	opts.Writer = NewModuleWriter(opts.Writer)
 
 	defer module.Module.FlushOutput() //nolint:errcheck
 
-	return opts.RunTerragrunt(ctx, module.Logger, opts)
+	return runCommand(ctx, module.Logger, opts)
 }
 
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
@@ -131,13 +131,13 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 		module.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.Path)
 		return nil
 	} else {
-		if err := module.runTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
+		if err := module.runTerragrunt(ctx, module.Module.Logging, module.Module.Run.RunCommand); err != nil {
 			return err
 		}
 
 		// convert terragrunt output to json
-		if module.Module.outputJSONFile(module.Logger, module.Module.TerragruntOptions) != "" {
-			l, jsonOptions, err := module.Module.TerragruntOptions.CloneWithConfigPath(module.Logger, module.Module.TerragruntOptions.ConfigOptions.TerragruntConfigPath)
+		if module.Module.outputJSONFile(module.Logger, rootOptions) != "" {
+			l, jsonOptions, err := module.Module.TerragruntOptions.CloneWithConfigPath(module.Logger, module.Module.TerragruntOptions.Config.TerragruntConfigPath)
 			if err != nil {
 				return err
 			}

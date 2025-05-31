@@ -21,7 +21,7 @@ import (
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d := discovery.
-		NewDiscovery(opts.DirOptions.WorkingDir).
+		NewDiscovery(opts.Dir.WorkingDir).
 		WithSuppressParseErrors()
 
 	if opts.Hidden {
@@ -56,7 +56,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	var discoverErr error
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
-		"working_dir":  opts.DirOptions.WorkingDir,
+		"working_dir":  opts.Dir.WorkingDir,
 		"hidden":       opts.Hidden,
 		"dependencies": opts.Dependencies,
 		"external":     opts.External,
@@ -76,7 +76,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		cfgs = cfgs.Sort()
 	case ModeDAG:
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_mode_dag", map[string]any{
-			"working_dir":  opts.DirOptions.WorkingDir,
+			"working_dir":  opts.Dir.WorkingDir,
 			"config_count": len(cfgs),
 		}, func(ctx context.Context) error {
 			q, queueErr := queue.NewQueue(cfgs)
@@ -100,7 +100,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	var foundCfgs FoundConfigs
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discovered_to_found", map[string]any{
-		"working_dir":  opts.DirOptions.WorkingDir,
+		"working_dir":  opts.Dir.WorkingDir,
 		"config_count": len(cfgs),
 	}, func(ctx context.Context) error {
 		var convErr error
@@ -114,9 +114,9 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, opts.LoggingOptions, foundCfgs)
+		return outputText(l, opts.Logging, foundCfgs)
 	case FormatJSON:
-		return outputJSON(opts.LoggingOptions, foundCfgs)
+		return outputJSON(opts.Logging, foundCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -153,7 +153,7 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 			}
 		}
 
-		relPath, err := filepath.Rel(opts.DirOptions.WorkingDir, config.Path)
+		relPath, err := filepath.Rel(opts.Dir.WorkingDir, config.Path)
 		if err != nil {
 			errs = append(errs, errors.New(err))
 
@@ -172,7 +172,7 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 		if opts.Include && config.Parsed != nil && config.Parsed.ProcessedIncludes != nil {
 			foundCfg.Include = make(map[string]string, len(config.Parsed.ProcessedIncludes))
 			for _, v := range config.Parsed.ProcessedIncludes {
-				foundCfg.Include[v.Name], err = util.GetPathRelativeTo(v.Path, opts.DirOptions.RootWorkingDir)
+				foundCfg.Include[v.Name], err = util.GetPathRelativeTo(v.Path, opts.Dir.RootWorkingDir)
 				if err != nil {
 					errs = append(errs, errors.New(err))
 				}
@@ -188,7 +188,7 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 		foundCfg.Dependencies = make([]string, len(config.Dependencies))
 
 		for i, dep := range config.Dependencies {
-			relDepPath, err := filepath.Rel(opts.DirOptions.WorkingDir, dep.Path)
+			relDepPath, err := filepath.Rel(opts.Dir.WorkingDir, dep.Path)
 			if err != nil {
 				errs = append(errs, errors.New(err))
 

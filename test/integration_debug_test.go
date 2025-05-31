@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -53,13 +54,19 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	// without going through terragrunt.
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	require.NoError(t, err)
-	mockOptions.DirOptions.WorkingDir = rootPath
+	mockOptions.Dir.WorkingDir = rootPath
 
 	l := logger.CreateLogger()
 
 	require.NoError(
 		t,
-		tf.RunCommand(t.Context(), l, mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
+		tf.RunCommand(t.Context(), l, &shell.RunCommandOptions{
+			Dir:       mockOptions.Dir,
+			Logging:   mockOptions.Logging,
+			Run:       mockOptions.Run,
+			Telemetry: mockOptions.Telemetry,
+			Engine:    mockOptions.Engine,
+		}, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout = bytes.Buffer{}

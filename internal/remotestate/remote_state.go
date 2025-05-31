@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -150,7 +151,13 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, opts, args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, &shell.RunCommandOptions{
+		Dir:       opts.Dir,
+		Logging:   opts.Logging,
+		Run:       opts.Run,
+		Telemetry: opts.Telemetry,
+		Engine:    opts.Engine,
+	}, args...)
 	if err != nil {
 		return "", err
 	}
@@ -178,5 +185,11 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, opts, args...)
+	return tf.RunCommand(ctx, l, &shell.RunCommandOptions{
+		Dir:       opts.Dir,
+		Logging:   opts.Logging,
+		Run:       opts.Run,
+		Telemetry: opts.Telemetry,
+		Engine:    opts.Engine,
+	}, args...)
 }

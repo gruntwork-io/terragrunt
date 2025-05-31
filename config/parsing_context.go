@@ -7,6 +7,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -17,7 +18,8 @@ import (
 type ParsingContext struct {
 	context.Context
 
-	TerragruntOptions *options.TerragruntOptions
+	// ParsingContextOptions are the options for the parsing context.
+	ParsingContextOptions *ParsingContextOptions
 
 	// TrackInclude represents contexts of included configurations.
 	TrackInclude *TrackInclude
@@ -52,13 +54,21 @@ type ParsingContext struct {
 	ParserOptions []hclparse.Option
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *ParsingContext {
+type ParsingContextOptions struct {
+	ConfigOptions  *options.ConfigOptions
+	Dir            *options.DirOptions
+	Logging        *options.LoggingOptions
+	StrictControls strict.Controls
+	SkipOutput     bool
+}
+
+func NewParsingContext(ctx context.Context, l log.Logger, opts *ParsingContextOptions) *ParsingContext {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	return &ParsingContext{
-		Context:           ctx,
-		TerragruntOptions: opts,
-		ParserOptions:     DefaultParserOptions(l, opts),
+		Context:               ctx,
+		ParsingContextOptions: opts,
+		ParserOptions:         DefaultParserOptions(l, opts),
 	}
 }
 func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
@@ -66,8 +76,8 @@ func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType)
 	return &ctx
 }
 
-func (ctx ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
-	ctx.TerragruntOptions = opts
+func (ctx ParsingContext) WithParsingContextOptions(opts *ParsingContextOptions) *ParsingContext {
+	ctx.ParsingContextOptions = opts
 	return &ctx
 }
 
