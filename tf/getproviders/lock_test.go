@@ -145,7 +145,7 @@ provider "registry.terraform.io/hashicorp/template" {
   version     = "2.1.0"
   constraints = "<= 2.1.0" 
   hashes = [
-	"h1:vxE/PD8SWl6Lmh5zRvIW1Y559xfUyuV2T/VeQLXi7f0=",
+    "h1:vxE/PD8SWl6Lmh5zRvIW1Y559xfUyuV2T/VeQLXi7f0=",
     "zh:6fc271665ac28c3fee773b9dc2b8066280ba35b7e9a14a6148194a240c43f42a",
     "zh:c19f719c9f7ce6d7449fe9c020100faed0705303c7f95beeef81dfd1e4a2004b",
   ]
