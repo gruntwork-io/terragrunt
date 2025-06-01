@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 
 	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -958,6 +959,19 @@ func getTerragruntOutputJSONFromRemoteState(
 			l.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetTGOptions.TerragruntConfigPath, jsonBytes)
 
 			return jsonBytes, nil
+		case "azurerm":
+			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(
+				l,
+				targetTGOptions,
+				remoteState,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			l.Debugf("Retrieved output from %s as json: %s using Azure storage", targetTGOptions.TerragruntConfigPath, jsonBytes)
+
+			return jsonBytes, nil
 		default:
 			l.Errorf("FetchDependencyOutputFromState is not supported for backend %s, falling back to normal method", backend)
 		}
@@ -1055,6 +1069,38 @@ func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.Terrag
 	}
 
 	return jsonOutputs, nil
+}
+
+// getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
+func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+	l.Debugf("Fetching outputs directly from Azure storage account %s, container %s, blob %s", remoteState.BackendConfig["storage_account_name"], remoteState.BackendConfig["container_name"], remoteState.BackendConfig["key"])
+
+	// Create a new blob service client
+	blobServiceClient, err := azurehelper.CreateBlobServiceClient(l, opts, remoteState.BackendConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the blob URL 
+	blobURL := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", remoteState.BackendConfig["storage_account_name"], remoteState.BackendConfig["container_name"], remoteState.BackendConfig["key"])
+
+	// Download the blob
+	resp, err := blobServiceClient.GetObject(&blob.GetObjectInput{
+		Bucket: aws.String(remoteState.BackendConfig["container_name"]),
+		Key:    aws.String(remoteState.BackendConfig["key"]),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 // setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform
