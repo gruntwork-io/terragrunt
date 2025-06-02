@@ -87,7 +87,7 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 
 	if len(foundFiles) == 0 {
 		if opts.StackAction == "generate" {
-			opts.Logger.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+			l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
 		}
 
 		return nil
@@ -174,7 +174,7 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	if len(foundFiles) == 0 {
-		opts.Logger.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+		l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
 		return cty.NilVal, nil
 	}
 
