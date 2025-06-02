@@ -9,8 +9,6 @@ function print_usage {
   echo
   echo "Usage: $0 [OPTIONS] <Path to files used to sign...>"
   echo
-  echo "MacOS signing:"
-  echo
   echo -e "  MACOS_CERTIFICATE\t\tMac developer certificate in P12 format, encoded in base64."
   echo -e "  MACOS_CERTIFICATE_PASSWORD\tMac certificate password"
   echo
@@ -19,11 +17,10 @@ function print_usage {
   echo -e "  --help\t\t\t\tShow this help text and exit."
   echo
   echo "Examples:"
-  echo "  sign-binary sign.hcl"
+  echo "  $0 sign.hcl"
 }
 
 function main {
-  local os=""
   local mac_skip_root_certificate=""
   local assets=()
 
@@ -38,12 +35,12 @@ function main {
         print_usage
         exit
         ;;
-      -*)
+      -* )
         echo "ERROR: Unrecognized argument: $key"
         print_usage
         exit 1
         ;;
-      *)
+      * )
         assets=("$@")
         break
     esac
@@ -63,7 +60,6 @@ function ensure_macos {
 function sign_mac {
   local -r assets=("$@")
   local gon_cmd="gon"
-  local filepath
   for filepath in "${assets[@]}"; do
     echo "Signing ${filepath}"
     "${gon_cmd}" -log-level=info "${filepath}"
@@ -75,19 +71,14 @@ function import_certificate_mac {
   assert_env_var_not_empty "MACOS_CERTIFICATE"
   assert_env_var_not_empty "MACOS_CERTIFICATE_PASSWORD"
 
-  local run_id
-  run_id=${RANDOM}
-  trap "rm -rf /tmp/${run_id}*" EXIT
+  trap "rm -rf /tmp/*-keychain" EXIT
 
   local mac_certificate_pwd="${MACOS_CERTIFICATE_PASSWORD}"
+  local keystore_pw="${RANDOM}"
 
-  # temporary keychain password
-  local keystore_pw
-  keystore_pw="${RANDOM}"
-
-  # creating separated keychain file to store certificate and do quick cleanup of sensitive data
+  # create separated keychain file to store certificate and do quick cleanup of sensitive data
   local db_file
-  db_file=$(mktemp "/tmp/${run_id}-XXXXXX-keychain")
+  db_file=$(mktemp "/tmp/XXXXXX-keychain")
   rm -rf "${db_file}"
   echo "Creating separated keychain for certificate"
   security create-keychain -p "${keystore_pw}" "${db_file}"
