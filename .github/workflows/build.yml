@@ -66,9 +66,8 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
-          path: |
-            bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
+          name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}.zip
+          path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
 
   sign:
     name: Sign Binaries
@@ -86,6 +85,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: bin/
+
+      - name: Extract and clean up build artifacts
+        run: |
+          for f in bin/*.zip; do unzip -o -d bin/ "$f"; rm "$f"; done
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@v2
@@ -131,13 +134,6 @@ jobs:
           .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
           .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
           echo "Done signing the binary"
-
-          # Replace the files in bin. These are the same file names generated from .gon_amd64.hcl and .gon_arm64.hcl
-          unzip terragrunt_darwin_amd64.zip
-          mv terragrunt_darwin_amd64 bin/
-
-          unzip terragrunt_darwin_arm64.zip
-          mv terragrunt_darwin_arm64 bin/
 
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
           codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
