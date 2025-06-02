@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Getter struct {
@@ -20,9 +21,9 @@ func NewGetter() *Getter {
 }
 
 // ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to `opts.Env`.
-func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, opts *options.TerragruntOptions, authProviders ...providers.Provider) error {
+func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, authProviders ...providers.Provider) error {
 	for _, provider := range authProviders {
-		creds, err := provider.GetCredentials(ctx)
+		creds, err := provider.GetCredentials(ctx, l)
 		if err != nil {
 			return err
 		}
@@ -33,7 +34,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, opts *o
 
 		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {
-				opts.Logger.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.", creds.Name, providerName, provider.Name())
+				l.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.", creds.Name, providerName, provider.Name())
 			}
 		}
 

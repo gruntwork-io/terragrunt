@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -51,13 +52,13 @@ type ParsingContext struct {
 	ParserOptions []hclparse.Option
 }
 
-func NewParsingContext(ctx context.Context, opts *options.TerragruntOptions) *ParsingContext {
+func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *ParsingContext {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	return &ParsingContext{
 		Context:           ctx,
 		TerragruntOptions: opts,
-		ParserOptions:     DefaultParserOptions(opts),
+		ParserOptions:     DefaultParserOptions(l, opts),
 	}
 }
 func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {

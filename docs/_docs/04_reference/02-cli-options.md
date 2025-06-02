@@ -480,7 +480,7 @@ terragrunt backend migrate old-unit new-unit
 
 This command will migrate the OpenTofu/Terraform state backend from the old unit to the new unit.
 
-You will typically want to use this command if you are using a `key` attribute for your `remote_state` block that uses the `relative_path_to_include` function, and you want to rename the unit.
+You will typically want to use this command if you are using a `key` attribute for your `remote_state` block that uses the `path_relative_to_include` function, and you want to rename the unit.
 
 For example, given the following filesystem structure:
 

@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,9 +51,11 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			opts.Experiments.ExperimentMode()
 
-			ctx := config.NewParsingContext(t.Context(), opts)
+			l := logger.CreateLogger()
 
-			cfg, _ := config.ParseConfigFile(ctx, file, nil)
+			ctx := config.NewParsingContext(t.Context(), l, opts)
+
+			cfg, _ := config.ParseConfigFile(ctx, l, file, nil)
 
 			if slices.Contains(knownBadFiles, file) {
 				assert.Nil(t, cfg)

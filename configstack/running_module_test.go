@@ -6,18 +6,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var mockOptions, _ = options.NewTerragruntOptionsForTest("running_module_test")
 
-func cloneOptions(t *testing.T, opts *options.TerragruntOptions, terragruntConfigPath string) *options.TerragruntOptions {
+func cloneOptions(t *testing.T, l log.Logger, opts *options.TerragruntOptions, terragruntConfigPath string) (log.Logger, *options.TerragruntOptions) {
 	t.Helper()
 
-	newOpts, err := opts.CloneWithConfigPath(canonical(t, terragruntConfigPath))
+	l, newOpts, err := opts.CloneWithConfigPath(l, canonical(t, terragruntConfigPath))
 	require.NoError(t, err)
-	return newOpts
+
+	return l, newOpts
 }
 
 func TestToRunningModulesNoModules(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const GraphFlagName = "graph"
@@ -34,23 +35,23 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.
 }
 
 // WrapCommand appends flags to the given `cmd` and wraps its action.
-func WrapCommand(opts *options.TerragruntOptions, cmd *cli.Command, runFn func(ctx context.Context, opts *options.TerragruntOptions) error) *cli.Command {
+func WrapCommand(l log.Logger, opts *options.TerragruntOptions, cmd *cli.Command, runFn func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error) *cli.Command {
 	cmd = cmd.WrapAction(func(cliCtx *cli.Context, action cli.ActionFunc) error {
 		if !opts.Graph {
 			return action(cliCtx)
 		}
 
-		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
+		opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 			if opts.TerraformCommand == cmd.Name {
 				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
 
 				return action(cliCtx)
 			}
 
-			return runFn(ctx, opts)
+			return runFn(ctx, l, opts)
 		}
 
-		return Run(cliCtx, opts.OptionsFromContext(cliCtx))
+		return Run(cliCtx, l, opts.OptionsFromContext(cliCtx))
 	})
 
 	cmd.Flags = append(cmd.Flags, NewFlags(opts, cmd.Name, nil)...)

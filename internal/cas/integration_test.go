@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +15,7 @@ import (
 func TestIntegration_CloneAndReuse(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
@@ -103,7 +103,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 
 	ctx := t.Context()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()

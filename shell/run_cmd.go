@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -28,8 +29,8 @@ import (
 const SignalForwardingDelay = time.Second * 15
 
 // RunCommand runs the given shell command.
-func RunCommand(ctx context.Context, opts *options.TerragruntOptions, command string, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, opts, "", false, false, command, args...)
+func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, command string, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, opts, "", false, false, command, args...)
 
 	return err
 }
@@ -41,6 +42,7 @@ func RunCommand(ctx context.Context, opts *options.TerragruntOptions, command st
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
 func RunCommandWithOutput(
 	ctx context.Context,
+	l log.Logger,
 	opts *options.TerragruntOptions,
 	workingDir string,
 	suppressStdout bool,
@@ -62,7 +64,7 @@ func RunCommandWithOutput(
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,
 	}, func(ctx context.Context) error {
-		opts.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
+		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		var (
 			cmdStderr = io.MultiWriter(opts.ErrWriter, &output.Stderr)
@@ -73,12 +75,12 @@ func RunCommandWithOutput(
 		traceParent := telemetry.TraceParentFromContext(ctx, opts.Telemetry)
 
 		if traceParent != "" {
-			opts.Logger.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
+			l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
 			opts.Env[telemetry.TraceParentEnv] = traceParent
 		}
 
 		if suppressStdout {
-			opts.Logger.Debugf("Command output will be suppressed.")
+			l.Debugf("Command output will be suppressed.")
 
 			cmdStdout = io.MultiWriter(&output.Stdout)
 		}
@@ -86,9 +88,9 @@ func RunCommandWithOutput(
 		if command == opts.TerraformPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 			if opts.Engine != nil && opts.EngineEnabled {
-				opts.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
+				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
-				cmdOutput, err := engine.Run(ctx, &engine.ExecutionOptions{
+				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
 					TerragruntOptions: opts,
 					CmdStdout:         cmdStdout,
 					CmdStderr:         cmdStderr,
@@ -107,7 +109,7 @@ func RunCommandWithOutput(
 				return err
 			}
 
-			opts.Logger.Debugf("Engine is not enabled, running command directly in %s", commandDir)
+			l.Debugf("Engine is not enabled, running command directly in %s", commandDir)
 		}
 
 		cmd := exec.Command(command, args...)
@@ -115,7 +117,7 @@ func RunCommandWithOutput(
 		cmd.Stdout = cmdStdout
 		cmd.Stderr = cmdStderr
 		cmd.Configure(
-			exec.WithLogger(opts.Logger),
+			exec.WithLogger(l),
 			exec.WithUsePTY(needsPTY),
 			exec.WithEnv(opts.Env),
 			exec.WithForwardSignalDelay(SignalForwardingDelay),

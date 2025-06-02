@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -42,8 +43,10 @@ func TestCommandOutputPrefix(t *testing.T) {
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TerraformPath = terraformPath
-		terragruntOptions.Logger.SetOptions(log.WithFormatter(logFormatter))
-		terragruntOptions.Logger = terragruntOptions.Logger.WithField(placeholders.WorkDirKeyName, prefix)
+
+	}, func(l log.Logger) log.Logger {
+		l.SetOptions(log.WithFormatter(logFormatter))
+		return l.WithField(placeholders.WorkDirKeyName, prefix)
 	}, assertOutputs(t,
 		prefixedOutput,
 		Stdout,
@@ -51,7 +54,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	))
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput)) {
+func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), withLogger func(log.Logger) log.Logger, assertResults func(string, *util.CmdOutput)) {
 	t.Helper()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -68,7 +71,10 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := tf.RunCommandWithOutput(t.Context(), terragruntOptions, "same")
+	l := logger.CreateLogger()
+	l = withLogger(l)
+
+	out, err := tf.RunCommandWithOutput(t.Context(), l, terragruntOptions, "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

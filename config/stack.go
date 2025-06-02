@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -72,14 +73,14 @@ type Stack struct {
 }
 
 // GenerateStacks generates the stack files.
-func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error {
+func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
 	wp := worker.NewWorkerPool(opts.Parallelism)
 	// stop worker pool on exit
 	defer wp.Stop()
 	// initial files setting as stack file
 
-	foundFiles, err := listStackFiles(opts, opts.WorkingDir)
+	foundFiles, err := listStackFiles(l, opts, opts.WorkingDir)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -96,9 +97,9 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 			processedNewFiles = true
 			processedFiles[file] = true
 
-			opts.Logger.Infof("Generating stack from %s", file)
+			l.Infof("Generating stack from %s", file)
 
-			if err := generateStackFile(ctx, opts, wp, file); err != nil {
+			if err := generateStackFile(ctx, l, opts, wp, file); err != nil {
 				return errors.Errorf("Failed to process stack file %s %w", file, err)
 			}
 		}
@@ -111,7 +112,7 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 			break
 		}
 
-		newFiles, err := listStackFiles(opts, opts.WorkingDir)
+		newFiles, err := listStackFiles(l, opts, opts.WorkingDir)
 
 		if err != nil {
 			return errors.Errorf("Failed to list stack files %w", err)
@@ -156,10 +157,10 @@ func GenerateStacks(ctx context.Context, opts *options.TerragruntOptions) error 
 //
 // Errors can occur during stack file listing, value reading, stack config parsing, output reading,
 // or when converting the final output structure to cty.Value format.
-func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Value, error) {
-	opts.Logger.Debugf("Generating output from %s", opts.WorkingDir)
+func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (cty.Value, error) {
+	l.Debugf("Generating output from %s", opts.WorkingDir)
 
-	foundFiles, err := listStackFiles(opts, opts.WorkingDir)
+	foundFiles, err := listStackFiles(l, opts, opts.WorkingDir)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
@@ -174,12 +175,12 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
 
-		values, err := ReadValues(ctx, opts, dir)
+		values, err := ReadValues(ctx, l, opts, dir)
 		if err != nil {
 			return cty.NilVal, errors.Errorf("Failed to read values from %s: %w", dir, err)
 		}
 
-		stackFile, err := ReadStackConfigFile(ctx, opts, path, values)
+		stackFile, err := ReadStackConfigFile(ctx, l, opts, path, values)
 		if err != nil {
 			return cty.NilVal, errors.Errorf("Failed to read stack file %s: %w", path, err)
 		}
@@ -190,7 +191,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 		for _, stack := range stackFile.Stacks {
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
-			opts.Logger.Debugf("Registered stack %s at path %s", stack.Name, filepath.Join(targetDir, stack.Path))
+			l.Debugf("Registered stack %s at path %s", stack.Name, filepath.Join(targetDir, stack.Path))
 		}
 
 		for _, unit := range stackFile.Units {
@@ -203,7 +204,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 				"unit_source": unit.Source,
 				"unit_path":   unit.Path,
 			}, func(ctx context.Context) error {
-				output, err = unit.ReadOutputs(ctx, opts, unitDir)
+				output, err = unit.ReadOutputs(ctx, l, opts, unitDir)
 				return err
 			})
 
@@ -215,7 +216,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 			declaredUnits[key] = unit
 			outputs[key] = output
 
-			opts.Logger.Debugf("Added output for %s", key)
+			l.Debugf("Added output for %s", key)
 		}
 	}
 
@@ -225,7 +226,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 	for path, unit := range declaredUnits {
 		output, found := outputs[path]
 		if !found {
-			opts.Logger.Debugf("No output found for %s", path)
+			l.Debugf("No output found for %s", path)
 			continue
 		}
 
@@ -260,7 +261,7 @@ func StackOutput(ctx context.Context, opts *options.TerragruntOptions) (cty.Valu
 
 		unitOutputs[stackKey] = output
 
-		opts.Logger.Debugf("Added output for stack key %s", stackKey)
+		l.Debugf("Added output for stack key %s", stackKey)
 	}
 
 	// Convert finalMap into a cty.ObjectVal
@@ -343,15 +344,15 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 // generateStackFile processes the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
-func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, stackFilePath string) error {
+func generateStackFile(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, pool *worker.Pool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
-	values, err := ReadValues(ctx, opts, stackSourceDir)
+	values, err := ReadValues(ctx, l, opts, stackSourceDir)
 	if err != nil {
 		return errors.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
 
-	stackFile, err := ReadStackConfigFile(ctx, opts, stackFilePath, values)
+	stackFile, err := ReadStackConfigFile(ctx, l, opts, stackFilePath, values)
 
 	if err != nil {
 		return errors.Errorf("Failed to read stack file %s in %s %w", stackFilePath, stackSourceDir, err)
@@ -359,11 +360,11 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
-	if err := generateUnits(ctx, opts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, l, opts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, opts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, opts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -373,7 +374,7 @@ func generateStackFile(ctx context.Context, opts *options.TerragruntOptions, poo
 // generateUnits iterates through a slice of Unit objects, processing each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the processing progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceFile, sourceDir, targetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, pool *worker.Pool, sourceFile, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		unitCopy := unit // Create a copy to avoid capturing the loop variable reference
 
@@ -390,7 +391,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 				kind:         unitKind,
 			}
 
-			opts.Logger.Infof("Processing unit %s from %s", unitCopy.Name, sourceFile)
+			l.Infof("Processing unit %s from %s", unitCopy.Name, sourceFile)
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
 				"stack_file":  sourceFile,
@@ -398,7 +399,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 				"unit_source": unitCopy.Source,
 				"unit_path":   unitCopy.Path,
 			}, func(ctx context.Context) error {
-				return processComponent(ctx, opts, &item)
+				return processComponent(ctx, l, opts, &item)
 			})
 		})
 	}
@@ -408,7 +409,7 @@ func generateUnits(ctx context.Context, opts *options.TerragruntOptions, pool *w
 
 // generateStacks processes each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *worker.Pool, sourceFile, sourceDir, targetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, pool *worker.Pool, sourceFile, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		stackCopy := stack // Create a copy to avoid capturing the loop variable reference
 
@@ -425,7 +426,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 				kind:         stackKind,
 			}
 
-			opts.Logger.Infof("Processing stack %s from %s", stackCopy.Name, sourceFile)
+			l.Infof("Processing stack %s from %s", stackCopy.Name, sourceFile)
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
 				"stack_file":   sourceFile,
@@ -433,7 +434,7 @@ func generateStacks(ctx context.Context, opts *options.TerragruntOptions, pool *
 				"stack_source": stackCopy.Source,
 				"stack_path":   stackCopy.Path,
 			}, func(ctx context.Context) error {
-				return processComponent(ctx, opts, &item)
+				return processComponent(ctx, l, opts, &item)
 			})
 		})
 	}
@@ -464,7 +465,7 @@ type componentToProcess struct {
 }
 
 // processComponent copies files from the source directory to the target destination and generates a corresponding values file.
-func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp *componentToProcess) error {
+func processComponent(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmp *componentToProcess) error {
 	source := cmp.source
 	// Adjust source path using the provided source mapping configuration if available
 	source, err := adjustSourceWithMap(opts.SourceMap, source, opts.TerragruntStackConfigPath)
@@ -508,9 +509,9 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		dest = filepath.Join(filepath.Dir(cmp.targetDir), cmp.path)
 	}
 
-	opts.Logger.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
+	l.Debugf("Processing: %s (%s) to %s", cmp.name, source, dest)
 
-	if err := copyFiles(ctx, opts, cmp.name, cmp.sourceDir, source, dest); err != nil {
+	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
 		return errors.Errorf(
 			"Failed to fetch %s %s\n"+
 				"  Source:      %s\n"+
@@ -531,13 +532,13 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	skipValidation := false
 
 	if cmp.noStack {
-		opts.Logger.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
+		l.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
 
 		skipValidation = true
 	}
 
 	if cmp.noValidation {
-		opts.Logger.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
+		l.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
 
 		skipValidation = true
 	}
@@ -553,7 +554,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
 			if opts.NoStackValidate {
 				// print warning if validation is skipped
-				opts.Logger.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+				l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			} else {
 				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			}
@@ -561,7 +562,7 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 	}
 
 	// generate values file
-	if err := writeValues(opts, cmp.values, dest); err != nil {
+	if err := writeValues(l, cmp.values, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
@@ -573,8 +574,8 @@ func processComponent(ctx context.Context, opts *options.TerragruntOptions, cmp 
 // The function checks if the source is local or remote. If local, it copies the
 // contents of the source directory to the destination. If remote, it fetches the
 // source and stores it in the destination directory.
-func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier, sourceDir, src, dest string) error {
-	if isLocal(opts, sourceDir, src) {
+func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, dest string) error {
+	if isLocal(l, sourceDir, src) {
 		// check if src is absolute path, if not, join with sourceDir
 		var localSrc string
 
@@ -587,12 +588,12 @@ func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier,
 		localSrc, err := filepath.Abs(localSrc)
 
 		if err != nil {
-			opts.Logger.Warnf("failed to get absolute path for source '%s': %w", identifier, err)
+			l.Warnf("failed to get absolute path for source '%s': %w", identifier, err)
 			// fallback to original source
 			localSrc = src
 		}
 
-		if err := util.CopyFolderContentsWithFilter(opts.Logger, localSrc, dest, manifestName, func(absolutePath string) bool {
+		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
 			return true
 		}); err != nil {
 			return errors.Errorf("Failed to copy %s to %s %w", localSrc, dest, err)
@@ -615,7 +616,7 @@ func copyFiles(ctx context.Context, opts *options.TerragruntOptions, identifier,
 // It checks if the provided source file exists locally. If not, it checks if
 // the path is relative to the working directory. If that also fails, the function
 // attempts to detect the source's getter type and recognizes if it is a file URL.
-func isLocal(opts *options.TerragruntOptions, workingDir, src string) bool {
+func isLocal(l log.Logger, workingDir, src string) bool {
 	// check initially if the source is a local file
 	if util.FileExists(src) {
 		return true
@@ -632,7 +633,7 @@ func isLocal(opts *options.TerragruntOptions, workingDir, src string) bool {
 	for _, g := range getter.Getters {
 		recognized, err := getter.Detect(req, g)
 		if err != nil {
-			opts.Logger.Debugf("Error detecting getter for %s: %w", src, err)
+			l.Debugf("Error detecting getter for %s: %w", src, err)
 			continue
 		}
 
@@ -646,13 +647,13 @@ func isLocal(opts *options.TerragruntOptions, workingDir, src string) bool {
 
 // ReadOutputs retrieves the OpenTofu/Terraform output JSON for this unit, converts it into a map of cty.Values,
 // and logs the operation for debugging. It returns early in case of any errors during retrieval or conversion.
-func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions, unitDir string) (map[string]cty.Value, error) {
+func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, unitDir string) (map[string]cty.Value, error) {
 	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
-	opts.Logger.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
+	l.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
 
-	parserCtx := NewParsingContext(ctx, opts)
+	parserCtx := NewParsingContext(ctx, l, opts)
 
-	jsonBytes, err := getOutputJSONWithCaching(parserCtx, configPath) //nolint: contextcheck
+	jsonBytes, err := getOutputJSONWithCaching(parserCtx, l, configPath) //nolint: contextcheck
 
 	if err != nil {
 		return nil, errors.New(err)
@@ -670,10 +671,10 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions,
 // ReadStackConfigFile reads and parses a Terragrunt stack configuration file from the given path.
 // It creates a parsing context, processes locals, and decodes the file into a StackConfig struct.
 // Validation is performed on the resulting config, and any encountered errors cause an early return.
-func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfig, error) {
-	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", filePath)
+func ReadStackConfigFile(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfig, error) {
+	l.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
-	parser := NewParsingContext(ctx, opts)
+	parser := NewParsingContext(ctx, l, opts)
 
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
@@ -681,18 +682,19 @@ func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions, f
 	}
 
 	//nolint:contextcheck
-	return ParseStackConfig(parser, opts, file, values)
+	return ParseStackConfig(l, parser, opts, file, values)
 }
 
 // ReadStackConfigString reads and parses a Terragrunt stack configuration from a string.
 func ReadStackConfigString(
 	ctx context.Context,
+	l log.Logger,
 	opts *options.TerragruntOptions,
 	configPath string,
 	configString string,
 	values *cty.Value,
 ) (*StackConfig, error) {
-	parser := NewParsingContext(ctx, opts)
+	parser := NewParsingContext(ctx, l, opts)
 
 	if values != nil {
 		parser = parser.WithValues(values)
@@ -704,21 +706,21 @@ func ReadStackConfigString(
 	}
 
 	//nolint:contextcheck
-	return ParseStackConfig(parser, opts, hclFile, values)
+	return ParseStackConfig(l, parser, opts, hclFile, values)
 }
 
 // ParseStackConfig parses the stack configuration from the given file and values.
-func ParseStackConfig(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File, values *cty.Value) (*StackConfig, error) {
+func ParseStackConfig(l log.Logger, parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File, values *cty.Value) (*StackConfig, error) {
 	if values != nil {
 		parser = parser.WithValues(values)
 	}
 
 	//nolint:contextcheck
-	if err := processLocals(parser, opts, file); err != nil {
+	if err := processLocals(l, parser, opts, file); err != nil {
 		return nil, errors.New(err)
 	}
 	//nolint:contextcheck
-	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(parser, l, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -750,9 +752,9 @@ func ParseStackConfig(parser *ParsingContext, opts *options.TerragruntOptions, f
 }
 
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.
-func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory string) error {
+func writeValues(l log.Logger, values *cty.Value, directory string) error {
 	if values == nil {
-		opts.Logger.Debugf("No values to write in %s", directory)
+		l.Debugf("No values to write in %s", directory)
 		return nil
 	}
 
@@ -764,7 +766,7 @@ func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory s
 		return errors.Errorf("failed to create directory %s: %w", directory, err)
 	}
 
-	opts.Logger.Debugf("Writing values file in %s", directory)
+	l.Debugf("Writing values file in %s", directory)
 	filePath := filepath.Join(directory, valuesFile)
 
 	file := hclwrite.NewEmptyFile()
@@ -788,7 +790,7 @@ func writeValues(opts *options.TerragruntOptions, values *cty.Value, directory s
 }
 
 // ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
-func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory string) (*cty.Value, error) {
+func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, directory string) (*cty.Value, error) {
 	if directory == "" {
 		return nil, errors.New("ReadValues: directory path cannot be empty")
 	}
@@ -799,15 +801,15 @@ func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory 
 		return nil, nil
 	}
 
-	opts.Logger.Debugf("Reading Terragrunt stack values file at %s", filePath)
-	parser := NewParsingContext(ctx, opts)
+	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
+	parser := NewParsingContext(ctx, l, opts)
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
 
 	if err != nil {
 		return nil, errors.New(err)
 	}
 	//nolint:contextcheck
-	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(parser, l, file.ConfigPath)
 
 	if err != nil {
 		return nil, errors.New(err)
@@ -825,7 +827,7 @@ func ReadValues(ctx context.Context, opts *options.TerragruntOptions, directory 
 }
 
 // processLocals processes the locals block in the stack file.
-func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
+func processLocals(l log.Logger, parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 
 	if err != nil {
@@ -859,13 +861,14 @@ func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file
 		var err error
 		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
 			parser,
+			l,
 			file,
 			attrs,
 			evaluatedLocals,
 		)
 
 		if err != nil {
-			opts.Logger.Debugf("Encountered error while evaluating locals in file %s", opts.TerragruntStackConfigPath)
+			l.Debugf("Encountered error while evaluating locals in file %s", opts.TerragruntStackConfigPath)
 
 			return errors.New(err)
 		}
@@ -887,7 +890,7 @@ func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file
 // The function walks through the given directory to find files that match the
 // default stack file name. It optionally follows symbolic links based on the
 // provided Terragrunt options.
-func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, error) {
+func listStackFiles(l log.Logger, opts *options.TerragruntOptions, dir string) ([]string, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 	walkFunc := filepath.Walk
 
@@ -895,14 +898,14 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 		walkFunc = util.WalkWithSymlinks
 	}
 
-	opts.Logger.Debugf("Searching for stack files in %s", dir)
+	l.Debugf("Searching for stack files in %s", dir)
 
 	var stackFiles []string
 
 	// find all defaultStackFile files
 	if err := walkFunc(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			opts.Logger.Warnf("Error accessing path %s: %w", path, err)
+			l.Warnf("Error accessing path %s: %w", path, err)
 			return nil
 		}
 
@@ -921,7 +924,7 @@ func listStackFiles(opts *options.TerragruntOptions, dir string) ([]string, erro
 		}
 
 		if strings.HasSuffix(path, defaultStackFile) {
-			opts.Logger.Debugf("Found stack file %s", path)
+			l.Debugf("Found stack file %s", path)
 			stackFiles = append(stackFiles, path)
 		}
 		return nil

@@ -7,20 +7,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
 	CommandName = "dag"
 )
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	prefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Interact with the Directed Acyclic Graph (DAG).",
 		Subcommands: cli.Commands{
-			graph.NewCommand(opts, prefix),
+			graph.NewCommand(l, opts, prefix),
 		},
 		Action: cli.ShowCommandHelp,
 	}

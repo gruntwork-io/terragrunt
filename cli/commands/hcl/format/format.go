@@ -34,7 +34,7 @@ var excludePaths = []string{
 	config.StackDir,
 }
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
 	stdIn := opts.HclFromStdin
@@ -44,7 +44,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 			return errors.Errorf("both stdin and path flags are specified")
 		}
 
-		return formatFromStdin(opts)
+		return formatFromStdin(l, opts)
 	}
 
 	// handle when option specifies a particular file
@@ -53,12 +53,12 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 			targetFile = util.JoinPath(workingDir, targetFile)
 		}
 
-		opts.Logger.Debugf("Formatting hcl file at: %s.", targetFile)
+		l.Debugf("Formatting hcl file at: %s.", targetFile)
 
-		return formatTgHCL(opts, targetFile)
+		return formatTgHCL(l, opts, targetFile)
 	}
 
-	opts.Logger.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
+	l.Debugf("Formatting hcl files from the directory tree %s.", opts.WorkingDir)
 	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
@@ -87,18 +87,18 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		}
 
 		if skipFile {
-			opts.Logger.Debugf("%s was ignored", fname)
+			l.Debugf("%s was ignored", fname)
 		} else {
 			filteredTgHclFiles = append(filteredTgHclFiles, fname)
 		}
 	}
 
-	opts.Logger.Debugf("Found %d hcl files", len(filteredTgHclFiles))
+	l.Debugf("Found %d hcl files", len(filteredTgHclFiles))
 
 	var formatErrors *errors.MultiError
 
 	for _, tgHclFile := range filteredTgHclFiles {
-		err := formatTgHCL(opts, tgHclFile)
+		err := formatTgHCL(l, opts, tgHclFile)
 		if err != nil {
 			formatErrors = formatErrors.Append(err)
 		}
@@ -107,17 +107,17 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	return formatErrors.ErrorOrNil()
 }
 
-func formatFromStdin(opts *options.TerragruntOptions) error {
+func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
 	contents, err := io.ReadAll(os.Stdin)
 
 	if err != nil {
-		opts.Logger.Errorf("Error reading from stdin: %s", err)
+		l.Errorf("Error reading from stdin: %s", err)
 
 		return fmt.Errorf("error reading from stdin: %w", err)
 	}
 
-	if err = checkErrors(opts.Logger, opts.Logger.Formatter().DisabledColors(), contents, "stdin"); err != nil {
-		opts.Logger.Errorf("Error parsing hcl from stdin")
+	if err = checkErrors(l, l.Formatter().DisabledColors(), contents, "stdin"); err != nil {
+		l.Errorf("Error parsing hcl from stdin")
 
 		return fmt.Errorf("error parsing hcl from stdin: %w", err)
 	}
@@ -127,13 +127,13 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 	buf := bufio.NewWriter(opts.Writer)
 
 	if _, err = buf.Write(newContents); err != nil {
-		opts.Logger.Errorf("Failed to write to stdout")
+		l.Errorf("Failed to write to stdout")
 
 		return fmt.Errorf("failed to write to stdout: %w", err)
 	}
 
 	if err = buf.Flush(); err != nil {
-		opts.Logger.Errorf("Failed to flush to stdout")
+		l.Errorf("Failed to flush to stdout")
 
 		return fmt.Errorf("failed to flush to stdout: %w", err)
 	}
@@ -143,26 +143,26 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 
 // formatTgHCL uses the hcl2 library to format the hcl file. This will attempt to parse the HCL file first to
 // ensure that there are no syntax errors, before attempting to format it.
-func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
-	opts.Logger.Debugf("Formatting %s", tgHclFile)
+func formatTgHCL(l log.Logger, opts *options.TerragruntOptions, tgHclFile string) error {
+	l.Debugf("Formatting %s", tgHclFile)
 
 	info, err := os.Stat(tgHclFile)
 	if err != nil {
-		opts.Logger.Errorf("Error retrieving file info of %s", tgHclFile)
+		l.Errorf("Error retrieving file info of %s", tgHclFile)
 		return errors.Errorf("failed to get file info for %s: %v", tgHclFile, err)
 	}
 
 	contentsStr, err := util.ReadFileAsString(tgHclFile)
 	if err != nil {
-		opts.Logger.Errorf("Error reading %s", tgHclFile)
+		l.Errorf("Error reading %s", tgHclFile)
 		return err
 	}
 
 	contents := []byte(contentsStr)
 
-	err = checkErrors(opts.Logger, opts.Logger.Formatter().DisabledColors(), contents, tgHclFile)
+	err = checkErrors(l, l.Formatter().DisabledColors(), contents, tgHclFile)
 	if err != nil {
-		opts.Logger.Errorf("Error parsing %s", tgHclFile)
+		l.Errorf("Error parsing %s", tgHclFile)
 		return err
 	}
 
@@ -171,15 +171,15 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	fileUpdated := !bytes.Equal(newContents, contents)
 
 	if opts.Diff && fileUpdated {
-		diff, err := bytesDiff(opts, contents, newContents, tgHclFile)
+		diff, err := bytesDiff(l, contents, newContents, tgHclFile)
 		if err != nil {
-			opts.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
+			l.Errorf("Failed to generate diff for %s", tgHclFile)
 			return err
 		}
 
 		_, err = fmt.Fprintf(opts.Writer, "%s\n", diff)
 		if err != nil {
-			opts.Logger.Errorf("Failed to print diff for %s", tgHclFile)
+			l.Errorf("Failed to print diff for %s", tgHclFile)
 			return err
 		}
 	}
@@ -189,7 +189,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	}
 
 	if fileUpdated {
-		opts.Logger.Infof("%s was updated", tgHclFile)
+		l.Infof("%s was updated", tgHclFile)
 		return os.WriteFile(tgHclFile, newContents, info.Mode())
 	}
 
@@ -217,7 +217,7 @@ func checkErrors(logger log.Logger, disableColor bool, contents []byte, tgHclFil
 }
 
 // bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting
-func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]byte, error) {
+func bytesDiff(l log.Logger, b1, b2 []byte, path string) ([]byte, error) {
 	f1, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
@@ -225,11 +225,11 @@ func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]b
 
 	defer func() {
 		if err := f1.Close(); err != nil {
-			opts.Logger.Warnf("Failed to close file %s %v", f1.Name(), err)
+			l.Warnf("Failed to close file %s %v", f1.Name(), err)
 		}
 
 		if err := os.Remove(f1.Name()); err != nil {
-			opts.Logger.Warnf("Failed to remove file %s %v", f1.Name(), err)
+			l.Warnf("Failed to remove file %s %v", f1.Name(), err)
 		}
 	}()
 
@@ -240,11 +240,11 @@ func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]b
 
 	defer func() {
 		if err := f2.Close(); err != nil {
-			opts.Logger.Warnf("Failed to close file %s %v", f2.Name(), err)
+			l.Warnf("Failed to close file %s %v", f2.Name(), err)
 		}
 
 		if err := os.Remove(f2.Name()); err != nil {
-			opts.Logger.Warnf("Failed to remove file %s %v", f2.Name(), err)
+			l.Warnf("Failed to remove file %s %v", f2.Name(), err)
 		}
 	}()
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
@@ -31,15 +32,15 @@ func NewBackend() *Backend {
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
-func (backend *Backend) NeedsBootstrap(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
-	cfg := Config(backendConfig).Normalize(opts.Logger)
+func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+	cfg := Config(backendConfig).Normalize(l)
 
-	extS3Cfg, err := cfg.ExtendedS3Config(opts.Logger)
+	extS3Cfg, err := cfg.ExtendedS3Config(l)
 	if err != nil {
 		return false, err
 	}
 
-	client, err := NewClient(extS3Cfg, opts)
+	client, err := NewClient(l, extS3Cfg, opts)
 	if err != nil {
 		return false, err
 	}
@@ -64,8 +65,8 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, backendConfig backen
 
 // Bootstrap the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (backend *Backend) Bootstrap(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
-	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
+func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
 	}
@@ -81,39 +82,39 @@ func (backend *Backend) Bootstrap(ctx context.Context, backendConfig backend.Con
 	defer mu.Unlock()
 
 	if backend.IsConfigInited(s3Cfg) {
-		opts.Logger.Debugf("%s bucket %s has already been confirmed to be initialized, skipping initialization checks", backend.Name(), bucketName)
+		l.Debugf("%s bucket %s has already been confirmed to be initialized, skipping initialization checks", backend.Name(), bucketName)
 
 		return nil
 	}
 
-	client, err := NewClient(extS3Cfg, opts)
+	client, err := NewClient(l, extS3Cfg, opts)
 	if err != nil {
 		return err
 	}
 
-	if err := client.CreateS3BucketIfNecessary(ctx, bucketName, opts); err != nil {
+	if err := client.CreateS3BucketIfNecessary(ctx, l, bucketName, opts); err != nil {
 		return err
 	}
 
 	if !extS3Cfg.DisableBucketUpdate {
-		if err := client.UpdateS3BucketIfNecessary(ctx, bucketName, opts); err != nil {
+		if err := client.UpdateS3BucketIfNecessary(ctx, l, bucketName, opts); err != nil {
 			return err
 		}
 	}
 
 	if !extS3Cfg.SkipBucketVersioning {
-		if _, err := client.CheckIfVersioningEnabled(ctx, bucketName); err != nil {
+		if _, err := client.CheckIfVersioningEnabled(ctx, l, bucketName); err != nil {
 			return err
 		}
 	}
 
 	if tableName := extS3Cfg.RemoteStateConfigS3.GetLockTableName(); tableName != "" {
-		if err := client.CreateLockTableIfNecessary(ctx, tableName, extS3Cfg.DynamotableTags); err != nil {
+		if err := client.CreateLockTableIfNecessary(ctx, l, tableName, extS3Cfg.DynamotableTags); err != nil {
 			return err
 		}
 
 		if extS3Cfg.EnableLockTableSSEncryption {
-			if err := client.UpdateLockTableSetSSEncryptionOnIfNecessary(ctx, tableName); err != nil {
+			if err := client.UpdateLockTableSetSSEncryptionOnIfNecessary(ctx, l, tableName); err != nil {
 				return err
 			}
 		}
@@ -125,31 +126,31 @@ func (backend *Backend) Bootstrap(ctx context.Context, backendConfig backend.Con
 }
 
 // IsVersionControlEnabled returns true if version control for s3 bucket is enabled.
-func (backend *Backend) IsVersionControlEnabled(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
-	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
+func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return false, err
 	}
 
 	var bucketName = extS3Cfg.RemoteStateConfigS3.Bucket
 
-	client, err := NewClient(extS3Cfg, opts)
+	client, err := NewClient(l, extS3Cfg, opts)
 	if err != nil {
 		return false, err
 	}
 
-	return client.CheckIfVersioningEnabled(ctx, bucketName)
+	return client.CheckIfVersioningEnabled(ctx, l, bucketName)
 }
 
 // Migrate copies the s3 bucket object located at src config to dst config and deletes the src object.
 // Creates a new DynamoDB table item for dst config and deletes the table item from the src config.
-func (backend *Backend) Migrate(ctx context.Context, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
-	srcExtS3Cfg, err := Config(srcBackendConfig).ExtendedS3Config(opts.Logger)
+func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
+	srcExtS3Cfg, err := Config(srcBackendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
 	}
 
-	dstExtS3Cfg, err := Config(dstBackendConfig).ExtendedS3Config(opts.Logger)
+	dstExtS3Cfg, err := Config(dstBackendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
 	}
@@ -166,31 +167,31 @@ func (backend *Backend) Migrate(ctx context.Context, srcBackendConfig, dstBacken
 		dstTableKey   = path.Join(dstBucketName, dstBucketKey+stateIDSuffix)
 	)
 
-	client, err := NewClient(srcExtS3Cfg, opts)
+	client, err := NewClient(l, srcExtS3Cfg, opts)
 	if err != nil {
 		return err
 	}
 
-	if err = client.MoveS3ObjectIfNecessary(ctx, srcBucketName, srcBucketKey, dstBucketName, dstBucketKey); err != nil {
+	if err = client.MoveS3ObjectIfNecessary(ctx, l, srcBucketName, srcBucketKey, dstBucketName, dstBucketKey); err != nil {
 		return err
 	}
 
 	if dstTableName != "" {
-		if err := client.CreateTableItemIfNecessary(ctx, dstTableName, dstTableKey); err != nil {
+		if err := client.CreateTableItemIfNecessary(ctx, l, dstTableName, dstTableKey); err != nil {
 			return err
 		}
 	}
 
 	if srcTableName != "" {
-		return client.DeleteTableItemIfNecessary(ctx, srcTableName, srcTableKey)
+		return client.DeleteTableItemIfNecessary(ctx, l, srcTableName, srcTableKey)
 	}
 
 	return nil
 }
 
 // Delete deletes the remote state specified in the given config.
-func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
-	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
+func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
 	}
@@ -201,7 +202,7 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 		tableName  = extS3Cfg.RemoteStateConfigS3.GetLockTableName()
 	)
 
-	client, err := NewClient(extS3Cfg, opts)
+	client, err := NewClient(l, extS3Cfg, opts)
 	if err != nil {
 		return err
 	}
@@ -210,33 +211,33 @@ func (backend *Backend) Delete(ctx context.Context, backendConfig backend.Config
 		tableKey := path.Join(bucketName, bucketKey+stateIDSuffix)
 
 		prompt := fmt.Sprintf("DynamoDB table %s key %s will be deleted. Do you want to continue?", tableName, tableKey)
-		if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
 			return err
 		} else if yes {
-			if err := client.DeleteTableItemIfNecessary(ctx, tableName, tableKey); err != nil {
+			if err := client.DeleteTableItemIfNecessary(ctx, l, tableName, tableKey); err != nil {
 				return err
 			}
 		}
 	}
 
 	prompt := fmt.Sprintf("S3 bucket %s key %s will be deleted. Do you want to continue?", bucketName, bucketKey)
-	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
 		return err
 	} else if yes {
-		return client.DeleteS3ObjectIfNecessary(ctx, bucketName, bucketKey)
+		return client.DeleteS3ObjectIfNecessary(ctx, l, bucketName, bucketKey)
 	}
 
 	return nil
 }
 
 // DeleteBucket deletes the entire bucket specified in the given config.
-func (backend *Backend) DeleteBucket(ctx context.Context, backendConfig backend.Config, opts *options.TerragruntOptions) error {
-	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(opts.Logger)
+func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
 	}
 
-	client, err := NewClient(extS3Cfg, opts)
+	client, err := NewClient(l, extS3Cfg, opts)
 	if err != nil {
 		return err
 	}
@@ -248,20 +249,20 @@ func (backend *Backend) DeleteBucket(ctx context.Context, backendConfig backend.
 
 	if tableName != "" {
 		prompt := fmt.Sprintf("DynamoDB table %s will be completely deleted. Do you want to continue?", tableName)
-		if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
 			return err
 		} else if yes {
-			if err := client.DeleteTableIfNecessary(ctx, tableName); err != nil {
+			if err := client.DeleteTableIfNecessary(ctx, l, tableName); err != nil {
 				return err
 			}
 		}
 	}
 
 	prompt := fmt.Sprintf("S3 bucket %s will be completely deleted. Do you want to continue?", bucketName)
-	if yes, err := shell.PromptUserForYesNo(ctx, prompt, opts); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
 		return err
 	} else if yes {
-		return client.DeleteS3BucketIfNecessary(ctx, bucketName)
+		return client.DeleteS3BucketIfNecessary(ctx, l, bucketName)
 	}
 
 	return nil

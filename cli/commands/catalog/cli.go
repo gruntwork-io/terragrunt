@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -20,7 +21,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	)
 }
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Launch the user interface for searching and managing your module catalog.",
@@ -36,7 +37,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				opts.ScaffoldRootFileName = scaffold.GetDefaultRootFileName(ctx, opts)
 			}
 
-			return Run(ctx, opts.OptionsFromContext(ctx), repoPath)
+			return Run(ctx, l, opts.OptionsFromContext(ctx), repoPath)
 		},
 	}
 }

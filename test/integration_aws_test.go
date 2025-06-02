@@ -27,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/gruntwork-io/terratest/modules/git"
@@ -1312,7 +1313,9 @@ func TestAwsAssumeRole(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 
-	session, err := awshelper.CreateAwsSession(nil, opts)
+	l := logger.CreateLogger()
+
+	session, err := awshelper.CreateAwsSession(l, nil, opts)
 	require.NoError(t, err)
 
 	identityARN, err := awshelper.GetAWSIdentityArn(session)
@@ -1348,7 +1351,9 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 
-	session, err := awshelper.CreateAwsSession(nil, opts)
+	l := logger.CreateLogger()
+
+	session, err := awshelper.CreateAwsSession(l, nil, opts)
 	require.NoError(t, err)
 
 	identityARN, err := awshelper.GetAWSIdentityArn(session)
@@ -1442,7 +1447,9 @@ func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
 func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	t.Parallel()
 
-	session, err := awshelper.CreateAwsSession(nil, &options.TerragruntOptions{})
+	l := logger.CreateLogger()
+
+	session, err := awshelper.CreateAwsSession(l, nil, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
 	identityArn, err := awshelper.GetAWSIdentityArn(session)
@@ -1617,7 +1624,7 @@ func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, 
 
 	if versioning {
 		require.NotNil(t, res.Status)
-		assert.Equal(t, *res.Status, s3.BucketVersioningStatusEnabled, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
+		assert.Equal(t, s3.BucketVersioningStatusEnabled, *res.Status, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
 	} else {
 		require.Nil(t, res.Status)
 	}

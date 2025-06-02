@@ -46,6 +46,7 @@ func TestTerragruntParallelism(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest
 func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)

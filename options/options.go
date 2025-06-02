@@ -90,8 +90,6 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// Logger is an interface for logging events.
-	Logger log.Logger `clone:"shadowcopy"`
 	// If you want stdout to go somewhere other than os.stdout
 	Writer io.Writer
 	// If you want stderr to go somewhere other than os.stderr
@@ -107,7 +105,7 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
 	// A command that can be used to run Terragrunt with the given options.
-	RunTerragrunt func(ctx context.Context, opts *TerragruntOptions) error
+	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// ReadFiles is a map of files to the Units that read them using HCL functions in the unit.
@@ -358,19 +356,14 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TerraformPath:            DefaultWrappedPath,
-		ExcludesFile:             defaultExcludesFile,
-		OriginalTerraformCommand: "",
-		TerraformCommand:         "",
-		AutoInit:                 true,
-		RunAllAutoApprove:        true,
-		NonInteractive:           false,
-		TerraformCliArgs:         []string{},
-		Logger: log.New(
-			log.WithOutput(stderr),
-			log.WithLevel(DefaultLogLevel),
-			log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
-		),
+		TerraformPath:                  DefaultWrappedPath,
+		ExcludesFile:                   defaultExcludesFile,
+		OriginalTerraformCommand:       "",
+		TerraformCommand:               "",
+		AutoInit:                       true,
+		RunAllAutoApprove:              true,
+		NonInteractive:                 false,
+		TerraformCliArgs:               []string{},
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
@@ -399,7 +392,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
 		JSONDisableDependentModules:    false,
-		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
+		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
@@ -462,7 +455,6 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 	}
 
 	opts.NonInteractive = true
-	opts.Logger.SetOptions(log.WithLevel(log.DebugLevel))
 
 	for _, opt := range options {
 		opt(opts)
@@ -486,25 +478,26 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 // Fields with "clone" tags can override this behavior.
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	newOpts := cloner.Clone(opts)
-	newOpts.Logger = opts.Logger.Clone()
 
 	return newOpts
 }
 
 // CloneWithConfigPath creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
-func (opts *TerragruntOptions) CloneWithConfigPath(configPath string) (*TerragruntOptions, error) {
+//
+// It also adjusts the given logger, as each cloned option has to use a working directory specific logger to enrich
+// log output correctly.
+func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *TerragruntOptions, error) {
 	newOpts := opts.Clone()
 
 	workingDir := filepath.Dir(configPath)
 
 	newOpts.TerragruntConfigPath = configPath
 	newOpts.WorkingDir = workingDir
-	newOpts.Logger = newOpts.Logger.WithFields(log.Fields{
-		placeholders.WorkDirKeyName: workingDir,
-	})
 
-	return newOpts, nil
+	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
+
+	return l, newOpts, nil
 }
 
 // Check if argument is planfile TODO check file formatter
@@ -600,8 +593,6 @@ func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 		return
 	}
 
-	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
-
 	// Atomic insert
 	// https://github.com/puzpuzpuz/xsync/issues/123#issuecomment-1963458519
 	_, _ = opts.ReadFiles.Compute(file, func(oldUnits []string, loaded bool) ([]string, bool) {
@@ -692,7 +683,7 @@ type ErrorsPattern struct {
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
-func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operation func() error) error {
+func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.Logger, operation func() error) error {
 	if opts.Errors == nil {
 		return operation()
 	}
@@ -706,7 +697,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 		}
 
 		// Process the error through our error handling configuration
-		action, processErr := opts.Errors.ProcessError(opts, err, currentAttempt)
+		action, processErr := opts.Errors.ProcessError(l, err, currentAttempt)
 		if processErr != nil {
 			return fmt.Errorf("error processing error handling rules: %w", processErr)
 		}
@@ -716,11 +707,11 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 		}
 
 		if action.ShouldIgnore {
-			opts.Logger.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
+			l.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
 
 			// Handle ignore signals if any are configured
 			if len(action.IgnoreSignals) > 0 {
-				if err := opts.handleIgnoreSignals(action.IgnoreSignals); err != nil {
+				if err := opts.handleIgnoreSignals(l, action.IgnoreSignals); err != nil {
 					return err
 				}
 			}
@@ -729,7 +720,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 		}
 
 		if action.ShouldRetry {
-			opts.Logger.Warnf(
+			l.Warnf(
 				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
 				action.RetryMessage,
 				currentAttempt,
@@ -754,7 +745,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 	}
 }
 
-func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]any) error {
+func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[string]any) error {
 	workingDir := opts.WorkingDir
 	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
@@ -765,7 +756,7 @@ func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]any) error
 
 	const ownerPerms = 0644
 
-	opts.Logger.Warnf("Writing error signals to %s", signalsFile)
+	l.Warnf("Writing error signals to %s", signalsFile)
 
 	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
@@ -786,7 +777,7 @@ type ErrorAction struct {
 }
 
 // ProcessError evaluates an error against the configuration and returns the appropriate action
-func (c *ErrorsConfig) ProcessError(opts *TerragruntOptions, err error, currentAttempt int) (*ErrorAction, error) {
+func (c *ErrorsConfig) ProcessError(l log.Logger, err error, currentAttempt int) (*ErrorAction, error) {
 	if err == nil {
 		return nil, nil
 	}
@@ -794,7 +785,7 @@ func (c *ErrorsConfig) ProcessError(opts *TerragruntOptions, err error, currentA
 	errStr := extractErrorMessage(err)
 	action := &ErrorAction{}
 
-	opts.Logger.Debugf("Processing error message: %s", errStr)
+	l.Debugf("Processing error message: %s", errStr)
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
