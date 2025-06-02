@@ -126,6 +126,7 @@ jobs:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
+          ls -lahrt bin/*
           .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
           .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
           echo "Done signing the binary"
