@@ -2,9 +2,6 @@ name: Build
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
 
 jobs:
   build:
@@ -143,5 +140,5 @@ jobs:
       - name: Upload Signed Executables
         uses: actions/upload-artifact@v4
         with:
-          name: signed-terragrunt-executables
+          name: signed-files
           path: bin/*
