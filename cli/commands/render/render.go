@@ -15,39 +15,40 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-func Run(ctx context.Context, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	if err := opts.Validate(); err != nil {
 		return err
 	}
 
 	target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(opts))
 
-	return run.RunWithTarget(ctx, opts.TerragruntOptions, target)
+	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, target)
 }
 
-func newRunRenderFunc(opts *Options) func(ctx context.Context, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-	return func(ctx context.Context, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func newRunRenderFunc(opts *Options) func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+	return func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 		if cfg == nil {
 			return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
 		}
 
 		switch opts.Format {
 		case FormatJSON:
-			return renderJSON(ctx, opts, cfg)
+			return renderJSON(ctx, l, opts, cfg)
 		case FormatHCL:
-			return renderHCL(ctx, opts, cfg)
+			return renderHCL(ctx, l, opts, cfg)
 		default:
 			return fmt.Errorf("unsupported render format: %s", opts.Format)
 		}
 	}
 }
 
-func renderHCL(_ context.Context, opts *Options, cfg *config.TerragruntConfig) error {
+func renderHCL(_ context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
 	if opts.Write {
 		buf := new(bytes.Buffer)
 
@@ -56,10 +57,10 @@ func renderHCL(_ context.Context, opts *Options, cfg *config.TerragruntConfig) e
 			return err
 		}
 
-		return writeRendered(opts, buf.Bytes())
+		return writeRendered(l, opts, buf.Bytes())
 	}
 
-	opts.Logger.Infof("Rendering config %s", opts.TerragruntConfigPath)
+	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
 	_, err := cfg.WriteTo(opts.Writer)
 	if err != nil {
@@ -69,9 +70,9 @@ func renderHCL(_ context.Context, opts *Options, cfg *config.TerragruntConfig) e
 	return nil
 }
 
-func renderJSON(ctx context.Context, opts *Options, cfg *config.TerragruntConfig) error {
+func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
 	if !opts.DisableDependentModules {
-		dependentModules := configstack.FindWhereWorkingDirIsIncluded(ctx, opts.TerragruntOptions, cfg)
+		dependentModules := configstack.FindWhereWorkingDirIsIncluded(ctx, l, opts.TerragruntOptions, cfg)
 
 		var dependentModulesPath []*string
 		for _, module := range dependentModules {
@@ -106,10 +107,10 @@ func renderJSON(ctx context.Context, opts *Options, cfg *config.TerragruntConfig
 	}
 
 	if opts.Write {
-		return writeRendered(opts, jsonBytes)
+		return writeRendered(l, opts, jsonBytes)
 	}
 
-	opts.Logger.Infof("Rendering config %s", opts.TerragruntConfigPath)
+	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
 	_, err = opts.Writer.Write(jsonBytes)
 	if err != nil {
@@ -119,7 +120,7 @@ func renderJSON(ctx context.Context, opts *Options, cfg *config.TerragruntConfig
 	return nil
 }
 
-func writeRendered(opts *Options, data []byte) error {
+func writeRendered(l log.Logger, opts *Options, data []byte) error {
 	outPath := opts.OutputPath
 	if !filepath.IsAbs(outPath) {
 		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
@@ -130,7 +131,7 @@ func writeRendered(opts *Options, data []byte) error {
 		return err
 	}
 
-	opts.Logger.Debugf("Rendering config %s to %s", opts.TerragruntConfigPath, outPath)
+	l.Debugf("Rendering config %s to %s", opts.TerragruntConfigPath, outPath)
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(outPath, data, ownerWriteGlobalReadPerms); err != nil {

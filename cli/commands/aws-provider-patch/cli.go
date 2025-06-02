@@ -37,6 +37,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -45,7 +46,7 @@ const (
 	OverrideAttrFlagName = "override-attr"
 )
 
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
@@ -61,7 +62,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	}
 }
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	control := controls.NewDeprecatedCommand(CommandName)
 	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).AddSubcontrolsToCategory(controls.CLIRedesignCommandsCategoryName, control)
 
@@ -69,7 +70,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
 		Hidden: true,
-		Flags:  append(run.NewFlags(opts, nil), NewFlags(opts, nil)...),
+		Flags:  append(run.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...),
 		Before: func(ctx *cli.Context) error {
 			if err := control.Evaluate(ctx); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
@@ -78,13 +79,13 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			return nil
 		},
 		Action: func(ctx *cli.Context) error {
-			return Run(ctx, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 		DisabledErrorOnUndefinedFlag: true,
 	}
 
-	cmd = runall.WrapCommand(opts, cmd, run.Run)
-	cmd = graph.WrapCommand(opts, cmd, run.Run)
+	cmd = runall.WrapCommand(l, opts, cmd, run.Run)
+	cmd = graph.WrapCommand(l, opts, cmd, run.Run)
 
 	return cmd
 }

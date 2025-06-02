@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -15,7 +16,7 @@ const (
 	SubCommandDestroy = "destroy"
 )
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	newCommand := "terragrunt " + find.CommandName + " --" + find.JSONFlagName
 
 	control := controls.NewDeprecatedReplacedCommand(CommandName, newCommand)
@@ -23,11 +24,11 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 	return &cli.Command{
 		Name:  CommandName,
-		Flags: run.NewFlags(opts, nil),
+		Flags: run.NewFlags(l, opts, nil),
 		Usage: "Output groups of modules ordered by command (apply or destroy) as a list of list in JSON (useful for CI use cases).",
 		Subcommands: cli.Commands{
-			subCommandFunc(SubCommandApply, opts),
-			subCommandFunc(SubCommandDestroy, opts),
+			subCommandFunc(l, SubCommandApply, opts),
+			subCommandFunc(l, SubCommandDestroy, opts),
 		},
 		DisabledErrorOnUndefinedFlag: true,
 		Hidden:                       true,
@@ -38,18 +39,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			return nil
 		},
-		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
+		Action: func(ctx *cli.Context) error { return Run(ctx, l, opts.OptionsFromContext(ctx)) },
 	}
 }
 
-func subCommandFunc(cmd string, opts *options.TerragruntOptions) *cli.Command {
+func subCommandFunc(l log.Logger, cmd string, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                         cmd,
 		Usage:                        "Recursively find terragrunt modules in the current directory tree and output the dependency order as a list of list in JSON for the " + cmd,
 		DisabledErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			opts.TerraformCommand = cmd
-			return Run(ctx, opts.OptionsFromContext(ctx))
+			return Run(ctx, l, opts.OptionsFromContext(ctx))
 		},
 	}
 }

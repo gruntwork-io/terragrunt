@@ -41,7 +41,7 @@ type Stack struct {
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, terragruntOptions *options.TerragruntOptions, opts ...Option) (*Stack, error) {
+func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (*Stack, error) {
 	var terragruntConfigFiles []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_files_in_path", map[string]any{
@@ -61,18 +61,18 @@ func FindStackInSubfolders(ctx context.Context, terragruntOptions *options.Terra
 		return nil, err
 	}
 
-	stack := NewStack(terragruntOptions, opts...)
-	if err := stack.createStackForTerragruntConfigPaths(ctx, terragruntConfigFiles); err != nil {
+	stack := NewStack(l, terragruntOptions, opts...)
+	if err := stack.createStackForTerragruntConfigPaths(ctx, l, terragruntConfigFiles); err != nil {
 		return nil, err
 	}
 
 	return stack, nil
 }
 
-func NewStack(terragruntOptions *options.TerragruntOptions, opts ...Option) *Stack {
+func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) *Stack {
 	stack := &Stack{
 		terragruntOptions: terragruntOptions,
-		parserOptions:     config.DefaultParserOptions(terragruntOptions),
+		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
 
 	return stack.WithOptions(opts...)
@@ -101,7 +101,7 @@ func (stack *Stack) String() string {
 // LogModuleDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
 // happen. For plan and apply, the order will be bottom to top (dependencies first), while for destroy the order will be
 // in reverse.
-func (stack *Stack) LogModuleDeployOrder(logger log.Logger, terraformCommand string) error {
+func (stack *Stack) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
 
 	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
@@ -118,7 +118,7 @@ func (stack *Stack) LogModuleDeployOrder(logger log.Logger, terraformCommand str
 		outStr += "\n"
 	}
 
-	logger.Info(outStr)
+	l.Info(outStr)
 
 	return nil
 }
@@ -153,20 +153,20 @@ func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, erro
 }
 
 // Graph creates a graphviz representation of the modules
-func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
-	err := stack.Modules.WriteDot(terragruntOptions.Writer, terragruntOptions)
+func (stack *Stack) Graph(l log.Logger, opts *options.TerragruntOptions) {
+	err := stack.Modules.WriteDot(l, opts.Writer, opts)
 	if err != nil {
-		terragruntOptions.Logger.Warnf("Failed to graph dot: %v", err)
+		l.Warnf("Failed to graph dot: %v", err)
 	}
 }
 
-func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	stackCmd := terragruntOptions.TerraformCommand
+func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	stackCmd := opts.TerraformCommand
 
 	// prepare folder for output hierarchy if output folder is set
-	if terragruntOptions.OutputFolder != "" {
+	if opts.OutputFolder != "" {
 		for _, module := range stack.Modules {
-			planFile := module.outputFile(terragruntOptions)
+			planFile := module.outputFile(l, opts)
 
 			planDir := filepath.Dir(planFile)
 			if err := os.MkdirAll(planDir, os.ModePerm); err != nil {
@@ -180,8 +180,8 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
-		terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-input=false", 1)
-		stack.syncTerraformCliArgs(terragruntOptions)
+		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
+		stack.syncTerraformCliArgs(l, opts)
 	}
 
 	// For apply and destroy, run with auto-approve (unless explicitly disabled) due to the co-mingling of the prompts.
@@ -191,13 +191,13 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
-		if terragruntOptions.RunAllAutoApprove {
-			terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
+		if opts.RunAllAutoApprove {
+			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
 		}
 
-		stack.syncTerraformCliArgs(terragruntOptions)
+		stack.syncTerraformCliArgs(l, opts)
 	case tf.CommandNameShow:
-		stack.syncTerraformCliArgs(terragruntOptions)
+		stack.syncTerraformCliArgs(l, opts)
 	case tf.CommandNamePlan:
 		// We capture the out stream for each module
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
@@ -206,23 +206,23 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
 		}
 
-		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
+		defer stack.summarizePlanAllErrors(l, errorStreams)
 	}
 
 	switch {
-	case terragruntOptions.IgnoreDependencyOrder:
-		return stack.Modules.RunModulesIgnoreOrder(ctx, terragruntOptions, terragruntOptions.Parallelism)
+	case opts.IgnoreDependencyOrder:
+		return stack.Modules.RunModulesIgnoreOrder(ctx, opts, opts.Parallelism)
 	case stackCmd == tf.CommandNameDestroy:
-		return stack.Modules.RunModulesReverseOrder(ctx, terragruntOptions, terragruntOptions.Parallelism)
+		return stack.Modules.RunModulesReverseOrder(ctx, opts, opts.Parallelism)
 	default:
-		return stack.Modules.RunModules(ctx, terragruntOptions, terragruntOptions.Parallelism)
+		return stack.Modules.RunModules(ctx, opts, opts.Parallelism)
 	}
 }
 
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.TerragruntOptions, errorStreams []bytes.Buffer) {
+func (stack *Stack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 
@@ -237,7 +237,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
 			}
 
-			terragruntOptions.Logger.Infof("%v%v refers to remote state "+
+			l.Infof("%v%v refers to remote state "+
 				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
 				stack.Modules[i].Path,
 				dependenciesMsg,
@@ -247,14 +247,14 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 }
 
 // Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
-func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOptions) {
+func (stack *Stack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, module := range stack.Modules {
-		module.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(terragruntOptions.TerraformCliArgs)
+		module.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
 
-		planFile := module.planFile(terragruntOptions)
+		planFile := module.planFile(l, opts)
 
 		if planFile != "" {
-			terragruntOptions.Logger.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
 
 			if module.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
@@ -294,7 +294,7 @@ func (stack *Stack) GetModuleRunGraph(terraformCommand string) ([]TerraformModul
 
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
 // modules into a Stack object that can be applied or destroyed in a single command
-func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, terragruntConfigPaths []string) error {
+func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, l log.Logger, terragruntConfigPaths []string) error {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "create_stack_for_terragrunt_config_paths", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
@@ -302,7 +302,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 			return errors.New(ErrNoTerraformModulesFound)
 		}
 
-		modules, err := stack.ResolveTerraformModules(ctx, terragruntConfigPaths)
+		modules, err := stack.ResolveTerraformModules(ctx, l, terragruntConfigPaths)
 		if err != nil {
 			return errors.New(err)
 		}
@@ -335,7 +335,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 // ResolveTerraformModules goes through each of the given Terragrunt configuration files
 // and resolve the module that configuration file represents into a TerraformModule struct.
 // Return the list of these TerraformModule structs.
-func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfigPaths []string) (TerraformModules, error) {
+func (stack *Stack) ResolveTerraformModules(ctx context.Context, l log.Logger, terragruntConfigPaths []string) (TerraformModules, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
 	if err != nil {
 		return nil, err
@@ -348,7 +348,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	}, func(ctx context.Context) error {
 		howThesePathsWereFound := "Terragrunt config file found in a subdirectory of " + stack.terragruntOptions.WorkingDir
 
-		result, err := stack.resolveModules(ctx, canonicalTerragruntConfigPaths, howThesePathsWereFound)
+		result, err := stack.resolveModules(ctx, l, canonicalTerragruntConfigPaths, howThesePathsWereFound)
 		if err != nil {
 			return err
 		}
@@ -367,7 +367,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_external_dependencies_for_modules", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
-		result, err := stack.resolveExternalDependenciesForModules(ctx, modulesMap, TerraformModulesMap{}, 0)
+		result, err := stack.resolveExternalDependenciesForModules(ctx, l, modulesMap, TerraformModulesMap{}, 0)
 		if err != nil {
 			return err
 		}
@@ -436,7 +436,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		result := withUnitsThatAreIncludedByOthers.flagExcludedUnits(stack.terragruntOptions)
+		result := withUnitsThatAreIncludedByOthers.flagExcludedUnits(l, stack.terragruntOptions)
 		withExcludedUnits = result
 
 		return nil
@@ -479,7 +479,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Note that this method will NOT fill in the Dependencies field of the TerraformModule
 // struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
-func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfigPaths []string, howTheseModulesWereFound string) (TerraformModulesMap, error) {
+func (stack *Stack) resolveModules(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string, howTheseModulesWereFound string) (TerraformModulesMap, error) {
 	modulesMap := TerraformModulesMap{}
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
@@ -493,7 +493,7 @@ func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfi
 			"config_path": terragruntConfigPath,
 			"working_dir": stack.terragruntOptions.WorkingDir,
 		}, func(ctx context.Context) error {
-			m, err := stack.resolveTerraformModule(ctx, terragruntConfigPath, modulesMap, howTheseModulesWereFound)
+			m, err := stack.resolveTerraformModule(ctx, l, terragruntConfigPath, modulesMap, howTheseModulesWereFound)
 			if err != nil {
 				return err
 			}
@@ -517,7 +517,7 @@ func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfi
 				"working_dir": stack.terragruntOptions.WorkingDir,
 				"module_path": module.Path,
 			}, func(ctx context.Context) error {
-				deps, err := stack.resolveDependenciesForModule(ctx, module, modulesMap, true)
+				deps, err := stack.resolveDependenciesForModule(ctx, l, module, modulesMap, true)
 				if err != nil {
 					return err
 				}
@@ -540,7 +540,7 @@ func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfi
 // Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
 // crosslinkDependencies method for that).
-func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfigPath string, modulesMap TerraformModulesMap, howThisModuleWasFound string) (*TerraformModule, error) {
+func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, terragruntConfigPath string, modulesMap TerraformModulesMap, howThisModuleWasFound string) (*TerraformModule, error) {
 	modulePath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 	if err != nil {
 		return nil, err
@@ -552,7 +552,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 
 	// Clone the options struct so we don't modify the original one. This is especially important as run --all operations
 	// happen concurrently.
-	opts, err := stack.terragruntOptions.CloneWithConfigPath(terragruntConfigPath)
+	l, opts, err := stack.terragruntOptions.CloneWithConfigPath(l, terragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -575,10 +575,10 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 
 	if collections.ListContainsElement(opts.ExcludeDirs, modulePath) {
 		// module is excluded
-		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
+		return &TerraformModule{Path: modulePath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
-	parseCtx := config.NewParsingContext(ctx, opts).
+	parseCtx := config.NewParsingContext(ctx, l, opts).
 		WithParseOption(stack.parserOptions).
 		WithDecodeList(
 			// Need for initializing the modules
@@ -594,7 +594,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	// Credentials have to be acquired before the config is parsed, as the config may contain interpolation functions
 	// that require credentials to be available.
 	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, opts, externalcmd.NewProvider(opts)); err != nil {
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
 		return nil, err
 	}
 
@@ -605,6 +605,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	// TODO: Remove lint suppression
 	terragruntConfig, err := config.PartialParseConfigFile( //nolint:contextcheck
 		parseCtx,
+		l,
 		terragruntConfigPath,
 		includeConfig,
 	)
@@ -639,7 +640,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 			return nil, err
 		}
 
-		opts.Logger.Debugf("Setting download directory for module %s to %s", filepath.Dir(opts.TerragruntConfigPath), downloadDir)
+		l.Debugf("Setting download directory for module %s to %s", filepath.Dir(opts.TerragruntConfigPath), downloadDir)
 		opts.DownloadDir = downloadDir
 	}
 
@@ -650,17 +651,17 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	}
 
 	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && matches == nil {
-		stack.terragruntOptions.Logger.Debugf("Module %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
+		l.Debugf("Module %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}
 
-	return &TerraformModule{Stack: stack, Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return &TerraformModule{Stack: stack, Path: modulePath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
 // user is trying to run --all apply or run --all destroy. Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
-func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *TerraformModule, modulesMap TerraformModulesMap, skipExternal bool) (TerraformModulesMap, error) {
+func (stack *Stack) resolveDependenciesForModule(ctx context.Context, l log.Logger, module *TerraformModule, modulesMap TerraformModulesMap, skipExternal bool) (TerraformModulesMap, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return TerraformModulesMap{}, nil
 	}
@@ -691,7 +692,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *Te
 
 	howThesePathsWereFound := fmt.Sprintf("dependency of module at '%s'", module.Path)
 
-	result, err := stack.resolveModules(ctx, externalTerragruntConfigPaths, howThesePathsWereFound)
+	result, err := stack.resolveModules(ctx, l, externalTerragruntConfigPaths, howThesePathsWereFound)
 	if err != nil {
 		return nil, err
 	}
@@ -707,7 +708,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *Te
 // environment the user is trying to run --all apply or run --all destroy. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
-func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, modulesMap, modulesAlreadyProcessed TerraformModulesMap, recursionLevel int) (TerraformModulesMap, error) {
+func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, l log.Logger, modulesMap, modulesAlreadyProcessed TerraformModulesMap, recursionLevel int) (TerraformModulesMap, error) {
 	allExternalDependencies := TerraformModulesMap{}
 	modulesToSkip := modulesMap.mergeMaps(modulesAlreadyProcessed)
 
@@ -720,12 +721,12 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 	for _, key := range sortedKeys {
 		module := modulesMap[key]
 
-		externalDependencies, err := stack.resolveDependenciesForModule(ctx, module, modulesToSkip, false)
+		externalDependencies, err := stack.resolveDependenciesForModule(ctx, l, module, modulesToSkip, false)
 		if err != nil {
 			return externalDependencies, err
 		}
 
-		moduleOpts, err := stack.terragruntOptions.CloneWithConfigPath(config.GetDefaultConfigPath(module.Path))
+		l, moduleOpts, err := stack.terragruntOptions.CloneWithConfigPath(l, config.GetDefaultConfigPath(module.Path))
 		if err != nil {
 			return nil, err
 		}
@@ -737,7 +738,7 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 
 			shouldApply := false
 			if !stack.terragruntOptions.IgnoreExternalDependencies {
-				shouldApply, err = module.confirmShouldApplyExternalDependency(ctx, externalDependency, moduleOpts)
+				shouldApply, err = module.confirmShouldApplyExternalDependency(ctx, l, externalDependency, moduleOpts)
 				if err != nil {
 					return externalDependencies, err
 				}
@@ -749,7 +750,7 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 	}
 
 	if len(allExternalDependencies) > 0 {
-		recursiveDependencies, err := stack.resolveExternalDependenciesForModules(ctx, allExternalDependencies, modulesMap, recursionLevel+1)
+		recursiveDependencies, err := stack.resolveExternalDependenciesForModules(ctx, l, allExternalDependencies, modulesMap, recursionLevel+1)
 		if err != nil {
 			return allExternalDependencies, err
 		}

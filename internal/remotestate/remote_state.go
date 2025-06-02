@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -44,43 +45,43 @@ func (remote *RemoteState) String() string {
 	return remote.Config.String()
 }
 
-func (remote *RemoteState) IsVersionControlEnabled(ctx context.Context, opts *options.TerragruntOptions) (bool, error) {
-	opts.Logger.Debugf("Checking if version control is enabled for the %s backend", remote.BackendName)
+func (remote *RemoteState) IsVersionControlEnabled(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (bool, error) {
+	l.Debugf("Checking if version control is enabled for the %s backend", remote.BackendName)
 
-	return remote.backend.IsVersionControlEnabled(ctx, remote.BackendConfig, opts)
+	return remote.backend.IsVersionControlEnabled(ctx, l, remote.BackendConfig, opts)
 }
 
 // Delete deletes the remote state.
-func (remote *RemoteState) Delete(ctx context.Context, opts *options.TerragruntOptions) error {
-	opts.Logger.Debugf("Deleting remote state for the %s backend", remote.BackendName)
+func (remote *RemoteState) Delete(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	l.Debugf("Deleting remote state for the %s backend", remote.BackendName)
 
-	return remote.backend.Delete(ctx, remote.BackendConfig, opts)
+	return remote.backend.Delete(ctx, l, remote.BackendConfig, opts)
 }
 
 // DeleteBucket deletes the entire bucket.
-func (remote *RemoteState) DeleteBucket(ctx context.Context, opts *options.TerragruntOptions) error {
-	opts.Logger.Debugf("Deleting the entire bucket for the %s backend", remote.BackendName)
+func (remote *RemoteState) DeleteBucket(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	l.Debugf("Deleting the entire bucket for the %s backend", remote.BackendName)
 
-	return remote.backend.DeleteBucket(ctx, remote.BackendConfig, opts)
+	return remote.backend.DeleteBucket(ctx, l, remote.BackendConfig, opts)
 }
 
 // Bootstrap performs any actions necessary to bootstrap remote state before it's used for storage. For example, if you're
 // using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
-func (remote *RemoteState) Bootstrap(ctx context.Context, opts *options.TerragruntOptions) error {
-	opts.Logger.Debugf("Bootstrapping remote state for the %s backend", remote.BackendName)
+func (remote *RemoteState) Bootstrap(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	l.Debugf("Bootstrapping remote state for the %s backend", remote.BackendName)
 
-	return remote.backend.Bootstrap(ctx, remote.BackendConfig, opts)
+	return remote.backend.Bootstrap(ctx, l, remote.BackendConfig, opts)
 }
 
 // Migrate determines where the remote state resources exist for source backend config and migrate them to dest backend config.
-func (remote *RemoteState) Migrate(ctx context.Context, opts, dstOpts *options.TerragruntOptions, dstRemote *RemoteState) error {
-	opts.Logger.Debugf("Migrate remote state for the %s backend", remote.BackendName)
+func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, opts, dstOpts *options.TerragruntOptions, dstRemote *RemoteState) error {
+	l.Debugf("Migrate remote state for the %s backend", remote.BackendName)
 
 	if remote.BackendName == dstRemote.BackendName {
-		return remote.backend.Migrate(ctx, remote.BackendConfig, dstRemote.BackendConfig, opts)
+		return remote.backend.Migrate(ctx, l, remote.BackendConfig, dstRemote.BackendConfig, opts)
 	}
 
-	stateFile, err := remote.pullState(ctx, opts)
+	stateFile, err := remote.pullState(ctx, l, opts)
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func (remote *RemoteState) Migrate(ctx context.Context, opts, dstOpts *options.T
 		os.Remove(stateFile) // nolint: errcheck
 	}()
 
-	return dstRemote.pushState(ctx, dstOpts, stateFile)
+	return dstRemote.pushState(ctx, l, dstOpts, stateFile)
 }
 
 // NeedsBootstrap returns true if remote state needs to be configured. This will be the case when:
@@ -98,9 +99,9 @@ func (remote *RemoteState) Migrate(ctx context.Context, opts, dstOpts *options.T
 // 2. Remote state has not already been configured.
 // 3. Remote state has been configured, but with a different configuration.
 // 4. The remote state bootstrapper for this backend type, if there is one, says bootstrap is necessary.
-func (remote *RemoteState) NeedsBootstrap(ctx context.Context, opts *options.TerragruntOptions) (bool, error) {
+func (remote *RemoteState) NeedsBootstrap(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (bool, error) {
 	if opts.DisableBucketUpdate {
-		opts.Logger.Debug("Skipping remote state bootstrap")
+		l.Debug("Skipping remote state bootstrap")
 		return false, nil
 	}
 
@@ -109,9 +110,9 @@ func (remote *RemoteState) NeedsBootstrap(ctx context.Context, opts *options.Ter
 	}
 
 	// The specific backend type will check if bootstrap is necessary.
-	opts.Logger.Debugf("Checking if remote state bootstrap is necessary for the %s backend", remote.BackendName)
+	l.Debugf("Checking if remote state bootstrap is necessary for the %s backend", remote.BackendName)
 
-	return remote.backend.NeedsBootstrap(ctx, remote.BackendConfig, opts)
+	return remote.backend.NeedsBootstrap(ctx, l, remote.BackendConfig, opts)
 }
 
 // GetTFInitArgs converts the RemoteState config into the format used by the `tofu init` command.
@@ -138,23 +139,23 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 }
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
-func (remote *RemoteState) GenerateOpenTofuCode(opts *options.TerragruntOptions) error {
+func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOptions) error {
 	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
-	return remote.Config.GenerateOpenTofuCode(opts, backendConfig)
+	return remote.Config.GenerateOpenTofuCode(l, opts, backendConfig)
 }
 
-func (remote *RemoteState) pullState(ctx context.Context, opts *options.TerragruntOptions) (string, error) {
-	opts.Logger.Debugf("Pulling state from %s backend", remote.BackendName)
+func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
+	l.Debugf("Pulling state from %s backend", remote.BackendName)
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, opts, args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, opts, args...)
 	if err != nil {
 		return "", err
 	}
 
-	opts.Logger.Debugf("Creating temporary state file for migration")
+	l.Debugf("Creating temporary state file for migration")
 
 	file, err := os.CreateTemp("", "*.tfstate")
 	if err != nil {
@@ -172,10 +173,10 @@ func (remote *RemoteState) pullState(ctx context.Context, opts *options.Terragru
 	return file.Name(), nil
 }
 
-func (remote *RemoteState) pushState(ctx context.Context, opts *options.TerragruntOptions, stateFile string) error {
-	opts.Logger.Debugf("Pushing state to %s backend", remote.BackendName)
+func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stateFile string) error {
+	l.Debugf("Pushing state to %s backend", remote.BackendName)
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, opts, args...)
+	return tf.RunCommand(ctx, l, opts, args...)
 }

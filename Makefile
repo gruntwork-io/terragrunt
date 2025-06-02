@@ -38,19 +38,19 @@ terragrunt: $(shell find . \( -type d -name 'vendor' -prune \) \
 clean:
 	rm -f terragrunt
 
-install-lint:
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
-
 run-lint:
 	golangci-lint run -v --timeout=10m ./...
 
 run-strict-lint:
 	golangci-lint run -v --timeout=10m -c .strict.golangci.yml --new-from-rev origin/main ./...
 
-install-mock-tools:
-	go install go.uber.org/mock/mockgen@v0.5.2
-
 generate-mocks:
 	go generate ./...
 
-.PHONY: help fmtcheck fmt install-fmt-hook clean install-lint run-lint run-strict-lint
+license-check:
+	go mod vendor
+	licensei cache --debug
+	licensei check --debug
+	licensei header --debug
+
+.PHONY: help fmtcheck fmt install-fmt-hook clean run-lint run-strict-lint

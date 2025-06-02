@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -165,7 +166,7 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			tc.expected.TerragruntDependencies = config.Dependencies{}
 		}
 
-		err := tc.includedConfig.Merge(tc.config, mockOptionsForTest(t))
+		err := tc.includedConfig.Merge(logger.CreateLogger(), tc.config, mockOptionsForTest(t))
 		require.NoError(t, err)
 		assert.EqualExportedValues(t, tc.expected, tc.includedConfig)
 	}
@@ -341,7 +342,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tc.target.DeepMerge(tc.source, mockOptionsForTest(t))
+			err := tc.target.DeepMerge(logger.CreateLogger(), tc.source, mockOptionsForTest(t))
 			require.NoError(t, err)
 
 			// if nil, initialize to empty dependency list

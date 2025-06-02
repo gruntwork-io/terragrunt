@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -86,7 +87,7 @@ const (
 )
 
 // NewFlags creates and returns global flags.
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
@@ -350,7 +351,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				EnvVars: terragruntPrefix.EnvVars("include-module-prefix"),
 				Usage:   "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 				Action: func(_ *cli.Context, _ bool) error {
-					opts.Logger.Warnf("The --include-module-prefix flag is deprecated. Use the functionality-inverted --%s flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TFForwardStdoutFlagName)
+					l.Warnf("The --include-module-prefix flag is deprecated. Use the functionality-inverted --%s flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TFForwardStdoutFlagName)
 
 					return nil
 				},

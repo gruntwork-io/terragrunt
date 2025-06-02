@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -55,7 +56,7 @@ func (cfg *Config) Validate() error {
 }
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
-func (cfg *Config) GenerateOpenTofuCode(opts *options.TerragruntOptions, backendConfig map[string]any) error {
+func (cfg *Config) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOptions, backendConfig map[string]any) error {
 	if cfg.Generate == nil {
 		return errors.New(ErrGenerateCalledWithNoGenerateAttr)
 	}
@@ -65,9 +66,9 @@ func (cfg *Config) GenerateOpenTofuCode(opts *options.TerragruntOptions, backend
 
 	switch {
 	case cfg.Encryption == nil:
-		opts.Logger.Debug("No encryption block in remote_state config")
+		l.Debug("No encryption block in remote_state config")
 	case len(cfg.Encryption) == 0:
-		opts.Logger.Debug("Empty encryption block in remote_state config")
+		l.Debug("Empty encryption block in remote_state config")
 	default:
 		keyProvider, ok := cfg.Encryption[codegen.EncryptionKeyProviderKey].(string)
 		if !ok {
@@ -109,7 +110,7 @@ func (cfg *Config) GenerateOpenTofuCode(opts *options.TerragruntOptions, backend
 		CommentPrefix: codegen.DefaultCommentPrefix,
 	}
 
-	return codegen.WriteToFile(opts, opts.WorkingDir, codegenConfig)
+	return codegen.WriteToFile(l, opts, opts.WorkingDir, codegenConfig)
 }
 
 type ConfigFileGenerate struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/version"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -189,8 +190,8 @@ func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Creden
 	return credentials.NewStaticCredentials(accessKeyID, secretAccessKey, sessionToken)
 }
 
-func CreateS3Client(config *AwsSessionConfig, opts *options.TerragruntOptions) (*s3.S3, error) {
-	session, err := CreateAwsSession(config, opts)
+func CreateS3Client(l log.Logger, config *AwsSessionConfig, opts *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := CreateAwsSession(l, config, opts)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -205,7 +206,7 @@ func CreateS3Client(config *AwsSessionConfig, opts *options.TerragruntOptions) (
 //
 // Note that if the AwsSessionConfig object is null, this will return default session credentials using the default
 // credentials chain of the AWS SDK.
-func CreateAwsSession(config *AwsSessionConfig, opts *options.TerragruntOptions) (*session.Session, error) {
+func CreateAwsSession(l log.Logger, config *AwsSessionConfig, opts *options.TerragruntOptions) (*session.Session, error) {
 	var (
 		sess *session.Session
 		err  error
@@ -223,10 +224,10 @@ func CreateAwsSession(config *AwsSessionConfig, opts *options.TerragruntOptions)
 
 		if opts.IAMRoleOptions.RoleARN != "" {
 			if opts.IAMRoleOptions.WebIdentityToken != "" {
-				opts.Logger.Debugf("Assuming role %s using WebIdentity token", opts.IAMRoleOptions.RoleARN)
+				l.Debugf("Assuming role %s using WebIdentity token", opts.IAMRoleOptions.RoleARN)
 				sess.Config.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(sess, opts.IAMRoleOptions)
 			} else {
-				opts.Logger.Debugf("Assuming role %s", opts.IAMRoleOptions.RoleARN)
+				l.Debugf("Assuming role %s", opts.IAMRoleOptions.RoleARN)
 				sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, opts.IAMRoleOptions)
 			}
 		} else if creds := getCredentialsFromEnvs(opts); creds != nil {

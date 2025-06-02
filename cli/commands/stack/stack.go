@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -21,11 +22,11 @@ const (
 )
 
 // RunGenerate runs the stack command.
-func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
+func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, config.DefaultStackFile)
 
 	if opts.NoStackGenerate {
-		opts.Logger.Debugf("Skipping stack generation for %s", opts.TerragruntStackConfigPath)
+		l.Debugf("Skipping stack generation for %s", opts.TerragruntStackConfigPath)
 		return nil
 	}
 
@@ -35,37 +36,32 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return config.GenerateStacks(ctx, opts)
+		return config.GenerateStacks(ctx, l, opts)
 	})
 }
 
 // Run execute stack command.
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	opts.StackAction = "run"
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return RunGenerate(ctx, opts)
+		return RunGenerate(ctx, l, opts)
 	})
 
 	if err != nil {
 		return err
 	}
 
-	stackPath := filepath.Join(opts.WorkingDir, stackDir)
-	if _, statErr := os.Stat(stackPath); os.IsNotExist(statErr) {
-		return errors.Errorf("stack directory does not exist in %s", opts.WorkingDir)
-	}
+	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
 
-	opts.WorkingDir = stackPath
-
-	return runall.Run(ctx, opts)
+	return runall.Run(ctx, l, opts)
 }
 
 // RunOutput stack output.
-func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
+func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, index string) error {
 	opts.StackAction = "output"
 
 	var outputs cty.Value
@@ -75,7 +71,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		stackOutputs, err := config.StackOutput(ctx, opts)
+		stackOutputs, err := config.StackOutput(ctx, l, opts)
 		outputs = stackOutputs
 
 		return err
@@ -149,7 +145,7 @@ func FilterOutputs(outputs cty.Value, index string) cty.Value {
 }
 
 // RunClean recursively removes all stack directories under the specified WorkingDir.
-func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
+func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	telemeter := telemetry.TelemeterFromContext(ctx)
 	err := telemeter.Collect(ctx, "stack_clean", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
@@ -159,7 +155,7 @@ func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
 
 		walkFn := func(path string, d os.DirEntry, walkErr error) error {
 			if walkErr != nil {
-				opts.Logger.Warnf("Error accessing path %s: %v", path, walkErr)
+				l.Warnf("Error accessing path %s: %v", path, walkErr)
 
 				errs = errs.Append(walkErr)
 
@@ -172,10 +168,10 @@ func RunClean(ctx context.Context, opts *options.TerragruntOptions) error {
 					relPath = path // fallback to absolute if error
 				}
 
-				opts.Logger.Infof("Deleting stack directory: %s", relPath)
+				l.Infof("Deleting stack directory: %s", relPath)
 
 				if rmErr := os.RemoveAll(path); rmErr != nil {
-					opts.Logger.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
+					l.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
 
 					errs = errs.Append(rmErr)
 				}

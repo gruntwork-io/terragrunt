@@ -70,6 +70,7 @@ type RegistryServicePath struct {
 type RegistryGetter struct {
 	client            *getter.Client
 	TerragruntOptions *options.TerragruntOptions
+	Logger            log.Logger
 }
 
 // SetClient allows the getter to know what getter client (different from the underlying HTTP client) to use for
@@ -137,7 +138,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 
 	version := versionList[0]
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.TerragruntOptions.Logger, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.Logger, registryDomain)
 	if err != nil {
 		return err
 	}
@@ -147,7 +148,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return err
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.TerragruntOptions.Logger, *moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.Logger, *moduleURL)
 	if err != nil {
 		return err
 	}
@@ -171,7 +172,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	}
 
 	// We have a subdir, time to jump some hoops
-	return tfrGetter.getSubdir(ctx, dstPath, source, path.Join(subDir, moduleSubDir))
+	return tfrGetter.getSubdir(ctx, tfrGetter.Logger, dstPath, source, path.Join(subDir, moduleSubDir))
 }
 
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
@@ -181,7 +182,7 @@ func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
-func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL, subDir string) error {
+func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, l log.Logger, dstPath, sourceURL, subDir string) error {
 	// Create a temporary directory to store the full source. This has to be a non-existent directory.
 	tempdirPath, tempdirCloser, err := safetemp.Dir("", "getter")
 	if err != nil {
@@ -190,7 +191,7 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	defer func(tempdirCloser io.Closer) {
 		err := tempdirCloser.Close()
 		if err != nil {
-			tfrGetter.TerragruntOptions.Logger.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
+			l.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
 		}
 	}(tempdirCloser)
 
@@ -235,11 +236,11 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	defer func(name string) {
 		err := os.Remove(name)
 		if err != nil {
-			tfrGetter.TerragruntOptions.Logger.Warnf("Error removing temporary directory %s: %v", name, err)
+			l.Warnf("Error removing temporary directory %s: %v", name, err)
 		}
 	}(manifestPath)
 
-	return util.CopyFolderContentsWithFilter(tfrGetter.TerragruntOptions.Logger, sourcePath, dstPath, manifestFname, func(path string) bool { return true })
+	return util.CopyFolderContentsWithFilter(l, sourcePath, dstPath, manifestFname, func(path string) bool { return true })
 }
 
 // GetModuleRegistryURLBasePath uses the service discovery protocol

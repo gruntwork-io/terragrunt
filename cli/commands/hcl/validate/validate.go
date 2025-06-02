@@ -26,13 +26,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const splitCount = 2
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if opts.HCLValidateInputs {
 		if opts.HCLValidateShowConfigPath {
 			return errors.Errorf("specifying both -%s and -%s is invalid", ShowConfigPathFlagName, InputsFlagName)
@@ -42,17 +43,17 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 			return errors.Errorf("specifying both -%s and -%s is invalid", JSONFlagName, InputsFlagName)
 		}
 
-		return RunValidateInputs(ctx, opts)
+		return RunValidateInputs(ctx, l, opts)
 	}
 
 	if opts.HCLValidateStrict {
 		return errors.Errorf("specifying -%s without -%s is invalid", StrictFlagName, InputsFlagName)
 	}
 
-	return RunValidate(ctx, opts)
+	return RunValidate(ctx, l, opts)
 }
 
-func RunValidate(ctx context.Context, opts *options.TerragruntOptions) error {
+func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	var diags diagnostic.Diagnostics
 
 	parseOptions := []hclparse.Option{
@@ -69,17 +70,17 @@ func RunValidate(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-	opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
-		_, err := config.ReadTerragruntConfig(ctx, opts, parseOptions)
+	opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+		_, err := config.ReadTerragruntConfig(ctx, l, opts, parseOptions)
 		return err
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, opts, configstack.WithParseOptions(parseOptions))
+	stack, err := configstack.FindStackInSubfolders(ctx, l, opts, configstack.WithParseOptions(parseOptions))
 	if err != nil {
 		return err
 	}
 
-	stackErr := stack.Run(ctx, opts)
+	stackErr := stack.Run(ctx, l, opts)
 
 	if len(diags) > 0 {
 		sort.Slice(diags, func(i, j int) bool {
@@ -96,7 +97,7 @@ func RunValidate(ctx context.Context, opts *options.TerragruntOptions) error {
 			return a < b
 		})
 
-		if err := writeDiagnostics(opts, diags); err != nil {
+		if err := writeDiagnostics(l, opts, diags); err != nil {
 			return err
 		}
 	}
@@ -104,8 +105,8 @@ func RunValidate(ctx context.Context, opts *options.TerragruntOptions) error {
 	return stackErr
 }
 
-func writeDiagnostics(opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
-	render := view.NewHumanRender(opts.Logger.Formatter().DisabledColors())
+func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagnostic.Diagnostics) error {
+	render := view.NewHumanRender(l.Formatter().DisabledColors())
 	if opts.HCLValidateJSONOutput {
 		render = view.NewJSONRender()
 	}
@@ -119,13 +120,13 @@ func writeDiagnostics(opts *options.TerragruntOptions, diags diagnostic.Diagnost
 	return writer.Diagnostics(diags)
 }
 
-func RunValidateInputs(ctx context.Context, opts *options.TerragruntOptions) error {
+func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
 
-	return run.RunWithTarget(ctx, opts, target)
+	return run.RunWithTarget(ctx, l, opts, target)
 }
 
-func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
@@ -133,7 +134,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 
 	allVars := append(required, optional...)
 
-	allInputs, err := getDefinedTerragruntInputs(opts, cfg)
+	allInputs, err := getDefinedTerragruntInputs(l, opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -158,29 +159,29 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 
 	// Now print out all the information
 	if len(unusedVars) > 0 {
-		opts.Logger.Warn("The following inputs passed in by terragrunt are unused:\n")
+		l.Warn("The following inputs passed in by terragrunt are unused:\n")
 
 		for _, varName := range unusedVars {
-			opts.Logger.Warnf("\t- %s", varName)
+			l.Warnf("\t- %s", varName)
 		}
 
-		opts.Logger.Warn("")
+		l.Warn("")
 	} else {
-		opts.Logger.Info("All variables passed in by terragrunt are in use.")
-		opts.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.HCLValidateStrict))
+		l.Info("All variables passed in by terragrunt are in use.")
+		l.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.HCLValidateStrict))
 	}
 
 	if len(missingVars) > 0 {
-		opts.Logger.Error("The following required inputs are missing:\n")
+		l.Error("The following required inputs are missing:\n")
 
 		for _, varName := range missingVars {
-			opts.Logger.Errorf("\t- %s", varName)
+			l.Errorf("\t- %s", varName)
 		}
 
-		opts.Logger.Error("")
+		l.Error("")
 	} else {
-		opts.Logger.Info("All required inputs are passed in by terragrunt")
-		opts.Logger.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.HCLValidateStrict))
+		l.Info("All required inputs are passed in by terragrunt")
+		l.Debug(fmt.Sprintf("Strict mode enabled: %t", opts.HCLValidateStrict))
 	}
 
 	// Return an error when there are misaligned inputs. Terragrunt strict mode defaults to false. When it is false,
@@ -189,7 +190,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	if len(missingVars) > 0 || len(unusedVars) > 0 && opts.HCLValidateStrict {
 		return errors.New("terragrunt configuration has inputs that are not defined in the OpenTofu/Terraform module. This is not allowed when strict mode is enabled")
 	} else if len(unusedVars) > 0 {
-		opts.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
+		l.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}
 
 	return nil
@@ -203,21 +204,21 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
 // - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
-func getDefinedTerragruntInputs(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
+func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
 	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
 
-	varFileTFVars, err := getTerraformInputNamesFromVarFiles(opts, cfg)
+	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, opts, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(opts, cfg)
+	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(l, opts, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(opts)
+	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(l, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -296,23 +297,23 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 
 // getTerraformInputNamesFromVarFiles will return the list of names of variables configured by var files set in the
 // extra_arguments block required_var_files and optional_var_files settings of the given terragrunt config.
-func getTerraformInputNamesFromVarFiles(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+func getTerraformInputNamesFromVarFiles(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
 	if terragruntConfig.Terraform == nil {
 		return nil, nil
 	}
 
 	varFiles := []string{}
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		varFiles = append(varFiles, arg.GetVarFiles(opts.Logger)...)
+		varFiles = append(varFiles, arg.GetVarFiles(l)...)
 	}
 
-	return getVarNamesFromVarFiles(opts, varFiles)
+	return getVarNamesFromVarFiles(l, opts, varFiles)
 }
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
 // config and those that are directly passed in via the CLI.
-func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
 	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.TerraformCliArgs)
 	if err != nil {
 		return inputNames, err
@@ -332,7 +333,7 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 		}
 	}
 
-	fileVars, err := getVarNamesFromVarFiles(opts, varFiles)
+	fileVars, err := getVarNamesFromVarFiles(l, opts, varFiles)
 	if err != nil {
 		return inputNames, err
 	}
@@ -343,7 +344,7 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 }
 
 // getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
-func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions) ([]string, error) {
+func getTerraformInputNamesFromAutomaticVarFiles(l log.Logger, opts *options.TerragruntOptions) ([]string, error) {
 	base := opts.WorkingDir
 	automaticVarFiles := []string{}
 
@@ -371,16 +372,16 @@ func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions
 
 	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
 
-	return getVarNamesFromVarFiles(opts, automaticVarFiles)
+	return getVarNamesFromVarFiles(l, opts, automaticVarFiles)
 }
 
 // getVarNamesFromVarFiles will parse all the given var files and returns a list of names of variables that are
 // configured in all of them combined together.
-func getVarNamesFromVarFiles(opts *options.TerragruntOptions, varFiles []string) ([]string, error) {
+func getVarNamesFromVarFiles(l log.Logger, opts *options.TerragruntOptions, varFiles []string) ([]string, error) {
 	inputNames := []string{}
 
 	for _, varFile := range varFiles {
-		fileVars, err := getVarNamesFromVarFile(opts, varFile)
+		fileVars, err := getVarNamesFromVarFile(l, opts, varFile)
 		if err != nil {
 			return inputNames, err
 		}
@@ -393,7 +394,7 @@ func getVarNamesFromVarFiles(opts *options.TerragruntOptions, varFiles []string)
 
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
-func getVarNamesFromVarFile(opts *options.TerragruntOptions, varFile string) ([]string, error) {
+func getVarNamesFromVarFile(l log.Logger, opts *options.TerragruntOptions, varFile string) ([]string, error) {
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
 		return nil, err
@@ -405,7 +406,7 @@ func getVarNamesFromVarFile(opts *options.TerragruntOptions, varFile string) ([]
 			return nil, err
 		}
 	} else {
-		if err := config.ParseAndDecodeVarFile(opts, varFile, fileContents, &variables); err != nil {
+		if err := config.ParseAndDecodeVarFile(l, opts, varFile, fileContents, &variables); err != nil {
 			return nil, err
 		}
 	}

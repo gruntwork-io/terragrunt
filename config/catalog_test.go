@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -131,7 +132,8 @@ func TestCatalogParseConfigFile(t *testing.T) {
 
 			opts.ScaffoldRootFileName = filepath.Base(tt.configPath)
 
-			config, err := config.ReadCatalogConfig(t.Context(), opts)
+			l := logger.CreateLogger()
+			config, err := config.ReadCatalogConfig(t.Context(), l, opts)
 
 			if tt.expectedErr == nil {
 				require.NoError(t, err)

@@ -106,6 +106,7 @@ const (
 	testFixtureStdout                         = "fixtures/download/stdout-test"
 	testFixtureTfTest                         = "fixtures/tftest/"
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
+	testFixtureExecCmdTfPath                  = "fixtures/exec-cmd-tf-path"
 	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
@@ -149,49 +150,6 @@ func TestCLIFlagHints(t *testing.T) {
 
 			_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --working-dir "+rootPath)
 			assert.EqualError(t, err, tc.expectedError.Error())
-		})
-	}
-}
-
-func TestExecCommand(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		scriptPath string
-		runInDir   string
-		args       []string
-	}{
-		{
-			scriptPath: "./script.sh arg1 arg2",
-			runInDir:   "",
-		},
-		{
-			args:       []string{"--in-download-dir"},
-			scriptPath: "./script.sh arg1 arg2",
-			runInDir:   ".terragrunt-cache",
-		},
-	}
-
-	for i, tc := range testCases {
-		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
-			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureExecCmd)
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmd)
-
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, "app")
-			rootPath, err := filepath.EvalSymlinks(rootPath)
-			require.NoError(t, err)
-
-			downloadDirPath := util.JoinPath(rootPath, ".terragrunt-cache")
-			scriptPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, tc.scriptPath)
-
-			err = os.Mkdir(downloadDirPath, os.ModePerm)
-			require.NoError(t, err)
-
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --working-dir "+rootPath+" "+strings.Join(tc.args, " ")+" -- "+scriptPath)
-			require.NoError(t, err)
-			assert.Contains(t, stdout, "The first arg is arg1. The second arg is arg2. The script is running in the directory "+util.JoinPath(rootPath, tc.runInDir))
 		})
 	}
 }

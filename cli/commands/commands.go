@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -58,12 +59,12 @@ const (
 
 // New returns the set of Terragrunt commands, grouped into categories.
 // Categories are ordered in increments of 10 for easy insertion of new categories.
-func New(opts *options.TerragruntOptions) cli.Commands {
+func New(l log.Logger, opts *options.TerragruntOptions) cli.Commands {
 	mainCommands := cli.Commands{
-		runCmd.NewCommand(opts),  // run
-		stack.NewCommand(opts),   // stack
-		execCmd.NewCommand(opts), // exec
-		backend.NewCommand(opts), // backend
+		runCmd.NewCommand(l, opts),  // run
+		stack.NewCommand(l, opts),   // stack
+		execCmd.NewCommand(l, opts), // exec
+		backend.NewCommand(l, opts), // backend
 	}.SetCategory(
 		&cli.Category{
 			Name:  MainCommandsCategoryName,
@@ -72,8 +73,8 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	catalogCommands := cli.Commands{
-		catalog.NewCommand(opts),  // catalog
-		scaffold.NewCommand(opts), // scaffold
+		catalog.NewCommand(l, opts),  // catalog
+		scaffold.NewCommand(l, opts), // scaffold
 	}.SetCategory(
 		&cli.Category{
 			Name:  CatalogCommandsCategoryName,
@@ -82,8 +83,8 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	discoveryCommands := cli.Commands{
-		find.NewCommand(opts), // find
-		list.NewCommand(opts), // list
+		find.NewCommand(l, opts), // find
+		list.NewCommand(l, opts), // list
 	}.SetCategory(
 		&cli.Category{
 			Name:  DiscoveryCommandsCategoryName,
@@ -92,14 +93,14 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 	)
 
 	configurationCommands := cli.Commands{
-		hcl.NewCommand(opts),                // hcl
-		info.NewCommand(opts),               // info
-		dag.NewCommand(opts),                // dag
-		render.NewCommand(opts),             // render
-		helpCmd.NewCommand(opts),            // help (hidden)
-		versionCmd.NewCommand(opts),         // version (hidden)
-		awsproviderpatch.NewCommand(opts),   // aws-provider-patch (hidden)
-		outputmodulegroups.NewCommand(opts), // output-module-groups (hidden)
+		hcl.NewCommand(l, opts),                // hcl
+		info.NewCommand(l, opts),               // info
+		dag.NewCommand(l, opts),                // dag
+		render.NewCommand(l, opts),             // render
+		helpCmd.NewCommand(l, opts),            // help (hidden)
+		versionCmd.NewCommand(opts),            // version (hidden)
+		awsproviderpatch.NewCommand(l, opts),   // aws-provider-patch (hidden)
+		outputmodulegroups.NewCommand(l, opts), // output-module-groups (hidden)
 	}.SetCategory(
 		&cli.Category{
 			Name:  ConfigurationCommandsCategoryName,
@@ -107,14 +108,14 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 		},
 	)
 
-	shortcutsCommands := NewShortcutsCommands(opts).SetCategory(
+	shortcutsCommands := NewShortcutsCommands(l, opts).SetCategory(
 		&cli.Category{
 			Name:  ShortcutsCommandsCategoryName,
 			Order: 50, //nolint: mnd
 		},
 	)
 
-	allCommands := NewDeprecatedCommands(opts).
+	allCommands := NewDeprecatedCommands(l, opts).
 		Merge(mainCommands...).
 		Merge(catalogCommands...).
 		Merge(discoveryCommands...).
@@ -125,7 +126,7 @@ func New(opts *options.TerragruntOptions) cli.Commands {
 }
 
 // WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
+func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx.Context, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]any{
 			"terraformCommand": opts.TerraformCommand,
@@ -133,17 +134,17 @@ func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, a
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context) error {
 			ctx.Context = childCtx //nolint:fatcontext
-			if err := initialSetup(ctx, opts); err != nil {
+			if err := initialSetup(ctx, l, opts); err != nil {
 				return err
 			}
 
 			// TODO: See if this lint should be ignored
-			return runAction(ctx, opts, action) //nolint:contextcheck
+			return runAction(ctx, l, opts, action) //nolint:contextcheck
 		})
 	}
 }
 
-func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.ActionFunc) error {
+func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOptions, action cli.ActionFunc) error {
 	ctx, cancel := context.WithCancel(cliCtx.Context)
 	defer cancel()
 
@@ -151,7 +152,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 
 	// Run provider cache server
 	if opts.ProviderCache {
-		server, err := providercache.InitServer(opts)
+		server, err := providercache.InitServer(l, opts)
 		if err != nil {
 			return err
 		}
@@ -184,7 +185,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 }
 
 // mostly preparing terragrunt options
-func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
+func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
@@ -205,7 +206,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// Since Terragrunt and Terraform have the same `-no-color` flag,
 	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
-	if opts.Logger.Formatter().DisabledColors() {
+	if l.Formatter().DisabledColors() {
 		args = append(args, tf.FlagNameNoColor)
 	}
 
@@ -231,16 +232,16 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return errors.New(err)
 	}
 
-	opts.Logger = opts.Logger.WithField(placeholders.WorkDirKeyName, workingDir)
+	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
 
 	opts.RootWorkingDir = filepath.ToSlash(workingDir)
 
-	if err := opts.Logger.Formatter().SetBaseDir(opts.RootWorkingDir); err != nil {
+	if err := l.Formatter().SetBaseDir(opts.RootWorkingDir); err != nil {
 		return err
 	}
 
 	if opts.LogShowAbsPaths {
-		opts.Logger.Formatter().DisableRelativePaths()
+		l.Formatter().DisableRelativePaths()
 	}
 
 	// --- Download Dir
@@ -276,22 +277,26 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 
 	if len(opts.IncludeDirs) > 0 {
-		opts.Logger.Debugf("Included directories set. Excluding by default.")
+		l.Debugf("Included directories set. Excluding by default.")
+
 		opts.ExcludeByDefault = true
 	}
 
 	if !opts.ExcludeByDefault && len(opts.ModulesThatInclude) > 0 {
-		opts.Logger.Debugf("Modules that include set. Excluding by default.")
+		l.Debugf("Modules that include set. Excluding by default.")
+
 		opts.ExcludeByDefault = true
 	}
 
 	if !opts.ExcludeByDefault && len(opts.UnitsReading) > 0 {
-		opts.Logger.Debugf("Units that read set. Excluding by default.")
+		l.Debugf("Units that read set. Excluding by default.")
+
 		opts.ExcludeByDefault = true
 	}
 
 	if !opts.ExcludeByDefault && opts.StrictInclude {
-		opts.Logger.Debugf("Strict include set. Excluding by default.")
+		l.Debugf("Strict include set. Excluding by default.")
+
 		opts.ExcludeByDefault = true
 	}
 
@@ -318,7 +323,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.TerragruntVersion = terragruntVersion
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
-	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
+	l.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
 	// --- Others
 	if !opts.RunAllAutoApprove {
@@ -332,7 +337,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.RunTerragrunt = runCmd.Run
 
-	exec.PrepareConsole(opts.Logger)
+	exec.PrepareConsole(l)
 
 	return nil
 }

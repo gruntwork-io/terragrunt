@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -27,7 +28,7 @@ const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Comman
 `
 
 // ShowTFHelp prints TF help for the given `ctx.Command` command.
-func ShowTFHelp(opts *options.TerragruntOptions) cli.HelpFunc {
+func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) cli.HelpFunc {
 	return func(ctx *cli.Context) error {
 		if err := NewTFPathFlag(opts, nil).Parse(ctx.Args()); err != nil {
 			return err
@@ -38,7 +39,7 @@ func ShowTFHelp(opts *options.TerragruntOptions) cli.HelpFunc {
 				return isTerraformPath(opts)
 			},
 			"runTFHelp": func() string {
-				return runTFHelp(ctx, opts)
+				return runTFHelp(ctx, l, opts)
 			},
 			"tfCommand": func() string {
 				return ctx.Command.Name
@@ -49,13 +50,13 @@ func ShowTFHelp(opts *options.TerragruntOptions) cli.HelpFunc {
 	}
 }
 
-func runTFHelp(ctx *cli.Context, opts *options.TerragruntOptions) string {
+func runTFHelp(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) string {
 	opts = opts.Clone()
 	opts.Writer = io.Discard
 
 	terraformHelpCmd := []string{tf.FlagNameHelpLong, ctx.Command.Name}
 
-	out, err := tf.RunCommandWithOutput(ctx, opts, terraformHelpCmd...)
+	out, err := tf.RunCommandWithOutput(ctx, l, opts, terraformHelpCmd...)
 	if err != nil {
 		var processError util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {

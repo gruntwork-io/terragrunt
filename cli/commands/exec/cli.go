@@ -7,18 +7,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
 	CommandName = "exec"
 
 	InDownloadDirFlagName = "in-download-dir"
+	TFPathFlagName        = "tf-path"
 )
 
-func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	return append(run.NewFlags(opts, prefix).Filter(
+	return append(run.NewFlags(l, opts, prefix).Filter(
 		run.AuthProviderCmdFlagName,
 		run.ConfigFlagName,
 		run.DownloadDirFlagName,
@@ -27,6 +29,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Pr
 		run.IAMAssumeRoleDurationFlagName,
 		run.IAMAssumeRoleSessionNameFlagName,
 		run.IAMAssumeRoleWebIdentityTokenFlagName,
+		run.TFPathFlagName,
 	),
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        InDownloadDirFlagName,
@@ -37,7 +40,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Pr
 	)
 }
 
-func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions()
 
 	return &cli.Command{
@@ -49,7 +52,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			"# Utilize the AWS CLI.\nterragrunt exec -- aws s3 ls",
 			"# Inspect `main.tf` file of module for Unit\nterragrunt exec --in-download-dir -- cat main.tf",
 		},
-		Flags: NewFlags(opts, cmdOpts, nil),
+		Flags: NewFlags(l, opts, cmdOpts, nil),
 		Action: func(ctx *cli.Context) error {
 			tgArgs, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
 
@@ -63,7 +66,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				return cli.ShowCommandHelp(ctx)
 			}
 
-			return Run(ctx, opts, cmdOpts, cmdArgs)
+			return Run(ctx, l, opts, cmdOpts, cmdArgs)
 		},
 	}
 }

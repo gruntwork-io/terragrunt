@@ -2,10 +2,6 @@ name: Lint
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 jobs:
   lint:
@@ -18,6 +14,7 @@ jobs:
       uses: jdx/mise-action@v2
       with:
         version: 2025.4.4
+        experimental: true
       env:
         # Adding token here to reduce the likelihood of hitting rate limit issues.
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
