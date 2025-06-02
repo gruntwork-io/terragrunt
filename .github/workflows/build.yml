@@ -127,6 +127,7 @@ jobs:
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
           ls -lahrt bin/*
+          file bin/terragrunt_linux_arm64
           .github/scripts/setup/mac-sign.sh .gon_amd64.hcl
           .github/scripts/setup/mac-sign.sh .gon_arm64.hcl
           echo "Done signing the binary"
