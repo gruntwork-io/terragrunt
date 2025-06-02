@@ -1332,7 +1332,9 @@ func TestConstraintCheck(t *testing.T) {
 		t.Run(fmt.Sprintf("constraint_check(%#v, %#v)", tc.args[0], tc.args[1]), func(t *testing.T) {
 			t.Parallel()
 
-			ctx := config.NewParsingContext(context.Background(), tc.config)
+			l := logger.CreateLogger()
+
+			ctx := config.NewParsingContext(t.Context(), l, tc.config)
 			actual, err := config.ConstraintCheck(ctx, tc.args)
 			if tc.err != "" {
 				require.EqualError(t, err, tc.err)
