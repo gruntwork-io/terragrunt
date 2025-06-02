@@ -181,6 +181,7 @@ func New() strict.Controls {
 			Description: "Prevents the use of the `include` block without a label.",
 			Category:    stageCategory,
 			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
+			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/bare-include/",
 		},
 	}
 

@@ -1269,18 +1269,8 @@ func ParseConfigString(ctx *ParsingContext, l log.Logger, configPath string, con
 func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
-	if detectInputsCtyUsage(file) {
-		allControls := ctx.TerragruntOptions.StrictControls
-
-		skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
-		if skipDependenciesInputs == nil {
-			return nil, errors.New("failed to find control " + controls.SkipDependenciesInputs)
-		}
-
-		evalCtx := log.ContextWithLogger(ctx, l)
-		if err := skipDependenciesInputs.Evaluate(evalCtx); err != nil {
-			return nil, err
-		}
+	if err := detectDeprecatedConfigurations(ctx, l, file); err != nil {
+		return nil, err
 	}
 
 	ctx = ctx.WithTrackInclude(nil)
@@ -1365,6 +1355,39 @@ func ParseConfig(ctx *ParsingContext, l log.Logger, file *hclparse.File, include
 	}
 
 	return config, errs.ErrorOrNil()
+}
+
+// detectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
+func detectDeprecatedConfigurations(ctx *ParsingContext, l log.Logger, file *hclparse.File) error {
+	if detectInputsCtyUsage(file) {
+		allControls := ctx.TerragruntOptions.StrictControls
+
+		skipDependenciesInputs := allControls.Find(controls.SkipDependenciesInputs)
+		if skipDependenciesInputs == nil {
+			return errors.New("failed to find control " + controls.SkipDependenciesInputs)
+		}
+
+		evalCtx := log.ContextWithLogger(ctx, l)
+		if err := skipDependenciesInputs.Evaluate(evalCtx); err != nil {
+			return err
+		}
+	}
+
+	if detectBareIncludeUsage(file) {
+		allControls := ctx.TerragruntOptions.StrictControls
+
+		bareInclude := allControls.Find(controls.BareInclude)
+		if bareInclude == nil {
+			return errors.New("failed to find control " + controls.BareInclude)
+		}
+
+		evalCtx := log.ContextWithLogger(ctx, l)
+		if err := bareInclude.Evaluate(evalCtx); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // detectInputsCtyUsage detects if an identifier matching dependency.foo.inputs.bar is used in the given HCL file.
