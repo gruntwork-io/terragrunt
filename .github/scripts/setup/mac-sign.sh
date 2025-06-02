@@ -24,11 +24,11 @@ function main {
   local mac_skip_root_certificate=""
   local assets=()
 
-  while [[ $# > 0 ]]; do
+  while [[ $# -gt 0 ]]; do
     local key="$1"
     case "$key" in
       --macos-skip-root-certificate)
-        mac_skip_root_certificate="$2"
+        mac_skip_root_certificate=true
         shift
         ;;
       --help)
