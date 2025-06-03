@@ -216,14 +216,26 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 		defer stack.summarizePlanAllErrors(l, errorStreams)
 	}
 
+	var err error
+
 	switch {
 	case opts.IgnoreDependencyOrder:
-		return stack.Modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism)
+		err = stack.Modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism)
 	case stackCmd == tf.CommandNameDestroy:
-		return stack.Modules.RunModulesReverseOrder(ctx, opts, stack.report, opts.Parallelism)
+		err = stack.Modules.RunModulesReverseOrder(ctx, opts, stack.report, opts.Parallelism)
 	default:
-		return stack.Modules.RunModules(ctx, opts, stack.report, opts.Parallelism)
+		err = stack.Modules.RunModules(ctx, opts, stack.report, opts.Parallelism)
 	}
+
+	if err != nil {
+		return err
+	}
+
+	if opts.Experiments.Evaluate(experiment.Report) {
+		stack.report.WriteSummary(opts.Writer)
+	}
+
+	return nil
 }
 
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
