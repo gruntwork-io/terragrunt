@@ -94,13 +94,16 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	// If version constraints exist in current lock file and match the new version, we keep them unchanged.
 	// Otherwise, we specify the constraints attribute the same as the version.
 	currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
+
 	shouldUpdateConstraints := false
+
 	if currentConstraintsAttr != nil {
 		currentConstraints, err := version.NewConstraint(strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, ""))
 		// If current version constraints are malformed, we should update it.
 		if err != nil {
 			shouldUpdateConstraints = true
 		}
+
 		newVersion, _ := version.NewVersion(provider.Version())
 		// If current version constrains do not match the new provider version, we should update it.
 		if !currentConstraints.Check(newVersion) {
