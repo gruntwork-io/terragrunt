@@ -86,7 +86,6 @@ func (r *Report) GetRun(name string) *Run {
 			return run
 		}
 	}
-
 	return nil
 }
 
