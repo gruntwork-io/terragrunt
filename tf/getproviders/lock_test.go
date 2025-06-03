@@ -129,7 +129,7 @@ provider "registry.terraform.io/hashicorp/template" {
 `,
 		},
 		{
-			[]Provider{},
+			[]getproviders.Provider{},
 			`
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.36.0"
