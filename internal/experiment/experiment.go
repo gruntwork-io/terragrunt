@@ -23,6 +23,8 @@ const (
 	// CAS is the experiment that enables using the CAS package for git operations
 	// in the catalog command, which provides better performance through content-addressable storage.
 	CAS = "cas"
+	// Report is the experiment that enables the new run report.
+	Report = "report"
 )
 
 const (
@@ -52,6 +54,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: CAS,
+		},
+		{
+			Name: Report,
 		},
 	}
 }

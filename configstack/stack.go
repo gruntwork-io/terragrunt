@@ -25,6 +25,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -37,6 +39,7 @@ type Stack struct {
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
 	outputMu              sync.Mutex
+	report                *report.Report
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -73,6 +76,10 @@ func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts .
 	stack := &Stack{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
+	}
+
+	if terragruntOptions.Experiments.Evaluate(experiment.Report) {
+		stack.report = report.NewReport()
 	}
 
 	return stack.WithOptions(opts...)
@@ -211,11 +218,11 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 
 	switch {
 	case opts.IgnoreDependencyOrder:
-		return stack.Modules.RunModulesIgnoreOrder(ctx, opts, opts.Parallelism)
+		return stack.Modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism)
 	case stackCmd == tf.CommandNameDestroy:
-		return stack.Modules.RunModulesReverseOrder(ctx, opts, opts.Parallelism)
+		return stack.Modules.RunModulesReverseOrder(ctx, opts, stack.report, opts.Parallelism)
 	default:
-		return stack.Modules.RunModules(ctx, opts, opts.Parallelism)
+		return stack.Modules.RunModules(ctx, opts, stack.report, opts.Parallelism)
 	}
 }
 
@@ -269,9 +276,9 @@ func (stack *Stack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntO
 func (stack *Stack) toRunningModules(terraformCommand string) (RunningModules, error) {
 	switch terraformCommand {
 	case tf.CommandNameDestroy:
-		return stack.Modules.ToRunningModules(ReverseOrder)
+		return stack.Modules.ToRunningModules(ReverseOrder, stack.report, stack.terragruntOptions)
 	default:
-		return stack.Modules.ToRunningModules(NormalOrder)
+		return stack.Modules.ToRunningModules(NormalOrder, stack.report, stack.terragruntOptions)
 	}
 }
 

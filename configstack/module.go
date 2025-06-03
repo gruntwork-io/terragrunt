@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 
@@ -347,42 +349,42 @@ func (modules TerraformModules) WriteDot(l log.Logger, w io.Writer, opts *option
 // RunModules runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(NormalOrder)
+func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(NormalOrder, r, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, parallelism)
+	return runningModules.runModules(ctx, opts, r, parallelism)
 }
 
 // RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(ReverseOrder)
+func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(ReverseOrder, r, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, parallelism)
+	return runningModules.runModules(ctx, opts, r, parallelism)
 }
 
 // RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(IgnoreOrder)
+func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(IgnoreOrder, r, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, parallelism)
+	return runningModules.runModules(ctx, opts, r, parallelism)
 }
 
 // ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder) (RunningModules, error) {
+func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningModules, error) {
 	runningModules := RunningModules{}
 	for _, module := range modules {
 		runningModules[module.Path] = newRunningModule(module)
@@ -393,7 +395,7 @@ func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder
 		return crossLinkedModules, err
 	}
 
-	return crossLinkedModules.RemoveFlagExcluded(), nil
+	return crossLinkedModules.RemoveFlagExcluded(r, opts.Experiments.Evaluate(experiment.Report)), nil
 }
 
 // CheckForCycles checks for dependency cycles in the given list of modules and return an error if one is found.
@@ -447,7 +449,7 @@ func (modules TerraformModules) flagIncludedDirs(opts *options.TerragruntOptions
 func (modules TerraformModules) flagUnitsThatAreIncluded(opts *options.TerragruntOptions) (TerraformModules, error) {
 	// The two flags ModulesThatInclude and UnitsReading should both be considered when determining which
 	// units to include in the run queue.
-	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...)
+	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
 
 	// If no unitsThatInclude is specified return the modules list instantly
 	if len(unitsThatInclude) == 0 {
