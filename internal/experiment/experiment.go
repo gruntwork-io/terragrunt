@@ -23,6 +23,8 @@ const (
 	// CAS is the experiment that enables using the CAS package for git operations
 	// in the catalog command, which provides better performance through content-addressable storage.
 	CAS = "cas"
+	// RunnerPool is the experiment that allows using a pool of runners for parallel execution.
+	RunnerPool = "runner-pool"
 )
 
 const (
@@ -52,6 +54,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: CAS,
+		},
+		{
+			Name: RunnerPool,
 		},
 	}
 }
