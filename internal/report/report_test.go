@@ -63,6 +63,7 @@ func TestAddRun(t *testing.T) {
 				assert.Contains(t, err.Error(), "run already exists")
 			} else {
 				assert.NoError(t, err)
+				assert.Len(t, report.runs, 1)
 			}
 		})
 	}

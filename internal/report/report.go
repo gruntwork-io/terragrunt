@@ -12,7 +12,7 @@ import (
 
 // Report captures data for a report/summary.
 type Report struct {
-	runs map[string]*Run
+	runs []*Run
 }
 
 // Run captures data for a run.
@@ -38,18 +38,20 @@ type Cause string
 
 // Summary formats data from a report for output as a summary.
 type Summary struct {
-	TotalDuration  time.Duration
 	TotalUnits     int
 	UnitsSucceeded int
 	UnitsFailed    int
 	EarlyExits     int
 	Excluded       int
+
+	firstRunStart *time.Time
+	lastRunEnd    *time.Time
 }
 
 // NewReport creates a new report.
 func NewReport() *Report {
 	return &Report{
-		runs: make(map[string]*Run),
+		runs: make([]*Run, 0),
 	}
 }
 
@@ -67,18 +69,24 @@ var ErrRunAlreadyExists = errors.New("run already exists")
 // AddRun adds a run to the report.
 // If the run already exists, it returns the ErrRunAlreadyExists error.
 func (r *Report) AddRun(run *Run) error {
-	_, ok := r.runs[run.Name]
-	if ok {
-		return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Name)
+	for _, existingRun := range r.runs {
+		if existingRun.Name == run.Name {
+			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Name)
+		}
 	}
 
-	r.runs[run.Name] = run
+	r.runs = append(r.runs, run)
 	return nil
 }
 
 // GetRun returns a run from the report.
 func (r *Report) GetRun(name string) *Run {
-	return r.runs[name]
+	for _, run := range r.runs {
+		if run.Name == name {
+			return run
+		}
+	}
+	return nil
 }
 
 // ErrRunNotFound is returned when a run is not found in the report.
@@ -88,8 +96,15 @@ var ErrRunNotFound = errors.New("run not found")
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
 func (r *Report) EndRun(name string, endOptions ...EndOption) error {
-	run, ok := r.runs[name]
-	if !ok {
+	var run *Run
+	for _, existingRun := range r.runs {
+		if existingRun.Name == name {
+			run = existingRun
+			break
+		}
+	}
+
+	if run == nil {
 		return fmt.Errorf("%w: %s", ErrRunNotFound, name)
 	}
 
@@ -189,35 +204,43 @@ func (r *Report) Summarize() *Summary {
 		return summary
 	}
 
-	var firstRunStart, lastRunEnd *time.Time
-
 	for _, run := range r.runs {
-		run.mu.RLock()
-		defer run.mu.RUnlock()
-
-		switch run.Result {
-		case ResultSucceeded:
-			summary.UnitsSucceeded++
-		case ResultFailed:
-			summary.UnitsFailed++
-		case ResultEarlyExit:
-			summary.EarlyExits++
-		case ResultExcluded:
-			summary.Excluded++
-		}
-
-		if firstRunStart == nil || run.Started.Before(*firstRunStart) {
-			firstRunStart = &run.Started
-		}
-
-		if lastRunEnd == nil || run.Ended.After(*lastRunEnd) {
-			lastRunEnd = &run.Ended
-		}
+		summary.Update(run)
 	}
 
-	summary.TotalDuration = lastRunEnd.Sub(*firstRunStart)
-
 	return summary
+}
+
+func (s *Summary) Update(run *Run) {
+	run.mu.RLock()
+	defer run.mu.RUnlock()
+
+	switch run.Result {
+	case ResultSucceeded:
+		s.UnitsSucceeded++
+	case ResultFailed:
+		s.UnitsFailed++
+	case ResultEarlyExit:
+		s.EarlyExits++
+	case ResultExcluded:
+		s.Excluded++
+	}
+
+	if s.firstRunStart == nil || run.Started.Before(*s.firstRunStart) {
+		s.firstRunStart = &run.Started
+	}
+
+	if s.lastRunEnd == nil || run.Ended.After(*s.lastRunEnd) {
+		s.lastRunEnd = &run.Ended
+	}
+}
+
+func (s *Summary) TotalDuration() time.Duration {
+	if s.firstRunStart == nil || s.lastRunEnd == nil {
+		return 0
+	}
+
+	return s.lastRunEnd.Sub(*s.firstRunStart)
 }
 
 // WriteCSV writes the report to a writer in CSV format.
@@ -270,7 +293,7 @@ func (s *Summary) Write(w io.Writer) error {
 
 	fmt.Fprintf(w, "Total Units: %d\n", s.TotalUnits)
 
-	fmt.Fprintf(w, "Total Duration: %s\n", s.TotalDuration)
+	fmt.Fprintf(w, "Total Duration: %s\n", s.TotalDuration())
 
 	if s.UnitsSucceeded > 0 {
 		fmt.Fprintf(w, "Units Succeeded: %d\n", s.UnitsSucceeded)
