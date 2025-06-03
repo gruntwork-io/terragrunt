@@ -7,13 +7,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/mgutz/ansi"
 )
 
 // Report captures data for a report/summary.
 type Report struct {
-	Runs []*Run
+	Runs        []*Run
+	shouldColor bool
 }
 
 // Run captures data for a run.
@@ -45,13 +49,69 @@ type Summary struct {
 	UnitsFailed    int
 	EarlyExits     int
 	Excluded       int
+	shouldColor    bool
+}
+
+// Colorizer is a colorizer for the run summary output.
+type Colorizer struct {
+	headingColorizer     func(string) string
+	successColorizer     func(string) string
+	failureColorizer     func(string) string
+	exitColorizer        func(string) string
+	excludeColorizer     func(string) string
+	millisecondColorizer func(string) string
+	secondColorizer      func(string) string
+	minuteColorizer      func(string) string
+	defaultColorizer     func(string) string
+}
+
+// NewColorizer creates a new Colorizer.
+func NewColorizer(shouldColor bool) *Colorizer {
+	if !shouldColor {
+		return &Colorizer{
+			headingColorizer:     func(s string) string { return s },
+			successColorizer:     func(s string) string { return s },
+			failureColorizer:     func(s string) string { return s },
+			exitColorizer:        func(s string) string { return s },
+			excludeColorizer:     func(s string) string { return s },
+			millisecondColorizer: func(s string) string { return s },
+			secondColorizer:      func(s string) string { return s },
+			minuteColorizer:      func(s string) string { return s },
+			defaultColorizer:     func(s string) string { return s },
+		}
+	}
+
+	return &Colorizer{
+		headingColorizer:     ansi.ColorFunc("yellow+bh"),
+		successColorizer:     ansi.ColorFunc("green+bh"),
+		failureColorizer:     ansi.ColorFunc("red+bh"),
+		exitColorizer:        ansi.ColorFunc("yellow+bh"),
+		excludeColorizer:     ansi.ColorFunc("blue+bh"),
+		millisecondColorizer: ansi.ColorFunc("cyan+bh"),
+		secondColorizer:      ansi.ColorFunc("green+bh"),
+		minuteColorizer:      ansi.ColorFunc("yellow+bh"),
+		defaultColorizer:     ansi.ColorFunc("white+bh"),
+	}
 }
 
 // NewReport creates a new report.
 func NewReport() *Report {
-	return &Report{
-		Runs: make([]*Run, 0),
+	report := &Report{
+		Runs:        make([]*Run, 0),
+		shouldColor: true,
 	}
+
+	return report
+}
+
+// NewReportOption is an option for creating a new report.
+type NewReportOption func(*Report)
+
+// WithDisableColor sets the shouldColor flag for the report.
+func (r *Report) WithDisableColor() *Report {
+	r.shouldColor = false
+
+	return r
 }
 
 // NewRun creates a new run.
@@ -199,7 +259,8 @@ func withCause(name string) EndOption {
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
-		TotalUnits: len(r.Runs),
+		TotalUnits:  len(r.Runs),
+		shouldColor: r.shouldColor,
 	}
 
 	if len(r.Runs) == 0 {
@@ -244,6 +305,22 @@ func (s *Summary) TotalDuration() time.Duration {
 	}
 
 	return s.lastRunEnd.Sub(*s.firstRunStart)
+}
+
+// TotalDurationString returns the total duration of all runs in the report as a string.
+// It returns the duration in the format that is easy to understand by humans.
+func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
+	duration := s.TotalDuration()
+
+	if duration < time.Second {
+		return colorizer.millisecondColorizer(fmt.Sprintf("%dms", duration.Milliseconds()))
+	}
+
+	if duration < time.Minute {
+		return colorizer.secondColorizer(fmt.Sprintf("%ds", int(duration.Seconds())))
+	}
+
+	return colorizer.minuteColorizer(fmt.Sprintf("%dm", int(duration.Minutes())))
 }
 
 // WriteToFile writes the report to a file.
@@ -324,44 +401,46 @@ func (r *Report) WriteSummary(w io.Writer) error {
 
 // Write writes the summary to a writer.
 func (s *Summary) Write(w io.Writer) error {
-	_, err := fmt.Fprintf(w, "❯❯ Run Summary\n")
+	colorizer := NewColorizer(s.shouldColor)
+
+	_, err := fmt.Fprintf(w, "%s\n", colorizer.headingColorizer("❯❯ Run Summary"))
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "   Units: %d\n", s.TotalUnits)
+	_, err = fmt.Fprintf(w, "   Units: %s\n", colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits)))
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "   Duration: %s\n", s.TotalDuration())
+	_, err = fmt.Fprintf(w, "   Duration: %s\n", s.TotalDurationString(colorizer))
 	if err != nil {
 		return err
 	}
 
 	if s.UnitsSucceeded > 0 {
-		_, err := fmt.Fprintf(w, "   Succeeded: %d\n", s.UnitsSucceeded)
+		_, err := fmt.Fprintf(w, "   Succeeded: %s\n", colorizer.successColorizer(strconv.Itoa(s.UnitsSucceeded)))
 		if err != nil {
 			return err
 		}
 	}
 
 	if s.UnitsFailed > 0 {
-		_, err := fmt.Fprintf(w, "   Failed: %d\n", s.UnitsFailed)
+		_, err := fmt.Fprintf(w, "   Failed: %s\n", colorizer.failureColorizer(strconv.Itoa(s.UnitsFailed)))
 		if err != nil {
 			return err
 		}
 	}
 
 	if s.EarlyExits > 0 {
-		_, err := fmt.Fprintf(w, "   Early Exits: %d\n", s.EarlyExits)
+		_, err := fmt.Fprintf(w, "   Early Exits: %s\n", colorizer.exitColorizer(strconv.Itoa(s.EarlyExits)))
 		if err != nil {
 			return err
 		}
 	}
 
 	if s.Excluded > 0 {
-		_, err := fmt.Fprintf(w, "   Excluded: %d\n", s.Excluded)
+		_, err := fmt.Fprintf(w, "   Excluded: %s\n", colorizer.excludeColorizer(strconv.Itoa(s.Excluded)))
 		if err != nil {
 			return err
 		}

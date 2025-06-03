@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -80,6 +81,10 @@ func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts .
 
 	if terragruntOptions.Experiments.Evaluate(experiment.Report) {
 		stack.report = report.NewReport()
+
+		if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+			stack.report.WithDisableColor()
+		}
 	}
 
 	return stack.WithOptions(opts...)
