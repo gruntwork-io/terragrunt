@@ -19,3 +19,4 @@ terragrunt
 .cursor/
 .env
 .licensei.cache
+bin
