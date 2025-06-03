@@ -312,8 +312,8 @@ func (r *Report) WriteCSV(w io.Writer) error {
 
 // WriteSummary writes the summary to a writer.
 func (r *Report) WriteSummary(w io.Writer) error {
-	// Create a two line gap before the summary
-	_, err := fmt.Fprintf(w, "\n\n")
+	// Create a line gap before the summary
+	_, err := fmt.Fprintf(w, "\n")
 	if err != nil {
 		return err
 	}
@@ -329,39 +329,39 @@ func (s *Summary) Write(w io.Writer) error {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "Units: %d\n", s.TotalUnits)
+	_, err = fmt.Fprintf(w, "   Units: %d\n", s.TotalUnits)
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "Duration: %s\n", s.TotalDuration())
+	_, err = fmt.Fprintf(w, "   Duration: %s\n", s.TotalDuration())
 	if err != nil {
 		return err
 	}
 
 	if s.UnitsSucceeded > 0 {
-		_, err := fmt.Fprintf(w, "Succeeded: %d\n", s.UnitsSucceeded)
+		_, err := fmt.Fprintf(w, "   Succeeded: %d\n", s.UnitsSucceeded)
 		if err != nil {
 			return err
 		}
 	}
 
 	if s.UnitsFailed > 0 {
-		_, err := fmt.Fprintf(w, "Failed: %d\n", s.UnitsFailed)
+		_, err := fmt.Fprintf(w, "   Failed: %d\n", s.UnitsFailed)
 		if err != nil {
 			return err
 		}
 	}
 
 	if s.EarlyExits > 0 {
-		_, err := fmt.Fprintf(w, "Early Exits: %d\n", s.EarlyExits)
+		_, err := fmt.Fprintf(w, "   Early Exits: %d\n", s.EarlyExits)
 		if err != nil {
 			return err
 		}
 	}
 
 	if s.Excluded > 0 {
-		_, err := fmt.Fprintf(w, "Excluded: %d\n", s.Excluded)
+		_, err := fmt.Fprintf(w, "   Excluded: %d\n", s.Excluded)
 		if err != nil {
 			return err
 		}
