@@ -3,7 +3,6 @@ package report
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -190,8 +189,7 @@ func (r *Report) Summarize() *Summary {
 		return summary
 	}
 
-	firstRunStart := time.Time{}
-	lastRunEnd := time.Time{}
+	var firstRunStart, lastRunEnd *time.Time
 
 	for _, run := range r.runs {
 		run.mu.RLock()
@@ -208,16 +206,16 @@ func (r *Report) Summarize() *Summary {
 			summary.Excluded++
 		}
 
-		if run.Started.Before(firstRunStart) {
-			firstRunStart = run.Started
+		if firstRunStart == nil || run.Started.Before(*firstRunStart) {
+			firstRunStart = &run.Started
 		}
 
-		if run.Ended.After(lastRunEnd) {
-			lastRunEnd = run.Ended
+		if lastRunEnd == nil || run.Ended.After(*lastRunEnd) {
+			lastRunEnd = &run.Ended
 		}
 	}
 
-	summary.TotalDuration = lastRunEnd.Sub(firstRunStart)
+	summary.TotalDuration = lastRunEnd.Sub(*firstRunStart)
 
 	return summary
 }
@@ -259,11 +257,6 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	}
 
 	return nil
-}
-
-// WriteJSON writes the report to a writer in JSON format.
-func (r *Report) WriteJSON(w io.Writer) error {
-	return json.NewEncoder(w).Encode(r)
 }
 
 // WriteSummary writes the summary to a writer.
