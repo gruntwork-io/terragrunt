@@ -246,7 +246,7 @@ func (s *Summary) TotalDuration() time.Duration {
 	return s.lastRunEnd.Sub(*s.firstRunStart)
 }
 
-// Write to file
+// WriteToFile writes the report to a file.
 func (r *Report) WriteToFile(path string) error {
 	file, err := os.Create(path)
 	if err != nil {
