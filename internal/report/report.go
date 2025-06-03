@@ -12,19 +12,18 @@ import (
 
 // Report captures data for a report/summary.
 type Report struct {
-	runs []*Run
+	Runs []*Run
 }
 
 // Run captures data for a run.
 type Run struct {
-	Name    string
 	Started time.Time
 	Ended   time.Time
-	Result  Result
 	Reason  *Reason
 	Cause   *Cause
-
-	mu sync.RWMutex
+	Name    string
+	Result  Result
+	mu      sync.RWMutex
 }
 
 // Result captures the result of a run.
@@ -38,20 +37,19 @@ type Cause string
 
 // Summary formats data from a report for output as a summary.
 type Summary struct {
+	firstRunStart  *time.Time
+	lastRunEnd     *time.Time
 	TotalUnits     int
 	UnitsSucceeded int
 	UnitsFailed    int
 	EarlyExits     int
 	Excluded       int
-
-	firstRunStart *time.Time
-	lastRunEnd    *time.Time
 }
 
 // NewReport creates a new report.
 func NewReport() *Report {
 	return &Report{
-		runs: make([]*Run, 0),
+		Runs: make([]*Run, 0),
 	}
 }
 
@@ -69,23 +67,25 @@ var ErrRunAlreadyExists = errors.New("run already exists")
 // AddRun adds a run to the report.
 // If the run already exists, it returns the ErrRunAlreadyExists error.
 func (r *Report) AddRun(run *Run) error {
-	for _, existingRun := range r.runs {
+	for _, existingRun := range r.Runs {
 		if existingRun.Name == run.Name {
 			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Name)
 		}
 	}
 
-	r.runs = append(r.runs, run)
+	r.Runs = append(r.Runs, run)
+
 	return nil
 }
 
 // GetRun returns a run from the report.
 func (r *Report) GetRun(name string) *Run {
-	for _, run := range r.runs {
+	for _, run := range r.Runs {
 		if run.Name == name {
 			return run
 		}
 	}
+
 	return nil
 }
 
@@ -97,7 +97,8 @@ var ErrRunNotFound = errors.New("run not found")
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
 func (r *Report) EndRun(name string, endOptions ...EndOption) error {
 	var run *Run
-	for _, existingRun := range r.runs {
+
+	for _, existingRun := range r.Runs {
 		if existingRun.Name == name {
 			run = existingRun
 			break
@@ -197,14 +198,14 @@ func withCause(name string) EndOption {
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
-		TotalUnits: len(r.runs),
+		TotalUnits: len(r.Runs),
 	}
 
-	if len(r.runs) == 0 {
+	if len(r.Runs) == 0 {
 		return summary
 	}
 
-	for _, run := range r.runs {
+	for _, run := range r.Runs {
 		summary.Update(run)
 	}
 
@@ -248,9 +249,19 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	csvWriter := csv.NewWriter(w)
 	defer csvWriter.Flush()
 
-	csvWriter.Write([]string{"Name", "Started", "Ended", "Result", "Reason", "Cause"})
+	err := csvWriter.Write([]string{
+		"Name",
+		"Started",
+		"Ended",
+		"Result",
+		"Reason",
+		"Cause",
+	})
+	if err != nil {
+		return err
+	}
 
-	for _, run := range r.runs {
+	for _, run := range r.Runs {
 		run.mu.RLock()
 		defer run.mu.RUnlock()
 
@@ -269,7 +280,7 @@ func (r *Report) WriteCSV(w io.Writer) error {
 			cause = string(*run.Cause)
 		}
 
-		csvWriter.Write([]string{
+		err := csvWriter.Write([]string{
 			name,
 			started,
 			ended,
@@ -277,6 +288,9 @@ func (r *Report) WriteCSV(w io.Writer) error {
 			reason,
 			cause,
 		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -289,26 +303,47 @@ func (r *Report) WriteSummary(w io.Writer) error {
 
 // Write writes the summary to a writer.
 func (s *Summary) Write(w io.Writer) error {
-	fmt.Fprintf(w, "❯❯ Run Summary\n")
+	_, err := fmt.Fprintf(w, "❯❯ Run Summary\n")
+	if err != nil {
+		return err
+	}
 
-	fmt.Fprintf(w, "Total Units: %d\n", s.TotalUnits)
+	_, err = fmt.Fprintf(w, "Total Units: %d\n", s.TotalUnits)
+	if err != nil {
+		return err
+	}
 
-	fmt.Fprintf(w, "Total Duration: %s\n", s.TotalDuration())
+	_, err = fmt.Fprintf(w, "Total Duration: %s\n", s.TotalDuration())
+	if err != nil {
+		return err
+	}
 
 	if s.UnitsSucceeded > 0 {
-		fmt.Fprintf(w, "Units Succeeded: %d\n", s.UnitsSucceeded)
+		_, err := fmt.Fprintf(w, "Units Succeeded: %d\n", s.UnitsSucceeded)
+		if err != nil {
+			return err
+		}
 	}
 
 	if s.UnitsFailed > 0 {
-		fmt.Fprintf(w, "Units Failed: %d\n", s.UnitsFailed)
+		_, err := fmt.Fprintf(w, "Units Failed: %d\n", s.UnitsFailed)
+		if err != nil {
+			return err
+		}
 	}
 
 	if s.EarlyExits > 0 {
-		fmt.Fprintf(w, "Early Exits: %d\n", s.EarlyExits)
+		_, err := fmt.Fprintf(w, "Early Exits: %d\n", s.EarlyExits)
+		if err != nil {
+			return err
+		}
 	}
 
 	if s.Excluded > 0 {
-		fmt.Fprintf(w, "Excluded: %d\n", s.Excluded)
+		_, err := fmt.Fprintf(w, "Excluded: %d\n", s.Excluded)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

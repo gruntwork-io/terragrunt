@@ -1,4 +1,4 @@
-package report
+package report_test
 
 import (
 	"bytes"
@@ -6,23 +6,25 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewReport(t *testing.T) {
 	t.Parallel()
 
-	report := NewReport()
+	report := report.NewReport()
 	assert.NotNil(t, report)
-	assert.NotNil(t, report.runs)
-	assert.Empty(t, report.runs)
+	assert.NotNil(t, report.Runs)
+	assert.Empty(t, report.Runs)
 }
 
 func TestNewRun(t *testing.T) {
 	t.Parallel()
 
 	name := "test-run"
-	run := NewRun(name)
+	run := report.NewRun(name)
 	assert.NotNil(t, run)
 	assert.Equal(t, name, run.Name)
 	assert.False(t, run.Started.IsZero())
@@ -36,34 +38,34 @@ func TestAddRun(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		run     *report.Run
 		name    string
-		run     *Run
 		wantErr bool
 	}{
 		{
 			name:    "successful add",
-			run:     NewRun("test-run"),
+			run:     report.NewRun("test-run"),
 			wantErr: false,
 		},
 		{
 			name:    "duplicate run",
-			run:     NewRun("test-run"),
+			run:     report.NewRun("test-run"),
 			wantErr: true,
 		},
 	}
 
-	report := NewReport()
+	report := report.NewReport()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			err := report.AddRun(tt.run)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "run already exists")
 			} else {
-				assert.NoError(t, err)
-				assert.Len(t, report.runs, 1)
+				require.NoError(t, err)
+				assert.Len(t, report.Runs, 1)
 			}
 		})
 	}
@@ -72,9 +74,9 @@ func TestAddRun(t *testing.T) {
 func TestGetRun(t *testing.T) {
 	t.Parallel()
 
-	report := NewReport()
-	run := NewRun("test-run")
-	report.AddRun(run)
+	r := report.NewReport()
+	run := report.NewRun("test-run")
+	r.AddRun(run)
 
 	tests := []struct {
 		name    string
@@ -97,7 +99,7 @@ func TestGetRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			run := report.GetRun(tt.runName)
+			run := r.GetRun(tt.runName)
 			if tt.wantNil {
 				assert.Nil(t, run)
 			} else {
@@ -112,68 +114,68 @@ func TestEndRun(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantReason *report.Reason
+		wantCause  *report.Cause
 		name       string
 		runName    string
-		options    []EndOption
+		wantResult report.Result
+		options    []report.EndOption
 		wantErr    bool
-		wantResult Result
-		wantReason *Reason
-		wantCause  *Cause
 	}{
 		{
 			name:       "successful end",
 			runName:    "test-run",
-			options:    []EndOption{},
+			options:    []report.EndOption{},
 			wantErr:    false,
-			wantResult: ResultSucceeded,
+			wantResult: report.ResultSucceeded,
 		},
 		{
 			name:    "non-existent run",
 			runName: "non-existent",
-			options: []EndOption{},
+			options: []report.EndOption{},
 			wantErr: true,
 		},
 		{
 			name:       "with result",
 			runName:    "test-run-2",
-			options:    []EndOption{WithResult(ResultFailed)},
+			options:    []report.EndOption{report.WithResult(report.ResultFailed)},
 			wantErr:    false,
-			wantResult: ResultFailed,
+			wantResult: report.ResultFailed,
 		},
 		{
 			name:       "with reason",
 			runName:    "test-run-3",
-			options:    []EndOption{WithReason(ReasonRunError)},
+			options:    []report.EndOption{report.WithReason(report.ReasonRunError)},
 			wantErr:    false,
-			wantResult: ResultSucceeded,
-			wantReason: func() *Reason { r := ReasonRunError; return &r }(),
+			wantResult: report.ResultSucceeded,
+			wantReason: func() *report.Reason { r := report.ReasonRunError; return &r }(),
 		},
 		{
 			name:       "with cause",
 			runName:    "test-run-4",
-			options:    []EndOption{WithCauseRetryBlock("test-block")},
+			options:    []report.EndOption{report.WithCauseRetryBlock("test-block")},
 			wantErr:    false,
-			wantResult: ResultSucceeded,
-			wantCause:  func() *Cause { c := Cause("test-block"); return &c }(),
+			wantResult: report.ResultSucceeded,
+			wantCause:  func() *report.Cause { c := report.Cause("test-block"); return &c }(),
 		},
 	}
 
-	report := NewReport()
+	r := report.NewReport()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			if !tt.wantErr {
-				run := NewRun(tt.runName)
-				report.AddRun(run)
+				run := report.NewRun(tt.runName)
+				r.AddRun(run)
 			}
 
-			err := report.EndRun(tt.runName, tt.options...)
+			err := r.EndRun(tt.runName, tt.options...)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
-				run := report.GetRun(tt.runName)
+				require.NoError(t, err)
+				run := r.GetRun(tt.runName)
 				assert.Equal(t, tt.wantResult, run.Result)
 				if tt.wantReason != nil {
 					assert.NotNil(t, run.Reason)
@@ -193,10 +195,10 @@ func TestSummarize(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		runs []struct {
+		name    string
+		results []struct {
 			name   string
-			result Result
+			result report.Result
 		}
 		wantTotalUnits int
 		wantSucceeded  int
@@ -206,33 +208,33 @@ func TestSummarize(t *testing.T) {
 	}{
 		{
 			name: "empty report",
-			runs: []struct {
+			results: []struct {
 				name   string
-				result Result
+				result report.Result
 			}{},
 			wantTotalUnits: 0,
 		},
 		{
 			name: "single successful run",
-			runs: []struct {
+			results: []struct {
 				name   string
-				result Result
+				result report.Result
 			}{
-				{"run1", ResultSucceeded},
+				{"run1", report.ResultSucceeded},
 			},
 			wantTotalUnits: 1,
 			wantSucceeded:  1,
 		},
 		{
 			name: "mixed results",
-			runs: []struct {
+			results: []struct {
 				name   string
-				result Result
+				result report.Result
 			}{
-				{"run1", ResultSucceeded},
-				{"run2", ResultFailed},
-				{"run3", ResultEarlyExit},
-				{"run4", ResultExcluded},
+				{"run1", report.ResultSucceeded},
+				{"run2", report.ResultFailed},
+				{"run3", report.ResultEarlyExit},
+				{"run4", report.ResultExcluded},
 			},
 			wantTotalUnits: 4,
 			wantSucceeded:  1,
@@ -246,14 +248,14 @@ func TestSummarize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			report := NewReport()
-			for _, r := range tt.runs {
-				run := NewRun(r.name)
-				report.AddRun(run)
-				report.EndRun(r.name, WithResult(r.result))
+			r := report.NewReport()
+			for _, result := range tt.results {
+				run := report.NewRun(result.name)
+				r.AddRun(run)
+				r.EndRun(result.name, report.WithResult(result.result))
 			}
 
-			summary := report.Summarize()
+			summary := r.Summarize()
 			assert.Equal(t, tt.wantTotalUnits, summary.TotalUnits)
 			assert.Equal(t, tt.wantSucceeded, summary.UnitsSucceeded)
 			assert.Equal(t, tt.wantFailed, summary.UnitsFailed)
@@ -268,13 +270,13 @@ func TestWriteCSV(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		setup    func(*Report)
+		setup    func(*report.Report)
 		expected []string
 	}{
 		{
 			name: "single successful run",
-			setup: func(r *Report) {
-				run := NewRun("successful-run")
+			setup: func(r *report.Report) {
+				run := report.NewRun("successful-run")
 				r.AddRun(run)
 				r.EndRun("successful-run")
 			},
@@ -288,29 +290,29 @@ func TestWriteCSV(t *testing.T) {
 		},
 		{
 			name: "complex mixed results",
-			setup: func(r *Report) {
+			setup: func(r *report.Report) {
 				// Add successful run
-				successRun := NewRun("success-run")
+				successRun := report.NewRun("success-run")
 				r.AddRun(successRun)
 				r.EndRun("success-run")
 
 				// Add failed run with reason
-				failedRun := NewRun("failed-run")
+				failedRun := report.NewRun("failed-run")
 				r.AddRun(failedRun)
-				r.EndRun("failed-run", WithResult(ResultFailed), WithReason(ReasonRunError))
+				r.EndRun("failed-run", report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
 
 				// Add excluded run with cause
-				excludedRun := NewRun("excluded-run")
+				excludedRun := report.NewRun("excluded-run")
 				r.AddRun(excludedRun)
-				r.EndRun("excluded-run", WithResult(ResultExcluded), WithCauseRetryBlock("test-block"))
+				r.EndRun("excluded-run", report.WithResult(report.ResultExcluded), report.WithCauseRetryBlock("test-block"))
 
 				// Add early exit run with both reason and cause
-				earlyExitRun := NewRun("early-exit-run")
+				earlyExitRun := report.NewRun("early-exit-run")
 				r.AddRun(earlyExitRun)
 				r.EndRun("early-exit-run",
-					WithResult(ResultEarlyExit),
-					WithReason(ReasonRunError),
-					WithCauseRetryBlock("another-block"),
+					report.WithResult(report.ResultEarlyExit),
+					report.WithReason(report.ReasonRunError),
+					report.WithCauseRetryBlock("another-block"),
 				)
 			},
 			expected: []string{
@@ -337,12 +339,14 @@ func TestWriteCSV(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			report := NewReport()
-			tt.setup(report)
+			t.Parallel()
+
+			r := report.NewReport()
+			tt.setup(r)
 
 			var buf bytes.Buffer
-			err := report.WriteCSV(&buf)
-			assert.NoError(t, err)
+			err := r.WriteCSV(&buf)
+			require.NoError(t, err)
 
 			output := buf.String()
 			for _, exp := range tt.expected {
@@ -357,13 +361,13 @@ func TestWriteSummary(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		setup    func(*Report)
+		setup    func(*report.Report)
 		expected string
 	}{
 		{
 			name: "single successful run",
-			setup: func(r *Report) {
-				run := NewRun("successful-run")
+			setup: func(r *report.Report) {
+				run := report.NewRun("successful-run")
 				r.AddRun(run)
 				r.EndRun("successful-run")
 			},
@@ -376,42 +380,42 @@ Units Succeeded: 1
 		},
 		{
 			name: "complex mixed results",
-			setup: func(r *Report) {
+			setup: func(r *report.Report) {
 				// Add successful runs
-				firstSuccessfulRun := NewRun("first-successful-run")
+				firstSuccessfulRun := report.NewRun("first-successful-run")
 				r.AddRun(firstSuccessfulRun)
 				r.EndRun("first-successful-run")
 
-				secondSuccessfulRun := NewRun("second-successful-run")
+				secondSuccessfulRun := report.NewRun("second-successful-run")
 				r.AddRun(secondSuccessfulRun)
 				r.EndRun("second-successful-run")
 
 				// Add failed runs
-				firstFailedRun := NewRun("first-failed-run")
+				firstFailedRun := report.NewRun("first-failed-run")
 				r.AddRun(firstFailedRun)
-				r.EndRun("first-failed-run", WithResult(ResultFailed))
+				r.EndRun("first-failed-run", report.WithResult(report.ResultFailed))
 
-				secondFailedRun := NewRun("second-failed-run")
+				secondFailedRun := report.NewRun("second-failed-run")
 				r.AddRun(secondFailedRun)
-				r.EndRun("second-failed-run", WithResult(ResultFailed))
+				r.EndRun("second-failed-run", report.WithResult(report.ResultFailed))
 
 				// Add excluded runs
-				firstExcludedRun := NewRun("first-excluded-run")
+				firstExcludedRun := report.NewRun("first-excluded-run")
 				r.AddRun(firstExcludedRun)
-				r.EndRun("first-excluded-run", WithResult(ResultExcluded))
+				r.EndRun("first-excluded-run", report.WithResult(report.ResultExcluded))
 
-				secondExcludedRun := NewRun("second-excluded-run")
+				secondExcludedRun := report.NewRun("second-excluded-run")
 				r.AddRun(secondExcludedRun)
-				r.EndRun("second-excluded-run", WithResult(ResultExcluded))
+				r.EndRun("second-excluded-run", report.WithResult(report.ResultExcluded))
 
 				// Add early exit runs
-				firstEarlyExitRun := NewRun("first-early-exit-run")
+				firstEarlyExitRun := report.NewRun("first-early-exit-run")
 				r.AddRun(firstEarlyExitRun)
-				r.EndRun("first-early-exit-run", WithResult(ResultEarlyExit))
+				r.EndRun("first-early-exit-run", report.WithResult(report.ResultEarlyExit))
 
-				secondEarlyExitRun := NewRun("second-early-exit-run")
+				secondEarlyExitRun := report.NewRun("second-early-exit-run")
 				r.AddRun(secondEarlyExitRun)
-				r.EndRun("second-early-exit-run", WithResult(ResultEarlyExit))
+				r.EndRun("second-early-exit-run", report.WithResult(report.ResultEarlyExit))
 			},
 			expected: `
 ❯❯ Run Summary
@@ -429,17 +433,17 @@ Excluded: 2
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			report := NewReport()
-			tt.setup(report)
+			r := report.NewReport()
+			tt.setup(r)
 
 			var buf bytes.Buffer
-			err := report.WriteSummary(&buf)
-			assert.NoError(t, err)
+			err := r.WriteSummary(&buf)
+			require.NoError(t, err)
 
 			output := buf.String()
 			// Get the first and last run to calculate duration
-			runs := report.runs
-			var firstRun, lastRun *Run
+			runs := r.Runs
+			var firstRun, lastRun *report.Run
 			for _, run := range runs {
 				if firstRun == nil || run.Started.Before(firstRun.Started) {
 					firstRun = run
