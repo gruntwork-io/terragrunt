@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 )
@@ -236,12 +237,25 @@ func (s *Summary) Update(run *Run) {
 	}
 }
 
+// TotalDuration returns the total duration of all runs in the report.
 func (s *Summary) TotalDuration() time.Duration {
 	if s.firstRunStart == nil || s.lastRunEnd == nil {
 		return 0
 	}
 
 	return s.lastRunEnd.Sub(*s.firstRunStart)
+}
+
+// Write to file
+func (r *Report) WriteToFile(path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	return r.WriteCSV(file)
 }
 
 // WriteCSV writes the report to a writer in CSV format.
