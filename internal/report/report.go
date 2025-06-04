@@ -396,7 +396,18 @@ func (r *Report) WriteSummary(w io.Writer) error {
 	}
 
 	// Write the summary
-	return r.Summarize().Write(w)
+	err = r.Summarize().Write(w)
+	if err != nil {
+		return err
+	}
+
+	// Write a line gap after the summary
+	_, err = fmt.Fprintf(w, "\n")
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Write writes the summary to a writer.

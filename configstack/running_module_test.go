@@ -610,7 +610,9 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		"e": runningModuleE,
 	}
 
-	actual := runningModules.RemoveFlagExcluded(report.NewReport(), false)
+	actual, err := runningModules.RemoveFlagExcluded(report.NewReport(), false)
+	require.NoError(t, err)
+
 	assertRunningModuleMapsEqual(t, expected, actual, true)
 }
 
@@ -676,7 +678,9 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 		"b": runningModuleB,
 	}
 
-	actual := runningModules.RemoveFlagExcluded(report.NewReport(), mockOptions.Experiments.Evaluate(experiment.Report))
+	actual, err := runningModules.RemoveFlagExcluded(report.NewReport(), mockOptions.Experiments.Evaluate(experiment.Report))
+	require.NoError(t, err)
+
 	assertRunningModuleMapsEqual(t, expected, actual, true)
 }
 
@@ -776,7 +780,8 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 		"d": runningModuleD,
 		"e": runningModuleE,
 	}
-	actual := runningModules.RemoveFlagExcluded(report.NewReport(), false)
+	actual, err := runningModules.RemoveFlagExcluded(report.NewReport(), false)
+	require.NoError(t, err)
 
 	_runningModuleD := &configstack.RunningModule{
 		Module:         moduleD,

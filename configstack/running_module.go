@@ -123,7 +123,9 @@ func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.Te
 	defer module.Module.FlushOutput() //nolint:errcheck
 
 	if opts.Experiments.Evaluate(experiment.Report) {
-		r.AddRun(report.NewRun(module.Module.Path))
+		if err := r.AddRun(report.NewRun(module.Module.Path)); err != nil {
+			return err
+		}
 	}
 
 	return opts.RunTerragrunt(ctx, module.Logger, opts)
@@ -182,17 +184,21 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 		module.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
 
 		if reportExperiment {
-			r.EndRun(module.Module.Path)
+			if err := r.EndRun(module.Module.Path); err != nil {
+				module.Logger.Errorf("Error ending run for module %s: %v", module.Module.Path, err)
+			}
 		}
 	} else {
 		module.Logger.Errorf("Module %s has finished with an error", module.Module.Path)
 
 		if reportExperiment {
-			r.EndRun(
+			if err := r.EndRun(
 				module.Module.Path,
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
-			)
+			); err != nil {
+				module.Logger.Errorf("Error ending run for module %s: %v", module.Module.Path, err)
+			}
 		}
 	}
 
@@ -299,8 +305,10 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 
 // RemoveFlagExcluded returns a cleaned-up map that only contains modules and
 // dependencies that should not be excluded
-func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperiment bool) map[string]*RunningModule {
+func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperiment bool) (RunningModules, error) {
 	var finalModules = make(map[string]*RunningModule)
+
+	var errs []error
 
 	for key, module := range modules {
 		// Only add modules that should not be excluded
@@ -321,18 +329,20 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 					finalModules[key].Dependencies[path] = dependency
 				}
 			}
-		} else {
-			if reportExperiment {
-				r.EndRun(
-					module.Module.Path,
-					report.WithResult(report.ResultExcluded),
-					report.WithReason(report.ReasonExcludeBlock),
-				)
-			}
+		} else if reportExperiment {
+			errs = append(errs, r.EndRun(
+				module.Module.Path,
+				report.WithResult(report.ResultExcluded),
+				report.WithReason(report.ReasonExcludeBlock),
+			))
 		}
 	}
 
-	return finalModules
+	if len(errs) > 0 {
+		return finalModules, errors.Join(errs...)
+	}
+
+	return finalModules, nil
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its

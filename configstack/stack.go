@@ -35,12 +35,12 @@ import (
 // Stack represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
 // "spin down" in a single command
 type Stack struct {
-	parserOptions         []hclparse.Option
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
+	report                *report.Report
+	parserOptions         []hclparse.Option
 	Modules               TerraformModules
 	outputMu              sync.Mutex
-	report                *report.Report
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -218,31 +218,35 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
 		}
 
-		defer stack.summarizePlanAllErrors(l, errorStreams, stack.report, opts)
+		defer stack.summarizePlanAllErrors(l, errorStreams)
 	}
 
-	var err error
+	var errs []error
 
 	switch {
 	case opts.IgnoreDependencyOrder:
-		err = stack.Modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism)
+		errs = append(errs, stack.Modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism))
 	case stackCmd == tf.CommandNameDestroy:
-		err = stack.Modules.RunModulesReverseOrder(ctx, opts, stack.report, opts.Parallelism)
+		errs = append(errs, stack.Modules.RunModulesReverseOrder(ctx, opts, stack.report, opts.Parallelism))
 	default:
-		err = stack.Modules.RunModules(ctx, opts, stack.report, opts.Parallelism)
+		errs = append(errs, stack.Modules.RunModules(ctx, opts, stack.report, opts.Parallelism))
 	}
 
 	if opts.Experiments.Evaluate(experiment.Report) {
-		stack.report.WriteSummary(opts.Writer)
+		errs = append(errs, stack.report.WriteSummary(opts.Writer))
 	}
 
-	return err
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (stack *Stack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer, report *report.Report, opts *options.TerragruntOptions) {
+func (stack *Stack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 

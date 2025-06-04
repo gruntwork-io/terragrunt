@@ -395,7 +395,7 @@ func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder
 		return crossLinkedModules, err
 	}
 
-	return crossLinkedModules.RemoveFlagExcluded(r, opts.Experiments.Evaluate(experiment.Report)), nil
+	return crossLinkedModules.RemoveFlagExcluded(r, opts.Experiments.Evaluate(experiment.Report))
 }
 
 // CheckForCycles checks for dependency cycles in the given list of modules and return an error if one is found.
