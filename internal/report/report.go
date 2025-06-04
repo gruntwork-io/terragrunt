@@ -8,7 +8,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 type Report struct {
 	Runs        []*Run
 	shouldColor bool
+	mu          sync.RWMutex
 }
 
 // Run captures data for a run.
@@ -140,6 +143,9 @@ var ErrRunAlreadyExists = errors.New("run already exists")
 // AddRun adds a run to the report.
 // If the run already exists, it returns the ErrRunAlreadyExists error.
 func (r *Report) AddRun(run *Run) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	for _, existingRun := range r.Runs {
 		if existingRun.Name == run.Name {
 			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Name)
@@ -157,6 +163,9 @@ var ErrRunNotFound = errors.New("run not found in report")
 // GetRun returns a run from the report.
 // The path passed in must be an absolute path to ensure that the run can be uniquely identified.
 func (r *Report) GetRun(path string) (*Run, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	if !filepath.IsAbs(path) {
 		return nil, ErrPathMustBeAbsolute
 	}
@@ -167,13 +176,16 @@ func (r *Report) GetRun(path string) (*Run, error) {
 		}
 	}
 
-	return nil, ErrRunNotFound
+	return nil, fmt.Errorf("%w: %s", ErrRunNotFound, path)
 }
 
 // EndRun ends a run and adds it to the report.
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
 func (r *Report) EndRun(path string, endOptions ...EndOption) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if !filepath.IsAbs(path) {
 		return ErrPathMustBeAbsolute
 	}
@@ -439,48 +451,118 @@ func (r *Report) WriteSummary(w io.Writer) error {
 func (s *Summary) Write(w io.Writer) error {
 	colorizer := NewColorizer(s.shouldColor)
 
-	_, err := fmt.Fprintf(w, "%s\n", colorizer.headingColorizer("❯❯ Run Summary"))
-	if err != nil {
+	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(runSummaryHeader)); err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "   Duration: %s\n", s.TotalDurationString(colorizer))
-	if err != nil {
+	if err := s.writeSummaryEntry(w, durationLabel, s.TotalDurationString(colorizer)); err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "   Units: %s\n", colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits)))
-	if err != nil {
+	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits))); err != nil {
 		return err
 	}
 
 	if s.UnitsSucceeded > 0 {
-		_, err := fmt.Fprintf(w, "   Succeeded: %s\n", colorizer.successColorizer(strconv.Itoa(s.UnitsSucceeded)))
-		if err != nil {
+		if err := s.writeSummaryEntry(w, successLabel, colorizer.successColorizer(strconv.Itoa(s.UnitsSucceeded))); err != nil {
 			return err
 		}
 	}
 
 	if s.UnitsFailed > 0 {
-		_, err := fmt.Fprintf(w, "   Failed: %s\n", colorizer.failureColorizer(strconv.Itoa(s.UnitsFailed)))
-		if err != nil {
+		if err := s.writeSummaryEntry(w, failureLabel, colorizer.failureColorizer(strconv.Itoa(s.UnitsFailed))); err != nil {
 			return err
 		}
 	}
 
 	if s.EarlyExits > 0 {
-		_, err := fmt.Fprintf(w, "   Early Exits: %s\n", colorizer.exitColorizer(strconv.Itoa(s.EarlyExits)))
-		if err != nil {
+		if err := s.writeSummaryEntry(w, earlyExitLabel, colorizer.exitColorizer(strconv.Itoa(s.EarlyExits))); err != nil {
 			return err
 		}
 	}
 
 	if s.Excluded > 0 {
-		_, err := fmt.Fprintf(w, "   Excluded: %s\n", colorizer.excludeColorizer(strconv.Itoa(s.Excluded)))
-		if err != nil {
+		if err := s.writeSummaryEntry(w, excludeLabel, colorizer.excludeColorizer(strconv.Itoa(s.Excluded))); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+const (
+	prefix           = "   "
+	runSummaryHeader = "❯❯ Run Summary"
+	durationLabel    = "Duration"
+	unitsLabel       = "Units"
+	successLabel     = "Succeeded"
+	failureLabel     = "Failed"
+	earlyExitLabel   = "Early Exits"
+	excludeLabel     = "Excluded"
+	separator        = ": "
+)
+
+func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
+	_, err := fmt.Fprintf(w, "%s\n", value)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) error {
+	_, err := fmt.Fprintf(w, "%s%s%s%s%s\n", prefix, label, separator, s.padding(label), value)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Summary) longestLineLength() int {
+	// Start with the length of the labels
+	// That are always present
+	lengths := []int{
+		len(durationLabel),
+		len(unitsLabel),
+	}
+
+	// Add the length of the labels that are only present if there are any runs of that type
+	if s.UnitsSucceeded > 0 {
+		lengths = append(lengths, len(successLabel))
+	}
+
+	if s.UnitsFailed > 0 {
+		lengths = append(lengths, len(failureLabel))
+	}
+
+	if s.EarlyExits > 0 {
+		lengths = append(lengths, len(earlyExitLabel))
+	}
+
+	if s.Excluded > 0 {
+		lengths = append(lengths, len(excludeLabel))
+	}
+
+	// Add the length of the entry prefix to each length
+	for i, length := range lengths {
+		lengths[i] = length + len(prefix)
+	}
+
+	// Account for the separator between the label and the value
+	for i, length := range lengths {
+		lengths[i] = length + len(separator)
+	}
+
+	// Return the longest length
+	return slices.Max(lengths)
+}
+
+func (s *Summary) padding(label string) string {
+	longestLineLength := s.longestLineLength()
+
+	labelLength := len(prefix) + len(label) + len(separator)
+
+	return strings.Repeat(" ", longestLineLength-labelLength)
 }

@@ -47,11 +47,11 @@ func TestTerragruntReportExperiment(t *testing.T) {
 
 	assert.Equal(t, strings.TrimSpace(`
 ❯❯ Run Summary
-   Duration: x
-   Units: 8
-   Succeeded: 2
-   Failed: 2
+   Duration:    x
+   Units:       8
+   Succeeded:   2
+   Failed:      2
    Early Exits: 2
-   Excluded: 2
+   Excluded:    2
 `), strings.TrimSpace(stdoutStr))
 }

@@ -44,38 +44,15 @@ func TestAddRun(t *testing.T) {
 
 	path := filepath.Join(tmp, "test-run")
 
-	tests := []struct {
-		run     *report.Run
-		name    string
-		wantErr bool
-	}{
-		{
-			name:    "successful add",
-			run:     newRun(t, path),
-			wantErr: false,
-		},
-		{
-			name:    "duplicate run",
-			run:     newRun(t, path),
-			wantErr: true,
-		},
-	}
-
 	r := report.NewReport()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
-			err := r.AddRun(tt.run)
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, report.ErrRunAlreadyExists)
-			} else {
-				require.NoError(t, err)
-				assert.Len(t, r.Runs, 1)
-			}
-		})
-	}
+	err := r.AddRun(newRun(t, path))
+	require.NoError(t, err)
+	assert.Len(t, r.Runs, 1)
+
+	err = r.AddRun(newRun(t, path))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, report.ErrRunAlreadyExists)
 }
 
 func TestGetRun(t *testing.T) {
@@ -182,7 +159,7 @@ func TestEndRun(t *testing.T) {
 
 			err := r.EndRun(tt.runName, tt.options...)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 
@@ -392,8 +369,8 @@ func TestWriteSummary(t *testing.T) {
 			},
 			expected: `
 ❯❯ Run Summary
-   Duration: x
-   Units: 1
+   Duration:  x
+   Units:     1
    Succeeded: 1
 `,
 		},
@@ -438,12 +415,12 @@ func TestWriteSummary(t *testing.T) {
 			},
 			expected: `
 ❯❯ Run Summary
-   Duration: x
-   Units: 8
-   Succeeded: 2
-   Failed: 2
+   Duration:    x
+   Units:       8
+   Succeeded:   2
+   Failed:      2
    Early Exits: 2
-   Excluded: 2
+   Excluded:    2
 `,
 		},
 	}
@@ -462,8 +439,8 @@ func TestWriteSummary(t *testing.T) {
 			output := buf.String()
 
 			// Replace the duration with x
-			re := regexp.MustCompile(`Duration: .*`)
-			output = re.ReplaceAllString(output, "Duration: x")
+			re := regexp.MustCompile(`Duration:(\s+).*`)
+			output = re.ReplaceAllString(output, "Duration:${1}x")
 
 			expected := strings.TrimSpace(tt.expected)
 			assert.Equal(t, expected, strings.TrimSpace(output))
