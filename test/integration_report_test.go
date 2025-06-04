@@ -27,7 +27,7 @@ func TestTerragruntReportExperiment(t *testing.T) {
 	// Run terragrunt with report experiment enabled
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all plan --experiment report --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 
 	// The command should fail since we have failing units
 	require.Error(t, err)
