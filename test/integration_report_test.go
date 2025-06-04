@@ -36,8 +36,8 @@ func TestTerragruntReportExperiment(t *testing.T) {
 	stdoutStr := stdout.String()
 
 	// Replace the duration line with a fixed duration
-	re := regexp.MustCompile(`Duration: .*`)
-	stdoutStr = re.ReplaceAllString(stdoutStr, "Duration: x")
+	re := regexp.MustCompile(`Duration:(\s+)(.*)`)
+	stdoutStr = re.ReplaceAllString(stdoutStr, "Duration:${1}x")
 
 	// Trim stdout to only the run summary.
 	// We do this by only returning the last 8 lines (seven lines of the summary, footer gap).
