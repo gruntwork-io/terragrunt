@@ -123,7 +123,12 @@ func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.Te
 	defer module.Module.FlushOutput() //nolint:errcheck
 
 	if opts.Experiments.Evaluate(experiment.Report) {
-		if err := r.AddRun(report.NewRun(module.Module.Path)); err != nil {
+		run, err := report.NewRun(module.Module.Path)
+		if err != nil {
+			return err
+		}
+
+		if err := r.AddRun(run); err != nil {
 			return err
 		}
 	}
@@ -197,7 +202,30 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
 			); err != nil {
-				module.Logger.Errorf("Error ending run for module %s: %v", module.Module.Path, err)
+				// If we can't find the run, then it never started,
+				// so we should end it as an early exit.
+				if errors.Is(err, report.ErrRunNotFound) {
+					run, err := report.NewRun(module.Module.Path)
+					if err != nil {
+						module.Logger.Errorf("Error creating run for unit %s: %v", module.Module.Path, err)
+						return
+					}
+
+					if err := r.AddRun(run); err != nil {
+						module.Logger.Errorf("Error adding run for unit %s: %v", module.Module.Path, err)
+						return
+					}
+
+					if err := r.EndRun(
+						run.Name,
+						report.WithResult(report.ResultEarlyExit),
+						report.WithReason(report.ReasonRunError),
+					); err != nil {
+						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+					}
+				} else {
+					module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+				}
 			}
 		}
 	}
@@ -330,11 +358,27 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 				}
 			}
 		} else if reportExperiment {
-			errs = append(errs, r.EndRun(
-				module.Module.Path,
+			run, err := r.GetRun(module.Module.Path)
+			if errors.Is(err, report.ErrRunNotFound) {
+				run, err = report.NewRun(module.Module.Path)
+				if err != nil {
+					errs = append(errs, err)
+					continue
+				}
+
+				if err := r.AddRun(run); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+			}
+
+			if err := r.EndRun(
+				run.Name,
 				report.WithResult(report.ResultExcluded),
 				report.WithReason(report.ReasonExcludeBlock),
-			))
+			); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 
