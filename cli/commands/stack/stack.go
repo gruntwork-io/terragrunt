@@ -30,6 +30,8 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return nil
 	}
 
+	opts.StackAction = "generate"
+
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
@@ -40,6 +42,8 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 // Run execute stack command.
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	opts.StackAction = "run"
+
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_run", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
@@ -58,6 +62,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 // RunOutput stack output.
 func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, index string) error {
+	opts.StackAction = "output"
+
 	var outputs cty.Value
 
 	// collect outputs

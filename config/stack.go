@@ -85,6 +85,14 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
 
+	if len(foundFiles) == 0 {
+		if opts.StackAction == "generate" {
+			l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+		}
+
+		return nil
+	}
+
 	for {
 		// check if we have already processed the files
 		processedNewFiles := false
@@ -163,6 +171,11 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	foundFiles, err := listStackFiles(l, opts, opts.WorkingDir)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
+	}
+
+	if len(foundFiles) == 0 {
+		l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+		return cty.NilVal, nil
 	}
 
 	outputs := make(map[string]map[string]cty.Value)
