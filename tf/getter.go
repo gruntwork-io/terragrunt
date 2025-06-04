@@ -17,8 +17,10 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
+	svchost "github.com/hashicorp/terraform-svchost"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -326,6 +328,25 @@ func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, e
 	return terraformGet, nil
 }
 
+func applyHostToken(req *http.Request) (*http.Request, error) {
+	cliCfg, err := cliconfig.LoadUserConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if creds := cliCfg.CredentialsSource().ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
+		creds.PrepareRequest(req)
+	} else {
+		// fall back to the TG_TF_REGISTRY_TOKEN
+		authToken := os.Getenv(authTokenEnvName)
+		if authToken != "" {
+			req.Header.Add("Authorization", "Bearer "+authToken)
+		}
+	}
+
+	return req, nil
+}
+
 // httpGETAndGetResponse is a helper function to make a GET request to the given URL using the http client. This
 // function will then read the response and return the contents + the response header.
 func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.URL) ([]byte, *http.Header, error) {
@@ -336,9 +357,9 @@ func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.UR
 
 	// Handle authentication via env var. Authentication is done by providing the registry token as a bearer token in
 	// the request header.
-	authToken := os.Getenv(authTokenEnvName)
-	if authToken != "" {
-		req.Header.Add("Authorization", "Bearer "+authToken)
+	req, err = applyHostToken(req)
+	if err != nil {
+		return nil, nil, errors.New(err)
 	}
 
 	resp, err := httpClient.Do(req)
