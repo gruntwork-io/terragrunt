@@ -47,8 +47,8 @@ func TestTerragruntReportExperiment(t *testing.T) {
 
 	assert.Equal(t, strings.TrimSpace(`
 ❯❯ Run Summary
-   Units: 8
    Duration: x
+   Units: 8
    Succeeded: 2
    Failed: 2
    Early Exits: 2

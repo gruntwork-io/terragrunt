@@ -444,12 +444,12 @@ func (s *Summary) Write(w io.Writer) error {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "   Units: %s\n", colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits)))
+	_, err = fmt.Fprintf(w, "   Duration: %s\n", s.TotalDurationString(colorizer))
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "   Duration: %s\n", s.TotalDurationString(colorizer))
+	_, err = fmt.Fprintf(w, "   Units: %s\n", colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits)))
 	if err != nil {
 		return err
 	}
