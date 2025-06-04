@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -117,12 +118,20 @@ func (r *Report) WithDisableColor() *Report {
 	return r
 }
 
+// ErrPathMustBeAbsolute is returned when a report run path is not absolute.
+var ErrPathMustBeAbsolute = errors.New("report run path must be absolute")
+
 // NewRun creates a new run.
-func NewRun(name string) *Run {
-	return &Run{
-		Name:    name,
-		Started: time.Now(),
+// The path passed in must be an absolute path to ensure that the run can be uniquely identified.
+func NewRun(path string) (*Run, error) {
+	if !filepath.IsAbs(path) {
+		return nil, ErrPathMustBeAbsolute
 	}
+
+	return &Run{
+		Name:    path,
+		Started: time.Now(),
+	}, nil
 }
 
 // ErrRunAlreadyExists is returned when a run already exists in the report.
@@ -142,35 +151,44 @@ func (r *Report) AddRun(run *Run) error {
 	return nil
 }
 
+// ErrRunNotFound is returned when a run is not found in the report.
+var ErrRunNotFound = errors.New("run not found in report")
+
 // GetRun returns a run from the report.
-func (r *Report) GetRun(name string) *Run {
+// The path passed in must be an absolute path to ensure that the run can be uniquely identified.
+func (r *Report) GetRun(path string) (*Run, error) {
+	if !filepath.IsAbs(path) {
+		return nil, ErrPathMustBeAbsolute
+	}
+
 	for _, run := range r.Runs {
-		if run.Name == name {
-			return run
+		if run.Name == path {
+			return run, nil
 		}
 	}
 
-	return nil
+	return nil, ErrRunNotFound
 }
-
-// ErrRunNotFound is returned when a run is not found in the report.
-var ErrRunNotFound = errors.New("run not found")
 
 // EndRun ends a run and adds it to the report.
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
-func (r *Report) EndRun(name string, endOptions ...EndOption) error {
+func (r *Report) EndRun(path string, endOptions ...EndOption) error {
+	if !filepath.IsAbs(path) {
+		return ErrPathMustBeAbsolute
+	}
+
 	var run *Run
 
 	for _, existingRun := range r.Runs {
-		if existingRun.Name == name {
+		if existingRun.Name == path {
 			run = existingRun
 			break
 		}
 	}
 
 	if run == nil {
-		return fmt.Errorf("%w: %s", ErrRunNotFound, name)
+		return fmt.Errorf("%w: %s", ErrRunNotFound, path)
 	}
 
 	run.mu.Lock()
