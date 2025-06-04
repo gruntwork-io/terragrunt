@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,7 +37,6 @@ type Stack struct {
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
 	outputMu              sync.Mutex
-	runner                StackRunner
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -72,7 +73,6 @@ func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts .
 	stack := &Stack{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
-		runner:            DefaultStackRunner{},
 	}
 
 	return stack.WithOptions(opts...)
@@ -88,14 +88,39 @@ func (stack *Stack) WithOptions(opts ...Option) *Stack {
 
 // String renders this stack as a human-readable string
 func (stack *Stack) String() string {
-	return stack.runner.String(stack)
+	modules := []string{}
+	for _, module := range stack.Modules {
+		modules = append(modules, "  => "+module.String())
+	}
+
+	sort.Strings(modules)
+
+	return fmt.Sprintf("Stack at %s:\n%s", stack.terragruntOptions.WorkingDir, strings.Join(modules, "\n"))
 }
 
 // LogModuleDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
 // happen. For plan and apply, the order will be bottom to top (dependencies first), while for destroy the order will be
 // in reverse.
 func (stack *Stack) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
-	return stack.runner.LogModuleDeployOrder(stack, l, terraformCommand)
+	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
+
+	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
+	if err != nil {
+		return err
+	}
+
+	for i, group := range runGraph {
+		outStr += fmt.Sprintf("Group %d\n", i+1)
+		for _, module := range group {
+			outStr += fmt.Sprintf("- Module %s\n", module.Path)
+		}
+
+		outStr += "\n"
+	}
+
+	l.Info(outStr)
+
+	return nil
 }
 
 // JSONModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
@@ -129,11 +154,69 @@ func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, erro
 
 // Graph creates a graphviz representation of the modules
 func (stack *Stack) Graph(l log.Logger, opts *options.TerragruntOptions) {
-	stack.runner.Graph(stack, l, opts)
+	err := stack.Modules.WriteDot(l, opts.Writer, opts)
+	if err != nil {
+		l.Warnf("Failed to graph dot: %v", err)
+	}
 }
 
 func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	return stack.runner.Run(ctx, stack, l, opts)
+	stackCmd := opts.TerraformCommand
+
+	// prepare folder for output hierarchy if output folder is set
+	if opts.OutputFolder != "" {
+		for _, module := range stack.Modules {
+			planFile := module.outputFile(l, opts)
+
+			planDir := filepath.Dir(planFile)
+			if err := os.MkdirAll(planDir, os.ModePerm); err != nil {
+				return err
+			}
+		}
+	}
+
+	// For any command that needs input, run in non-interactive mode to avoid cominglint stdin across multiple
+	// concurrent runs.
+	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
+		// to support potential positional args in the args list, we append the input=false arg after the first element,
+		// which is the target command.
+		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
+		stack.syncTerraformCliArgs(l, opts)
+	}
+
+	// For apply and destroy, run with auto-approve (unless explicitly disabled) due to the co-mingling of the prompts.
+	// This is not ideal, but until we have a better way of handling interactivity with run --all, we take the evil of
+	// having a global prompt (managed in cli/cli_app.go) be the gate keeper.
+	switch stackCmd {
+	case tf.CommandNameApply, tf.CommandNameDestroy:
+		// to support potential positional args in the args list, we append the input=false arg after the first element,
+		// which is the target command.
+		if opts.RunAllAutoApprove {
+			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+		}
+
+		stack.syncTerraformCliArgs(l, opts)
+	case tf.CommandNameShow:
+		stack.syncTerraformCliArgs(l, opts)
+	case tf.CommandNamePlan:
+		// We capture the out stream for each module
+		errorStreams := make([]bytes.Buffer, len(stack.Modules))
+
+		for n, module := range stack.Modules {
+			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+		}
+
+		defer stack.summarizePlanAllErrors(l, errorStreams)
+	}
+
+	switch {
+	case opts.IgnoreDependencyOrder:
+		return stack.Modules.RunModulesIgnoreOrder(ctx, opts, opts.Parallelism)
+	case stackCmd == tf.CommandNameDestroy:
+		return stack.Modules.RunModulesReverseOrder(ctx, opts, opts.Parallelism)
+	default:
+		return stack.Modules.RunModules(ctx, opts, opts.Parallelism)
+	}
 }
 
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
