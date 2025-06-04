@@ -26,6 +26,7 @@ type Report struct {
 	Runs        []*Run
 	mu          sync.RWMutex
 	shouldColor bool
+	mu          sync.RWMutex
 }
 
 // Run captures data for a run.
