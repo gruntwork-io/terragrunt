@@ -65,9 +65,9 @@ func TestGetRun(t *testing.T) {
 	r.AddRun(run)
 
 	tests := []struct {
+		expectedErr error
 		name        string
 		runName     string
-		expectedErr error
 	}{
 		{
 			name:    "existing run",
