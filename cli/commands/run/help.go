@@ -52,7 +52,7 @@ func ShowTFHelp(l log.Logger, opts *options.TerragruntOptions) cli.HelpFunc {
 
 func runTFHelp(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) string {
 	opts = opts.Clone()
-	opts.Writer = io.Discard
+	opts.LoggingOptions.Writer = io.Discard
 
 	terraformHelpCmd := []string{tf.FlagNameHelpLong, ctx.Command.Name}
 

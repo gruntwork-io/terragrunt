@@ -38,8 +38,8 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, terragruntOptions *option
 	}
 
 	opts.Env = terragruntOptions.Env
-	opts.Writer = &stdout
-	opts.ErrWriter = &stderr
+	opts.LoggingOptions.Writer = &stdout
+	opts.LoggingOptions.ErrWriter = &stderr
 
 	cmd, err := RunCommandWithOutput(ctx, l, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -68,8 +68,8 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	gitOpts.Env = opts.Env
-	gitOpts.Writer = &stdout
-	gitOpts.ErrWriter = &stderr
+	gitOpts.LoggingOptions.Writer = &stdout
+	gitOpts.LoggingOptions.ErrWriter = &stderr
 
 	output, err := RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {

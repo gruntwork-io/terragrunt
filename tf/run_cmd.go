@@ -58,9 +58,9 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 		return nil, err
 	}
 
-	if !opts.ForwardTFStdout {
+	if !opts.LoggingOptions.ForwardTFStdout {
 		opts = opts.Clone()
-		opts.Writer, opts.ErrWriter = logTFOutput(l, opts, args)
+		opts.LoggingOptions.Writer, opts.LoggingOptions.ErrWriter = logTFOutput(l, opts, args)
 	}
 
 	output, err := shell.RunCommandWithOutput(ctx, l, opts, "", false, needsPTY, opts.TerraformPath, args...)
@@ -81,8 +81,8 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 
 func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args cli.Args) (io.Writer, io.Writer) {
 	var (
-		outWriter = opts.Writer
-		errWriter = opts.ErrWriter
+		outWriter = opts.LoggingOptions.Writer
+		errWriter = opts.LoggingOptions.ErrWriter
 	)
 
 	logger := l.
@@ -90,7 +90,7 @@ func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args cli.Args) (
 		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
 		WithField(placeholders.TFCmdKeyName, args.CommandName())
 
-	if opts.JSONLogFormat && !args.Normalize(cli.SingleDashFlag).Contains(FlagNameJSON) {
+	if opts.LoggingOptions.JSONLogFormat && !args.Normalize(cli.SingleDashFlag).Contains(FlagNameJSON) {
 		outWriter = buildOutWriter(
 			opts,
 			logger,
@@ -182,7 +182,7 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 func buildOutWriter(opts *options.TerragruntOptions, logger log.Logger, outWriter, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
 	logLevel := log.StdoutLevel
 
-	if opts.Headless {
+	if opts.LoggingOptions.Headless {
 		logLevel = log.InfoLevel
 		outWriter = errWriter
 	}
@@ -206,7 +206,7 @@ func buildOutWriter(opts *options.TerragruntOptions, logger log.Logger, outWrite
 func buildErrWriter(opts *options.TerragruntOptions, logger log.Logger, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
 	logLevel := log.StderrLevel
 
-	if opts.Headless {
+	if opts.LoggingOptions.Headless {
 		logLevel = log.ErrorLevel
 	}
 

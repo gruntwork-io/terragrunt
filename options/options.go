@@ -90,10 +90,8 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// If you want stdout to go somewhere other than os.stdout
-	Writer io.Writer
-	// If you want stderr to go somewhere other than os.stderr
-	ErrWriter io.Writer
+	// LoggingOptions defines configuration for logging and output.
+	LoggingOptions *LoggingOptions
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -205,12 +203,6 @@ type TerragruntOptions struct {
 	ProviderCachePort int
 	// The duration in seconds to wait before retrying
 	RetrySleepInterval time.Duration
-	// Output Terragrunt logs in JSON format
-	JSONLogFormat bool
-	// True if terragrunt should run in debug mode
-	Debug bool
-	// Disable TF output formatting
-	ForwardTFStdout bool
 	// Fail execution if is required to create S3 bucket
 	FailIfBucketCreationRequired bool
 	// Controls if s3 bucket should be updated or skipped
@@ -275,14 +267,6 @@ type TerragruntOptions struct {
 	HCLValidateShowConfigPath bool
 	// HCLValidateJSONOutput outputs the hcl validate result as a JSON string.
 	HCLValidateJSONOutput bool
-	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
-	DisableLogFormatting bool
-	// Headless is set when Terragrunt is running in headless mode.
-	Headless bool
-	// LogDisableErrorSummary is a flag to skip the error summary
-	LogDisableErrorSummary bool
-	// Disable replacing full paths in logs with short relative paths
-	LogShowAbsPaths bool
 	// NoStackGenerate disable stack generation.
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
@@ -299,6 +283,28 @@ type TerragruntOptions struct {
 	ForceBackendDelete bool
 	// ForceBackendMigrate forces the backend to be migrated, even if the bucket is not versioned.
 	ForceBackendMigrate bool
+}
+
+// LoggingOptions defines configuration for logging and output.
+type LoggingOptions struct {
+	// If you want stdout to go somewhere other than os.stdout
+	Writer io.Writer
+	// If you want stderr to go somewhere other than os.stderr
+	ErrWriter io.Writer
+	// Output Terragrunt logs in JSON format
+	JSONLogFormat bool
+	// True if terragrunt should run in debug mode
+	Debug bool
+	// Disable TF output formatting
+	ForwardTFStdout bool
+	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
+	DisableLogFormatting bool
+	// Headless is set when Terragrunt is running in headless mode.
+	Headless bool
+	// LogDisableErrorSummary is a flag to skip the error summary
+	LogDisableErrorSummary bool
+	// Disable replacing full paths in logs with short relative paths
+	LogShowAbsPaths bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -356,6 +362,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
+		LoggingOptions:                 &LoggingOptions{Writer: stdout, ErrWriter: stderr},
 		TerraformPath:                  DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
 		OriginalTerraformCommand:       "",
@@ -372,8 +379,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		IgnoreDependencyOrder:          false,
 		IgnoreExternalDependencies:     false,
 		IncludeExternalDependencies:    false,
-		Writer:                         stdout,
-		ErrWriter:                      stderr,
 		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
 		AutoRetry:                      true,
 		RetryMaxAttempts:               DefaultRetryMaxAttempts,
@@ -388,7 +393,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Diff:                           false,
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
-		ForwardTFStdout:                false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
 		JSONDisableDependentModules:    false,

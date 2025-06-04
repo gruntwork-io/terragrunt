@@ -79,7 +79,7 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 
 	// render outputs
 
-	writer := opts.Writer
+	writer := opts.LoggingOptions.Writer
 
 	switch opts.StackOutputFormat {
 	default:

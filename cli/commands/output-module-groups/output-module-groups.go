@@ -20,7 +20,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	_, err = fmt.Fprintf(opts.Writer, "%s\n", js)
+	_, err = fmt.Fprintf(opts.LoggingOptions.Writer, "%s\n", js)
 	if err != nil {
 		return err
 	}

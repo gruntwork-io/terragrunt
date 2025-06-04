@@ -111,7 +111,7 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 		render = view.NewJSONRender()
 	}
 
-	writer := view.NewWriter(opts.Writer, render)
+	writer := view.NewWriter(opts.LoggingOptions.Writer, render)
 
 	if opts.HCLValidateShowConfigPath {
 		return writer.ShowConfigPath(diags)

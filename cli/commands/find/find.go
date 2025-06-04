@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -113,9 +114,9 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(l, opts, foundCfgs)
+		return outputText(l, opts.LoggingOptions, foundCfgs)
 	case FormatJSON:
-		return outputJSON(opts, foundCfgs)
+		return outputJSON(opts.LoggingOptions, foundCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -204,7 +205,7 @@ func discoveredToFound(configs discovery.DiscoveredConfigs, opts *Options) (Foun
 }
 
 // outputJSON outputs the discovered configurations in JSON format.
-func outputJSON(opts *Options, configs FoundConfigs) error {
+func outputJSON(opts *options.LoggingOptions, configs FoundConfigs) error {
 	jsonBytes, err := json.MarshalIndent(configs, "", "  ")
 	if err != nil {
 		return errors.New(err)
@@ -274,7 +275,7 @@ func (c *Colorizer) Colorize(config *FoundConfig) string {
 }
 
 // outputText outputs the discovered configurations in text format.
-func outputText(l log.Logger, opts *Options, configs FoundConfigs) error {
+func outputText(l log.Logger, opts *options.LoggingOptions, configs FoundConfigs) error {
 	colorizer := NewColorizer(shouldColor(l))
 
 	for _, config := range configs {

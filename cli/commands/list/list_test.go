@@ -65,7 +65,7 @@ func TestBasicDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.LoggingOptions.Writer = w
 
 	l := logger.CreateLogger()
 
@@ -154,7 +154,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.LoggingOptions.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -238,7 +238,7 @@ dependency "unit2" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.LoggingOptions.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -317,7 +317,7 @@ dependency "unit3" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.LoggingOptions.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -429,7 +429,7 @@ dependency "C" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.LoggingOptions.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)

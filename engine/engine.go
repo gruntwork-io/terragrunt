@@ -625,7 +625,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 			WorkingDir:     opts.WorkingDir,
 			Command:        runOptions.Command,
 			Args:           runOptions.Args,
-			DisableSummary: opts.LogDisableErrorSummary,
+			DisableSummary: opts.LoggingOptions.LogDisableErrorSummary,
 		}
 
 		return nil, errors.New(err)

@@ -683,7 +683,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 		return l, nil, err
 	}
 
-	targetOptions.ForwardTFStdout = false
+	targetOptions.LoggingOptions.ForwardTFStdout = false
 	// just read outputs, so no need to check for dependent modules
 	targetOptions.CheckDependentModules = false
 	targetOptions.TerraformCommand = "output"
@@ -1070,7 +1070,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, l log.Logger, w
 	}
 
 	targetTGOptions.WorkingDir = workingDir
-	targetTGOptions.Writer = io.Discard
+	targetTGOptions.LoggingOptions.Writer = io.Discard
 	targetTGOptions.Engine = ctx.TerragruntOptions.Engine
 
 	// If the target config has an IAM role directive and it was not set on the command line, set it to
@@ -1097,9 +1097,9 @@ func runTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 
 	newOpts := *ctx.TerragruntOptions
 	// explicit disable json formatting and prefixing to read json output
-	newOpts.ForwardTFStdout = false
-	newOpts.JSONLogFormat = false
-	newOpts.Writer = stdoutBufferWriter
+	newOpts.LoggingOptions.ForwardTFStdout = false
+	newOpts.LoggingOptions.JSONLogFormat = false
+	newOpts.LoggingOptions.Writer = stdoutBufferWriter
 	ctx = ctx.WithTerragruntOptions(&newOpts)
 
 	err := ctx.TerragruntOptions.RunTerragrunt(ctx, l, ctx.TerragruntOptions)
@@ -1177,7 +1177,7 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, l log.Logger, work
 	}
 
 	initTGOptions.WorkingDir = workingDir
-	initTGOptions.ErrWriter = &stderr
+	initTGOptions.LoggingOptions.ErrWriter = &stderr
 
 	if err = tf.RunCommand(ctx, l, initTGOptions, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
