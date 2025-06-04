@@ -45,9 +45,9 @@ func TestFindStackInSubfolders(t *testing.T) {
 	stack, err := configstack.FindStackInSubfolders(t.Context(), logger.CreateLogger(), terragruntOptions)
 	require.NoError(t, err)
 
-	var modulePaths = make([]string, 0, len(stack.Modules))
+	var modulePaths = make([]string, 0, len(stack.Modules()))
 
-	for _, module := range stack.Modules {
+	for _, module := range stack.Modules() {
 		relPath := strings.Replace(module.Path, tempFolder, "", 1)
 		relPath = filepath.ToSlash(util.JoinPath(relPath, config.DefaultTerragruntConfigPath))
 
@@ -71,14 +71,14 @@ func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 		t,
 		[]configstack.TerraformModules{
 			{
-				stack.Modules[1],
+				stack.Modules()[1],
 			},
 			{
-				stack.Modules[3],
-				stack.Modules[4],
+				stack.Modules()[3],
+				stack.Modules()[4],
 			},
 			{
-				stack.Modules[5],
+				stack.Modules()[5],
 			},
 		},
 		runGraph,
@@ -96,14 +96,14 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 		t,
 		[]configstack.TerraformModules{
 			{
-				stack.Modules[5],
+				stack.Modules()[5],
 			},
 			{
-				stack.Modules[3],
-				stack.Modules[4],
+				stack.Modules()[3],
+				stack.Modules()[4],
 			},
 			{
-				stack.Modules[1],
+				stack.Modules()[1],
 			},
 		},
 		runGraph,
@@ -111,7 +111,7 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 
 }
 
-func createTestStack() *configstack.Stack {
+func createTestStack() configstack.Stack {
 	// Create the following module stack:
 	// - account-baseline (excluded)
 	// - vpc; depends on account-baseline
@@ -156,14 +156,14 @@ func createTestStack() *configstack.Stack {
 	}
 
 	stack := configstack.NewStack(l, mockOptions)
-	stack.Modules = configstack.TerraformModules{
+	SetModules(stack, configstack.TerraformModules{
 		accountBaseline,
 		vpc,
 		lambda,
 		mysql,
 		redis,
 		myapp,
-	}
+	})
 
 	return stack
 }
@@ -1282,7 +1282,7 @@ func TestBasicDependency(t *testing.T) {
 	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}, Logger: l}
 
 	stack := configstack.NewStack(l, mockOptions)
-	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
+	SetModules(stack, configstack.TerraformModules{moduleA, moduleB, moduleC})
 
 	expected := map[string][]string{
 		"B": {"A"},
@@ -1308,7 +1308,7 @@ func TestNestedDependencies(t *testing.T) {
 
 	// Create a mock stack
 	stack := configstack.NewStack(l, mockOptions)
-	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
+	SetModules(stack, configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD})
 
 	// Expected result
 	expected := map[string][]string{
@@ -1340,7 +1340,7 @@ func TestCircularDependencies(t *testing.T) {
 	moduleC.Dependencies = configstack.TerraformModules{moduleA} // Circular dependency
 
 	stack := configstack.NewStack(l, mockOptions)
-	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
+	SetModules(stack, configstack.TerraformModules{moduleA, moduleB, moduleC})
 
 	expected := map[string][]string{
 		"A": {"C", "B"},
@@ -1354,4 +1354,12 @@ func TestCircularDependencies(t *testing.T) {
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Expected %v, got %v", expected, result)
 	}
+}
+
+// Add a helper to set modules for DefaultStack in tests
+func SetModules(stack *configstack.DefaultStack, modules configstack.TerraformModules) {
+	// This is only for test setup
+	stackValue := reflect.ValueOf(stack).Elem()
+	modulesField := stackValue.FieldByName("modules")
+	modulesField.Set(reflect.ValueOf(modules))
 }

@@ -29,19 +29,41 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// Stack represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
-// "spin down" in a single command
-type Stack struct {
+// Stack is the abstraction for a stack of Terraform modules.
+type Stack interface {
+	String() string
+	LogModuleDeployOrder(l log.Logger, terraformCommand string) error
+	JSONModuleDeployOrder(terraformCommand string) (string, error)
+	Graph(l log.Logger, opts *options.TerragruntOptions)
+	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error
+	GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error)
+	ListStackDependentModules() map[string][]string
+	Modules() TerraformModules
+	FindModuleByPath(path string) *TerraformModule
+	SetTerragruntConfig(config *config.TerragruntConfig)
+	GetTerragruntConfig() *config.TerragruntConfig
+	SetParseOptions(parserOptions []hclparse.Option)
+	GetParseOptions() []hclparse.Option
+}
+
+// StackBuilder is the abstraction for building a Stack.
+type StackBuilder interface {
+	BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error)
+}
+
+// DefaultStack implements the Stack interface and represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or "spin down" in a single command
+type DefaultStack struct {
 	parserOptions         []hclparse.Option
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
-	Modules               TerraformModules
+	modules               TerraformModules
 	outputMu              sync.Mutex
 }
 
-// FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
-// assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (*Stack, error) {
+// DefaultStackBuilder implements StackBuilder for DefaultStack
+type DefaultStackBuilder struct{}
+
+func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
 	var terragruntConfigFiles []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_files_in_path", map[string]any{
@@ -69,8 +91,16 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 	return stack, nil
 }
 
-func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) *Stack {
-	stack := &Stack{
+// FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
+// assemble them into a Stack object that can be applied or destroyed in a single command
+func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
+	// here will be used different implementation of stack builder which will generate own stack implementation
+	builder := &DefaultStackBuilder{}
+	return builder.BuildStack(ctx, l, terragruntOptions, opts...)
+}
+
+func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) *DefaultStack {
+	stack := &DefaultStack{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
@@ -78,18 +108,18 @@ func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts .
 	return stack.WithOptions(opts...)
 }
 
-func (stack *Stack) WithOptions(opts ...Option) *Stack {
+// WithOptions Update WithOptions to use Option func(Stack)
+func (stack *DefaultStack) WithOptions(opts ...Option) *DefaultStack {
 	for _, opt := range opts {
 		opt(stack)
 	}
-
 	return stack
 }
 
 // String renders this stack as a human-readable string
-func (stack *Stack) String() string {
+func (stack *DefaultStack) String() string {
 	modules := []string{}
-	for _, module := range stack.Modules {
+	for _, module := range stack.modules {
 		modules = append(modules, "  => "+module.String())
 	}
 
@@ -101,7 +131,7 @@ func (stack *Stack) String() string {
 // LogModuleDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
 // happen. For plan and apply, the order will be bottom to top (dependencies first), while for destroy the order will be
 // in reverse.
-func (stack *Stack) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
+func (stack *DefaultStack) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
 
 	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
@@ -125,7 +155,7 @@ func (stack *Stack) LogModuleDeployOrder(l log.Logger, terraformCommand string) 
 
 // JSONModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
 // that the operations happen.
-func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, error) {
+func (stack *DefaultStack) JSONModuleDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
 	if err != nil {
 		return "", errors.New(err)
@@ -153,19 +183,19 @@ func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, erro
 }
 
 // Graph creates a graphviz representation of the modules
-func (stack *Stack) Graph(l log.Logger, opts *options.TerragruntOptions) {
-	err := stack.Modules.WriteDot(l, opts.Writer, opts)
+func (stack *DefaultStack) Graph(l log.Logger, opts *options.TerragruntOptions) {
+	err := stack.modules.WriteDot(l, opts.Writer, opts)
 	if err != nil {
 		l.Warnf("Failed to graph dot: %v", err)
 	}
 }
 
-func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (stack *DefaultStack) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	stackCmd := opts.TerraformCommand
 
 	// prepare folder for output hierarchy if output folder is set
 	if opts.OutputFolder != "" {
-		for _, module := range stack.Modules {
+		for _, module := range stack.modules {
 			planFile := module.outputFile(l, opts)
 
 			planDir := filepath.Dir(planFile)
@@ -200,9 +230,9 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 		stack.syncTerraformCliArgs(l, opts)
 	case tf.CommandNamePlan:
 		// We capture the out stream for each module
-		errorStreams := make([]bytes.Buffer, len(stack.Modules))
+		errorStreams := make([]bytes.Buffer, len(stack.modules))
 
-		for n, module := range stack.Modules {
+		for n, module := range stack.modules {
 			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
 		}
 
@@ -211,18 +241,18 @@ func (stack *Stack) Run(ctx context.Context, l log.Logger, opts *options.Terragr
 
 	switch {
 	case opts.IgnoreDependencyOrder:
-		return stack.Modules.RunModulesIgnoreOrder(ctx, opts, opts.Parallelism)
+		return stack.modules.RunModulesIgnoreOrder(ctx, opts, opts.Parallelism)
 	case stackCmd == tf.CommandNameDestroy:
-		return stack.Modules.RunModulesReverseOrder(ctx, opts, opts.Parallelism)
+		return stack.modules.RunModulesReverseOrder(ctx, opts, opts.Parallelism)
 	default:
-		return stack.Modules.RunModules(ctx, opts, opts.Parallelism)
+		return stack.modules.RunModules(ctx, opts, opts.Parallelism)
 	}
 }
 
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (stack *Stack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
+func (stack *DefaultStack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 
@@ -233,13 +263,13 @@ func (stack *Stack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Bu
 
 		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 			var dependenciesMsg string
-			if len(stack.Modules[i].Dependencies) > 0 {
-				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
+			if len(stack.modules[i].Dependencies) > 0 {
+				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.modules[i].Config.Dependencies.Paths)
 			}
 
 			l.Infof("%v%v refers to remote state "+
 				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
-				stack.Modules[i].Path,
+				stack.modules[i].Path,
 				dependenciesMsg,
 			)
 		}
@@ -247,8 +277,8 @@ func (stack *Stack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Bu
 }
 
 // Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
-func (stack *Stack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
-	for _, module := range stack.Modules {
+func (stack *DefaultStack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
+	for _, module := range stack.modules {
 		module.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
 
 		planFile := module.planFile(l, opts)
@@ -266,12 +296,12 @@ func (stack *Stack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntO
 	}
 }
 
-func (stack *Stack) toRunningModules(terraformCommand string) (RunningModules, error) {
+func (stack *DefaultStack) toRunningModules(terraformCommand string) (RunningModules, error) {
 	switch terraformCommand {
 	case tf.CommandNameDestroy:
-		return stack.Modules.ToRunningModules(ReverseOrder)
+		return stack.modules.ToRunningModules(ReverseOrder)
 	default:
-		return stack.Modules.ToRunningModules(NormalOrder)
+		return stack.modules.ToRunningModules(NormalOrder)
 	}
 }
 
@@ -279,7 +309,7 @@ func (stack *Stack) toRunningModules(terraformCommand string) (RunningModules, e
 // applied/destroyed. The return structure is a list of lists, where the nested list represents modules that can be
 // deployed concurrently, and the outer list indicates the order. This will only include those modules that do NOT have
 // the exclude flag set.
-func (stack *Stack) GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
+func (stack *DefaultStack) GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
 	moduleRunGraph, err := stack.toRunningModules(terraformCommand)
 	if err != nil {
 		return nil, err
@@ -294,7 +324,7 @@ func (stack *Stack) GetModuleRunGraph(terraformCommand string) ([]TerraformModul
 
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
 // modules into a Stack object that can be applied or destroyed in a single command
-func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, l log.Logger, terragruntConfigPaths []string) error {
+func (stack *DefaultStack) createStackForTerragruntConfigPaths(ctx context.Context, l log.Logger, terragruntConfigPaths []string) error {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "create_stack_for_terragrunt_config_paths", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
@@ -307,7 +337,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, l l
 			return errors.New(err)
 		}
 
-		stack.Modules = modules
+		stack.modules = modules
 
 		return nil
 	})
@@ -318,7 +348,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, l l
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "check_for_cycles", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		if err := stack.Modules.CheckForCycles(); err != nil {
+		if err := stack.modules.CheckForCycles(); err != nil {
 			return errors.New(err)
 		}
 
@@ -335,7 +365,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, l l
 // ResolveTerraformModules goes through each of the given Terragrunt configuration files
 // and resolve the module that configuration file represents into a TerraformModule struct.
 // Return the list of these TerraformModule structs.
-func (stack *Stack) ResolveTerraformModules(ctx context.Context, l log.Logger, terragruntConfigPaths []string) (TerraformModules, error) {
+func (stack *DefaultStack) ResolveTerraformModules(ctx context.Context, l log.Logger, terragruntConfigPaths []string) (TerraformModules, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
 	if err != nil {
 		return nil, err
@@ -479,7 +509,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, l log.Logger, t
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Note that this method will NOT fill in the Dependencies field of the TerraformModule
 // struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
-func (stack *Stack) resolveModules(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string, howTheseModulesWereFound string) (TerraformModulesMap, error) {
+func (stack *DefaultStack) resolveModules(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string, howTheseModulesWereFound string) (TerraformModulesMap, error) {
 	modulesMap := TerraformModulesMap{}
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
@@ -540,7 +570,7 @@ func (stack *Stack) resolveModules(ctx context.Context, l log.Logger, canonicalT
 // Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
 // crosslinkDependencies method for that).
-func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, terragruntConfigPath string, modulesMap TerraformModulesMap, howThisModuleWasFound string) (*TerraformModule, error) {
+func (stack *DefaultStack) resolveTerraformModule(ctx context.Context, l log.Logger, terragruntConfigPath string, modulesMap TerraformModulesMap, howThisModuleWasFound string) (*TerraformModule, error) {
 	modulePath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 	if err != nil {
 		return nil, err
@@ -661,7 +691,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, l log.Logger, te
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
 // user is trying to run --all apply or run --all destroy. Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
-func (stack *Stack) resolveDependenciesForModule(ctx context.Context, l log.Logger, module *TerraformModule, modulesMap TerraformModulesMap, skipExternal bool) (TerraformModulesMap, error) {
+func (stack *DefaultStack) resolveDependenciesForModule(ctx context.Context, l log.Logger, module *TerraformModule, modulesMap TerraformModulesMap, skipExternal bool) (TerraformModulesMap, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return TerraformModulesMap{}, nil
 	}
@@ -708,7 +738,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, l log.Logg
 // environment the user is trying to run --all apply or run --all destroy. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
-func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, l log.Logger, modulesMap, modulesAlreadyProcessed TerraformModulesMap, recursionLevel int) (TerraformModulesMap, error) {
+func (stack *DefaultStack) resolveExternalDependenciesForModules(ctx context.Context, l log.Logger, modulesMap, modulesAlreadyProcessed TerraformModulesMap, recursionLevel int) (TerraformModulesMap, error) {
 	allExternalDependencies := TerraformModulesMap{}
 	modulesToSkip := modulesMap.mergeMaps(modulesAlreadyProcessed)
 
@@ -762,13 +792,13 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, l
 }
 
 // ListStackDependentModules - build a map with each module and its dependent modules
-func (stack *Stack) ListStackDependentModules() map[string][]string {
+func (stack *DefaultStack) ListStackDependentModules() map[string][]string {
 	// build map of dependent modules
 	// module path -> list of dependent modules
 	var dependentModules = make(map[string][]string)
 
 	// build initial mapping of dependent modules
-	for _, module := range stack.Modules {
+	for _, module := range stack.modules {
 		if len(module.Dependencies) != 0 {
 			for _, dep := range module.Dependencies {
 				dependentModules[dep.Path] = util.RemoveDuplicatesFromList(append(dependentModules[dep.Path], module.Path))
@@ -823,4 +853,36 @@ func (stack *Stack) ListStackDependentModules() map[string][]string {
 	}
 
 	return dependentModules
+}
+
+// Implement Modules() for DefaultStack
+func (stack *DefaultStack) Modules() TerraformModules {
+	return stack.modules
+}
+
+func (stack *DefaultStack) FindModuleByPath(path string) *TerraformModule {
+	for _, module := range stack.modules {
+		if module.Path == path {
+			return module
+		}
+	}
+	return nil
+}
+
+// Implement SetTerragruntConfig and GetTerragruntConfig for DefaultStack
+func (stack *DefaultStack) SetTerragruntConfig(config *config.TerragruntConfig) {
+	stack.childTerragruntConfig = config
+}
+
+func (stack *DefaultStack) GetTerragruntConfig() *config.TerragruntConfig {
+	return stack.childTerragruntConfig
+}
+
+// Implement SetParseOptions and GetParseOptions for DefaultStack
+func (stack *DefaultStack) SetParseOptions(parserOptions []hclparse.Option) {
+	stack.parserOptions = parserOptions
+}
+
+func (stack *DefaultStack) GetParseOptions() []hclparse.Option {
+	return stack.parserOptions
 }
