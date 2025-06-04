@@ -59,6 +59,7 @@ type Colorizer struct {
 	failureColorizer     func(string) string
 	exitColorizer        func(string) string
 	excludeColorizer     func(string) string
+	microsecondColorizer func(string) string
 	millisecondColorizer func(string) string
 	secondColorizer      func(string) string
 	minuteColorizer      func(string) string
@@ -74,6 +75,7 @@ func NewColorizer(shouldColor bool) *Colorizer {
 			failureColorizer:     func(s string) string { return s },
 			exitColorizer:        func(s string) string { return s },
 			excludeColorizer:     func(s string) string { return s },
+			microsecondColorizer: func(s string) string { return s },
 			millisecondColorizer: func(s string) string { return s },
 			secondColorizer:      func(s string) string { return s },
 			minuteColorizer:      func(s string) string { return s },
@@ -87,6 +89,7 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		failureColorizer:     ansi.ColorFunc("red+bh"),
 		exitColorizer:        ansi.ColorFunc("yellow+bh"),
 		excludeColorizer:     ansi.ColorFunc("blue+bh"),
+		microsecondColorizer: ansi.ColorFunc("cyan+bh"),
 		millisecondColorizer: ansi.ColorFunc("cyan+bh"),
 		secondColorizer:      ansi.ColorFunc("green+bh"),
 		minuteColorizer:      ansi.ColorFunc("yellow+bh"),
@@ -311,6 +314,10 @@ func (s *Summary) TotalDuration() time.Duration {
 // It returns the duration in the format that is easy to understand by humans.
 func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 	duration := s.TotalDuration()
+
+	if duration < time.Millisecond {
+		return colorizer.microsecondColorizer(fmt.Sprintf("%dµs", duration.Microseconds()))
+	}
 
 	if duration < time.Second {
 		return colorizer.millisecondColorizer(fmt.Sprintf("%dms", duration.Milliseconds()))

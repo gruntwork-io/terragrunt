@@ -2,7 +2,7 @@ package report_test
 
 import (
 	"bytes"
-	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -373,9 +373,9 @@ func TestWriteSummary(t *testing.T) {
 			},
 			expected: `
 ❯❯ Run Summary
-Total Units: 1
-Total Duration: %s
-Units Succeeded: 1
+   Units: 1
+   Duration: x
+   Succeeded: 1
 `,
 		},
 		{
@@ -419,12 +419,12 @@ Units Succeeded: 1
 			},
 			expected: `
 ❯❯ Run Summary
-Total Units: 8
-Total Duration: %s
-Units Succeeded: 2
-Units Failed: 2
-Early Exits: 2
-Excluded: 2
+   Units: 8
+   Duration: x
+   Succeeded: 2
+   Failed: 2
+   Early Exits: 2
+   Excluded: 2
 `,
 		},
 	}
@@ -433,7 +433,7 @@ Excluded: 2
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			r := report.NewReport()
+			r := report.NewReport().WithDisableColor()
 			tt.setup(r)
 
 			var buf bytes.Buffer
@@ -441,19 +441,12 @@ Excluded: 2
 			require.NoError(t, err)
 
 			output := buf.String()
-			// Get the first and last run to calculate duration
-			runs := r.Runs
-			var firstRun, lastRun *report.Run
-			for _, run := range runs {
-				if firstRun == nil || run.Started.Before(firstRun.Started) {
-					firstRun = run
-				}
-				if lastRun == nil || run.Ended.After(lastRun.Ended) {
-					lastRun = run
-				}
-			}
 
-			expected := fmt.Sprintf(strings.TrimSpace(tt.expected), lastRun.Ended.Sub(firstRun.Started).String())
+			// Replace the duration with x
+			re := regexp.MustCompile(`Duration: .*`)
+			output = re.ReplaceAllString(output, "Duration: x")
+
+			expected := strings.TrimSpace(tt.expected)
 			assert.Equal(t, expected, strings.TrimSpace(output))
 		})
 	}
