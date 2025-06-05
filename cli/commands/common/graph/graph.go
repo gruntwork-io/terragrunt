@@ -58,7 +58,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 		stackOpts = append(stackOpts, configstack.WithReport(r))
 
-		defer r.WriteSummary(opts.Writer)
+		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
 	stack, err := configstack.FindStackInSubfolders(ctx, l, rootOptions, stackOpts...)
