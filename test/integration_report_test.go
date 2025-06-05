@@ -53,3 +53,22 @@ func TestTerragruntReportExperiment(t *testing.T) {
    Excluded:     2
 `), strings.TrimSpace(stdoutStr))
 }
+
+func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
+	t.Parallel()
+
+	// Set up test environment
+	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+
+	// Run terragrunt with report experiment enabled and summary disabled
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-disable", &stdout, &stderr)
+	require.NoError(t, err)
+
+	// Verify the report output does not contain the summary
+	stdoutStr := stdout.String()
+	assert.NotContains(t, stdoutStr, "Run Summary")
+}
