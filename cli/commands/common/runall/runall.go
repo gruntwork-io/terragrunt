@@ -2,6 +2,7 @@ package runall
 
 import (
 	"context"
+	"os"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -70,7 +71,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	return RunAllOnStack(ctx, l, opts, stack)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stack *configstack.Stack) error {
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stack configstack.Stack) error {
 	l.Debugf("%s", stack.String())
 
 	if err := stack.LogModuleDeployOrder(l, opts.TerraformCommand); err != nil {
@@ -95,7 +96,8 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 
 		if !shouldRunAll {
-			return nil
+			// We explicitly exit here to avoid running any defers that might be registered, like from the run summary.
+			os.Exit(0)
 		}
 	}
 
