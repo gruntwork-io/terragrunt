@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -110,6 +111,30 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	expectedHeader := []string{"Name", "Started", "Ended", "Result", "Reason", "Cause"}
 	assert.Equal(t, expectedHeader, records[0])
 
+	expectedRecords := [][]string{
+		{"chain-a", "", "", "failed", "run error", ""},
+		{"chain-b", "", "", "early exit", "run error", ""},
+		{"chain-c", "", "", "early exit", "run error", ""},
+		{"error-ignore", "", "", "succeeded", "", ""},
+		{"first-early-exit", "", "", "early exit", "run error", ""},
+		{"first-exclude", "", "", "excluded", "exclude block", ""},
+		{"first-failure", "", "", "failed", "run error", ""},
+		{"first-success", "", "", "succeeded", "", ""},
+		{"retry-success", "", "", "succeeded", "", ""},
+		{"second-early-exit", "", "", "early exit", "run error", ""},
+		{"second-exclude", "", "", "excluded", "exclude block", ""},
+		{"second-failure", "", "", "failed", "run error", ""},
+		{"second-success", "", "", "succeeded", "", ""},
+	}
+
+	// Verify the number of records
+	require.Equal(t, len(expectedRecords), len(records)-1)
+
+	// Sort actual records by name (first column)
+	sort.Slice(records[1:], func(i, j int) bool {
+		return records[i+1][0] < records[j+1][0]
+	})
+
 	// Verify data rows
 	for i, record := range records[1:] {
 		// Verify number of fields
@@ -133,5 +158,12 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 			"excluded":   true,
 		}
 		assert.True(t, validResults[record[3]], "Invalid result value in record %d: %s", i+1, record[3])
+
+		// Strip timestamps from the record to make it easier to compare
+		record[1] = ""
+		record[2] = ""
+
+		// Verify the record matches the expected record
+		assert.Equal(t, expectedRecords[i], record)
 	}
 }
