@@ -2,9 +2,12 @@ package test_test
 
 import (
 	"bytes"
+	"encoding/csv"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -71,4 +74,64 @@ func TestTerragruntReportExperimentDisableSummary(t *testing.T) {
 	// Verify the report output does not contain the summary
 	stdoutStr := stdout.String()
 	assert.NotContains(t, stdoutStr, "Run Summary")
+}
+
+func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
+	t.Parallel()
+
+	// Set up test environment
+	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+
+	// Run terragrunt with report experiment enabled and save to file
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --report-file report.csv", &stdout, &stderr)
+	require.NoError(t, err)
+
+	// Verify the report file exists
+	reportFile := util.JoinPath(rootPath, "report.csv")
+	assert.FileExists(t, reportFile)
+
+	// Read and parse the CSV file
+	file, err := os.Open(reportFile)
+	require.NoError(t, err)
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+
+	// Verify we have at least the header and some data rows
+	require.GreaterOrEqual(t, len(records), 2)
+
+	// Verify header row
+	expectedHeader := []string{"Name", "Started", "Ended", "Result", "Reason", "Cause"}
+	assert.Equal(t, expectedHeader, records[0])
+
+	// Verify data rows
+	for i, record := range records[1:] {
+		// Verify number of fields
+		require.Equal(t, len(expectedHeader), len(record), "Record %d has wrong number of fields", i+1)
+
+		// Verify timestamp formats if present
+		if record[1] != "" {
+			_, err := time.Parse(time.RFC3339, record[1])
+			assert.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i+1)
+		}
+		if record[2] != "" {
+			_, err := time.Parse(time.RFC3339, record[2])
+			assert.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i+1)
+		}
+
+		// Verify Result is one of the expected values
+		validResults := map[string]bool{
+			"succeeded":  true,
+			"failed":     true,
+			"early exit": true,
+			"excluded":   true,
+		}
+		assert.True(t, validResults[record[3]], "Invalid result value in record %d: %s", i+1, record[3])
+	}
 }
