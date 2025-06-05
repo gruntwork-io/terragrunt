@@ -106,7 +106,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen
 			// after the error summary.
-			l.Errorf("terragrunt run --all %s failed: %v", opts.TerraformCommand, err)
+			l.Errorf("Run failed: %v", err)
 
 			return nil
 		}
