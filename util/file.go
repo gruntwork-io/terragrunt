@@ -793,6 +793,7 @@ func CopyLockFile(sourceFolder string, destinationFolder string, logger log.Logg
 	}
 
 	logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+
 	return WriteFileWithSamePermissions(sourceLockFilePath, destinationLockFilePath, sourceContents)
 }
 

@@ -649,25 +649,33 @@ func TestWalkWithSymlinksErrors(t *testing.T) {
 }
 
 func TestCopyLockFile(t *testing.T) {
+	t.Parallel()
+
 	l := logger.CreateLogger()
 
 	t.Run("SameSourceAndDestination", func(t *testing.T) {
+		t.Parallel()
+
 		sourceFolder := "/path/to/folder"
 		destinationFolder := "/path/to/folder"
 
 		err := util.CopyLockFile(sourceFolder, destinationFolder, l)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("SourceLockFileDoesNotExist", func(t *testing.T) {
+		t.Parallel()
+
 		sourceFolder := "/path/to/folder"
 		destinationFolder := "/path/to/destination"
 
 		err := util.CopyLockFile(sourceFolder, destinationFolder, l)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("DestinationLockFileDoesNotExist", func(t *testing.T) {
+		t.Parallel()
+
 		sourceFolder := t.TempDir()
 		destinationFolder := t.TempDir()
 
@@ -679,25 +687,27 @@ func TestCopyLockFile(t *testing.T) {
 		require.NoError(t, err)
 
 		err = util.CopyLockFile(sourceFolder, destinationFolder, l)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Verify destination lock file exists
 		_, err = os.Stat(destinationLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Verify destination lock file contents
 		destinationContents, err := os.ReadFile(destinationLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []byte("lock file contents"), destinationContents)
 
 		// Clean up
 		err = os.Remove(sourceLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = os.Remove(destinationLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("SameContents", func(t *testing.T) {
+		t.Parallel()
+
 		sourceFolder := t.TempDir()
 		destinationFolder := t.TempDir()
 
@@ -713,21 +723,23 @@ func TestCopyLockFile(t *testing.T) {
 		require.NoError(t, err)
 
 		err = util.CopyLockFile(sourceFolder, destinationFolder, l)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Verify destination lock file contents remain the same
 		destinationContents, err := os.ReadFile(destinationLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []byte("lock file contents"), destinationContents)
 
 		// Clean up
 		err = os.Remove(sourceLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = os.Remove(destinationLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("DifferentContents", func(t *testing.T) {
+		t.Parallel()
+
 		sourceFolder := t.TempDir()
 		destinationFolder := t.TempDir()
 
@@ -743,17 +755,17 @@ func TestCopyLockFile(t *testing.T) {
 		require.NoError(t, err)
 
 		err = util.CopyLockFile(sourceFolder, destinationFolder, l)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Verify destination lock file contents are updated
 		destinationContents, err := os.ReadFile(destinationLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []byte("lock file contents"), destinationContents)
 
 		// Clean up
 		err = os.Remove(sourceLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = os.Remove(destinationLockFilePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
