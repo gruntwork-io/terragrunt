@@ -130,9 +130,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		},
 	}
 
-	cmd = runall.WrapCommand(l, opts, cmd, run.Run)
+	cmd = runall.WrapCommand(l, opts, cmd, run.Run, true)
 	// TODO: For backward compatibility, remove after getting rid of the `render-json` command, as supporting the `graph` flag for the `render` command is pointless.
-	cmd = graph.WrapCommand(l, opts, cmd, run.Run)
+	cmd = graph.WrapCommand(l, opts, cmd, run.Run, true)
 
 	return cmd
 }

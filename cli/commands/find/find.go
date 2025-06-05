@@ -3,7 +3,6 @@ package find
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -13,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/mgutz/ansi"
 )
@@ -289,15 +289,5 @@ func outputText(l log.Logger, opts *Options, configs FoundConfigs) error {
 
 // shouldColor returns true if the output should be colored.
 func shouldColor(l log.Logger) bool {
-	return !l.Formatter().DisabledColors() && !isStdoutRedirected()
-}
-
-// isStdoutRedirected returns true if the stdout is redirected.
-func isStdoutRedirected() bool {
-	stat, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-
-	return (stat.Mode() & os.ModeCharDevice) == 0
+	return !l.Formatter().DisabledColors() && !stdout.IsRedirected()
 }

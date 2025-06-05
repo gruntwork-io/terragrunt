@@ -23,6 +23,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -30,6 +31,7 @@ import (
 // DefaultStack implements the Stack interface and represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or "spin down" in a single command
 // (formerly Stack)
 type DefaultStack struct {
+	report                *report.Report
 	parserOptions         []hclparse.Option
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
@@ -54,6 +56,16 @@ func (stack *DefaultStack) WithOptions(opts ...Option) *DefaultStack {
 	}
 
 	return stack
+}
+
+// SetReport sets the report for the stack.
+func (stack *DefaultStack) SetReport(report *report.Report) {
+	stack.report = report
+}
+
+// GetReport returns the report for the stack.
+func (stack *DefaultStack) GetReport() *report.Report {
+	return stack.report
 }
 
 // String renders this stack as a human-readable string
@@ -181,11 +193,11 @@ func (stack *DefaultStack) Run(ctx context.Context, l log.Logger, opts *options.
 
 	switch {
 	case opts.IgnoreDependencyOrder:
-		return stack.modules.RunModulesIgnoreOrder(ctx, opts, opts.Parallelism)
+		return stack.modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism)
 	case stackCmd == tf.CommandNameDestroy:
-		return stack.modules.RunModulesReverseOrder(ctx, opts, opts.Parallelism)
+		return stack.modules.RunModulesReverseOrder(ctx, opts, stack.report, opts.Parallelism)
 	default:
-		return stack.modules.RunModules(ctx, opts, opts.Parallelism)
+		return stack.modules.RunModules(ctx, opts, stack.report, opts.Parallelism)
 	}
 }
 
@@ -239,9 +251,9 @@ func (stack *DefaultStack) syncTerraformCliArgs(l log.Logger, opts *options.Terr
 func (stack *DefaultStack) toRunningModules(terraformCommand string) (RunningModules, error) {
 	switch terraformCommand {
 	case tf.CommandNameDestroy:
-		return stack.modules.ToRunningModules(ReverseOrder)
+		return stack.modules.ToRunningModules(ReverseOrder, stack.report, stack.terragruntOptions)
 	default:
-		return stack.modules.ToRunningModules(NormalOrder)
+		return stack.modules.ToRunningModules(NormalOrder, stack.report, stack.terragruntOptions)
 	}
 }
 

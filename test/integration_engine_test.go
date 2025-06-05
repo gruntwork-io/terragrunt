@@ -169,10 +169,10 @@ func TestEngineChecksumVerification(t *testing.T) {
 	}
 
 	require.NoError(t, file.Close())
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
-	require.Error(t, err)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
+	require.NoError(t, err)
 
-	require.Contains(t, err.Error(), "checksum list has unexpected SHA-256 hash")
+	require.Contains(t, stderr, "checksum list has unexpected SHA-256 hash")
 }
 
 func TestEngineDisableChecksumCheck(t *testing.T) {
@@ -202,9 +202,9 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath = util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "verification failure")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s -- apply -no-color -auto-approve", rootPath))
+	require.NoError(t, err)
+	require.Contains(t, stderr, "verification failure")
 
 	// disable checksum check
 	t.Setenv("TG_ENGINE_SKIP_CHECK", "1")

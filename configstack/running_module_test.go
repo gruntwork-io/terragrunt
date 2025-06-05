@@ -5,6 +5,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
@@ -500,7 +502,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 func testToRunningModules(t *testing.T, modules configstack.TerraformModules, order configstack.DependencyOrder, expected configstack.RunningModules) {
 	t.Helper()
 
-	actual, err := modules.ToRunningModules(order)
+	actual, err := modules.ToRunningModules(order, report.NewReport(), mockOptions)
 	if assert.NoError(t, err, "For modules %v and order %v", modules, order) {
 		assertRunningModuleMapsEqual(t, expected, actual, true, "For modules %v and order %v", modules, order)
 	}
@@ -608,7 +610,9 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		"e": runningModuleE,
 	}
 
-	actual := runningModules.RemoveFlagExcluded()
+	actual, err := runningModules.RemoveFlagExcluded(report.NewReport(), false)
+	require.NoError(t, err)
+
 	assertRunningModuleMapsEqual(t, expected, actual, true)
 }
 
@@ -674,7 +678,9 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 		"b": runningModuleB,
 	}
 
-	actual := runningModules.RemoveFlagExcluded()
+	actual, err := runningModules.RemoveFlagExcluded(report.NewReport(), mockOptions.Experiments.Evaluate(experiment.Report))
+	require.NoError(t, err)
+
 	assertRunningModuleMapsEqual(t, expected, actual, true)
 }
 
@@ -774,7 +780,8 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 		"d": runningModuleD,
 		"e": runningModuleE,
 	}
-	actual := runningModules.RemoveFlagExcluded()
+	actual, err := runningModules.RemoveFlagExcluded(report.NewReport(), false)
+	require.NoError(t, err)
 
 	_runningModuleD := &configstack.RunningModule{
 		Module:         moduleD,

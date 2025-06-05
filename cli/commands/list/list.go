@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mgutz/ansi"
@@ -322,7 +323,7 @@ func outputLong(l log.Logger, opts *Options, configs ListedConfigs) error {
 
 // shouldColor returns true if the output should be colored.
 func shouldColor(l log.Logger) bool {
-	return !l.Formatter().DisabledColors() && !isStdoutRedirected()
+	return !l.Formatter().DisabledColors() && !stdout.IsRedirected()
 }
 
 // renderLong renders the configurations in a long format.
@@ -682,14 +683,4 @@ func getLongestPathLen(configs ListedConfigs) int {
 	}
 
 	return longest
-}
-
-// isStdoutRedirected returns true if the stdout is redirected.
-func isStdoutRedirected() bool {
-	stat, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-
-	return (stat.Mode() & os.ModeCharDevice) == 0
 }

@@ -23,7 +23,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		},
 	}
 
-	cmd = runall.WrapCommand(l, opts, cmd, run.Run)
+	cmd = runall.WrapCommand(l, opts, cmd, run.Run, true)
 
 	return cmd
 }

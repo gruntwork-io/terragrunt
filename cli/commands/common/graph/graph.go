@@ -6,6 +6,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -44,7 +47,23 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	rootOptions.WorkingDir = rootDir
 
-	stack, err := configstack.FindStackInSubfolders(ctx, l, rootOptions)
+	stackOpts := []configstack.Option{}
+
+	if opts.Experiments.Evaluate(experiment.Report) {
+		r := report.NewReport()
+
+		if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+			r.WithDisableColor()
+		}
+
+		stackOpts = append(stackOpts, configstack.WithReport(r))
+
+		if !opts.SummaryDisable {
+			defer r.WriteSummary(opts.Writer) //nolint:errcheck
+		}
+	}
+
+	stack, err := configstack.FindStackInSubfolders(ctx, l, rootOptions, stackOpts...)
 	if err != nil {
 		return err
 	}

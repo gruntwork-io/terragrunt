@@ -1212,6 +1212,7 @@ terragrunt dag graph  | dot -Tpng > graph.png
   - [source](#source)
   - [source-map](#source-map)
   - [source-update](#source-update)
+  - [summary-disable](#summary-disable)
   - [iam-assume-role](#iam-assume-role)
   - [iam-assume-role-duration](#iam-assume-role-duration)
   - [iam-assume-role-session-name](#iam-assume-role-session-name)
@@ -1660,6 +1661,15 @@ Note that this only performs literal matches on the URL portion. For example, a 
 **Environment Variable Alias**: `TERRAGRUNT_SOURCE_UPDATE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 
 When passed in, delete the contents of the temporary folder before downloading OpenTofu/Terraform source code into it.
+
+### summary-disable
+
+**CLI Arg**: `--summary-disable`<br/>
+**Environment Variable**: `TG_SUMMARY_DISABLE` (set to `true`)<br/>
+
+When passed in, disable the summary output at the end of a run.
+
+For more information, see the [Run Report](/docs/features/run-report#disabling-the-summary) feature.
 
 ### iam-assume-role
 

@@ -76,6 +76,10 @@ const (
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
 
+	// Report related flags.
+
+	SummaryDisableFlagName = "summary-disable"
+
 	// `--all` related flags.
 
 	OutDirFlagName     = "out-dir"
@@ -530,6 +534,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Hidden:      true,
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("engine-log-level"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        SummaryDisableFlagName,
+			EnvVars:     tgPrefix.EnvVars(SummaryDisableFlagName),
+			Destination: &opts.SummaryDisable,
+			Usage:       `Disable the summary output at the end of a run.`,
+		}),
 	}
 
 	return flags.Sort()

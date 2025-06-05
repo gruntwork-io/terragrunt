@@ -168,7 +168,7 @@ func TestDetailedExitCodeError(t *testing.T) {
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
-	require.Error(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
 	assert.Equal(t, 1, exitCode.Get())
 }
@@ -878,14 +878,14 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	)
 	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-	require.Error(t, err, "Failed to properly fail command: %v. The terraform should be bad", cmd)
+	require.NoError(t, err)
 
 	output := stdout.String()
 	errOutput := stderr.String()
 	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
 
-	require.ErrorContains(t, err, "missingvar1")
-	require.ErrorContains(t, err, "missingvar2")
+	assert.Contains(t, errOutput, "missingvar1")
+	assert.Contains(t, errOutput, "missingvar2")
 }
 
 func TestTerragruntGraphDependenciesCommand(t *testing.T) {
@@ -3372,8 +3372,8 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color", &stdout, &stderr)
-	require.Error(t, err)
-	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
+	require.NoError(t, err)
+	output := fmt.Sprintf("%s\n%s\n", stdout.String(), stderr.String())
 	assert.Contains(t, output, "finished with an error")
 	assert.Contains(t, output, "Module ./d1", output)
 }

@@ -3,6 +3,7 @@ package configstack
 import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 )
 
 // Option is a function that modifies a Stack.
@@ -19,5 +20,11 @@ func WithChildTerragruntConfig(config *config.TerragruntConfig) Option {
 func WithParseOptions(parserOptions []hclparse.Option) Option {
 	return func(stack Stack) {
 		stack.SetParseOptions(parserOptions)
+	}
+}
+
+func WithReport(report *report.Report) Option {
+	return func(stack Stack) {
+		stack.SetReport(report)
 	}
 }
