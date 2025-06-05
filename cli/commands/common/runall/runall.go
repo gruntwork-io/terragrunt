@@ -5,6 +5,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -43,7 +46,21 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, l, opts)
+	stackOpts := []configstack.Option{}
+
+	if opts.Experiments.Evaluate(experiment.Report) {
+		r := report.NewReport()
+
+		if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+			r.WithDisableColor()
+		}
+
+		stackOpts = append(stackOpts, configstack.WithReport(r))
+
+		defer r.WriteSummary(opts.Writer)
+	}
+
+	stack, err := configstack.FindStackInSubfolders(ctx, l, opts, stackOpts...)
 	if err != nil {
 		return err
 	}
@@ -84,6 +101,16 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return stack.Run(ctx, l, opts)
+		err := stack.Run(ctx, l, opts)
+		if err != nil {
+			// At this stage, we can't handle the error any further, so we just log it and return nil.
+			// After this point, we'll need to report on what happened, and we want that to happen
+			// after the error summary.
+			l.Errorf("terragrunt run --all %s failed: %v", opts.TerraformCommand, err)
+
+			return nil
+		}
+
+		return nil
 	})
 }
