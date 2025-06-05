@@ -538,9 +538,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        SummaryDisableFlagName,
 			EnvVars:     tgPrefix.EnvVars(SummaryDisableFlagName),
-			Destination: &opts.SummaryEnable,
-			Usage:       `Enable the summary output at the end of a run.`,
-			Negative:    true,
+			Destination: &opts.SummaryDisable,
+			Usage:       `Disable the summary output at the end of a run.`,
 		}),
 	}
 

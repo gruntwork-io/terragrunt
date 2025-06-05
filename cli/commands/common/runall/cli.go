@@ -40,8 +40,18 @@ func NewFlags(opts *options.TerragruntOptions, commandName string, prefix flags.
 }
 
 // WrapCommand appends flags to the given `cmd` and wraps its action.
-func WrapCommand(l log.Logger, opts *options.TerragruntOptions, cmd *cli.Command, runFn func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error) *cli.Command {
+func WrapCommand(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cmd *cli.Command,
+	runFn func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error,
+	alwaysDisableSummary bool,
+) *cli.Command {
 	cmd = cmd.WrapAction(func(cliCtx *cli.Context, action cli.ActionFunc) error {
+		if alwaysDisableSummary {
+			opts.SummaryDisable = true
+		}
+
 		if !opts.RunAll {
 			return action(cliCtx)
 		}

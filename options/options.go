@@ -299,15 +299,8 @@ type TerragruntOptions struct {
 	ForceBackendDelete bool
 	// ForceBackendMigrate forces the backend to be migrated, even if the bucket is not versioned.
 	ForceBackendMigrate bool
-	// SummaryEnable enables the summary output at the end of a run.
-	//
-	// This option is tracked as a negative option, so that it can be disabled by default.
-	// This makes it so that all the non-run commands that are wrapped via
-	// `runall.WrapCommand` don't emit the summary by default.
-	//
-	// In the future, we might be able to invert this if we stop wrapping commands with
-	// the `runall.WrapCommand` function.
-	SummaryEnable bool
+	// SummaryDisable disables the summary output at the end of a run.
+	SummaryDisable bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests

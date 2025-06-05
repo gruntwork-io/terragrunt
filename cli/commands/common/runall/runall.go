@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -58,7 +59,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 		stackOpts = append(stackOpts, configstack.WithReport(r))
 
-		if opts.SummaryEnable {
+		if !opts.SummaryDisable {
 			defer r.WriteSummary(opts.Writer) //nolint:errcheck
 		}
 	}
@@ -112,7 +113,12 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 			// after the error summary.
 			l.Errorf("Run failed: %v", err)
 
-			return nil
+			exitCode := tf.DetailedExitCodeFromContext(ctx)
+			if exitCode != nil {
+				exitCode.Set(int(cli.ExitCodeGeneralError))
+			}
+
+			return cli.NewExitError(errors.New(""), cli.ExitCode(exitCode.Get()))
 		}
 
 		return nil

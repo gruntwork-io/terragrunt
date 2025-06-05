@@ -58,7 +58,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 		stackOpts = append(stackOpts, configstack.WithReport(r))
 
-		if opts.SummaryEnable {
+		if !opts.SummaryDisable {
 			defer r.WriteSummary(opts.Writer) //nolint:errcheck
 		}
 	}
