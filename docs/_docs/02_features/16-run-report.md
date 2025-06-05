@@ -41,6 +41,16 @@ This output is called the "Run Summary". It provides at-a-glance information abo
 - Excluded: The number of units that were excluded from the run (if any were).
 - Early Exits: The number of units that exited early, due to a failure in a dependency (if any did).
 
+### Disabling the summary
+
+You can disable the summary output by using the `--summary-disable` flag.
+
+```bash
+terragrunt run --all plan --summary-disable
+```
+
+The internal report will still be tracked, and is available for generation if requested.
+
 ## Run Report
 
 Optionally, you can also generate a detailed report of the run, which has all the information used to generate the run summary.
