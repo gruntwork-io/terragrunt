@@ -25,6 +25,8 @@ const (
 	CAS = "cas"
 	// Report is the experiment that enables the new run report.
 	Report = "report"
+	// RunnerPool is the experiment that allows using a pool of runners for parallel execution.
+	RunnerPool = "runner-pool"
 )
 
 const (
@@ -57,6 +59,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: Report,
+		},
+		{
+			Name: RunnerPool,
 		},
 	}
 }

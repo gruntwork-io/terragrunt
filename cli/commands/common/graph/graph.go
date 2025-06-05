@@ -74,7 +74,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	modulesToInclude = append(modulesToInclude, workDir)
 
 	// include from stack only elements from modulesToInclude
-	for _, module := range stack.Modules {
+	for _, module := range stack.Modules() {
 		module.FlagExcluded = true
 		if util.ListContainsElement(modulesToInclude, module.Path) {
 			module.FlagExcluded = false
