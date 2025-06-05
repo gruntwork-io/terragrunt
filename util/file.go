@@ -747,6 +747,55 @@ func GetTempDir() (string, error) {
 	return tempDir, nil
 }
 
+// CopyLockFile ensures that the Terraform lock file is present in the destination
+// folder. The file is copied only when it differs from the one in the source
+// folder so that Terragrunt mirrors Terraform's behaviour of updating the lock
+// file only when necessary.
+func CopyLockFile(sourceFolder string, destinationFolder string, logger log.Logger) error {
+	sourceLockFilePath, sourceErr := filepath.Abs(JoinPath(sourceFolder, TerraformLockFile))
+	if sourceErr != nil {
+		return errors.New(sourceErr)
+	}
+
+	destinationLockFilePath, destErr := filepath.Abs(JoinPath(destinationFolder, TerraformLockFile))
+	if destErr != nil {
+		return errors.New(destErr)
+	}
+
+	if sourceLockFilePath == destinationLockFilePath {
+		logger.Debugf("Source and destination lock file paths are the same: %s. Not copying.", sourceLockFilePath)
+		return nil
+	}
+
+	if !FileExists(sourceLockFilePath) {
+		logger.Debugf("Source lock file does not exist: %s. Not copying.", sourceLockFilePath)
+		return nil
+	}
+
+	sourceContents, sourceReadErr := os.ReadFile(sourceLockFilePath)
+	if sourceReadErr != nil {
+		return errors.New(sourceReadErr)
+	}
+
+	if !FileExists(destinationLockFilePath) {
+		logger.Debugf("Destination lock file does not exist: %s. Copying.", destinationLockFilePath)
+		return WriteFileWithSamePermissions(sourceLockFilePath, destinationLockFilePath, sourceContents)
+	}
+
+	destinationContents, destReadErr := os.ReadFile(destinationLockFilePath)
+	if destReadErr != nil {
+		return errors.New(destReadErr)
+	}
+
+	if bytes.Equal(sourceContents, destinationContents) {
+		logger.Debugf("Source and destination lock file contents are the same. Not copying.")
+		return nil
+	}
+
+	logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+	return WriteFileWithSamePermissions(sourceLockFilePath, destinationLockFilePath, sourceContents)
+}
+
 // GetExcludeDirsFromFile returns a list of directories from the given filename, where each directory path starts on a new line.
 func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 	filename, err := CanonicalPath(filename, baseDir)
