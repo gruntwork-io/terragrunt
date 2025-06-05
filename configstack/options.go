@@ -28,3 +28,9 @@ func WithReport(report *report.Report) Option {
 		stack.SetReport(report)
 	}
 }
+
+func WithReport(report *report.Report) Option {
+	return func(stack *Stack) {
+		stack.report = report
+	}
+}
