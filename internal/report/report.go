@@ -217,6 +217,12 @@ func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 	return nil
 }
 
+func (r *Report) SortRuns() {
+	slices.SortFunc(r.Runs, func(a, b *Run) int {
+		return a.Started.Compare(b.Started)
+	})
+}
+
 // EndOption are optional configurations for ending a run.
 type EndOption func(*Run)
 
@@ -374,18 +380,37 @@ func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 
 // WriteToFile writes the report to a file.
 func (r *Report) WriteToFile(path string) error {
-	file, err := os.Create(path)
+	// Create a temporary file to write to
+	tmpFile, err := os.CreateTemp("", "terragrunt-report-*.csv")
 	if err != nil {
 		return err
 	}
 
-	defer file.Close()
+	// Sort the runs before writing to the temporary file
+	r.mu.Lock()
+	r.SortRuns()
+	r.mu.Unlock()
 
-	return r.WriteCSV(file)
+	// Write the report to the temporary file
+	err = r.WriteCSV(tmpFile)
+	if err != nil {
+		return fmt.Errorf("failed to write report: %w", err)
+	}
+
+	// Close the temporary file
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close report file: %w", err)
+	}
+
+	// Move the temporary file to the final destination
+	return os.Rename(tmpFile.Name(), path)
 }
 
 // WriteCSV writes the report to a writer in CSV format.
 func (r *Report) WriteCSV(w io.Writer) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	csvWriter := csv.NewWriter(w)
 	defer csvWriter.Flush()
 
