@@ -125,7 +125,7 @@ func TestDocsQuickStart(t *testing.T) {
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("step-07", func(t *testing.T) {
