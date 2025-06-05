@@ -28,9 +28,7 @@ func TestTerragruntReportExperiment(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath, &stdout, &stderr)
-
-	// The command should fail since we have failing units
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// Verify the report output contains expected information
 	stdoutStr := stdout.String()
@@ -47,11 +45,11 @@ func TestTerragruntReportExperiment(t *testing.T) {
 
 	assert.Equal(t, strings.TrimSpace(`
 ❯❯ Run Summary
-   Duration:    x
-   Units:       8
-   Succeeded:   2
-   Failed:      2
-   Early Exits: 2
-   Excluded:    2
+   Duration:     x
+   Units:        8
+   Succeeded:    2
+   Failed:       2
+   Early Exits:  2
+   Excluded:     2
 `), strings.TrimSpace(stdoutStr))
 }

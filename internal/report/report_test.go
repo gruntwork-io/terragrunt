@@ -369,9 +369,9 @@ func TestWriteSummary(t *testing.T) {
 			},
 			expected: `
 ❯❯ Run Summary
-   Duration:  x
-   Units:     1
-   Succeeded: 1
+   Duration:   x
+   Units:      1
+   Succeeded:  1
 `,
 		},
 		{
@@ -415,12 +415,12 @@ func TestWriteSummary(t *testing.T) {
 			},
 			expected: `
 ❯❯ Run Summary
-   Duration:    x
-   Units:       8
-   Succeeded:   2
-   Failed:      2
-   Early Exits: 2
-   Excluded:    2
+   Duration:     x
+   Units:        8
+   Succeeded:    2
+   Failed:       2
+   Early Exits:  2
+   Excluded:     2
 `,
 		},
 	}
