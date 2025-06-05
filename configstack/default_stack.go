@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
@@ -34,7 +33,6 @@ type DefaultStack struct {
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	modules               TerraformModules
-	outputMu              sync.Mutex
 }
 
 func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) *DefaultStack {
@@ -42,14 +40,16 @@ func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts .
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
+
 	return stack.WithOptions(opts...)
 }
 
-// WithOptions Update WithOptions to use Option func(Stack)
+// WithOptions updates the stack with the provided options.
 func (stack *DefaultStack) WithOptions(opts ...Option) *DefaultStack {
 	for _, opt := range opts {
 		opt(stack)
 	}
+
 	return stack
 }
 
@@ -792,7 +792,7 @@ func (stack *DefaultStack) ListStackDependentModules() map[string][]string {
 	return dependentModules
 }
 
-// Implement Modules() for DefaultStack
+// Modules returns the Terraform modules in the stack.
 func (stack *DefaultStack) Modules() TerraformModules {
 	return stack.modules
 }
@@ -803,23 +803,26 @@ func (stack *DefaultStack) FindModuleByPath(path string) *TerraformModule {
 			return module
 		}
 	}
+
 	return nil
 }
 
-// Implement SetTerragruntConfig and GetTerragruntConfig for DefaultStack
+// SetTerragruntConfig sets the child Terragrunt config for the stack.
 func (stack *DefaultStack) SetTerragruntConfig(config *config.TerragruntConfig) {
 	stack.childTerragruntConfig = config
 }
 
+// GetTerragruntConfig returns the child Terragrunt config for the stack.
 func (stack *DefaultStack) GetTerragruntConfig() *config.TerragruntConfig {
 	return stack.childTerragruntConfig
 }
 
-// Implement SetParseOptions and GetParseOptions for DefaultStack
+// SetParseOptions sets the parser options for the stack.
 func (stack *DefaultStack) SetParseOptions(parserOptions []hclparse.Option) {
 	stack.parserOptions = parserOptions
 }
 
+// GetParseOptions returns the parser options for the stack.
 func (stack *DefaultStack) GetParseOptions() []hclparse.Option {
 	return stack.parserOptions
 }
