@@ -275,7 +275,7 @@ func (stack *DefaultStack) createStackForTerragruntConfigPaths(ctx context.Conte
 			return errors.New(err)
 		}
 
-		stack.modules = modules
+		stack.SetModules(modules)
 
 		return nil
 	})
@@ -827,4 +827,9 @@ func (stack *DefaultStack) SetParseOptions(parserOptions []hclparse.Option) {
 // GetParseOptions returns the parser options for the stack.
 func (stack *DefaultStack) GetParseOptions() []hclparse.Option {
 	return stack.parserOptions
+}
+
+// SetModules sets the Terraform modules for the stack.
+func (stack *DefaultStack) SetModules(modules TerraformModules) {
+	stack.modules = modules
 }

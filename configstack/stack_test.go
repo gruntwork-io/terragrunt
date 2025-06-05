@@ -156,7 +156,7 @@ func createTestStack() configstack.Stack {
 	}
 
 	stack := configstack.NewDefaultStack(l, mockOptions)
-	SetModules(stack, configstack.TerraformModules{
+	stack.SetModules(configstack.TerraformModules{
 		accountBaseline,
 		vpc,
 		lambda,
@@ -1282,7 +1282,7 @@ func TestBasicDependency(t *testing.T) {
 	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}, Logger: l}
 
 	stack := configstack.NewDefaultStack(l, mockOptions)
-	SetModules(stack, configstack.TerraformModules{moduleA, moduleB, moduleC})
+	stack.SetModules(configstack.TerraformModules{moduleA, moduleB, moduleC})
 
 	expected := map[string][]string{
 		"B": {"A"},
@@ -1308,7 +1308,7 @@ func TestNestedDependencies(t *testing.T) {
 
 	// Create a mock stack
 	stack := configstack.NewDefaultStack(l, mockOptions)
-	SetModules(stack, configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD})
+	stack.SetModules(configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD})
 
 	// Expected result
 	expected := map[string][]string{
@@ -1340,7 +1340,7 @@ func TestCircularDependencies(t *testing.T) {
 	moduleC.Dependencies = configstack.TerraformModules{moduleA} // Circular dependency
 
 	stack := configstack.NewDefaultStack(l, mockOptions)
-	SetModules(stack, configstack.TerraformModules{moduleA, moduleB, moduleC})
+	stack.SetModules(configstack.TerraformModules{moduleA, moduleB, moduleC})
 
 	expected := map[string][]string{
 		"A": {"C", "B"},
@@ -1354,12 +1354,4 @@ func TestCircularDependencies(t *testing.T) {
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Expected %v, got %v", expected, result)
 	}
-}
-
-// Add a helper to set modules for DefaultStack in tests
-func SetModules(stack *configstack.DefaultStack, modules configstack.TerraformModules) {
-	// This is only for test setup
-	stackValue := reflect.ValueOf(stack).Elem()
-	modulesField := stackValue.FieldByName("modules")
-	modulesField.Set(reflect.ValueOf(modules))
 }
