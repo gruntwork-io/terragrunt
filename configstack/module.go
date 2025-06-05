@@ -61,6 +61,9 @@ func (module *TerraformModule) MarshalJSON() ([]byte, error) {
 // FlushOutput flushes buffer data to the output writer.
 func (module *TerraformModule) FlushOutput() error {
 	if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
+		module.Stack.Lock()
+		defer module.Stack.Unlock()
+
 		return writer.Flush()
 	}
 

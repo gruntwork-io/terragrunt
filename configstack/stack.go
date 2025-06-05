@@ -27,6 +27,8 @@ type Stack interface {
 	GetTerragruntConfig() *config.TerragruntConfig
 	SetParseOptions(parserOptions []hclparse.Option)
 	GetParseOptions() []hclparse.Option
+	Lock()
+	Unlock()
 }
 
 // StackBuilder is the abstraction for building a Stack.

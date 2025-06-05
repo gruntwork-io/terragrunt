@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
@@ -33,6 +34,7 @@ type DefaultStack struct {
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	modules               TerraformModules
+	outputMu              sync.Mutex
 }
 
 // NewDefaultStack creates a new DefaultStack.
@@ -832,4 +834,14 @@ func (stack *DefaultStack) GetParseOptions() []hclparse.Option {
 // SetModules sets the Terraform modules for the stack.
 func (stack *DefaultStack) SetModules(modules TerraformModules) {
 	stack.modules = modules
+}
+
+// Lock locks the stack for concurrency control.
+func (stack *DefaultStack) Lock() {
+	stack.outputMu.Lock()
+}
+
+// Unlock unlocks the stack for concurrency control.
+func (stack *DefaultStack) Unlock() {
+	stack.outputMu.Unlock()
 }
