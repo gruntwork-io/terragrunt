@@ -12,6 +12,7 @@ import (
 // DefaultStackBuilder implements StackBuilder for DefaultStack
 type DefaultStackBuilder struct{}
 
+// BuildStack builds a new DefaultStack.
 func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
 	var terragruntConfigFiles []string
 
@@ -32,7 +33,7 @@ func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terr
 		return nil, err
 	}
 
-	stack := NewStack(l, terragruntOptions, opts...)
+	stack := NewDefaultStack(l, terragruntOptions, opts...)
 	if err := stack.createStackForTerragruntConfigPaths(ctx, l, terragruntConfigFiles); err != nil {
 		return nil, err
 	}

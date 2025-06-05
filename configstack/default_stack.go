@@ -35,7 +35,8 @@ type DefaultStack struct {
 	modules               TerraformModules
 }
 
-func NewStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) *DefaultStack {
+// NewDefaultStack creates a new DefaultStack.
+func NewDefaultStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) *DefaultStack {
 	stack := &DefaultStack{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
@@ -797,6 +798,7 @@ func (stack *DefaultStack) Modules() TerraformModules {
 	return stack.modules
 }
 
+// FindModuleByPath finds a module by its path.
 func (stack *DefaultStack) FindModuleByPath(path string) *TerraformModule {
 	for _, module := range stack.modules {
 		if module.Path == path {
