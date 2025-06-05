@@ -113,12 +113,17 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 			// after the error summary.
 			l.Errorf("Run failed: %v", err)
 
+			// Update the exit code in ctx
 			exitCode := tf.DetailedExitCodeFromContext(ctx)
-			if exitCode != nil {
-				exitCode.Set(int(cli.ExitCodeGeneralError))
+			if exitCode == nil {
+				exitCode = &tf.DetailedExitCode{
+					Code: 1,
+				}
 			}
 
-			return cli.NewExitError(errors.New(""), cli.ExitCode(exitCode.Get()))
+			exitCode.Set(int(cli.ExitCodeGeneralError))
+
+			return cli.NewExitError("", cli.ExitCodeGeneralError)
 		}
 
 		return nil
