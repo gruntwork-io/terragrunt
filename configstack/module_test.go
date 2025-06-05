@@ -23,14 +23,14 @@ func TestGraph(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	a := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "a", Logger: l}
-	b := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "b", Logger: l}
-	c := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "c", Logger: l}
-	d := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "d", Logger: l}
-	e := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "e", Dependencies: []*configstack.TerraformModule{a}, Logger: l}
-	f := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "f", Dependencies: []*configstack.TerraformModule{a, b}, Logger: l}
-	g := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "g", Dependencies: []*configstack.TerraformModule{e}, Logger: l}
-	h := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}, Logger: l}
+	a := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "a", Logger: l}
+	b := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "b", Logger: l}
+	c := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "c", Logger: l}
+	d := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "d", Logger: l}
+	e := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "e", Dependencies: []*configstack.TerraformModule{a}, Logger: l}
+	f := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "f", Dependencies: []*configstack.TerraformModule{a, b}, Logger: l}
+	g := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "g", Dependencies: []*configstack.TerraformModule{e}, Logger: l}
+	h := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}, Logger: l}
 
 	modules := configstack.TerraformModules{a, b, c, d, e, f, g, h}
 
@@ -71,14 +71,14 @@ func TestGraphTrimPrefix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	a := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/a", Logger: l}
-	b := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/b", Logger: l}
-	c := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/c", Logger: l}
-	d := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/d", Logger: l}
-	e := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/alpha/beta/gamma/e", Dependencies: []*configstack.TerraformModule{a}, Logger: l}
-	f := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/alpha/beta/gamma/f", Dependencies: []*configstack.TerraformModule{a, b}, Logger: l}
-	g := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/alpha/g", Dependencies: []*configstack.TerraformModule{e}, Logger: l}
-	h := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "/config/alpha/beta/h", Dependencies: []*configstack.TerraformModule{g, f, c}, Logger: l}
+	a := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "/config/a", Logger: l}
+	b := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "/config/b", Logger: l}
+	c := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "/config/c", Logger: l}
+	d := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "/config/d", Logger: l}
+	e := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "/config/alpha/beta/gamma/e", Dependencies: []*configstack.TerraformModule{a}, Logger: l}
+	f := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "/config/alpha/beta/gamma/f", Dependencies: []*configstack.TerraformModule{a, b}, Logger: l}
+	g := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "/config/alpha/g", Dependencies: []*configstack.TerraformModule{e}, Logger: l}
+	h := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "/config/alpha/beta/h", Dependencies: []*configstack.TerraformModule{g, f, c}, Logger: l}
 
 	modules := configstack.TerraformModules{a, b, c, d, e, f, g, h}
 
@@ -116,14 +116,14 @@ func TestGraphFlagExcluded(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	a := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "a", FlagExcluded: true, Logger: l}
-	b := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "b", Logger: l}
-	c := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "c", Logger: l}
-	d := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "d", Logger: l}
-	e := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "e", Dependencies: []*configstack.TerraformModule{a}, Logger: l}
-	f := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "f", FlagExcluded: true, Dependencies: []*configstack.TerraformModule{a, b}, Logger: l}
-	g := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "g", Dependencies: []*configstack.TerraformModule{e}, Logger: l}
-	h := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}, Logger: l}
+	a := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "a", FlagExcluded: true, Logger: l}
+	b := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "b", Logger: l}
+	c := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "c", Logger: l}
+	d := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "d", Logger: l}
+	e := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "e", Dependencies: []*configstack.TerraformModule{a}, Logger: l}
+	f := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "f", FlagExcluded: true, Dependencies: []*configstack.TerraformModule{a, b}, Logger: l}
+	g := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "g", Dependencies: []*configstack.TerraformModule{e}, Logger: l}
+	h := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}, Logger: l}
 
 	modules := configstack.TerraformModules{a, b, c, d, e, f, g, h}
 
@@ -165,49 +165,49 @@ func TestCheckForCycles(t *testing.T) {
 	////////////////////////////////////
 	// These modules have no dependencies
 	////////////////////////////////////
-	a := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "a", Logger: l}
-	b := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "b", Logger: l}
-	c := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "c", Logger: l}
-	d := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "d", Logger: l}
+	a := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "a", Logger: l}
+	b := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "b", Logger: l}
+	c := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "c", Logger: l}
+	d := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "d", Logger: l}
 
 	////////////////////////////////////
 	// These modules have dependencies, but no cycles
 	////////////////////////////////////
 
 	// e -> a
-	e := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "e", Dependencies: []*configstack.TerraformModule{a}, Logger: l}
+	e := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "e", Dependencies: []*configstack.TerraformModule{a}, Logger: l}
 
 	// f -> a, b
-	f := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "f", Dependencies: []*configstack.TerraformModule{a, b}, Logger: l}
+	f := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "f", Dependencies: []*configstack.TerraformModule{a, b}, Logger: l}
 
 	// g -> e -> a
-	g := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "g", Dependencies: []*configstack.TerraformModule{e}, Logger: l}
+	g := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "g", Dependencies: []*configstack.TerraformModule{e}, Logger: l}
 
 	// h -> g -> e -> a
 	// |            /
 	//  --> f -> b
 	// |
 	//  --> c
-	h := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}, Logger: l}
+	h := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}, Logger: l}
 
 	////////////////////////////////////
 	// These modules have dependencies and cycles
 	////////////////////////////////////
 
 	// i -> i
-	i := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "i", Dependencies: []*configstack.TerraformModule{}, Logger: l}
+	i := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "i", Dependencies: []*configstack.TerraformModule{}, Logger: l}
 	i.Dependencies = append(i.Dependencies, i)
 
 	// j -> k -> j
-	j := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "j", Dependencies: []*configstack.TerraformModule{}, Logger: l}
-	k := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "k", Dependencies: []*configstack.TerraformModule{j}, Logger: l}
+	j := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "j", Dependencies: []*configstack.TerraformModule{}, Logger: l}
+	k := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "k", Dependencies: []*configstack.TerraformModule{j}, Logger: l}
 	j.Dependencies = append(j.Dependencies, k)
 
 	// l -> m -> n -> o -> l
-	moduleL := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "l", Dependencies: []*configstack.TerraformModule{}, Logger: l}
-	o := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "o", Dependencies: []*configstack.TerraformModule{moduleL}, Logger: l}
-	n := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "n", Dependencies: []*configstack.TerraformModule{o}, Logger: l}
-	m := &configstack.TerraformModule{Stack: &configstack.Stack{}, Path: "m", Dependencies: []*configstack.TerraformModule{n}, Logger: l}
+	moduleL := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "l", Dependencies: []*configstack.TerraformModule{}, Logger: l}
+	o := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "o", Dependencies: []*configstack.TerraformModule{moduleL}, Logger: l}
+	n := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "n", Dependencies: []*configstack.TerraformModule{o}, Logger: l}
+	m := &configstack.TerraformModule{Stack: &configstack.DefaultStack{}, Path: "m", Dependencies: []*configstack.TerraformModule{n}, Logger: l}
 	moduleL.Dependencies = append(moduleL.Dependencies, m)
 
 	testCases := []struct {
@@ -220,7 +220,7 @@ func TestCheckForCycles(t *testing.T) {
 		{[]*configstack.TerraformModule{a, e}, nil},
 		{[]*configstack.TerraformModule{a, b, f}, nil},
 		{[]*configstack.TerraformModule{a, e, g}, nil},
-		{[]*configstack.TerraformModule{a, b, c, e, f, g, h}, nil},
+		{configstack.TerraformModules{a, b, c, e, f, g, h}, nil},
 		{[]*configstack.TerraformModule{i}, configstack.DependencyCycleError([]string{"i", "i"})},
 		{[]*configstack.TerraformModule{j, k}, configstack.DependencyCycleError([]string{"j", "k", "j"})},
 		{[]*configstack.TerraformModule{moduleL, o, n, m}, configstack.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
@@ -256,7 +256,7 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -279,7 +279,7 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:                &configstack.Stack{},
+		Stack:                &configstack.DefaultStack{},
 		Path:                 "a",
 		Dependencies:         configstack.TerraformModules{},
 		Config:               config.TerragruntConfig{},
@@ -303,7 +303,7 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -326,7 +326,7 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -350,7 +350,7 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -374,7 +374,7 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -399,7 +399,7 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -423,7 +423,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -433,7 +433,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -443,7 +443,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -470,7 +470,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -480,7 +480,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -490,7 +490,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -517,7 +517,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -527,7 +527,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -537,7 +537,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -564,7 +564,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -574,7 +574,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -584,7 +584,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -611,7 +611,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -622,7 +622,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -632,7 +632,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -660,7 +660,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -671,7 +671,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -682,7 +682,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	cRan := false
 	expectedErrC := errors.New("Expected error for module c")
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -709,7 +709,7 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -719,7 +719,7 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -729,7 +729,7 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -756,7 +756,7 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -766,7 +766,7 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -776,7 +776,7 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:                &configstack.Stack{},
+		Stack:                &configstack.DefaultStack{},
 		Path:                 "c",
 		Dependencies:         configstack.TerraformModules{moduleB},
 		Config:               config.TerragruntConfig{},
@@ -787,7 +787,7 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 
 	dRan := false
 	moduleD := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "d",
 		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
@@ -815,7 +815,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -825,7 +825,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -835,7 +835,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -862,7 +862,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -872,7 +872,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -882,7 +882,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -909,7 +909,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -920,7 +920,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -930,7 +930,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -961,7 +961,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	terragruntOptionsA := optionsWithMockTerragruntCommand(t, "a", nil, &aRan)
 	terragruntOptionsA.IgnoreDependencyErrors = true
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -974,7 +974,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	terragruntOptionsB := optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan)
 	terragruntOptionsB.IgnoreDependencyErrors = true
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -986,7 +986,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	terragruntOptionsC := optionsWithMockTerragruntCommand(t, "c", nil, &cRan)
 	terragruntOptionsC.IgnoreDependencyErrors = true
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -1013,7 +1013,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1024,7 +1024,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -1034,7 +1034,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -1063,7 +1063,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1074,7 +1074,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -1084,7 +1084,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -1112,7 +1112,7 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1122,7 +1122,7 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -1132,7 +1132,7 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -1163,7 +1163,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1173,7 +1173,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -1183,7 +1183,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -1210,7 +1210,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1220,7 +1220,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -1230,7 +1230,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 
 	cRan := false
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -1240,7 +1240,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 
 	dRan := false
 	moduleD := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "d",
 		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC},
 		Config:            config.TerragruntConfig{},
@@ -1250,7 +1250,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 
 	eRan := false
 	moduleE := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "e",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1260,7 +1260,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 
 	fRan := false
 	moduleF := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "f",
 		Dependencies:      configstack.TerraformModules{moduleE, moduleD},
 		Config:            config.TerragruntConfig{},
@@ -1290,7 +1290,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "large-graph-a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1300,7 +1300,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "large-graph-b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -1311,7 +1311,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	cRan := false
 	expectedErrC := errors.New("Expected error for module large-graph-c")
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "large-graph-c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -1321,7 +1321,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 
 	dRan := false
 	moduleD := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "large-graph-d",
 		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC},
 		Config:            config.TerragruntConfig{},
@@ -1331,7 +1331,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 
 	eRan := false
 	moduleE := &configstack.TerraformModule{
-		Stack:                &configstack.Stack{},
+		Stack:                &configstack.DefaultStack{},
 		Path:                 "large-graph-e",
 		Dependencies:         configstack.TerraformModules{},
 		Config:               config.TerragruntConfig{},
@@ -1342,7 +1342,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 
 	fRan := false
 	moduleF := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "large-graph-f",
 		Dependencies:      configstack.TerraformModules{moduleE, moduleD},
 		Config:            config.TerragruntConfig{},
@@ -1352,7 +1352,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 
 	gRan := false
 	moduleG := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "large-graph-g",
 		Dependencies:      configstack.TerraformModules{moduleE},
 		Config:            config.TerragruntConfig{},
@@ -1386,7 +1386,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 
 	aRan := false
 	moduleA := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1396,7 +1396,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 
 	bRan := false
 	moduleB := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -1407,7 +1407,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	cRan := false
 	expectedErrC := errors.New("Expected error for module c")
 	moduleC := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
@@ -1417,7 +1417,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 
 	dRan := false
 	moduleD := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "d",
 		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC},
 		Config:            config.TerragruntConfig{},
@@ -1427,7 +1427,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 
 	eRan := false
 	moduleE := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "e",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -1437,7 +1437,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 
 	fRan := false
 	moduleF := &configstack.TerraformModule{
-		Stack:             &configstack.Stack{},
+		Stack:             &configstack.DefaultStack{},
 		Path:              "f",
 		Dependencies:      configstack.TerraformModules{moduleE, moduleD},
 		Config:            config.TerragruntConfig{},
