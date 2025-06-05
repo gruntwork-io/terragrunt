@@ -410,6 +410,10 @@ func (r *Report) WriteToFile(path string) error {
 		return fmt.Errorf("failed to close report file: %w", err)
 	}
 
+	if r.workingDir != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(r.workingDir, path)
+	}
+
 	// Move the temporary file to the final destination
 	return os.Rename(tmpFile.Name(), path)
 }

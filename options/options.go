@@ -171,6 +171,8 @@ type TerragruntOptions struct {
 	ScaffoldOutputFolder string
 	// Root directory for graph command.
 	GraphRoot string
+	// Path to the report file.
+	ReportFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs cli.Args
 	// Unix-style glob of directories to include when running *-all commands
