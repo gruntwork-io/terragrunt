@@ -3372,7 +3372,7 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color", &stdout, &stderr)
-	require.Error(t, err)
+	require.NoError(t, err)
 	output := fmt.Sprintf("%s\n%s\n", stdout.String(), stderr.String())
 	assert.Contains(t, output, "finished with an error")
 	assert.Contains(t, output, "Module ./d1", output)

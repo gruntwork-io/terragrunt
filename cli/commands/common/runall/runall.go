@@ -123,7 +123,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 			exitCode.Set(int(cli.ExitCodeGeneralError))
 
-			return cli.NewExitError("", cli.ExitCodeGeneralError)
+			return nil
 		}
 
 		return nil
