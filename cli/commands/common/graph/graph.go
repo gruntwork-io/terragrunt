@@ -50,7 +50,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	stackOpts := []configstack.Option{}
 
 	if opts.Experiments.Evaluate(experiment.Report) {
-		r := report.NewReport()
+		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
 		if l.Formatter().DisabledColors() || stdout.IsRedirected() {
 			r.WithDisableColor()
