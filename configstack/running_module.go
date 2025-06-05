@@ -217,7 +217,7 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 					}
 
 					if err := r.EndRun(
-						run.Name,
+						run.Path,
 						report.WithResult(report.ResultEarlyExit),
 						report.WithReason(report.ReasonRunError),
 					); err != nil {
@@ -373,7 +373,7 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 			}
 
 			if err := r.EndRun(
-				run.Name,
+				run.Path,
 				report.WithResult(report.ResultExcluded),
 				report.WithReason(report.ReasonExcludeBlock),
 			); err != nil {

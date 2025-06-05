@@ -2,10 +2,13 @@ package report_test
 
 import (
 	"bytes"
+	"encoding/csv"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +32,7 @@ func TestNewRun(t *testing.T) {
 	path := filepath.Join(tmp, "test-run")
 	run := newRun(t, path)
 	assert.NotNil(t, run)
-	assert.Equal(t, path, run.Name)
+	assert.Equal(t, path, run.Path)
 	assert.False(t, run.Started.IsZero())
 	assert.True(t, run.Ended.IsZero())
 	assert.Empty(t, run.Result)
@@ -89,7 +92,7 @@ func TestGetRun(t *testing.T) {
 				assert.ErrorIs(t, err, tt.expectedErr)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.runName, run.Name)
+				assert.Equal(t, tt.runName, run.Path)
 			}
 		})
 	}
@@ -260,73 +263,56 @@ func TestSummarize(t *testing.T) {
 func TestWriteCSV(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
-
 	tests := []struct {
 		name     string
-		setup    func(*report.Report)
-		expected []string
+		setup    func(dir string, r *report.Report)
+		expected [][]string
 	}{
 		{
 			name: "single successful run",
-			setup: func(r *report.Report) {
-				run := newRun(t, filepath.Join(tmp, "successful-run"))
+			setup: func(dir string, r *report.Report) {
+				run := newRun(t, filepath.Join(dir, "successful-run"))
 				r.AddRun(run)
-				r.EndRun(run.Name)
+				r.EndRun(run.Path)
 			},
-			expected: []string{
-				"Name,Started,Ended,Result,Reason,Cause",
-				"successful-run,",
-				"succeeded",
-				"",
-				"",
+			expected: [][]string{
+				{"Name", "Started", "Ended", "Result", "Reason", "Cause"},
+				{"successful-run", "", "", "succeeded", "", ""},
 			},
 		},
 		{
 			name: "complex mixed results",
-			setup: func(r *report.Report) {
+			setup: func(dir string, r *report.Report) {
 				// Add successful run
-				successRun := newRun(t, filepath.Join(tmp, "success-run"))
+				successRun := newRun(t, filepath.Join(dir, "success-run"))
 				r.AddRun(successRun)
-				r.EndRun(successRun.Name)
+				r.EndRun(successRun.Path)
 
 				// Add failed run with reason
-				failedRun := newRun(t, filepath.Join(tmp, "failed-run"))
+				failedRun := newRun(t, filepath.Join(dir, "failed-run"))
 				r.AddRun(failedRun)
-				r.EndRun(failedRun.Name, report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
+				r.EndRun(failedRun.Path, report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
 
 				// Add excluded run with cause
-				excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+				excludedRun := newRun(t, filepath.Join(dir, "excluded-run"))
 				r.AddRun(excludedRun)
-				r.EndRun(excludedRun.Name, report.WithResult(report.ResultExcluded), report.WithCauseRetryBlock("test-block"))
+				r.EndRun(excludedRun.Path, report.WithResult(report.ResultExcluded), report.WithCauseRetryBlock("test-block"))
 
 				// Add early exit run with both reason and cause
-				earlyExitRun := newRun(t, filepath.Join(tmp, "early-exit-run"))
+				earlyExitRun := newRun(t, filepath.Join(dir, "early-exit-run"))
 				r.AddRun(earlyExitRun)
-				r.EndRun(earlyExitRun.Name,
+				r.EndRun(earlyExitRun.Path,
 					report.WithResult(report.ResultEarlyExit),
 					report.WithReason(report.ReasonRunError),
 					report.WithCauseRetryBlock("another-block"),
 				)
 			},
-			expected: []string{
-				"Name,Started,Ended,Result,Reason,Cause",
-				"success-run,",
-				"succeeded",
-				"",
-				"",
-				"failed-run,",
-				"failed",
-				"run error",
-				"",
-				"excluded-run,",
-				"excluded",
-				"",
-				"test-block",
-				"early-exit-run,",
-				"early exit",
-				"run error",
-				"another-block",
+			expected: [][]string{
+				{"Name", "Started", "Ended", "Result", "Reason", "Cause"},
+				{"success-run", "", "", "succeeded", "", ""},
+				{"failed-run", "", "", "failed", "run error", ""},
+				{"excluded-run", "", "", "excluded", "", "test-block"},
+				{"early-exit-run", "", "", "early exit", "run error", "another-block"},
 			},
 		},
 	}
@@ -335,16 +321,63 @@ func TestWriteCSV(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			r := report.NewReport()
-			tt.setup(r)
+			tmp := t.TempDir()
 
-			var buf bytes.Buffer
-			err := r.WriteCSV(&buf)
+			// Create a temporary file for the CSV
+			csvFile := filepath.Join(tmp, "report.csv")
+			file, err := os.Create(csvFile)
+			require.NoError(t, err)
+			defer file.Close()
+
+			// Setup and write the report
+			r := report.NewReport().WithWorkingDir(tmp)
+			tt.setup(tmp, r)
+
+			err = r.WriteCSV(file)
 			require.NoError(t, err)
 
-			output := buf.String()
-			for _, exp := range tt.expected {
-				assert.Contains(t, output, exp)
+			// Close the file before reading
+			file.Close()
+
+			// Read the CSV file
+			file, err = os.Open(csvFile)
+			require.NoError(t, err)
+			defer file.Close()
+
+			reader := csv.NewReader(file)
+			records, err := reader.ReadAll()
+			require.NoError(t, err)
+
+			// Verify the number of records
+			require.Equal(t, len(tt.expected), len(records))
+
+			// Verify each record
+			for i, record := range records {
+				expected := tt.expected[i]
+				require.Equal(t, len(expected), len(record), "Record %d has wrong number of fields", i)
+
+				// For the header row, verify exact match
+				if i == 0 {
+					assert.Equal(t, expected, record)
+					continue
+				}
+
+				// For data rows, verify fields individually
+				assert.Equal(t, expected[0], record[0], "Name mismatch in record %d", i)
+				// Skip timestamp verification for Started and Ended fields
+				assert.Equal(t, expected[3], record[3], "Result mismatch in record %d", i)
+				assert.Equal(t, expected[4], record[4], "Reason mismatch in record %d", i)
+				assert.Equal(t, expected[5], record[5], "Cause mismatch in record %d", i)
+
+				// Verify that timestamps are in RFC3339 format
+				if record[1] != "" {
+					_, err := time.Parse(time.RFC3339, record[1])
+					assert.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
+				}
+				if record[2] != "" {
+					_, err := time.Parse(time.RFC3339, record[2])
+					assert.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
+				}
 			}
 		})
 	}
@@ -365,7 +398,7 @@ func TestWriteSummary(t *testing.T) {
 			setup: func(r *report.Report) {
 				run := newRun(t, filepath.Join(tmp, "successful-run"))
 				r.AddRun(run)
-				r.EndRun(run.Name)
+				r.EndRun(run.Path)
 			},
 			expected: `
 ❯❯ Run Summary
@@ -380,38 +413,38 @@ func TestWriteSummary(t *testing.T) {
 				// Add successful runs
 				firstSuccessfulRun := newRun(t, filepath.Join(tmp, "first-successful-run"))
 				r.AddRun(firstSuccessfulRun)
-				r.EndRun(firstSuccessfulRun.Name)
+				r.EndRun(firstSuccessfulRun.Path)
 
 				secondSuccessfulRun := newRun(t, filepath.Join(tmp, "second-successful-run"))
 				r.AddRun(secondSuccessfulRun)
-				r.EndRun(secondSuccessfulRun.Name)
+				r.EndRun(secondSuccessfulRun.Path)
 
 				// Add failed runs
 				firstFailedRun := newRun(t, filepath.Join(tmp, "first-failed-run"))
 				r.AddRun(firstFailedRun)
-				r.EndRun(firstFailedRun.Name, report.WithResult(report.ResultFailed))
+				r.EndRun(firstFailedRun.Path, report.WithResult(report.ResultFailed))
 
 				secondFailedRun := newRun(t, filepath.Join(tmp, "second-failed-run"))
 				r.AddRun(secondFailedRun)
-				r.EndRun(secondFailedRun.Name, report.WithResult(report.ResultFailed))
+				r.EndRun(secondFailedRun.Path, report.WithResult(report.ResultFailed))
 
 				// Add excluded runs
 				firstExcludedRun := newRun(t, filepath.Join(tmp, "first-excluded-run"))
 				r.AddRun(firstExcludedRun)
-				r.EndRun(firstExcludedRun.Name, report.WithResult(report.ResultExcluded))
+				r.EndRun(firstExcludedRun.Path, report.WithResult(report.ResultExcluded))
 
 				secondExcludedRun := newRun(t, filepath.Join(tmp, "second-excluded-run"))
 				r.AddRun(secondExcludedRun)
-				r.EndRun(secondExcludedRun.Name, report.WithResult(report.ResultExcluded))
+				r.EndRun(secondExcludedRun.Path, report.WithResult(report.ResultExcluded))
 
 				// Add early exit runs
 				firstEarlyExitRun := newRun(t, filepath.Join(tmp, "first-early-exit-run"))
 				r.AddRun(firstEarlyExitRun)
-				r.EndRun(firstEarlyExitRun.Name, report.WithResult(report.ResultEarlyExit))
+				r.EndRun(firstEarlyExitRun.Path, report.WithResult(report.ResultEarlyExit))
 
 				secondEarlyExitRun := newRun(t, filepath.Join(tmp, "second-early-exit-run"))
 				r.AddRun(secondEarlyExitRun)
-				r.EndRun(secondEarlyExitRun.Name, report.WithResult(report.ResultEarlyExit))
+				r.EndRun(secondEarlyExitRun.Path, report.WithResult(report.ResultEarlyExit))
 			},
 			expected: `
 ❯❯ Run Summary

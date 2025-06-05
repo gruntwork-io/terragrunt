@@ -20,6 +20,7 @@ import (
 // Report captures data for a report/summary.
 type Report struct {
 	Runs        []*Run
+	workingDir  string
 	shouldColor bool
 	mu          sync.RWMutex
 }
@@ -30,7 +31,7 @@ type Run struct {
 	Ended   time.Time
 	Reason  *Reason
 	Cause   *Cause
-	Name    string
+	Path    string
 	Result  Result
 	mu      sync.RWMutex
 }
@@ -122,6 +123,13 @@ func (r *Report) WithDisableColor() *Report {
 	return r
 }
 
+// WithWorkingDir sets the working directory for the report.
+func (r *Report) WithWorkingDir(workingDir string) *Report {
+	r.workingDir = workingDir
+
+	return r
+}
+
 // ErrPathMustBeAbsolute is returned when a report run path is not absolute.
 var ErrPathMustBeAbsolute = errors.New("report run path must be absolute")
 
@@ -133,7 +141,7 @@ func NewRun(path string) (*Run, error) {
 	}
 
 	return &Run{
-		Name:    path,
+		Path:    path,
 		Started: time.Now(),
 	}, nil
 }
@@ -148,8 +156,8 @@ func (r *Report) AddRun(run *Run) error {
 	defer r.mu.Unlock()
 
 	for _, existingRun := range r.Runs {
-		if existingRun.Name == run.Name {
-			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Name)
+		if existingRun.Path == run.Path {
+			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Path)
 		}
 	}
 
@@ -172,7 +180,7 @@ func (r *Report) GetRun(path string) (*Run, error) {
 	}
 
 	for _, run := range r.Runs {
-		if run.Name == path {
+		if run.Path == path {
 			return run, nil
 		}
 	}
@@ -194,7 +202,7 @@ func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 	var run *Run
 
 	for _, existingRun := range r.Runs {
-		if existingRun.Name == path {
+		if existingRun.Path == path {
 			run = existingRun
 			break
 		}
@@ -430,7 +438,12 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		run.mu.RLock()
 		defer run.mu.RUnlock()
 
-		name := run.Name
+		name := run.Path
+
+		if r.workingDir != "" {
+			name = strings.TrimPrefix(name, r.workingDir+string(os.PathSeparator))
+		}
+
 		started := run.Started.Format(time.RFC3339)
 		ended := run.Ended.Format(time.RFC3339)
 		result := string(run.Result)
