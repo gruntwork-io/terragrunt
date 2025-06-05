@@ -51,7 +51,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	return RunAllOnStack(ctx, l, opts, stack)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stack *configstack.Stack) error {
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stack configstack.Stack) error {
 	l.Debugf("%s", stack.String())
 
 	if err := stack.LogModuleDeployOrder(l, opts.TerraformCommand); err != nil {
