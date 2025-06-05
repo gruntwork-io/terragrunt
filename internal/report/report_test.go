@@ -264,8 +264,6 @@ func TestSummarize(t *testing.T) {
 func TestWriteCSV(t *testing.T) {
 	t.Parallel()
 
-	tmp := t.TempDir()
-
 	tests := []struct {
 		name     string
 		setup    func(dir string, r *report.Report)
