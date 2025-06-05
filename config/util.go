@@ -6,10 +6,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// CopyLockFile ensures that the Terraform lock file from sourceFolder is
-// replicated in destinationFolder. The file is only written when the contents
-// differ, matching Terraform's behaviour of updating the lock file only when it
-// changes.
+// CopyLockFile copies the lock file from the source folder to the destination folder.
+//
+// Terraform 0.14 now generates a lock file when you run `terraform init`.
+// If any such file exists, this function will copy the lock file to the destination folder
 func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, destinationFolder string) error {
 	return util.CopyLockFile(sourceFolder, destinationFolder, l)
 }
