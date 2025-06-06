@@ -191,6 +191,7 @@ func (r *Report) GetRun(path string) (*Run, error) {
 // EndRun ends a run and adds it to the report.
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
+// If the run has already ended, it does nothing.
 func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -465,6 +466,10 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		cause := ""
 		if run.Cause != nil {
 			cause = string(*run.Cause)
+
+			if reason == string(ReasonAncestorError) && r.workingDir != "" {
+				cause = strings.TrimPrefix(cause, r.workingDir+string(os.PathSeparator))
+			}
 		}
 
 		err := csvWriter.Write([]string{

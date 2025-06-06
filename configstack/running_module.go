@@ -234,7 +234,9 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 				report.WithReason(report.ReasonRunError),
 			); err != nil {
 				// If we can't find the run, then it never started,
-				// so we should end it as an early exit.
+				// So we should start it and then end it as a failed run.
+				//
+				// Early exit runs should already be ended at this point.
 				if errors.Is(err, report.ErrRunNotFound) {
 					run, err := report.NewRun(module.Module.Path)
 					if err != nil {
@@ -249,7 +251,7 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 
 					if err := r.EndRun(
 						run.Path,
-						report.WithResult(report.ResultEarlyExit),
+						report.WithResult(report.ResultFailed),
 						report.WithReason(report.ReasonRunError),
 					); err != nil {
 						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)

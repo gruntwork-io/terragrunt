@@ -114,7 +114,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	expectedRecords := [][]string{
 		{"chain-a", "", "", "failed", "run error", ""},
 		{"chain-b", "", "", "early exit", "ancestor error", "chain-a"},
-		{"chain-c", "", "", "early exit", "ancestor error", "chain-a"},
+		{"chain-c", "", "", "early exit", "ancestor error", "chain-b"},
 		{"error-ignore", "", "", "succeeded", "error ignored", "ignore_everything"},
 		{"first-early-exit", "", "", "early exit", "run error", ""},
 		{"first-exclude", "", "", "excluded", "exclude block", ""},
