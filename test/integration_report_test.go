@@ -88,7 +88,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	// Run terragrunt with report experiment enabled and save to file
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --report-file report.csv", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --queue-exclude-dir "+util.JoinPath(rootPath, "second-exclude")+" --report-file report.csv", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report file exists
@@ -113,22 +113,22 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 
 	expectedRecords := [][]string{
 		{"chain-a", "", "", "failed", "run error", ""},
-		{"chain-b", "", "", "early exit", "run error", ""},
-		{"chain-c", "", "", "early exit", "run error", ""},
-		{"error-ignore", "", "", "succeeded", "", ""},
+		{"chain-b", "", "", "early exit", "ancestor error", "chain-a"},
+		{"chain-c", "", "", "early exit", "ancestor error", "chain-a"},
+		{"error-ignore", "", "", "succeeded", "error ignored", "ignore_everything"},
 		{"first-early-exit", "", "", "early exit", "run error", ""},
 		{"first-exclude", "", "", "excluded", "exclude block", ""},
 		{"first-failure", "", "", "failed", "run error", ""},
 		{"first-success", "", "", "succeeded", "", ""},
-		{"retry-success", "", "", "succeeded", "", ""},
-		{"second-early-exit", "", "", "early exit", "run error", ""},
-		{"second-exclude", "", "", "excluded", "exclude block", ""},
+		{"retry-success", "", "", "succeeded", "retry succeeded", "file_not_there_yet"},
+		{"second-early-exit", "", "", "early exit", "ancestor error", "second-failure"},
+		{"second-exclude", "", "", "excluded", "--queue-exclude-dir", ""},
 		{"second-failure", "", "", "failed", "run error", ""},
 		{"second-success", "", "", "succeeded", "", ""},
 	}
 
 	// Verify the number of records
-	require.Equal(t, len(expectedRecords), len(records)-1)
+	require.Len(t, records, len(expectedRecords)+1)
 
 	// Sort actual records by name (first column)
 	sort.Slice(records[1:], func(i, j int) bool {

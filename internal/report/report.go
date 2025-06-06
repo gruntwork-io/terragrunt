@@ -212,6 +212,11 @@ func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 		return fmt.Errorf("%w: %s", ErrRunNotFound, path)
 	}
 
+	// If the run has already ended, we don't need to do anything.
+	if !run.Ended.IsZero() {
+		return nil
+	}
+
 	run.mu.Lock()
 	defer run.mu.Unlock()
 
@@ -254,7 +259,7 @@ const (
 	ReasonRunError       Reason = "run error"
 	ReasonExcludeDir     Reason = "--exclude-dir"
 	ReasonExcludeBlock   Reason = "exclude block"
-	ReasonEarlyExit      Reason = "early exit"
+	ReasonAncestorError  Reason = "ancestor error"
 )
 
 // WithReason sets the reason of a run.

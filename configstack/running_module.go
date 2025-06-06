@@ -71,7 +71,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 		"path":             module.Module.Path,
 		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 	}, func(_ context.Context) error {
-		return module.waitForDependencies()
+		return module.waitForDependencies(opts, r)
 	})
 
 	semaphore <- struct{}{} // Add one to the buffered channel. Will block if parallelism limit is met
@@ -93,7 +93,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 
 // Wait for all of this modules dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this module has no dependencies.
-func (module *RunningModule) waitForDependencies() error {
+func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions, r *report.Report) error {
 	module.Logger.Debugf("Module %s must wait for %d dependencies to finish", module.Module.Path, len(module.Dependencies))
 
 	for len(module.Dependencies) > 0 {
@@ -105,6 +105,37 @@ func (module *RunningModule) waitForDependencies() error {
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
+
+				if opts.Experiments.Evaluate(experiment.Report) {
+					run, err := r.GetRun(module.Module.Path)
+					if err != nil {
+						if errors.Is(err, report.ErrRunNotFound) {
+							run, err = report.NewRun(module.Module.Path)
+							if err != nil {
+								module.Logger.Errorf("Error creating run for unit %s: %v", module.Module.Path, err)
+								return err
+							}
+
+							if err := r.AddRun(run); err != nil {
+								module.Logger.Errorf("Error adding run for unit %s: %v", module.Module.Path, err)
+								return err
+							}
+						} else {
+							module.Logger.Errorf("Error getting run for unit %s: %v", module.Module.Path, err)
+							return err
+						}
+					}
+
+					if err := r.EndRun(
+						run.Path,
+						report.WithResult(report.ResultEarlyExit),
+						report.WithReason(report.ReasonAncestorError),
+						report.WithCauseAncestorExit(doneDependency.Module.Path),
+					); err != nil {
+						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+					}
+				}
+
 				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {
