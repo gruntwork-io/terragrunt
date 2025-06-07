@@ -118,12 +118,12 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 		{"error-ignore", "", "", "succeeded", "error ignored", "ignore_everything"},
 		{"first-early-exit", "", "", "early exit", "ancestor error", "first-failure"},
 		{"first-exclude", "", "", "excluded", "exclude block", ""},
-		{"first-failure", "", "", "failed", "run error", ""},
+		{"first-failure", "", "", "failed", "run error", ".*Failed to execute.*"},
 		{"first-success", "", "", "succeeded", "", ""},
 		{"retry-success", "", "", "succeeded", "retry succeeded", ""}, // For now, we don't report the retry block name.
 		{"second-early-exit", "", "", "early exit", "ancestor error", "second-failure"},
 		{"second-exclude", "", "", "excluded", "--queue-exclude-dir", ""},
-		{"second-failure", "", "", "failed", "run error", ""},
+		{"second-failure", "", "", "failed", "run error", ".*Failed to execute.*"},
 		{"second-success", "", "", "succeeded", "", ""},
 	}
 
@@ -162,6 +162,15 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 		// Strip timestamps from the record to make it easier to compare
 		record[1] = ""
 		record[2] = ""
+
+		// Check that the cause is the error message
+		if record[4] == "run error" {
+			assert.Regexp(t, expectedRecords[i][5], record[5])
+
+			// Strip the error message from the cause and expected record
+			record[5] = ""
+			expectedRecords[i][5] = ""
+		}
 
 		// Verify the record matches the expected record
 		assert.Equal(t, expectedRecords[i], record)

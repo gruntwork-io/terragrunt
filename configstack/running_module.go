@@ -232,6 +232,7 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 				module.Module.Path,
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
+				report.WithCauseRunError(moduleErr.Error()),
 			); err != nil {
 				// If we can't find the run, then it never started,
 				// So we should start it and then end it as a failed run.
@@ -253,6 +254,7 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 						run.Path,
 						report.WithResult(report.ResultFailed),
 						report.WithReason(report.ReasonRunError),
+						report.WithCauseRunError(moduleErr.Error()),
 					); err != nil {
 						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
 					}

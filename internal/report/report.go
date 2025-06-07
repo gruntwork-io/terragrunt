@@ -302,6 +302,14 @@ func WithCauseAncestorExit(name string) EndOption {
 	return withCause(name)
 }
 
+// WithCauseRunError sets the cause of a run to the name of a particular run error.
+//
+// This function is a wrapper around withCause, just to make sure that authors always use consistent
+// reasons for causes.
+func WithCauseRunError(name string) EndOption {
+	return withCause(name)
+}
+
 // withCause sets the cause of a run to the name of a particular cause.
 func withCause(name string) EndOption {
 	return func(run *Run) {
