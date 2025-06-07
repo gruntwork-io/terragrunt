@@ -191,7 +191,7 @@ func (r *Report) GetRun(path string) (*Run, error) {
 // EndRun ends a run and adds it to the report.
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
-// If the run has already ended, it does nothing.
+// If the run has already ended from an early exit, it does nothing.
 func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -213,8 +213,8 @@ func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 		return fmt.Errorf("%w: %s", ErrRunNotFound, path)
 	}
 
-	// If the run has already ended, we don't need to do anything.
-	if !run.Ended.IsZero() {
+	// If the run has already ended from an early exit or excluded, we don't need to do anything.
+	if !run.Ended.IsZero() && (run.Result == ResultEarlyExit || run.Result == ResultExcluded) {
 		return nil
 	}
 
@@ -258,7 +258,7 @@ const (
 	ReasonRetrySucceeded Reason = "retry succeeded"
 	ReasonErrorIgnored   Reason = "error ignored"
 	ReasonRunError       Reason = "run error"
-	ReasonExcludeDir     Reason = "--exclude-dir"
+	ReasonExcludeDir     Reason = "--queue-exclude-dir"
 	ReasonExcludeBlock   Reason = "exclude block"
 	ReasonAncestorError  Reason = "ancestor error"
 )

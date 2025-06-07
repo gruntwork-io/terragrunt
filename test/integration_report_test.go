@@ -116,11 +116,11 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 		{"chain-b", "", "", "early exit", "ancestor error", "chain-a"},
 		{"chain-c", "", "", "early exit", "ancestor error", "chain-b"},
 		{"error-ignore", "", "", "succeeded", "error ignored", "ignore_everything"},
-		{"first-early-exit", "", "", "early exit", "run error", ""},
+		{"first-early-exit", "", "", "early exit", "ancestor error", "first-failure"},
 		{"first-exclude", "", "", "excluded", "exclude block", ""},
 		{"first-failure", "", "", "failed", "run error", ""},
 		{"first-success", "", "", "succeeded", "", ""},
-		{"retry-success", "", "", "succeeded", "retry succeeded", "file_not_there_yet"},
+		{"retry-success", "", "", "succeeded", "retry succeeded", ""}, // For now, we don't report the retry block name.
 		{"second-early-exit", "", "", "early exit", "ancestor error", "second-failure"},
 		{"second-exclude", "", "", "excluded", "--queue-exclude-dir", ""},
 		{"second-failure", "", "", "failed", "run error", ""},

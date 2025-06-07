@@ -164,7 +164,7 @@ func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.Te
 		}
 	}
 
-	return opts.RunTerragrunt(ctx, module.Logger, opts)
+	return opts.RunTerragrunt(ctx, module.Logger, opts, r)
 }
 
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
@@ -193,7 +193,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			jsonOptions.TerraformCommand = tf.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.planFile(l, rootOptions)}
 
-			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions); err != nil {
+			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
 				return err
 			}
 

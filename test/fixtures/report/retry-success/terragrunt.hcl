@@ -1,5 +1,11 @@
 terraform {
   source = "."
+
+  error_hook "create_file" {
+    commands  = ["apply"]
+    execute   = ["touch", "success.txt"]
+    on_errors = [".*"]
+  }
 }
 
 errors {

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
@@ -255,7 +256,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig, report.NewReport())
 	require.Error(t, err)
 	var downloadingTerraformSourceErr run.DownloadingTerraformSourceErr
 	ok := errors.As(err, &downloadingTerraformSourceErr)
@@ -363,7 +364,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig, report.NewReport())
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
