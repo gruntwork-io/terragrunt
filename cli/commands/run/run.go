@@ -293,7 +293,7 @@ func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *config.T
 	return nil
 }
 
-// Runs terraform with the given options and CLI args.
+// Runs tofu/terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
 //
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
