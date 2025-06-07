@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -266,7 +267,7 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 	// Use a path that doesn't exist to induce error
 	tgOptions.TerraformPath = "i-dont-exist"
 	l := logger.CreateLogger()
-	err = run.RunTerraformWithRetry(t.Context(), l, tgOptions)
+	err = run.RunTerraformWithRetry(t.Context(), l, tgOptions, report.NewReport())
 	require.Error(t, err)
 }
 

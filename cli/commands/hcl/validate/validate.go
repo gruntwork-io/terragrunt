@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/view"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -70,7 +71,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	opts.SkipOutput = true
 	opts.NonInteractive = true
-	opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 		_, err := config.ReadTerragruntConfig(ctx, l, opts, parseOptions)
 		return err
 	}
@@ -123,7 +124,7 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
 
-	return run.RunWithTarget(ctx, l, opts, target)
+	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
 }
 
 func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

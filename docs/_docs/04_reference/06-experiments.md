@@ -134,9 +134,9 @@ Provide your feedback on the [Run Summary RFC](https://github.com/gruntwork-io/t
 
 To transition the `report` feature to a stable release, the following must be addressed:
 
-- [ ] Add support for generating reports (in CSV format by default).
+- [x] Add support for generating reports (in CSV format by default).
 - [x] Add support for displaying summaries of runs.
-- [ ] Add ability to disable summary display.
+- [x] Add ability to disable summary display.
 - [ ] Add support for generating reports in JSON format.
 - [ ] Add comprehensive integration tests for the `report` experiment.
 - [ ] Finalize the design of run summaries and reports.

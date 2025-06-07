@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -28,7 +29,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(opts))
 
-	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, target)
+	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, report.NewReport(), target)
 }
 
 func newRunRenderFunc(opts *Options) func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

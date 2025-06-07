@@ -54,4 +54,60 @@ The internal report will still be tracked, and is available for generation if re
 
 Optionally, you can also generate a detailed report of the run, which has all the information used to generate the run summary.
 
-This isn't possible yet, but will be in the future.
+```bash
+terragrunt run --all plan --report-file report.csv
+```
+
+This will generate a report in CSV format at `report.csv` in the current working directory, that looks like the following:
+
+```csv
+Name,Started,Ended,Result,Reason,Cause
+first-exclude,2025-06-05T16:28:41-04:00,2025-06-05T16:28:41-04:00,excluded,exclude block,
+second-exclude,2025-06-05T16:28:41-04:00,2025-06-05T16:28:41-04:00,excluded,exclude block,
+first-failure,2025-06-05T16:28:41-04:00,2025-06-05T16:28:42-04:00,failed,run error,
+first-success,2025-06-05T16:28:41-04:00,2025-06-05T16:28:41-04:00,succeeded,,
+second-failure,2025-06-05T16:28:41-04:00,2025-06-05T16:28:42-04:00,failed,run error,
+second-success,2025-06-05T16:28:41-04:00,2025-06-05T16:28:41-04:00,succeeded,,
+second-early-exit,2025-06-05T16:28:42-04:00,2025-06-05T16:28:42-04:00,early exit,run error,
+first-early-exit,2025-06-05T16:28:42-04:00,2025-06-05T16:28:42-04:00,early exit,run error,
+```
+
+You can use this file to determine details for each unit run, including the name of the unit, the start and end times, the result, the reason for that result, and the cause for that reason.
+
+In general, the schema for this report should change infrequently, but we'll try to keep it up to date here.
+
+In the future, we'll also support a JSON schema file that can be generated alongside the report, so that you have a programmatic way to validate that the report is going to conform to an expected schema.
+
+### Results
+
+Results are high level outcomes of a unit run, and will always be one of the following:
+
+- `succeeded`: The unit run succeeded.
+- `failed`: The unit run failed.
+- `excluded`: The unit was excluded from the run.
+- `early exit`: The unit exited early, due to a failure in a dependency.
+
+### Reasons
+
+Reasons are more granular details of those results, and will always be one of the following, based on the result of the unit run:
+
+- `succeeded`:
+  - ``: When the unit run succeeded without any special conditions, an empty string will be found here.
+  - `retry succeeded`: When the unit run initially failed, but was retried due to a `retry` block, and succeeded on a subsequent attempt, you can expect to see a value of `retry succeeded` here.
+  - `error ignored`: When the unit run failed, but the error was ignored due to an `ignore` block, you can expect to see a value of `error ignored` here.
+- `failed`:
+  - `run error`: When the unit run failed due to a run error, you can expect to see a value of `run error` here.
+- `excluded`:
+  - `exclude block`: When the unit was excluded from the run due to an `exclude` block, you can expect to see a value of `exclude block` here.
+  - `--queue-exclude-dir`: When the unit was excluded from the run due use of a `--queue-exclude-dir` flag, you can expect to see a value of `--queue-exclude-dir` here.
+- `early exit`:
+  - `ancestor error`: When the unit exited early due to an error in the run of a dependency, you can expect to see a value of `ancestor error` here.
+
+### Causes
+
+Causes indicate the specific reason for a given result, and are generally not guessable. These provide information on the exact mechanism that caused the result.
+
+- `retry succeeded`: You will find the name of the `retry` block that resulted in a successful retry of the unit run.
+- `error ignored`: You will find the name of the `ignore` block that resulted in the error being ignored.
+- `run error`: You will find the actual error message of the unit that failed.
+- `ancestor error`: You will find the name of the unit that failed, and the error message of the failure.

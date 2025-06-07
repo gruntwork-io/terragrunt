@@ -79,6 +79,7 @@ const (
 	// Report related flags.
 
 	SummaryDisableFlagName = "summary-disable"
+	ReportFileFlagName     = "report-file"
 
 	// `--all` related flags.
 
@@ -540,6 +541,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(SummaryDisableFlagName),
 			Destination: &opts.SummaryDisable,
 			Usage:       `Disable the summary output at the end of a run.`,
+		}),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        ReportFileFlagName,
+			EnvVars:     tgPrefix.EnvVars(ReportFileFlagName),
+			Destination: &opts.ReportFile,
+			Usage:       `Path to generate report file in.`,
 		}),
 	}
 

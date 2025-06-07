@@ -447,7 +447,7 @@ func (stack *DefaultStack) ResolveTerraformModules(ctx context.Context, l log.Lo
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_dirs", map[string]any{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
-		withModulesExcluded = withUnitsRead.flagExcludedDirs(stack.terragruntOptions)
+		withModulesExcluded = withUnitsRead.flagExcludedDirs(l, stack.terragruntOptions, stack.report)
 		return nil
 	})
 
