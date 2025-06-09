@@ -46,8 +46,8 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 		},
 	}
 
-	cmd = runall.WrapCommand(l, opts, cmd, Run)
-	cmd = graph.WrapCommand(l, opts, cmd, Run)
+	cmd = runall.WrapCommand(l, opts, cmd, Run, false)
+	cmd = graph.WrapCommand(l, opts, cmd, Run, false)
 	cmd = wrapWithStackGenerate(l, opts, cmd)
 
 	return cmd
