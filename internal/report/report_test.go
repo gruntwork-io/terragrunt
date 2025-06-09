@@ -569,6 +569,50 @@ func TestWriteSchema(t *testing.T) {
 	err := r.WriteSchema(&buf)
 	require.NoError(t, err)
 
+	// Assert the contents of the schema
+	assert.Equal(t, `{
+  "items": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1",
+    "properties": {
+      "Started": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Ended": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Reason": {
+        "type": "string"
+      },
+      "Cause": {
+        "type": "string"
+      },
+      "Name": {
+        "type": "string"
+      },
+      "Result": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "Started",
+      "Ended",
+      "Name",
+      "Result"
+    ],
+    "title": "Terragrunt Run Report Schema",
+    "description": "Schema for Terragrunt run report"
+  },
+  "type": "array",
+  "title": "Terragrunt Run Report Schema",
+  "description": "Array of Terragrunt runs"
+}
+`, buf.String())
+
 	// Parse the schema
 	var schema map[string]interface{}
 	err = json.Unmarshal(buf.Bytes(), &schema)

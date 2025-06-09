@@ -603,11 +603,10 @@ func (r *Report) WriteSchema(w io.Writer) error {
 	// Generate the schema for JSONRun
 	schema := reflector.Reflect(&JSONRun{})
 
-	// Add descriptions for the schema
 	schema.Description = "Schema for Terragrunt run report"
 	schema.Title = "Terragrunt Run Report Schema"
+	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v1"
 
-	// Add descriptions for the array schema
 	arraySchema := &jsonschema.Schema{
 		Type:        "array",
 		Title:       "Terragrunt Run Report Schema",
