@@ -672,6 +672,35 @@ func TestWriteSchema(t *testing.T) {
 	assert.Equal(t, "string", cause["type"])
 }
 
+func TestExpectedSchemaIsInDocs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		file string
+	}{
+		{
+			name: "starlight",
+			file: filepath.Join("..", "..", "docs-starlight", "public", "schemas", "run", "report", "v1", "schema.json"),
+		},
+		{
+			name: "jekyll",
+			file: filepath.Join("..", "..", "docs", "schemas", "run", "report", "v1", "schema.json"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			schema, err := os.ReadFile(tt.file)
+			require.NoError(t, err)
+
+			assert.Equal(t, ExpectedSchema, string(schema))
+		})
+	}
+}
+
 func TestWriteSummary(t *testing.T) {
 	t.Parallel()
 
