@@ -401,10 +401,10 @@ func TestWriteJSON(t *testing.T) {
 			},
 			expected: `[
   {
-    "name": "successful-run",
-    "started": "2024-03-21T10:00:00Z",
-    "ended": "2024-03-21T10:01:00Z",
-    "result": "succeeded"
+    "Name": "successful-run",
+    "Started": "2024-03-21T10:00:00Z",
+    "Ended": "2024-03-21T10:01:00Z",
+    "Result": "succeeded"
   }
 ]`,
 		},
@@ -419,50 +419,59 @@ func TestWriteJSON(t *testing.T) {
 				// Add failed run with reason
 				failedRun := newRun(t, filepath.Join(dir, "failed-run"))
 				r.AddRun(failedRun)
-				r.EndRun(failedRun.Path, report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
+				r.EndRun(
+					failedRun.Path,
+					report.WithResult(report.ResultFailed),
+					report.WithReason(report.ReasonRunError),
+				)
+
+				// Add excluded run with cause
+				retriedRun := newRun(t, filepath.Join(dir, "retried-run"))
+				r.AddRun(retriedRun)
+				r.EndRun(
+					retriedRun.Path,
+					report.WithResult(report.ResultSucceeded),
+					report.WithReason(report.ReasonRetrySucceeded),
+				)
 
 				// Add excluded run with cause
 				excludedRun := newRun(t, filepath.Join(dir, "excluded-run"))
 				r.AddRun(excludedRun)
-				r.EndRun(excludedRun.Path, report.WithResult(report.ResultExcluded), report.WithCauseRetryBlock("test-block"))
-
-				// Add early exit run with both reason and cause
-				earlyExitRun := newRun(t, filepath.Join(dir, "early-exit-run"))
-				r.AddRun(earlyExitRun)
-				r.EndRun(earlyExitRun.Path,
-					report.WithResult(report.ResultEarlyExit),
-					report.WithReason(report.ReasonRunError),
-					report.WithCauseRetryBlock("another-block"),
+				r.EndRun(
+					excludedRun.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeBlock),
+					report.WithCauseExcludeBlock("test-block"),
 				)
 			},
 			expected: `[
   {
-    "name": "success-run",
-    "started": "2024-03-21T10:00:00Z",
-    "ended": "2024-03-21T10:01:00Z",
-    "result": "succeeded"
+    "Name": "success-run",
+    "Started": "2024-03-21T10:00:00Z",
+    "Ended": "2024-03-21T10:01:00Z",
+    "Result": "succeeded"
   },
   {
-    "name": "failed-run",
-    "started": "2024-03-21T10:01:00Z",
-    "ended": "2024-03-21T10:02:00Z",
-    "result": "failed",
-    "reason": "run error"
+    "Name": "failed-run",
+    "Started": "2024-03-21T10:01:00Z",
+    "Ended": "2024-03-21T10:02:00Z",
+    "Result": "failed",
+    "Reason": "run error"
   },
   {
-    "name": "excluded-run",
-    "started": "2024-03-21T10:02:00Z",
-    "ended": "2024-03-21T10:03:00Z",
-    "result": "excluded",
-    "cause": "test-block"
+    "Name": "retried-run",
+    "Started": "2024-03-21T10:03:00Z",
+    "Ended": "2024-03-21T10:04:00Z",
+    "Result": "succeeded",
+    "Reason": "retry succeeded"
   },
   {
-    "name": "early-exit-run",
-    "started": "2024-03-21T10:03:00Z",
-    "ended": "2024-03-21T10:04:00Z",
-    "result": "early exit",
-    "reason": "run error",
-    "cause": "another-block"
+    "Name": "excluded-run",
+    "Started": "2024-03-21T10:02:00Z",
+    "Ended": "2024-03-21T10:03:00Z",
+    "Result": "excluded",
+    "Reason": "exclude block",
+    "Cause": "test-block"
   }
 ]`,
 		},
@@ -514,31 +523,31 @@ func TestWriteJSON(t *testing.T) {
 				expectedRecord := expectedJSON[i]
 
 				// Verify name
-				assert.Equal(t, expectedRecord["name"], actualRecord["name"], "Name mismatch in record %d", i)
+				assert.Equal(t, expectedRecord["Name"], actualRecord["Name"], "Name mismatch in record %d", i)
 
 				// Verify result
-				assert.Equal(t, expectedRecord["result"], actualRecord["result"], "Result mismatch in record %d", i)
+				assert.Equal(t, expectedRecord["Result"], actualRecord["Result"], "Result mismatch in record %d", i)
 
 				// Verify reason if present
-				if expectedReason, ok := expectedRecord["reason"]; ok {
-					assert.Equal(t, expectedReason, actualRecord["reason"], "Reason mismatch in record %d", i)
+				if expectedReason, ok := expectedRecord["Reason"]; ok {
+					assert.Equal(t, expectedReason, actualRecord["Reason"], "Reason mismatch in record %d", i)
 				} else {
-					assert.NotContains(t, actualRecord, "reason", "Unexpected reason in record %d", i)
+					assert.NotContains(t, actualRecord, "Reason", "Unexpected reason in record %d", i)
 				}
 
 				// Verify cause if present
-				if expectedCause, ok := expectedRecord["cause"]; ok {
-					assert.Equal(t, expectedCause, actualRecord["cause"], "Cause mismatch in record %d", i)
+				if expectedCause, ok := expectedRecord["Cause"]; ok {
+					assert.Equal(t, expectedCause, actualRecord["Cause"], "Cause mismatch in record %d", i)
 				} else {
-					assert.NotContains(t, actualRecord, "cause", "Unexpected cause in record %d", i)
+					assert.NotContains(t, actualRecord, "Cause", "Unexpected cause in record %d", i)
 				}
 
 				// Verify timestamps are in RFC3339 format
-				if started, ok := actualRecord["started"].(string); ok {
+				if started, ok := actualRecord["Started"].(string); ok {
 					_, err := time.Parse(time.RFC3339, started)
 					require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
 				}
-				if ended, ok := actualRecord["ended"].(string); ok {
+				if ended, ok := actualRecord["Ended"].(string); ok {
 					_, err := time.Parse(time.RFC3339, ended)
 					require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
 				}
