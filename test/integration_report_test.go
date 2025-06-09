@@ -370,3 +370,99 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
+	t.Parallel()
+
+	// Set up test environment
+	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+
+	testCases := []struct {
+		name           string
+		reportFile     string
+		reportFormat   string
+		expectedFormat string
+	}{
+		{
+			name:           "default format with no extension",
+			reportFile:     "report",
+			reportFormat:   "",
+			expectedFormat: "csv",
+		},
+		{
+			name:           "csv format from extension",
+			reportFile:     "report.csv",
+			reportFormat:   "",
+			expectedFormat: "csv",
+		},
+		{
+			name:           "json format from extension",
+			reportFile:     "report.json",
+			reportFormat:   "",
+			expectedFormat: "json",
+		},
+		{
+			name:           "explicit csv format overrides extension",
+			reportFile:     "report.json",
+			reportFormat:   "csv",
+			expectedFormat: "csv",
+		},
+		{
+			name:           "explicit json format overrides extension",
+			reportFile:     "report.csv",
+			reportFormat:   "json",
+			expectedFormat: "json",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Build command with appropriate flags
+			cmd := "terragrunt run --all apply --experiment report --non-interactive --working-dir " + rootPath
+			if tc.reportFile != "" {
+				cmd += " --report-file " + tc.reportFile
+			}
+			if tc.reportFormat != "" {
+				cmd += " --report-format " + tc.reportFormat
+			}
+
+			// Run terragrunt command
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+			require.NoError(t, err)
+
+			// Verify the report file exists
+			reportFile := util.JoinPath(rootPath, tc.reportFile)
+			assert.FileExists(t, reportFile)
+
+			// Read the file content
+			content, err := os.ReadFile(reportFile)
+			require.NoError(t, err)
+
+			// Verify the format based on content
+			if tc.expectedFormat == "csv" {
+				// For CSV, verify it starts with the expected header
+				assert.True(t, strings.HasPrefix(string(content), "Name,Started,Ended,Result,Reason,Cause"))
+			} else if tc.expectedFormat == "json" {
+				// For JSON, verify it's valid JSON and has the expected structure
+				var jsonContent []map[string]interface{}
+				err := json.Unmarshal(content, &jsonContent)
+				require.NoError(t, err)
+				require.Greater(t, len(jsonContent), 0)
+
+				// Verify the first record has the expected fields
+				firstRecord := jsonContent[0]
+				assert.Contains(t, firstRecord, "name")
+				assert.Contains(t, firstRecord, "started")
+				assert.Contains(t, firstRecord, "ended")
+				assert.Contains(t, firstRecord, "result")
+			}
+		})
+	}
+}
