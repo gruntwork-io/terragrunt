@@ -529,15 +529,16 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	defer r.mu.RUnlock()
 
 	type jsonRun struct {
-		Name    string    `json:"Name"`
 		Started time.Time `json:"Started"`
 		Ended   time.Time `json:"Ended"`
-		Result  string    `json:"Result"`
 		Reason  *string   `json:"Reason,omitempty"`
 		Cause   *string   `json:"Cause,omitempty"`
+		Name    string    `json:"Name"`
+		Result  string    `json:"Result"`
 	}
 
 	runs := make([]jsonRun, 0, len(r.Runs))
+
 	for _, run := range r.Runs {
 		run.mu.RLock()
 		defer run.mu.RUnlock()
@@ -564,6 +565,7 @@ func (r *Report) WriteJSON(w io.Writer) error {
 			if run.Reason != nil && *run.Reason == ReasonAncestorError && r.workingDir != "" {
 				cause = strings.TrimPrefix(cause, r.workingDir+string(os.PathSeparator))
 			}
+
 			jsonRun.Cause = &cause
 		}
 
@@ -578,6 +580,7 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	jsonBytes = append(jsonBytes, '\n')
 
 	_, err = w.Write(jsonBytes)
+
 	return err
 }
 
