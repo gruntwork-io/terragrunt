@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -29,6 +30,8 @@ type Stack interface {
 	GetTerragruntConfig() *config.TerragruntConfig
 	SetParseOptions(parserOptions []hclparse.Option)
 	GetParseOptions() []hclparse.Option
+	SetReport(report *report.Report)
+	GetReport() *report.Report
 	Lock()
 	Unlock()
 }

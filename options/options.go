@@ -299,6 +299,8 @@ type TerragruntOptions struct {
 	ForceBackendDelete bool
 	// ForceBackendMigrate forces the backend to be migrated, even if the bucket is not versioned.
 	ForceBackendMigrate bool
+	// SummaryDisable disables the summary output at the end of a run.
+	SummaryDisable bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
