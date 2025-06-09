@@ -349,12 +349,12 @@ func TestWriteCSV(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify the number of records
-			require.Equal(t, len(tt.expected), len(records))
+			require.Len(t, records, len(tt.expected))
 
 			// Verify each record
 			for i, record := range records {
 				expected := tt.expected[i]
-				require.Equal(t, len(expected), len(record), "Record %d has wrong number of fields", i)
+				require.Len(t, record, len(expected), "Record %d has wrong number of fields", i)
 
 				// For the header row, verify exact match
 				if i == 0 {
@@ -372,11 +372,11 @@ func TestWriteCSV(t *testing.T) {
 				// Verify that timestamps are in RFC3339 format
 				if record[1] != "" {
 					_, err := time.Parse(time.RFC3339, record[1])
-					assert.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
+					require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
 				}
 				if record[2] != "" {
 					_, err := time.Parse(time.RFC3339, record[2])
-					assert.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
+					require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
 				}
 			}
 		})

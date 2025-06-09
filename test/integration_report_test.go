@@ -138,16 +138,16 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	// Verify data rows
 	for i, record := range records[1:] {
 		// Verify number of fields
-		require.Equal(t, len(expectedHeader), len(record), "Record %d has wrong number of fields", i+1)
+		require.Len(t, record, len(expectedHeader), "Record %d has wrong number of fields", i+1)
 
 		// Verify timestamp formats if present
 		if record[1] != "" {
 			_, err := time.Parse(time.RFC3339, record[1])
-			assert.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i+1)
+			require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i+1)
 		}
 		if record[2] != "" {
 			_, err := time.Parse(time.RFC3339, record[2])
-			assert.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i+1)
+			require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i+1)
 		}
 
 		// Verify Result is one of the expected values

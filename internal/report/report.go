@@ -19,10 +19,10 @@ import (
 
 // Report captures data for a report/summary.
 type Report struct {
-	Runs        []*Run
 	workingDir  string
-	shouldColor bool
+	Runs        []*Run
 	mu          sync.RWMutex
+	shouldColor bool
 }
 
 // Run captures data for a run.
