@@ -556,6 +556,61 @@ func TestWriteJSON(t *testing.T) {
 	}
 }
 
+func TestWriteSchema(t *testing.T) {
+	t.Parallel()
+
+	// Create a buffer to write the schema to
+	var buf bytes.Buffer
+
+	// Create a new report
+	r := report.NewReport()
+
+	// Write the schema
+	err := r.WriteSchema(&buf)
+	require.NoError(t, err)
+
+	// Parse the schema
+	var schema map[string]interface{}
+	err = json.Unmarshal(buf.Bytes(), &schema)
+	require.NoError(t, err)
+
+	// Verify the schema structure
+	assert.Equal(t, "array", schema["type"])
+	assert.Equal(t, "Array of Terragrunt runs", schema["description"])
+	assert.Equal(t, "Terragrunt Run Report Schema", schema["title"])
+
+	// Verify the items schema
+	items, ok := schema["items"].(map[string]interface{})
+	require.True(t, ok)
+
+	// Verify the properties
+	properties, ok := items["properties"].(map[string]interface{})
+	require.True(t, ok)
+
+	// Verify required fields
+	required, ok := items["required"].([]interface{})
+	require.True(t, ok)
+	assert.Contains(t, required, "Name")
+	assert.Contains(t, required, "Started")
+	assert.Contains(t, required, "Ended")
+	assert.Contains(t, required, "Result")
+
+	// Verify field types
+	assert.Equal(t, "string", properties["Name"].(map[string]interface{})["type"])
+	assert.Equal(t, "string", properties["Result"].(map[string]interface{})["type"])
+	assert.Equal(t, "string", properties["Started"].(map[string]interface{})["type"])
+	assert.Equal(t, "string", properties["Ended"].(map[string]interface{})["type"])
+
+	// Verify optional fields
+	reason, ok := properties["Reason"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "string", reason["type"])
+
+	cause, ok := properties["Cause"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "string", cause["type"])
+}
+
 func TestWriteSummary(t *testing.T) {
 	t.Parallel()
 

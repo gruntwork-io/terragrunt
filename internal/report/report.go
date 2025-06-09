@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/invopop/jsonschema"
 	"github.com/mgutz/ansi"
 )
 
@@ -523,13 +524,20 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	return nil
 }
 
+// JSONRun represents a run in JSON format.
 type JSONRun struct {
+	// Started is the time when the run started.
 	Started time.Time `json:"Started"`
-	Ended   time.Time `json:"Ended"`
-	Reason  *string   `json:"Reason,omitempty"`
-	Cause   *string   `json:"Cause,omitempty"`
-	Name    string    `json:"Name"`
-	Result  string    `json:"Result"`
+	// Ended is the time when the run ended.
+	Ended time.Time `json:"Ended"`
+	// Reason is the reason for the run result, if any.
+	Reason *string `json:"Reason,omitempty"`
+	// Cause is the cause of the run result, if any.
+	Cause *string `json:"Cause,omitempty"`
+	// Name is the name of the run.
+	Name string `json:"Name"`
+	// Result is the result of the run.
+	Result string `json:"Result"`
 }
 
 // WriteJSON writes the report to a writer in JSON format.
@@ -581,6 +589,43 @@ func (r *Report) WriteJSON(w io.Writer) error {
 
 	_, err = w.Write(jsonBytes)
 
+	return err
+}
+
+// WriteSchema writes a JSON schema for the report to a writer.
+func (r *Report) WriteSchema(w io.Writer) error {
+	// Create a new reflector
+	reflector := jsonschema.Reflector{
+		// Add descriptions from Go comments
+		DoNotReference: true,
+	}
+
+	// Generate the schema for JSONRun
+	schema := reflector.Reflect(&JSONRun{})
+
+	// Add descriptions for the schema
+	schema.Description = "Schema for Terragrunt run report"
+	schema.Title = "Terragrunt Run Report Schema"
+
+	// Add descriptions for the array schema
+	arraySchema := &jsonschema.Schema{
+		Type:        "array",
+		Title:       "Terragrunt Run Report Schema",
+		Description: "Array of Terragrunt runs",
+		Items:       schema,
+	}
+
+	// Marshal the schema to JSON
+	jsonBytes, err := json.MarshalIndent(arraySchema, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// Add a newline at the end
+	jsonBytes = append(jsonBytes, '\n')
+
+	// Write the schema
+	_, err = w.Write(jsonBytes)
 	return err
 }
 
