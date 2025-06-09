@@ -415,10 +415,16 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 			reportFormat:   "json",
 			expectedFormat: "json",
 		},
+		{
+			name:           "generate schema file",
+			reportFile:     "report.json",
+			reportFormat:   "json",
+			expectedFormat: "json",
+			schemaFile:     "schema.json",
+		},
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -429,6 +435,9 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 			}
 			if tc.reportFormat != "" {
 				cmd += " --report-format " + tc.reportFormat
+			}
+			if tc.schemaFile != "" {
+				cmd += " --report-schema-file " + tc.schemaFile
 			}
 
 			// Run terragrunt command
@@ -465,6 +474,48 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 				assert.Contains(t, firstRecord, "Started")
 				assert.Contains(t, firstRecord, "Ended")
 				assert.Contains(t, firstRecord, "Result")
+			}
+
+			// If schema file is specified, verify it exists and is valid JSON
+			if tc.schemaFile != "" {
+				schemaFilePath := util.JoinPath(rootPath, tc.schemaFile)
+				assert.FileExists(t, schemaFilePath)
+
+				// Read and verify schema file content
+				schemaContent, err := os.ReadFile(schemaFilePath)
+				require.NoError(t, err)
+
+				// Verify it's valid JSON
+				var schema map[string]interface{}
+				err = json.Unmarshal(schemaContent, &schema)
+				require.NoError(t, err)
+
+				// Verify basic schema structure
+				assert.Equal(t, "array", schema["type"])
+				assert.Equal(t, "Array of Terragrunt runs", schema["description"])
+				assert.Equal(t, "Terragrunt Run Report Schema", schema["title"])
+
+				// Verify items schema
+				items, ok := schema["items"].(map[string]interface{})
+				require.True(t, ok)
+
+				// Verify required fields
+				required, ok := items["required"].([]interface{})
+				require.True(t, ok)
+				assert.Contains(t, required, "Name")
+				assert.Contains(t, required, "Started")
+				assert.Contains(t, required, "Ended")
+				assert.Contains(t, required, "Result")
+
+				// Verify properties
+				properties, ok := items["properties"].(map[string]interface{})
+				require.True(t, ok)
+
+				// Verify field types
+				assert.Equal(t, "string", properties["Name"].(map[string]interface{})["type"])
+				assert.Equal(t, "string", properties["Result"].(map[string]interface{})["type"])
+				assert.Equal(t, "string", properties["Started"].(map[string]interface{})["type"])
+				assert.Equal(t, "string", properties["Ended"].(map[string]interface{})["type"])
 			}
 		})
 	}
