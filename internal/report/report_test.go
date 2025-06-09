@@ -759,17 +759,60 @@ func TestSchemaIsValid(t *testing.T) {
 
 	tmp := t.TempDir()
 
-	// Create a new report
+	// Create a new report with working directory
 	r := report.NewReport().WithWorkingDir(tmp)
 
-	// Add some test runs
-	successRun := newRun(t, filepath.Join(tmp, "success-run"))
-	r.AddRun(successRun)
-	r.EndRun(successRun.Path)
+	// Add a simple run that succeeds
+	simpleRun := newRun(t, filepath.Join(tmp, "simple-run"))
+	r.AddRun(simpleRun)
+	r.EndRun(simpleRun.Path,
+		report.WithResult(report.ResultSucceeded),
+	)
 
-	failedRun := newRun(t, filepath.Join(tmp, "failed-run"))
-	r.AddRun(failedRun)
-	r.EndRun(failedRun.Path, report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
+	// Add a complex run that tests all possible fields and states
+	complexRun := newRun(t, filepath.Join(tmp, "complex-run"))
+	r.AddRun(complexRun)
+	r.EndRun(complexRun.Path,
+		report.WithResult(report.ResultFailed),
+		report.WithReason(report.ReasonRunError),
+		report.WithCauseAncestorExit("some-error"),
+	)
+
+	// Create an excluded run with exclude block
+	excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+	r.AddRun(excludedRun)
+	r.EndRun(excludedRun.Path,
+		report.WithResult(report.ResultExcluded),
+		report.WithReason(report.ReasonExcludeBlock),
+		report.WithCauseExcludeBlock("test-block"),
+	)
+
+	// Create a retry run that succeeded
+	retryRun := newRun(t, filepath.Join(tmp, "retry-run"))
+	r.AddRun(retryRun)
+	r.EndRun(retryRun.Path,
+		report.WithResult(report.ResultSucceeded),
+		report.WithReason(report.ReasonRetrySucceeded),
+		report.WithCauseRetryBlock("retry-block"),
+	)
+
+	// Create an early exit run
+	earlyExitRun := newRun(t, filepath.Join(tmp, "early-exit-run"))
+	r.AddRun(earlyExitRun)
+	r.EndRun(earlyExitRun.Path,
+		report.WithResult(report.ResultEarlyExit),
+		report.WithReason(report.ReasonAncestorError),
+		report.WithCauseAncestorExit("parent-unit"),
+	)
+
+	// Create a run with ignored error
+	ignoredRun := newRun(t, filepath.Join(tmp, "ignored-run"))
+	r.AddRun(ignoredRun)
+	r.EndRun(ignoredRun.Path,
+		report.WithResult(report.ResultSucceeded),
+		report.WithReason(report.ReasonErrorIgnored),
+		report.WithCauseIgnoreBlock("ignore-block"),
+	)
 
 	// Write the report to a JSON file
 	reportFile := filepath.Join(tmp, "report.json")
@@ -808,6 +851,70 @@ func TestSchemaIsValid(t *testing.T) {
 
 	// Check if the validation was successful
 	assert.True(t, result.Valid(), "JSON report does not match schema: %v", result.Errors())
+
+	// Additional validation of the report content
+	var reportData []report.JSONRun
+	err = json.Unmarshal(reportBytes, &reportData)
+	require.NoError(t, err)
+
+	// Verify we have all the expected runs
+	require.Len(t, reportData, 6)
+
+	// Helper function to find a run by name
+	findRun := func(name string) *report.JSONRun {
+		for _, run := range reportData {
+			if run.Name == name {
+				return &run
+			}
+		}
+		return nil
+	}
+
+	// Verify simple run
+	simple := findRun("simple-run")
+	require.NotNil(t, simple)
+	assert.Equal(t, "succeeded", simple.Result)
+	assert.Nil(t, simple.Reason)
+	assert.Nil(t, simple.Cause)
+	assert.False(t, simple.Started.IsZero())
+	assert.False(t, simple.Ended.IsZero())
+
+	// Verify complex run
+	complex := findRun("complex-run")
+	require.NotNil(t, complex)
+	assert.Equal(t, "failed", complex.Result)
+	assert.Equal(t, "run error", *complex.Reason)
+	assert.Equal(t, "some-error", *complex.Cause)
+	assert.False(t, complex.Started.IsZero())
+	assert.False(t, complex.Ended.IsZero())
+
+	// Verify excluded run
+	excluded := findRun("excluded-run")
+	require.NotNil(t, excluded)
+	assert.Equal(t, "excluded", excluded.Result)
+	assert.Equal(t, "exclude block", *excluded.Reason)
+	assert.Equal(t, "test-block", *excluded.Cause)
+
+	// Verify retry run
+	retry := findRun("retry-run")
+	require.NotNil(t, retry)
+	assert.Equal(t, "succeeded", retry.Result)
+	assert.Equal(t, "retry succeeded", *retry.Reason)
+	assert.Equal(t, "retry-block", *retry.Cause)
+
+	// Verify early exit run
+	earlyExit := findRun("early-exit-run")
+	require.NotNil(t, earlyExit)
+	assert.Equal(t, "early exit", earlyExit.Result)
+	assert.Equal(t, "ancestor error", *earlyExit.Reason)
+	assert.Equal(t, "parent-unit", *earlyExit.Cause)
+
+	// Verify ignored run
+	ignored := findRun("ignored-run")
+	require.NotNil(t, ignored)
+	assert.Equal(t, "succeeded", ignored.Result)
+	assert.Equal(t, "error ignored", *ignored.Reason)
+	assert.Equal(t, "ignore-block", *ignored.Cause)
 }
 
 // newRun creates a new run, and asserts that it doesn't error.
