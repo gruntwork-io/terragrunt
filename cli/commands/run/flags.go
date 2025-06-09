@@ -2,10 +2,13 @@
 package run
 
 import (
+	"fmt"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -80,6 +83,7 @@ const (
 
 	SummaryDisableFlagName = "summary-disable"
 	ReportFileFlagName     = "report-file"
+	ReportFormatFlagName   = "report-format"
 
 	// `--all` related flags.
 
@@ -544,10 +548,55 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		}),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
-			Name:        ReportFileFlagName,
-			EnvVars:     tgPrefix.EnvVars(ReportFileFlagName),
-			Destination: &opts.ReportFile,
-			Usage:       `Path to generate report file in.`,
+			Name:    ReportFileFlagName,
+			EnvVars: tgPrefix.EnvVars(ReportFileFlagName),
+			Usage:   `Path to generate report file in.`,
+			Setter: func(value string) error {
+				if value == "" {
+					return nil
+				}
+
+				opts.ReportFile = value
+
+				ext := filepath.Ext(value)
+				if ext == "" {
+					ext = ".csv"
+				}
+
+				if ext != ".csv" && ext != ".json" {
+					return nil
+				}
+
+				if opts.ReportFormat == "" {
+					opts.ReportFormat = report.Format(ext[1:])
+				}
+
+				return nil
+			},
+		}),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:    ReportFormatFlagName,
+			EnvVars: tgPrefix.EnvVars(ReportFormatFlagName),
+			Usage:   `Format of the report file.`,
+			Setter: func(value string) error {
+				if value == "" && opts.ReportFormat == "" {
+					opts.ReportFormat = report.FormatCSV
+
+					return nil
+				}
+
+				opts.ReportFormat = report.Format(value)
+
+				switch opts.ReportFormat {
+				case report.FormatCSV:
+				case report.FormatJSON:
+				default:
+					return fmt.Errorf("unsupported report format: %s", value)
+				}
+
+				return nil
+			},
 		}),
 	}
 

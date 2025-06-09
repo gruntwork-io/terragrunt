@@ -3,6 +3,7 @@ package report
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,7 @@ import (
 // Report captures data for a report/summary.
 type Report struct {
 	workingDir  string
+	format      Format
 	Runs        []*Run
 	mu          sync.RWMutex
 	shouldColor bool
@@ -46,6 +48,14 @@ type Reason string
 
 // Cause captures the cause of a run.
 type Cause string
+
+// Format captures the format of a report.
+type Format string
+
+const (
+	FormatCSV  Format = "csv"
+	FormatJSON Format = "json"
+)
 
 // Summary formats data from a report for output as a summary.
 type Summary struct {
@@ -128,6 +138,13 @@ func (r *Report) WithDisableColor() *Report {
 // WithWorkingDir sets the working directory for the report.
 func (r *Report) WithWorkingDir(workingDir string) *Report {
 	r.workingDir = workingDir
+
+	return r
+}
+
+// WithFormat sets the format for the report.
+func (r *Report) WithFormat(format Format) *Report {
+	r.format = format
 
 	return r
 }
@@ -405,7 +422,7 @@ func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 // WriteToFile writes the report to a file.
 func (r *Report) WriteToFile(path string) error {
 	// Create a temporary file to write to
-	tmpFile, err := os.CreateTemp("", "terragrunt-report-*.csv")
+	tmpFile, err := os.CreateTemp("", "terragrunt-report-*")
 	if err != nil {
 		return err
 	}
@@ -416,7 +433,15 @@ func (r *Report) WriteToFile(path string) error {
 	r.mu.Unlock()
 
 	// Write the report to the temporary file
-	err = r.WriteCSV(tmpFile)
+	switch r.format {
+	case FormatCSV:
+		err = r.WriteCSV(tmpFile)
+	case FormatJSON:
+		err = r.WriteJSON(tmpFile)
+	default:
+		return fmt.Errorf("unsupported format: %s", r.format)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to write report: %w", err)
 	}
@@ -496,6 +521,64 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	}
 
 	return nil
+}
+
+// WriteJSON writes the report to a writer in JSON format.
+func (r *Report) WriteJSON(w io.Writer) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	type jsonRun struct {
+		Name    string    `json:"name"`
+		Started time.Time `json:"started"`
+		Ended   time.Time `json:"ended"`
+		Result  string    `json:"result"`
+		Reason  *string   `json:"reason,omitempty"`
+		Cause   *string   `json:"cause,omitempty"`
+	}
+
+	runs := make([]jsonRun, 0, len(r.Runs))
+	for _, run := range r.Runs {
+		run.mu.RLock()
+		defer run.mu.RUnlock()
+
+		name := run.Path
+		if r.workingDir != "" {
+			name = strings.TrimPrefix(name, r.workingDir+string(os.PathSeparator))
+		}
+
+		jsonRun := jsonRun{
+			Name:    name,
+			Started: run.Started,
+			Ended:   run.Ended,
+			Result:  string(run.Result),
+		}
+
+		if run.Reason != nil {
+			reason := string(*run.Reason)
+			jsonRun.Reason = &reason
+		}
+
+		if run.Cause != nil {
+			cause := string(*run.Cause)
+			if run.Reason != nil && *run.Reason == ReasonAncestorError && r.workingDir != "" {
+				cause = strings.TrimPrefix(cause, r.workingDir+string(os.PathSeparator))
+			}
+			jsonRun.Cause = &cause
+		}
+
+		runs = append(runs, jsonRun)
+	}
+
+	jsonBytes, err := json.MarshalIndent(runs, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	jsonBytes = append(jsonBytes, '\n')
+
+	_, err = w.Write(jsonBytes)
+	return err
 }
 
 // WriteSummary writes the summary to a writer.
