@@ -116,7 +116,13 @@ You can use this file to determine details for each unit run, including the name
 
 In general, the schema for this report should change infrequently, but we'll try to keep it up to date here.
 
-In the future, we'll also support a JSON schema file that can be generated alongside the report, so that you have a programmatic way to validate that the report is going to conform to an expected schema.
+You can also generate a JSON schema file for the report, so that you have a programmatic way to validate that the report is going to conform to an expected schema.
+
+```bash
+terragrunt run --all plan --report-schema-file report.schema.json
+```
+
+The schema will be generated at the given path in the current working directory.
 
 ### Results
 
