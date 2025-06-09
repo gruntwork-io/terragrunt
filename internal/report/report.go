@@ -594,14 +594,28 @@ func (r *Report) WriteJSON(w io.Writer) error {
 
 // WriteSchemaToFile writes a JSON schema for the report to a file.
 func (r *Report) WriteSchemaToFile(path string) error {
-	file, err := os.Create(path)
+	// Create a temporary file to write to
+	tmpFile, err := os.CreateTemp("", "terragrunt-schema-*")
 	if err != nil {
 		return err
 	}
 
-	defer file.Close()
+	// Write the schema to the temporary file
+	if err := r.WriteSchema(tmpFile); err != nil {
+		return fmt.Errorf("failed to write schema: %w", err)
+	}
 
-	return r.WriteSchema(file)
+	// Close the temporary file
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close schema file: %w", err)
+	}
+
+	if r.workingDir != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(r.workingDir, path)
+	}
+
+	// Move the temporary file to the final destination
+	return os.Rename(tmpFile.Name(), path)
 }
 
 // WriteSchema writes a JSON schema for the report to a writer.

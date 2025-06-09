@@ -557,21 +557,7 @@ func TestWriteJSON(t *testing.T) {
 	}
 }
 
-func TestWriteSchema(t *testing.T) {
-	t.Parallel()
-
-	// Create a buffer to write the schema to
-	var buf bytes.Buffer
-
-	// Create a new report
-	r := report.NewReport()
-
-	// Write the schema
-	err := r.WriteSchema(&buf)
-	require.NoError(t, err)
-
-	// Assert the contents of the schema
-	assert.Equal(t, `{
+const ExpectedSchema = `{
   "items": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1",
@@ -626,7 +612,23 @@ func TestWriteSchema(t *testing.T) {
   "title": "Terragrunt Run Report Schema",
   "description": "Array of Terragrunt runs"
 }
-`, buf.String())
+`
+
+func TestWriteSchema(t *testing.T) {
+	t.Parallel()
+
+	// Create a buffer to write the schema to
+	var buf bytes.Buffer
+
+	// Create a new report
+	r := report.NewReport()
+
+	// Write the schema
+	err := r.WriteSchema(&buf)
+	require.NoError(t, err)
+
+	// Assert the contents of the schema
+	assert.Equal(t, ExpectedSchema, buf.String())
 
 	// Parse the schema
 	var schema map[string]interface{}
