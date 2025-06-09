@@ -585,7 +585,15 @@ func TestWriteSchema(t *testing.T) {
         "format": "date-time"
       },
       "Reason": {
-        "type": "string"
+        "type": "string",
+        "enum": [
+          "retry succeeded",
+          "error ignored",
+          "run error",
+          "--queue-exclude-dir",
+          "exclude block",
+          "ancestor error"
+        ]
       },
       "Cause": {
         "type": "string"
@@ -594,7 +602,13 @@ func TestWriteSchema(t *testing.T) {
         "type": "string"
       },
       "Result": {
-        "type": "string"
+        "type": "string",
+        "enum": [
+          "succeeded",
+          "failed",
+          "early exit",
+          "excluded"
+        ]
       }
     },
     "additionalProperties": false,

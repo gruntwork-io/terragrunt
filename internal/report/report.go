@@ -527,17 +527,17 @@ func (r *Report) WriteCSV(w io.Writer) error {
 // JSONRun represents a run in JSON format.
 type JSONRun struct {
 	// Started is the time when the run started.
-	Started time.Time `json:"Started"`
+	Started time.Time `json:"Started" jsonschema:"required"`
 	// Ended is the time when the run ended.
-	Ended time.Time `json:"Ended"`
+	Ended time.Time `json:"Ended" jsonschema:"required"`
 	// Reason is the reason for the run result, if any.
-	Reason *string `json:"Reason,omitempty"`
+	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=--queue-exclude-dir,enum=exclude block,enum=ancestor error"`
 	// Cause is the cause of the run result, if any.
 	Cause *string `json:"Cause,omitempty"`
 	// Name is the name of the run.
-	Name string `json:"Name"`
+	Name string `json:"Name" jsonschema:"required"`
 	// Result is the result of the run.
-	Result string `json:"Result"`
+	Result string `json:"Result" jsonschema:"required,enum=succeeded,enum=failed,enum=early exit,enum=excluded"`
 }
 
 // WriteJSON writes the report to a writer in JSON format.
