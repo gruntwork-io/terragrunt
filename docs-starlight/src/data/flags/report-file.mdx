@@ -1,9 +1,10 @@
 ---
 name: report-file
-description: 'The path to the run report.'
+description: The path where a run report should be generated.
+type: string
+env:
+  - TG_REPORT_FILE
 ---
-
-The path where the report will be written.
 
 By default, the format of the report will be automatically detected based on the file extension. A `.csv` extension will generate a CSV report, and a `.json` extension will generate a JSON report. Anything else will default to generating a CSV report.
 
