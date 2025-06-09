@@ -5,11 +5,14 @@ package configstack
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -42,7 +45,11 @@ type StackBuilder interface {
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
-	// here will be used different implementation of stack builder which will generate own stack implementation
+	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
+		discovery := discovery.NewDiscovery(terragruntOptions.WorkingDir)
+		builder := NewRunnerPoolStackBuilder(discovery)
+		return builder.BuildStack(ctx, l, terragruntOptions, opts...)
+	}
 	builder := &DefaultStackBuilder{}
 	return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 }
