@@ -529,12 +529,12 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	defer r.mu.RUnlock()
 
 	type jsonRun struct {
-		Name    string    `json:"name"`
-		Started time.Time `json:"started"`
-		Ended   time.Time `json:"ended"`
-		Result  string    `json:"result"`
-		Reason  *string   `json:"reason,omitempty"`
-		Cause   *string   `json:"cause,omitempty"`
+		Name    string    `json:"Name"`
+		Started time.Time `json:"Started"`
+		Ended   time.Time `json:"Ended"`
+		Result  string    `json:"Result"`
+		Reason  *string   `json:"Reason,omitempty"`
+		Cause   *string   `json:"Cause,omitempty"`
 	}
 
 	runs := make([]jsonRun, 0, len(r.Runs))
