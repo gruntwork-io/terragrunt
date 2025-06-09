@@ -472,7 +472,7 @@ func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []str
 	return a
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel log.Level, debug bool) *options.TerragruntOptions {
+func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, _ log.Level, debug bool) *options.TerragruntOptions {
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
