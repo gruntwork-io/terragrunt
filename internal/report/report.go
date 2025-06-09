@@ -651,6 +651,7 @@ func (r *Report) WriteSchema(w io.Writer) error {
 
 	// Write the schema
 	_, err = w.Write(jsonBytes)
+
 	return err
 }
 

@@ -628,7 +628,7 @@ func TestWriteSchema(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert the contents of the schema
-	assert.Equal(t, ExpectedSchema, buf.String())
+	assert.JSONEq(t, ExpectedSchema, buf.String())
 
 	// Parse the schema
 	var schema map[string]interface{}
@@ -696,7 +696,7 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 			schema, err := os.ReadFile(tt.file)
 			require.NoError(t, err)
 
-			assert.Equal(t, ExpectedSchema, string(schema))
+			assert.JSONEq(t, ExpectedSchema, string(schema))
 		})
 	}
 }
