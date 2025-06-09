@@ -523,21 +523,21 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	return nil
 }
 
+type JSONRun struct {
+	Started time.Time `json:"Started"`
+	Ended   time.Time `json:"Ended"`
+	Reason  *string   `json:"Reason,omitempty"`
+	Cause   *string   `json:"Cause,omitempty"`
+	Name    string    `json:"Name"`
+	Result  string    `json:"Result"`
+}
+
 // WriteJSON writes the report to a writer in JSON format.
 func (r *Report) WriteJSON(w io.Writer) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	type jsonRun struct {
-		Started time.Time `json:"Started"`
-		Ended   time.Time `json:"Ended"`
-		Reason  *string   `json:"Reason,omitempty"`
-		Cause   *string   `json:"Cause,omitempty"`
-		Name    string    `json:"Name"`
-		Result  string    `json:"Result"`
-	}
-
-	runs := make([]jsonRun, 0, len(r.Runs))
+	runs := make([]JSONRun, 0, len(r.Runs))
 
 	for _, run := range r.Runs {
 		run.mu.RLock()
@@ -548,7 +548,7 @@ func (r *Report) WriteJSON(w io.Writer) error {
 			name = strings.TrimPrefix(name, r.workingDir+string(os.PathSeparator))
 		}
 
-		jsonRun := jsonRun{
+		jsonRun := JSONRun{
 			Name:    name,
 			Started: run.Started,
 			Ended:   run.Ended,
