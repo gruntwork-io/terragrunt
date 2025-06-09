@@ -458,10 +458,10 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 
 				// Verify the first record has the expected fields
 				firstRecord := jsonContent[0]
-				assert.Contains(t, firstRecord, "name")
-				assert.Contains(t, firstRecord, "started")
-				assert.Contains(t, firstRecord, "ended")
-				assert.Contains(t, firstRecord, "result")
+				assert.Contains(t, firstRecord, "Name")
+				assert.Contains(t, firstRecord, "Started")
+				assert.Contains(t, firstRecord, "Ended")
+				assert.Contains(t, firstRecord, "Result")
 			}
 		})
 	}
