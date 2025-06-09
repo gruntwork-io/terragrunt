@@ -560,7 +560,7 @@ func TestWriteJSON(t *testing.T) {
 const ExpectedSchema = `{
   "items": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json",
     "properties": {
       "Started": {
         "type": "string",

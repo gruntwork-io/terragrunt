@@ -631,7 +631,7 @@ func (r *Report) WriteSchema(w io.Writer) error {
 
 	schema.Description = "Schema for Terragrunt run report"
 	schema.Title = "Terragrunt Run Report Schema"
-	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v1"
+	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json"
 
 	arraySchema := &jsonschema.Schema{
 		Type:        "array",
