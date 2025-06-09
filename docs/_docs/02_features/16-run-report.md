@@ -124,6 +124,68 @@ terragrunt run --all plan --report-schema-file report.schema.json
 
 The schema will be generated at the given path in the current working directory. The generated schema conforms to the [JSON Schema](https://json-schema.org/) standard.
 
+This generated schema will look like the following:
+
+```json
+{
+  "items": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json",
+    "properties": {
+      "Started": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Ended": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Reason": {
+        "type": "string",
+        "enum": [
+          "retry succeeded",
+          "error ignored",
+          "run error",
+          "--queue-exclude-dir",
+          "exclude block",
+          "ancestor error"
+        ]
+      },
+      "Cause": {
+        "type": "string"
+      },
+      "Name": {
+        "type": "string"
+      },
+      "Result": {
+        "type": "string",
+        "enum": [
+          "succeeded",
+          "failed",
+          "early exit",
+          "excluded"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "Started",
+      "Ended",
+      "Name",
+      "Result"
+    ],
+    "title": "Terragrunt Run Report Schema",
+    "description": "Schema for Terragrunt run report"
+  },
+  "type": "array",
+  "title": "Terragrunt Run Report Schema",
+  "description": "Array of Terragrunt runs"
+}
+```
+
+Note the `$id` field, which is used to identify the schema. This is useful to quickly determine which version of the schema is being used. You can also fetch the schema remotely from that URL.
+
 ### Results
 
 Results are high level outcomes of a unit run, and will always be one of the following:
