@@ -176,6 +176,8 @@ type TerragruntOptions struct {
 	ReportFile string
 	// Report format.
 	ReportFormat report.Format
+	// Path to the report schema file.
+	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs cli.Args
 	// Unix-style glob of directories to include when running *-all commands

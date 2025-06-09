@@ -63,6 +63,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 		stackOpts = append(stackOpts, configstack.WithReport(r))
 
+		if opts.ReportSchemaFile != "" {
+			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		}
+
 		if opts.ReportFile != "" {
 			defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
 		}
