@@ -592,6 +592,18 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	return err
 }
 
+// WriteSchemaToFile writes a JSON schema for the report to a file.
+func (r *Report) WriteSchemaToFile(path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	return r.WriteSchema(file)
+}
+
 // WriteSchema writes a JSON schema for the report to a writer.
 func (r *Report) WriteSchema(w io.Writer) error {
 	// Create a new reflector

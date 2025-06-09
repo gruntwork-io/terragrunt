@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 func TestNewReport(t *testing.T) {
@@ -751,6 +752,62 @@ func TestWriteSummary(t *testing.T) {
 			assert.Equal(t, expected, strings.TrimSpace(output))
 		})
 	}
+}
+
+func TestSchemaIsValid(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	// Create a new report
+	r := report.NewReport().WithWorkingDir(tmp)
+
+	// Add some test runs
+	successRun := newRun(t, filepath.Join(tmp, "success-run"))
+	r.AddRun(successRun)
+	r.EndRun(successRun.Path)
+
+	failedRun := newRun(t, filepath.Join(tmp, "failed-run"))
+	r.AddRun(failedRun)
+	r.EndRun(failedRun.Path, report.WithResult(report.ResultFailed), report.WithReason(report.ReasonRunError))
+
+	// Write the report to a JSON file
+	reportFile := filepath.Join(tmp, "report.json")
+	file, err := os.Create(reportFile)
+	require.NoError(t, err)
+	defer file.Close()
+
+	err = r.WriteJSON(file)
+	require.NoError(t, err)
+	file.Close()
+
+	// Write the schema to a file
+	schemaFile := filepath.Join(tmp, "schema.json")
+	file, err = os.Create(schemaFile)
+	require.NoError(t, err)
+	defer file.Close()
+
+	err = r.WriteSchema(file)
+	require.NoError(t, err)
+	file.Close()
+
+	// Read the schema and report files
+	schemaBytes, err := os.ReadFile(schemaFile)
+	require.NoError(t, err)
+
+	reportBytes, err := os.ReadFile(reportFile)
+	require.NoError(t, err)
+
+	// Create a new schema loader
+	schemaLoader := gojsonschema.NewBytesLoader(schemaBytes)
+	documentLoader := gojsonschema.NewBytesLoader(reportBytes)
+
+	// Validate the report against the schema
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	require.NoError(t, err)
+
+	// Check if the validation was successful
+	assert.True(t, result.Valid(), "JSON report does not match schema: %v", result.Errors())
 }
 
 // newRun creates a new run, and asserts that it doesn't error.
