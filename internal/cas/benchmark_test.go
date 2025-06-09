@@ -34,7 +34,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(b.Context(), &l, &cas.CloneOptions{
+			if err := c.Clone(b.Context(), l, &cas.CloneOptions{
 				Dir: targetPath,
 			}, repo); err != nil {
 				b.Fatal(err)
@@ -53,7 +53,7 @@ func BenchmarkClone(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := c.Clone(b.Context(), &l, &cas.CloneOptions{
+		if err := c.Clone(b.Context(), l, &cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "initial"),
 		}, repo); err != nil {
 			b.Fatal(err)
@@ -70,7 +70,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(b.Context(), &l, &cas.CloneOptions{
+			if err := c.Clone(b.Context(), l, &cas.CloneOptions{
 				Dir: targetPath,
 			}, repo); err != nil {
 				b.Fatal(err)
@@ -92,7 +92,7 @@ func BenchmarkContent(b *testing.B) {
 	b.Run("store", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			hash := fmt.Sprintf("benchmark%d", i)
-			if err := content.Store(&l, hash, testData); err != nil {
+			if err := content.Store(l, hash, testData); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -115,7 +115,7 @@ func BenchmarkContent(b *testing.B) {
 				seen[hash] = true
 				mu.Unlock()
 
-				if err := content.Store(&l, hash, testData); err != nil {
+				if err := content.Store(l, hash, testData); err != nil {
 					b.Fatal(err)
 				}
 				i++

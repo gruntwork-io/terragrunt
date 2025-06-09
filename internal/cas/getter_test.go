@@ -82,7 +82,7 @@ func TestCASGetterGet(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	g := cas.NewCASGetter(&l, c, opts)
+	g := cas.NewCASGetter(l, c, opts)
 	client := getter.Client{
 		Getters: []getter.Getter{g},
 	}
