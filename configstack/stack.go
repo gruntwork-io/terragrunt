@@ -49,6 +49,7 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
 		d := discovery.
 			NewDiscovery(terragruntOptions.WorkingDir).
+			WithDiscoverExternalDependencies().
 			WithParseInclude().
 			WithParseExclude().
 			WithDiscoverDependencies().
