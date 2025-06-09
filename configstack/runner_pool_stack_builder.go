@@ -25,5 +25,6 @@ func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, t
 	if err != nil {
 		return nil, err
 	}
+	discovered = discovered.Sort()
 	return NewRunnerPoolStack(l, terragruntOptions, discovered), nil
 }

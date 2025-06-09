@@ -46,8 +46,15 @@ type StackBuilder interface {
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
 	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
-		discovery := discovery.NewDiscovery(terragruntOptions.WorkingDir)
-		builder := NewRunnerPoolStackBuilder(discovery)
+		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
+		d := discovery.
+			NewDiscovery(terragruntOptions.WorkingDir).
+			WithParseInclude().
+			WithParseExclude().
+			WithDiscoverDependencies().
+			WithSuppressParseErrors()
+
+		builder := NewRunnerPoolStackBuilder(d)
 		return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 	}
 	builder := &DefaultStackBuilder{}

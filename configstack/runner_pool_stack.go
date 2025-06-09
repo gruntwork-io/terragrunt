@@ -25,12 +25,11 @@ func ConvertDiscoveredToModules(discovered discovery.DiscoveredConfigs, terragru
 			continue
 		}
 		mod := &TerraformModule{
-			Stack:             nil, // Will be set later if needed
+
 			TerragruntOptions: terragruntOptions,
 			Logger:            l,
 			Path:              d.Path,
 			Config:            *d.Parsed,
-			Dependencies:      TerraformModules{}, // Not wired in placeholder
 		}
 		modules = append(modules, mod)
 	}
