@@ -397,12 +397,14 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 			if tc.expectedFormat == "csv" {
 				// For CSV, verify it starts with the expected header
 				assert.True(t, strings.HasPrefix(string(content), "Name,Started,Ended,Result,Reason,Cause"))
-			} else if tc.expectedFormat == "json" {
+			case "json":
 				// For JSON, verify it's valid JSON and has the expected structure
 				var jsonContent []map[string]interface{}
 				err := json.Unmarshal(content, &jsonContent)
+
 				require.NoError(t, err)
-				require.Greater(t, len(jsonContent), 0)
+
+				require.NotEmpty(t, jsonContent)
 
 				// Verify the first record has the expected fields
 				firstRecord := jsonContent[0]
