@@ -1691,6 +1691,16 @@ The default is `csv`.
 
 For more information, see the [Run Report](/docs/features/run-report) feature.
 
+### report-schema-file
+
+**CLI Arg**: `--report-schema-file`<br/>
+**Environment Variable**: `TG_REPORT_SCHEMA_FILE`<br/>
+**Requires an argument**: `--report-schema-file /path/to/report-schema-file`<br/>
+
+When passed in, a JSON schema for the report will be generated at the specified path.
+
+For more information, see the [Run Report](/docs/features/run-report) feature.
+
 ### summary-disable
 
 **CLI Arg**: `--summary-disable`<br/>

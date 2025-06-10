@@ -84,6 +84,7 @@ const (
 	SummaryDisableFlagName = "summary-disable"
 	ReportFileFlagName     = "report-file"
 	ReportFormatFlagName   = "report-format"
+	ReportSchemaFlagName   = "report-schema-file"
 
 	// `--all` related flags.
 
@@ -597,6 +598,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 				return nil
 			},
+		}),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        ReportSchemaFlagName,
+			EnvVars:     tgPrefix.EnvVars(ReportSchemaFlagName),
+			Usage:       `Path to generate report schema file in.`,
+			Destination: &opts.ReportSchemaFile,
 		}),
 	}
 

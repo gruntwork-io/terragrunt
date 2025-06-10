@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/invopop/jsonschema"
 	"github.com/mgutz/ansi"
 )
 
@@ -521,21 +522,28 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	return nil
 }
 
+// JSONRun represents a run in JSON format.
+type JSONRun struct {
+	// Started is the time when the run started.
+	Started time.Time `json:"Started" jsonschema:"required"`
+	// Ended is the time when the run ended.
+	Ended time.Time `json:"Ended" jsonschema:"required"`
+	// Reason is the reason for the run result, if any.
+	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=--queue-exclude-dir,enum=exclude block,enum=ancestor error"`
+	// Cause is the cause of the run result, if any.
+	Cause *string `json:"Cause,omitempty"`
+	// Name is the name of the run.
+	Name string `json:"Name" jsonschema:"required"`
+	// Result is the result of the run.
+	Result string `json:"Result" jsonschema:"required,enum=succeeded,enum=failed,enum=early exit,enum=excluded"`
+}
+
 // WriteJSON writes the report to a writer in JSON format.
 func (r *Report) WriteJSON(w io.Writer) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	type jsonRun struct {
-		Started time.Time `json:"Started"`
-		Ended   time.Time `json:"Ended"`
-		Reason  *string   `json:"Reason,omitempty"`
-		Cause   *string   `json:"Cause,omitempty"`
-		Name    string    `json:"Name"`
-		Result  string    `json:"Result"`
-	}
-
-	runs := make([]jsonRun, 0, len(r.Runs))
+	runs := make([]JSONRun, 0, len(r.Runs))
 
 	for _, run := range r.Runs {
 		run.mu.RLock()
@@ -546,7 +554,7 @@ func (r *Report) WriteJSON(w io.Writer) error {
 			name = strings.TrimPrefix(name, r.workingDir+string(os.PathSeparator))
 		}
 
-		jsonRun := jsonRun{
+		jsonRun := JSONRun{
 			Name:    name,
 			Started: run.Started,
 			Ended:   run.Ended,
@@ -577,6 +585,69 @@ func (r *Report) WriteJSON(w io.Writer) error {
 
 	jsonBytes = append(jsonBytes, '\n')
 
+	_, err = w.Write(jsonBytes)
+
+	return err
+}
+
+// WriteSchemaToFile writes a JSON schema for the report to a file.
+func (r *Report) WriteSchemaToFile(path string) error {
+	// Create a temporary file to write to
+	tmpFile, err := os.CreateTemp("", "terragrunt-schema-*")
+	if err != nil {
+		return err
+	}
+
+	// Write the schema to the temporary file
+	if err := r.WriteSchema(tmpFile); err != nil {
+		return fmt.Errorf("failed to write schema: %w", err)
+	}
+
+	// Close the temporary file
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close schema file: %w", err)
+	}
+
+	if r.workingDir != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(r.workingDir, path)
+	}
+
+	// Move the temporary file to the final destination
+	return os.Rename(tmpFile.Name(), path)
+}
+
+// WriteSchema writes a JSON schema for the report to a writer.
+func (r *Report) WriteSchema(w io.Writer) error {
+	// Create a new reflector
+	reflector := jsonschema.Reflector{
+		// Add descriptions from Go comments
+		DoNotReference: true,
+	}
+
+	// Generate the schema for JSONRun
+	schema := reflector.Reflect(&JSONRun{})
+
+	schema.Description = "Schema for Terragrunt run report"
+	schema.Title = "Terragrunt Run Report Schema"
+	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json"
+
+	arraySchema := &jsonschema.Schema{
+		Type:        "array",
+		Title:       "Terragrunt Run Report Schema",
+		Description: "Array of Terragrunt runs",
+		Items:       schema,
+	}
+
+	// Marshal the schema to JSON
+	jsonBytes, err := json.MarshalIndent(arraySchema, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// Add a newline at the end
+	jsonBytes = append(jsonBytes, '\n')
+
+	// Write the schema
 	_, err = w.Write(jsonBytes)
 
 	return err

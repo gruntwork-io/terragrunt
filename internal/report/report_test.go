@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 func TestNewReport(t *testing.T) {
@@ -556,6 +557,150 @@ func TestWriteJSON(t *testing.T) {
 	}
 }
 
+const ExpectedSchema = `{
+  "items": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json",
+    "properties": {
+      "Started": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Ended": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Reason": {
+        "type": "string",
+        "enum": [
+          "retry succeeded",
+          "error ignored",
+          "run error",
+          "--queue-exclude-dir",
+          "exclude block",
+          "ancestor error"
+        ]
+      },
+      "Cause": {
+        "type": "string"
+      },
+      "Name": {
+        "type": "string"
+      },
+      "Result": {
+        "type": "string",
+        "enum": [
+          "succeeded",
+          "failed",
+          "early exit",
+          "excluded"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "Started",
+      "Ended",
+      "Name",
+      "Result"
+    ],
+    "title": "Terragrunt Run Report Schema",
+    "description": "Schema for Terragrunt run report"
+  },
+  "type": "array",
+  "title": "Terragrunt Run Report Schema",
+  "description": "Array of Terragrunt runs"
+}
+`
+
+func TestWriteSchema(t *testing.T) {
+	t.Parallel()
+
+	// Create a buffer to write the schema to
+	var buf bytes.Buffer
+
+	// Create a new report
+	r := report.NewReport()
+
+	// Write the schema
+	err := r.WriteSchema(&buf)
+	require.NoError(t, err)
+
+	// Assert the contents of the schema
+	assert.JSONEq(t, ExpectedSchema, buf.String())
+
+	// Parse the schema
+	var schema map[string]interface{}
+	err = json.Unmarshal(buf.Bytes(), &schema)
+	require.NoError(t, err)
+
+	// Verify the schema structure
+	assert.Equal(t, "array", schema["type"])
+	assert.Equal(t, "Array of Terragrunt runs", schema["description"])
+	assert.Equal(t, "Terragrunt Run Report Schema", schema["title"])
+
+	// Verify the items schema
+	items, ok := schema["items"].(map[string]interface{})
+	require.True(t, ok)
+
+	// Verify the properties
+	properties, ok := items["properties"].(map[string]interface{})
+	require.True(t, ok)
+
+	// Verify required fields
+	required, ok := items["required"].([]interface{})
+	require.True(t, ok)
+	assert.Contains(t, required, "Name")
+	assert.Contains(t, required, "Started")
+	assert.Contains(t, required, "Ended")
+	assert.Contains(t, required, "Result")
+
+	// Verify field types
+	assert.Equal(t, "string", properties["Name"].(map[string]interface{})["type"])
+	assert.Equal(t, "string", properties["Result"].(map[string]interface{})["type"])
+	assert.Equal(t, "string", properties["Started"].(map[string]interface{})["type"])
+	assert.Equal(t, "string", properties["Ended"].(map[string]interface{})["type"])
+
+	// Verify optional fields
+	reason, ok := properties["Reason"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "string", reason["type"])
+
+	cause, ok := properties["Cause"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "string", cause["type"])
+}
+
+func TestExpectedSchemaIsInDocs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		file string
+	}{
+		{
+			name: "starlight",
+			file: filepath.Join("..", "..", "docs-starlight", "public", "schemas", "run", "report", "v1", "schema.json"),
+		},
+		{
+			name: "jekyll",
+			file: filepath.Join("..", "..", "docs", "schemas", "run", "report", "v1", "schema.json"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			schema, err := os.ReadFile(tt.file)
+			require.NoError(t, err)
+
+			assert.JSONEq(t, ExpectedSchema, string(schema))
+		})
+	}
+}
+
 func TestWriteSummary(t *testing.T) {
 	t.Parallel()
 
@@ -652,6 +797,169 @@ func TestWriteSummary(t *testing.T) {
 			assert.Equal(t, expected, strings.TrimSpace(output))
 		})
 	}
+}
+
+func TestSchemaIsValid(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	// Create a new report with working directory
+	r := report.NewReport().WithWorkingDir(tmp)
+
+	// Add a simple run that succeeds
+	simpleRun := newRun(t, filepath.Join(tmp, "simple-run"))
+	r.AddRun(simpleRun)
+	r.EndRun(simpleRun.Path,
+		report.WithResult(report.ResultSucceeded),
+	)
+
+	// Add a complex run that tests all possible fields and states
+	complexRun := newRun(t, filepath.Join(tmp, "complex-run"))
+	r.AddRun(complexRun)
+	r.EndRun(complexRun.Path,
+		report.WithResult(report.ResultFailed),
+		report.WithReason(report.ReasonRunError),
+		report.WithCauseAncestorExit("some-error"),
+	)
+
+	// Create an excluded run with exclude block
+	excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+	r.AddRun(excludedRun)
+	r.EndRun(excludedRun.Path,
+		report.WithResult(report.ResultExcluded),
+		report.WithReason(report.ReasonExcludeBlock),
+		report.WithCauseExcludeBlock("test-block"),
+	)
+
+	// Create a retry run that succeeded
+	retryRun := newRun(t, filepath.Join(tmp, "retry-run"))
+	r.AddRun(retryRun)
+	r.EndRun(retryRun.Path,
+		report.WithResult(report.ResultSucceeded),
+		report.WithReason(report.ReasonRetrySucceeded),
+		report.WithCauseRetryBlock("retry-block"),
+	)
+
+	// Create an early exit run
+	earlyExitRun := newRun(t, filepath.Join(tmp, "early-exit-run"))
+	r.AddRun(earlyExitRun)
+	r.EndRun(earlyExitRun.Path,
+		report.WithResult(report.ResultEarlyExit),
+		report.WithReason(report.ReasonAncestorError),
+		report.WithCauseAncestorExit("parent-unit"),
+	)
+
+	// Create a run with ignored error
+	ignoredRun := newRun(t, filepath.Join(tmp, "ignored-run"))
+	r.AddRun(ignoredRun)
+	r.EndRun(ignoredRun.Path,
+		report.WithResult(report.ResultSucceeded),
+		report.WithReason(report.ReasonErrorIgnored),
+		report.WithCauseIgnoreBlock("ignore-block"),
+	)
+
+	// Write the report to a JSON file
+	reportFile := filepath.Join(tmp, "report.json")
+	file, err := os.Create(reportFile)
+	require.NoError(t, err)
+	defer file.Close()
+
+	err = r.WriteJSON(file)
+	require.NoError(t, err)
+	file.Close()
+
+	// Write the schema to a file
+	schemaFile := filepath.Join(tmp, "schema.json")
+	file, err = os.Create(schemaFile)
+	require.NoError(t, err)
+	defer file.Close()
+
+	err = r.WriteSchema(file)
+	require.NoError(t, err)
+	file.Close()
+
+	// Read the schema and report files
+	schemaBytes, err := os.ReadFile(schemaFile)
+	require.NoError(t, err)
+
+	reportBytes, err := os.ReadFile(reportFile)
+	require.NoError(t, err)
+
+	// Create a new schema loader
+	schemaLoader := gojsonschema.NewBytesLoader(schemaBytes)
+	documentLoader := gojsonschema.NewBytesLoader(reportBytes)
+
+	// Validate the report against the schema
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	require.NoError(t, err)
+
+	// Check if the validation was successful
+	assert.True(t, result.Valid(), "JSON report does not match schema: %v", result.Errors())
+
+	// Additional validation of the report content
+	var reportData []report.JSONRun
+	err = json.Unmarshal(reportBytes, &reportData)
+	require.NoError(t, err)
+
+	// Verify we have all the expected runs
+	require.Len(t, reportData, 6)
+
+	// Helper function to find a run by name
+	findRun := func(name string) *report.JSONRun {
+		for _, run := range reportData {
+			if run.Name == name {
+				return &run
+			}
+		}
+		return nil
+	}
+
+	// Verify simple run
+	simple := findRun("simple-run")
+	require.NotNil(t, simple)
+	assert.Equal(t, "succeeded", simple.Result)
+	assert.Nil(t, simple.Reason)
+	assert.Nil(t, simple.Cause)
+	assert.False(t, simple.Started.IsZero())
+	assert.False(t, simple.Ended.IsZero())
+
+	// Verify complex run
+	complex := findRun("complex-run")
+	require.NotNil(t, complex)
+	assert.Equal(t, "failed", complex.Result)
+	assert.Equal(t, "run error", *complex.Reason)
+	assert.Equal(t, "some-error", *complex.Cause)
+	assert.False(t, complex.Started.IsZero())
+	assert.False(t, complex.Ended.IsZero())
+
+	// Verify excluded run
+	excluded := findRun("excluded-run")
+	require.NotNil(t, excluded)
+	assert.Equal(t, "excluded", excluded.Result)
+	assert.Equal(t, "exclude block", *excluded.Reason)
+	assert.Equal(t, "test-block", *excluded.Cause)
+
+	// Verify retry run
+	retry := findRun("retry-run")
+	require.NotNil(t, retry)
+	assert.Equal(t, "succeeded", retry.Result)
+	assert.Equal(t, "retry succeeded", *retry.Reason)
+	assert.Equal(t, "retry-block", *retry.Cause)
+
+	// Verify early exit run
+	earlyExit := findRun("early-exit-run")
+	require.NotNil(t, earlyExit)
+	assert.Equal(t, "early exit", earlyExit.Result)
+	assert.Equal(t, "ancestor error", *earlyExit.Reason)
+	assert.Equal(t, "parent-unit", *earlyExit.Cause)
+
+	// Verify ignored run
+	ignored := findRun("ignored-run")
+	require.NotNil(t, ignored)
+	assert.Equal(t, "succeeded", ignored.Result)
+	assert.Equal(t, "error ignored", *ignored.Reason)
+	assert.Equal(t, "ignore-block", *ignored.Cause)
 }
 
 // newRun creates a new run, and asserts that it doesn't error.
