@@ -63,6 +63,7 @@ type Summary struct {
 	lastRunEnd     *time.Time
 	runs           []*Run
 	padder         string
+	workingDir     string
 	UnitsSucceeded int
 	UnitsFailed    int
 	EarlyExits     int
@@ -356,6 +357,7 @@ const (
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
+		workingDir:     r.workingDir,
 		shouldColor:    r.shouldColor,
 		showUnitTiming: r.showUnitTiming,
 		padder:         " ",
@@ -799,12 +801,17 @@ func (s *Summary) writeUnitsTiming(w io.Writer, colorizer *Colorizer) error {
 func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) error {
 	duration := run.Ended.Sub(run.Started)
 
+	name := run.Path
+	if s.workingDir != "" {
+		name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+	}
+
 	_, err := fmt.Fprintf(
 		w, "%s%s%s%s %s\n",
 		strings.Repeat(prefix, 2),
-		run.Path,
+		name,
 		separator,
-		s.padding(run.Path),
+		s.unitDurationPadding(name),
 		colorizer.defaultColorizer(duration.String()),
 	)
 	if err != nil {
@@ -857,6 +864,29 @@ func (s *Summary) padding(label string) string {
 	longestLineLength := s.longestLineLength()
 
 	labelLength := len(prefix) + len(label) + len(separator)
+
+	return strings.Repeat(s.padder, longestLineLength-labelLength)
+}
+
+func (s *Summary) longestUnitDurationLineLength() int {
+	names := make([]int, 0, len(s.runs))
+
+	for _, run := range s.runs {
+		name := run.Path
+		if s.workingDir != "" {
+			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+		}
+
+		names = append(names, len(name))
+	}
+
+	return slices.Max(names) + (len(prefix) * 2) + len(separator)
+}
+
+func (s *Summary) unitDurationPadding(name string) string {
+	longestLineLength := s.longestUnitDurationLineLength()
+
+	labelLength := (len(prefix) * 2) + len(name) + len(separator)
 
 	return strings.Repeat(s.padder, longestLineLength-labelLength)
 }

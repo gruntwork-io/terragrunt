@@ -962,6 +962,101 @@ func TestSchemaIsValid(t *testing.T) {
 	assert.Equal(t, "ignore-block", *ignored.Cause)
 }
 
+func TestWriteUnitsTiming(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		name     string
+		setup    func(*report.Report)
+		expected string
+	}{
+		{
+			name: "empty runs",
+			setup: func(r *report.Report) {
+				// No runs added
+			},
+			expected: `
+❯❯ Run Summary
+   Duration:  x
+   Units:     0
+`,
+		},
+		{
+			name: "single run",
+			setup: func(r *report.Report) {
+				run := newRun(t, filepath.Join(tmp, "single-run"))
+				r.AddRun(run)
+				r.EndRun(run.Path)
+			},
+			expected: `
+❯❯ Run Summary
+   Duration:   x
+      single-run:  x
+   Units:      1
+   Succeeded:  1
+`,
+		},
+		{
+			name: "multiple runs sorted by duration",
+			setup: func(r *report.Report) {
+				// Add runs with different durations
+				longRun := newRun(t, filepath.Join(tmp, "long-run"))
+				r.AddRun(longRun)
+
+				mediumRun := newRun(t, filepath.Join(tmp, "medium-run"))
+				r.AddRun(mediumRun)
+
+				shortRun := newRun(t, filepath.Join(tmp, "short-run"))
+				r.AddRun(shortRun)
+
+				r.EndRun(shortRun.Path)
+				r.EndRun(mediumRun.Path)
+				r.EndRun(longRun.Path)
+			},
+			expected: `
+❯❯ Run Summary
+   Duration:   x
+      long-run:    x
+      medium-run:  x
+      short-run:   x
+   Units:      3
+   Succeeded:  3
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// t.Parallel()
+
+			r := report.NewReport().
+				WithDisableColor().
+				WithShowUnitTiming().
+				WithWorkingDir(tmp)
+
+			tt.setup(r)
+
+			var buf bytes.Buffer
+			err := r.WriteSummary(&buf)
+			require.NoError(t, err)
+
+			// Replace the duration with x since we can't control the actual duration in tests
+			output := buf.String()
+			re := regexp.MustCompile(`Duration:(\s+).*`)
+			output = re.ReplaceAllString(output, "Duration:${1}x")
+
+			// Replace the actual durations with x
+			re = regexp.MustCompile(`([ ]{6})([^\s]+:)(\s+)(.*)`)
+			output = re.ReplaceAllString(output, "${1}${2}${3}x")
+
+			expected := strings.TrimSpace(tt.expected)
+			assert.Equal(t, expected, strings.TrimSpace(output))
+		})
+	}
+}
+
 // newRun creates a new run, and asserts that it doesn't error.
 func newRun(t *testing.T, name string) *report.Run {
 	t.Helper()
