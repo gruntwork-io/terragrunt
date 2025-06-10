@@ -60,7 +60,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			r.WithFormat(opts.ReportFormat)
 		}
 
-		if opts.SummaryUnitTiming {
+		if opts.SummaryUnitDuration {
 			r.WithShowUnitTiming()
 		}
 

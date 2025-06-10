@@ -308,8 +308,8 @@ type TerragruntOptions struct {
 	ForceBackendMigrate bool
 	// SummaryDisable disables the summary output at the end of a run.
 	SummaryDisable bool
-	// SummaryUnitTiming enables showing timing information for each unit in the summary.
-	SummaryUnitTiming bool
+	// SummaryUnitDuration enables showing duration information for each unit in the summary.
+	SummaryUnitDuration bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
