@@ -396,14 +396,43 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	re = regexp.MustCompile(`([ ]{6})([^\s]+:)(\s+)(.*)`)
 	stdoutStr = re.ReplaceAllString(stdoutStr, "${1}${2}${3}x")
 
-	// Trim stdout to only the run summary
+	// Find and extract the run summary section
 	lines := strings.Split(stdoutStr, "\n")
 
-	postLogLines := lines[len(lines)-22:]
+	// Find the "Run Summary" line
+	summaryStartIdx := -1
+	for i, line := range lines {
+		if strings.Contains(line, "Run Summary") {
+			summaryStartIdx = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, summaryStartIdx, "Could not find 'Run Summary' line")
 
-	unitLogLines := postLogLines[2:15]
+	// Find the end of the summary (last non-empty line after summary start)
+	summaryEndIdx := len(lines) - 1
+	for i := summaryEndIdx; i > summaryStartIdx; i-- {
+		if strings.TrimSpace(lines[i]) != "" {
+			summaryEndIdx = i
+			break
+		}
+	}
 
-	// Sort the duration lines alphabetically so that they show up consistently.
+	// Extract unit duration lines (lines that start with 6 spaces and contain a colon)
+	var unitLogLines []string
+	var otherLines []string
+
+	for i := summaryStartIdx; i <= summaryEndIdx; i++ {
+		line := lines[i]
+		// Check if this is a unit duration line (6 spaces + unit name + colon)
+		if strings.HasPrefix(line, "      ") && strings.Contains(line, ":") && !strings.Contains(line, "Duration:") {
+			unitLogLines = append(unitLogLines, line)
+		} else {
+			otherLines = append(otherLines, line)
+		}
+	}
+
+	// Sort the duration lines alphabetically so that they show up consistently
 	sort.Slice(unitLogLines, func(i, j int) bool {
 		// Extract the unit name from the line
 		unitNameI := strings.TrimSpace(re.ReplaceAllString(unitLogLines[i], "${2}"))
@@ -413,10 +442,20 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 		return unitNameI < unitNameJ
 	})
 
-	updatedLines := append(postLogLines[:2], unitLogLines...)
-	updatedLines = append(updatedLines, postLogLines[15:]...)
+	// Reconstruct the summary with sorted unit lines
+	// Insert sorted unit lines after the "Duration:" line
+	finalLines := make([]string, 0, len(otherLines)+len(unitLogLines))
 
-	stdoutStr = strings.Join(updatedLines, "\n")
+	unitInserted := false
+	for _, line := range otherLines {
+		finalLines = append(finalLines, line)
+		if strings.Contains(line, "Duration:") && !unitInserted {
+			finalLines = append(finalLines, unitLogLines...)
+			unitInserted = true
+		}
+	}
+
+	stdoutStr = strings.Join(finalLines, "\n")
 
 	assert.Equal(t, strings.TrimSpace(`
 ❯❯ Run Summary
