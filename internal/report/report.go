@@ -120,6 +120,27 @@ func NewColorizer(shouldColor bool) *Colorizer {
 	}
 }
 
+// colorDuration returns the duration as a string, colored based on the duration.
+func (c *Colorizer) colorDuration(duration time.Duration) string {
+	if duration < time.Microsecond {
+		return c.nanosecondColorizer(fmt.Sprintf("%dns", duration.Nanoseconds()))
+	}
+
+	if duration < time.Millisecond {
+		return c.microsecondColorizer(fmt.Sprintf("%dµs", duration.Microseconds()))
+	}
+
+	if duration < time.Second {
+		return c.millisecondColorizer(fmt.Sprintf("%dms", duration.Milliseconds()))
+	}
+
+	if duration < time.Minute {
+		return c.secondColorizer(fmt.Sprintf("%ds", int(duration.Seconds())))
+	}
+
+	return c.minuteColorizer(fmt.Sprintf("%dm", int(duration.Minutes())))
+}
+
 // NewReport creates a new report.
 func NewReport() *Report {
 	report := &Report{
@@ -424,28 +445,7 @@ func (s *Summary) TotalDuration() time.Duration {
 func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 	duration := s.TotalDuration()
 
-	return colorDuration(colorizer, duration)
-}
-
-// colorDuration returns the duration as a string, colored based on the duration.
-func colorDuration(colorizer *Colorizer, duration time.Duration) string {
-	if duration < time.Microsecond {
-		return colorizer.nanosecondColorizer(fmt.Sprintf("%dns", duration.Nanoseconds()))
-	}
-
-	if duration < time.Millisecond {
-		return colorizer.microsecondColorizer(fmt.Sprintf("%dµs", duration.Microseconds()))
-	}
-
-	if duration < time.Second {
-		return colorizer.millisecondColorizer(fmt.Sprintf("%dms", duration.Milliseconds()))
-	}
-
-	if duration < time.Minute {
-		return colorizer.secondColorizer(fmt.Sprintf("%ds", int(duration.Seconds())))
-	}
-
-	return colorizer.minuteColorizer(fmt.Sprintf("%dm", int(duration.Minutes())))
+	return colorizer.colorDuration(duration)
 }
 
 // WriteToFile writes the report to a file.
@@ -824,7 +824,7 @@ func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) e
 		name,
 		separator,
 		s.unitDurationPadding(name),
-		colorDuration(colorizer, duration),
+		colorizer.colorDuration(duration),
 	)
 	if err != nil {
 		return err
