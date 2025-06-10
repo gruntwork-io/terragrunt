@@ -21,11 +21,12 @@ import (
 
 // Report captures data for a report/summary.
 type Report struct {
-	workingDir  string
-	format      Format
-	Runs        []*Run
-	mu          sync.RWMutex
-	shouldColor bool
+	workingDir     string
+	format         Format
+	Runs           []*Run
+	mu             sync.RWMutex
+	shouldColor    bool
+	showUnitTiming bool
 }
 
 // Run captures data for a run.
@@ -60,13 +61,14 @@ const (
 type Summary struct {
 	firstRunStart  *time.Time
 	lastRunEnd     *time.Time
+	runs           []*Run
 	padder         string
-	TotalUnits     int
 	UnitsSucceeded int
 	UnitsFailed    int
 	EarlyExits     int
 	Excluded       int
 	shouldColor    bool
+	showUnitTiming bool
 }
 
 // Colorizer is a colorizer for the run summary output.
@@ -144,6 +146,15 @@ func (r *Report) WithWorkingDir(workingDir string) *Report {
 // WithFormat sets the format for the report.
 func (r *Report) WithFormat(format Format) *Report {
 	r.format = format
+
+	return r
+}
+
+// WithShowUnitTiming sets the showUnitTiming flag for the report.
+//
+// When enabled, the summary of the report will include timings for each unit.
+func (r *Report) WithShowUnitTiming() *Report {
+	r.showUnitTiming = true
 
 	return r
 }
@@ -345,9 +356,10 @@ const (
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
-		TotalUnits:  len(r.Runs),
-		shouldColor: r.shouldColor,
-		padder:      " ",
+		shouldColor:    r.shouldColor,
+		showUnitTiming: r.showUnitTiming,
+		padder:         " ",
+		runs:           r.Runs,
 	}
 
 	if os.Getenv(envTmpUndocumentedReportPadder) != "" {
@@ -363,6 +375,10 @@ func (r *Report) Summarize() *Summary {
 	}
 
 	return summary
+}
+
+func (s *Summary) TotalUnits() int {
+	return len(s.runs)
 }
 
 func (s *Summary) Update(run *Run) {
@@ -688,7 +704,13 @@ func (s *Summary) Write(w io.Writer) error {
 		return err
 	}
 
-	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits))); err != nil {
+	if s.showUnitTiming {
+		if err := s.writeUnitsTiming(w, colorizer); err != nil {
+			return err
+		}
+	}
+
+	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits()))); err != nil {
 		return err
 	}
 
@@ -742,6 +764,40 @@ func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
 
 func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) error {
 	_, err := fmt.Fprintf(w, "%s%s%s%s %s\n", prefix, label, separator, s.padding(label), value)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Summary) writeUnitsTiming(w io.Writer, colorizer *Colorizer) error {
+	errs := []error{}
+
+	for _, run := range s.runs {
+		if err := s.writeUnitTiming(w, run, colorizer); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
+func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) error {
+	duration := run.Ended.Sub(run.Started)
+
+	_, err := fmt.Fprintf(
+		w, "%s%s%s%s %s\n",
+		strings.Repeat(prefix, 2),
+		run.Path,
+		separator,
+		s.padding(run.Path),
+		colorizer.defaultColorizer(duration.String()),
+	)
 	if err != nil {
 		return err
 	}
