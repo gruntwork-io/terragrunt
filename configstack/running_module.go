@@ -71,7 +71,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 		"path":             module.Module.Path,
 		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 	}, func(_ context.Context) error {
-		return module.waitForDependencies()
+		return module.waitForDependencies(opts, r)
 	})
 
 	semaphore <- struct{}{} // Add one to the buffered channel. Will block if parallelism limit is met
@@ -93,7 +93,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 
 // Wait for all of this modules dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this module has no dependencies.
-func (module *RunningModule) waitForDependencies() error {
+func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions, r *report.Report) error {
 	module.Logger.Debugf("Module %s must wait for %d dependencies to finish", module.Module.Path, len(module.Dependencies))
 
 	for len(module.Dependencies) > 0 {
@@ -105,6 +105,37 @@ func (module *RunningModule) waitForDependencies() error {
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
+
+				if opts.Experiments.Evaluate(experiment.Report) {
+					run, err := r.GetRun(module.Module.Path)
+					if err != nil {
+						if errors.Is(err, report.ErrRunNotFound) {
+							run, err = report.NewRun(module.Module.Path)
+							if err != nil {
+								module.Logger.Errorf("Error creating run for unit %s: %v", module.Module.Path, err)
+								return err
+							}
+
+							if err := r.AddRun(run); err != nil {
+								module.Logger.Errorf("Error adding run for unit %s: %v", module.Module.Path, err)
+								return err
+							}
+						} else {
+							module.Logger.Errorf("Error getting run for unit %s: %v", module.Module.Path, err)
+							return err
+						}
+					}
+
+					if err := r.EndRun(
+						run.Path,
+						report.WithResult(report.ResultEarlyExit),
+						report.WithReason(report.ReasonAncestorError),
+						report.WithCauseAncestorExit(doneDependency.Module.Path),
+					); err != nil {
+						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+					}
+				}
+
 				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {
@@ -133,7 +164,7 @@ func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.Te
 		}
 	}
 
-	return opts.RunTerragrunt(ctx, module.Logger, opts)
+	return opts.RunTerragrunt(ctx, module.Logger, opts, r)
 }
 
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
@@ -162,7 +193,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			jsonOptions.TerraformCommand = tf.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.planFile(l, rootOptions)}
 
-			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions); err != nil {
+			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
 				return err
 			}
 
@@ -201,9 +232,12 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 				module.Module.Path,
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
+				report.WithCauseRunError(moduleErr.Error()),
 			); err != nil {
 				// If we can't find the run, then it never started,
-				// so we should end it as an early exit.
+				// So we should start it and then end it as a failed run.
+				//
+				// Early exit runs should already be ended at this point.
 				if errors.Is(err, report.ErrRunNotFound) {
 					run, err := report.NewRun(module.Module.Path)
 					if err != nil {
@@ -217,9 +251,10 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 					}
 
 					if err := r.EndRun(
-						run.Name,
-						report.WithResult(report.ResultEarlyExit),
+						run.Path,
+						report.WithResult(report.ResultFailed),
 						report.WithReason(report.ReasonRunError),
+						report.WithCauseRunError(moduleErr.Error()),
 					); err != nil {
 						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
 					}
@@ -373,7 +408,7 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 			}
 
 			if err := r.EndRun(
-				run.Name,
+				run.Path,
 				report.WithResult(report.ResultExcluded),
 				report.WithReason(report.ReasonExcludeBlock),
 			); err != nil {

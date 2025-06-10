@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -84,7 +85,9 @@ func Action(l log.Logger, opts *options.TerragruntOptions) cli.ActionFunc {
 			return err
 		}
 
-		return Run(ctx.Context, l, opts.OptionsFromContext(ctx))
+		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
+
+		return Run(ctx.Context, l, opts.OptionsFromContext(ctx), r)
 	}
 }
 
