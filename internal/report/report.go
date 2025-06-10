@@ -774,7 +774,16 @@ func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) err
 func (s *Summary) writeUnitsTiming(w io.Writer, colorizer *Colorizer) error {
 	errs := []error{}
 
-	for _, run := range s.runs {
+	// Sort the runs by duration, longest first.
+	sortedRuns := slices.Clone(s.runs)
+	slices.SortFunc(sortedRuns, func(a, b *Run) int {
+		aDuration := a.Ended.Sub(a.Started)
+		bDuration := b.Ended.Sub(b.Started)
+
+		return int(bDuration - aDuration)
+	})
+
+	for _, run := range sortedRuns {
 		if err := s.writeUnitTiming(w, run, colorizer); err != nil {
 			errs = append(errs, err)
 		}
