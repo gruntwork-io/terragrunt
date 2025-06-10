@@ -3,6 +3,7 @@
 package cas_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -15,7 +16,12 @@ import (
 func TestCASGetterGetWithRacing(t *testing.T) {
 	t.Parallel()
 
-	c, err := cas.New(cas.Options{})
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "store")
+
+	c, err := cas.New(cas.Options{
+		StorePath: storePath,
+	})
 	require.NoError(t, err)
 
 	opts := &cas.CloneOptions{
@@ -24,7 +30,7 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	g := cas.NewCASGetter(&l, c, opts)
+	g := cas.NewCASGetter(l, c, opts)
 	client := getter.Client{
 		Getters: []getter.Getter{g},
 	}

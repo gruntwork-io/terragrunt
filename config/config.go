@@ -1430,7 +1430,7 @@ func detectInputsCtyUsage(file *hclparse.File) bool {
 func detectBareIncludeUsage(file *hclparse.File) bool {
 	switch filepath.Ext(file.ConfigPath) {
 	case ".json":
-		var data map[string]interface{}
+		var data map[string]any
 		if err := json.Unmarshal(file.File.Bytes, &data); err != nil {
 			// If JSON is invalid, it can't be a valid bare include structure.
 			// The main parser will handle the invalid JSON error.
@@ -1443,15 +1443,15 @@ func detectBareIncludeUsage(file *hclparse.File) bool {
 		}
 
 		switch includeBlockTyped := includeBlockUntyped.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			// Delegate to the logic from include.go, which checks if the map
 			// represents a bare include block (e.g., only known include attributes).
 			return jsonIsIncludeBlock(includeBlockTyped)
-		case []interface{}:
+		case []any:
 			// A bare include in JSON array form must have exactly one element,
 			// and that element must be an include block.
 			if len(includeBlockTyped) == 1 {
-				if firstElement, ok := includeBlockTyped[0].(map[string]interface{}); ok {
+				if firstElement, ok := includeBlockTyped[0].(map[string]any); ok {
 					return jsonIsIncludeBlock(firstElement)
 				}
 			}

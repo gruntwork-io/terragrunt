@@ -65,10 +65,11 @@ TG_EXPERIMENT='symlinks,stacks' terragrunt plan
 
 ## Active Experiments
 
-The following strict mode controls are available:
+The following experiments are available:
 
 - [symlinks](#symlinks)
 - [cas](#cas)
+- [report](#report)
 
 ### symlinks
 
@@ -116,6 +117,29 @@ To transition the `cas` feature to a stable release, the following must be addre
 - [x] Add support for storing and retrieving catalog repositories from the CAS.
 - [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
 - [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
+
+#### `report`
+
+Support for Terragrunt Run Reports and Summaries.
+
+#### `report` - What it does
+
+Allow usage of experimental run report generation, and summary displays.
+
+#### `report` - How to provide feedback
+
+Provide your feedback on the [Run Summary RFC](https://github.com/gruntwork-io/terragrunt/issues/3628).
+
+#### `report` - Criteria for stabilization
+
+To transition the `report` feature to a stable release, the following must be addressed:
+
+- [x] Add support for generating reports (in CSV format by default).
+- [x] Add support for displaying summaries of runs.
+- [x] Add ability to disable summary display.
+- [ ] Add support for generating reports in JSON format.
+- [ ] Add comprehensive integration tests for the `report` experiment.
+- [ ] Finalize the design of run summaries and reports.
 
 ## Completed Experiments
 

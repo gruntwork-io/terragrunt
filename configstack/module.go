@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 
@@ -31,7 +33,7 @@ const existingModulesCacheName = "existingModules"
 // TerraformModule represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
-	*Stack
+	Stack                Stack
 	TerragruntOptions    *options.TerragruntOptions
 	Logger               log.Logger
 	Path                 string
@@ -61,8 +63,8 @@ func (module *TerraformModule) MarshalJSON() ([]byte, error) {
 // FlushOutput flushes buffer data to the output writer.
 func (module *TerraformModule) FlushOutput() error {
 	if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
-		module.outputMu.Lock()
-		defer module.outputMu.Unlock()
+		module.Stack.Lock()
+		defer module.Stack.Unlock()
 
 		return writer.Flush()
 	}
@@ -264,11 +266,11 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 			continue
 		}
 
-		dependentModules := stack.ListStackDependentModules()
+		depdendentModules := stack.ListStackDependentModules()
 
-		deps, found := dependentModules[opts.WorkingDir]
+		deps, found := depdendentModules[opts.WorkingDir]
 		if found {
-			for _, module := range stack.Modules {
+			for _, module := range stack.Modules() {
 				if slices.Contains(deps, module.Path) {
 					matchedModulesMap[module.Path] = module
 				}
@@ -347,42 +349,42 @@ func (modules TerraformModules) WriteDot(l log.Logger, w io.Writer, opts *option
 // RunModules runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(NormalOrder)
+func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(NormalOrder, r, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, parallelism)
+	return runningModules.runModules(ctx, opts, r, parallelism)
 }
 
 // RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(ReverseOrder)
+func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(ReverseOrder, r, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, parallelism)
+	return runningModules.runModules(ctx, opts, r, parallelism)
 }
 
 // RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(IgnoreOrder)
+func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(IgnoreOrder, r, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, parallelism)
+	return runningModules.runModules(ctx, opts, r, parallelism)
 }
 
 // ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder) (RunningModules, error) {
+func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningModules, error) {
 	runningModules := RunningModules{}
 	for _, module := range modules {
 		runningModules[module.Path] = newRunningModule(module)
@@ -393,7 +395,7 @@ func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder
 		return crossLinkedModules, err
 	}
 
-	return crossLinkedModules.RemoveFlagExcluded(), nil
+	return crossLinkedModules.RemoveFlagExcluded(r, opts.Experiments.Evaluate(experiment.Report))
 }
 
 // CheckForCycles checks for dependency cycles in the given list of modules and return an error if one is found.
@@ -447,7 +449,7 @@ func (modules TerraformModules) flagIncludedDirs(opts *options.TerragruntOptions
 func (modules TerraformModules) flagUnitsThatAreIncluded(opts *options.TerragruntOptions) (TerraformModules, error) {
 	// The two flags ModulesThatInclude and UnitsReading should both be considered when determining which
 	// units to include in the run queue.
-	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...)
+	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
 
 	// If no unitsThatInclude is specified return the modules list instantly
 	if len(unitsThatInclude) == 0 {
@@ -557,7 +559,7 @@ func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOption
 }
 
 // flagExcludedDirs iterates over a module slice and flags all entries as excluded listed in the queue-exclude-dir CLI flag.
-func (modules TerraformModules) flagExcludedDirs(opts *options.TerragruntOptions) TerraformModules {
+func (modules TerraformModules) flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.Report) TerraformModules {
 	// If we don't have any excludes, we don't need to do anything.
 	if len(opts.ExcludeDirs) == 0 {
 		return modules
@@ -567,12 +569,57 @@ func (modules TerraformModules) flagExcludedDirs(opts *options.TerragruntOptions
 		if module.findModuleInPath(opts.ExcludeDirs) {
 			// Mark module itself as excluded
 			module.FlagExcluded = true
+
+			if opts.Experiments.Evaluate(experiment.Report) {
+				// TODO: Make an upsert option for ends,
+				// so that I don't have to do this every time.
+				run, err := r.GetRun(module.Path)
+				if err != nil {
+					run, err = report.NewRun(module.Path)
+					if err != nil {
+						l.Errorf("Error creating run for unit %s: %v", module.Path, err)
+
+						continue
+					}
+
+					if err := r.AddRun(run); err != nil {
+						l.Errorf("Error adding run for unit %s: %v", module.Path, err)
+
+						continue
+					}
+				}
+
+				if err := r.EndRun(
+					run.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeDir),
+				); err != nil {
+					l.Errorf("Error ending run for unit %s: %v", module.Path, err)
+
+					continue
+				}
+			}
 		}
 
 		// Mark all affected dependencies as excluded
 		for _, dependency := range module.Dependencies {
 			if dependency.findModuleInPath(opts.ExcludeDirs) {
 				dependency.FlagExcluded = true
+
+				if opts.Experiments.Evaluate(experiment.Report) {
+					run, err := r.GetRun(dependency.Path)
+					if err != nil {
+						return modules
+					}
+
+					if err := r.EndRun(
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeDir),
+					); err != nil {
+						return modules
+					}
+				}
 			}
 		}
 	}
