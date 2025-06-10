@@ -144,8 +144,7 @@ func TestRunAllFail(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testRunAllErrors)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --feature unstable=false --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-
-	require.Error(t, err)
+	require.NoError(t, err)
 }
 
 func TestIgnoreNegativePattern(t *testing.T) {

@@ -76,7 +76,7 @@ func New(opts Options) (*CAS, error) {
 // Clone performs the clone operation
 //
 // TODO: Make options optional
-func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts *CloneOptions, url string) error {
+func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url string) error {
 	c.cloneStart = time.Now()
 
 	targetDir := c.prepareTargetDirectory(opts.Dir, url)
@@ -89,7 +89,7 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts *CloneOptions, url 
 
 	defer func() {
 		if cleanupErr := cleanup(); cleanupErr != nil {
-			(*l).Warnf("cleanup error: %v", cleanupErr)
+			l.Warnf("cleanup error: %v", cleanupErr)
 		}
 	}()
 
@@ -152,7 +152,7 @@ func (c *CAS) resolveReference(ctx context.Context, url, branch string) (string,
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, opts *CloneOptions, url string, hash string) error {
+func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *CloneOptions, url string, hash string) error {
 	if err := c.git.Clone(ctx, url, true, 1, opts.Branch); err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, opts *Clo
 	return c.storeRootTree(ctx, l, hash, opts)
 }
 
-func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opts *CloneOptions) error {
+func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
 	if err := c.storeTree(ctx, l, hash, ""); err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opt
 	return content.Store(l, hash, data)
 }
 
-func (c *CAS) storeTree(ctx context.Context, l *log.Logger, hash, prefix string) error {
+func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) error {
 	if !c.store.NeedsWrite(hash, c.cloneStart) {
 		return nil
 	}
@@ -340,7 +340,7 @@ func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
 }
 
 // storeTrees concurrently stores trees in the CAS
-func (c *CAS) storeTrees(ctx context.Context, l *log.Logger, entries []TreeEntry, prefix string) error {
+func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry, prefix string) error {
 	ch := make(chan error, len(entries))
 
 	var wg sync.WaitGroup
