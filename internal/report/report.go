@@ -19,9 +19,10 @@ import (
 
 // Report captures data for a report/summary.
 type Report struct {
+	workingDir  string
 	Runs        []*Run
-	shouldColor bool
 	mu          sync.RWMutex
+	shouldColor bool
 }
 
 // Run captures data for a run.
@@ -30,7 +31,7 @@ type Run struct {
 	Ended   time.Time
 	Reason  *Reason
 	Cause   *Cause
-	Name    string
+	Path    string
 	Result  Result
 	mu      sync.RWMutex
 }
@@ -122,6 +123,13 @@ func (r *Report) WithDisableColor() *Report {
 	return r
 }
 
+// WithWorkingDir sets the working directory for the report.
+func (r *Report) WithWorkingDir(workingDir string) *Report {
+	r.workingDir = workingDir
+
+	return r
+}
+
 // ErrPathMustBeAbsolute is returned when a report run path is not absolute.
 var ErrPathMustBeAbsolute = errors.New("report run path must be absolute")
 
@@ -133,7 +141,7 @@ func NewRun(path string) (*Run, error) {
 	}
 
 	return &Run{
-		Name:    path,
+		Path:    path,
 		Started: time.Now(),
 	}, nil
 }
@@ -148,8 +156,8 @@ func (r *Report) AddRun(run *Run) error {
 	defer r.mu.Unlock()
 
 	for _, existingRun := range r.Runs {
-		if existingRun.Name == run.Name {
-			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Name)
+		if existingRun.Path == run.Path {
+			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Path)
 		}
 	}
 
@@ -172,7 +180,7 @@ func (r *Report) GetRun(path string) (*Run, error) {
 	}
 
 	for _, run := range r.Runs {
-		if run.Name == path {
+		if run.Path == path {
 			return run, nil
 		}
 	}
@@ -183,6 +191,7 @@ func (r *Report) GetRun(path string) (*Run, error) {
 // EndRun ends a run and adds it to the report.
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
+// If the run has already ended from an early exit, it does nothing.
 func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -194,7 +203,7 @@ func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 	var run *Run
 
 	for _, existingRun := range r.Runs {
-		if existingRun.Name == path {
+		if existingRun.Path == path {
 			run = existingRun
 			break
 		}
@@ -202,6 +211,11 @@ func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 
 	if run == nil {
 		return fmt.Errorf("%w: %s", ErrRunNotFound, path)
+	}
+
+	// If the run has already ended from an early exit or excluded, we don't need to do anything.
+	if !run.Ended.IsZero() && (run.Result == ResultEarlyExit || run.Result == ResultExcluded) {
+		return nil
 	}
 
 	run.mu.Lock()
@@ -244,9 +258,9 @@ const (
 	ReasonRetrySucceeded Reason = "retry succeeded"
 	ReasonErrorIgnored   Reason = "error ignored"
 	ReasonRunError       Reason = "run error"
-	ReasonExcludeDir     Reason = "--exclude-dir"
+	ReasonExcludeDir     Reason = "--queue-exclude-dir"
 	ReasonExcludeBlock   Reason = "exclude block"
-	ReasonEarlyExit      Reason = "early exit"
+	ReasonAncestorError  Reason = "ancestor error"
 )
 
 // WithReason sets the reason of a run.
@@ -285,6 +299,14 @@ func WithCauseExcludeBlock(name string) EndOption {
 // This function is a wrapper around withCause, just to make sure that authors always use consistent
 // reasons for causes.
 func WithCauseAncestorExit(name string) EndOption {
+	return withCause(name)
+}
+
+// WithCauseRunError sets the cause of a run to the name of a particular run error.
+//
+// This function is a wrapper around withCause, just to make sure that authors always use consistent
+// reasons for causes.
+func WithCauseRunError(name string) EndOption {
 	return withCause(name)
 }
 
@@ -402,6 +424,10 @@ func (r *Report) WriteToFile(path string) error {
 		return fmt.Errorf("failed to close report file: %w", err)
 	}
 
+	if r.workingDir != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(r.workingDir, path)
+	}
+
 	// Move the temporary file to the final destination
 	return os.Rename(tmpFile.Name(), path)
 }
@@ -430,7 +456,12 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		run.mu.RLock()
 		defer run.mu.RUnlock()
 
-		name := run.Name
+		name := run.Path
+
+		if r.workingDir != "" {
+			name = strings.TrimPrefix(name, r.workingDir+string(os.PathSeparator))
+		}
+
 		started := run.Started.Format(time.RFC3339)
 		ended := run.Ended.Format(time.RFC3339)
 		result := string(run.Result)
@@ -443,6 +474,10 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		cause := ""
 		if run.Cause != nil {
 			cause = string(*run.Cause)
+
+			if reason == string(ReasonAncestorError) && r.workingDir != "" {
+				cause = strings.TrimPrefix(cause, r.workingDir+string(os.PathSeparator))
+			}
 		}
 
 		err := csvWriter.Write([]string{

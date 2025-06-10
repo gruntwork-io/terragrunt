@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -44,7 +45,7 @@ func WrapCommand(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cmd *cli.Command,
-	runFn func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error,
+	runFn func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error,
 	alwaysDisableSummary bool,
 ) *cli.Command {
 	cmd = cmd.WrapAction(func(cliCtx *cli.Context, action cli.ActionFunc) error {
@@ -56,14 +57,14 @@ func WrapCommand(
 			return action(cliCtx)
 		}
 
-		opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+		opts.RunTerragrunt = func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 			if opts.TerraformCommand == cmd.Name {
 				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
 
 				return action(cliCtx)
 			}
 
-			return runFn(ctx, l, opts)
+			return runFn(ctx, l, opts, r)
 		}
 
 		return Run(cliCtx, l, opts.OptionsFromContext(cliCtx))
