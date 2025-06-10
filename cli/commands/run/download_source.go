@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -35,7 +36,14 @@ const fileURIScheme = "file://"
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformSource(ctx context.Context, l log.Logger, source string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
+func downloadTerraformSource(
+	ctx context.Context,
+	l log.Logger,
+	source string,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+	r *report.Report,
+) (*options.TerragruntOptions, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 	terraformSource, err := tf.NewSource(l, source, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
@@ -43,7 +51,7 @@ func downloadTerraformSource(ctx context.Context, l log.Logger, source string, o
 		return nil, err
 	}
 
-	if err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, terragruntConfig); err != nil {
+	if err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r); err != nil {
 		return nil, err
 	}
 
@@ -51,12 +59,12 @@ func downloadTerraformSource(ctx context.Context, l log.Logger, source string, o
 
 	var includeInCopy, excludeFromCopy []string
 
-	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
-		includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
+	if cfg.Terraform != nil && cfg.Terraform.IncludeInCopy != nil {
+		includeInCopy = *cfg.Terraform.IncludeInCopy
 	}
 
-	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExcludeFromCopy != nil {
-		excludeFromCopy = *terragruntConfig.Terraform.ExcludeFromCopy
+	if cfg.Terraform != nil && cfg.Terraform.ExcludeFromCopy != nil {
+		excludeFromCopy = *cfg.Terraform.ExcludeFromCopy
 	}
 
 	// Always include the .tflint.hcl file, if it exists
@@ -92,6 +100,7 @@ func DownloadTerraformSourceIfNecessary(
 	terraformSource *tf.Source,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
+	r *report.Report,
 ) error {
 	if opts.SourceUpdate {
 		l.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", SourceUpdateFlagName, terraformSource.DownloadDir)
@@ -136,7 +145,7 @@ func DownloadTerraformSourceIfNecessary(
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
 	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, func(_ context.Context) error {
-		return downloadSource(ctx, l, terraformSource, opts, cfg)
+		return downloadSource(ctx, l, terraformSource, opts, cfg, r)
 	})
 
 	if downloadErr != nil {
@@ -262,7 +271,7 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
-func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
 	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,
@@ -274,7 +283,7 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 		canonicalSourceURL,
 		src.DownloadDir)
 
-	return opts.RunWithErrorHandling(ctx, l, func() error {
+	return opts.RunWithErrorHandling(ctx, l, r, func() error {
 		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg))
 	})
 }

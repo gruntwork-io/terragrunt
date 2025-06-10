@@ -559,7 +559,7 @@ func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOption
 }
 
 // flagExcludedDirs iterates over a module slice and flags all entries as excluded listed in the queue-exclude-dir CLI flag.
-func (modules TerraformModules) flagExcludedDirs(opts *options.TerragruntOptions) TerraformModules {
+func (modules TerraformModules) flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.Report) TerraformModules {
 	// If we don't have any excludes, we don't need to do anything.
 	if len(opts.ExcludeDirs) == 0 {
 		return modules
@@ -569,12 +569,57 @@ func (modules TerraformModules) flagExcludedDirs(opts *options.TerragruntOptions
 		if module.findModuleInPath(opts.ExcludeDirs) {
 			// Mark module itself as excluded
 			module.FlagExcluded = true
+
+			if opts.Experiments.Evaluate(experiment.Report) {
+				// TODO: Make an upsert option for ends,
+				// so that I don't have to do this every time.
+				run, err := r.GetRun(module.Path)
+				if err != nil {
+					run, err = report.NewRun(module.Path)
+					if err != nil {
+						l.Errorf("Error creating run for unit %s: %v", module.Path, err)
+
+						continue
+					}
+
+					if err := r.AddRun(run); err != nil {
+						l.Errorf("Error adding run for unit %s: %v", module.Path, err)
+
+						continue
+					}
+				}
+
+				if err := r.EndRun(
+					run.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeDir),
+				); err != nil {
+					l.Errorf("Error ending run for unit %s: %v", module.Path, err)
+
+					continue
+				}
+			}
 		}
 
 		// Mark all affected dependencies as excluded
 		for _, dependency := range module.Dependencies {
 			if dependency.findModuleInPath(opts.ExcludeDirs) {
 				dependency.FlagExcluded = true
+
+				if opts.Experiments.Evaluate(experiment.Report) {
+					run, err := r.GetRun(dependency.Path)
+					if err != nil {
+						return modules
+					}
+
+					if err := r.EndRun(
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeDir),
+					); err != nil {
+						return modules
+					}
+				}
 			}
 		}
 	}
