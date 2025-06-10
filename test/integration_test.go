@@ -410,7 +410,7 @@ func TestBufferModuleOutput(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-disable --working-dir "+rootPath+" -- show -json planfile")
 	require.NoError(t, err)
 
-	for _, stdout := range strings.Split(stdout, "\n") {
+	for stdout := range strings.SplitSeq(stdout, "\n") {
 		if stdout == "" {
 			continue
 		}
@@ -3001,7 +3001,7 @@ func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	component2 := ""
 
 	// scan each output line and get lines for component1 and component2
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		if strings.Contains(line, "Assuming IAM role arn:aws:iam::component1:role/terragrunt") {
 			component1 = line
 			continue
@@ -4007,8 +4007,8 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	}
 
 	// check if output can be extracted in json
-	jsonStrings := strings.Split(stderr, "\n")
-	for _, jsonString := range jsonStrings {
+	jsonStrings := strings.SplitSeq(stderr, "\n")
+	for jsonString := range jsonStrings {
 		if len(jsonString) == 0 {
 			continue
 		}
@@ -4035,7 +4035,7 @@ func TestLogStreaming(t *testing.T) {
 		firstTimestamp := time.Time{}
 		secondTimestamp := time.Time{}
 
-		for _, line := range strings.Split(stdout, "\n") {
+		for line := range strings.SplitSeq(stdout, "\n") {
 			if strings.Contains(line, unit) {
 				if !strings.Contains(line, "(local-exec): sleeping...") && !strings.Contains(line, "(local-exec): done sleeping") {
 					continue

@@ -125,8 +125,8 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 	if diag.Detail != "" {
 		paraWidth := render.width - leftRuleWidth - 1 // leave room for the left rule
 		if paraWidth > 0 {
-			lines := strings.Split(diag.Detail, "\n")
-			for _, line := range lines {
+			lines := strings.SplitSeq(diag.Detail, "\n")
+			for line := range lines {
 				if !strings.HasPrefix(line, " ") {
 					line = wordwrap.WrapString(line, uint(paraWidth))
 				}
