@@ -253,7 +253,7 @@ func TestSummarize(t *testing.T) {
 			}
 
 			summary := r.Summarize()
-			assert.Equal(t, tt.wantTotalUnits, summary.TotalUnits)
+			assert.Equal(t, tt.wantTotalUnits, summary.TotalUnits())
 			assert.Equal(t, tt.wantSucceeded, summary.UnitsSucceeded)
 			assert.Equal(t, tt.wantFailed, summary.UnitsFailed)
 			assert.Equal(t, tt.wantEarlyExits, summary.EarlyExits)
