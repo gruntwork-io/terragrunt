@@ -370,3 +370,74 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
+	t.Parallel()
+
+	// Set up test environment
+	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+
+	// Run terragrunt with report experiment enabled and unit timing enabled
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-unit-timing", &stdout, &stderr)
+	require.NoError(t, err)
+
+	// Verify the report output contains expected information
+	stdoutStr := stdout.String()
+
+	// Replace the duration lines with fixed durations
+	re := regexp.MustCompile(`Duration:(\s+)(.*)`)
+	stdoutStr = re.ReplaceAllString(stdoutStr, "Duration:${1}x")
+
+	// Replace unit timing durations with x
+	re = regexp.MustCompile(`([ ]{6})([^\s]+:)(\s+)(.*)`)
+	stdoutStr = re.ReplaceAllString(stdoutStr, "${1}${2}${3}x")
+
+	// Trim stdout to only the run summary
+	lines := strings.Split(stdoutStr, "\n")
+
+	postLogLines := lines[len(lines)-22:]
+
+	unitLogLines := postLogLines[2:15]
+
+	// Sort the duration lines alphabetically so that they show up consistently.
+	sort.Slice(unitLogLines, func(i, j int) bool {
+		// Extract the unit name from the line
+		unitNameI := strings.TrimSpace(re.ReplaceAllString(unitLogLines[i], "${2}"))
+		unitNameJ := strings.TrimSpace(re.ReplaceAllString(unitLogLines[j], "${2}"))
+
+		// Compare the unit names
+		return unitNameI < unitNameJ
+	})
+
+	updatedLines := append(postLogLines[:2], unitLogLines...)
+	updatedLines = append(updatedLines, postLogLines[15:]...)
+
+	stdoutStr = strings.Join(updatedLines, "\n")
+
+	assert.Equal(t, strings.TrimSpace(`
+❯❯ Run Summary
+   Duration:     x
+      chain-a:            x
+      chain-b:            x
+      chain-c:            x
+      error-ignore:       x
+      first-early-exit:   x
+      first-exclude:      x
+      first-failure:      x
+      first-success:      x
+      retry-success:      x
+      second-early-exit:  x
+      second-exclude:     x
+      second-failure:     x
+      second-success:     x
+   Units:        13
+   Succeeded:    4
+   Failed:       3
+   Early Exits:  4
+   Excluded:     2
+`), strings.TrimSpace(stdoutStr))
+}
