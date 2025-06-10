@@ -217,6 +217,6 @@ Causes indicate the specific reason for a given result, and are generally not gu
 
 - `error ignored`: You will find the name of the `ignore` block that resulted in the error being ignored.
 - `run error`: You will find the actual error message of the unit that failed.
-- `ancestor error`: You will find the name of the unit that failed, and the error message of the failure.
+- `ancestor error`: You will find the name of the unit that failed.
 
 The `retry succeeded` reason does not have a cause. The reason for this is that backwards compatibility with the deprecated [retryable_errors](/docs/reference/config-blocks-and-attributes/#retryable_errors) attribute prevents consistent reporting of the cause, as the `retryable_errors` attribute doesn't have a label. In the future, once the `retryable_errors` attribute is removed, a cause can be added here.
