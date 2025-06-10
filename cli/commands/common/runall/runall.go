@@ -57,6 +57,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			r.WithDisableColor()
 		}
 
+		if opts.ReportFormat != "" {
+			r.WithFormat(opts.ReportFormat)
+		}
+
 		stackOpts = append(stackOpts, configstack.WithReport(r))
 
 		if opts.ReportFile != "" {

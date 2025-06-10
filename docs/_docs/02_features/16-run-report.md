@@ -59,7 +59,26 @@ Optionally, you can also generate a detailed report of the run, which has all th
 terragrunt run --all plan --report-file report.csv
 ```
 
-This will generate a report in CSV format at `report.csv` in the current working directory, that looks like the following:
+You can specify the format of the report using the `--report-format` flag, which supports either `csv` or `json`:
+
+```bash
+terragrunt run --all plan --report-file report.json --report-format json
+```
+
+The format can also be inferred from the file extension. If no format is specified and the file has no extension, CSV will be used by default:
+
+```bash
+# Will generate a CSV report
+terragrunt run --all plan --report-file report
+
+# Will generate a JSON report
+terragrunt run --all plan --report-file report.json
+
+# Will generate a CSV report
+terragrunt run --all plan --report-file report.csv
+```
+
+The report will be generated in the specified format at the given path in the current working directory. Here's an example of what the CSV format looks like:
 
 ```csv
 Name,Started,Ended,Result,Reason,Cause
@@ -73,7 +92,27 @@ second-early-exit,2025-06-05T16:28:42-04:00,2025-06-05T16:28:42-04:00,early exit
 first-early-exit,2025-06-05T16:28:42-04:00,2025-06-05T16:28:42-04:00,early exit,run error,
 ```
 
-You can use this file to determine details for each unit run, including the name of the unit, the start and end times, the result, the reason for that result, and the cause for that reason.
+And here's an example of what the JSON format looks like:
+
+```json
+[
+  {
+    "Name": "first-exclude",
+    "Started": "2025-06-05T16:28:41-04:00",
+    "Ended": "2025-06-05T16:28:41-04:00",
+    "Result": "excluded",
+    "Reason": "exclude block"
+  },
+  {
+    "Name": "first-success",
+    "Started": "2025-06-05T16:28:41-04:00",
+    "Ended": "2025-06-05T16:28:41-04:00",
+    "Result": "succeeded"
+  }
+]
+```
+
+You can use this file to determine details for each unit run, including the name of the unit, the start and end times, the result, the reason for that result, and the cause for that reason. Note that in the JSON format, empty fields (Reason and Cause) are omitted entirely rather than being set to empty values.
 
 In general, the schema for this report should change infrequently, but we'll try to keep it up to date here.
 

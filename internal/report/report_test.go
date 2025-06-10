@@ -3,6 +3,7 @@ package report_test
 import (
 	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -376,6 +377,178 @@ func TestWriteCSV(t *testing.T) {
 				}
 				if record[2] != "" {
 					_, err := time.Parse(time.RFC3339, record[2])
+					require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
+				}
+			}
+		})
+	}
+}
+
+func TestWriteJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		setup    func(dir string, r *report.Report)
+		expected string
+	}{
+		{
+			name: "single successful run",
+			setup: func(dir string, r *report.Report) {
+				run := newRun(t, filepath.Join(dir, "successful-run"))
+				r.AddRun(run)
+				r.EndRun(run.Path)
+			},
+			expected: `[
+  {
+    "Name": "successful-run",
+    "Started": "2024-03-21T10:00:00Z",
+    "Ended": "2024-03-21T10:01:00Z",
+    "Result": "succeeded"
+  }
+]`,
+		},
+		{
+			name: "complex mixed results",
+			setup: func(dir string, r *report.Report) {
+				// Add successful run
+				successRun := newRun(t, filepath.Join(dir, "success-run"))
+				r.AddRun(successRun)
+				r.EndRun(successRun.Path)
+
+				// Add failed run with reason
+				failedRun := newRun(t, filepath.Join(dir, "failed-run"))
+				r.AddRun(failedRun)
+				r.EndRun(
+					failedRun.Path,
+					report.WithResult(report.ResultFailed),
+					report.WithReason(report.ReasonRunError),
+				)
+
+				// Add excluded run with cause
+				retriedRun := newRun(t, filepath.Join(dir, "retried-run"))
+				r.AddRun(retriedRun)
+				r.EndRun(
+					retriedRun.Path,
+					report.WithResult(report.ResultSucceeded),
+					report.WithReason(report.ReasonRetrySucceeded),
+				)
+
+				// Add excluded run with cause
+				excludedRun := newRun(t, filepath.Join(dir, "excluded-run"))
+				r.AddRun(excludedRun)
+				r.EndRun(
+					excludedRun.Path,
+					report.WithResult(report.ResultExcluded),
+					report.WithReason(report.ReasonExcludeBlock),
+					report.WithCauseExcludeBlock("test-block"),
+				)
+			},
+			expected: `[
+  {
+    "Name": "success-run",
+    "Started": "2024-03-21T10:00:00Z",
+    "Ended": "2024-03-21T10:01:00Z",
+    "Result": "succeeded"
+  },
+  {
+    "Name": "failed-run",
+    "Started": "2024-03-21T10:01:00Z",
+    "Ended": "2024-03-21T10:02:00Z",
+    "Result": "failed",
+    "Reason": "run error"
+  },
+  {
+    "Name": "retried-run",
+    "Started": "2024-03-21T10:03:00Z",
+    "Ended": "2024-03-21T10:04:00Z",
+    "Result": "succeeded",
+    "Reason": "retry succeeded"
+  },
+  {
+    "Name": "excluded-run",
+    "Started": "2024-03-21T10:02:00Z",
+    "Ended": "2024-03-21T10:03:00Z",
+    "Result": "excluded",
+    "Reason": "exclude block",
+    "Cause": "test-block"
+  }
+]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmp := t.TempDir()
+
+			// Create a temporary file for the JSON
+			jsonFile := filepath.Join(tmp, "report.json")
+			file, err := os.Create(jsonFile)
+			require.NoError(t, err)
+			defer file.Close()
+
+			// Setup and write the report
+			r := report.NewReport().WithWorkingDir(tmp)
+			tt.setup(tmp, r)
+
+			err = r.WriteJSON(file)
+			require.NoError(t, err)
+
+			// Close the file before reading
+			file.Close()
+
+			// Read the JSON file
+			file, err = os.Open(jsonFile)
+			require.NoError(t, err)
+			defer file.Close()
+
+			// Read the actual output
+			actualBytes, err := os.ReadFile(jsonFile)
+			require.NoError(t, err)
+
+			// Parse both expected and actual JSON to compare them
+			var expectedJSON, actualJSON []map[string]interface{}
+			err = json.Unmarshal([]byte(tt.expected), &expectedJSON)
+			require.NoError(t, err)
+			err = json.Unmarshal(actualBytes, &actualJSON)
+			require.NoError(t, err)
+
+			// Verify the number of records
+			require.Len(t, actualJSON, len(expectedJSON))
+
+			// Verify each record
+			for i, actualRecord := range actualJSON {
+				expectedRecord := expectedJSON[i]
+
+				// Verify name
+				assert.Equal(t, expectedRecord["Name"], actualRecord["Name"], "Name mismatch in record %d", i)
+
+				// Verify result
+				assert.Equal(t, expectedRecord["Result"], actualRecord["Result"], "Result mismatch in record %d", i)
+
+				// Verify reason if present
+				if expectedReason, ok := expectedRecord["Reason"]; ok {
+					assert.Equal(t, expectedReason, actualRecord["Reason"], "Reason mismatch in record %d", i)
+				} else {
+					assert.NotContains(t, actualRecord, "Reason", "Unexpected reason in record %d", i)
+				}
+
+				// Verify cause if present
+				if expectedCause, ok := expectedRecord["Cause"]; ok {
+					assert.Equal(t, expectedCause, actualRecord["Cause"], "Cause mismatch in record %d", i)
+				} else {
+					assert.NotContains(t, actualRecord, "Cause", "Unexpected cause in record %d", i)
+				}
+
+				// Verify timestamps are in RFC3339 format
+				if started, ok := actualRecord["Started"].(string); ok {
+					_, err := time.Parse(time.RFC3339, started)
+					require.NoError(t, err, "Started timestamp in record %d is not in RFC3339 format", i)
+				}
+				if ended, ok := actualRecord["Ended"].(string); ok {
+					_, err := time.Parse(time.RFC3339, ended)
 					require.NoError(t, err, "Ended timestamp in record %d is not in RFC3339 format", i)
 				}
 			}

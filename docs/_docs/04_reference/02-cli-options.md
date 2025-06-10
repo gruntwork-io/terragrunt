@@ -1662,6 +1662,35 @@ Note that this only performs literal matches on the URL portion. For example, a 
 
 When passed in, delete the contents of the temporary folder before downloading OpenTofu/Terraform source code into it.
 
+### report-file
+
+**CLI Arg**: `--report-file`<br/>
+**Environment Variable**: `TG_REPORT_FILE`<br/>
+**Requires an argument**: `--report-file /path/to/report-file`<br/>
+
+When passed in, a report of the run will be generated at the specified path.
+
+Note that, by default, the format of the report will be inferred from the file extension. If no extension is specified, CSV will be used by default. Use the [report-format](#report-format) flag to explicitly specify the format of the report.
+
+For more information, see the [Run Report](/docs/features/run-report) feature.
+
+### report-format
+
+**CLI Arg**: `--report-format`<br/>
+**Environment Variable**: `TG_REPORT_FORMAT`<br/>
+**Requires an argument**: `--report-format <FORMAT>`<br/>
+
+The format of the report.
+
+The supported formats are:
+
+- `csv`
+- `json`
+
+The default is `csv`.
+
+For more information, see the [Run Report](/docs/features/run-report) feature.
+
 ### summary-disable
 
 **CLI Arg**: `--summary-disable`<br/>
