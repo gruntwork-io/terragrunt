@@ -61,9 +61,9 @@ const (
 type Summary struct {
 	firstRunStart  *time.Time
 	lastRunEnd     *time.Time
-	runs           []*Run
 	padder         string
 	workingDir     string
+	runs           []*Run
 	UnitsSucceeded int
 	UnitsFailed    int
 	EarlyExits     int
@@ -756,15 +756,16 @@ func (s *Summary) Write(w io.Writer) error {
 }
 
 const (
-	prefix           = "   "
-	runSummaryHeader = "❯❯ Run Summary"
-	durationLabel    = "Duration"
-	unitsLabel       = "Units"
-	successLabel     = "Succeeded"
-	failureLabel     = "Failed"
-	earlyExitLabel   = "Early Exits"
-	excludeLabel     = "Excluded"
-	separator        = ": "
+	prefix               = "   "
+	unitPrefixMultiplier = 2
+	runSummaryHeader     = "❯❯ Run Summary"
+	durationLabel        = "Duration"
+	unitsLabel           = "Units"
+	successLabel         = "Succeeded"
+	failureLabel         = "Failed"
+	earlyExitLabel       = "Early Exits"
+	excludeLabel         = "Excluded"
+	separator            = ": "
 )
 
 func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
@@ -820,7 +821,7 @@ func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) e
 
 	_, err := fmt.Fprintf(
 		w, "%s%s%s%s %s\n",
-		strings.Repeat(prefix, 2),
+		strings.Repeat(prefix, unitPrefixMultiplier),
 		name,
 		separator,
 		s.unitDurationPadding(name),
@@ -892,13 +893,13 @@ func (s *Summary) longestUnitDurationLineLength() int {
 		names = append(names, len(name))
 	}
 
-	return slices.Max(names) + (len(prefix) * 2) + len(separator)
+	return slices.Max(names) + (len(prefix) * unitPrefixMultiplier) + len(separator)
 }
 
 func (s *Summary) unitDurationPadding(name string) string {
 	longestLineLength := s.longestUnitDurationLineLength()
 
-	labelLength := (len(prefix) * 2) + len(name) + len(separator)
+	labelLength := (len(prefix) * unitPrefixMultiplier) + len(name) + len(separator)
 
 	return strings.Repeat(s.padder, longestLineLength-labelLength)
 }
