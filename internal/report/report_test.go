@@ -186,6 +186,86 @@ func TestEndRun(t *testing.T) {
 	}
 }
 
+func TestEndRunAlreadyEnded(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		name           string
+		initialOptions []report.EndOption
+		initialResult  report.Result
+		expectedResult report.Result
+		secondOptions  []report.EndOption
+		secondResult   report.Result
+	}{
+		{
+			name:           "already ended with early exit is not overwritten",
+			initialResult:  report.ResultEarlyExit,
+			secondResult:   report.ResultSucceeded,
+			expectedResult: report.ResultEarlyExit,
+		},
+		{
+			name:           "already ended with excluded is not overwritten",
+			initialResult:  report.ResultExcluded,
+			secondResult:   report.ResultSucceeded,
+			expectedResult: report.ResultExcluded,
+		},
+		{
+			name:           "already ended with retry succeeded is overwritten",
+			initialResult:  report.ResultSucceeded,
+			initialOptions: []report.EndOption{report.WithReason(report.ReasonRetrySucceeded)},
+			secondResult:   report.ResultSucceeded,
+			expectedResult: report.ResultSucceeded,
+		},
+		{
+			name:           "already ended with retry failed is overwritten",
+			initialResult:  report.ResultSucceeded,
+			initialOptions: []report.EndOption{report.WithReason(report.ReasonRetrySucceeded)},
+			secondResult:   report.ResultFailed,
+			expectedResult: report.ResultFailed,
+		},
+		{
+			name:           "already ended with error ignored is overwritten",
+			initialResult:  report.ResultSucceeded,
+			initialOptions: []report.EndOption{report.WithReason(report.ReasonErrorIgnored)},
+			secondResult:   report.ResultSucceeded,
+			expectedResult: report.ResultSucceeded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a new report and run for each test case
+			r := report.NewReport()
+			runName := filepath.Join(tmp, tt.name)
+			run := newRun(t, runName)
+			r.AddRun(run)
+
+			// Set up initial options with the initial result
+			initialOptions := append(tt.initialOptions, report.WithResult(tt.initialResult))
+
+			// End the run with the initial state
+			err := r.EndRun(runName, initialOptions...)
+			require.NoError(t, err)
+
+			// Set up second options with the second result
+			secondOptions := append(tt.secondOptions, report.WithResult(tt.secondResult))
+
+			// Then try to end it again with a different state
+			err = r.EndRun(runName, secondOptions...)
+			require.NoError(t, err)
+
+			// Verify that the result is the expected one
+			endedRun, err := r.GetRun(runName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedResult, endedRun.Result)
+		})
+	}
+}
+
 func TestSummarize(t *testing.T) {
 	t.Parallel()
 
