@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -47,16 +46,9 @@ type StackBuilder interface {
 func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
 	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
 		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
-		d := discovery.
-			NewDiscovery(terragruntOptions.WorkingDir).
-			WithDiscoverExternalDependencies().
-			WithParseInclude().
-			WithParseExclude().
-			WithDiscoverDependencies().
-			WithSuppressParseErrors()
 
-		builder := NewRunnerPoolStackBuilder(d)
-		return builder.BuildStack(ctx, l, terragruntOptions, opts...)
+		builder := NewRunnerPoolStackBuilder()
+		return builder.BuildStack(ctx, l, terragruntOptions)
 	}
 	builder := &DefaultStackBuilder{}
 	return builder.BuildStack(ctx, l, terragruntOptions, opts...)

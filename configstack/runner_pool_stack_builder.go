@@ -11,17 +11,24 @@ import (
 // RunnerPoolStackBuilder implements StackBuilder for RunnerPoolStack
 // It uses the discovery package to find modules and build the stack.
 type RunnerPoolStackBuilder struct {
-	discovery *discovery.Discovery
 }
 
 // NewRunnerPoolStackBuilder creates a new builder with the given discovery instance.
-func NewRunnerPoolStackBuilder(d *discovery.Discovery) *RunnerPoolStackBuilder {
-	return &RunnerPoolStackBuilder{discovery: d}
+func NewRunnerPoolStackBuilder() *RunnerPoolStackBuilder {
+	return &RunnerPoolStackBuilder{}
 }
 
 // BuildStack discovers modules and builds a new DefaultStack, returning it as a Stack interface.
-func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
-	discovered, err := b.discovery.Discover(ctx, l, terragruntOptions)
+func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (Stack, error) {
+	d := discovery.
+		NewDiscovery(terragruntOptions.WorkingDir).
+		WithDiscoverExternalDependencies().
+		WithParseInclude().
+		WithParseExclude().
+		WithDiscoverDependencies().
+		WithSuppressParseErrors()
+
+	discovered, err := d.Discover(ctx, l, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}

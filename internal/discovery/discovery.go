@@ -98,6 +98,9 @@ type Discovery struct {
 
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
+
+	// decodeList is a custom decode list for parsing Terragrunt configurations.
+	decodeList []config.PartialDecodeSectionType
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -190,6 +193,12 @@ func (d *Discovery) WithDiscoveryContext(discoveryContext *DiscoveryContext) *Di
 	return d
 }
 
+// WithDecodeList sets a custom decode list for the Discovery.
+func (d *Discovery) WithDecodeList(list ...config.PartialDecodeSectionType) *Discovery {
+	d.decodeList = list
+	return d
+}
+
 // String returns a string representation of a DiscoveredConfig.
 func (c *DiscoveredConfig) String() string {
 	return c.Path
@@ -229,12 +238,19 @@ func (c *DiscoveredConfig) Parse(ctx context.Context, l log.Logger, opts *option
 
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, filename)
 
-	parsingCtx := config.NewParsingContext(ctx, l, parseOpts).WithDecodeList(
-		config.DependenciesBlock,
-		config.DependencyBlock,
-		config.FeatureFlagsBlock,
-		config.ExcludeBlock,
-	)
+	parsingCtx := config.NewParsingContext(ctx, l, parseOpts)
+
+	// Use custom decode list if set, otherwise default
+	if d, ok := ctx.Value("discovery").(*Discovery); ok && len(d.decodeList) > 0 {
+		parsingCtx = parsingCtx.WithDecodeList(d.decodeList...)
+	} else {
+		parsingCtx = parsingCtx.WithDecodeList(
+			config.DependenciesBlock,
+			config.DependencyBlock,
+			config.FeatureFlagsBlock,
+			config.ExcludeBlock,
+		)
+	}
 
 	//nolint: contextcheck
 	cfg, err := config.ParseConfigFile(parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
