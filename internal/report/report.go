@@ -79,6 +79,7 @@ type Colorizer struct {
 	failureColorizer     func(string) string
 	exitColorizer        func(string) string
 	excludeColorizer     func(string) string
+	nanosecondColorizer  func(string) string
 	microsecondColorizer func(string) string
 	millisecondColorizer func(string) string
 	secondColorizer      func(string) string
@@ -95,6 +96,7 @@ func NewColorizer(shouldColor bool) *Colorizer {
 			failureColorizer:     func(s string) string { return s },
 			exitColorizer:        func(s string) string { return s },
 			excludeColorizer:     func(s string) string { return s },
+			nanosecondColorizer:  func(s string) string { return s },
 			microsecondColorizer: func(s string) string { return s },
 			millisecondColorizer: func(s string) string { return s },
 			secondColorizer:      func(s string) string { return s },
@@ -109,6 +111,7 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		failureColorizer:     ansi.ColorFunc("red+bh"),
 		exitColorizer:        ansi.ColorFunc("yellow+bh"),
 		excludeColorizer:     ansi.ColorFunc("blue+bh"),
+		nanosecondColorizer:  ansi.ColorFunc("cyan+bh"),
 		microsecondColorizer: ansi.ColorFunc("cyan+bh"),
 		millisecondColorizer: ansi.ColorFunc("cyan+bh"),
 		secondColorizer:      ansi.ColorFunc("green+bh"),
@@ -420,6 +423,15 @@ func (s *Summary) TotalDuration() time.Duration {
 // It returns the duration in the format that is easy to understand by humans.
 func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 	duration := s.TotalDuration()
+
+	return colorDuration(colorizer, duration)
+}
+
+// colorDuration returns the duration as a string, colored based on the duration.
+func colorDuration(colorizer *Colorizer, duration time.Duration) string {
+	if duration < time.Microsecond {
+		return colorizer.nanosecondColorizer(fmt.Sprintf("%dns", duration.Nanoseconds()))
+	}
 
 	if duration < time.Millisecond {
 		return colorizer.microsecondColorizer(fmt.Sprintf("%dµs", duration.Microseconds()))
@@ -812,7 +824,7 @@ func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) e
 		name,
 		separator,
 		s.unitDurationPadding(name),
-		colorizer.defaultColorizer(duration.String()),
+		colorDuration(colorizer, duration),
 	)
 	if err != nil {
 		return err

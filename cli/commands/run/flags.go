@@ -29,6 +29,7 @@ const (
 	UnitsThatIncludeFlagName               = "units-that-include"
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
+	SummaryUnitTimingFlagName              = "summary-unit-timing"
 
 	BackendBootstrapFlagName        = "backend-bootstrap"
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
@@ -546,6 +547,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(SummaryDisableFlagName),
 			Destination: &opts.SummaryDisable,
 			Usage:       `Disable the summary output at the end of a run.`,
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        SummaryUnitTimingFlagName,
+			EnvVars:     tgPrefix.EnvVars(SummaryUnitTimingFlagName),
+			Destination: &opts.SummaryUnitTiming,
+			Usage:       `Show timing information for each unit in the summary output.`,
 		}),
 
 		flags.NewFlag(&cli.GenericFlag[string]{

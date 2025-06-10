@@ -60,6 +60,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			r.WithFormat(opts.ReportFormat)
 		}
 
+		if opts.SummaryUnitTiming {
+			r.WithShowUnitTiming()
+		}
+
 		stackOpts = append(stackOpts, configstack.WithReport(r))
 
 		if opts.ReportSchemaFile != "" {
