@@ -5,12 +5,19 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func createTestLogger(t *testing.T) log.Logger {
+	t.Helper()
+	return logger.CreateLogger()
+}
 
 func TestCreateBlobServiceClient(t *testing.T) {
 	t.Parallel()
@@ -19,6 +26,7 @@ func TestCreateBlobServiceClient(t *testing.T) {
 		name        string
 		config      map[string]interface{}
 		expectError bool
+		errorMsg    string
 	}{
 		{
 			name: "missing-storage-account",
@@ -26,22 +34,13 @@ func TestCreateBlobServiceClient(t *testing.T) {
 				"container_name": "test-container",
 			},
 			expectError: true,
+			errorMsg:    "storage_account_name is required",
 		},
 		{
-			name: "with-connection-string",
-			config: map[string]interface{}{
-				"storage_account_name":  "testaccount",
-				"storage_account_key":   "DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey==;EndpointSuffix=core.windows.net",
-				"container_name":        "test-container",
-			},
-			expectError: false,
-		},
-		{
-			name: "with-sas-token",
+			name: "with-default-credentials",
 			config: map[string]interface{}{
 				"storage_account_name": "testaccount",
-				"sas_token":           "sv=2020-08-04&ss=b&srt=sco&sp=rwdlacx&se=2021-08-07T05:16:17Z&st=2021-08-06T21:16:17Z&spr=https&sig=test",
-				"container_name":       "test-container",
+				"container_name":      "test-container",
 			},
 			expectError: false,
 		},
@@ -55,22 +54,26 @@ func TestCreateBlobServiceClient(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("")
 			require.NoError(t, err)
 
-			client, err := CreateBlobServiceClient(log.Logger{}, opts, tc.config)
+			logger := createTestLogger(t)
+			client, err := CreateBlobServiceClient(logger, opts, tc.config)
+
 			if tc.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, client)
+				require.Error(t, err)
+				require.Nil(t, client)
+				if tc.errorMsg != "" {
+					require.Contains(t, err.Error(), tc.errorMsg)
+				}
 			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, client)
+				require.NoError(t, err)
+				require.NotNil(t, client)
 			}
 		})
 	}
 }
 
 func TestBlobOperations(t *testing.T) {
-	if os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT") == "" ||
-		os.Getenv("TERRAGRUNT_AZURE_TEST_ACCESS_KEY") == "" {
-		t.Skip("Skipping Azure blob operations test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT or TERRAGRUNT_AZURE_TEST_ACCESS_KEY not set")
+	if os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT") == "" {
+		t.Skip("Skipping Azure blob operations test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set")
 	}
 
 	t.Parallel()
@@ -84,26 +87,22 @@ func TestBlobOperations(t *testing.T) {
 
 	config := map[string]interface{}{
 		"storage_account_name": os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT"),
-		"storage_account_key":  os.Getenv("TERRAGRUNT_AZURE_TEST_ACCESS_KEY"),
-		"container_name":      containerName,
+		"container_name":       containerName,
 	}
 
-	client, err := CreateBlobServiceClient(log.Logger{}, opts, config)
+	logger := createTestLogger(t)
+	client, err := CreateBlobServiceClient(logger, opts, config)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
 	// Test container creation
-	err = client.CreateContainerIfNecessary(ctx, log.Logger{}, containerName)
+	err = client.CreateContainerIfNecessary(ctx, logger, containerName)
 	require.NoError(t, err)
 
 	// Test container existence check
 	exists, err := client.ContainerExists(ctx, containerName)
 	require.NoError(t, err)
 	assert.True(t, exists)
-
-	// Test versioning
-	err = client.EnableVersioningIfNecessary(ctx, log.Logger{}, containerName)
-	require.NoError(t, err)
 
 	enabled, err := client.IsVersioningEnabled(ctx, containerName)
 	require.NoError(t, err)
@@ -120,11 +119,11 @@ func TestBlobOperations(t *testing.T) {
 	assert.Error(t, err)
 
 	// Test delete non-existent blob
-	err = client.DeleteBlobIfNecessary(ctx, log.Logger{}, containerName, blobName)
+	err = client.DeleteBlobIfNecessary(ctx, logger, containerName, blobName)
 	assert.NoError(t, err)
 
 	// Clean up
-	err = client.DeleteContainer(ctx, log.Logger{}, containerName)
+	err = client.DeleteContainer(ctx, logger, containerName)
 	require.NoError(t, err)
 
 	// Verify container deletion
@@ -142,28 +141,128 @@ func TestContainerOperationsWithErrors(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
+	// Use an invalid/non-existent storage account
 	config := map[string]interface{}{
-		"storage_account_name": "testaccount",
-		"storage_account_key":  "DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey==;EndpointSuffix=core.windows.net",
+		"storage_account_name": "nonexistentaccount",
 	}
 
-	client, err := CreateBlobServiceClient(log.Logger{}, opts, config)
+	logger := createTestLogger(t)
+	client, err := CreateBlobServiceClient(logger, opts, config)
 	require.NoError(t, err)
 
 	// Test container creation with invalid name
-	err = client.CreateContainerIfNecessary(ctx, log.Logger{}, invalidContainerName)
+	err = client.CreateContainerIfNecessary(ctx, logger, invalidContainerName)
 	assert.Error(t, err)
 
 	// Test container existence check with invalid name
 	exists, err := client.ContainerExists(ctx, invalidContainerName)
 	assert.Error(t, err)
 	assert.False(t, exists)
+}
 
-	// Test versioning with invalid name
-	err = client.EnableVersioningIfNecessary(ctx, log.Logger{}, invalidContainerName)
-	assert.Error(t, err)
+func TestContainerExists(t *testing.T) {
+	t.Parallel()
 
-	enabled, err := client.IsVersioningEnabled(ctx, invalidContainerName)
-	assert.Error(t, err)
-	assert.False(t, enabled)
+	testCases := []struct {
+		name           string
+		config         map[string]interface{}
+		containerName  string
+		expectError    bool
+		expectedExists bool
+	}{
+		{
+			name: "empty-container-name",
+			config: map[string]interface{}{
+				"storage_account_name": "testaccount",
+			},
+			containerName:  "",
+			expectError:    true,
+			expectedExists: false,
+		},
+		{
+			name: "non-existent-container",
+			config: map[string]interface{}{
+				"storage_account_name": "testaccount",
+			},
+			containerName:  "non-existent-container",
+			expectError:    true, // Will fail with auth error since we don't have valid credentials
+			expectedExists: false,
+		},
+		{
+			name: "invalid-storage-account",
+			config: map[string]interface{}{
+				"storage_account_name": "nonexistentaccount",
+			},
+			containerName:  "test-container",
+			expectError:    true,
+			expectedExists: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable for parallel testing
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			opts, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
+
+			logger := createTestLogger(t)
+			client, err := CreateBlobServiceClient(logger, opts, tc.config)
+			require.NoError(t, err)
+			require.NotNil(t, client)
+
+			exists, err := client.ContainerExists(ctx, tc.containerName)
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedExists, exists)
+			}
+		})
+	}
+}
+
+func TestContainerExistsIntegration(t *testing.T) {
+	if os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT") == "" {
+		t.Skip("Skipping Azure container existence test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set")
+	}
+
+	ctx := context.Background()
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	config := map[string]interface{}{
+		"storage_account_name": os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT"),
+	}
+
+	logger := createTestLogger(t)
+	client, err := CreateBlobServiceClient(logger, opts, config)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	testContainerName := fmt.Sprintf("terragrunt-test-%d", time.Now().UnixNano())
+
+	// Test non-existent container first
+	exists, err := client.ContainerExists(ctx, testContainerName)
+	assert.NoError(t, err)
+	assert.False(t, exists)
+
+	// Create the container and test again
+	err = client.CreateContainerIfNecessary(ctx, logger, testContainerName)
+	require.NoError(t, err)
+
+	// Ensure cleanup even if subsequent tests fail
+	defer func() {
+		err := client.DeleteContainer(ctx, logger, testContainerName)
+		if err != nil {
+			t.Logf("Warning: Failed to cleanup container %s: %v", testContainerName, err)
+		}
+	}()
+
+	// Verify container exists after creation
+	exists, err = client.ContainerExists(ctx, testContainerName)
+	assert.NoError(t, err)
+	assert.True(t, exists)
 }

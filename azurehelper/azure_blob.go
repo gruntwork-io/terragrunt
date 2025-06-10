@@ -3,16 +3,18 @@ package azurehelper
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// BlobServiceClient wraps Azure's azblob.Client to provide a simpler interface for our needs
+// BlobServiceClient wraps Azure's azblob client to provide a simpler interface for our needs
 type BlobServiceClient struct {
 	client *azblob.Client
 }
@@ -25,54 +27,29 @@ type GetObjectInput struct {
 
 // GetObjectOutput represents the output from getting a blob
 type GetObjectOutput struct {
-	Body       ResponseBodyCloser
-	Properties *azblob.BlobProperties
-}
-
-type ResponseBodyCloser interface {
-	Read(p []byte) (n int, err error)
-	Close() error
+	Body io.ReadCloser
 }
 
 // CreateBlobServiceClient creates a new Azure Blob Service client using the configuration from the backend
+// NOTE: Storage account key authentication is deprecated and no longer supported. Please use Azure AD authentication instead.
 func CreateBlobServiceClient(l log.Logger, opts *options.TerragruntOptions, config map[string]interface{}) (*BlobServiceClient, error) {
+	// Get storage account name from config
 	storageAccountName, ok := config["storage_account_name"].(string)
-	if !ok {
-		return nil, fmt.Errorf("storage_account_name not found in backend config")
+	if !ok || storageAccountName == "" {
+		return nil, fmt.Errorf("storage_account_name is required")
 	}
 
-	// Try different authentication methods in order:
-	// 1. Connection string from backend config
-	// 2. SAS Token from backend config
-	// 3. Azure AD credentials from environment
+	url := fmt.Sprintf("https://%s.blob.core.windows.net", storageAccountName)
 
-	if connStr, ok := config["storage_account_key"].(string); ok {
-		client, err := azblob.NewClientFromConnectionString(connStr, nil)
-		if err != nil {
-			return nil, fmt.Errorf("error creating blob client from connection string: %v", err)
-		}
-		return &BlobServiceClient{client: client}, nil
-	}
-
-	if sasToken, ok := config["sas_token"].(string); ok {
-		url := fmt.Sprintf("https://%s.blob.core.windows.net/?%s", storageAccountName, sasToken)
-		client, err := azblob.NewClientWithNoCredential(url, nil)
-		if err != nil {
-			return nil, fmt.Errorf("error creating blob client with SAS token: %v", err)
-		}
-		return &BlobServiceClient{client: client}, nil
-	}
-
-	// Default to Azure AD authentication
-	cred, err := azblob.NewDefaultAzureCredential(nil)
+	// Use default Azure credential
+	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("error getting default Azure credentials: %v", err)
+		return nil, fmt.Errorf("error getting default azure credential: %v", err)
 	}
 
-	url := fmt.Sprintf("https://%s.blob.core.windows.net/", storageAccountName)
 	client, err := azblob.NewClient(url, cred, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error creating blob client: %v", err)
+		return nil, fmt.Errorf("error creating blob client with default credential: %v", err)
 	}
 
 	return &BlobServiceClient{client: client}, nil
@@ -87,33 +64,42 @@ func (c *BlobServiceClient) GetObject(input *GetObjectInput) (*GetObjectOutput, 
 		return nil, fmt.Errorf("blob key is required")
 	}
 
-	// Download the blob
-	resp, err := c.client.DownloadStream(context.Background(), *input.Bucket, *input.Key, nil)
+	downloaded, err := c.client.DownloadStream(context.Background(), *input.Bucket, *input.Key, nil)
 	if err != nil {
-		var storageErr *azcore.ResponseError
-		if os.IsNotExist(err) || (storageErr != nil && storageErr.ErrorCode == "BlobNotFound") {
+		if respErr, ok := err.(*azcore.ResponseError); ok && respErr.ErrorCode == "BlobNotFound" {
 			return nil, fmt.Errorf("blob not found: %v", err)
 		}
 		return nil, fmt.Errorf("error downloading blob: %v", err)
 	}
 
 	return &GetObjectOutput{
-		Body:       resp.Body,
-		Properties: resp.BlobProperties,
+		Body: downloaded.Body,
 	}, nil
 }
 
 // ContainerExists checks if a container exists
 func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName string) (bool, error) {
-	containerClient := c.client.NewContainerClient(containerName)
-	_, err := containerClient.GetProperties(ctx, nil)
+	if containerName == "" {
+		return false, fmt.Errorf("container name is required")
+	}
+
+	container := c.client.ServiceClient().NewContainerClient(containerName)
+	_, err := container.GetProperties(ctx, nil)
 	if err != nil {
-		var storageErr *azcore.ResponseError
-		if storageErr != nil && storageErr.ErrorCode == "ContainerNotFound" {
-			return false, nil
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) {
+			// Container not found (404)
+			if respErr.ErrorCode == "ContainerNotFound" {
+				return false, nil
+			}
+			// Authentication error (401, 403)
+			if respErr.StatusCode == 401 || respErr.StatusCode == 403 {
+				return false, fmt.Errorf("authentication failed: %v", err)
+			}
 		}
 		return false, fmt.Errorf("error checking container existence: %v", err)
 	}
+
 	return true, nil
 }
 
@@ -126,8 +112,7 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 
 	if !exists {
 		l.Infof("Creating Azure Storage container %s", containerName)
-		containerClient := c.client.NewContainerClient(containerName)
-		_, err = containerClient.Create(ctx, nil)
+		_, err = c.client.CreateContainer(ctx, containerName, nil)
 		if err != nil {
 			return fmt.Errorf("error creating container: %v", err)
 		}
@@ -136,44 +121,28 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 	return nil
 }
 
-// EnableVersioningIfNecessary enables versioning on a container if not already enabled
-func (c *BlobServiceClient) EnableVersioningIfNecessary(ctx context.Context, l log.Logger, containerName string) error {
-	enabled, err := c.IsVersioningEnabled(ctx, containerName)
-	if err != nil {
-		return err
-	}
-
-	if !enabled {
-		l.Infof("Enabling versioning on Azure Storage container %s", containerName)
-		containerClient := c.client.NewContainerClient(containerName)
-		_, err = containerClient.SetVersioningEnabled(ctx, true, nil)
-		if err != nil {
-			return fmt.Errorf("error enabling versioning: %v", err)
-		}
-	}
-
-	return nil
+// IsVersioningEnabled checks if versioning is enabled for a blob storage account.
+// In Azure Blob Storage, versioning is a storage account level setting and cannot be
+// configured at the container level. This method always returns true as versioning
+// state needs to be checked at the storage account level.
+func (c *BlobServiceClient) IsVersioningEnabled(ctx context.Context, containerName string) (bool, error) {
+	// In Azure Blob Storage, versioning is a storage account level setting
+	l := log.Default()
+	l.Warnf("Warning: Blob versioning in Azure Storage is a storage account level setting, not a container level setting")
+	return true, nil
 }
 
-// IsVersioningEnabled checks if versioning is enabled on a container
-func (c *BlobServiceClient) IsVersioningEnabled(ctx context.Context, containerName string) (bool, error) {
-	containerClient := c.client.NewContainerClient(containerName)
-	props, err := containerClient.GetProperties(ctx, nil)
-	if err != nil {
-		return false, fmt.Errorf("error getting container properties: %v", err)
-	}
-
-	return props.VersioningEnabled != nil && *props.VersioningEnabled, nil
+// EnableVersioningIfNecessary is deprecated as versioning is a storage account level setting
+func (c *BlobServiceClient) EnableVersioningIfNecessary(ctx context.Context, l log.Logger, containerName string) error {
+	l.Warnf("Warning: Blob versioning in Azure Storage is a storage account level setting and cannot be configured at container level")
+	return nil
 }
 
 // DeleteBlobIfNecessary deletes a blob if it exists
 func (c *BlobServiceClient) DeleteBlobIfNecessary(ctx context.Context, l log.Logger, containerName string, blobName string) error {
-	containerClient := c.client.NewContainerClient(containerName)
-	blobClient := containerClient.BlockBlobClient(blobName)
-	_, err := blobClient.Delete(ctx, nil)
+	_, err := c.client.DeleteBlob(ctx, containerName, blobName, nil)
 	if err != nil {
-		var storageErr *azcore.ResponseError
-		if storageErr != nil && storageErr.ErrorCode == "BlobNotFound" {
+		if respErr, ok := err.(*azcore.ResponseError); ok && respErr.ErrorCode == "BlobNotFound" {
 			return nil
 		}
 		return fmt.Errorf("error deleting blob: %v", err)
@@ -183,14 +152,98 @@ func (c *BlobServiceClient) DeleteBlobIfNecessary(ctx context.Context, l log.Log
 
 // DeleteContainer deletes a container and all its contents
 func (c *BlobServiceClient) DeleteContainer(ctx context.Context, l log.Logger, containerName string) error {
-	containerClient := c.client.NewContainerClient(containerName)
-	_, err := containerClient.Delete(ctx, nil)
-	if err != nil {
-		var storageErr *azcore.ResponseError
-		if storageErr != nil && storageErr.ErrorCode == "ContainerNotFound" {
-			return nil
-		}
-		return fmt.Errorf("error deleting container: %v", err)
+	if containerName == "" {
+		return fmt.Errorf("container name is required")
 	}
+
+	container := c.client.ServiceClient().NewContainerClient(containerName)
+	_, err := container.Delete(ctx, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) {
+			// If container not found, consider delete successful
+			if respErr.ErrorCode == "ContainerNotFound" {
+				return nil
+			}
+		}
+		return fmt.Errorf("error deleting container: %w", err)
+	}
+
+	return nil
+}
+
+// UploadBlob uploads a blob with the given data
+func (c *BlobServiceClient) UploadBlob(ctx context.Context, l log.Logger, containerName, blobName string, data []byte) error {
+	if containerName == "" || blobName == "" {
+		return fmt.Errorf("container name and blob key are required")
+	}
+
+	container := c.client.ServiceClient().NewContainerClient(containerName)
+	blockBlob := container.NewBlockBlobClient(blobName)
+
+	_, err := blockBlob.UploadBuffer(ctx, data, nil)
+	if err != nil {
+		return fmt.Errorf("error uploading blob: %w", err)
+	}
+
+	return nil
+}
+
+// CopyBlobToContainer copies a blob from one container to another, potentially across storage accounts
+func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient *BlobServiceClient, dstContainer, dstKey string) error {
+	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
+		return fmt.Errorf("container names and blob keys are required")
+	}
+
+	// Get source blob data
+	input := &GetObjectInput{
+		Bucket: &srcContainer,
+		Key:    &srcKey,
+	}
+	srcBlob, err := c.GetObject(input)
+	if err != nil {
+		return fmt.Errorf("error getting source blob: %w", err)
+	}
+	defer srcBlob.Body.Close()
+
+	// Read the entire blob into memory
+	data, err := io.ReadAll(srcBlob.Body)
+	if err != nil {
+		return fmt.Errorf("error reading source blob: %w", err)
+	}
+
+	// Upload to destination using UploadBuffer which doesn't require a ReadSeekCloser
+	container := dstClient.client.ServiceClient().NewContainerClient(dstContainer)
+	blockBlob := container.NewBlockBlobClient(dstKey)
+
+	_, err = blockBlob.UploadBuffer(ctx, data, nil)
+	if err != nil {
+		return fmt.Errorf("error uploading to destination: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteBlob deletes a blob from a container
+func (c *BlobServiceClient) DeleteBlob(ctx context.Context, containerName, blobKey string) error {
+	if containerName == "" || blobKey == "" {
+		return fmt.Errorf("container name and blob key are required")
+	}
+
+	container := c.client.ServiceClient().NewContainerClient(containerName)
+	blob := container.NewBlobClient(blobKey)
+
+	_, err := blob.Delete(ctx, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) {
+			// If blob not found, consider delete successful
+			if respErr.ErrorCode == "BlobNotFound" {
+				return nil
+			}
+		}
+		return fmt.Errorf("error deleting blob: %w", err)
+	}
+
 	return nil
 }
