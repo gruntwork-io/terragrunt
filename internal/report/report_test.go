@@ -193,11 +193,11 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		initialOptions []report.EndOption
 		initialResult  report.Result
 		expectedResult report.Result
-		secondOptions  []report.EndOption
 		secondResult   report.Result
+		initialOptions []report.EndOption
+		secondOptions  []report.EndOption
 	}{
 		{
 			name:           "already ended with early exit is not overwritten",
