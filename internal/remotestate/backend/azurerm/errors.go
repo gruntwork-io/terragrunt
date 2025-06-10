@@ -1,4 +1,8 @@
-package azurerm 
+package azurerm
+
+import (
+	"fmt"
+)
 
 type MissingRequiredAzureRemoteStateConfig string
 

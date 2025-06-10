@@ -4,31 +4,22 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/hashicorp/consul/template/mapstructure"
-	"github.com/pkg/errors"
+	"github.com/mitchellh/mapstructure"
 )
 
+// BackendName is the name of the Azure RM backend
 const BackendName = "azurerm"
 
-// These are settings that appear in the remote_state config that are only used by
+// terragruntOnlyConfigs are settings that appear in the remote_state config that are only used by
 // Terragrunt and not passed on to the Azure backend configuration
 var terragruntOnlyConfigs = []string{
-	"skip_blob_versioning",
-	"disable_blob_public_access",
 	"container_tags",
+	"disable_blob_public_access",
 }
 
-// These are settings that can appear in the remote_state config that are ONLY used by Terragrunt
-// and NOT forwarded to the underlying Terraform backend configuration
-var terragruntOnlyConfigs = []string{
-	"skip_blob_versioning",
-	"disable_blob_public_access",
-	"container_tags",
-}
-
+// ExtendedRemoteStateConfigAzurerm provides extended configuration for the Azure RM backend
 type ExtendedRemoteStateConfigAzurerm struct {
 	ContainerTags             map[string]string    `mapstructure:"container_tags"`
-	SkipBlobVersioning        bool                 `mapstructure:"skip_blob_versioning"`
 	DisableBlobPublicAccess   bool                 `mapstructure:"disable_blob_public_access"`
 	RemoteStateConfigAzurerm  RemoteStateConfigAzurerm `mapstructure:",squash"`
 }
@@ -36,9 +27,12 @@ type ExtendedRemoteStateConfigAzurerm struct {
 // RemoteStateConfigAzurerm represents the configuration for Azure Storage backend
 type RemoteStateConfigAzurerm struct {
 	StorageAccountName   string `mapstructure:"storage_account_name"`
+	// Deprecated: Use Azure AD authentication instead
+	StorageAccountKey    string `mapstructure:"storage_account_key"`
 	ContainerName        string `mapstructure:"container_name"`
 	Key                  string `mapstructure:"key"`
 	ResourceGroupName    string `mapstructure:"resource_group_name"`
+	// Deprecated: Use Azure AD authentication instead
 	ConnectionString     string `mapstructure:"connection_string"`
 	SasToken            string `mapstructure:"sas_token"`
 	SubscriptionID      string `mapstructure:"subscription_id"`
@@ -46,16 +40,17 @@ type RemoteStateConfigAzurerm struct {
 	ClientID            string `mapstructure:"client_id"`
 	ClientSecret        string `mapstructure:"client_secret"`
 	Environment         string `mapstructure:"environment"`
-	EndpointUrl         string `mapstructure:"endpoint"`
+	EndpointURL         string `mapstructure:"endpoint"`
 	UseMsi             bool   `mapstructure:"use_msi"`
+	UseAzureADAuth     bool   `mapstructure:"use_azuread_auth"`
 }
 
 // Config represents the configuration for Azure Storage backend
 type Config map[string]interface{}
 
-// FilterOutTerragruntKeys returns a new map with all Terragrunt-only keys removed
-func (cfg Config) FilterOutTerragruntKeys() Config {
-	filtered := make(Config)
+// FilterOutTerragruntKeys returns a new map without Terragrunt-specific keys
+func (cfg Config) FilterOutTerragruntKeys() map[string]interface{} {
+	filtered := make(map[string]interface{})
 	for key, val := range cfg {
 		if slices.Contains(terragruntOnlyConfigs, key) {
 			continue
@@ -70,7 +65,7 @@ func (cfg Config) ParseExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm,
 	var extConfig ExtendedRemoteStateConfigAzurerm
 
 	if err := mapstructure.Decode(cfg, &extConfig); err != nil {
-		return nil, errors.New(err)
+		return nil, fmt.Errorf("failed to decode Azure config: %w", err)
 	}
 
 	return &extConfig, nil
@@ -90,7 +85,7 @@ func (cfg Config) ExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm, erro
 	return extConfig, nil
 }
 
-// Validate checks if all required fields are set
+// Validate checks if all required fields are set and validates auth methods
 func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	if cfg.RemoteStateConfigAzurerm.StorageAccountName == "" {
 		return MissingRequiredAzureRemoteStateConfig("storage_account_name")
@@ -104,10 +99,68 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 		return MissingRequiredAzureRemoteStateConfig("key")
 	}
 
+	// Validate auth method combinations
+	hasKeyAuth := cfg.RemoteStateConfigAzurerm.ConnectionString != "" || cfg.RemoteStateConfigAzurerm.StorageAccountKey != ""
+	hasSasToken := cfg.RemoteStateConfigAzurerm.SasToken != ""
+	
+	// Service principal requires all three values to be set
+	hasServicePrincipal := false
+	if cfg.RemoteStateConfigAzurerm.ClientID != "" || cfg.RemoteStateConfigAzurerm.ClientSecret != "" ||
+		cfg.RemoteStateConfigAzurerm.TenantID != "" {
+		hasServicePrincipal = true
+	}
+
+	hasAzureAD := cfg.RemoteStateConfigAzurerm.UseAzureADAuth
+	hasMSI := cfg.RemoteStateConfigAzurerm.UseMsi
+
+	// Check for multiple auth methods
+	var authCount int
+	if hasKeyAuth {
+		authCount++
+	}
+	if hasSasToken {
+		authCount++
+	} 
+	if hasServicePrincipal {
+		// Only validate service principal fields if it's actually being used
+		if !hasKeyAuth && !hasSasToken && !hasAzureAD && !hasMSI {
+			if cfg.RemoteStateConfigAzurerm.ClientID == "" || cfg.RemoteStateConfigAzurerm.ClientSecret == "" ||
+				cfg.RemoteStateConfigAzurerm.TenantID == "" || cfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
+				missing := []string{}
+				if cfg.RemoteStateConfigAzurerm.ClientID == "" {
+					missing = append(missing, "client_id")
+				}
+				if cfg.RemoteStateConfigAzurerm.ClientSecret == "" {
+					missing = append(missing, "client_secret")
+				}
+				if cfg.RemoteStateConfigAzurerm.TenantID == "" {
+					missing = append(missing, "tenant_id")
+				}
+				if cfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
+					missing = append(missing, "subscription_id")
+				}
+				return fmt.Errorf("incomplete service principal configuration: missing required fields: %v", missing)
+			}
+		}
+		authCount++
+	}
+	if hasAzureAD {
+		authCount++
+	}
+	if hasMSI {
+		authCount++
+	}
+
+	if authCount > 1 {
+		return fmt.Errorf("cannot specify multiple authentication methods: choose one of storage account key, SAS token, service principal, Azure AD auth, or MSI")
+	}
+
 	return nil
 }
 
-// CacheKey returns a unique key for the Azure config
-func (cfg *RemoteStateConfigAzurerm) CacheKey() string {
-	return fmt.Sprintf("%s/%s/%s", cfg.StorageAccountName, cfg.ContainerName, cfg.Key)
+// CacheKey returns a key that uniquely identifies this config
+func (cfg *ExtendedRemoteStateConfigAzurerm) CacheKey() string {
+	return fmt.Sprintf("%s-%s-%s", cfg.RemoteStateConfigAzurerm.StorageAccountName, cfg.RemoteStateConfigAzurerm.ContainerName, cfg.RemoteStateConfigAzurerm.Key)
 }
+
+

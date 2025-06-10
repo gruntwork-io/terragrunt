@@ -1,19 +1,12 @@
-// Package azurerm represents Azure storage backend for interacting with	client, err := azurehelper.CreateBlobServiceClient(l, opts, backendConfig)
-	if err != nil {
-		return false, err
-	}
-
-	containerExists, err := client.ContainerExists(ctx, azureCfg.ContainerName)
-	if err != nil {
-		return false, err
-	}tate.
+// Package azurerm represents Azure storage backend for remote state
 package azurerm
 
 import (
 	"context"
 	"fmt"
-	"path"
+	"os"
 
+	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -22,19 +15,71 @@ import (
 
 var _ backend.Backend = new(Backend)
 
+// Backend implements the backend interface for the Azure backend
 type Backend struct {
 	*backend.CommonBackend
 }
 
+// NewBackend creates a new Azure backend
 func NewBackend() *Backend {
 	return &Backend{CommonBackend: backend.NewCommonBackend(BackendName)}
 }
 
-// Bootstrap creates the Azure Storage container if it doesn't exist and enables versioning if requested
+// Bootstrap creates the Azure Storage container if it doesn't exist
 func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
 		return err
+	}
+
+	// Validate authentication methods, prioritizing Azure AD auth
+	hasAzureAD := azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth
+	hasMSI := azureCfg.RemoteStateConfigAzurerm.UseMsi
+	hasServicePrincipal := azureCfg.RemoteStateConfigAzurerm.ClientID != "" && azureCfg.RemoteStateConfigAzurerm.ClientSecret != "" &&
+		azureCfg.RemoteStateConfigAzurerm.TenantID != "" && azureCfg.RemoteStateConfigAzurerm.SubscriptionID != ""
+	hasSasToken := azureCfg.RemoteStateConfigAzurerm.SasToken != ""
+
+	// Legacy/Deprecated auth methods
+	hasKeyAuth := azureCfg.RemoteStateConfigAzurerm.ConnectionString != "" || azureCfg.RemoteStateConfigAzurerm.StorageAccountKey != ""
+
+	// Check environment variables if no explicit credentials in config
+	hasEnvCreds := false
+	if !hasAzureAD && !hasMSI && !hasServicePrincipal && !hasSasToken && !hasKeyAuth {
+		// Check for service principal environment variables first
+		if envClientID := os.Getenv("AZURE_CLIENT_ID"); envClientID != "" {
+			if envClientSecret := os.Getenv("AZURE_CLIENT_SECRET"); envClientSecret != "" {
+				if envTenantID := os.Getenv("AZURE_TENANT_ID"); envTenantID != "" {
+					if envSubID := os.Getenv("AZURE_SUBSCRIPTION_ID"); envSubID != "" {
+						hasServicePrincipal = true
+						hasEnvCreds = true
+					}
+				}
+			}
+		}
+
+		if envSas := os.Getenv("AZURE_STORAGE_SAS_TOKEN"); envSas != "" {
+			hasSasToken = true
+			hasEnvCreds = true
+		}
+
+		// Legacy/Deprecated environment variables - show deprecation warning
+		if envKey := os.Getenv("ARM_ACCESS_KEY"); envKey != "" {
+			l.Warn("Using ARM_ACCESS_KEY is deprecated. Please switch to Azure AD authentication.")
+			hasKeyAuth = true
+			hasEnvCreds = true
+		} else if envKey := os.Getenv("AZURE_STORAGE_KEY"); envKey != "" {
+			l.Warn("Using AZURE_STORAGE_KEY is deprecated. Please switch to Azure AD authentication.")
+			hasKeyAuth = true
+			hasEnvCreds = true
+		}
+	}
+
+	if hasKeyAuth {
+		l.Warn("Using storage account key authentication is deprecated. Please switch to Azure AD authentication.")
+	}
+
+	if !hasAzureAD && !hasMSI && !hasServicePrincipal && !hasSasToken && !hasKeyAuth && !hasEnvCreds {
+		return fmt.Errorf("no valid authentication method found: Azure AD auth is recommended. Alternatively, provide one of: MSI, service principal credentials, or SAS token")
 	}
 
 	// ensure that only one goroutine can initialize storage
@@ -42,7 +87,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	mu.Lock()
 	defer mu.Unlock()
 
-	if backend.IsConfigInited(azureCfg.RemoteStateConfigAzurerm.CacheKey()) {
+	if backend.IsConfigInited(azureCfg) {
 		l.Debugf("%s storage account %s has already been confirmed to be initialized, skipping initialization checks", backend.Name(), azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 		return nil
 	}
@@ -52,17 +97,12 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		return err
 	}
 
-	if err := client.CreateContainerIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName); err != nil {
+	err = client.CreateContainerIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+	if err != nil {
 		return err
 	}
 
-	if !azureCfg.SkipBlobVersioning {
-		if err := client.EnableVersioningIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName); err != nil {
-			return err
-		}
-	}
-
-	backend.MarkConfigInited(azureCfg.RemoteStateConfigAzurerm.CacheKey())
+	backend.MarkConfigInited(azureCfg)
 	return nil
 }
 
@@ -74,11 +114,11 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 	}
 
 	// Skip initialization if marked as already initialized
-	if backend.IsConfigInited(azureCfg.RemoteStateConfigAzurerm.CacheKey()) {
+	if backend.IsConfigInited(azureCfg) {
 		return false, nil
 	}
 
-	client, err := awshelper.CreateBlobServiceClient(l, opts, backendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(l, opts, backendConfig)
 	if err != nil {
 		return false, err
 	}
@@ -92,17 +132,6 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		return true, nil
 	}
 
-	if !azureCfg.SkipBlobVersioning {
-		versioningEnabled, err := client.IsVersioningEnabled(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
-		if err != nil {
-			return false, err
-		}
-
-		if !versioningEnabled {
-			return true, nil
-		}
-	}
-
 	return false, nil
 }
 
@@ -113,19 +142,21 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		return err
 	}
 
+	prompt := fmt.Sprintf("Azure Storage container %s blob %s will be deleted. Do you want to continue?", azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
+	shouldContinue, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	if err != nil {
+		return err
+	}
+	if !shouldContinue {
+		return nil
+	}
+
 	client, err := azurehelper.CreateBlobServiceClient(l, opts, backendConfig)
 	if err != nil {
 		return err
 	}
 
-	prompt := fmt.Sprintf("Azure Storage container %s blob %s will be deleted. Do you want to continue?", azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
-	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
-		return err
-	} else if yes {
-		return client.DeleteBlobIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
-	}
-
-	return nil
+	return client.DeleteBlobIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
 }
 
 // DeleteBucket deletes the entire Azure Storage container
@@ -135,22 +166,95 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 		return err
 	}
 
+	prompt := fmt.Sprintf("Azure Storage container %s and all its contents will be deleted. Do you want to continue?", azureCfg.RemoteStateConfigAzurerm.ContainerName)
+	shouldContinue, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	if err != nil {
+		return err
+	}
+	if !shouldContinue {
+		return nil
+	}
+
 	client, err := azurehelper.CreateBlobServiceClient(l, opts, backendConfig)
 	if err != nil {
 		return err
 	}
 
-	prompt := fmt.Sprintf("Azure Storage container %s and all its contents will be deleted. Do you want to continue?", azureCfg.RemoteStateConfigAzurerm.ContainerName)
-	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+	return client.DeleteContainer(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+}
+
+// Migrate copies the state file from source container to destination container and deletes the original
+func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
+	// If not using force flag, warn about versioning being a storage account level setting
+	if !opts.ForceBackendMigrate {
+		l.Warn("Warning: Blob versioning in Azure Storage is a storage account level setting. Use the Azure Portal or CLI to verify that blob versioning is enabled on both source and destination storage accounts.")
+	}
+
+	srcCfg, err := Config(srcBackendConfig).ExtendedAzureConfig()
+	if err != nil {
 		return err
-	} else if yes {
-		return client.DeleteContainer(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+	}
+
+	dstCfg, err := Config(dstBackendConfig).ExtendedAzureConfig()
+	if err != nil {
+		return err
+	}
+
+	srcClient, err := azurehelper.CreateBlobServiceClient(l, opts, srcBackendConfig)
+	if err != nil {
+		return fmt.Errorf("error creating source blob client: %w", err)
+	}
+
+	dstClient, err := azurehelper.CreateBlobServiceClient(l, opts, dstBackendConfig)
+	if err != nil {
+		return fmt.Errorf("error creating destination blob client: %w", err)
+	}
+
+	// Check that source container exists and state file is present
+	srcContainer := srcCfg.RemoteStateConfigAzurerm.ContainerName
+	srcKey := srcCfg.RemoteStateConfigAzurerm.Key
+	exists, err := srcClient.ContainerExists(ctx, srcContainer)
+	if err != nil {
+		return fmt.Errorf("error checking source container existence: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("source container %s does not exist", srcContainer)
+	}
+
+	// Ensure destination container exists (create if necessary)
+	dstContainer := dstCfg.RemoteStateConfigAzurerm.ContainerName
+	err = dstClient.CreateContainerIfNecessary(ctx, l, dstContainer)
+	if err != nil {
+		return fmt.Errorf("error creating destination container: %w", err)
+	}
+
+	// Copy state file from source to destination
+	err = srcClient.CopyBlobToContainer(ctx, srcContainer, srcKey, dstClient, dstContainer, dstCfg.RemoteStateConfigAzurerm.Key)
+	if err != nil {
+		return fmt.Errorf("error copying state file: %w", err)
+	}
+
+	// Verify the copy succeeded by reading the destination blob
+	dstInput := &azurehelper.GetObjectInput{
+		Bucket: &dstContainer,
+		Key:    &dstCfg.RemoteStateConfigAzurerm.Key,
+	}
+	_, err = dstClient.GetObject(dstInput)
+	if err != nil {
+		return fmt.Errorf("error verifying destination state file: %w", err)
+	}
+
+	// Delete the source state file
+	err = srcClient.DeleteBlob(ctx, srcContainer, srcKey)
+	if err != nil {
+		return fmt.Errorf("error deleting source state file: %w", err)
 	}
 
 	return nil
 }
 
 // GetTFInitArgs returns the subset of config to pass to terraform init
-func (backend *Backend) GetTFInitArgs(config backend.Config) map[string]any {
-	return config.FilterOutTerragruntKeys()
+func (backend *Backend) GetTFInitArgs(backendConfig backend.Config) map[string]any {
+	// Azure backend takes all config values and filters out terragruntOnly ones
+	return Config(backendConfig).FilterOutTerragruntKeys()
 }
