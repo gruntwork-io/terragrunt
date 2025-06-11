@@ -9,9 +9,6 @@ usage: |
   The `find` command helps you discover Terragrunt configurations in your codebase.
 
   It recursively searches for `terragrunt.hcl` and `terragrunt.stack.hcl` files and displays them in formatted output.
-experiment:
-  control: cli-redesign
-  name: CLI Redesign
 examples:
   - description: |
       Find all configurations (units and stacks) in the current directory.
@@ -34,13 +31,43 @@ examples:
     code: |
       terragrunt find --json
   - description: |
-      Sort configurations based on their dependencies (DAG order).
+      Sort configurations based on their dependencies using DAG mode.
     code: |
-      terragrunt find --sort 'dag'
+      terragrunt find --dag
+  - description: |
+      Sort configurations based on dependency graph as if running plan command.
+    code: |
+      $ terragrunt find --queue-construct-as=plan
+      stacks/live/dev
+      stacks/live/prod
+      units/live/dev/vpc
+      units/live/prod/vpc
+      units/live/dev/db
+      units/live/prod/db
+      units/live/dev/ec2
+      units/live/prod/ec2
+
+  - description: |
+      Sort configurations based on dependency graph as if running destroy command.
+    code: |
+      $ terragrunt find --queue-construct-as=destroy
+      stacks/live/dev
+      stacks/live/prod
+      units/live/dev/ec2
+      units/live/prod/ec2
+      units/live/dev/db
+      units/live/prod/db
+      units/live/dev/vpc
+      units/live/prod/vpc
+
   - description: |
       Include dependency information in the output.
     code: |
       terragrunt find --dependencies --format 'json'
+  - description: |
+      Include exclude configuration in the output.
+    code: |
+      terragrunt find --exclude --format 'json'
   - description: |
       Include external dependencies in the output.
     code: |
@@ -48,10 +75,13 @@ examples:
 flags:
   - find-format
   - find-json
-  - find-sort
+  - find-dag
   - find-hidden
   - find-dependencies
+  - find-exclude
+  - find-include
   - find-external
+  - queue-construct-as
 ---
 
 import { Aside, Badge } from '@astrojs/starlight/components';
@@ -95,24 +125,59 @@ terragrunt find --json
 
 The JSON output includes additional metadata about each configuration, such as its type (unit or stack) and path.
 
-## Sorting
+## DAG Mode
 
-The `find` command supports two sorting modes:
+The `find` command supports DAG mode to sort output based on dependencies using the `--dag` flag.
 
-- `alpha` (default): Sort configurations alphabetically by path
-- `dag`: Sort configurations based on their dependencies, ensuring dependencies are listed before their dependents
-
-When using DAG sorting, configurations with no dependencies appear first, followed by configurations that depend on them:
+When using DAG mode, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order:
 
 ```bash
-terragrunt find --sort=dag
+terragrunt find --dag
 unitA           # no dependencies
 unitB           # no dependencies
 unitC           # depends on unitA
-unitD           # depends on unitA and unitB
+unitD           # depends on unitC
 ```
 
 If multiple configurations share common dependencies, they will be sorted in lexical order.
+
+## Queue Construct As
+
+The `find` command supports the `--queue-construct-as` flag (or its shorter alias `--as`) to sort output based on the dependency graph, as if a particular command was run.
+
+For example, when using the `plan` command:
+
+```bash
+terragrunt find --queue-construct-as=plan
+stacks/live/dev
+stacks/live/prod
+units/live/dev/vpc
+units/live/prod/vpc
+units/live/dev/db
+units/live/prod/db
+units/live/dev/ec2
+units/live/prod/ec2
+```
+
+This will sort the output based on the dependency graph, as if the `plan` command was run. All dependent units will appear *after* the units they depend on.
+
+When using the `destroy` command:
+
+```bash
+terragrunt find --as=destroy
+stacks/live/dev
+stacks/live/prod
+units/live/dev/ec2
+units/live/prod/ec2
+units/live/dev/db
+units/live/prod/db
+units/live/dev/vpc
+units/live/prod/vpc
+```
+
+This will sort the output based on the dependency graph, as if the `destroy` command was run. All dependent units will appear *before* the units they depend on.
+
+**Note:** The `--queue-construct-as` flag implies the `--dag` flag.
 
 ## Dependencies
 
@@ -133,6 +198,37 @@ terragrunt find --dependencies --format=json
   }
 ]
 ```
+
+## Exclude Configuration
+
+You can include exclude configuration in the output using the `--exclude` flag. When enabled, the JSON output will include the configurations of the `exclude` block in the discovered units:
+
+```bash
+terragrunt find --exclude --format=json
+[
+  {
+    "type": "unit",
+    "path": "action/exclude-apply",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "apply"
+      ],
+      "if": true
+    }
+  }
+]
+```
+
+You can combine this with the `--queue-construct-as` flag to dry-run behavior relevant to excludes:
+
+```bash
+terragrunt find --exclude --queue-construct-as=plan --format=json
+```
+
+`find` will remove any units that would match the exclude configuration.
+
+## External Dependencies
 
 By default, external dependencies (those outside the working directory) are not part of the overall results (although, they will be mentioned in the dependency section of the JSON output). Use the `--external` flag to include them as top-level results:
 
@@ -155,6 +251,14 @@ terragrunt find --dependencies --external --format=json
     "dependencies": []
   }
 ]
+```
+
+## Hidden Configurations
+
+By default, hidden directories (those starting with `.`) are excluded from the search. Use the `--hidden` flag to include them:
+
+```bash
+terragrunt find --hidden
 ```
 
 ## Disabling Color Output

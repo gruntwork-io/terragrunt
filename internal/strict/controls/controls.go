@@ -40,6 +40,15 @@ const (
 
 	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
+
+	// RequireExplicitBootstrap is the control that prevents the backend for remote state from being bootstrapped unless the `--backend-bootstrap` flag is specified.
+	RequireExplicitBootstrap = "require-explicit-bootstrap"
+
+	// CLIRedesign is the control that prevents the use of commands deprecated as part of the CLI Redesign.
+	CLIRedesign = "cli-redesign"
+
+	// BareInclude is the control that prevents the use of the `include` block without a label.
+	BareInclude = "bare-include"
 )
 
 //nolint:lll
@@ -57,6 +66,14 @@ func New() strict.Controls {
 		Description: "Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.",
 		Error:       errors.Errorf("Reading inputs from dependencies is no longer supported. To acquire values from dependencies, use outputs."),
 		Warning:     "Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
+		Category:    stageCategory,
+	}
+
+	requireExplicitBootstrapControl := &Control{
+		Name:        RequireExplicitBootstrap,
+		Description: "Don't bootstrap backends by default. When enabled, users must supply `--backend-bootstrap` explicitly to automatically bootstrap backend resources.",
+		Error:       errors.Errorf("Bootstrap backend for remote state by default is no longer supported. Use `--backend-bootstrap` flag instead."),
+		Warning:     "Bootstrapping backend resources by default is deprecated functionality, and will not be the default behavior in a future version of Terragrunt. Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.",
 		Category:    stageCategory,
 	}
 
@@ -82,9 +99,16 @@ func New() strict.Controls {
 			Category:    lifecycleCategory,
 			Subcontrols: strict.Controls{
 				skipDependenciesInputsControl,
+				requireExplicitBootstrapControl,
 			},
 		},
 		skipDependenciesInputsControl,
+		requireExplicitBootstrapControl,
+		&Control{
+			Name:        CLIRedesign,
+			Description: "Prevents the use of commands deprecated as part of the CLI Redesign.",
+			Category:    stageCategory,
+		},
 		&Control{
 			Name:        LegacyAll,
 			Description: "Prevents old *-all commands such as plan-all from being used.",
@@ -151,6 +175,13 @@ func New() strict.Controls {
 			Name:        "validate-all",
 			Description: "Prevents the deprecated validate-all command from being used.",
 			Category:    stageCategory,
+		},
+		&Control{
+			Name:        BareInclude,
+			Description: "Prevents the use of the `include` block without a label.",
+			Category:    stageCategory,
+			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
+			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/bare-include/",
 		},
 	}
 

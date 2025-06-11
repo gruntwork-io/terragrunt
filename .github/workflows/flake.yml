@@ -1,0 +1,76 @@
+name: Flake
+on:
+  release:
+    types: [prereleased]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Flake Test (${{ matrix.flake.name }})
+    runs-on: ${{ matrix.flake.os }}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flake:
+          - name: Ubuntu Base tests
+            os: ubuntu
+            count: 3
+            timeout: 45m
+          - name: macOS Base tests
+            os: macos
+            count: 3
+            timeout: 45m
+
+    env:
+      MISE_PROFILE: cicd
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Go Build Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.flake.os }}-amd64
+
+      - name: Run Tests
+        id: run-tests
+        run: |
+          set -o pipefail
+          go test -v ./... -count=${COUNT} -timeout ${TIMEOUT} | tee >(go-junit-report -set-exit-code > result.xml)
+        shell: bash
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ matrix.flake.count }}
+          TIMEOUT: ${{ matrix.flake.timeout }}
+
+      - name: Upload Report (${{ matrix.flake.name }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ matrix.flake.name }}
+          path: result.xml
+
+      - name: Display Test Results (${{ matrix.flake.name }})
+        uses: mikepenz/action-junit-report@v5
+        if: always()
+        with:
+          report_paths: result.xml
+          detailed_summary: 'true'
+          include_time_in_summary: 'true'
+          group_suite: 'true'

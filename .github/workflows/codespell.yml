@@ -1,0 +1,36 @@
+name: Codespell
+
+on:
+  push:
+
+jobs:
+  codespell:
+    name: Check Spelling
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create default packages file
+        run: |
+          cat <<EOF > .mise-python-default-packages
+          codespell==2.4.0
+          EOF
+
+          echo "MISE_PYTHON_DEFAULT_PACKAGES_FILE=.mise-python-default-packages" >> "$GITHUB_ENV"
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+          mise_toml: |
+            [tools]
+            python = "3.13.3"
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run codespell
+        run: codespell .

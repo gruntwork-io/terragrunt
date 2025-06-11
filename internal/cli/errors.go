@@ -1,8 +1,10 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
+	"strings"
+
+	"errors"
 
 	"github.com/urfave/cli/v2"
 )
@@ -27,8 +29,8 @@ func (err InvalidKeyValueError) Error() string {
 }
 
 type exitError struct {
-	exitCode ExitCode
 	err      error
+	exitCode ExitCode
 }
 
 func (ee *exitError) Unwrap() error {
@@ -107,10 +109,19 @@ func (err InvalidValueError) Unwrap() error {
 	return err.underlyingError
 }
 
-const ErrFlagUndefined = "flag provided but not defined:"
+const ErrMsgFlagUndefined = "flag provided but not defined:"
 
 type UndefinedFlagError string
 
 func (flag UndefinedFlagError) Error() string {
-	return ErrFlagUndefined + " -" + string(flag)
+	return ErrMsgFlagUndefined + " -" + string(flag)
+}
+
+var (
+	ErrMultipleTimesSettingFlag   = errors.New("setting the flag multiple times")
+	ErrMultipleTimesSettingEnvVar = errors.New("setting the env var multiple times")
+)
+
+func IsMultipleTimesSettingError(err error) bool {
+	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error()) || strings.Contains(err.Error(), ErrMultipleTimesSettingEnvVar.Error())
 }

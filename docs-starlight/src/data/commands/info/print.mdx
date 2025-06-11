@@ -6,12 +6,18 @@ sidebar:
   order: 1200
 description: Print out a short description of Terragrunt context.
 usage: |
-  Print out a short description of Terragrunt context.
-experiment:
-  control: cli-redesign
-  name: CLI Redesign
+  Outputs a JSON object with contextual information such as the configuration file path, current working directory, cache download location, IAM role (if any), the binary used to run Terraform or Tofu, and the command being executed.
 examples:
   - description: Print out information about the current context of Terragrunt.
     code: |
-      terragrunt info print
+      $ terragrunt info print
+      {
+        "config_path": "/example/path/terragrunt.hcl",
+        "download_dir": "/example/path/.terragrunt-cache",
+        "iam_role": "",
+        "terraform_binary": "tofu",
+        "terraform_command": "print",
+        "working_dir": "/example/path"
+      }
+
 ---

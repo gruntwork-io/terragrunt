@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -34,18 +35,18 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		{
 			&config.TerragruntConfig{},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "foo"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "foo"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: remotestate.New(&remotestate.Config{BackendName: "bar"}), Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}}}},
@@ -159,15 +160,15 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
+	for _, tc := range testCases {
 		// if nil, initialize to empty dependency list
-		if testCase.expected.TerragruntDependencies == nil {
-			testCase.expected.TerragruntDependencies = config.Dependencies{}
+		if tc.expected.TerragruntDependencies == nil {
+			tc.expected.TerragruntDependencies = config.Dependencies{}
 		}
 
-		err := testCase.includedConfig.Merge(testCase.config, mockOptionsForTest(t))
+		err := tc.includedConfig.Merge(logger.CreateLogger(), tc.config, mockOptionsForTest(t))
 		require.NoError(t, err)
-		assert.Equal(t, testCase.expected, testCase.includedConfig)
+		assert.EqualExportedValues(t, tc.expected, tc.includedConfig)
 	}
 }
 
@@ -227,77 +228,77 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 	}
 
-	tc := []struct {
-		name     string
+	testCases := []struct {
 		source   *config.TerragruntConfig
 		target   *config.TerragruntConfig
 		expected *config.TerragruntConfig
+		name     string
 	}{
 		// Base case: empty config
 		{
-			"base case",
-			&config.TerragruntConfig{},
-			&config.TerragruntConfig{},
-			&config.TerragruntConfig{},
+			name:     "base case",
+			source:   &config.TerragruntConfig{},
+			target:   &config.TerragruntConfig{},
+			expected: &config.TerragruntConfig{},
 		},
 		// Simple attribute in target
 		{
-			"simple in target",
-			&config.TerragruntConfig{},
-			&config.TerragruntConfig{IamRole: "foo"},
-			&config.TerragruntConfig{IamRole: "foo"},
+			name:     "simple in target",
+			source:   &config.TerragruntConfig{},
+			target:   &config.TerragruntConfig{IamRole: "foo"},
+			expected: &config.TerragruntConfig{IamRole: "foo"},
 		},
 		// Simple attribute in source
 		{
-			"simple in source",
-			&config.TerragruntConfig{IamRole: "foo"},
-			&config.TerragruntConfig{},
-			&config.TerragruntConfig{IamRole: "foo"},
+			name:     "simple in source",
+			source:   &config.TerragruntConfig{IamRole: "foo"},
+			target:   &config.TerragruntConfig{},
+			expected: &config.TerragruntConfig{IamRole: "foo"},
 		},
 		// Simple attribute in both
 		{
-			"simple in both",
-			&config.TerragruntConfig{IamRole: "foo"},
-			&config.TerragruntConfig{IamRole: "bar"},
-			&config.TerragruntConfig{IamRole: "foo"},
+			name:     "simple in both",
+			source:   &config.TerragruntConfig{IamRole: "foo"},
+			target:   &config.TerragruntConfig{IamRole: "bar"},
+			expected: &config.TerragruntConfig{IamRole: "foo"},
 		},
 		// skip related tests
 		{
-			"skip - preserve target",
-			&config.TerragruntConfig{},
-			&config.TerragruntConfig{Skip: &testTrue},
-			&config.TerragruntConfig{Skip: &testTrue},
+			name:     "skip - preserve target",
+			source:   &config.TerragruntConfig{},
+			target:   &config.TerragruntConfig{Skip: &testTrue},
+			expected: &config.TerragruntConfig{Skip: &testTrue},
 		},
 		{
-			"skip - copy source",
-			&config.TerragruntConfig{Skip: &testFalse},
-			&config.TerragruntConfig{Skip: &testTrue},
-			&config.TerragruntConfig{Skip: &testFalse},
+			name:     "skip - copy source",
+			source:   &config.TerragruntConfig{Skip: &testFalse},
+			target:   &config.TerragruntConfig{Skip: &testTrue},
+			expected: &config.TerragruntConfig{Skip: &testFalse},
 		},
 		{
-			"skip - still copy source",
-			&config.TerragruntConfig{Skip: &testTrue},
-			&config.TerragruntConfig{Skip: &testTrue},
-			&config.TerragruntConfig{Skip: &testTrue},
+			name:     "skip - still copy source",
+			source:   &config.TerragruntConfig{Skip: &testTrue},
+			target:   &config.TerragruntConfig{Skip: &testTrue},
+			expected: &config.TerragruntConfig{Skip: &testTrue},
 		},
 		// Deep merge dependencies
 		{
-			"dependencies",
-			&config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../vpc"}},
+			name: "dependencies",
+			source: &config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../vpc"}},
 				TerragruntDependencies: config.Dependencies{
 					config.Dependency{
 						Name:       "vpc",
 						ConfigPath: cty.StringVal("../vpc"),
 					},
 				}},
-			&config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../mysql"}},
+			target: &config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../mysql"}},
 				TerragruntDependencies: config.Dependencies{
 					config.Dependency{
 						Name:       "mysql",
 						ConfigPath: cty.StringVal("../mysql"),
 					},
 				}},
-			&config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../mysql", "../vpc"}},
+			expected: &config.TerragruntConfig{Dependencies: &config.ModuleDependencies{Paths: []string{"../mysql", "../vpc"}},
 				TerragruntDependencies: config.Dependencies{
 					config.Dependency{
 						Name:       "mysql",
@@ -311,46 +312,44 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		// Deep merge retryable errors
 		{
-			"retryable errors",
-			&config.TerragruntConfig{RetryableErrors: []string{"error", "override"}},
-			&config.TerragruntConfig{RetryableErrors: []string{"original", "error"}},
-			&config.TerragruntConfig{RetryableErrors: []string{"original", "error", "error", "override"}},
+			name:     "retryable errors",
+			source:   &config.TerragruntConfig{RetryableErrors: []string{"error", "override"}},
+			target:   &config.TerragruntConfig{RetryableErrors: []string{"original", "error"}},
+			expected: &config.TerragruntConfig{RetryableErrors: []string{"original", "error", "error", "override"}},
 		},
 		// Deep merge inputs
 		{
-			"inputs",
-			&config.TerragruntConfig{Inputs: overrideMap},
-			&config.TerragruntConfig{Inputs: originalMap},
-			&config.TerragruntConfig{Inputs: mergedMap},
+			name:     "inputs",
+			source:   &config.TerragruntConfig{Inputs: overrideMap},
+			target:   &config.TerragruntConfig{Inputs: originalMap},
+			expected: &config.TerragruntConfig{Inputs: mergedMap},
 		},
 		{
-			"terraform copy_terraform_lock_file",
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
+			name:     "terraform copy_terraform_lock_file",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
 		},
 		{
-			"terraform copy_terraform_lock_file",
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
-			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
+			name:     "terraform copy_terraform_lock_file",
+			source:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
+			target:   &config.TerragruntConfig{Terraform: &config.TerraformConfig{ExcludeFromCopy: &[]string{"abc"}}},
+			expected: &config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], ExcludeFromCopy: &[]string{"abc"}}},
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.target.DeepMerge(tt.source, mockOptionsForTest(t))
+			err := tc.target.DeepMerge(logger.CreateLogger(), tc.source, mockOptionsForTest(t))
 			require.NoError(t, err)
 
 			// if nil, initialize to empty dependency list
-			if tt.expected.TerragruntDependencies == nil {
-				tt.expected.TerragruntDependencies = config.Dependencies{}
+			if tc.expected.TerragruntDependencies == nil {
+				tc.expected.TerragruntDependencies = config.Dependencies{}
 			}
-			assert.Equal(t, tt.expected, tt.target)
+			assert.Equal(t, tc.expected, tc.target)
 		})
 	}
 }

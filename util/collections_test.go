@@ -17,30 +17,28 @@ func TestMatchesAny(t *testing.T) {
 		"Error configuring the backend \"s3\": RequestError: send request failed\ncaused by: Post https://sts.amazonaws.com/: net/http: TLS handshake timeout",
 	}
 
-	tc := []struct {
-		list     []string
+	testCases := []struct {
 		element  string
+		list     []string
 		expected bool
 	}{
-		{nil, "", false},
-		{[]string{}, "", false},
-		{[]string{}, "foo", false},
-		{[]string{"foo"}, "kafoot", true},
-		{[]string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, "Failed to load backend: Error...:...  TLS handshake timeout", true},
-		{[]string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, "Failed to load backend: Error...:...  TLxS handshake timeout", false},
-		{[]string{"(?s).*Failed to load state.*dial tcp.*timeout.*"}, realWorldErrorMessages[0], true},
-		{[]string{"(?s).*Creating metric alarm failed.*request to update this alarm is in progress.*"}, realWorldErrorMessages[1], true},
-		{[]string{"(?s).*Error configuring the backend.*TLS handshake timeout.*"}, realWorldErrorMessages[2], true},
+		{list: nil, element: "", expected: false},
+		{list: []string{}, element: "", expected: false},
+		{list: []string{}, element: "foo", expected: false},
+		{list: []string{"foo"}, element: "kafoot", expected: true},
+		{list: []string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, element: "Failed to load backend: Error...:...  TLS handshake timeout", expected: true},
+		{list: []string{"bar", "foo", ".*Failed to load backend.*TLS handshake timeout.*"}, element: "Failed to load backend: Error...:...  TLxS handshake timeout", expected: false},
+		{list: []string{"(?s).*Failed to load state.*dial tcp.*timeout.*"}, element: realWorldErrorMessages[0], expected: true},
+		{list: []string{"(?s).*Creating metric alarm failed.*request to update this alarm is in progress.*"}, element: realWorldErrorMessages[1], expected: true},
+		{list: []string{"(?s).*Error configuring the backend.*TLS handshake timeout.*"}, element: realWorldErrorMessages[2], expected: true},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.MatchesAny(tt.list, tt.element)
-			assert.Equal(t, tt.expected, actual, "For list %v and element %s", tt.list, tt.element)
+			actual := util.MatchesAny(tc.list, tc.element)
+			assert.Equal(t, tc.expected, actual, "For list %v and element %s", tc.list, tc.element)
 		})
 	}
 }
@@ -48,27 +46,25 @@ func TestMatchesAny(t *testing.T) {
 func TestListContainsElement(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
-		list     []string
+	testCases := []struct {
 		element  string
+		list     []string
 		expected bool
 	}{
-		{[]string{}, "", false},
-		{[]string{}, "foo", false},
-		{[]string{"foo"}, "foo", true},
-		{[]string{"bar", "foo", "baz"}, "foo", true},
-		{[]string{"bar", "foo", "baz"}, "nope", false},
-		{[]string{"bar", "foo", "baz"}, "", false},
+		{list: []string{}, element: "", expected: false},
+		{list: []string{}, element: "foo", expected: false},
+		{list: []string{"foo"}, element: "foo", expected: true},
+		{list: []string{"bar", "foo", "baz"}, element: "foo", expected: true},
+		{list: []string{"bar", "foo", "baz"}, element: "nope", expected: false},
+		{list: []string{"bar", "foo", "baz"}, element: "", expected: false},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.ListContainsElement(tt.list, tt.element)
-			assert.Equal(t, tt.expected, actual, "For list %v and element %s", tt.list, tt.element)
+			actual := util.ListContainsElement(tc.list, tc.element)
+			assert.Equal(t, tc.expected, actual, "For list %v and element %s", tc.list, tc.element)
 		})
 	}
 }
@@ -76,7 +72,7 @@ func TestListContainsElement(t *testing.T) {
 func TestListEquals(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		a        []string
 		b        []string
 		expected bool
@@ -91,14 +87,12 @@ func TestListEquals(t *testing.T) {
 		{[]string{""}, []string{""}, true},
 		{[]string{"foo", "bar"}, []string{"foo", "bar"}, true},
 	}
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.ListEquals(tt.a, tt.b)
-			assert.Equal(t, tt.expected, actual, "For list %v and list %v", tt.a, tt.b)
+			actual := util.ListEquals(tc.a, tc.b)
+			assert.Equal(t, tc.expected, actual, "For list %v and list %v", tc.a, tc.b)
 		})
 	}
 }
@@ -106,7 +100,7 @@ func TestListEquals(t *testing.T) {
 func TestListContainsSublist(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		list     []string
 		sublist  []string
 		expected bool
@@ -134,14 +128,12 @@ func TestListContainsSublist(t *testing.T) {
 		{[]string{"zim", "gee", "foo", "bar"}, []string{"gee", "foo", "bar"}, true},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.ListContainsSublist(tt.list, tt.sublist)
-			assert.Equal(t, tt.expected, actual, "For list %v and sublist %v", tt.list, tt.sublist)
+			actual := util.ListContainsSublist(tc.list, tc.sublist)
+			assert.Equal(t, tc.expected, actual, "For list %v and sublist %v", tc.list, tc.sublist)
 		})
 	}
 }
@@ -149,7 +141,7 @@ func TestListContainsSublist(t *testing.T) {
 func TestListHasPrefix(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		list     []string
 		prefix   []string
 		expected bool
@@ -167,14 +159,12 @@ func TestListHasPrefix(t *testing.T) {
 		{[]string{"foo", "bar"}, []string{"foo", "bar"}, true},
 		{[]string{"foo", "bar", "biz"}, []string{"foo", "bar"}, true},
 	}
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.ListHasPrefix(tt.list, tt.prefix)
-			assert.Equal(t, tt.expected, actual, "For list %v and prefix %v", tt.list, tt.prefix)
+			actual := util.ListHasPrefix(tc.list, tc.prefix)
+			assert.Equal(t, tc.expected, actual, "For list %v and prefix %v", tc.list, tc.prefix)
 		})
 	}
 }
@@ -182,7 +172,7 @@ func TestListHasPrefix(t *testing.T) {
 func TestRemoveElementFromList(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		list     []string
 		element  string
 		expected []string
@@ -196,14 +186,12 @@ func TestRemoveElementFromList(t *testing.T) {
 		{[]string{"bar", "foo", "baz"}, "", []string{"bar", "foo", "baz"}},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := util.RemoveElementFromList(tt.list, tt.element)
-			assert.Equal(t, tt.expected, actual, "For list %v and element %s", tt.list, tt.element)
+			actual := util.RemoveElementFromList(tc.list, tc.element)
+			assert.Equal(t, tc.expected, actual, "For list %v and element %s", tc.list, tc.element)
 		})
 	}
 }
@@ -211,7 +199,7 @@ func TestRemoveElementFromList(t *testing.T) {
 func TestRemoveDuplicatesFromList(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		list     []string
 		expected []string
 		reverse  bool
@@ -225,18 +213,16 @@ func TestRemoveDuplicatesFromList(t *testing.T) {
 		{[]string{"foo", "bar", "foobar", "foo", "bar"}, []string{"foobar", "foo", "bar"}, true},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
 			f := util.RemoveDuplicatesFromList[[]string]
-			if tt.reverse {
+			if tc.reverse {
 				f = util.RemoveDuplicatesFromListKeepLast[[]string]
 			}
-			assert.Equal(t, tt.expected, f(tt.list), "For list %v", tt.list)
-			t.Logf("%v passed", tt.list)
+			assert.Equal(t, tc.expected, f(tc.list), "For list %v", tc.list)
+			t.Logf("%v passed", tc.list)
 		})
 	}
 }
@@ -244,23 +230,21 @@ func TestRemoveDuplicatesFromList(t *testing.T) {
 func TestCommaSeparatedStrings(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
-		list     []string
+	testCases := []struct {
 		expected string
+		list     []string
 	}{
-		{[]string{}, ``},
-		{[]string{"foo"}, `"foo"`},
-		{[]string{"foo", "bar"}, `"foo", "bar"`},
+		{list: []string{}, expected: ``},
+		{list: []string{"foo"}, expected: `"foo"`},
+		{list: []string{"foo", "bar"}, expected: `"foo", "bar"`},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.expected, util.CommaSeparatedStrings(tt.list), "For list %v", tt.list)
-			t.Logf("%v passed", tt.list)
+			assert.Equal(t, tc.expected, util.CommaSeparatedStrings(tc.list), "For list %v", tc.list)
+			t.Logf("%v passed", tc.list)
 		})
 	}
 }
@@ -268,26 +252,47 @@ func TestCommaSeparatedStrings(t *testing.T) {
 func TestStringListInsert(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
-		list     []string
+	testCases := []struct {
 		element  string
-		index    int
+		list     []string
 		expected []string
+		index    int
 	}{
-		{[]string{}, "foo", 0, []string{"foo"}},
-		{[]string{"a", "c", "d"}, "b", 1, []string{"a", "b", "c", "d"}},
-		{[]string{"b", "c", "d"}, "a", 0, []string{"a", "b", "c", "d"}},
-		{[]string{"a", "b", "d"}, "c", 2, []string{"a", "b", "c", "d"}},
+		{list: []string{}, element: "foo", index: 0, expected: []string{"foo"}},
+		{list: []string{"a", "c", "d"}, element: "b", index: 1, expected: []string{"a", "b", "c", "d"}},
+		{list: []string{"b", "c", "d"}, element: "a", index: 0, expected: []string{"a", "b", "c", "d"}},
+		{list: []string{"a", "b", "d"}, element: "c", index: 2, expected: []string{"a", "b", "c", "d"}},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.expected, util.StringListInsert(tt.list, tt.element, tt.index), "For list %v", tt.list)
-			t.Logf("%v passed", tt.list)
+			assert.Equal(t, tc.expected, util.StringListInsert(tc.list, tc.element, tc.index), "For list %v", tc.list)
+			t.Logf("%v passed", tc.list)
 		})
 	}
+}
+
+func TestMapToSlice(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty Map", func(t *testing.T) {
+		t.Parallel()
+		m := make(map[string]*int)
+		result := util.MapToSlice(m)
+		if len(result) != 0 {
+			t.Errorf("Expected empty slice, got %v", result)
+		}
+	})
+
+	t.Run("Single Element Map", func(t *testing.T) {
+		t.Parallel()
+		val := 42
+		m := map[string]*int{"key1": &val}
+		result := util.MapToSlice(m)
+		if len(result) != 1 || result[0] != &val {
+			t.Errorf("Expected slice with one element %v, got %v", &val, result)
+		}
+	})
 }

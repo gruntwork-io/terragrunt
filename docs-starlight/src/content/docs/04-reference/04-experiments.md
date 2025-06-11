@@ -54,7 +54,7 @@ TG_EXPERIMENT='symlinks' terragrunt plan
 You can also enable multiple experiments at once.
 
 ```bash
-terragrunt --experiment symlinks --experiment stacks plan
+terragrunt --experiment symlinks plan
 ```
 
 Including the environment variable:
@@ -65,12 +65,11 @@ TG_EXPERIMENT='symlinks,stacks' terragrunt plan
 
 ## Active Experiments
 
-The following strict mode controls are available:
+The following experiments are available:
 
 - [symlinks](#symlinks)
-- [stacks](#stacks)
-- [cli-redesign](#cli-redesign)
 - [cas](#cas)
+- [report](#report)
 
 ### symlinks
 
@@ -92,82 +91,6 @@ To stabilize this feature, the following need to be resolved, at a minimum:
   - [ ] Add integration tests for all filesystem flags to confirm support with symlinks (or document the fact that they cannot be supported).
 - [ ] Ensure that macOS integration tests still work. See [#3616](https://github.com/gruntwork-io/terragrunt/issues/3616).
   - [ ] Add integration tests for macOS in CI.
-
-### stacks
-
-Support for Terragrunt stacks.
-
-#### What it does
-
-Enable `stack` command to manage Terragrunt stacks.
-
-#### stacks - How to provide feedback
-
-Share your experience with the `stack` command in the [Stacks](https://github.com/gruntwork-io/terragrunt/issues/3313) RFC.
-Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
-
-- Any bugs or issues encountered (including logs or stack traces if possible).
-- Suggestions for additional improvements or enhancements.
-
-#### stacks - Criteria for stabilization
-
-To transition the `stacks` feature to a stable release, the following must be addressed:
-
-- [x] Add support for `stack run *` command
-- [ ] Add support for `stack output` commands to extend stack-level operations.
-- [ ] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
-- [ ] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
-- [ ] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
-
-### cli-redesign
-
-Support for the new Terragrunt CLI design.
-
-#### cli-redesign - What it does
-
-Enable features from the CLI Redesign RFC.
-
-This includes:
-
-- Addition of the `run` command.
-- Addition of the `exec` command.
-
-#### cli-redesign - How to provide feedback
-
-Share your experience with these features in the [CLI Redesign](https://github.com/gruntwork-io/terragrunt/issues/3445) RFC.
-Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
-
-- Any bugs or issues encountered (including logs or stack traces if possible).
-- Suggestions for additional improvements or enhancements.
-
-#### cli-redesign - Criteria for stabilization
-
-To transition `cli-redesign` features to a stable release, the following must be addressed:
-
-- [x] Add support for `run` command.
-  - [x] Add support for basic usage of the `run` command (e.g., `terragrunt run plan`, `terragrunt run -- plan -no-color`).
-  - [x] Add support for the `--all` flag.
-  - [x] Add support for the `--graph` flag.
-- [x] Add support for `exec` command.
-- [x] Rename legacy `--terragrunt-` prefixed flags so that they no longer need the prefix.
-- [ ] Add the `hcl` command, replacing commands like `hclfmt`, `hclvalidate` and `validate-inputs`.
-- [x] Add OpenTofu commands as explicit shortcuts in the CLI instead of forwarding all unknown commands to OpenTofu/Terraform.
-- [ ] Add support for the `backend` command.
-- [ ] Add support for the `render` command.
-- [ ] Add support for the `info` command.
-- [ ] Add support for the `dag` command.
-- [ ] Add support for the `find` command.
-  - [x] Add support for `find` without flags.
-  - [x] Add support for `find` with colorful output.
-  - [x] Add support for `find` with `--format=json` flag.
-  - [x] Add support for `find` with stdout redirection detection.
-  - [x] Add support for `find` with `--hidden` flag.
-  - [x] Add support for `find` with `--sort=alpha` flag.
-  - [x] Add support for `find` with `--sort=dag` flag.
-  - [ ] Add support for `find` with the `exclude` block used to exclude units from the search.
-  - [ ] Add integration with `symlinks` experiment to support finding units/stacks via symlinks.
-  - [ ] Add integration test for `find` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
-- [ ] Add support for the `list` command.
 
 ### `cas`
 
@@ -194,3 +117,107 @@ To transition the `cas` feature to a stable release, the following must be addre
 - [x] Add support for storing and retrieving catalog repositories from the CAS.
 - [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
 - [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
+
+#### `report`
+
+Support for Terragrunt Run Reports and Summaries.
+
+#### `report` - What it does
+
+Allow usage of experimental run report generation, and summary displays.
+
+#### `report` - How to provide feedback
+
+Provide your feedback on the [Run Summary RFC](https://github.com/gruntwork-io/terragrunt/issues/3628).
+
+#### `report` - Criteria for stabilization
+
+To transition the `report` feature to a stable release, the following must be addressed:
+
+- [x] Add support for generating reports (in CSV format by default).
+- [x] Add support for displaying summaries of runs.
+- [x] Add ability to disable summary display.
+- [ ] Add support for generating reports in JSON format.
+- [ ] Add comprehensive integration tests for the `report` experiment.
+- [ ] Finalize the design of run summaries and reports.
+
+## Completed Experiments
+
+- [cli-redesign](#cli-redesign)
+- [stacks](#stacks)
+
+### `cli-redesign`
+
+Support for the new Terragrunt CLI design.
+
+#### `cli-redesign` - What it does
+
+Enabled features from the CLI Redesign RFC.
+
+This experiment flag is no longer needed, as the CLI Redesign is now the default.
+
+#### `cli-redesign` - How to provide feedback
+
+Now that the CLI Redesign experiment is complete, please provide feedback in the form of standard [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues).
+
+#### `cli-redesign` - Criteria for stabilization
+
+To transition `cli-redesign` features to a stable the following have been completed:
+
+- [x] Add support for `run` command.
+  - [x] Add support for basic usage of the `run` command (e.g., `terragrunt run plan`, `terragrunt run -- plan -no-color`).
+  - [x] Add support for the `--all` flag.
+  - [x] Add support for the `--graph` flag.
+- [x] Add support for `exec` command.
+- [x] Rename legacy `--terragrunt-` prefixed flags so that they no longer need the prefix.
+- [x] Add the `hcl` command, replacing commands like `hclfmt`, `hclvalidate` and `validate-inputs`.
+- [x] Add OpenTofu commands as explicit shortcuts in the CLI instead of forwarding all unknown commands to OpenTofu/Terraform.
+- [x] Add support for the `backend` command.
+- [x] Add support for the `render` command.
+- [x] Add support for the `info` command.
+- [x] Add support for the `dag` command.
+- [x] Add support for the `find` command.
+  - [x] Add support for `find` without flags.
+  - [x] Add support for `find` with colorful output.
+  - [x] Add support for `find` with `--format=json` flag.
+  - [x] Add support for `find` with stdout redirection detection.
+  - [x] Add support for `find` with `--hidden` flag.
+  - [x] Add support for `find` with `--sort=alpha` flag.
+  - [x] Add support for `find` with `--sort=dag` flag.
+  - [x] Add support for `find` with the `exclude` block used to exclude units from the search.
+  - [x] Add integration with `symlinks` experiment to support finding units/stacks via symlinks.
+  - [x] Add handling of broken configurations or configurations requiring authentication.
+  - [x] Add integration test for `find` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
+- [x] Add support for the `list` command.
+  - [x] Add support for `list` without flags.
+  - [x] Add support for `list` with colorful output.
+  - [x] Add support for `list` with `--format=tree` flag.
+  - [x] Add support for `list` with `--format=long` flag.
+  - [x] Add support for `list` with stdout redirection detection.
+  - [x] Add support for `list` with `--hidden` flag.
+  - [x] Add support for `list` with `--sort=alpha` flag.
+  - [x] Add support for `list` with `--sort=dag` flag.
+  - [x] Add support for `list` with `--group-by=fs` flag.
+  - [x] Add support for `list` with `--group-by=dag` flag.
+  - [x] Add support for `list` with the `exclude` block used to exclude units from the search.
+  - [x] Add integration with `symlinks` experiment to support listing units/stacks via symlinks.
+  - [x] Add handling of broken configurations or configurations requiring authentication.
+  - [x] Add integration test for `list` with `--sort=dag` flag on all the fixtures in the `test/fixtures` directory.
+
+### stacks
+
+Support for Terragrunt stacks.
+
+#### What it does
+
+Enable `stack` command to manage Terragrunt stacks.
+
+#### stacks - Criteria for stabilization
+
+To transition the `stacks` feature to a stable release, the following must be addressed:
+
+- [x] Add support for `stack run *` command
+- [x] Add support for `stack output` commands to extend stack-level operations.
+- [x] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
+- [x] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
+- [x] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.

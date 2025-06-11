@@ -13,8 +13,10 @@ vendor
 .terraform.lock.hcl
 terragrunt
 .DS_Store
-mocks/
 .go-version
 .terragrunt-stack
 .devcontainer.json
 .cursor/
+.env
+.licensei.cache
+bin

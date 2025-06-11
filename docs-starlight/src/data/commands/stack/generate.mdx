@@ -7,16 +7,13 @@ usage: |
   Generate a stack of units based on configurations in a terragrunt.stack.hcl file.
 sidebar:
   order: 400
-experiment:
-  control: stacks
-  name: Stacks
 examples:
   - description: Generate a stack of units using the configurations in a terragrunt.stack.hcl file.
     code: |
       terragrunt stack generate
 ---
 
-import { FileTree } from '@astrojs/starlight/components';
+import { Aside, FileTree } from '@astrojs/starlight/components';
 
 ## Generating a stack
 
@@ -67,3 +64,25 @@ Generates the following stack:
       - terragrunt.hcl
 
 </FileTree>
+
+<Aside type="note">
+Parallel Execution: Stack generation runs concurrently to improve performance. The number of parallel tasks is determined by the `GOMAXPROCS` environment variable and can be explicitly controlled using the `--parallelism` flag:
+
+```bash
+terragrunt stack generate --parallelism 4
+```
+
+Automatic Discovery: The command automatically discovers all `terragrunt.stack.hcl` files within the directory structure and generates them in parallel.
+
+Validation of Units and Stacks: During the stack generation, the system will validate that each unit and stack's target directory contains the appropriate configuration file (`terragrunt.hcl` for units and `terragrunt.stack.hcl` for stacks). This ensures the directories are correctly structured before proceeding with the stack generation.
+To **skip this validation**, you can use the `--no-stack-validate` flag:
+
+```bash
+terragrunt stack generate --no-stack-validate
+```
+
+</Aside>
+
+<Aside type="caution">
+Path Restrictions: If an absolute path is provided as an argument, `generate` will throw an error. Only relative paths within the working directory are supported.
+</Aside>

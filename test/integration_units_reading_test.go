@@ -1,3 +1,13 @@
+//go:build sops
+
+// sops tests assume that you're going to import the test_pgp_key.asc file into your GPG keyring before
+// running the tests. We're not gonna assume that everyone is going to do this, so we're going to skip
+// these tests by default.
+//
+// You can import the key by running the following command:
+//
+//	gpg --import --no-tty --batch --yes ./test/fixtures/sops/test_pgp_key.asc
+
 package test_test
 
 import (
@@ -16,12 +26,12 @@ const (
 	testFixtureUnitsReading = "fixtures/units-reading/"
 )
 
-func TestUnitsReading(t *testing.T) {
+func TestSOPSUnitsReading(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureUnitsReading)
 
-	tc := []struct {
+	testCases := []struct {
 		name           string
 		unitsReading   []string
 		unitsExcluding []string
@@ -136,24 +146,24 @@ func TestUnitsReading(t *testing.T) {
 
 	includedLogEntryRegex := regexp.MustCompile(`=> Module ./([^ ]+) \(excluded: false`)
 
-	for _, tt := range tc {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
 
-			cmd := "terragrunt run-all plan --non-interactive --log-level trace --working-dir " + rootPath
+			cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath
 
-			for _, f := range tt.unitsReading {
+			for _, f := range tc.unitsReading {
 				cmd = cmd + " --queue-include-units-reading " + f
 			}
 
-			for _, unit := range tt.unitsIncluding {
+			for _, unit := range tc.unitsIncluding {
 				cmd = cmd + " --queue-include-dir " + unit
 			}
 
-			for _, unit := range tt.unitsExcluding {
+			for _, unit := range tc.unitsExcluding {
 				cmd = cmd + " --queue-exclude-dir " + unit
 			}
 
@@ -167,7 +177,7 @@ func TestUnitsReading(t *testing.T) {
 				}
 			}
 
-			assert.ElementsMatch(t, tt.expectedUnits, includedUnits)
+			assert.ElementsMatch(t, tc.expectedUnits, includedUnits)
 		})
 	}
 }

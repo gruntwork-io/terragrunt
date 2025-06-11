@@ -10,9 +10,11 @@ Fixes #000.
 
 Read the [Gruntwork contribution guidelines](https://gruntwork.notion.site/Gruntwork-Coding-Methodology-02fdcd6e4b004e818553684760bf691e).
 
+- [ ] I authored this code entirely myself
+- [ ] I am submitting code based on open source software (e.g. MIT, MPL-2.0, Apache)]
+- [ ] I am adding or upgrading a dependency or adapted code and confirm it has a compatible open source license
 - [ ] Update the docs.
 - [ ] Run the relevant tests successfully, including pre-commit checks.
-- [ ] Ensure any 3rd party code adheres with our [license policy](https://www.notion.so/gruntwork/Gruntwork-licenses-and-open-source-usage-policy-f7dece1f780341c7b69c1763f22b1378) or delete this line if its not applicable.
 - [ ] Include release notes. If this PR is backward incompatible, include a migration guide.
 
 ## Release Notes (draft)

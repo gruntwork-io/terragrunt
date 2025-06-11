@@ -17,6 +17,12 @@ const (
 
 	// SortDAG sorts the discovered configurations in a topological sort order.
 	SortDAG = "dag"
+
+	// ModeNormal is the default mode for the find command.
+	ModeNormal = "normal"
+
+	// ModeDAG is the mode for the find command that sorts and groups output in DAG order.
+	ModeDAG = "dag"
 )
 
 type Options struct {
@@ -25,20 +31,32 @@ type Options struct {
 	// Format determines the format of the output.
 	Format string
 
-	// JSON determines whether to output in JSON format.
+	// Mode determines the mode of the find command.
+	Mode string
+
+	// QueueConstructAs constructs the queue as if a particular command was run.
+	QueueConstructAs string
+
+	// JSON determines if the output should be in JSON format.
 	// Alias for --format=json.
 	JSON bool
 
-	// Sort determines the sort order of the output.
-	Sort string
+	// DAG determines if the output should be in DAG mode.
+	DAG bool
 
-	// Hidden determines whether to detect hidden directories.
+	// Hidden determines if hidden configurations should be included in the output.
 	Hidden bool
 
-	// Dependencies determines whether to include dependencies in the output.
+	// Dependencies determines if dependencies should be included in the output.
 	Dependencies bool
 
-	// External determines whether to include external dependencies in the output.
+	// Exclude determines if exclude configurations should be included in the output.
+	Exclude bool
+
+	// Include determines if Include configurations should be included in the output.
+	Include bool
+
+	// External determines if external dependencies should be included in the output.
 	External bool
 }
 
@@ -46,7 +64,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
 		TerragruntOptions: opts,
 		Format:            FormatText,
-		Sort:              SortAlpha,
+		Mode:              ModeNormal,
 		Hidden:            false,
 	}
 }
@@ -58,7 +76,7 @@ func (o *Options) Validate() error {
 		errs = append(errs, err)
 	}
 
-	if err := o.validateSort(); err != nil {
+	if err := o.validateMode(); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -80,13 +98,13 @@ func (o *Options) validateFormat() error {
 	}
 }
 
-func (o *Options) validateSort() error {
-	switch o.Sort {
-	case SortAlpha:
+func (o *Options) validateMode() error {
+	switch o.Mode {
+	case ModeNormal:
 		return nil
-	case SortDAG:
+	case ModeDAG:
 		return nil
 	default:
-		return errors.New("invalid sort: " + o.Sort)
+		return errors.New("invalid mode: " + o.Mode)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -59,7 +61,8 @@ const (
 	DisabledRemoveStr           = "remove"
 	DisabledRemoveTerragruntStr = "remove_terragrunt"
 
-	assumeRoleConfigKey = "assume_role"
+	assumeRoleConfigKey                = "assume_role"
+	assumeRoleWithWebIdentityConfigKey = "assume_role_with_web_identity"
 
 	encryptionBlockName = "encryption"
 
@@ -77,16 +80,16 @@ const (
 
 // GenerateConfig is configuration for generating code
 type GenerateConfig struct {
+	HclFmt           *bool  `cty:"hcl_fmt"`
 	Path             string `cty:"path"`
-	IfExists         GenerateConfigExists
 	IfExistsStr      string `cty:"if_exists"`
-	IfDisabled       GenerateConfigDisabled
 	IfDisabledStr    string `cty:"if_disabled"`
 	CommentPrefix    string `cty:"comment_prefix"`
 	Contents         string `cty:"contents"`
-	DisableSignature bool   `cty:"disable_signature"`
-	Disable          bool   `cty:"disable"`
-	HclFmt           *bool  `cty:"hcl_fmt"`
+	IfExists         GenerateConfigExists
+	IfDisabled       GenerateConfigDisabled
+	DisableSignature bool `cty:"disable_signature"`
+	Disable          bool `cty:"disable"`
 }
 
 // WriteToFile will generate a new file at the given target path with the given contents. If a file already exists at
@@ -94,8 +97,8 @@ type GenerateConfig struct {
 // - if ExistsError, return an error.
 // - if ExistsSkip, do nothing and return
 // - if ExistsOverwrite, overwrite the existing file
-func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, config GenerateConfig) error {
-	// Figure out thee target path to generate the code in. If relative, merge with basePath.
+func WriteToFile(l log.Logger, opts *options.TerragruntOptions, basePath string, config GenerateConfig) error {
+	// Figure out the target path to generate the code in. If relative, merge with basePath.
 	var targetPath string
 	if filepath.IsAbs(config.Path) {
 		targetPath = config.Path
@@ -107,10 +110,10 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 
 	// If this GenerateConfig is disabled then skip further processing.
 	if config.Disable {
-		terragruntOptions.Logger.Debugf("Skipping generating file at %s because it is disabled", config.Path)
+		l.Debugf("Skipping generating file at %s because it is disabled", config.Path)
 
 		if targetFileExists {
-			if shouldRemove, err := shouldRemoveWithFileExists(terragruntOptions, targetPath, config.IfDisabled); err != nil {
+			if shouldRemove, err := shouldRemoveWithFileExists(l, targetPath, config.IfDisabled); err != nil {
 				return err
 			} else if shouldRemove {
 				if err := os.Remove(targetPath); err != nil {
@@ -123,7 +126,7 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 	}
 
 	if targetFileExists {
-		shouldContinue, err := shouldContinueWithFileExists(terragruntOptions, targetPath, config.IfExists)
+		shouldContinue, err := shouldContinueWithFileExists(l, targetPath, config.IfExists)
 		if err != nil || !shouldContinue {
 			return err
 		}
@@ -162,27 +165,27 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 		return errors.New(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Generated file %s.", targetPath)
+	l.Debugf("Generated file %s.", targetPath)
 
 	return nil
 }
 
 // Whether or not file generation should continue if the file path already exists. The answer depends on the
 // ifExists configuration.
-func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, path string, ifExists GenerateConfigExists) (bool, error) {
+func shouldContinueWithFileExists(l log.Logger, path string, ifExists GenerateConfigExists) (bool, error) {
 	// TODO: Make exhaustive
 	switch ifExists { //nolint:exhaustive
 	case ExistsError:
 		return false, errors.New(GenerateFileExistsError{path: path})
 	case ExistsSkip:
 		// Do nothing since file exists and skip was configured
-		terragruntOptions.Logger.Debugf("The file path %s already exists and if_exists for code generation set to \"skip\". Will not regenerate file.", path)
+		l.Debugf("The file path %s already exists and if_exists for code generation set to \"skip\". Will not regenerate file.", path)
 
 		return false, nil
 	case ExistsOverwrite:
 		// We will continue to proceed to generate file, but log a message to indicate that we detected the file
 		// exists.
-		terragruntOptions.Logger.Debugf("The file path %s already exists and if_exists for code generation set to \"overwrite\". Regenerating file.", path)
+		l.Debugf("The file path %s already exists and if_exists for code generation set to \"overwrite\". Regenerating file.", path)
 
 		return true, nil
 	case ExistsOverwriteTerragrunt:
@@ -194,13 +197,13 @@ func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, 
 		}
 
 		if !wasGenerated {
-			terragruntOptions.Logger.Errorf("ERROR: The file path %s already exists and was not generated by terragrunt.", path)
+			l.Errorf("ERROR: The file path %s already exists and was not generated by terragrunt.", path)
 
 			return false, errors.New(GenerateFileExistsError{path: path})
 		}
 
 		// Since file was generated by terragrunt, continue.
-		terragruntOptions.Logger.Debugf("The file path %s already exists, but was a previously generated file by terragrunt. Since if_exists for code generation is set to \"overwrite_terragrunt\", regenerating file.", path)
+		l.Debugf("The file path %s already exists, but was a previously generated file by terragrunt. Since if_exists for code generation is set to \"overwrite_terragrunt\", regenerating file.", path)
 
 		return true, nil
 	default:
@@ -210,16 +213,16 @@ func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, 
 }
 
 // shouldRemoveWithFileExists returns true if the already existing file should be removed.
-func shouldRemoveWithFileExists(terragruntOptions *options.TerragruntOptions, path string, ifDisable GenerateConfigDisabled) (bool, error) {
+func shouldRemoveWithFileExists(l log.Logger, path string, ifDisable GenerateConfigDisabled) (bool, error) {
 	// TODO: Make exhaustive
 	switch ifDisable { //nolint:exhaustive
 	case DisabledSkip:
 		// Do nothing since skip was configured.
-		terragruntOptions.Logger.Debugf("The file path %s already exists and if_disabled for code generation set to \"skip\", will not remove file.", path)
+		l.Debugf("The file path %s already exists and if_disabled for code generation set to \"skip\", will not remove file.", path)
 		return false, nil
 	case DisabledRemove:
 		// The file exists and will be removed.
-		terragruntOptions.Logger.Debugf("The file path %s already exists and if_disabled for code generation set to \"remove\", removing file.", path)
+		l.Debugf("The file path %s already exists and if_disabled for code generation set to \"remove\", removing file.", path)
 		return true, nil
 	case DisabledRemoveTerragrunt:
 		// If file was not generated, error out because remove_terragrunt if_disabled setting only handles if the existing file was generated by terragrunt.
@@ -229,13 +232,13 @@ func shouldRemoveWithFileExists(terragruntOptions *options.TerragruntOptions, pa
 		}
 
 		if !wasGenerated {
-			terragruntOptions.Logger.Errorf("ERROR: The file path %s already exists and was not generated by terragrunt.", path)
+			l.Errorf("ERROR: The file path %s already exists and was not generated by terragrunt.", path)
 
 			return false, errors.New(GenerateFileRemoveError{path: path})
 		}
 
 		// Since file was generated by terragrunt, removing.
-		terragruntOptions.Logger.Debugf("The file path %s already exists, but was a previously generated file by terragrunt. Since if_disabled for code generation is set to \"remove_terragrunt\", removing file.", path)
+		l.Debugf("The file path %s already exists, but was a previously generated file by terragrunt. Since if_disabled for code generation is set to \"remove_terragrunt\", removing file.", path)
 
 		return true, nil
 	default:
@@ -315,7 +318,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 			// split single line hcl to default multiline file
 			hclValue := strings.TrimSuffix(assumeRoleValue, "}")
 			hclValue = strings.TrimPrefix(hclValue, "{")
-			hclValue = strings.ReplaceAll(hclValue, ",", "\n")
+			hclValue = ReplaceAllCommasOutsideQuotesWithNewLines(hclValue)
 
 			err := hclsimple.Decode("s3_assume_role.hcl", []byte(hclValue), nil, &parsedConfig)
 			if err != nil {
@@ -357,6 +360,77 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 
 			if len(parsedConfig.TransitiveTagKeys) > 0 {
 				assumeRoleMap["transitive_tag_keys"] = parsedConfig.TransitiveTagKeys
+			}
+
+			// write assume role map as HCL object
+			ctyVal, err := convertValue(assumeRoleMap)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			backendBlockBody.SetAttributeValue(key, ctyVal.Value)
+
+			continue
+		}
+
+		if key == assumeRoleWithWebIdentityConfigKey {
+			assumeRoleWithWebIdentityValue, isAssumeRoleWithWebIdentity := config[assumeRoleWithWebIdentityConfigKey].(string)
+			if !isAssumeRoleWithWebIdentity {
+				continue
+			}
+
+			// Extracting the values requires two steps.
+			// Parsing into a struct first, enabling hclsimple.Decode() to deal with complex types.
+			// Then copying values into the assumeRoleMap for rendering to HCL.
+			assumeRoleMap := make(map[string]any)
+
+			type assumeRoleWithWebIdentityConfig struct {
+				RoleArn              string   `hcl:"role_arn"`
+				Duration             string   `hcl:"duration,optional"`
+				Policy               string   `hcl:"policy,optional"`
+				SessionName          string   `hcl:"session_name,optional"`
+				WebIdentityToken     string   `hcl:"web_identity_token,optional"`
+				WebIdentityTokenFile string   `hcl:"web_identity_token_file,optional"`
+				PolicyArns           []string `hcl:"policy_arns,optional"`
+			}
+
+			var parsedConfig assumeRoleWithWebIdentityConfig
+			// split single line hcl to default multiline file
+			hclValue := strings.TrimSuffix(assumeRoleWithWebIdentityValue, "}")
+			hclValue = strings.TrimPrefix(hclValue, "{")
+			hclValue = ReplaceAllCommasOutsideQuotesWithNewLines(hclValue)
+
+			err := hclsimple.Decode("s3_assume_role_with_web_identity.hcl", []byte(hclValue), nil, &parsedConfig)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			if parsedConfig.RoleArn != "" {
+				assumeRoleMap["role_arn"] = parsedConfig.RoleArn
+			}
+
+			if parsedConfig.Duration != "" {
+				assumeRoleMap["duration"] = parsedConfig.Duration
+			}
+
+			if parsedConfig.Policy != "" {
+				assumeRoleMap["policy"] = parsedConfig.Policy
+			}
+
+			if len(parsedConfig.PolicyArns) > 0 {
+				assumeRoleMap["policy_arns"] = parsedConfig.PolicyArns
+			}
+
+			if parsedConfig.SessionName != "" {
+				assumeRoleMap["session_name"] = parsedConfig.SessionName
+			}
+
+			if parsedConfig.WebIdentityToken != "" {
+				assumeRoleMap["web_identity_token"] = parsedConfig.WebIdentityToken
+			}
+
+			if parsedConfig.WebIdentityTokenFile != "" {
+				assumeRoleMap["web_identity_token_file"] = parsedConfig.WebIdentityTokenFile
 			}
 
 			// write assume role map as HCL object
@@ -469,6 +543,41 @@ func convertValue(v any) (ctyjson.SimpleJSONValue, error) {
 	}
 
 	return ctyVal, nil
+}
+
+var (
+	// Regex Explanation:
+	// (          # Start group 1: Match quoted strings
+	//  "         # Match the opening quote
+	//  [^"\\]* # Match zero or more characters that are NOT a quote or backslash
+	//  (?:       # Start non-capturing group (for handling escaped quotes)
+	//    \\.     # Match a backslash followed by ANY character (escaped char)
+	//    [^"\\]* # Match zero or more non-quote/non-backslash chars
+	//  )*        # End non-capturing group, repeat zero or more times
+	//  "         # Match the closing quote
+	// )          # End group 1
+	// |          # OR
+	// (,)        # Start group 2: Match and capture a comma
+	//
+	re = regexp.MustCompile(`("[^"\\]*(?:\\.[^"\\]*)*")|(,)`)
+)
+
+// ReplaceAllCommasOutsideQuotesWithNewLines replaces all commas outside quotes with new lines.
+// This is useful for instances where a single line of HCL content might contain a comma, and we don't
+// want to split the line into multiple lines.
+func ReplaceAllCommasOutsideQuotesWithNewLines(s string) string {
+	output := re.ReplaceAllStringFunc(s, func(match string) string {
+		// Check if the match starts with a quote.
+		// If it does, it's a quoted string (group 1 matched). Return it unchanged.
+		if strings.HasPrefix(match, `"`) {
+			return match
+		}
+
+		// Otherwise, it must be the comma (group 2 matched). Replace it with a newline.
+		return "\n"
+	})
+
+	return output
 }
 
 // GenerateConfigExistsFromString converts a string representation of if_exists into the enum, returning an error if it

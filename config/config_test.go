@@ -1,20 +1,25 @@
 package config_test
 
 import (
-	"context"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func createLogger() log.Logger {
@@ -35,8 +40,10 @@ remote_state {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -44,8 +51,8 @@ remote_state {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.Empty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Empty(t, terragruntConfig.RemoteState.BackendConfig)
 		assert.Empty(t, terragruntConfig.RemoteState.Encryption)
 	}
 }
@@ -60,8 +67,10 @@ remote_state = {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -69,8 +78,8 @@ remote_state = {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.Empty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Empty(t, terragruntConfig.RemoteState.BackendConfig)
 	}
 }
 
@@ -86,8 +95,10 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -95,8 +106,8 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.Empty(t, terragruntConfig.RemoteState.Config)
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Empty(t, terragruntConfig.RemoteState.BackendConfig)
 	}
 }
 
@@ -107,8 +118,10 @@ func TestParseTerragruntHclConfigRemoteStateMissingBackend(t *testing.T) {
 remote_state {}
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	_, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	_, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Missing required argument; The argument \"backend\" is required")
 }
@@ -132,8 +145,10 @@ remote_state {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,12 +158,12 @@ remote_state {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		assert.Equal(t, "pbkdf2", terragruntConfig.RemoteState.Encryption["key_provider"])
 		assert.Equal(t, "correct-horse-battery-staple", terragruntConfig.RemoteState.Encryption["passphrase"])
 	}
@@ -174,8 +189,10 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 	}
 }
 `
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,12 +202,12 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		assert.Equal(t, "pbkdf2", terragruntConfig.RemoteState.Encryption["key_provider"])
 		assert.Equal(t, "correct-horse-battery-staple", terragruntConfig.RemoteState.Encryption["passphrase"])
 	}
@@ -207,8 +224,10 @@ retryable_errors = [
     "Another one of my errors"
 ]
 `
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -235,8 +254,10 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -255,8 +276,10 @@ func TestParseIamRole(t *testing.T) {
 
 	cfg := `iam_role = "terragrunt-iam-role"`
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,8 +297,10 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 
 	cfg := `iam_assume_role_duration = 36000`
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,8 +318,10 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 
 	cfg := `iam_assume_role_session_name = "terragrunt-iam-assume-role-session-name"`
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,8 +340,10 @@ func TestParseIamWebIdentity(t *testing.T) {
 
 	cfg := fmt.Sprintf(`iam_web_identity_token = "%s"`, token)
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,8 +364,10 @@ dependencies {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -361,8 +392,10 @@ dependencies {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,8 +433,10 @@ dependencies {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,12 +448,12 @@ dependencies {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 	}
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
@@ -449,8 +484,10 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,12 +499,12 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 	}
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
@@ -488,21 +525,23 @@ include {
 	opts := &options.TerragruntOptions{
 		TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
 		NonInteractive:       true,
-		Logger:               createLogger(),
+		StrictControls:       controls.New(),
 	}
 
-	ctx := config.NewParsingContext(context.Background(), opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, opts)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
-			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-			assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+			assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
 	}
 
@@ -519,18 +558,20 @@ include {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath)
 
-	ctx := config.NewParsingContext(context.Background(), opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, opts)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
-			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-			assert.Equal(t, true, terragruntConfig.RemoteState.Config["encrypt"])
-			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
-			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
-			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+			assert.Equal(t, true, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+			assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+			assert.Equal(t, "child/sub-child/sub-sub-child/terraform.tfstate", terragruntConfig.RemoteState.BackendConfig["key"])
+			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
 	}
 
@@ -559,18 +600,20 @@ remote_state {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath)
 
-	ctx := config.NewParsingContext(context.Background(), opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, opts)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
-			assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-			assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-			assert.Equal(t, false, terragruntConfig.RemoteState.Config["encrypt"])
-			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
-			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
-			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+			assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+			assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+			assert.Equal(t, false, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["bucket"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["key"])
+			assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["region"])
 		}
 	}
 
@@ -607,8 +650,10 @@ dependencies {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath)
 
-	ctx := config.NewParsingContext(context.Background(), opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, opts)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -616,12 +661,12 @@ dependencies {
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, false, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, false, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["region"])
 	}
 
 	assert.Equal(t, []string{"override"}, terragruntConfig.Dependencies.Paths)
@@ -656,8 +701,10 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntJSONConfigPath)
 
-	ctx := config.NewParsingContext(context.Background(), opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, opts)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, opts.TerragruntConfigPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
 	assert.NotNil(t, terragruntConfig.Terraform)
@@ -665,12 +712,12 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 	assert.Equal(t, "foo", *terragruntConfig.Terraform.Source)
 
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
-		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
-		assert.NotEmpty(t, terragruntConfig.RemoteState.Config)
-		assert.Equal(t, false, terragruntConfig.RemoteState.Config["encrypt"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["bucket"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["key"])
-		assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.NotEmpty(t, terragruntConfig.RemoteState.BackendConfig)
+		assert.Equal(t, false, terragruntConfig.RemoteState.BackendConfig["encrypt"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["bucket"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["key"])
+		assert.Equal(t, "override", terragruntConfig.RemoteState.BackendConfig["region"])
 	}
 
 	assert.Equal(t, []string{"override"}, terragruntConfig.Dependencies.Paths)
@@ -687,18 +734,19 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	}
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
+	l := createLogger()
 
-	ctx := config.NewParsingContext(context.Background(), opts)
+	ctx := config.NewParsingContext(t.Context(), l, opts)
 
-	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
+	_, actualErr := config.ParseConfigString(ctx, l, configPath, cfg, nil)
 
-	expectedErr := config.TooManyLevelsOfInheritanceError{
-		ConfigPath:             configPath,
-		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
-		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
-	}
+	errStr := actualErr.Error()
 
-	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
+	expectedErrPath := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName))
+	expectedErrStr := fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.",
+		configPath, expectedErrPath, expectedErrPath)
+
+	assert.Contains(t, errStr, expectedErrStr)
 }
 
 func TestParseTerragruntConfigThreeLevels(t *testing.T) {
@@ -712,18 +760,23 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	}
 
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
+	l := createLogger()
 
-	ctx := config.NewParsingContext(context.Background(), opts)
+	ctx := config.NewParsingContext(t.Context(), l, opts)
 
-	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
+	_, actualErr := config.ParseConfigString(ctx, l, configPath, cfg, nil)
 
-	expectedErr := config.TooManyLevelsOfInheritanceError{
-		ConfigPath:             configPath,
-		FirstLevelIncludePath:  absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
-		SecondLevelIncludePath: absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
-	}
+	// Convert the error paths to forward slashes for cross-platform compatibility
+	errStr := actualErr.Error()
+	errStr = strings.ReplaceAll(errStr, "\\", "/")
 
-	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
+	// Build expected error string
+	expectedErrPath1 := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName))
+	expectedErrPath2 := filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName))
+	expectedErrStr := fmt.Sprintf("%s includes %s, which itself includes %s. Only one level of includes is allowed.",
+		configPath, expectedErrPath1, expectedErrPath2)
+
+	assert.Contains(t, errStr, expectedErrStr)
 }
 
 func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
@@ -731,8 +784,10 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 
 	cfg := ``
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -752,8 +807,10 @@ func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
 
 	cfgString := ``
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	cfg, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfgString, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	cfg, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfgString, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -768,8 +825,10 @@ func TestParseTerragruntConfigTerraformNoSource(t *testing.T) {
 terraform {}
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -790,8 +849,10 @@ terraform {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -822,8 +883,10 @@ terraform {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -882,8 +945,10 @@ terraform {
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -939,8 +1004,10 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 }
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -1125,20 +1192,38 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	expected := []string{
-		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
-		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
-		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
-	}
 	workingDir := filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/")
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
 	require.NoError(t, err)
 	terragruntOptions.Env["TF_DATA_DIR"] = filepath.Join(workingDir, ".tf_data")
 
 	actual, err := config.FindConfigFilesInPath(workingDir, terragruntOptions)
-
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.ElementsMatch(t, expected, actual)
+
+	// Create expected paths using filepath.Join for cross-platform compatibility
+	expected := []string{
+		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
+		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
+	}
+
+	// Sort both slices to ensure consistent order for comparison
+	sort.Strings(actual)
+	sort.Strings(expected)
+
+	// Compare the paths using filepath.Clean to normalize them
+	normalizedActual := make([]string, len(actual))
+	normalizedExpected := make([]string, len(expected))
+
+	for i, path := range actual {
+		normalizedActual[i] = filepath.Clean(path)
+	}
+
+	for i, path := range expected {
+		normalizedExpected[i] = filepath.Clean(path)
+	}
+
+	assert.Equal(t, normalizedExpected, normalizedActual)
 }
 
 func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
@@ -1181,8 +1266,10 @@ func TestParseTerragruntConfigPreventDestroyTrue(t *testing.T) {
 prevent_destroy = true
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1200,8 +1287,10 @@ func TestParseTerragruntConfigPreventDestroyFalse(t *testing.T) {
 prevent_destroy = false
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1219,8 +1308,10 @@ func TestParseTerragruntConfigSkipTrue(t *testing.T) {
 skip = true
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1239,8 +1330,10 @@ func TestParseTerragruntConfigSkipFalse(t *testing.T) {
 skip = false
 `
 
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1267,11 +1360,13 @@ terraform {
 		TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/" + config.DefaultTerragruntConfigPath,
 		NonInteractive:       true,
 		MaxFoldersToCheck:    5,
-		Logger:               createLogger(),
+		StrictControls:       controls.New(),
 	}
 
-	ctx := config.NewParsingContext(context.Background(), opts)
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, opts)
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1332,23 +1427,19 @@ func TestModuleDependenciesMerge(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		// Capture range variable so that it is brought into the scope within the for loop, so that it is stable even
-		// when subtests are run in parallel.
-		testCase := testCase
-
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			target := &config.ModuleDependencies{Paths: testCase.target}
+			target := &config.ModuleDependencies{Paths: tc.target}
 
 			var source *config.ModuleDependencies = nil
-			if testCase.source != nil {
-				source = &config.ModuleDependencies{Paths: testCase.source}
+			if tc.source != nil {
+				source = &config.ModuleDependencies{Paths: tc.source}
 			}
 
 			target.Merge(source)
-			assert.Equal(t, testCase.expected, target.Paths)
+			assert.Equal(t, tc.expected, target.Paths)
 		})
 	}
 }
@@ -1390,12 +1481,403 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 			}
 			require.NoError(b, err)
 
+			l := createLogger()
+
 			b.ResetTimer()
 			b.StartTimer()
-			actual, err := config.ReadTerragruntConfig(context.Background(), terragruntOptions, config.DefaultParserOptions(terragruntOptions))
+			actual, err := config.ReadTerragruntConfig(b.Context(), l, terragruntOptions, config.DefaultParserOptions(l, terragruntOptions))
 			b.StopTimer()
 			require.NoError(b, err)
 			assert.NotNil(b, actual)
 		})
 	}
+}
+
+func TestBestEffortParseConfigString(t *testing.T) {
+	t.Parallel()
+
+	tc := []struct {
+		expectedConfig *config.TerragruntConfig
+		name           string
+		cfg            string
+		expectError    bool
+	}{
+		{
+			name: "Simple",
+			cfg: `locals {
+	simple        = "value"
+	requires_auth = run_cmd("exit", "1") // intentional error
+}
+`,
+			expectError: true,
+			expectedConfig: &config.TerragruntConfig{
+				Locals: map[string]any{
+					"simple": "value",
+				},
+				GenerateConfigs:   map[string]codegen.GenerateConfig{},
+				ProcessedIncludes: config.IncludeConfigsMap{},
+				FieldsMetadata: map[string]map[string]any{
+					"locals-simple": {
+						"found_in_file": "terragrunt.hcl",
+					},
+				},
+			},
+		},
+		{
+			name: "Locals referencing each other",
+			cfg: `locals {
+	reference = local.simple
+	simple    = "value"
+}
+`,
+			expectError: false,
+			expectedConfig: &config.TerragruntConfig{
+				Locals: map[string]any{
+					"reference": "value",
+					"simple":    "value",
+				},
+				GenerateConfigs:   map[string]codegen.GenerateConfig{},
+				ProcessedIncludes: config.IncludeConfigsMap{},
+				FieldsMetadata: map[string]map[string]any{
+					"locals-reference": {
+						"found_in_file": "terragrunt.hcl",
+					},
+					"locals-simple": {
+						"found_in_file": "terragrunt.hcl",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := createLogger()
+
+			ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+			terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, tt.cfg, nil)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.expectedConfig, terragruntConfig)
+		})
+	}
+}
+
+func TestBestEffortParseConfigStringWDependency(t *testing.T) {
+	t.Parallel()
+
+	depCfg := `locals {
+	simple = "value"
+	fail   = run_cmd("exit", "1") // intentional error
+}`
+
+	cfg := `locals {
+	simple = "value"
+	fail   = run_cmd("exit", "1") // intentional error
+}
+
+dependency "dep" {
+	config_path = "../dep"
+}`
+
+	tmpDir := t.TempDir()
+
+	depPath := filepath.Join(tmpDir, "dep")
+	require.NoError(t, os.MkdirAll(depPath, 0755))
+
+	depCfgPath := filepath.Join(depPath, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(depCfgPath, []byte(depCfg), 0644))
+
+	unitPath := filepath.Join(tmpDir, "unit")
+	require.NoError(t, os.MkdirAll(unitPath, 0755))
+
+	unitCfgPath := filepath.Join(unitPath, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(unitCfgPath, []byte(cfg), 0644))
+
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+
+	ctx.TerragruntOptions.WorkingDir = unitPath
+
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+
+	assert.Equal(t, &config.TerragruntConfig{
+		Locals: map[string]any{
+			"simple": "value",
+		},
+		GenerateConfigs:   map[string]codegen.GenerateConfig{},
+		ProcessedIncludes: config.IncludeConfigsMap{},
+		FieldsMetadata: map[string]map[string]any{
+			"dependency-dep": {
+				"found_in_file": "terragrunt.hcl",
+			},
+			"locals-simple": {
+				"found_in_file": "terragrunt.hcl",
+			},
+		},
+		TerragruntDependencies: config.Dependencies{
+			config.Dependency{
+				Name:       "dep",
+				ConfigPath: cty.StringVal("../dep"),
+			},
+		},
+	}, terragruntConfig)
+}
+
+func TestWriteTo(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+	string = "value"
+	bool   = true
+	number = 123
+	list   = ["a", "b", "c"]
+}
+
+terraform {
+	source = "git::git@github.com:org/repo.git//modules/test?ref=v0.1.0"
+
+	extra_arguments "secrets" {
+		commands = ["plan", "apply"]
+		arguments = ["-var-file=secrets.tfvars"]
+		required_var_files = ["common.tfvars"]
+		optional_var_files = ["optional.tfvars"]
+		env_vars = {
+			TEST_VAR = "value"
+		}
+	}
+
+	before_hook "before" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "before"]
+		working_dir = "before_dir"
+	}
+
+	after_hook "after" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "after"]
+		working_dir = "after_dir"
+	}
+
+	error_hook "error" {
+		commands = ["plan", "apply"]
+		execute  = ["echo", "error"]
+		on_errors = [
+			".*Error.*",
+			".*Exception.*"
+		]
+		working_dir = "error_dir"
+	}
+}
+
+engine {
+	source = "github.com/gruntwork-io/terragrunt"
+	version = "v0.1.0"
+	type = "rpc"
+	meta = {
+		key = "value"
+	}
+}
+
+exclude {
+	exclude_dependencies = true
+	actions = ["init", "plan"]
+	if = true
+}
+
+errors {
+	retry "test_retry" {
+		max_attempts = 3
+		sleep_interval_sec = 5
+		retryable_errors = [
+			".*Error.*",
+			".*Exception.*"
+		]
+	}
+
+	ignore "test_ignore" {
+		ignorable_errors = [
+			".*Warning.*",
+			".*Deprecated.*"
+		]
+		message = "Ignoring warning messages"
+		signals = {
+			key = "value"
+		}
+	}
+}
+
+// The catalog block won't actually show up when using
+// ParseConfigString. It probably should, but that's not
+// a problem for this test.
+//
+// catalog {
+// 	default_template = "default.hcl"
+// 	urls = [
+// 		"github.com/org/repo//templates/template1.hcl",
+// 		"github.com/org/repo//templates/template2.hcl"
+// 	]
+// }
+
+remote_state {
+	backend = "s3"
+	disable_init = true
+	disable_dependency_optimization = true
+	config = {
+		bucket = "my-bucket"
+		key    = "terraform.tfstate"
+		region = "us-east-1"
+	}
+}
+
+// These aren't worth testing because they require filesystem operations
+// as currently implemented, and we don't want to do that in this test.
+//
+// dependencies {
+// 	paths = ["../vpc", "../database"]
+// }
+
+// dependency "vpc" {
+// 	config_path = "../vpc"
+// 	skip_outputs = true
+// 	mock_outputs = {
+// 		vpc_id = "mock-vpc-id"
+// 	}
+// }
+
+generate "provider" {
+	path = "provider.tf"
+	if_exists = "overwrite"
+	contents = <<EOF
+provider "aws" {
+	region = "us-east-1"
+}
+EOF
+	comment_prefix = "//"
+	disable_signature = true
+	disable = false
+}
+
+feature "test_feature" {
+	default = true
+}
+
+terraform_binary = "terraform"
+terraform_version_constraint = ">= 1.0.0"
+terragrunt_version_constraint = ">= 0.36.0"
+download_dir = ".terragrunt-cache"
+prevent_destroy = true
+skip = false
+iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+iam_assume_role_duration = 3600
+iam_assume_role_session_name = "terragrunt"
+retry_max_attempts = 5
+retry_sleep_interval_sec = 5
+retryable_errors = [
+	".*timeout.*",
+	".*connection reset.*"
+]
+
+inputs = {
+	string = "value"
+	bool   = true
+	number = 123
+	list   = ["a", "b", "c"]
+	map    = {
+		key = "value"
+	}
+}
+`
+
+	l := createLogger()
+
+	ctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	// Write the config to a buffer
+	buf := &bytes.Buffer{}
+	n, err := terragruntConfig.WriteTo(buf)
+	require.NoError(t, err)
+	assert.Positive(t, n)
+
+	// Parse the written config back
+	rereadConfig, err := config.ParseConfigString(ctx, l, config.DefaultTerragruntConfigPath, buf.String(), nil)
+	require.NoError(t, err)
+
+	// Verify the configs match
+	assert.Equal(t, terragruntConfig.Locals, rereadConfig.Locals)
+	assert.Equal(t, terragruntConfig.Terraform.Source, rereadConfig.Terraform.Source)
+	assert.Equal(t, terragruntConfig.Terraform.ExtraArgs, rereadConfig.Terraform.ExtraArgs)
+	assert.Equal(t, terragruntConfig.Terraform.BeforeHooks, rereadConfig.Terraform.BeforeHooks)
+	assert.Equal(t, terragruntConfig.Terraform.AfterHooks, rereadConfig.Terraform.AfterHooks)
+	assert.Equal(t, terragruntConfig.Terraform.ErrorHooks, rereadConfig.Terraform.ErrorHooks)
+
+	// Test engine block
+	assert.Equal(t, terragruntConfig.Engine.Source, rereadConfig.Engine.Source)
+	assert.Equal(t, terragruntConfig.Engine.Version, rereadConfig.Engine.Version)
+	assert.Equal(t, terragruntConfig.Engine.Type, rereadConfig.Engine.Type)
+	assert.Equal(t, terragruntConfig.Engine.Meta, rereadConfig.Engine.Meta)
+
+	// Test exclude block
+	assert.Equal(t, terragruntConfig.Exclude.ExcludeDependencies, rereadConfig.Exclude.ExcludeDependencies)
+	assert.Equal(t, terragruntConfig.Exclude.Actions, rereadConfig.Exclude.Actions)
+	assert.Equal(t, terragruntConfig.Exclude.If, rereadConfig.Exclude.If)
+
+	// Test errors block
+	assert.Len(t, terragruntConfig.Errors.Retry, len(rereadConfig.Errors.Retry))
+	if len(terragruntConfig.Errors.Retry) > 0 {
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].Label, rereadConfig.Errors.Retry[0].Label)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].MaxAttempts, rereadConfig.Errors.Retry[0].MaxAttempts)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].SleepIntervalSec, rereadConfig.Errors.Retry[0].SleepIntervalSec)
+		assert.Equal(t, terragruntConfig.Errors.Retry[0].RetryableErrors, rereadConfig.Errors.Retry[0].RetryableErrors)
+	}
+	assert.Len(t, terragruntConfig.Errors.Ignore, len(rereadConfig.Errors.Ignore))
+	if len(terragruntConfig.Errors.Ignore) > 0 {
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Label, rereadConfig.Errors.Ignore[0].Label)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].IgnorableErrors, rereadConfig.Errors.Ignore[0].IgnorableErrors)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Message, rereadConfig.Errors.Ignore[0].Message)
+		assert.Equal(t, terragruntConfig.Errors.Ignore[0].Signals, rereadConfig.Errors.Ignore[0].Signals)
+	}
+
+	// The catalog block won't actually show up when using
+	// ParseConfigString. It probably should, but that's not
+	// a problem for this test.
+	//
+	// assert.Equal(t, terragruntConfig.Catalog.DefaultTemplate, rereadConfig.Catalog.DefaultTemplate)
+	// assert.Equal(t, terragruntConfig.Catalog.URLs, rereadConfig.Catalog.URLs)
+
+	assert.Equal(t, terragruntConfig.RemoteState.BackendName, rereadConfig.RemoteState.BackendName)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableInit, rereadConfig.RemoteState.Config.DisableInit)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.DisableDependencyOptimization, rereadConfig.RemoteState.Config.DisableDependencyOptimization)
+	assert.Equal(t, terragruntConfig.RemoteState.Config.BackendConfig, rereadConfig.RemoteState.Config.BackendConfig)
+
+	// We don't test dependencies here because they require filesystem operations.
+	// assert.Equal(t, terragruntConfig.Dependencies.Paths, rereadConfig.Dependencies.Paths)
+	// assert.Equal(t, terragruntConfig.TerragruntDependencies, rereadConfig.TerragruntDependencies)
+
+	assert.Equal(t, terragruntConfig.GenerateConfigs, rereadConfig.GenerateConfigs)
+	assert.Equal(t, terragruntConfig.FeatureFlags, rereadConfig.FeatureFlags)
+	assert.Equal(t, terragruntConfig.TerraformBinary, rereadConfig.TerraformBinary)
+	assert.Equal(t, terragruntConfig.TerraformVersionConstraint, rereadConfig.TerraformVersionConstraint)
+	assert.Equal(t, terragruntConfig.TerragruntVersionConstraint, rereadConfig.TerragruntVersionConstraint)
+	assert.Equal(t, terragruntConfig.DownloadDir, rereadConfig.DownloadDir)
+	assert.Equal(t, terragruntConfig.PreventDestroy, rereadConfig.PreventDestroy)
+	assert.Equal(t, terragruntConfig.Skip, rereadConfig.Skip)
+	assert.Equal(t, terragruntConfig.IamRole, rereadConfig.IamRole)
+	assert.Equal(t, terragruntConfig.IamAssumeRoleDuration, rereadConfig.IamAssumeRoleDuration)
+	assert.Equal(t, terragruntConfig.IamAssumeRoleSessionName, rereadConfig.IamAssumeRoleSessionName)
+	assert.Equal(t, terragruntConfig.RetryMaxAttempts, rereadConfig.RetryMaxAttempts)
+	assert.Equal(t, terragruntConfig.RetrySleepIntervalSec, rereadConfig.RetrySleepIntervalSec)
+	assert.Equal(t, terragruntConfig.RetryableErrors, rereadConfig.RetryableErrors)
+	assert.Equal(t, terragruntConfig.Inputs, rereadConfig.Inputs)
 }

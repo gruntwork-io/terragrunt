@@ -2,7 +2,6 @@ package flags_test
 
 import (
 	"bytes"
-	"context"
 	"flag"
 	"fmt"
 	"strings"
@@ -60,16 +59,16 @@ func TestFlag_TakesValue(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			testFlag := flags.NewFlag(testCase.flag)
+			testFlag := flags.NewFlag(tc.flag)
 
 			err := testFlag.Apply(new(flag.FlagSet))
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expected, testFlag.TakesValue())
+			assert.Equal(t, tc.expected, testFlag.TakesValue())
 		})
 	}
 }
@@ -150,15 +149,15 @@ func TestFlag_Evaluate(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			logger, output := newLogger()
-			ctx := context.Background()
+			ctx := t.Context()
 			ctx = log.ContextWithLogger(ctx, logger)
 
-			for _, testFlag := range testCase.flags {
+			for _, testFlag := range tc.flags {
 				err := testFlag.flag.Apply(new(flag.FlagSet))
 				require.NoError(t, err)
 
@@ -177,7 +176,7 @@ func TestFlag_Evaluate(t *testing.T) {
 			}
 
 			outputLines := strings.Split(strings.TrimSpace(output.String()), "\n")
-			assert.Equal(t, testCase.expectedOutput, outputLines)
+			assert.Equal(t, tc.expectedOutput, outputLines)
 		})
 	}
 }

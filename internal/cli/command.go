@@ -7,51 +7,76 @@ import (
 )
 
 type Command struct {
-	// Name is the command name.
-	Name string
-	// Aliases is a list of aliases for the command.
-	Aliases []string
-	// Usage is a short description of the usage of the command.
-	Usage string
-	// UsageText is custom text to show on the `Usage` section of help.
-	UsageText string
-	// Description is a longer explanation of how the command works.
-	Description string
-	// Examples is list of examples of using the command in the help.
-	Examples []string
 	// Category is the category the command belongs to.
 	Category *Category
-	// Flags is list of flags to parse.
-	Flags Flags
-	// ErrorOnUndefinedFlag causes the application to exit and return an error on any undefined flag.
-	ErrorOnUndefinedFlag bool
-	// Full name of cmd for help, defaults to full cmd name, including parent commands.
-	HelpName string
-	// if this is a root "special" cmd
-	IsRoot bool
-	// Boolean to hide this cmd from help
-	Hidden bool
-	// CustomHelpTemplate the text template for the cmd help topic.
-	// cli.go uses text/template to render templates. You can
-	// render custom help text by setting this variable.
-	CustomHelpTemplate string
-	// CustomHelp is a func that is executed when help for a command needs to be displayed.
-	CustomHelp HelpFunc
-	// List of child commands
-	Subcommands Commands
-	// Treat all flags as normal arguments if true
-	SkipFlagParsing bool
-	// Boolean to disable the parsing command, but it will still be shown in the help.
-	SkipRunning bool
-	// The function to call when checking for command completions
-	Complete CompleteFunc
-	// An action to execute before any subcommands are run, but after the context is ready
-	// If a non-nil error is returned, no subcommands are run
+
+	// Before is an action to execute before the command is invoked.
+	// If a non-nil error is returned, no further processing is done.
 	Before ActionFunc
-	// An action to execute after any subcommands are run, but after the subcommand has finished
+
+	// CustomHelp is a custom function to display help text.
+	CustomHelp HelpFunc
+
+	// After is the function to call after the command is invoked.
 	After ActionFunc
-	// The action to execute when no subcommands are specified
+
+	// Complete is the function to call for shell completion.
+	Complete CompleteFunc
+
+	// Action is the function to execute when the command is invoked.
+	// Runs after subcommands are finished.
 	Action ActionFunc
+
+	// Description is a longer explanation of how the command works.
+	Description string
+
+	// HelpName is the full name of the command for help.
+	// Defaults to the full command name, including parent commands.
+	HelpName string
+
+	// Name is the command name.
+	Name string
+
+	// UsageText is custom text to show on the `Usage` section of the help.
+	UsageText string
+
+	// CustomHelpTemplate is a custom text template for the help topic.
+	CustomHelpTemplate string
+
+	// Usage is a short description of the usage for the command.
+	Usage string
+
+	// Flags is a list of flags to parse.
+	Flags Flags
+
+	// Examples is a list of examples for using the command in help.
+	Examples []string
+
+	// Subcommands is a list of subcommands.
+	Subcommands Commands
+
+	// Aliases is a list of aliases for the command.
+	Aliases []string
+
+	// IsRoot is true if this is a root "special" command.
+	// NOTE: The author of this comment doesn't know what this means.
+	IsRoot bool
+
+	// SkipRunning disables the parsing command, but it will
+	// still be shown in help.
+	SkipRunning bool
+
+	// SkipFlagParsing treats all flags as normal arguments.
+	SkipFlagParsing bool
+
+	// Hidden hides the command from help.
+	Hidden bool
+
+	// DisabledErrorOnUndefinedFlag prevents the application to exit and return an error on any undefined flag.
+	DisabledErrorOnUndefinedFlag bool
+
+	// DisabledErrorOnMultipleSetFlag prevents the application to exit and return an error if any flag is set multiple times.
+	DisabledErrorOnMultipleSetFlag bool
 }
 
 // Names returns the names including short names and aliases.
@@ -83,7 +108,7 @@ func (cmd *Command) Subcommand(name string) *Command {
 
 // VisibleFlags returns a slice of the Flags, used by `urfave/cli` package to generate help.
 func (cmd *Command) VisibleFlags() Flags {
-	return cmd.Flags
+	return cmd.Flags.VisibleFlags()
 }
 
 // VisibleSubcommands returns a slice of the Commands with Hidden=false.
@@ -100,15 +125,11 @@ func (cmd *Command) VisibleSubcommands() Commands {
 // If this is the final command, starts its execution.
 func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	args, err = cmd.parseFlags(ctx, args.Slice())
-	ctx = ctx.NewCommandContext(cmd, args)
-
 	if err != nil {
-		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
-			err = flagErrHandler(ctx, err)
-		}
-
 		return NewExitError(err, ExitCodeGeneralError)
 	}
+
+	ctx = ctx.NewCommandContext(cmd, args)
 
 	subCmdName := ctx.Args().CommandName()
 	subCmdArgs := ctx.Args().Remove(subCmdName)
@@ -157,12 +178,28 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	var undefArgs Args
 
-	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name)
+	errHandler := func(err error) error {
+		if err == nil {
+			return nil
+		}
+
+		if cmd.DisabledErrorOnMultipleSetFlag && IsMultipleTimesSettingError(err) {
+			return nil
+		}
+
+		if flagErrHandler := ctx.App.FlagErrHandler; flagErrHandler != nil {
+			err = flagErrHandler(ctx.NewCommandContext(cmd, args), err)
+		}
+
+		return err
+	}
+
+	flagSet, err := cmd.Flags.NewFlagSet(cmd.Name, errHandler)
 	if err != nil {
 		return nil, err
 	}
 
-	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name)
+	flagSetWithSubcommandScope, err := cmd.Flags.WithSubcommandScope().NewFlagSet(cmd.Name, errHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -173,26 +210,26 @@ func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 
 	args, builtinCmd := args.Split(BuiltinCmdSep)
 
-	for i := 0; ; i++ {
+	for i := 0; len(args) > 0; i++ {
 		if i == 0 {
 			args, err = cmd.flagSetParse(ctx, flagSet, args)
 		} else {
 			args, err = cmd.flagSetParse(ctx, flagSetWithSubcommandScope, args)
 		}
 
+		if len(args) != 0 {
+			undefArgs = append(undefArgs, args[0])
+			args = args[1:]
+		}
+
 		if err != nil {
 			if !errors.As(err, new(UndefinedFlagError)) ||
 				(cmd.Subcommands.Get(undefArgs.Get(0)) == nil) {
-				return nil, err
+				if err = errHandler(err); err != nil {
+					return undefArgs, err
+				}
 			}
 		}
-
-		if len(args) == 0 {
-			break
-		}
-
-		undefArgs = append(undefArgs, args[0])
-		args = args[1:]
 	}
 
 	if len(builtinCmd) > 0 {
@@ -219,13 +256,12 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 		// check if the error is due to an undefArgs flag
 		var undefArg string
 
-		err = flagSet.Parse(args)
-		if err == nil {
+		if err = flagSet.Parse(args); err == nil {
 			break
 		}
 
-		if errStr := err.Error(); strings.HasPrefix(errStr, ErrFlagUndefined) {
-			undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrFlagUndefined), " -")
+		if errStr := err.Error(); strings.HasPrefix(errStr, ErrMsgFlagUndefined) {
+			undefArg = strings.Trim(strings.TrimPrefix(errStr, ErrMsgFlagUndefined), " -")
 			err = UndefinedFlagError(undefArg)
 		} else {
 			break
@@ -246,7 +282,7 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 			}
 		}
 
-		if cmd.ErrorOnUndefinedFlag && !ctx.shellComplete {
+		if !cmd.DisabledErrorOnUndefinedFlag && !ctx.shellComplete {
 			break
 		}
 
@@ -272,4 +308,13 @@ func (cmd *Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *
 	clone.Subcommands = clone.Subcommands.WrapAction(fn)
 
 	return &clone
+}
+
+// DisableErrorOnMultipleSetFlag returns cloned commands with disabled the check for multiple values set for the same flag.
+func (cmd *Command) DisableErrorOnMultipleSetFlag() *Command {
+	newCmd := *cmd
+	newCmd.DisabledErrorOnMultipleSetFlag = true
+	newCmd.Subcommands = newCmd.Subcommands.DisableErrorOnMultipleSetFlag()
+
+	return &newCmd
 }

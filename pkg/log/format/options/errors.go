@@ -57,9 +57,9 @@ func (err InvalidOptionNameError) Error() string {
 
 // InvalidOptionValueError is an invalid `option` value error.
 type InvalidOptionValueError struct {
-	val string
 	opt Option
 	err error
+	val string
 }
 
 // NewInvalidOptionValueError returns a new `InvalidOptionValueError` instance.

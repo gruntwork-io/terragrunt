@@ -72,6 +72,15 @@ func (ctrls Controls) Names() ControlNames {
 	return names
 }
 
+// SuppressWarning suppresses the warning message from being displayed.
+func (ctrls Controls) SuppressWarning() Controls {
+	for _, ctrl := range ctrls {
+		ctrl.SuppressWarning()
+	}
+
+	return ctrls
+}
+
 // FilterByStatus filters `ctrls` by given statuses.
 func (ctrls Controls) FilterByStatus(statuses ...Status) Controls {
 	var filtered Controls

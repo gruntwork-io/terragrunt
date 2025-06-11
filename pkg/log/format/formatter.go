@@ -14,12 +14,12 @@ import (
 var _ log.Formatter = new(Formatter)
 
 type Formatter struct {
+	relativePather *options.RelativePather
 	baseDir        string
 	placeholders   placeholders.Placeholders
+	mu             sync.Mutex
 	disabledColors bool
 	disabledOutput bool
-	relativePather *options.RelativePather
-	mu             sync.Mutex
 }
 
 // NewFormatter returns a new Formatter instance with default values.

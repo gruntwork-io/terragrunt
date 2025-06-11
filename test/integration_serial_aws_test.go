@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -25,14 +27,14 @@ func TestTerragruntParallelism(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		expectedTimings        []int
 		parallelism            int
 		numberOfModules        int
 		timeToDeployEachModule time.Duration
-		expectedTimings        []int
 	}{
-		{1, 10, 5 * time.Second, []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
-		{3, 10, 5 * time.Second, []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
-		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
+		{parallelism: 1, numberOfModules: 10, timeToDeployEachModule: 5 * time.Second, expectedTimings: []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
+		{parallelism: 3, numberOfModules: 10, timeToDeployEachModule: 5 * time.Second, expectedTimings: []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
+		{parallelism: 5, numberOfModules: 10, timeToDeployEachModule: 5 * time.Second, expectedTimings: []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
 	for _, tc := range testCases {
 
@@ -42,6 +44,66 @@ func TestTerragruntParallelism(t *testing.T) {
 			testTerragruntParallelism(t, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
 		})
 	}
+}
+
+//nolint:paralleltest
+func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
+	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", helpers.TerraformRemoteStateS3Region)
+
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
+	// I'm not sure why, but this test doesn't work with tenv
+	os.Setenv("AWS_ACCESS_KEY_ID", "")     //nolint: tenv,usetesting
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "") //nolint: tenv,usetesting
+
+	defer func() {
+		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)         //nolint: tenv,usetesting
+		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey) //nolint: tenv,usetesting
+	}()
+
+	credsConfig := util.JoinPath(rootPath, "creds.config")
+
+	helpers.CopyAndFillMapPlaceholders(t, credsConfig, credsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s --auth-provider-cmd %s", rootPath, mockAuthCmd))
+}
+
+func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
+	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	dependencyCredsConfig := util.JoinPath(rootPath, "dependency", "creds.config")
+	helpers.CopyAndFillMapPlaceholders(t, dependencyCredsConfig, dependencyCredsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+
+	dependentCredsConfig := util.JoinPath(rootPath, "dependent", "creds.config")
+	helpers.CopyAndFillMapPlaceholders(t, dependentCredsConfig, dependentCredsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --working-dir %s --auth-provider-cmd %s", rootPath, mockAuthCmd))
 }
 
 // NOTE: the following test asserts precise timing for determining parallelism. As such, it can not be run in parallel
@@ -119,17 +181,17 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	environmentPath := tmpEnvPath
 
 	// forces plugin download & initialization (no parallelism control)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt plan-all --non-interactive --working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
 	// apply all with parallelism set
 	// NOTE: we can't run just apply-all and not plan-all because the time to initialize the plugins skews the results of the test
 	testStart := int(time.Now().Unix())
 	t.Logf("apply-all start time = %d, %s", testStart, time.Now().Format(time.RFC3339))
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply-all --parallelism %d --non-interactive --working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
 
 	// read the output of all modules 1 by 1 sequence, parallel reads mix outputs and make output complicated to parse
 	outputParallelism := 1
 	// Call helpers.RunTerragruntCommandWithOutput directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-parallelism %d", environmentPath, outputParallelism))
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all -no-color --tf-forward-stdout --non-interactive --working-dir %s --parallelism %d", environmentPath, outputParallelism))
 	if err != nil {
 		return "", 0, err
 	}

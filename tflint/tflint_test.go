@@ -11,7 +11,7 @@ import (
 func TestInputsToTflintVar(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		name     string
 		inputs   map[string]any
 		expected []string
@@ -39,15 +39,13 @@ func TestInputsToTflintVar(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := tflint.InputsToTflintVar(tt.inputs)
+			actual, err := tflint.InputsToTflintVar(tc.inputs)
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, actual)
+			assert.ElementsMatch(t, tc.expected, actual)
 		})
 	}
 }

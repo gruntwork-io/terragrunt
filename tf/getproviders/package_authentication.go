@@ -148,8 +148,8 @@ func (auth archiveHashAuthentication) AcceptableHashes() []Hash {
 }
 
 type matchingChecksumAuthentication struct {
-	Document      []byte
 	Filename      string
+	Document      []byte
 	WantSHA256Sum [sha256.Size]byte
 }
 
@@ -187,9 +187,9 @@ func (auth matchingChecksumAuthentication) Authenticate(location string) (*Packa
 }
 
 type signatureAuthentication struct {
+	Keys      map[string]string
 	Document  []byte
 	Signature []byte
-	Keys      map[string]string
 }
 
 // NewSignatureAuthentication returns a PackageAuthentication implementation that verifies the cryptographic signature for a package against any of the provided keys.

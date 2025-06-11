@@ -19,11 +19,11 @@ func (diags *Diagnostics) Contains(find *Diagnostic) bool {
 }
 
 type Diagnostic struct {
-	Severity DiagnosticSeverity `json:"severity"`
-	Summary  string             `json:"summary"`
-	Detail   string             `json:"detail"`
 	Range    *Range             `json:"range,omitempty"`
 	Snippet  *Snippet           `json:"snippet,omitempty"`
+	Summary  string             `json:"summary"`
+	Detail   string             `json:"detail"`
+	Severity DiagnosticSeverity `json:"severity"`
 }
 
 func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {

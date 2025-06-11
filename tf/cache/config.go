@@ -80,17 +80,15 @@ func WithLogger(logger log.Logger) Option {
 }
 
 type Config struct {
-	hostname        string
-	port            int
-	token           string
-	shutdownTimeout time.Duration
-
+	logger                      log.Logger
 	providerService             *services.ProviderService
-	providerHandlers            handlers.ProviderHandlers
 	proxyProviderHandler        *handlers.ProxyProviderHandler
+	hostname                    string
+	token                       string
+	providerHandlers            handlers.ProviderHandlers
+	port                        int
+	shutdownTimeout             time.Duration
 	cacheProviderHTTPStatusCode int
-
-	logger log.Logger
 }
 
 func NewConfig(opts ...Option) *Config {

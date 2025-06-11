@@ -1,19 +1,57 @@
 ---
 name: format
-description: Format the results as specified. Supported values (json). default json.
+description: |
+  Format the results as specified. Supported values (text, long, tree). Default: text.
 type: string
 env:
   - TG_FORMAT
 ---
 
-Specifies the output format for the list command results. Currently supports:
+Controls how the list results are displayed:
 
-- `json` - Output results in JSON format (default)
+- `text` (default): Simple space-separated list of configurations. Best for quick overview and scripting.
+- `long`: Detailed view showing type (unit/stack), path, and module information. Useful for auditing and documentation.
+- `tree`: Hierarchical view showing directory structure. Perfect for understanding infrastructure organization.
 
-This is particularly useful when you need to process the list of Terragrunt configurations programmatically or integrate with other tools.
+These values all have shortcuts as standalone flags:
 
-Example:
+- `--long` / `-l` for long
+- `--tree` / `-T` for tree
+
+Examples:
 
 ```bash
-terragrunt list --format json
+# Default text format - Great for quick overview
+$ terragrunt list
+live/dev/db    live/dev/ec2   live/dev/vpc
+live/prod/db   live/prod/ec2  live/prod/vpc
 ```
+
+```bash
+# Long format - Useful for reading structured information quickly
+$ terragrunt list -l
+Type  Path           Dependencies
+unit  live/dev/db    live/dev/vpc
+unit  live/dev/ec2   live/dev/db, live/dev/vpc
+unit  live/dev/vpc
+unit  live/prod/db   live/prod/vpc
+unit  live/prod/ec2  live/prod/db, live/prod/vpc
+unit  live/prod/vpc
+```
+
+```bash
+# Tree format - Optimal for visualizing structure
+$ terragrunt list -T
+.
+╰── live
+    ├── dev
+    │   ├── db
+    │   ├── ec2
+    │   ╰── vpc
+    ╰── prod
+        ├── db
+        ├── ec2
+        ╰── vpc
+```
+
+The examples above demonstrate a typical multi-environment infrastructure setup with networking, compute, and data layers. Each format provides a different perspective on the same infrastructure, making it easier to understand and manage your Terragrunt configurations.

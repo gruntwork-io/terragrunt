@@ -1,0 +1,17 @@
+---
+name: write
+description: Write the rendered configuration to a file (terragrunt.rendered.hcl or terragrunt.rendered.json by default).
+type: boolean
+env:
+  - TG_WRITE
+aliases:
+  - w
+---
+
+Example:
+
+```bash
+terragrunt render --write --json
+```
+
+This will write the rendered configuration to `terragrunt.rendered.json` in the current working directory.

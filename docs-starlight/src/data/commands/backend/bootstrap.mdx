@@ -7,21 +7,24 @@ sidebar:
 description: Bootstrap OpenTofu/Terraform backend infrastructure.
 usage: |
   Bootstrap OpenTofu/Terraform backend infrastructure.
-experiment:
-  control: cli-redesign
-  name: cli redesign
 examples:
   - description: |
       Provision backend resources defined in remote_state.
     code: |
       terragrunt backend bootstrap
+flags:
+  - backend-bootstrap-all
+  - backend-bootstrap-config
+  - backend-bootstrap-download-dir
 ---
+
+import { Aside } from '@astrojs/starlight/components';
 
 ## Provision remote_state
 
-Using this command bootstraps the resources described in your [`remote_state` block](/docs/reference/hcl/blocks/#remote_state). 
+Using this command bootstraps the resources described in your [`remote_state` block](/docs/reference/hcl/blocks/#remote_state).
 
-If unavailable, Terragrunt will provision them. If they are present, but configured in a way that differs from `remote_state` configuration, Terragrunt will attempt to update them when it is safe to do so.
+If any of the resources described in the `remote_state` block need provisioning, `bootstrap` will provision them. If they are present, but configured in a way that differs from `remote_state` configuration, Terragrunt will attempt to update them when it is safe to do so.
 
 For example, if you have the following `remote_state` block:
 
@@ -57,3 +60,13 @@ You'll ensure the availability of:
   - TLS Enforcement
 - A DynamoDB table named `tf-lock` in the `us-east-1` region with SSE.
 - An S3 bucket named `mybucket-logs` configured as the access log destination for the `mybucket` bucket.
+
+The `bootstrap` command is idempotent. If the resources already exist, `bootstrap` will not provision them again.
+
+<Aside type="tip" title="--backend-bootstrap">
+
+The flag `--backend-bootstrap` is equivalent to explicitly running the `bootstrap` command.
+
+Using it in conjunction with any `run` command will result in any required bootstrapping to be performed prior to initiating the run.
+
+</Aside>

@@ -6,9 +6,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // sessionState keeps track of the view we are currently on.
@@ -33,7 +35,10 @@ const (
 const (
 	scaffoldBtn button = iota
 	viewSourceBtn
-	lastBtn
+)
+
+var (
+	availableButtons = []button{scaffoldBtn, viewSourceBtn}
 )
 
 func (b button) String() string {
@@ -44,30 +49,27 @@ func (b button) String() string {
 }
 
 type model struct {
-	// globals
-	state  sessionState
-	width  int
-	height int
-
-	// list view
-	list         list.Model
-	listKeys     list.KeyMap
-	delegateKeys *delegateKeyMap
-
-	// pager view
-	ready           bool
-	viewport        viewport.Model
-	buttonBar       *buttonbar.ButtonBar
-	activeButton    button
-	releaseNotesURL string
-	pagerKeys       pagerKeyMap
-	selectedModule  *module.Module
-
-	terragruntOptions *options.TerragruntOptions
+	list                list.Model
+	logger              log.Logger
+	terragruntOptions   *options.TerragruntOptions
+	svc                 catalog.CatalogService
+	selectedModule      *module.Module
+	delegateKeys        *delegateKeyMap
+	buttonBar           *buttonbar.ButtonBar
+	currentPagerButtons []button
+	pagerKeys           pagerKeyMap
+	listKeys            list.KeyMap
+	viewport            viewport.Model
+	activeButton        button
+	state               sessionState
+	height              int
+	width               int
+	ready               bool
 }
 
-func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
+func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model {
 	var (
+		modules      = svc.Modules()
 		items        = make([]list.Item, 0, len(modules))
 		listKeys     = newListKeyMap()
 		delegateKeys = newDelegateKeyMap()
@@ -94,8 +96,8 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
 	vp := viewport.New(0, 0)
 
 	// Setup the button bar
-	bs := make([]string, lastBtn)
-	for i, b := range []button{scaffoldBtn, viewSourceBtn} {
+	bs := make([]string, len(availableButtons))
+	for i, b := range availableButtons {
 		bs[i] = b.String()
 	}
 
@@ -109,6 +111,7 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
 		buttonBar:         bb,
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
+		svc:               svc,
 	}
 }
 

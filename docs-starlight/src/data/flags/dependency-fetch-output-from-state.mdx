@@ -1,6 +1,7 @@
 ---
 name: dependency-fetch-output-from-state
-description: The option fetches dependency output directly from the state file instead of using tofu/terraform output.
+description: |
+  Fetch dependency outputs directly from the state file instead of using `tofu output`.
 type: bool
 env:
   - TG_DEPENDENCY_FETCH_OUTPUT_FROM_STATE
@@ -15,7 +16,11 @@ The main benefit this flag provides is performance. Reading directly from state 
 The limitation of this approach is that it is only supported by the S3 backend, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
 
 <Aside type="caution">
-This is an experimental feature. When enabled, Terragrunt will fetch dependency outputs directly from the state file instead of using `tofu output`.
+Avoid using this flag without pinning the version of OpenTofu/Terraform you are using.
 
-Currently, only the S3 backend is supported. Use with caution in production environments, as this feature is experimental and may change in the future.
+There is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform. They have not changed the schema of the state file in a long time, but there is no guarantee that they will not change it in the future. We are coordinating with the OpenTofu team to encourage stability in the state file schema, unless significant performance improvements can be made to OpenTofu output fetching to make this flag unnecessary.
+</Aside>
+
+<Aside type="tip">
+Direct output fetching is a performance optimization. For more details on performance optimizations, their tradeoffs, and other performance tips, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
 </Aside>

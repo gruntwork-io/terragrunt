@@ -5,9 +5,6 @@ category: main
 sidebar:
   order: 100
 description: 'Run OpenTofu/Terraform commands.'
-experiment:
-  control: cli-redesign
-  name: CLI Redesign
 usage: |
   Run a command, passing arguments to an orchestrated tofu/terraform binary.
 
@@ -65,9 +62,14 @@ flags:
   - queue-include-external
   - queue-include-units-reading
   - queue-strict-include
+  - report-file
+  - report-format
+  - report-schema-file
   - source
   - source-map
   - source-update
+  - summary-disable
+  - summary-unit-duration
   - tf-forward-stdout
   - tf-path
   - units-that-include

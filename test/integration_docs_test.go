@@ -25,11 +25,11 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 		assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy.")
 
-		stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 		assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 
@@ -44,10 +44,10 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan -var content='Hello, Terragrunt!' --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan -var content='Hello, Terragrunt!' --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve -var content='Hello, Terragrunt!' --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve -var content='Hello, Terragrunt!' --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 	})
 
@@ -60,10 +60,10 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan -var content='Hello, Terragrunt!' --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- plan -var content='Hello, Terragrunt!'")
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -var content='Hello, Terragrunt!' --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- apply -var content='Hello, Terragrunt!'")
 		require.NoError(t, err)
 	})
 
@@ -76,10 +76,10 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan -var content='Hello, Terragrunt!' --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- plan -var content='Hello, Terragrunt!'")
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -var content='Hello, Terragrunt!' --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" -- apply -var content='Hello, Terragrunt!'")
 		require.NoError(t, err)
 	})
 
@@ -92,10 +92,10 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 	})
 
@@ -108,10 +108,10 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 
-		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 	})
 
@@ -124,8 +124,8 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
-		require.Error(t, err)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
+		require.NoError(t, err)
 	})
 
 	t.Run("step-07", func(t *testing.T) {
@@ -137,7 +137,7 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 	})
 
@@ -150,7 +150,7 @@ func TestDocsQuickStart(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := util.JoinPath(tmpEnvPath, stepPath)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath)
 		require.NoError(t, err)
 	})
 }

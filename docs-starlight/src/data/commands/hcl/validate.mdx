@@ -7,9 +7,6 @@ sidebar:
 description: Recursively find HashiCorp Configuration Language (HCL) files and validate them.
 usage: |
   Recursively find HashiCorp Configuration Language (HCL) files and validate them.
-experiment:
-  control: cli-redesign
-  name: cli redesign
 examples:
   - description: Discover all HCL files in the current directory, and validate them.
     code: |
@@ -17,4 +14,6 @@ examples:
 flags:
   - hcl-validate-json
   - hcl-validate-show-config-path
+  - hcl-validate-inputs
+  - hcl-validate-strict
 ---

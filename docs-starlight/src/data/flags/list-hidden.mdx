@@ -1,0 +1,28 @@
+---
+name: hidden
+description: |
+  Include hidden directories in list results.
+type: boolean
+env:
+  - TG_HIDDEN
+---
+
+Controls whether hidden directories (those starting with a dot) are included in the list results.
+
+By default, Terragrunt excludes hidden directories from the list output to reduce noise and focus on your primary infrastructure components. However, there may be cases where you want to see all configurations, including those in hidden directories.
+
+Example:
+
+```bash
+$ terragrunt list -l
+Type  Path
+stack stack
+unit  unit
+```
+```bash
+$ terragrunt list -l --hidden
+Type  Path
+unit  .hide/unit
+stack stack
+unit  unit
+```

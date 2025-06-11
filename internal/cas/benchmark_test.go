@@ -1,7 +1,6 @@
 package cas_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,20 +10,20 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
 func BenchmarkClone(b *testing.B) {
 	// Use a small, public repository for consistent results
 	repo := "https://github.com/gruntwork-io/terragrunt.git"
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	b.Run("fresh clone", func(b *testing.B) {
 		tempDir := b.TempDir()
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for i := 0; b.Loop(); i++ {
 			storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
@@ -35,7 +34,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(context.TODO(), &l, &cas.CloneOptions{
+			if err := c.Clone(b.Context(), l, &cas.CloneOptions{
 				Dir: targetPath,
 			}, repo); err != nil {
 				b.Fatal(err)
@@ -54,14 +53,14 @@ func BenchmarkClone(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := c.Clone(context.TODO(), &l, &cas.CloneOptions{
+		if err := c.Clone(b.Context(), l, &cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "initial"),
 		}, repo); err != nil {
 			b.Fatal(err)
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for i := 0; b.Loop(); i++ {
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
 			c, err := cas.New(cas.Options{
@@ -71,7 +70,7 @@ func BenchmarkClone(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if err := c.Clone(context.TODO(), &l, &cas.CloneOptions{
+			if err := c.Clone(b.Context(), l, &cas.CloneOptions{
 				Dir: targetPath,
 			}, repo); err != nil {
 				b.Fatal(err)
@@ -88,12 +87,12 @@ func BenchmarkContent(b *testing.B) {
 	// Prepare test data
 	testData := []byte("test content for benchmarking")
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	b.Run("store", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for i := 0; b.Loop(); i++ {
 			hash := fmt.Sprintf("benchmark%d", i)
-			if err := content.Store(&l, hash, testData); err != nil {
+			if err := content.Store(l, hash, testData); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -116,7 +115,7 @@ func BenchmarkContent(b *testing.B) {
 				seen[hash] = true
 				mu.Unlock()
 
-				if err := content.Store(&l, hash, testData); err != nil {
+				if err := content.Store(l, hash, testData); err != nil {
 					b.Fatal(err)
 				}
 				i++
@@ -130,7 +129,7 @@ func BenchmarkGitOperations(b *testing.B) {
 	repoDir := b.TempDir()
 	git := cas.NewGitRunner().WithWorkDir(repoDir)
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	if err := git.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
 		b.Fatal(err)
@@ -139,7 +138,7 @@ func BenchmarkGitOperations(b *testing.B) {
 	b.Run("ls-remote", func(b *testing.B) {
 		git := cas.NewGitRunner() // No workDir needed for ls-remote
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 			if err != nil {
 				b.Fatal(err)
@@ -149,7 +148,7 @@ func BenchmarkGitOperations(b *testing.B) {
 
 	b.Run("ls-tree", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := git.LsTree(ctx, "HEAD", ".")
 			if err != nil {
 				b.Fatal(err)
@@ -180,7 +179,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		defer tmp.Close()
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			err := git.CatFile(ctx, hash, tmp)
 			if err != nil {
 				b.Fatal(err)

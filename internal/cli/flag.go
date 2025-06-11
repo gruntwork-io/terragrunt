@@ -92,6 +92,9 @@ type Flag interface {
 	// AllowedSubcommandScope returns true if the flag is allowed to be specified in subcommands,
 	// and not only after the command it belongs to.
 	AllowedSubcommandScope() bool
+
+	// Parse parses the given args and environment variables to set the flag value.
+	Parse(args Args) error
 }
 
 type LookupEnvFuncType func(key string) []string
@@ -108,31 +111,43 @@ type flagValueGetter struct {
 }
 
 func (flag *flagValueGetter) EnvSet(val string) error {
+	var err error
+
 	if !flag.envHasBeenSet {
 		// may contain a default value or an env var, so it needs to be cleared before the first setting.
 		flag.value.Reset()
 		flag.envHasBeenSet = true
 	} else if !flag.multipleSet {
-		return errors.Errorf("setting the env var multiple times")
+		err = errors.New(ErrMultipleTimesSettingEnvVar)
 	}
 
 	flag.flagValue.name = flag.valueName
 
-	return flag.flagValue.value.Set(val)
+	if err := flag.flagValue.value.Set(val); err != nil {
+		return err
+	}
+
+	return err
 }
 
 func (flag *flagValueGetter) Set(val string) error {
+	var err error
+
 	if !flag.hasBeenSet {
 		// may contain a default value or an env var, so it needs to be cleared before the first setting.
 		flag.value.Reset()
 		flag.hasBeenSet = true
 	} else if !flag.multipleSet {
-		return errors.Errorf("setting the flag multiple times")
+		err = errors.New(ErrMultipleTimesSettingFlag)
 	}
 
 	flag.flagValue.name = flag.valueName
 
-	return flag.flagValue.value.Set(val)
+	if err := flag.flagValue.value.Set(val); err != nil {
+		return err
+	}
+
+	return err
 }
 
 type Value interface {
@@ -143,11 +158,11 @@ type Value interface {
 // flag is a common flag related to parsing flags in cli.
 type flagValue struct {
 	value            Value
-	multipleSet      bool
 	name             string
+	initialTextValue string
+	multipleSet      bool
 	hasBeenSet       bool
 	envHasBeenSet    bool
-	initialTextValue string
 	negative         bool
 }
 
@@ -210,6 +225,11 @@ func (flag *flagValue) Getter(name string) FlagValueGetter {
 type flag struct {
 	FlagValue
 	LookupEnvFunc LookupEnvFuncType
+}
+
+// Parse implements `Flag` interface.
+func (flag *flag) Parse(args Args) error {
+	return nil
 }
 
 func (flag *flag) LookupEnv(envVar string) []string {

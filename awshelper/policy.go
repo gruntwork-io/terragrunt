@@ -13,13 +13,13 @@ type Policy struct {
 // https://docs.aws.amazon.com/IAM//latest/UserGuide/reference_policies_elements_action.html
 // https://docs.aws.amazon.com/IAM//latest/UserGuide/reference_policies_elements_resource.html
 type Statement struct {
-	Sid          string          `json:"Sid"`
-	Effect       string          `json:"Effect"`
 	Principal    any             `json:"Principal,omitempty"`
 	NotPrincipal any             `json:"NotPrincipal,omitempty"`
 	Action       any             `json:"Action"`
 	Resource     any             `json:"Resource"`
 	Condition    *map[string]any `json:"Condition,omitempty"`
+	Sid          string          `json:"Sid"`
+	Effect       string          `json:"Effect"`
 }
 
 func UnmarshalPolicy(policy string) (Policy, error) {

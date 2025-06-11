@@ -1,0 +1,21 @@
+---
+name: dependencies
+description: |
+  Include dependencies in list results.
+type: boolean
+env:
+  - TG_DEPENDENCIES
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Controls whether dependency information is included in the list output. When enabled, Terragrunt will analyze and display the dependency relationships between configurations.
+
+This flag is particularly powerful when combined with different output formats and sorting options:
+
+- With `--format=long`: Shows dependencies in a tabular format
+- With `--format=json`: Includes full dependency ancestry in JSON output
+
+<Aside type="tip">
+  Combine `--dependencies` with `--sort=dag` and `--group-by=dag` (or just use `--dag`) to get a complete picture of your infrastructure's deployment sequence.
+</Aside>

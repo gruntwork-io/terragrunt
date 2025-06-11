@@ -9,8 +9,8 @@ import (
 
 // Store manages the store directory and locks to prevent concurrent writes
 type Store struct {
-	path    string
 	locks   map[string]*sync.Mutex
+	path    string
 	mapLock sync.Mutex
 }
 

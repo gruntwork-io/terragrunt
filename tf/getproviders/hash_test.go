@@ -26,7 +26,7 @@ func createFakeZipArchive(t *testing.T, content []byte) string {
 func TestPackageHashLegacyZipSHA(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		path         string
 		expectedHash getproviders.Hash
 	}{
@@ -40,16 +40,14 @@ func TestPackageHashLegacyZipSHA(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			hash, err := getproviders.PackageHashLegacyZipSHA(tt.path)
+			hash, err := getproviders.PackageHashLegacyZipSHA(tc.path)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expectedHash, hash)
+			assert.Equal(t, tc.expectedHash, hash)
 		})
 	}
 }

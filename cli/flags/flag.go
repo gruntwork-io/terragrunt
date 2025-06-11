@@ -13,9 +13,14 @@ import (
 
 var _ = cli.Flag(new(Flag))
 
+// EvaluateWrapperFunc represents a function that is used to wrap the `Evaluate(ctx context.Context) error` strict control method.
+// Which can be passed as an option `WithEvaluateWrapper` to `NewFlag(...)` to control the behavior of strict control evaluation.
+type EvaluateWrapperFunc func(ctx context.Context, evalFn func(ctx context.Context) error) error
+
 // Flag is a wrapper for `cli.Flag` that avoids displaying deprecated flags in help, but registers their flag names and environment variables.
 type Flag struct {
 	cli.Flag
+	evaluateWrapper EvaluateWrapperFunc
 	deprecatedFlags DeprecatedFlags
 }
 
@@ -23,6 +28,9 @@ type Flag struct {
 func NewFlag(new cli.Flag, opts ...Option) *Flag {
 	flag := &Flag{
 		Flag: new,
+		evaluateWrapper: func(ctx context.Context, evalFn func(ctx context.Context) error) error {
+			return evalFn(ctx)
+		},
 	}
 
 	for _, opt := range opts {
@@ -32,8 +40,8 @@ func NewFlag(new cli.Flag, opts ...Option) *Flag {
 	return flag
 }
 
-func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn RegisterStrictControlsFunc) *Flag {
-	return NewFlag(nil, WithDeprecatedMovedFlag(deprecatedFlag, newCommandName, regControlsFn))
+func NewMovedFlag(deprecatedFlag cli.Flag, newCommandName string, regControlsFn RegisterStrictControlsFunc, opts ...Option) *Flag {
+	return NewFlag(nil, append(opts, WithDeprecatedMovedFlag(deprecatedFlag, newCommandName, regControlsFn))...)
 }
 
 // TakesValue implements `github.com/urfave/cli.DocGenerationFlag` required to generate help.
@@ -74,7 +82,7 @@ func (newFlag *Flag) Value() cli.FlagValue {
 			continue
 		}
 
-		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue.IsSet() {
+		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue != nil && deprecatedFlagValue.IsSet() {
 			newValue := deprecatedFlagValue.String()
 
 			if newFlag.Flag.Value().IsNegativeBoolFlag() && deprecatedFlagValue.IsBoolFlag() {
@@ -120,7 +128,7 @@ func (newFlag *Flag) Apply(set *flag.FlagSet) error {
 // RunAction implements `cli.Flag` interface.
 func (newFlag *Flag) RunAction(ctx *cli.Context) error {
 	for _, deprecated := range newFlag.deprecatedFlags {
-		if err := deprecated.Evaluate(ctx); err != nil {
+		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err
 		}
 
@@ -136,7 +144,7 @@ func (newFlag *Flag) RunAction(ctx *cli.Context) error {
 	if deprecated, ok := newFlag.Flag.(interface {
 		Evaluate(ctx context.Context) error
 	}); ok {
-		if err := deprecated.Evaluate(ctx); err != nil {
+		if err := newFlag.evaluateWrapper(ctx, deprecated.Evaluate); err != nil {
 			return err
 		}
 	}
@@ -163,7 +171,7 @@ func (newFlag *Flag) Parse(args cli.Args) error {
 			break
 		}
 
-		if errStr := err.Error(); !strings.HasPrefix(errStr, cli.ErrFlagUndefined) {
+		if errStr := err.Error(); !strings.HasPrefix(errStr, cli.ErrMsgFlagUndefined) {
 			break
 		}
 

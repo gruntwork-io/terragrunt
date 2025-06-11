@@ -1,20 +1,19 @@
 package cas_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCAS_Clone(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("clone new repository", func(t *testing.T) {
 		t.Parallel()
@@ -27,7 +26,7 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), &l, &cas.CloneOptions{
+		err = c.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir: targetPath,
 		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.NoError(t, err)
@@ -52,7 +51,7 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), &l, &cas.CloneOptions{
+		err = c.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir:    targetPath,
 			Branch: "main",
 		}, "https://github.com/gruntwork-io/terragrunt.git")
@@ -74,7 +73,7 @@ func TestCAS_Clone(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(context.TODO(), &l, &cas.CloneOptions{
+		err = c.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir:              targetPath,
 			IncludedGitFiles: []string{"HEAD", "config"},
 		}, "https://github.com/gruntwork-io/terragrunt.git")

@@ -7,8 +7,8 @@ import (
 
 // ForceLogLevelHook is a log hook which can change log level for messages which contains specific substrings
 type ForceLogLevelHook struct {
-	forcedLevel   logrus.Level
 	triggerLevels []logrus.Level
+	forcedLevel   logrus.Level
 }
 
 // NewForceLogLevelHook creates default log reduction hook

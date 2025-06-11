@@ -1,7 +1,6 @@
 package cache_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -23,7 +22,7 @@ func TestCacheCreation(t *testing.T) {
 func TestStringCacheOperation(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cache := cache.NewCache[string]("test")
 
 	value, found := cache.Get(ctx, "potato")
@@ -53,7 +52,7 @@ func TestExpiringCacheCreation(t *testing.T) {
 func TestExpiringCacheOperation(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cache := cache.NewExpiringCache[string]("test")
 
 	value, found := cache.Get(ctx, "potato")
@@ -72,7 +71,7 @@ func TestExpiringCacheOperation(t *testing.T) {
 func TestExpiringCacheExpiration(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cache := cache.NewExpiringCache[string]("test")
 
 	cache.Put(ctx, "potato", "carrot", time.Now().Add(-1*time.Second))

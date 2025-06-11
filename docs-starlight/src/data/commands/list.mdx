@@ -4,26 +4,224 @@ path: list
 category: discovery
 sidebar:
   order: 800
-description: List Terragrunt configurations.
+description: List Terragrunt configurations in your codebase.
 usage: |
-  List all Terragrunt configurations in the current directory tree.
-experiment:
-  control: cli-redesign
-  name: CLI Redesign
+  The list command helps you discover and display Terragrunt configurations in your codebase. It provides various output formats and options to help you understand the structure and dependencies of your Terragrunt configurations.
 examples:
   - description: |
-      List all units in the current directory.
+      List all units in a typical multi-environment infrastructure setup.
     code: |
-      terragrunt list
+      $ terragrunt list
+      live/dev/db    live/dev/ec2   live/dev/vpc
+      live/prod/db   live/prod/ec2  live/prod/vpc
+
   - description: |
-      List all units and emit them as a JSON string.
+      List all units in long format, showing unit types and paths.
     code: |
-      terragrunt list --format 'json'
+      $ terragrunt list -l
+      Type  Path
+      unit  live/dev/db
+      unit  live/dev/ec2
+      unit  live/dev/vpc
+      unit  live/prod/db
+      unit  live/prod/ec2
+      unit  live/prod/vpc
+
   - description: |
-      List all units and sort them in the order they would be run in the Directed Acyclic Graph (DAG).
+      List all units in tree format to visualize the infrastructure hierarchy.
     code: |
-      terragrunt list --sort 'dag'
+      $ terragrunt list -T
+      .
+      ╰── live
+          ├── dev
+          │   ├── db
+          │   ├── ec2
+          │   ╰── vpc
+          ╰── prod
+              ├── db
+              ├── ec2
+              ╰── vpc
+
+  - description: |
+      List all units with their dependencies to understand infrastructure relationships.
+    code: |
+      $ terragrunt list -l --dependencies
+      Type  Path           Dependencies
+      unit  live/dev/db    live/dev/vpc
+      unit  live/dev/ec2   live/dev/db, live/dev/vpc
+      unit  live/dev/vpc
+      unit  live/prod/db   live/prod/vpc
+      unit  live/prod/ec2  live/prod/db, live/prod/vpc
+      unit  live/prod/vpc
+
+  - description: |
+      List all units in dependency order (DAG) to understand deployment sequence.
+    code: |
+      $ terragrunt list -l --dag --dependencies
+      Type  Path          Dependencies
+      unit  b-dependency
+      unit  a-dependent   b-dependency
+
+  - description: |
+      List all units in dependency order as if running plan command.
+    code: |
+      $ terragrunt list --queue-construct-as=plan
+      stacks/live/dev      stacks/live/prod     units/live/dev/vpc
+      units/live/prod/vpc  units/live/dev/db    units/live/prod/db
+      units/live/dev/ec2   units/live/prod/ec2
+
+  - description: |
+      List all units in dependency order as if running destroy command.
+    code: |
+      $ terragrunt list --queue-construct-as=destroy
+      stacks/live/dev      stacks/live/prod     units/live/dev/ec2
+      units/live/prod/ec2  units/live/dev/db    units/live/prod/db
+      units/live/dev/vpc   units/live/prod/vpc
+
 flags:
   - list-format
-  - list-sort
+  - list-hidden
+  - list-dependencies
+  - list-external
+  - list-tree
+  - list-long
+  - list-dag
+  - queue-construct-as
 ---
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+## Output Formats
+
+The `list` command supports multiple output formats to help you visualize your Terragrunt configurations in different ways:
+
+### Text Format (Default)
+
+The default text format provides a simple, space-separated list of configurations.
+
+![list](../../assets/img/screenshots/list.png)
+
+It will display all configurations that fit in the width of your terminal. When configurations exceed the width of your terminal, it will wrap to the next line.
+
+![list-narrow](../../assets/img/screenshots/list-narrow.png)
+
+### Long Format
+
+The long format provides additional details about each configuration, including its type:
+
+![list-long](../../assets/img/screenshots/list-long.png)
+
+### Tree Format
+
+The tree format provides a hierarchical view of your configurations:
+
+![list-tree](../../assets/img/screenshots/list-tree.png)
+
+By default, configurations in tree format are displayed ordered by name and grouped by directory:
+
+```bash
+.
+╰── live
+    ├── dev
+    │   ├── db
+    │   ├── ec2
+    │   ╰── vpc
+    ╰── prod
+        ├── db
+        ├── ec2
+        ╰── vpc
+```
+
+## DAG Mode
+
+The `list` command supports DAG mode to sort and group output based on dependencies using the `--dag` flag. When using DAG mode, configurations with no dependencies appear first, followed by configurations that depend on them, maintaining the correct dependency order.
+
+For example, in default text format:
+
+```bash
+# Default alphabetical order
+$ terragrunt list
+a-dependent b-dependency
+
+# DAG mode order
+$ terragrunt list --dag
+b-dependency a-dependent
+```
+
+When using `--dag` with the tree format, configurations are sorted by dependency order and grouped by relationship in the dependency graph:
+
+```bash
+$ terragrunt list --tree --dag
+.
+├── live/dev/vpc
+│   ├── live/dev/db
+│   │   ╰── live/dev/ec2
+│   ╰── live/dev/ec2
+╰── live/prod/vpc
+    ├── live/prod/db
+    │   ╰── live/prod/ec2
+    ╰── live/prod/ec2
+```
+
+## Queue Construct As
+
+The `list` command supports the `--queue-construct-as` flag (or its shorter alias `--as`) to sort output based on the dependency graph, as if a particular command was run.
+
+For example, when using the `plan` command:
+
+```bash
+$ terragrunt list --queue-construct-as=plan
+stacks/live/dev      stacks/live/prod     units/live/dev/vpc
+units/live/prod/vpc  units/live/dev/db    units/live/prod/db
+units/live/dev/ec2   units/live/prod/ec2
+```
+
+This will sort the output based on the dependency graph, as if the `plan` command was run. All dependent units will appear *after* the units they depend on.
+
+When using the `destroy` command:
+
+```bash
+$ terragrunt list --queue-construct-as=destroy
+stacks/live/dev      stacks/live/prod     units/live/dev/ec2
+units/live/prod/ec2  units/live/dev/db    units/live/prod/db
+units/live/dev/vpc   units/live/prod/vpc
+```
+
+This will sort the output based on the dependency graph, as if the `destroy` command was run. All dependent units will appear *before* the units they depend on.
+
+**Note:** The `--queue-construct-as` flag implies the `--dag` flag.
+
+## Dependencies and Discovery
+
+### Dependencies
+
+Include dependency information in the output using the `--dependencies` flag. When combined with different grouping options, this provides powerful ways to visualize your infrastructure's dependency structure.
+
+### External Dependencies
+
+Use the `--external` flag to discover and include dependencies that exist outside your current working directory. This is particularly useful when working with shared modules or cross-repository dependencies.
+
+### Hidden Configurations
+
+By default, Terragrunt excludes configurations in hidden directories (those starting with a dot). Use the `--hidden` flag to include these configurations in the output.
+
+## Working Directory
+
+You can change the working directory for `list` by using the global `--working-dir` flag:
+
+```bash
+terragrunt list --working-dir=/path/to/working/dir
+```
+
+## Color Output
+
+When used without any flags, all units and stacks discovered in the current working directory are displayed in colorful text format.
+
+<Aside type="note" title="Color Coding">
+Discovered configurations are color coded to help you identify them at a glance:
+
+- <Badge text="Units" style={{ backgroundColor: '#1B46DD', color: '#FFFFFF' }} /> are displayed in blue
+- <Badge text="Stacks" style={{ backgroundColor: '#2E8B57', color: '#FFFFFF' }} /> are displayed in green
+</Aside>
+
+You can disable color output by using the global `--no-color` flag.

@@ -4,9 +4,6 @@ description: Print out a short description of Terragrunt context.
 slug: docs/reference/cli/commands/info/print
 sidebar:
   order: 1200
-  badge:
-    text: exp
-    variant: tip
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->

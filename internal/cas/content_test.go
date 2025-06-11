@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +16,7 @@ const testHashValue = "abcdef123456"
 func TestContent_Store(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
@@ -26,7 +26,7 @@ func TestContent_Store(t *testing.T) {
 		testHash := testHashValue
 		testData := []byte("test content")
 
-		err := content.Store(&l, testHash, testData)
+		err := content.Store(l, testHash, testData)
 		require.NoError(t, err)
 
 		// Verify content was stored
@@ -48,9 +48,9 @@ func TestContent_Store(t *testing.T) {
 		differentData := []byte("different content")
 
 		// Store content twice
-		err := content.Ensure(&l, testHash, testData)
+		err := content.Ensure(l, testHash, testData)
 		require.NoError(t, err)
-		err = content.Ensure(&l, testHash, differentData)
+		err = content.Ensure(l, testHash, differentData)
 		require.NoError(t, err)
 
 		// Verify original content remains
@@ -72,9 +72,9 @@ func TestContent_Store(t *testing.T) {
 		differentData := []byte("different content")
 
 		// Store content twice
-		err := content.Store(&l, testHash, testData)
+		err := content.Store(l, testHash, testData)
 		require.NoError(t, err)
-		err = content.Store(&l, testHash, differentData)
+		err = content.Store(l, testHash, differentData)
 		require.NoError(t, err)
 
 		// Verify original content remains
@@ -89,7 +89,7 @@ func TestContent_Store(t *testing.T) {
 func TestContent_Link(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
@@ -101,7 +101,7 @@ func TestContent_Link(t *testing.T) {
 		testData := []byte("test content")
 
 		// First store some content
-		err := content.Store(&l, testHash, testData)
+		err := content.Store(l, testHash, testData)
 		require.NoError(t, err)
 
 		// Then create a link to it
@@ -133,7 +133,7 @@ func TestContent_Link(t *testing.T) {
 		testData := []byte("test content")
 
 		// Store content
-		err := content.Store(&l, testHash, testData)
+		err := content.Store(l, testHash, testData)
 		require.NoError(t, err)
 
 		// Create target file

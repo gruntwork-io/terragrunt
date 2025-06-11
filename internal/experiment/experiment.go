@@ -1,5 +1,5 @@
 // Package experiment provides utilities used by Terragrunt to support an "experiment" mode.
-// By default experiment mode is disabled, but when enabled, experimental features can be enabled.
+// By default, experiment mode is disabled, but when enabled, experimental features can be enabled.
 // These features are not yet stable and may change in the future.
 //
 // Note that any behavior outlined here should be documented in /docs/_docs/04_reference/experiments.md
@@ -23,6 +23,10 @@ const (
 	// CAS is the experiment that enables using the CAS package for git operations
 	// in the catalog command, which provides better performance through content-addressable storage.
 	CAS = "cas"
+	// Report is the experiment that enables the new run report.
+	Report = "report"
+	// RunnerPool is the experiment that allows using a pool of runners for parallel execution.
+	RunnerPool = "runner-pool"
 )
 
 const (
@@ -43,13 +47,21 @@ func NewExperiments() Experiments {
 			Name: Symlinks,
 		},
 		{
-			Name: CLIRedesign,
+			Name:   CLIRedesign,
+			Status: StatusCompleted,
 		},
 		{
-			Name: Stacks,
+			Name:   Stacks,
+			Status: StatusCompleted,
 		},
 		{
 			Name: CAS,
+		},
+		{
+			Name: Report,
+		},
+		{
+			Name: RunnerPool,
 		},
 	}
 }
@@ -123,7 +135,7 @@ func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 		return
 	}
 
-	logger.Warnf(NewCompletedExperimentsError(completed.Names()).Error())
+	logger.Warnf(NewCompletedExperimentsWarning(completed.Names()).String())
 }
 
 // Evaluate returns true if the experiment is found and enabled otherwise returns false.
@@ -151,6 +163,8 @@ func (exps Experiment) String() string {
 }
 
 // Evaluate returns true the experiment is enabled.
+//
+// If the experiment is completed, consider it permanently enabled.
 func (exps Experiment) Evaluate() bool {
-	return exps.Enabled
+	return exps.Enabled || exps.Status == StatusCompleted
 }

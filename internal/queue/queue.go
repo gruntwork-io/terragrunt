@@ -23,118 +23,227 @@
 package queue
 
 import (
+	"errors"
+	"slices"
 	"sort"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-type Queue struct {
-	entries discovery.DiscoveredConfigs
+type Entry struct {
+	Config *discovery.DiscoveredConfig
+	Status Status
 }
 
-// Entries returns the queue entries. Used for testing.
-func (q *Queue) Entries() []*discovery.DiscoveredConfig {
-	return q.entries
+type Status byte
+
+const (
+	StatusPending Status = iota
+	StatusBlocked
+	StatusUnsorted
+	StatusReady
+)
+
+// UpdateBlocked updates the status of the entry to blocked, if it is blocked.
+// An entry is blocked if:
+//  1. It is an "up" command (none of destroy, apply -destroy or plan -destroy)
+//     and it has dependencies that are not ready.
+//  2. It is a "down" command (destroy, apply -destroy or plan -destroy)
+//     and it has dependents that are not ready.
+//
+// If the entry isn't blocked, then it is marked as unsorted, and is ready to be sorted.
+func (e *Entry) UpdateBlocked(entries Entries) {
+	// If the entry is already ready, we can skip the rest of the logic.
+	if e.Status == StatusReady {
+		return
+	}
+
+	if e.IsUp() {
+		for _, dep := range e.Config.Dependencies {
+			depEntry := entries.Entry(dep)
+			if depEntry == nil {
+				continue
+			}
+
+			if !depEntry.IsUp() {
+				continue
+			}
+
+			if depEntry.Status != StatusReady {
+				e.Status = StatusBlocked
+				return
+			}
+		}
+
+		e.Status = StatusUnsorted
+
+		return
+	}
+
+	// If the entry is a "down" command, we need to check if all of its dependents are ready.
+	for _, qEntry := range entries {
+		if qEntry.Config.Dependencies == nil {
+			continue
+		}
+
+		if !slices.Contains(qEntry.Config.Dependencies, e.Config) {
+			continue
+		}
+
+		if qEntry.IsUp() {
+			continue
+		}
+
+		if qEntry.Status != StatusReady {
+			e.Status = StatusBlocked
+			return
+		}
+	}
+
+	e.Status = StatusUnsorted
+}
+
+// IsUp returns true if the entry is an "up" command.
+func (e *Entry) IsUp() bool {
+	// If we don't have a discovery context,
+	// we should assume the command is an "up" command.
+	if e.Config.DiscoveryContext == nil {
+		return true
+	}
+
+	if e.Config.DiscoveryContext.Cmd == "destroy" {
+		return false
+	}
+
+	if e.Config.DiscoveryContext.Cmd == "apply" && slices.Contains(e.Config.DiscoveryContext.Args, "-destroy") {
+		return false
+	}
+
+	if e.Config.DiscoveryContext.Cmd == "plan" && slices.Contains(e.Config.DiscoveryContext.Args, "-destroy") {
+		return false
+	}
+
+	return true
+}
+
+type Queue struct {
+	Entries Entries
+}
+
+type Entries []*Entry
+
+// Entry returns a given entry from the queue.
+func (e Entries) Entry(cfg *discovery.DiscoveredConfig) *Entry {
+	for _, entry := range e {
+		if entry.Config.Path == cfg.Path {
+			return entry
+		}
+	}
+
+	return nil
+}
+
+// Configs returns the queue configs.
+func (q *Queue) Configs() discovery.DiscoveredConfigs {
+	result := make(discovery.DiscoveredConfigs, 0, len(q.Entries))
+	for _, entry := range q.Entries {
+		result = append(result, entry.Config)
+	}
+
+	return result
 }
 
 // NewQueue creates a new queue from a list of discovered configurations.
 // The queue is populated with the correct Terragrunt run order.
-// Dependencies are guaranteed to come before their dependents.
-// Items with the same dependencies are sorted alphabetically.
-// Passing dependencies that that haven't been checked for cycles is unsafe.
+//
+// Discovered configurations will be sorted based on two criteria:
+//
+//  1. The discovery context of the configuration:
+//     - If the configuration is for an "up" command (none of destroy, apply -destroy or plan -destroy),
+//     it will be inserted at the front of the queue, before its dependencies.
+//     - Otherwise, it is considered a "down" command, and will be inserted at the back of the queue,
+//     after its dependents.
+//
+//  2. The name of the configuration. Configurations of the same "level" are sorted alphabetically.
+//
+// Passing configurations that haven't been checked for cycles in their dependency graph is unsafe.
 // If any cycles are present, the queue construction will halt after N
 // iterations, where N is the number of discovered configs, and throw an error.
 func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	if len(discovered) == 0 {
 		return &Queue{
-			entries: discovered,
+			Entries: Entries{},
 		}, nil
 	}
 
-	// Create a map for O(1) lookups of configs by path
-	configMap := make(map[string]*discovery.DiscoveredConfig, len(discovered))
+	// First, we need to take all the discovered configs
+	// and assign them a status of pending.
+	entries := make(Entries, 0, len(discovered))
+
 	for _, cfg := range discovered {
-		configMap[cfg.Path] = cfg
+		entries = append(entries, &Entry{
+			Config: cfg,
+			Status: StatusPending,
+		})
 	}
 
-	// Track if a given config has been processed
-	visited := make(map[string]bool, len(discovered))
+	q := &Queue{
+		Entries: entries,
+	}
 
-	// result will store configs in dependency order
-	result := make(discovery.DiscoveredConfigs, 0, len(discovered))
-
-	// depthBudget is initially the maximum dependency depth of the queue
-	// Given that a cycle-free graph has a maximum depth of N, we can
-	// use the length of the discovered configs as a safe upper bound.
-	depthBudget := len(discovered)
-
-	// Process nodes level by level, with deterministic ordering within each level
-	var processLevel func(configs discovery.DiscoveredConfigs) error
-	processLevel = func(configs discovery.DiscoveredConfigs) error {
-		// We need to check to see if we've reached
-		// the maximum allowed iterations.
-		if depthBudget < 0 {
-			return errors.New("cycle detected during queue construction")
+	// readyPending returns the index of the first pending entry if there is one,
+	// or -1 if there are no pending entries.
+	readyPending := func(entries Entries) int {
+		// Next, we need to iterate through the entries
+		// and check if any of them are blocked.
+		for _, entry := range entries {
+			entry.UpdateBlocked(entries)
 		}
 
-		depthBudget--
-
-		levelNodes := make([]*discovery.DiscoveredConfig, 0, len(configs))
-
-		for _, cfg := range configs {
-			if visited[cfg.Path] {
-				continue
+		// Next, we need to sort the entries by status and path.
+		sort.SliceStable(entries, func(i, j int) bool {
+			if entries[i].Status > entries[j].Status {
+				return true
 			}
 
-			hasUnprocessedDeps := false
-
-			// Only consider dependencies that exist in our discovered configs
-			for _, dep := range cfg.Dependencies {
-				if _, exists := configMap[dep.Path]; !exists {
-					continue // Skip dependencies that don't exist in our discovered configs
-				}
-
-				if !visited[dep.Path] {
-					hasUnprocessedDeps = true
-					break
-				}
+			if entries[i].Status == StatusUnsorted && entries[j].Status == StatusUnsorted {
+				return entries[i].Config.Path < entries[j].Config.Path
 			}
 
-			if !hasUnprocessedDeps {
-				levelNodes = append(levelNodes, cfg)
-			}
-		}
-
-		// Sort nodes by path for deterministic ordering within each level
-		sort.SliceStable(levelNodes, func(i, j int) bool {
-			return levelNodes[i].Path < levelNodes[j].Path
+			return false
 		})
 
-		// Add all nodes at this level to result
-		for _, node := range levelNodes {
-			visited[node.Path] = true
+		// Now, we can mark all unsorted entries as ready,
+		// and check if all entries are ready.
+		for idx, entry := range entries {
+			if entry.Status == StatusUnsorted {
+				entry.Status = StatusReady
+			}
 
-			result = append(result, node)
+			if entry.Status != StatusReady {
+				return idx
+			}
 		}
 
-		// If every node has been visited, we're done
-		if len(visited) == len(discovered) {
-			return nil
+		return -1
+	}
+
+	// We need to iterate through the entries until all entries are ready.
+	// We can use the length of the entries as a safe upper bound for the number of iterations,
+	// because a cycle-free graph has a maximum depth of N, where N is the number of discovered configs.
+	maxIterations := len(entries)
+
+	// We keep track of the index of the first pending entry
+	// to save us from iterating through the entire list of entries
+	// on each iteration.
+	firstPending := 0
+
+	for range maxIterations {
+		firstPending = readyPending(entries[firstPending:])
+		if firstPending == -1 {
+			return q, nil
 		}
-
-		// Process next level
-		return processLevel(configs)
 	}
 
-	// Start with all configs
-	if err := processLevel(discovered); err != nil {
-		return &Queue{
-			entries: result,
-		}, err
-	}
-
-	return &Queue{
-		entries: result,
-	}, nil
+	return q, errors.New("cycle detected during queue construction")
 }

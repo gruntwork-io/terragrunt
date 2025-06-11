@@ -1,0 +1,19 @@
+approved = [
+  "apache-2.0",
+  "bsd-2-clause",
+  "bsd-3-clause",
+  "isc",
+  "mpl-2.0",
+  "mit",
+]
+
+ignored = [
+  "github.com/terraform-linters/tflint-plugin-sdk",
+  "github.com/owenrumney/go-sarif",
+  "github.com/davecgh/go-spew"
+]
+
+
+[header]
+ignorePaths = ["vendor", ".gen"]
+ignoreFiles = ["mock_*.go", "*_gen.go"]

@@ -35,9 +35,9 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 		"found_in_file": terragruntHCL,
 	}
 
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --non-interactive --log-level trace --working-dir %s  --json-out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir %s  --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -132,10 +132,10 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureRenderJSONInputs, "dependency")
 	appPath := util.JoinPath(tmpEnvPath, testFixtureRenderJSONInputs, "app")
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+dependencyPath)
-	helpers.RunTerragrunt(t, "terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-working-dir "+appPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+dependencyPath)
+	helpers.RunTerragrunt(t, "terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir "+appPath)
 
-	jsonOut := filepath.Join(appPath, "terragrunt_rendered.json")
+	jsonOut := filepath.Join(appPath, "terragrunt.rendered.json")
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -176,9 +176,9 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 		"found_in_file": util.JoinPath(tmpDir, "terragrunt.hcl"),
 	}
 
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir %s  --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -245,9 +245,9 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 		"found_in_file": commonHcl,
 	}
 
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir %s  --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -343,9 +343,9 @@ func TestRenderJsonMetadataDependency(t *testing.T) {
 		"found_in_file": terragruntHcl,
 	}
 
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir %s  --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -418,9 +418,9 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 		"found_in_file": remoteStateHcl,
 	}
 
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir %s  --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -486,7 +486,7 @@ func TestRenderJsonMetadataDependencyModulePrefix(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app")
 
-	helpers.RunTerragrunt(t, "terragrunt run-all render-json --terragrunt-forward-tf-stdout --with-metadata --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+tmpDir)
+	helpers.RunTerragrunt(t, "terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir "+tmpDir)
 }
 
 func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
@@ -496,8 +496,8 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --with-metadata --non-interactive --log-level trace --working-dir %s --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -522,14 +522,14 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt render-json --help --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt render --help --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 
 	output := showStdout.String()
 
-	assert.Contains(t, output, "terragrunt render-json")
+	assert.Contains(t, output, "terragrunt render")
 	assert.Contains(t, output, "--with-metadata")
 }
 
@@ -540,8 +540,8 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --log-level trace --working-dir %s --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -562,8 +562,8 @@ func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
 
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-json-disable-dependent-modules --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --disable-dependent-modules --non-interactive --log-level trace --working-dir %s --out %s", tmpDir, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)

@@ -12,7 +12,7 @@ import (
 func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		value    any
 		expected string
 	}{
@@ -20,15 +20,13 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 		{[]string{"10.0.0.0/16", "10.0.0.10/16"}, "[\"10.0.0.0/16\",\"10.0.0.10/16\"]"},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := util.AsTerraformEnvVarJSONValue(tt.value)
+			actual, err := util.AsTerraformEnvVarJSONValue(tc.value)
 			require.NoError(t, err)
-			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }

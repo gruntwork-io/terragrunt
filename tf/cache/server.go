@@ -19,9 +19,8 @@ import (
 type Server struct {
 	*router.Router
 	*Config
-
-	services           []services.Service
 	ProviderController *controllers.ProviderController
+	services           []services.Service
 }
 
 // NewServer returns a new Server instance.

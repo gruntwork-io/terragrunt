@@ -11,7 +11,7 @@ nav_title_link: /docs/
 slug: configuration
 ---
 
-Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the same HCL syntax as OpenTofu/Terraform itself.
+Terragrunt unit configuration is defined in `terragrunt.hcl` files. These files use the same HCL syntax as OpenTofu/Terraform itself.
 
 Here’s an example:
 
@@ -82,7 +82,19 @@ Note that the parsing order is slightly different when using the `-all` flavors 
 
 The results of this pass are then used to build the dependency graph of the units in the stack. Once the graph is constructed, Terragrunt will loop through the units and run the specified command. It will then revert to the single configuration parsing order specified above for each unit as it runs the command.
 
-This allows Terragrunt to avoid resolving `dependency` on units that haven’t been applied yet when doing a clean deployment from scratch with `run-all apply`.
+This allows Terragrunt to avoid resolving `dependency` on units that haven’t been applied yet when doing a clean deployment from scratch with `run --all apply`.
+
+## Stacks
+
+When multiple units, each with their own `terragrunt.hcl` file exist in child directories of a single parent directory, that parent directory becomes a [stack](/docs/getting-started/terminology#stack).
+
+To make it easier to generate configurations like this, Terragrunt has special tooling in the form of `terragrunt.stack.hcl` files. `terragrunt.stack.hcl` files support all the same HCL functions as `terragrunt.hcl` files, however, they don't support any top-level attributes, and the configuration blocks they support are limited to the following:
+
+- [unit](/docs/reference/config-blocks-and-attributes/#unit)
+- [stack](/docs/reference/config-blocks-and-attributes/#stack)
+- [locals](/docs/reference/config-blocks-and-attributes/#locals)
+
+These special configurations are used by the [stack generate command](/docs/reference/cli/commands/stack/generate) (and all the other `stack` prefixed commands) to generate units programmatically, on demand. The units they generate are valid unit configurations, and can be read and used as if they were manually authored.
 
 ## Formatting HCL files
 

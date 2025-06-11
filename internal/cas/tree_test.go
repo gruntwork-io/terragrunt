@@ -1,7 +1,6 @@
 package cas_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,8 +87,8 @@ func TestParseTree(t *testing.T) {
 		name     string
 		input    string
 		path     string
-		wantLen  int
 		wantPath string
+		wantLen  int
 		wantErr  bool
 	}{
 		{
@@ -141,9 +140,9 @@ func TestLinkTree(t *testing.T) {
 		treeData   string
 		wantFiles  []struct {
 			path    string
+			hash    string
 			content []byte
 			isDir   bool
-			hash    string
 		}
 		wantErr bool
 	}{
@@ -175,9 +174,9 @@ func TestLinkTree(t *testing.T) {
 040000 tree i9j0k1l2 src`,
 			wantFiles: []struct {
 				path    string
+				hash    string
 				content []byte
 				isDir   bool
-				hash    string
 			}{
 				{
 					path:    "README.md",
@@ -215,9 +214,9 @@ func TestLinkTree(t *testing.T) {
 			treeData: "",
 			wantFiles: []struct {
 				path    string
+				hash    string
 				content []byte
 				isDir   bool
-				hash    string
 			}{},
 		},
 		{
@@ -249,7 +248,7 @@ func TestLinkTree(t *testing.T) {
 			targetDir := t.TempDir()
 
 			// Link the tree
-			err = tree.LinkTree(context.Background(), store, targetDir)
+			err = tree.LinkTree(t.Context(), store, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

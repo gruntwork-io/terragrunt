@@ -1,3 +1,13 @@
+//go:build sops
+
+// sops tests assume that you're going to import the test_pgp_key.asc file into your GPG keyring before
+// running the tests. We're not gonna assume that everyone is going to do this, so we're going to skip
+// these tests by default.
+//
+// You can import the key by running the following command:
+//
+//	gpg --import --no-tty --batch --yes ./test/fixtures/sops/test_pgp_key.asc
+
 package test_test
 
 import (
@@ -19,19 +29,19 @@ const (
 	testFixtureSopsMissing = "fixtures/sops-missing"
 )
 
-func TestSopsDecryptedCorrectly(t *testing.T) {
+func TestSOPSDecryptedCorrectly(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -52,23 +62,20 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
 }
 
-func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
+func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/../.. --terragrunt-include-dir %s", rootPath, testFixtureSops))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- apply -auto-approve")
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s/../.. --terragrunt-include-dir %s", rootPath, testFixtureSops), &stdout, &stderr)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s/../.. --queue-include-dir %s", rootPath, testFixtureSops)+" -- output -no-color -json")
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	assert.Equal(t, []any{true, false}, outputs["json_bool_array"].Value)
 	assert.Equal(t, []any{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
@@ -85,7 +92,7 @@ func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
 	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
 }
 
-func TestTerragruntLogSopsErrors(t *testing.T) {
+func TestSOPSTerragruntLogSopsErrors(t *testing.T) {
 	t.Parallel()
 
 	// create temporary directory for plan files
@@ -94,14 +101,14 @@ func TestTerragruntLogSopsErrors(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureSopsErrors)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+testPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+testPath)
 	require.Error(t, err)
 
 	assert.Contains(t, errorOut, "error decrypting key: [error decrypting key")
 	assert.Contains(t, errorOut, "error base64-decoding encrypted data key: illegal base64 data at input byte")
 }
 
-func TestSopsDecryptOnMissing(t *testing.T) {
+func TestSOPSDecryptOnMissing(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureSopsMissing)
@@ -109,12 +116,11 @@ func TestSopsDecryptOnMissing(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSopsMissing)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+rootPath)
 	require.Error(t, err)
 
 	errorOut = strings.ReplaceAll(errorOut, "\n", " ")
 
 	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
-	assert.Contains(t, errorOut, "./missing.yaml: no such file")
-
+	assert.Regexp(t, `\./missing\.yaml:.+no such file`, errorOut)
 }

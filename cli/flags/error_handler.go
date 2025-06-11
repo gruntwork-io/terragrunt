@@ -26,11 +26,11 @@ func ErrorHandler(commands cli.Commands) cli.FlagErrHandlerFunc {
 				cmdHint  = strings.Join(cmds.Names(), " ")
 			)
 
-			if ctx.Parent().Command == nil {
-				return NewGlobalFlagHintError(undefFlag, cmdHint, flagHint)
+			if ctx.Parent().Command != nil {
+				return NewCommandFlagHintError(ctx.Command.Name, undefFlag, cmdHint, flagHint)
 			}
 
-			return NewCommandFlagHintError(ctx.Command.Name, undefFlag, cmdHint, flagHint)
+			return NewGlobalFlagHintError(undefFlag, cmdHint, flagHint)
 		}
 
 		return err

@@ -1,0 +1,49 @@
+name: Strict Lint
+
+on:
+  push:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up mise
+      uses: jdx/mise-action@v2
+      with:
+        version: 2025.4.4
+        experimental: true
+      env:
+        # Adding token here to reduce the likelihood of hitting rate limit issues.
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - id: go-cache-paths
+      run: |
+        echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+        # TODO: Make this less brittle.
+        echo "golanci-lint-cache=/home/runner/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
+
+    - name: Go Build Cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.go-cache-paths.outputs.go-build }}
+        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
+
+    - name: Go Mod Cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.go-cache-paths.outputs.go-mod }}
+        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-linux-amd64
+
+    - name: golangci-lint Cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.go-cache-paths.outputs.golanci-lint-cache }}
+        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-linux-amd64
+
+    - name: Strict Lint
+      run: make run-strict-lint

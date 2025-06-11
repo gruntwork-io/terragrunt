@@ -786,6 +786,10 @@ inputs = {
 }
 ```
 
+Notes:
+
+- `read_terragrunt_config` can be also used to read `terragrunt.stack.hcl` and `terragrunt.values.hcl` files.
+
 ## sops_decrypt_file
 
 `sops_decrypt_file(file_path)` decrypts a yaml, json, ini, env or "raw text" file encrypted with `sops`.
@@ -902,12 +906,47 @@ inputs = {
 ```
 
 By using `mark_as_read` on `file-read-by-tofu.txt`, you can ensure that the `terragrunt.hcl` file passing in the `file-read-by-tofu.txt` file as an input will be included in
-any `run-all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
+any `run --all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
 
 The same technique can be used to mark a file as read when reading a file using code in `run_cmd`, etc.
 
 **NOTE**: Due to the way that Terragrunt enqueues files we require an absolute path for mark_as_read to avoid multiple inclusions.
 
-**NOTE**: Due to the way that Terragrunt parses configurations during a `run-all`, functions will only properly mark files as read
+**NOTE**: Due to the way that Terragrunt parses configurations during a `run --all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
 block is not evaluated until *after* the queue has been populated with units to run.
+
+## constraint_check
+
+`constraint_check(version, constraint)` checks if a given version satisfies a given constraint.
+
+This particularly is useful for situations where you want to change the runtime behavior of Terragrunt based on the version of an OpenTofu/Terraform module.
+
+For example:
+
+```hcl
+feature "module_version" {
+  default = "1.2.3"
+}
+
+locals {
+  module_version       = feature.module_version.value
+  needs_v2_adjustments = constraint_check(local.module_version, ">= 2.0.0")
+}
+
+terraform {
+  source = "github.com/my-org/my-module.git//?ref=v${local.module_version}"
+}
+
+inputs = !local.needs_v2_adjustments ? {
+  old_module_input_name = "old_module_input_value"
+} : {
+  new_module_input_name = "new_module_input_value"
+}
+```
+
+In this example, the `v2.0.0` version of the module made a breaking change to rename an input variable from `old_module_input_name` to `new_module_input_name`.
+
+Instead of carefully coordinating the version update with the corresponding input change, users can set a feature flag to control opt-in of the new module version, and have Terragrunt dynamically adjust the input variable name based on the constraint check, that the module version is greater than or equal to `2.0.0`.
+
+The HCL function supports all the same constraints that you can use for version constraints in [terragrunt_version_constraint](/docs/reference/config-blocks-and-attributes/#terragrunt_version_constraint) and [terraform_version_constraint](/docs/reference/config-blocks-and-attributes/#terraform_version_constraint).

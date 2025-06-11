@@ -26,7 +26,7 @@ func TestFeatureFlagDefaults(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := util.JoinPath(tmpEnvPath, testSimpleFlag)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	validateOutputs(t, rootPath)
 }
@@ -38,7 +38,7 @@ func TestFeatureFlagCli(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := util.JoinPath(tmpEnvPath, testSimpleFlag)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --feature int_feature_flag=777 --feature bool_feature_flag=true --feature string_feature_flag=tomato --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --feature int_feature_flag=777 --feature bool_feature_flag=true --feature string_feature_flag=tomato --non-interactive --working-dir "+rootPath)
 
 	expected := expectedDefaults()
 	expected["int_feature_flag"] = 777
@@ -54,23 +54,23 @@ func TestFeatureApplied(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := util.JoinPath(tmpEnvPath, testSimpleFlag)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --feature bool_feature_flag=true --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --feature bool_feature_flag=true --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "running conditional bool_feature_flag")
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --feature bool_feature_flag=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --feature bool_feature_flag=false --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.NotContains(t, stdout, "running conditional bool_feature_flag")
 }
 
 func TestFeatureFlagEnv(t *testing.T) {
-	t.Setenv("TERRAGRUNT_FEATURE", "int_feature_flag=111,bool_feature_flag=true,string_feature_flag=xyz")
+	t.Setenv("TG_FEATURE", "int_feature_flag=111,bool_feature_flag=true,string_feature_flag=xyz")
 
 	cleanupTerraformFolder(t, testSimpleFlag)
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleFlag)
 	rootPath := util.JoinPath(tmpEnvPath, testSimpleFlag)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	expected := expectedDefaults()
 	expected["int_feature_flag"] = 111
@@ -86,7 +86,7 @@ func TestFeatureIncludeFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testIncludeFlag)
 	rootPath := util.JoinPath(tmpEnvPath, testIncludeFlag, "app")
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --log-level trace --non-interactive --working-dir "+rootPath)
 
 	validateOutputs(t, rootPath)
 }
@@ -100,7 +100,7 @@ func TestFeatureFlagRunAll(t *testing.T) {
 	app1 := util.JoinPath(tmpEnvPath, testRunAllFlag, "app1")
 	app2 := util.JoinPath(tmpEnvPath, testRunAllFlag, "app2")
 
-	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	validateOutputs(t, app1)
 	validateOutputs(t, app2)
@@ -113,7 +113,7 @@ func TestFailOnEmptyFeatureFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testErrorEmptyFlag)
 	rootPath := util.JoinPath(tmpEnvPath, testErrorEmptyFlag)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
 
 	message := err.Error()
@@ -140,7 +140,7 @@ func validateOutputsMap(t *testing.T, rootPath string, expected map[string]any) 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	cmd := "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir " + rootPath
+	cmd := "terragrunt output -no-color -json --non-interactive --working-dir " + rootPath
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
@@ -149,6 +149,6 @@ func validateOutputsMap(t *testing.T, rootPath string, expected map[string]any) 
 
 	// Validate outputs against expected values
 	for key, expected := range expected {
-		assert.EqualValues(t, expected, outputs[key].Value)
+		assert.EqualValues(t, expected, outputs[key].Value) //nolint:testifylint
 	}
 }

@@ -39,7 +39,7 @@ func (err BackendNotDefined) Error() string {
 type NoTerraformFilesFound string
 
 func (path NoTerraformFilesFound) Error() string {
-	return "Did not find any Terraform files (*.tf) in " + string(path)
+	return "Did not find any Terraform files (*.tf) or OpenTofu files (*.tofu) in " + string(path)
 }
 
 type ModuleIsProtected struct {
@@ -64,5 +64,5 @@ type RunAllDisabledErr struct {
 }
 
 func (err RunAllDisabledErr) Error() string {
-	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
+	return fmt.Sprintf("%s with run --all is disabled: %s", err.command, err.reason)
 }

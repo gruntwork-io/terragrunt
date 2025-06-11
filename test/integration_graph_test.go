@@ -3,7 +3,6 @@ package test_test
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -47,21 +46,19 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase
-
-		t.Run(testCase.path, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
-			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
+			tmpModulePath := util.JoinPath(fixturePath, tc.path)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
-			for _, modulePath := range testCase.expectedModules {
+			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -70,7 +67,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
 			}
 
-			for _, modulePath := range testCase.notExpectedModules {
+			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -91,39 +88,40 @@ func TestTerragruntApplyGraph(t *testing.T) {
 		expectedModules    []string
 		notExpectedModules []string
 	}{
+		// We can keep this until the graph command is removed.
 		{
-			args:               "graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s",
+			args:               "graph apply --non-interactive --working-dir %s --graph-root %s",
 			path:               "services/eks-service-3-v2",
 			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-3-v3"},
 			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
 		},
 		{
-			args:               "run --graph apply --experiment cli-redesign --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s",
+			args:               "run --graph apply --non-interactive --working-dir %s --graph-root %s",
 			path:               "lambda",
 			expectedModules:    []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
 			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
 		},
 		{
-			args:               "run apply --graph --experiment cli-redesign --non-interactive --working-dir %s --graph-root %s",
+			args:               "run apply --graph --non-interactive --working-dir %s --graph-root %s",
 			path:               "services/eks-service-5",
 			expectedModules:    []string{"services/eks-service-5"},
 			notExpectedModules: []string{"eks", "lambda", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.path, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.path, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
-			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
+			tmpModulePath := util.JoinPath(fixturePath, tc.path)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args, tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
-			for _, modulePath := range testCase.expectedModules {
+			for _, modulePath := range tc.expectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
@@ -132,45 +130,13 @@ func TestTerragruntApplyGraph(t *testing.T) {
 				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
 			}
 
-			for _, modulePath := range testCase.notExpectedModules {
+			for _, modulePath := range tc.notExpectedModules {
 				modulePath = filepath.Join(fixturePath, modulePath)
 
 				relPath, err := filepath.Rel(tmpModulePath, modulePath)
 				require.NoError(t, err)
 
 				assert.NotContainsf(t, output, "Module "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
-			}
-		})
-	}
-}
-
-func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		args string
-	}{
-		{"graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
-		{"render-json --graph --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s"},
-	}
-
-	for _, testCase := range testCases {
-		t.Run("terragrunt args: "+testCase.args, func(t *testing.T) {
-			t.Parallel()
-
-			tmpEnvPath := prepareGraphFixture(t)
-			tmpModulePath := util.JoinPath(tmpEnvPath, testFixtureGraph, "eks")
-
-			stdout := bytes.Buffer{}
-			stderr := bytes.Buffer{}
-
-			err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt "+testCase.args, tmpModulePath, tmpEnvPath), &stdout, &stderr)
-			require.NoError(t, err)
-
-			// check that terragrunt_rendered.json is created in mod1/mod2/mod3
-			for _, module := range []string{"services/eks-service-1", "eks"} {
-				_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureGraph, module, "terragrunt_rendered.json"))
-				require.NoError(t, err)
 			}
 		})
 	}
@@ -185,7 +151,7 @@ func prepareGraphFixture(t *testing.T) string {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	return tmpEnvPath
 }

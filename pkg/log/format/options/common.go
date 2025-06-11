@@ -11,8 +11,8 @@ import (
 )
 
 type CommonOption[T comparable] struct {
-	name  string
 	value OptionValue[T]
+	name  string
 }
 
 // NewCommonOption creates a new Common option.

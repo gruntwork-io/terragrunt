@@ -40,7 +40,7 @@ func TestLogReductionHook(t *testing.T) {
 	var firstLogEntry = ""
 	var secondLogEntry = ""
 
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if strings.Contains(line, "tomato") {
 			firstLogEntry = line
 			continue
