@@ -174,6 +174,10 @@ type TerragruntOptions struct {
 	GraphRoot string
 	// Path to the report file.
 	ReportFile string
+	// Report format.
+	ReportFormat report.Format
+	// Path to the report schema file.
+	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs cli.Args
 	// Unix-style glob of directories to include when running *-all commands
@@ -304,6 +308,8 @@ type TerragruntOptions struct {
 	ForceBackendMigrate bool
 	// SummaryDisable disables the summary output at the end of a run.
 	SummaryDisable bool
+	// SummaryUnitDuration enables showing duration information for each unit in the summary.
+	SummaryUnitDuration bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests

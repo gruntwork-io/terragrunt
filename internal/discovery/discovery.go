@@ -279,8 +279,8 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 
 	hiddenPath := ""
 
-	parts := strings.Split(path, string(os.PathSeparator))
-	for _, part := range parts {
+	parts := strings.SplitSeq(path, string(os.PathSeparator))
+	for part := range parts {
 		hiddenPath = filepath.Join(hiddenPath, part)
 
 		if strings.HasPrefix(part, ".") {

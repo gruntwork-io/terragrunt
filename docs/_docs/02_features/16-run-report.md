@@ -41,6 +41,26 @@ This output is called the "Run Summary". It provides at-a-glance information abo
 - Excluded: The number of units that were excluded from the run (if any were).
 - Early Exits: The number of units that exited early, due to a failure in a dependency (if any did).
 
+### Showing Unit Durations
+
+You can enable showing the duration of each unit in the run summary by using the `--summary-unit-duration` flag.
+
+```bash
+$ terragrunt run --all plan --summary-unit-duration
+
+# Omitted for brevity...
+
+❯❯ Run Summary
+   Duration:   10m
+      long-running-unit:    10m
+      medium-running-unit:  12s
+      short-running-unit:   5ms
+   Units:      3
+   Succeeded:  3
+```
+
+The units are sorted by duration, with the longest-running units shown first.
+
 ### Disabling the summary
 
 You can disable the summary output by using the `--summary-disable` flag.
@@ -59,7 +79,26 @@ Optionally, you can also generate a detailed report of the run, which has all th
 terragrunt run --all plan --report-file report.csv
 ```
 
-This will generate a report in CSV format at `report.csv` in the current working directory, that looks like the following:
+You can specify the format of the report using the `--report-format` flag, which supports either `csv` or `json`:
+
+```bash
+terragrunt run --all plan --report-file report.json --report-format json
+```
+
+The format can also be inferred from the file extension. If no format is specified and the file has no extension, CSV will be used by default:
+
+```bash
+# Will generate a CSV report
+terragrunt run --all plan --report-file report
+
+# Will generate a JSON report
+terragrunt run --all plan --report-file report.json
+
+# Will generate a CSV report
+terragrunt run --all plan --report-file report.csv
+```
+
+The report will be generated in the specified format at the given path in the current working directory. Here's an example of what the CSV format looks like:
 
 ```csv
 Name,Started,Ended,Result,Reason,Cause
@@ -73,11 +112,99 @@ second-early-exit,2025-06-05T16:28:42-04:00,2025-06-05T16:28:42-04:00,early exit
 first-early-exit,2025-06-05T16:28:42-04:00,2025-06-05T16:28:42-04:00,early exit,run error,
 ```
 
-You can use this file to determine details for each unit run, including the name of the unit, the start and end times, the result, the reason for that result, and the cause for that reason.
+And here's an example of what the JSON format looks like:
+
+```json
+[
+  {
+    "Name": "first-exclude",
+    "Started": "2025-06-05T16:28:41-04:00",
+    "Ended": "2025-06-05T16:28:41-04:00",
+    "Result": "excluded",
+    "Reason": "exclude block"
+  },
+  {
+    "Name": "first-success",
+    "Started": "2025-06-05T16:28:41-04:00",
+    "Ended": "2025-06-05T16:28:41-04:00",
+    "Result": "succeeded"
+  }
+]
+```
+
+You can use this file to determine details for each unit run, including the name of the unit, the start and end times, the result, the reason for that result, and the cause for that reason. Note that in the JSON format, empty fields (Reason and Cause) are omitted entirely rather than being set to empty values.
 
 In general, the schema for this report should change infrequently, but we'll try to keep it up to date here.
 
-In the future, we'll also support a JSON schema file that can be generated alongside the report, so that you have a programmatic way to validate that the report is going to conform to an expected schema.
+You can also generate a JSON schema file for the report, so that you have a programmatic way to validate that the report is going to conform to an expected schema.
+
+```bash
+terragrunt run --all plan --report-schema-file report.schema.json
+```
+
+The schema will be generated at the given path in the current working directory. The generated schema conforms to the [JSON Schema](https://json-schema.org/) standard.
+
+This generated schema will look like the following:
+
+```json
+{
+  "items": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json",
+    "properties": {
+      "Started": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Ended": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Reason": {
+        "type": "string",
+        "enum": [
+          "retry succeeded",
+          "error ignored",
+          "run error",
+          "--queue-exclude-dir",
+          "exclude block",
+          "ancestor error"
+        ]
+      },
+      "Cause": {
+        "type": "string"
+      },
+      "Name": {
+        "type": "string"
+      },
+      "Result": {
+        "type": "string",
+        "enum": [
+          "succeeded",
+          "failed",
+          "early exit",
+          "excluded"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "Started",
+      "Ended",
+      "Name",
+      "Result"
+    ],
+    "title": "Terragrunt Run Report Schema",
+    "description": "Schema for Terragrunt run report"
+  },
+  "type": "array",
+  "title": "Terragrunt Run Report Schema",
+  "description": "Array of Terragrunt runs"
+}
+```
+
+Note the `$id` field, which is used to identify the schema. This is useful to quickly determine which version of the schema is being used. You can also fetch the schema remotely from that URL.
 
 ### Results
 
@@ -108,7 +235,8 @@ Reasons are more granular details of those results, and will always be one of th
 
 Causes indicate the specific reason for a given result, and are generally not guessable. These provide information on the exact mechanism that caused the result.
 
-- `retry succeeded`: You will find the name of the `retry` block that resulted in a successful retry of the unit run.
 - `error ignored`: You will find the name of the `ignore` block that resulted in the error being ignored.
 - `run error`: You will find the actual error message of the unit that failed.
-- `ancestor error`: You will find the name of the unit that failed, and the error message of the failure.
+- `ancestor error`: You will find the name of the unit that failed.
+
+The `retry succeeded` reason does not have a cause. The reason for this is that backwards compatibility with the deprecated [retryable_errors](/docs/reference/config-blocks-and-attributes/#retryable_errors) attribute prevents consistent reporting of the cause, as the `retryable_errors` attribute doesn't have a label. In the future, once the `retryable_errors` attribute is removed, a cause can be added here.

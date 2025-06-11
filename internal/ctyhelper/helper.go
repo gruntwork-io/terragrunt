@@ -53,7 +53,7 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 // can pull out just the Value field we need.
 type CtyJSONOutput struct {
 	Value map[string]any `json:"Value"`
-	Type  interface{}    `json:"Type"`
+	Type  any            `json:"Type"`
 }
 
 // UpdateUnknownCtyValValues deeply updates unknown values with default value

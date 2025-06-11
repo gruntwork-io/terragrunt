@@ -57,7 +57,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			r.WithDisableColor()
 		}
 
+		if opts.ReportFormat != "" {
+			r.WithFormat(opts.ReportFormat)
+		}
+
+		if opts.SummaryUnitDuration {
+			r.WithShowUnitTiming()
+		}
+
 		stackOpts = append(stackOpts, configstack.WithReport(r))
+
+		if opts.ReportSchemaFile != "" {
+			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		}
 
 		if opts.ReportFile != "" {
 			defer r.WriteToFile(opts.ReportFile) //nolint:errcheck

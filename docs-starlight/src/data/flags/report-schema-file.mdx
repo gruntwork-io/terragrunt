@@ -1,0 +1,20 @@
+---
+name: --report-schema-file
+description: |
+  When passed in, a JSON schema for the report will be generated at the specified path.
+type: string
+env:
+  - TG_REPORT_SCHEMA_FILE
+---
+
+This is useful when you need a programmatic way to validate that the report conforms to an expected schema.
+
+### Example
+
+```bash
+terragrunt run --all plan --report-schema-file report.schema.json
+```
+
+The schema will be generated at the given path in the current working directory.
+
+For more information, see the [Run Report](/docs/features/run-report) feature.

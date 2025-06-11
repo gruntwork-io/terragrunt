@@ -3,6 +3,7 @@ package report
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,15 +15,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/invopop/jsonschema"
 	"github.com/mgutz/ansi"
 )
 
 // Report captures data for a report/summary.
 type Report struct {
-	workingDir  string
-	Runs        []*Run
-	mu          sync.RWMutex
-	shouldColor bool
+	workingDir     string
+	format         Format
+	Runs           []*Run
+	mu             sync.RWMutex
+	shouldColor    bool
+	showUnitTiming bool
 }
 
 // Run captures data for a run.
@@ -45,17 +49,27 @@ type Reason string
 // Cause captures the cause of a run.
 type Cause string
 
+// Format captures the format of a report.
+type Format string
+
+const (
+	FormatCSV  Format = "csv"
+	FormatJSON Format = "json"
+)
+
 // Summary formats data from a report for output as a summary.
 type Summary struct {
 	firstRunStart  *time.Time
 	lastRunEnd     *time.Time
 	padder         string
-	TotalUnits     int
+	workingDir     string
+	runs           []*Run
 	UnitsSucceeded int
 	UnitsFailed    int
 	EarlyExits     int
 	Excluded       int
 	shouldColor    bool
+	showUnitTiming bool
 }
 
 // Colorizer is a colorizer for the run summary output.
@@ -65,6 +79,7 @@ type Colorizer struct {
 	failureColorizer     func(string) string
 	exitColorizer        func(string) string
 	excludeColorizer     func(string) string
+	nanosecondColorizer  func(string) string
 	microsecondColorizer func(string) string
 	millisecondColorizer func(string) string
 	secondColorizer      func(string) string
@@ -81,6 +96,7 @@ func NewColorizer(shouldColor bool) *Colorizer {
 			failureColorizer:     func(s string) string { return s },
 			exitColorizer:        func(s string) string { return s },
 			excludeColorizer:     func(s string) string { return s },
+			nanosecondColorizer:  func(s string) string { return s },
 			microsecondColorizer: func(s string) string { return s },
 			millisecondColorizer: func(s string) string { return s },
 			secondColorizer:      func(s string) string { return s },
@@ -95,12 +111,34 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		failureColorizer:     ansi.ColorFunc("red+bh"),
 		exitColorizer:        ansi.ColorFunc("yellow+bh"),
 		excludeColorizer:     ansi.ColorFunc("blue+bh"),
+		nanosecondColorizer:  ansi.ColorFunc("cyan+bh"),
 		microsecondColorizer: ansi.ColorFunc("cyan+bh"),
 		millisecondColorizer: ansi.ColorFunc("cyan+bh"),
 		secondColorizer:      ansi.ColorFunc("green+bh"),
 		minuteColorizer:      ansi.ColorFunc("yellow+bh"),
 		defaultColorizer:     ansi.ColorFunc("white+bh"),
 	}
+}
+
+// colorDuration returns the duration as a string, colored based on the duration.
+func (c *Colorizer) colorDuration(duration time.Duration) string {
+	if duration < time.Microsecond {
+		return c.nanosecondColorizer(fmt.Sprintf("%dns", duration.Nanoseconds()))
+	}
+
+	if duration < time.Millisecond {
+		return c.microsecondColorizer(fmt.Sprintf("%dµs", duration.Microseconds()))
+	}
+
+	if duration < time.Second {
+		return c.millisecondColorizer(fmt.Sprintf("%dms", duration.Milliseconds()))
+	}
+
+	if duration < time.Minute {
+		return c.secondColorizer(fmt.Sprintf("%ds", int(duration.Seconds())))
+	}
+
+	return c.minuteColorizer(fmt.Sprintf("%dm", int(duration.Minutes())))
 }
 
 // NewReport creates a new report.
@@ -126,6 +164,22 @@ func (r *Report) WithDisableColor() *Report {
 // WithWorkingDir sets the working directory for the report.
 func (r *Report) WithWorkingDir(workingDir string) *Report {
 	r.workingDir = workingDir
+
+	return r
+}
+
+// WithFormat sets the format for the report.
+func (r *Report) WithFormat(format Format) *Report {
+	r.format = format
+
+	return r
+}
+
+// WithShowUnitTiming sets the showUnitTiming flag for the report.
+//
+// When enabled, the summary of the report will include timings for each unit.
+func (r *Report) WithShowUnitTiming() *Report {
+	r.showUnitTiming = true
 
 	return r
 }
@@ -327,9 +381,11 @@ const (
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
-		TotalUnits:  len(r.Runs),
-		shouldColor: r.shouldColor,
-		padder:      " ",
+		workingDir:     r.workingDir,
+		shouldColor:    r.shouldColor,
+		showUnitTiming: r.showUnitTiming,
+		padder:         " ",
+		runs:           r.Runs,
 	}
 
 	if os.Getenv(envTmpUndocumentedReportPadder) != "" {
@@ -345,6 +401,10 @@ func (r *Report) Summarize() *Summary {
 	}
 
 	return summary
+}
+
+func (s *Summary) TotalUnits() int {
+	return len(s.runs)
 }
 
 func (s *Summary) Update(run *Run) {
@@ -385,25 +445,13 @@ func (s *Summary) TotalDuration() time.Duration {
 func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 	duration := s.TotalDuration()
 
-	if duration < time.Millisecond {
-		return colorizer.microsecondColorizer(fmt.Sprintf("%dµs", duration.Microseconds()))
-	}
-
-	if duration < time.Second {
-		return colorizer.millisecondColorizer(fmt.Sprintf("%dms", duration.Milliseconds()))
-	}
-
-	if duration < time.Minute {
-		return colorizer.secondColorizer(fmt.Sprintf("%ds", int(duration.Seconds())))
-	}
-
-	return colorizer.minuteColorizer(fmt.Sprintf("%dm", int(duration.Minutes())))
+	return colorizer.colorDuration(duration)
 }
 
 // WriteToFile writes the report to a file.
 func (r *Report) WriteToFile(path string) error {
 	// Create a temporary file to write to
-	tmpFile, err := os.CreateTemp("", "terragrunt-report-*.csv")
+	tmpFile, err := os.CreateTemp("", "terragrunt-report-*")
 	if err != nil {
 		return err
 	}
@@ -414,7 +462,15 @@ func (r *Report) WriteToFile(path string) error {
 	r.mu.Unlock()
 
 	// Write the report to the temporary file
-	err = r.WriteCSV(tmpFile)
+	switch r.format {
+	case FormatCSV:
+		err = r.WriteCSV(tmpFile)
+	case FormatJSON:
+		err = r.WriteJSON(tmpFile)
+	default:
+		return fmt.Errorf("unsupported format: %s", r.format)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to write report: %w", err)
 	}
@@ -496,6 +552,137 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	return nil
 }
 
+// JSONRun represents a run in JSON format.
+type JSONRun struct {
+	// Started is the time when the run started.
+	Started time.Time `json:"Started" jsonschema:"required"`
+	// Ended is the time when the run ended.
+	Ended time.Time `json:"Ended" jsonschema:"required"`
+	// Reason is the reason for the run result, if any.
+	Reason *string `json:"Reason,omitempty" jsonschema:"enum=retry succeeded,enum=error ignored,enum=run error,enum=--queue-exclude-dir,enum=exclude block,enum=ancestor error"`
+	// Cause is the cause of the run result, if any.
+	Cause *string `json:"Cause,omitempty"`
+	// Name is the name of the run.
+	Name string `json:"Name" jsonschema:"required"`
+	// Result is the result of the run.
+	Result string `json:"Result" jsonschema:"required,enum=succeeded,enum=failed,enum=early exit,enum=excluded"`
+}
+
+// WriteJSON writes the report to a writer in JSON format.
+func (r *Report) WriteJSON(w io.Writer) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	runs := make([]JSONRun, 0, len(r.Runs))
+
+	for _, run := range r.Runs {
+		run.mu.RLock()
+		defer run.mu.RUnlock()
+
+		name := run.Path
+		if r.workingDir != "" {
+			name = strings.TrimPrefix(name, r.workingDir+string(os.PathSeparator))
+		}
+
+		jsonRun := JSONRun{
+			Name:    name,
+			Started: run.Started,
+			Ended:   run.Ended,
+			Result:  string(run.Result),
+		}
+
+		if run.Reason != nil {
+			reason := string(*run.Reason)
+			jsonRun.Reason = &reason
+		}
+
+		if run.Cause != nil {
+			cause := string(*run.Cause)
+			if run.Reason != nil && *run.Reason == ReasonAncestorError && r.workingDir != "" {
+				cause = strings.TrimPrefix(cause, r.workingDir+string(os.PathSeparator))
+			}
+
+			jsonRun.Cause = &cause
+		}
+
+		runs = append(runs, jsonRun)
+	}
+
+	jsonBytes, err := json.MarshalIndent(runs, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	jsonBytes = append(jsonBytes, '\n')
+
+	_, err = w.Write(jsonBytes)
+
+	return err
+}
+
+// WriteSchemaToFile writes a JSON schema for the report to a file.
+func (r *Report) WriteSchemaToFile(path string) error {
+	// Create a temporary file to write to
+	tmpFile, err := os.CreateTemp("", "terragrunt-schema-*")
+	if err != nil {
+		return err
+	}
+
+	// Write the schema to the temporary file
+	if err := r.WriteSchema(tmpFile); err != nil {
+		return fmt.Errorf("failed to write schema: %w", err)
+	}
+
+	// Close the temporary file
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close schema file: %w", err)
+	}
+
+	if r.workingDir != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(r.workingDir, path)
+	}
+
+	// Move the temporary file to the final destination
+	return os.Rename(tmpFile.Name(), path)
+}
+
+// WriteSchema writes a JSON schema for the report to a writer.
+func (r *Report) WriteSchema(w io.Writer) error {
+	// Create a new reflector
+	reflector := jsonschema.Reflector{
+		// Add descriptions from Go comments
+		DoNotReference: true,
+	}
+
+	// Generate the schema for JSONRun
+	schema := reflector.Reflect(&JSONRun{})
+
+	schema.Description = "Schema for Terragrunt run report"
+	schema.Title = "Terragrunt Run Report Schema"
+	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v1/schema.json"
+
+	arraySchema := &jsonschema.Schema{
+		Type:        "array",
+		Title:       "Terragrunt Run Report Schema",
+		Description: "Array of Terragrunt runs",
+		Items:       schema,
+	}
+
+	// Marshal the schema to JSON
+	jsonBytes, err := json.MarshalIndent(arraySchema, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// Add a newline at the end
+	jsonBytes = append(jsonBytes, '\n')
+
+	// Write the schema
+	_, err = w.Write(jsonBytes)
+
+	return err
+}
+
 // WriteSummary writes the summary to a writer.
 func (r *Report) WriteSummary(w io.Writer) error {
 	// Create a line gap before the summary
@@ -531,7 +718,13 @@ func (s *Summary) Write(w io.Writer) error {
 		return err
 	}
 
-	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits))); err != nil {
+	if s.showUnitTiming {
+		if err := s.writeUnitsTiming(w, colorizer); err != nil {
+			return err
+		}
+	}
+
+	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits()))); err != nil {
 		return err
 	}
 
@@ -563,15 +756,16 @@ func (s *Summary) Write(w io.Writer) error {
 }
 
 const (
-	prefix           = "   "
-	runSummaryHeader = "❯❯ Run Summary"
-	durationLabel    = "Duration"
-	unitsLabel       = "Units"
-	successLabel     = "Succeeded"
-	failureLabel     = "Failed"
-	earlyExitLabel   = "Early Exits"
-	excludeLabel     = "Excluded"
-	separator        = ": "
+	prefix               = "   "
+	unitPrefixMultiplier = 2
+	runSummaryHeader     = "❯❯ Run Summary"
+	durationLabel        = "Duration"
+	unitsLabel           = "Units"
+	successLabel         = "Succeeded"
+	failureLabel         = "Failed"
+	earlyExitLabel       = "Early Exits"
+	excludeLabel         = "Excluded"
+	separator            = ": "
 )
 
 func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
@@ -585,6 +779,54 @@ func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
 
 func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) error {
 	_, err := fmt.Fprintf(w, "%s%s%s%s %s\n", prefix, label, separator, s.padding(label), value)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Summary) writeUnitsTiming(w io.Writer, colorizer *Colorizer) error {
+	errs := []error{}
+
+	// Sort the runs by duration, longest first.
+	sortedRuns := slices.Clone(s.runs)
+	slices.SortFunc(sortedRuns, func(a, b *Run) int {
+		aDuration := a.Ended.Sub(a.Started)
+		bDuration := b.Ended.Sub(b.Started)
+
+		return int(bDuration - aDuration)
+	})
+
+	for _, run := range sortedRuns {
+		if err := s.writeUnitTiming(w, run, colorizer); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
+func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) error {
+	duration := run.Ended.Sub(run.Started)
+
+	name := run.Path
+	if s.workingDir != "" {
+		name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+	}
+
+	_, err := fmt.Fprintf(
+		w, "%s%s%s%s %s\n",
+		strings.Repeat(prefix, unitPrefixMultiplier),
+		name,
+		separator,
+		s.unitDurationPadding(name),
+		colorizer.colorDuration(duration),
+	)
 	if err != nil {
 		return err
 	}
@@ -635,6 +877,29 @@ func (s *Summary) padding(label string) string {
 	longestLineLength := s.longestLineLength()
 
 	labelLength := len(prefix) + len(label) + len(separator)
+
+	return strings.Repeat(s.padder, longestLineLength-labelLength)
+}
+
+func (s *Summary) longestUnitDurationLineLength() int {
+	names := make([]int, 0, len(s.runs))
+
+	for _, run := range s.runs {
+		name := run.Path
+		if s.workingDir != "" {
+			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+		}
+
+		names = append(names, len(name))
+	}
+
+	return slices.Max(names) + (len(prefix) * unitPrefixMultiplier) + len(separator)
+}
+
+func (s *Summary) unitDurationPadding(name string) string {
+	longestLineLength := s.longestUnitDurationLineLength()
+
+	labelLength := (len(prefix) * unitPrefixMultiplier) + len(name) + len(separator)
 
 	return strings.Repeat(s.padder, longestLineLength-labelLength)
 }

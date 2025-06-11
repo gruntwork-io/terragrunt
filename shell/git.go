@@ -78,9 +78,9 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	var tags []string
 
-	tagLines := strings.Split(output.Stdout.String(), "\n")
+	tagLines := strings.SplitSeq(output.Stdout.String(), "\n")
 
-	for _, line := range tagLines {
+	for line := range tagLines {
 		fields := strings.Fields(line)
 		if len(fields) >= tagSplitPart {
 			tags = append(tags, fields[1])
