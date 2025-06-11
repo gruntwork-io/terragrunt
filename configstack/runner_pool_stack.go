@@ -191,7 +191,11 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 }
 
 func (stack *RunnerPoolStack) GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
-	return []TerraformModules{stack.modules}, nil
+	groups := make([]TerraformModules, 0, len(stack.modules))
+	for _, module := range stack.modules {
+		groups = append(groups, TerraformModules{module})
+	}
+	return groups, nil
 }
 
 func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {

@@ -14,8 +14,7 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
-
-	//
+	// Run the find command to discover the configs
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --working-dir "+testPath+"  -- apply")
 	require.NoError(t, err)
 
