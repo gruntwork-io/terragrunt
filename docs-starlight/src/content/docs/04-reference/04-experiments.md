@@ -70,6 +70,7 @@ The following experiments are available:
 - [symlinks](#symlinks)
 - [cas](#cas)
 - [report](#report)
+- [runner-pool](#runner-pool)
 
 ### symlinks
 

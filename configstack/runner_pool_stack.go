@@ -112,7 +112,7 @@ func (stack *RunnerPoolStack) LogModuleDeployOrder(l log.Logger, terraformComman
 			orderedModules = append(orderedModules, module.Module)
 		}
 	}
-	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
+	outStr := fmt.Sprintf("The runner-pool stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
 	for _, module := range orderedModules {
 		outStr += fmt.Sprintf("Module %s\n", module.Path)
 	}
