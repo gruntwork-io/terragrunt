@@ -142,6 +142,31 @@ To transition the `report` feature to a stable release, the following must be ad
 - [ ] Add comprehensive integration tests for the `report` experiment.
 - [ ] Finalize the design of run summaries and reports.
 
+#### `runner-pool`
+
+Proposes replacing Terragrunt’s group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
+This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.
+
+#### `runner-pool` - What it does
+
+Allow usage of experimental runner pool implementation for units execution.
+
+#### `runner-pool` - How to provide feedback
+
+Provide your feedback on the [Runner Pool](https://github.com/gruntwork-io/terragrunt/issues/3629).
+
+#### `runner-pool` - Criteria for stabilization
+
+To transition the `runner-pool` feature to a stable release, the following must be addressed:
+
+- [x] Use new discovery and queue packages to discover units.
+- [ ] Add support for including/excluding external units in the discovery process.
+- [ ] Add runner pool implementation to execute discovered units.
+- [ ] Add integration tests to track that the runner pool works in the same way as the current implementation.
+- [ ] Add performance tests to track that the runner pool implementation is faster than the current implementation.
+- [ ] Improve the UI to queue to apply.
+- [ ] Add OpenTelemetry support to the runner pool.
+
 ## Completed Experiments
 
 - [cli-redesign](#cli-redesign)
