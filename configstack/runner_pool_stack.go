@@ -1,70 +1,73 @@
 package configstack
 
 import (
-	"path/filepath"
+	"context"
+	"sync"
+
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// RunnerPoolStack implements the Stack interface for runner pool execution.
+type RunnerPoolStack struct {
+	modules           TerraformModules
+	report            *report.Report
+	parserOptions     []hclparse.Option
+	terragruntOptions *options.TerragruntOptions
+	outputMu          sync.Mutex
+	childConfig       *config.TerragruntConfig
+}
+
 // NewRunnerPoolStack creates a new stack from discovered modules.
-func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs) *DefaultStack {
-	modules := ConvertDiscoveredToModules(discovered, terragruntOptions, l)
+func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs) (*DefaultStack, error) {
+	modulesMap := make(TerraformModulesMap)
+
 	stack := &DefaultStack{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
-		modules:           modules,
 	}
-	// Set the Stack field for each module
-	for _, m := range modules {
-		m.Stack = stack
-	}
-	return stack
-}
 
-// ConvertDiscoveredToModules converts discovered configs to TerraformModules (basic placeholder logic).
-func ConvertDiscoveredToModules(discovered discovery.DiscoveredConfigs, terragruntOptions *options.TerragruntOptions, l log.Logger) TerraformModules {
-	modules := TerraformModules{}
-	pathToModule := map[string]*TerraformModule{}
-
-	// First pass: create modules for valid discovered configs
-	for _, d := range discovered {
-		if d.Parsed == nil {
+	var terragruntConfigPaths []string
+	for _, cfg := range discovered {
+		configPath := config.GetDefaultConfigPath(cfg.Path)
+		if cfg.Parsed == nil {
+			// Skip configurations that could not be parsed
+			l.Warnf("Skipping module at %s due to parse error: %s", cfg.Path, configPath)
 			continue
 		}
-		configPath := filepath.Join(d.Path, config.DefaultTerragruntConfigPath)
-		if !util.FileExists(configPath) {
-			continue
+		modLogger, modOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
+		if err != nil {
+			l.Warnf("Skipping module at %s due to error cloning options: %s", cfg.Path, err)
+			continue // skip on error
 		}
 		mod := &TerraformModule{
-			TerragruntOptions: terragruntOptions,
-			Logger:            l,
-			Path:              d.Path,
-			Config:            *d.Parsed,
-			Dependencies:      nil, // to be filled in next pass
+			Stack:             stack,
+			TerragruntOptions: modOpts,
+			Logger:            modLogger,
+			Path:              cfg.Path,
+			Config:            *cfg.Parsed,
 		}
-		modules = append(modules, mod)
-		pathToModule[d.Path] = mod
+		terragruntConfigPaths = append(terragruntConfigPaths, configPath)
+		modulesMap[cfg.Path] = mod
 	}
 
-	// Second pass: wire up dependencies
-	for _, mod := range modules {
-		deps := TerraformModules{}
-		if mod.Config.Dependencies != nil {
-			for _, dep := range mod.Config.Dependencies.Paths {
-				depPath, err := util.CanonicalPath(dep, mod.Path)
-				if err == nil {
-					if depMod, ok := pathToModule[depPath]; ok {
-						deps = append(deps, depMod)
-					}
-				}
-			}
-		}
-		mod.Dependencies = deps
+	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
+	if err != nil {
+		return nil, err
 	}
 
-	return modules
+	linkedModules, err := modulesMap.crosslinkDependencies(canonicalTerragruntConfigPaths)
+	if err != nil {
+		return nil, err
+	}
+
+	stack.modules = linkedModules
+
+	return stack, nil
 }
