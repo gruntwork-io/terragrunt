@@ -1,14 +1,18 @@
 package configstack
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -72,8 +76,19 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	if err != nil {
 		return nil, err
 	}
+	// Reorder linkedModules to match the order of canonicalTerragruntConfigPaths
+	orderedModules := make(TerraformModules, 0, len(canonicalTerragruntConfigPaths))
+	pathToModule := make(map[string]*TerraformModule)
+	for _, m := range linkedModules {
+		pathToModule[config.GetDefaultConfigPath(m.Path)] = m
+	}
+	for _, configPath := range canonicalTerragruntConfigPaths {
+		if m, ok := pathToModule[configPath]; ok {
+			orderedModules = append(orderedModules, m)
+		}
+	}
 
-	stack.modules = linkedModules
+	stack.modules = orderedModules
 
 	return stack, nil
 }
@@ -97,23 +112,8 @@ func (stack *RunnerPoolStack) String() string {
 }
 
 func (stack *RunnerPoolStack) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
-	order := NormalOrder
-	if terraformCommand == "destroy" {
-		order = ReverseOrder
-	}
-	runningModules, err := stack.modules.ToRunningModules(order, stack.report, stack.terragruntOptions)
-	if err != nil {
-		return err
-	}
-	// Flatten the modules in run order
-	orderedModules := make([]*TerraformModule, 0, len(runningModules))
-	for _, module := range runningModules {
-		if !module.FlagExcluded {
-			orderedModules = append(orderedModules, module.Module)
-		}
-	}
 	outStr := fmt.Sprintf("The runner-pool stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
-	for _, module := range orderedModules {
+	for _, module := range stack.modules {
 		outStr += fmt.Sprintf("Module %s\n", module.Path)
 	}
 	l.Info(outStr)
@@ -121,19 +121,9 @@ func (stack *RunnerPoolStack) LogModuleDeployOrder(l log.Logger, terraformComman
 }
 
 func (stack *RunnerPoolStack) JSONModuleDeployOrder(terraformCommand string) (string, error) {
-	order := NormalOrder
-	if terraformCommand == "destroy" {
-		order = ReverseOrder
-	}
-	runningModules, err := stack.modules.ToRunningModules(order, stack.report, stack.terragruntOptions)
-	if err != nil {
-		return "", err
-	}
-	orderedModules := make([]string, 0, len(runningModules))
-	for _, module := range runningModules {
-		if !module.FlagExcluded {
-			orderedModules = append(orderedModules, module.Module.Path)
-		}
+	orderedModules := make([]string, 0, len(stack.modules))
+	for _, module := range stack.modules {
+		orderedModules = append(orderedModules, module.Path)
 	}
 	j, err := json.MarshalIndent(orderedModules, "", "  ")
 	if err != nil {
@@ -150,6 +140,7 @@ func (stack *RunnerPoolStack) Graph(l log.Logger, opts *options.TerragruntOption
 }
 
 func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// Here will be implemented runner pool logic to run the modules concurrently.
 	stackCmd := opts.TerraformCommand
 	if opts.OutputFolder != "" {
 		for _, module := range stack.modules {
@@ -161,9 +152,34 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 		}
 	}
 	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
+		// to support potential positional args in the args list, we append the input=false arg after the first element,
+		// which is the target command.
 		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
-		// No syncTerraformCliArgs for runner pool, but can be added if needed
+		stack.syncTerraformCliArgs(l, opts)
 	}
+
+	switch stackCmd {
+	case tf.CommandNameApply, tf.CommandNameDestroy:
+		// to support potential positional args in the args list, we append the input=false arg after the first element,
+		// which is the target command.
+		if opts.RunAllAutoApprove {
+			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+		}
+
+		stack.syncTerraformCliArgs(l, opts)
+	case tf.CommandNameShow:
+		stack.syncTerraformCliArgs(l, opts)
+	case tf.CommandNamePlan:
+		// We capture the out stream for each module
+		errorStreams := make([]bytes.Buffer, len(stack.modules))
+
+		for n, module := range stack.modules {
+			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+		}
+
+		defer stack.summarizePlanAllErrors(l, errorStreams)
+	}
+
 	switch {
 	case opts.IgnoreDependencyOrder:
 		return stack.modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism)
@@ -175,19 +191,7 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 }
 
 func (stack *RunnerPoolStack) GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
-	var order DependencyOrder
-	if terraformCommand == "destroy" {
-		order = ReverseOrder
-	} else {
-		order = NormalOrder
-	}
-	runningModules, err := stack.modules.ToRunningModules(order, stack.report, stack.terragruntOptions)
-	if err != nil {
-		return nil, err
-	}
-	const maxDepth = 1000
-	groups := runningModules.toTerraformModuleGroups(maxDepth)
-	return groups, nil
+	return []TerraformModules{stack.modules}, nil
 }
 
 func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {
@@ -258,4 +262,50 @@ func (stack *RunnerPoolStack) Lock() {
 
 func (stack *RunnerPoolStack) Unlock() {
 	stack.outputMu.Unlock()
+}
+
+// Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
+func (stack *RunnerPoolStack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
+	for _, module := range stack.modules {
+		module.TerragruntOptions.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
+		copy(module.TerragruntOptions.TerraformCliArgs, opts.TerraformCliArgs)
+
+		planFile := module.planFile(l, opts)
+		if planFile != "" {
+			l.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
+			if module.TerragruntOptions.TerraformCommand == "plan" {
+				// for plan command add -out=<file> to the terraform cli args
+				module.TerragruntOptions.TerraformCliArgs = append(module.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
+			} else {
+				module.TerragruntOptions.TerraformCliArgs = append(module.TerragruntOptions.TerraformCliArgs, planFile)
+			}
+		}
+	}
+}
+
+// We inspect the error streams to give an explicit message if the plan failed because there were references to
+// remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
+// has never been applied on the dependency.
+func (stack *RunnerPoolStack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
+	for i, errorStream := range errorStreams {
+		output := errorStream.String()
+
+		if len(output) == 0 {
+			// We get empty buffer if stack execution completed without errors, so skip that to avoid logging too much
+			continue
+		}
+
+		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
+			var dependenciesMsg string
+			if len(stack.modules[i].Dependencies) > 0 {
+				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.modules[i].Config.Dependencies.Paths)
+			}
+
+			l.Infof("%v%v refers to remote state "+
+				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
+				stack.modules[i].Path,
+				dependenciesMsg,
+			)
+		}
+	}
 }
