@@ -160,8 +160,6 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 
 	switch stackCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
-		// to support potential positional args in the args list, we append the input=false arg after the first element,
-		// which is the target command.
 		if opts.RunAllAutoApprove {
 			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
 		}
@@ -170,7 +168,6 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 	case tf.CommandNameShow:
 		stack.syncTerraformCliArgs(l, opts)
 	case tf.CommandNamePlan:
-		// We capture the out stream for each module
 		errorStreams := make([]bytes.Buffer, len(stack.modules))
 
 		for n, module := range stack.modules {

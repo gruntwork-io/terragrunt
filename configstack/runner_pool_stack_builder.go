@@ -29,7 +29,8 @@ func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, t
 		WithParseInclude().
 		WithParseExclude().
 		WithDiscoverDependencies().
-		WithSuppressParseErrors()
+		WithSuppressParseErrors().
+		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
 
 	discovered, err := d.Discover(ctx, l, terragruntOptions)
 	if err != nil {
