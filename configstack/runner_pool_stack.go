@@ -97,36 +97,45 @@ func (stack *RunnerPoolStack) String() string {
 }
 
 func (stack *RunnerPoolStack) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
-	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
-	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
+	order := NormalOrder
+	if terraformCommand == "destroy" {
+		order = ReverseOrder
+	}
+	runningModules, err := stack.modules.ToRunningModules(order, stack.report, stack.terragruntOptions)
 	if err != nil {
 		return err
 	}
-	for i, group := range runGraph {
-		outStr += fmt.Sprintf("Group %d\n", i+1)
-		for _, module := range group {
-			outStr += fmt.Sprintf("- Module %s\n", module.Path)
+	// Flatten the modules in run order
+	orderedModules := make([]*TerraformModule, 0, len(runningModules))
+	for _, module := range runningModules {
+		if !module.FlagExcluded {
+			orderedModules = append(orderedModules, module.Module)
 		}
-		outStr += "\n"
+	}
+	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
+	for _, module := range orderedModules {
+		outStr += fmt.Sprintf("Module %s\n", module.Path)
 	}
 	l.Info(outStr)
 	return nil
 }
 
 func (stack *RunnerPoolStack) JSONModuleDeployOrder(terraformCommand string) (string, error) {
-	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
+	order := NormalOrder
+	if terraformCommand == "destroy" {
+		order = ReverseOrder
+	}
+	runningModules, err := stack.modules.ToRunningModules(order, stack.report, stack.terragruntOptions)
 	if err != nil {
 		return "", err
 	}
-	jsonGraph := make(map[string][]string)
-	for i, group := range runGraph {
-		groupNum := fmt.Sprintf("Group %d", i+1)
-		jsonGraph[groupNum] = make([]string, len(group))
-		for j, module := range group {
-			jsonGraph[groupNum][j] = module.Path
+	orderedModules := make([]string, 0, len(runningModules))
+	for _, module := range runningModules {
+		if !module.FlagExcluded {
+			orderedModules = append(orderedModules, module.Module.Path)
 		}
 	}
-	j, err := json.MarshalIndent(jsonGraph, "", "  ")
+	j, err := json.MarshalIndent(orderedModules, "", "  ")
 	if err != nil {
 		return "", err
 	}
