@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 
@@ -111,9 +110,6 @@ func (stack *RunnerPoolStack) String() string {
 	for _, module := range stack.modules {
 		modules = append(modules, "  => "+module.String())
 	}
-	// Sort for deterministic output
-	sort.Strings(modules)
-
 	return fmt.Sprintf("Stack at %s:\n%s", stack.terragruntOptions.WorkingDir, strings.Join(modules, "\n"))
 }
 
