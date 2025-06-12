@@ -87,7 +87,7 @@ func TestParseExtendedAzureConfig(t *testing.T) {
 				"storage_account_name": "testaccount",
 				"container_name":       "test-container",
 				"key":                  "test/terraform.tfstate",
-				"connection_string": "test-connection-string",
+				"connection_string":    "test-connection-string",
 			},
 			expectError: false,
 		},
@@ -111,8 +111,8 @@ func TestParseExtendedAzureConfig(t *testing.T) {
 				assert.Equal(t, tc.config["container_name"], config.RemoteStateConfigAzurerm.ContainerName)
 				assert.Equal(t, tc.config["key"], config.RemoteStateConfigAzurerm.Key)
 
-				}
-			},
+			}
+		},
 		)
 	}
 }

@@ -118,6 +118,7 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 	if !exists {
 		l.Infof("Creating Azure Storage container %s", containerName)
 		_, err = c.client.CreateContainer(ctx, containerName, nil)
+
 		if err != nil {
 			return fmt.Errorf("error creating container: %w", err)
 		}
@@ -212,7 +213,12 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 	if err != nil {
 		return fmt.Errorf("error getting source blob: %w", err)
 	}
-	defer srcBlob.Body.Close()
+
+	defer func() {
+		if closeErr := srcBlob.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("error closing blob body: %w", closeErr)
+		}
+	}()
 
 	// Read the source blob data
 	data, err := io.ReadAll(srcBlob.Body)
@@ -228,5 +234,3 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 
 	return nil
 }
-
-
