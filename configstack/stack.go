@@ -48,8 +48,11 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
 
 		builder := NewRunnerPoolStackBuilder()
-		return builder.BuildStack(ctx, l, terragruntOptions)
+
+		return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 	}
+
 	builder := &DefaultStackBuilder{}
+
 	return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 }

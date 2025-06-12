@@ -21,7 +21,7 @@ func NewRunnerPoolStackBuilder() *RunnerPoolStackBuilder {
 }
 
 // BuildStack discovers modules and builds a new DefaultStack, returning it as a Stack interface.
-func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (Stack, error) {
+func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
@@ -42,7 +42,6 @@ func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, t
 	if queueErr != nil {
 		return nil, queueErr
 	}
-	cfgs := q.Configs()
 
-	return NewRunnerPoolStack(ctx, l, terragruntOptions, cfgs)
+	return NewRunnerPoolStack(ctx, l, terragruntOptions, q.Configs())
 }

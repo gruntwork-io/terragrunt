@@ -28,12 +28,12 @@ import (
 
 // RunnerPoolStack implements the Stack interface for runner pool execution.
 type RunnerPoolStack struct {
-	modules           TerraformModules
 	report            *report.Report
-	parserOptions     []hclparse.Option
 	terragruntOptions *options.TerragruntOptions
-	outputMu          sync.Mutex
 	childConfig       *config.TerragruntConfig
+	modules           TerraformModules
+	parserOptions     []hclparse.Option
+	outputMu          sync.Mutex
 }
 
 // NewRunnerPoolStack creates a new stack from discovered modules.
@@ -45,19 +45,24 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
 
-	var terragruntConfigPaths []string
+	terragruntConfigPaths := make([]string, 0, len(discovered))
+
 	for _, cfg := range discovered {
 		configPath := config.GetDefaultConfigPath(cfg.Path)
+
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
 			l.Warnf("Skipping module at %s due to parse error: %s", cfg.Path, configPath)
 			continue
 		}
+
 		modLogger, modOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
+
 		if err != nil {
 			l.Warnf("Skipping module at %s due to error cloning options: %s", cfg.Path, err)
 			continue // skip on error
 		}
+
 		mod := &TerraformModule{
 			Stack:             stack,
 			TerragruntOptions: modOpts,
@@ -65,7 +70,9 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			Path:              cfg.Path,
 			Config:            *cfg.Parsed,
 		}
+
 		terragruntConfigPaths = append(terragruntConfigPaths, configPath)
+
 		modulesMap[cfg.Path] = mod
 	}
 
@@ -81,9 +88,11 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	// Reorder linkedModules to match the order of canonicalTerragruntConfigPaths
 	orderedModules := make(TerraformModules, 0, len(canonicalTerragruntConfigPaths))
 	pathToModule := make(map[string]*TerraformModule)
+
 	for _, m := range linkedModules {
 		pathToModule[config.GetDefaultConfigPath(m.Path)] = m
 	}
+
 	for _, configPath := range canonicalTerragruntConfigPaths {
 		if m, ok := pathToModule[configPath]; ok {
 			orderedModules = append(orderedModules, m)
@@ -102,6 +111,7 @@ func (stack *RunnerPoolStack) String() string {
 	}
 	// Sort for deterministic output
 	sort.Strings(modules)
+
 	return fmt.Sprintf("Stack at %s:\n%s", stack.terragruntOptions.WorkingDir, strings.Join(modules, "\n"))
 }
 
@@ -110,7 +120,9 @@ func (stack *RunnerPoolStack) LogModuleDeployOrder(l log.Logger, terraformComman
 	for _, module := range stack.modules {
 		outStr += fmt.Sprintf("Module %s\n", module.Path)
 	}
+
 	l.Info(outStr)
+
 	return nil
 }
 
@@ -119,10 +131,12 @@ func (stack *RunnerPoolStack) JSONModuleDeployOrder(terraformCommand string) (st
 	for _, module := range stack.modules {
 		orderedModules = append(orderedModules, module.Path)
 	}
+
 	j, err := json.MarshalIndent(orderedModules, "", "  ")
 	if err != nil {
 		return "", err
 	}
+
 	return string(j), nil
 }
 
@@ -137,15 +151,18 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 	// Here will be implemented runner pool logic to run the modules concurrently.
 	// Currently, implementation is in the sequential way.
 	stackCmd := opts.TerraformCommand
+
 	if opts.OutputFolder != "" {
 		for _, module := range stack.modules {
 			planFile := module.outputFile(l, opts)
 			planDir := filepath.Dir(planFile)
+
 			if err := os.MkdirAll(planDir, os.ModePerm); err != nil {
 				return err
 			}
 		}
 	}
+
 	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
 		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
 		stack.syncTerraformCliArgs(l, opts)
@@ -180,9 +197,11 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 			errs = append(errs, err)
 		}
 	}
+
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
+
 	return nil
 }
 
@@ -191,11 +210,13 @@ func (stack *RunnerPoolStack) GetModuleRunGraph(terraformCommand string) ([]Terr
 	for _, module := range stack.modules {
 		groups = append(groups, TerraformModules{module})
 	}
+
 	return groups, nil
 }
 
 func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {
 	dependentModules := make(map[string][]string)
+
 	for _, module := range stack.modules {
 		if len(module.Dependencies) != 0 {
 			for _, dep := range module.Dependencies {
@@ -203,23 +224,28 @@ func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {
 			}
 		}
 	}
+
 	for {
 		noUpdates := true
+
 		for module, dependents := range dependentModules {
 			for _, dependent := range dependents {
 				initialSize := len(dependentModules[module])
 				list := util.RemoveDuplicatesFromList(append(dependentModules[module], dependentModules[dependent]...))
 				list = util.RemoveElementFromList(list, module)
 				dependentModules[module] = list
+
 				if initialSize != len(dependentModules[module]) {
 					noUpdates = false
 				}
 			}
 		}
+
 		if noUpdates {
 			break
 		}
 	}
+
 	return dependentModules
 }
 
@@ -229,6 +255,7 @@ func (stack *RunnerPoolStack) FindModuleByPath(path string) *TerraformModule {
 			return module
 		}
 	}
+
 	return nil
 }
 
@@ -241,6 +268,7 @@ func (stack *RunnerPoolStack) syncTerraformCliArgs(l log.Logger, opts *options.T
 		planFile := module.planFile(l, opts)
 		if planFile != "" {
 			l.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
+
 			if module.TerragruntOptions.TerraformCommand == "plan" {
 				// for plan command add -out=<file> to the terraform cli args
 				module.TerragruntOptions.TerraformCliArgs = append(module.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
