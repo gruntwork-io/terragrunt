@@ -26,7 +26,7 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 	require.Contains(t, stdout, "result = \"42\"")
 }
 
-func TestTerragruntDestroyOrderRunnerPool(t *testing.T) {
+func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
