@@ -38,7 +38,7 @@ type RunnerPoolStack struct {
 
 // NewRunnerPoolStack creates a new stack from discovered modules.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs) (*RunnerPoolStack, error) {
-	modulesMap := make(TerraformModulesMap)
+	modulesMap := make(TerraformModulesMap, len(discovered))
 
 	stack := &RunnerPoolStack{
 		terragruntOptions: terragruntOptions,
@@ -52,14 +52,14 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
-			l.Warnf("Skipping module at %s due to parse error", cfg.Path)
+			l.Warnf("Skipping unit at %s due to parse error", cfg.Path)
 			continue
 		}
 
 		modLogger, modOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
 
 		if err != nil {
-			l.Warnf("Skipping module at %s due to error cloning options: %s", cfg.Path, err)
+			l.Warnf("Skipping unit at %s due to error cloning options: %s", cfg.Path, err)
 			continue // skip on error
 		}
 
@@ -97,7 +97,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		if m, ok := pathToModule[configPath]; ok {
 			orderedModules = append(orderedModules, m)
 		} else {
-			l.Warnf("Module for config path %s not found in linked modules", configPath)
+			l.Warnf("Unit for config path %s not found in linked units", configPath)
 		}
 	}
 
@@ -120,7 +120,7 @@ func (stack *RunnerPoolStack) String() string {
 func (stack *RunnerPoolStack) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
 	for _, module := range stack.modules {
-		outStr += fmt.Sprintf("Module %s\n", module.Path)
+		outStr += fmt.Sprintf("Unit %s\n", module.Path)
 	}
 
 	l.Info(outStr)
@@ -269,7 +269,7 @@ func (stack *RunnerPoolStack) syncTerraformCliArgs(l log.Logger, opts *options.T
 
 		planFile := module.planFile(l, opts)
 		if planFile != "" {
-			l.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Using output file %s for unit %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
 
 			if module.TerragruntOptions.TerraformCommand == "plan" {
 				// for plan command add -out=<file> to the terraform cli args
