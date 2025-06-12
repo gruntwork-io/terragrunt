@@ -193,7 +193,7 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 	// Run each module in the stack sequentially, convert each module to a running module, and run it.
 	for _, module := range stack.modules {
 		moduleToRun := newRunningModule(module)
-		if err := moduleToRun.runTerragrunt(ctx, module.TerragruntOptions, stack.report); err != nil {
+		if err := moduleToRun.runNow(ctx, module.TerragruntOptions, stack.report); err != nil {
 			errs = append(errs, err)
 		}
 	}
