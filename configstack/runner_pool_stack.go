@@ -110,6 +110,7 @@ func (stack *RunnerPoolStack) String() string {
 	for _, module := range stack.modules {
 		modules = append(modules, "  => "+module.String())
 	}
+
 	return fmt.Sprintf("Stack at %s:\n%s", stack.terragruntOptions.WorkingDir, strings.Join(modules, "\n"))
 }
 
