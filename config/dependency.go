@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -953,6 +955,7 @@ func getTerragruntOutputJSONFromRemoteState(
 				targetTGOptions,
 				remoteState,
 			)
+
 			if err != nil {
 				return nil, err
 			}
@@ -960,24 +963,30 @@ func getTerragruntOutputJSONFromRemoteState(
 			l.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetTGOptions.TerragruntConfigPath, jsonBytes)
 
 			return jsonBytes, nil
-		case "azurerm":
+
+		case azurerm.BackendName:
+			l.Debugf("Fetching dependency outputs directly from Azure Storage backend for %s", targetTGOptions.TerragruntConfigPath)
 			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(
 				l,
 				targetTGOptions,
 				remoteState,
 			)
+
 			if err != nil {
 				return nil, err
 			}
 
-			l.Debugf("Retrieved output from %s as json: %s using Azure storage", targetTGOptions.TerragruntConfigPath, jsonBytes)
+			l.Debugf("Successfully retrieved outputs from Azure Storage state for %s", targetTGOptions.TerragruntConfigPath)
 
 			return jsonBytes, nil
+
 		default:
-			l.Errorf("FetchDependencyOutputFromState is not supported for backend %s, falling back to normal method", backend)
+			// For unsupported backends, we want to continue with the regular output path
+			l.Debugf("Backend %s does not support direct state output fetching, falling back to terragrunt output", backend)
 		}
 	}
 
+	// If direct fetching is not supported or disabled, fallback to the standard output path
 	// Generate the backend configuration in the working dir. If no generate config is set on the remote state block,
 	// set a temporary generate config so we can generate the backend code.
 	if remoteState.Generate == nil {
@@ -1074,34 +1083,66 @@ func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.Terrag
 
 // getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
 func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
-	l.Debugf("Fetching outputs directly from Azure storage account %s, container %s, blob %s", remoteState.BackendConfig["storage_account_name"], remoteState.BackendConfig["container_name"], remoteState.BackendConfig["key"])
+	ctx := context.Background()
+	// Validation should be done immediately after each type assertion
+	storageAccount, okStorage := remoteState.BackendConfig["storage_account_name"].(string)
+	if !okStorage {
+		return nil, errors.New("storage_account_name in backend config must be a string")
+	}
 
-	// Create a new blob service client
-	blobServiceClient, err := azurehelper.CreateBlobServiceClient(l, opts, remoteState.BackendConfig)
+	containerName, okContainer := remoteState.BackendConfig["container_name"].(string)
+	if !okContainer {
+		return nil, errors.New("container_name in backend config must be a string")
+	}
+
+	key, okKey := remoteState.BackendConfig["key"].(string)
+	if !okKey {
+		return nil, errors.New("key in backend config must be a string")
+	}
+
+	l.Debugf("Attempting to fetch outputs directly from Azure Storage account %s, container %s, blob %s", storageAccount, containerName, key)
+
+	client, err := azurehelper.CreateBlobServiceClient(l, opts, remoteState.BackendConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the blob URL 
-	blobURL := fmt.Sprintf("https://%s.blob.core.windows.net/%s/%s", remoteState.BackendConfig["storage_account_name"], remoteState.BackendConfig["container_name"], remoteState.BackendConfig["key"])
-
-	// Download the blob
-	resp, err := blobServiceClient.GetObject(&blob.GetObjectInput{
-		Bucket: aws.String(remoteState.BackendConfig["container_name"]),
-		Key:    aws.String(remoteState.BackendConfig["key"]),
+	resp, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
+		Bucket: &containerName,
+		Key:    &key,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error downloading state file: %w", err)
 	}
-	defer resp.Body.Close()
 
-	// Read the response body 
-	body, err := io.ReadAll(resp.Body)
+	// Ensure response body is closed after we're done
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("error closing response body: %w", cerr)
+		}
+	}()
+
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading state file: %w", err)
 	}
 
-	return body, nil
+	var state struct {
+		Outputs map[string]interface{} `json:"outputs"`
+	}
+
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, fmt.Errorf("error parsing state file JSON: %w", err)
+	}
+
+	outputsJSON, err := json.Marshal(state.Outputs)
+	if err != nil {
+		return nil, fmt.Errorf("error encoding outputs as JSON: %w", err)
+	}
+
+	l.Debugf("Successfully parsed outputs from Azure Storage state file")
+
+	return outputsJSON, nil
 }
 
 // setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform
