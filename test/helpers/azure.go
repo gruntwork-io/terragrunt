@@ -2,8 +2,6 @@
 package helpers
 
 import (
-	"context"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -12,6 +10,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	// AzureStorageContainerMinLength is the minimum length for Azure storage container names (3 characters)
+	AzureStorageContainerMinLength = 3
+	// AzureStorageContainerMaxLength is the maximum length for Azure storage container names (63 characters)
+	AzureStorageContainerMaxLength = 63
 )
 
 // AzureStorageTestConfig contains Azure storage test configuration
@@ -26,22 +31,27 @@ func GetAzureStorageTestConfig(t *testing.T) *AzureStorageTestConfig {
 	t.Helper()
 
 	accountName := os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
+
 	// Generate Azure-compliant container name:
 	// - 3-63 chars
 	// - Only lowercase letters, numbers, hyphens
 	// - Start/end with letter/number
 	// - No consecutive hyphens
 	uniqueID := strings.ToLower(UniqueID())
-	containerName := fmt.Sprintf("tg%s", strings.ReplaceAll(uniqueID, "_", "-"))
-	if len(containerName) > 63 {
-		containerName = containerName[:63]
+	containerName := "tg" + strings.ReplaceAll(uniqueID, "_", "-")
+
+	if len(containerName) > AzureStorageContainerMaxLength {
+		containerName = containerName[:AzureStorageContainerMaxLength]
 	}
+
 	if containerName == "" {
 		t.Fatal("Generated container name is empty")
 	}
-	if len(containerName) < 3 {
+
+	if len(containerName) < AzureStorageContainerMinLength {
 		t.Fatal("Generated container name is too short - must be at least 3 characters")
 	}
+
 	location := os.Getenv("TERRAGRUNT_AZURE_TEST_LOCATION")
 
 	if accountName == "" {
@@ -70,7 +80,7 @@ func CleanupAzureContainer(t *testing.T, config *AzureStorageTestConfig) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := log.Default()
 
 	// Create storage client using Azure AD authentication
@@ -86,6 +96,6 @@ func CleanupAzureContainer(t *testing.T, config *AzureStorageTestConfig) {
 
 	if exists {
 		err = client.DeleteContainer(ctx, logger, config.ContainerName)
-		require.NoError(t, err, fmt.Sprintf("Failed to delete container %s", config.ContainerName))
+		require.NoError(t, err, "Failed to delete container "+config.ContainerName)
 	}
 }

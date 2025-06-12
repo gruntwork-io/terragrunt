@@ -122,18 +122,85 @@ func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 	return tmpTerragruntConfigFile
 }
 
+// CopyAndFillMapPlaceholders creates a copy of a configuration file from srcPath to destPath,
+// replacing any placeholders specified in the placeholders map.
+func CopyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, placeholders map[string]string) {
+	t.Helper()
+
+	contents, err := os.ReadFile(srcPath)
+	if err != nil {
+		t.Fatalf("Error reading Terragrunt config file %s: %v", srcPath, err)
+	}
+
+	newContents := string(contents)
+	for placeholder, value := range placeholders {
+		newContents = strings.ReplaceAll(newContents, placeholder, value)
+	}
+
+	if err := os.WriteFile(destPath, []byte(newContents), allPermissions); err != nil {
+		t.Fatalf("Error writing temp Terragrunt config to %s: %v", destPath, err)
+	}
+}
+
+// CopyTerragruntConfigAndFillPlaceholders creates a copy of the Terragrunt configuration file from configSrcPath to configDestPath,
+// replacing AWS S3 backend placeholders.
+//
+// AWS S3 backend placeholders:
+//   - __FILL_IN_BUCKET_NAME__: S3 bucket name
+//   - __FILL_IN_LOCK_TABLE_NAME__: DynamoDB lock table name
+//   - __FILL_IN_REGION__: AWS region
+//   - __FILL_IN_LOGS_BUCKET_NAME__: S3 bucket name for logs (bucket name + "-tf-state-logs")
 func CopyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
 	t.Helper()
 
-	CopyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
+	// AWS placeholders
+	placeholders := map[string]string{
 		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
 		"__FILL_IN_LOCK_TABLE_NAME__":  lockTableName,
 		"__FILL_IN_REGION__":           region,
 		"__FILL_IN_LOGS_BUCKET_NAME__": s3BucketName + "-tf-state-logs",
-	})
+	}
+
+	CopyAndReplaceMapPlaceholders(t, configSrcPath, configDestPath, placeholders)
 }
 
-func CopyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, placeholders map[string]string) {
+// CopyTerragruntConfigAndFillProviderPlaceholders creates a copy of the Terragrunt configuration file from configSrcPath to configDestPath,
+// replacing cloud provider specific placeholders using a map.
+//
+// Example usage with Azure Storage:
+//
+//	azureParams := map[string]string{
+//	  "__FILL_IN_STORAGE_ACCOUNT_NAME__": storageAccount,
+//	  "__FILL_IN_CONTAINER_NAME__": containerName,
+//	  "__FILL_IN_SUBSCRIPTION_ID__": subscriptionId,
+//	}
+//	CopyTerragruntConfigAndFillProviderPlaceholders(t, srcPath, destPath, azureParams)
+//
+// Example usage with optional location parameter for Azure Storage:
+//
+//	azureParams := map[string]string{
+//	  "__FILL_IN_STORAGE_ACCOUNT_NAME__": storageAccount,
+//	  "__FILL_IN_CONTAINER_NAME__": containerName,
+//	  "__FILL_IN_SUBSCRIPTION_ID__": subscriptionId,
+//	}
+//	CopyTerragruntConfigAndFillProviderPlaceholders(t, srcPath, destPath, azureParams, location)
+func CopyTerragruntConfigAndFillProviderPlaceholders(t *testing.T, configSrcPath string, configDestPath string, placeholders map[string]string, defaultLocation ...string) {
+	t.Helper()
+
+	if len(defaultLocation) > 0 {
+		var location string
+
+		if defaultLocation[0] != "not-used" {
+			location = defaultLocation[0]
+		}
+
+		placeholders["__FILL_IN_LOCATION__"] = location
+	}
+
+	CopyAndReplaceMapPlaceholders(t, configSrcPath, configDestPath, placeholders)
+}
+
+func CopyAndReplaceMapPlaceholders(t *testing.T, srcPath string, destPath string, placeholders map[string]string) {
 	t.Helper()
 
 	contents, err := util.ReadFileAsString(srcPath)
@@ -785,7 +852,6 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 
 func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	t.Helper()
-
 	return RunTerragruntCommandWithContext(t, t.Context(), command, writer, errwriter)
 }
 

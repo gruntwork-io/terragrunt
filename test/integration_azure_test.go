@@ -3,7 +3,10 @@
 package test_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -19,7 +22,8 @@ import (
 )
 
 const (
-	testFixtureAzureBackend = "./fixtures/azure-backend"
+	testFixtureAzureBackend               = "./fixtures/azure-backend"
+	testFixtureAzureOutputFromRemoteState = "./fixtures/azure-output-from-remote-state"
 )
 
 func TestAzureRMBootstrapBackend(t *testing.T) {
@@ -81,7 +85,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				azureCfg.ContainerName = containerName
 
 				// Bootstrap the backend first
-				bootstrapOutput, bootstrapErr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend bootstrap --non-interactive --log-level debug --log-format key-value --working-dir "+rootPath)
+				bootstrapOutput, bootstrapErr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt backend bootstrap --backend-bootstrap --non-interactive --log-level debug --log-format key-value --working-dir "+rootPath)
 				require.NoError(t, err, "Bootstrap command failed: %v\nOutput: %s\nError: %s", err, bootstrapOutput, bootstrapErr)
 
 				opts, err := options.NewTerragruntOptionsForTest("")
@@ -162,17 +166,72 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 			}
 
 			// Set up the common configuration
-			helpers.CopyTerragruntConfigAndFillPlaceholders(t,
+			helpers.CopyTerragruntConfigAndFillProviderPlaceholders(t,
 				commonConfigPath,
 				commonConfigPath,
-				"not-used",
-				"not-used",
-				azureCfg.Location,
-				azureParams)
+				azureParams,
+				azureCfg.Location)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --log-format key-value --strict-control require-explicit-bootstrap --working-dir "+rootPath)
 
 			tc.checkExpectedResultFn(t, err, stdout+stderr, tc.containerName, rootPath)
 		})
 	}
+}
+
+// TestAzureOutputFromRemoteState tests the ability to get outputs from remote state stored in Azure Storage
+func TestAzureOutputFromRemoteState(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureOutputFromRemoteState)
+
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureAzureOutputFromRemoteState)
+
+	azureCfg := helpers.GetAzureStorageTestConfig(t)
+
+	// Fill in Azure configuration
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromRemoteState)
+	rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
+	containerName := "terragrunt-test-container-" + strings.ToLower(helpers.UniqueID())
+
+	// Set up Azure configuration parameters
+	azureParams := map[string]string{
+		"__FILL_IN_STORAGE_ACCOUNT_NAME__": azureCfg.StorageAccountName,
+		"__FILL_IN_SUBSCRIPTION_ID__":      os.Getenv("AZURE_SUBSCRIPTION_ID"),
+		"__FILL_IN_CONTAINER_NAME__":       containerName,
+	}
+
+	// Set up the root configuration
+	helpers.CopyTerragruntConfigAndFillProviderPlaceholders(t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		azureParams,
+		azureCfg.Location)
+
+	defer func() {
+		// Clean up the destination container
+		azureCfg.ContainerName = containerName
+		helpers.CleanupAzureContainer(t, azureCfg)
+	}()
+
+	// Run terragrunt for app3, app2, and app1 in that order (dependencies first)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fmt.Sprintf("%s/app3", environmentPath))
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fmt.Sprintf("%s/app2", environmentPath))
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fmt.Sprintf("%s/app1", environmentPath))
+
+	// Now check the outputs to make sure the remote state dependencies work
+	app1OutputCmd := "terragrunt output -no-color -json --non-interactive --working-dir " + fmt.Sprintf("%s/app1", environmentPath)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(t, app1OutputCmd, &stdout, &stderr),
+	)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	// Verify outputs from app1
+	assert.Equal(t, outputs["combined_output"].Value, `app1 output with app2 output with app3 output and app3 output`)
 }
