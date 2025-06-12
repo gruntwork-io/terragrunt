@@ -662,6 +662,8 @@ func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 	return nil
 }
 
+var ErrEngineInitFailed = errors.New("engine init failed")
+
 // initialize engine for working directory
 func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) error {
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
@@ -695,7 +697,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 		if output.GetResultCode() != 0 {
 			l.Errorf("Engine init failed with error: %s", output.GetStderr())
 
-			return nil, errors.New(fmt.Sprintf("engine init failed with exit code %d", output.GetResultCode()))
+			return nil, errors.Errorf("%w with exit code %d", ErrEngineInitFailed, output.GetResultCode())
 		}
 
 		return &OutputLine{
@@ -704,6 +706,8 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 		}, nil
 	})
 }
+
+var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 
 // shutdown engine for working directory
 func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, terragruntEngine *proto.EngineClient) error {
@@ -737,7 +741,7 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 		if output.GetResultCode() != 0 {
 			l.Errorf("Engine shutdown failed with error: %s", output.GetStderr())
 
-			return nil, errors.New(fmt.Sprintf("engine shutdown failed with exit code %d", output.GetResultCode()))
+			return nil, errors.Errorf("%w with exit code %d", ErrEngineShutdownFailed, output.GetResultCode())
 		}
 
 		return &OutputLine{
@@ -763,6 +767,11 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 
 	for {
 		response, err := output()
+
+		if err != nil && (errors.Is(err, ErrEngineInitFailed) || errors.Is(err, ErrEngineShutdownFailed)) {
+			return err
+		}
+
 		if response == nil || err != nil {
 			break
 		}
