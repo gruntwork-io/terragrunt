@@ -52,7 +52,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 		if cfg.Parsed == nil {
 			// Skip configurations that could not be parsed
-			l.Warnf("Skipping module at %s due to parse error: %s", cfg.Path, configPath)
+			l.Warnf("Skipping module at %s due to parse error", cfg.Path)
 			continue
 		}
 
@@ -96,6 +96,8 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	for _, configPath := range canonicalTerragruntConfigPaths {
 		if m, ok := pathToModule[configPath]; ok {
 			orderedModules = append(orderedModules, m)
+		} else {
+			l.Warnf("Module for config path %s not found in linked modules", configPath)
 		}
 	}
 

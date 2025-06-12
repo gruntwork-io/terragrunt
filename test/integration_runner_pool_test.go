@@ -13,8 +13,8 @@ import (
 func TestRunnerPoolDiscovery(t *testing.T) {
 	t.Parallel()
 
+	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --working-dir "+testPath+"  -- apply")
@@ -33,8 +33,10 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDestroyOrder, "app")
 
+	// apply the stack
 	helpers.RunTerragrunt(t, "terragrunt run --experiment runner-pool --all apply --non-interactive --working-dir "+rootPath)
 
+	// run destroy with runner pool and check the order of the modules
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --experiment runner-pool --all destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Regexp(t, `(?smi)(?:(Module A|Module B|Module C).*){3}(?:(Module D|Module E).*){2}`, stdout)
