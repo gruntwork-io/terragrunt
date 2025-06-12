@@ -113,7 +113,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				require.NoError(t, err, "Failed to create test state file")
 
 				stateKey := "unit1/terraform.tfstate"
-				_, err = client.GetObject(&azurehelper.GetObjectInput{
+				_, err = client.GetObject(context.Background(), &azurehelper.GetObjectInput{
 					Bucket: &containerName,
 					Key:    &stateKey,
 				})
