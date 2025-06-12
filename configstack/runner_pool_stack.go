@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+
 	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/util"
@@ -93,14 +95,6 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	return stack, nil
 }
 
-func (stack *RunnerPoolStack) SetReport(report *report.Report) {
-	stack.report = report
-}
-
-func (stack *RunnerPoolStack) GetReport() *report.Report {
-	return stack.report
-}
-
 func (stack *RunnerPoolStack) String() string {
 	modules := []string{}
 	for _, module := range stack.modules {
@@ -141,6 +135,7 @@ func (stack *RunnerPoolStack) Graph(l log.Logger, opts *options.TerragruntOption
 
 func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	// Here will be implemented runner pool logic to run the modules concurrently.
+	// Currently, implementation is in the sequential way.
 	stackCmd := opts.TerraformCommand
 	if opts.OutputFolder != "" {
 		for _, module := range stack.modules {
@@ -152,12 +147,11 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 		}
 	}
 	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
-		// to support potential positional args in the args list, we append the input=false arg after the first element,
-		// which is the target command.
 		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
 		stack.syncTerraformCliArgs(l, opts)
 	}
 
+	// configure CLI args to apply on the stack level
 	switch stackCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		if opts.RunAllAutoApprove {
@@ -177,14 +171,19 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 		defer stack.summarizePlanAllErrors(l, errorStreams)
 	}
 
-	switch {
-	case opts.IgnoreDependencyOrder:
-		return stack.modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism)
-	case stackCmd == "destroy":
-		return stack.modules.RunModulesReverseOrder(ctx, opts, stack.report, opts.Parallelism)
-	default:
-		return stack.modules.RunModules(ctx, opts, stack.report, opts.Parallelism)
+	var errs []error
+
+	// Run each module in the stack sequentially, convert each module to a running module, and run it.
+	for _, module := range stack.modules {
+		moduleToRun := newRunningModule(module)
+		if err := moduleToRun.runTerragrunt(ctx, module.TerragruntOptions, stack.report); err != nil {
+			errs = append(errs, err)
+		}
 	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 func (stack *RunnerPoolStack) GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
@@ -224,10 +223,6 @@ func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {
 	return dependentModules
 }
 
-func (stack *RunnerPoolStack) Modules() TerraformModules {
-	return stack.modules
-}
-
 func (stack *RunnerPoolStack) FindModuleByPath(path string) *TerraformModule {
 	for _, module := range stack.modules {
 		if module.Path == path {
@@ -235,34 +230,6 @@ func (stack *RunnerPoolStack) FindModuleByPath(path string) *TerraformModule {
 		}
 	}
 	return nil
-}
-
-func (stack *RunnerPoolStack) SetTerragruntConfig(config *config.TerragruntConfig) {
-	stack.childConfig = config
-}
-
-func (stack *RunnerPoolStack) GetTerragruntConfig() *config.TerragruntConfig {
-	return stack.childConfig
-}
-
-func (stack *RunnerPoolStack) SetParseOptions(parserOptions []hclparse.Option) {
-	stack.parserOptions = parserOptions
-}
-
-func (stack *RunnerPoolStack) GetParseOptions() []hclparse.Option {
-	return stack.parserOptions
-}
-
-func (stack *RunnerPoolStack) SetModules(modules TerraformModules) {
-	stack.modules = modules
-}
-
-func (stack *RunnerPoolStack) Lock() {
-	stack.outputMu.Lock()
-}
-
-func (stack *RunnerPoolStack) Unlock() {
-	stack.outputMu.Unlock()
 }
 
 // Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
@@ -309,4 +276,44 @@ func (stack *RunnerPoolStack) summarizePlanAllErrors(l log.Logger, errorStreams 
 			)
 		}
 	}
+}
+
+func (stack *RunnerPoolStack) SetReport(report *report.Report) {
+	stack.report = report
+}
+
+func (stack *RunnerPoolStack) GetReport() *report.Report {
+	return stack.report
+}
+
+func (stack *RunnerPoolStack) SetTerragruntConfig(config *config.TerragruntConfig) {
+	stack.childConfig = config
+}
+
+func (stack *RunnerPoolStack) GetTerragruntConfig() *config.TerragruntConfig {
+	return stack.childConfig
+}
+
+func (stack *RunnerPoolStack) SetParseOptions(parserOptions []hclparse.Option) {
+	stack.parserOptions = parserOptions
+}
+
+func (stack *RunnerPoolStack) GetParseOptions() []hclparse.Option {
+	return stack.parserOptions
+}
+
+func (stack *RunnerPoolStack) SetModules(modules TerraformModules) {
+	stack.modules = modules
+}
+
+func (stack *RunnerPoolStack) Lock() {
+	stack.outputMu.Lock()
+}
+
+func (stack *RunnerPoolStack) Unlock() {
+	stack.outputMu.Unlock()
+}
+
+func (stack *RunnerPoolStack) Modules() TerraformModules {
+	return stack.modules
 }

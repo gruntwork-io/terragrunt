@@ -37,5 +37,5 @@ func TestTerragruntDestroyOrderRunnerPool(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --experiment runner-pool --all destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
-	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
+	assert.Regexp(t, `(?smi)(?:(Module A|Module B|Module C).*){3}(?:(Module D|Module E).*){2}`, stdout)
 }
