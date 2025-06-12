@@ -692,6 +692,12 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 			return nil, nil
 		}
 
+		if output.ResultCode != 0 {
+			l.Errorf("Engine init failed with error: %s", output.GetStderr())
+
+			return nil, errors.New(fmt.Sprintf("engine init failed with exit code %d", output.ResultCode))
+		}
+
 		return &OutputLine{
 			Stderr: output.GetStderr(),
 			Stdout: output.GetStdout(),
@@ -726,6 +732,12 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 
 		if output == nil {
 			return nil, nil
+		}
+
+		if output.ResultCode != 0 {
+			l.Errorf("Engine shutdown failed with error: %s", output.GetStderr())
+
+			return nil, errors.New(fmt.Sprintf("engine shutdown failed with exit code %d", output.ResultCode))
 		}
 
 		return &OutputLine{
