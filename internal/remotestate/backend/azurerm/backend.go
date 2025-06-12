@@ -257,7 +257,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 	}
 
 	// Delete the source state file
-	deleteErr := srcClient.DeleteBlob(ctx, srcContainer, srcKey)
+	deleteErr := srcClient.DeleteBlobIfNecessary(ctx, l, srcContainer, srcKey)
 	if deleteErr != nil {
 		return fmt.Errorf("error deleting source state file: %w", deleteErr)
 	}

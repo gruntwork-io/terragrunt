@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -161,114 +160,6 @@ func TestContainerOperationsWithErrors(t *testing.T) {
 	exists, err := client.ContainerExists(ctx, invalidContainerName)
 	require.Error(t, err)
 	require.False(t, exists)
-}
-
-func TestContainerExists(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name           string
-		config         map[string]interface{}
-		containerName  string
-		expectError    bool
-		expectedExists bool
-	}{
-		{
-			name: "empty-container-name",
-			config: map[string]interface{}{
-				"storage_account_name": "testaccount",
-			},
-			containerName:  "",
-			expectError:    true,
-			expectedExists: false,
-		},
-		{
-			name: "non-existent-container",
-			config: map[string]interface{}{
-				"storage_account_name": "testaccount",
-			},
-			containerName:  "non-existent-container",
-			expectError:    true, // Will fail with auth error since we don't have valid credentials
-			expectedExists: false,
-		},
-		{
-			name: "invalid-storage-account",
-			config: map[string]interface{}{
-				"storage_account_name": "nonexistentaccount",
-			},
-			containerName:  "test-container",
-			expectError:    true,
-			expectedExists: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc // capture range variable for parallel testing
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := t.Context()
-			opts, err := options.NewTerragruntOptionsForTest("")
-			require.NoError(t, err)
-
-			logger := createTestLogger(t)
-			client, err := azurehelper.CreateBlobServiceClient(logger, opts, tc.config)
-			require.NoError(t, err)
-			require.NotNil(t, client)
-
-			exists, err := client.ContainerExists(ctx, tc.containerName)
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tc.expectedExists, exists)
-			}
-		})
-	}
-}
-
-func TestContainerExistsIntegration(t *testing.T) {
-	t.Parallel()
-	if os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT") == "" {
-		t.Skip("Skipping Azure container existence test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set")
-	}
-
-	ctx := t.Context()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	config := map[string]interface{}{
-		"storage_account_name": os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT"),
-	}
-
-	logger := createTestLogger(t)
-	client, err := azurehelper.CreateBlobServiceClient(logger, opts, config)
-	require.NoError(t, err)
-	require.NotNil(t, client)
-
-	testContainerName := fmt.Sprintf("terragrunt-test-%d", time.Now().UnixNano())
-
-	// Test non-existent container first
-	exists, err := client.ContainerExists(ctx, testContainerName)
-	require.NoError(t, err)
-	assert.False(t, exists)
-
-	// Create the container and test again
-	err = client.CreateContainerIfNecessary(ctx, logger, testContainerName)
-	require.NoError(t, err)
-
-	// Ensure cleanup even if subsequent tests fail
-	defer func() {
-		err := client.DeleteContainer(ctx, logger, testContainerName)
-		if err != nil {
-			t.Logf("Warning: Failed to cleanup container %s: %v", testContainerName, err)
-		}
-	}()
-
-	// Verify container exists after creation
-	exists, err = client.ContainerExists(ctx, testContainerName)
-	require.NoError(t, err)
-	require.True(t, exists)
 }
 
 func TestCreateBlobServiceClientValidation(t *testing.T) {

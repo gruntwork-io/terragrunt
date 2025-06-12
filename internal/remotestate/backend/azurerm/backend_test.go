@@ -73,10 +73,6 @@ func TestBackendBootstrapWithTags(t *testing.T) {
 		"storage_account_name": accountName,
 		"container_name":       "terragrunt-test-container-tags",
 		"key":                  "test/terraform.tfstate",
-		"container_tags": map[string]string{
-			"Environment": "Test",
-			"Project":     "Terragrunt",
-		},
 	}
 
 	// Bootstrap with tags
@@ -123,16 +119,6 @@ func TestBackendBootstrapInvalidConfig(t *testing.T) {
 			config: backend.Config{
 				"storage_account_name": "testaccount",
 				"container_name":       "test-container",
-			},
-			expectError: true,
-		},
-		{
-			name: "invalid-tags-type",
-			config: backend.Config{
-				"storage_account_name": "testaccount",
-				"container_name":       "test-container",
-				"key":                  "test/terraform.tfstate",
-				"container_tags":       "invalid-tags", // Should be map[string]string
 			},
 			expectError: true,
 		},

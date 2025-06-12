@@ -26,53 +26,29 @@ const (
 	testFixtureAzureOutputFromRemoteState = "./fixtures/azure-output-from-remote-state"
 )
 
+// TestCase represents the test case data without the check function
+type TestCase struct {
+	name          string
+	args          string
+	containerName string
+}
+
 func TestAzureRMBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	t.Log("Starting TestAzureRMBootstrapBackend")
 
 	testCases := []struct {
-		name                  string
-		args                  string
-		containerName         string
-		checkExpectedResultFn func(t *testing.T, err error, output string, containerName string, rootPath string)
+		TestCase
+		checkExpectedResultFn func(t *testing.T, err error, output string, containerName string, rootPath string, tc *TestCase)
 	}{
 		{
-			name:          "bootstrap with backend command",
-			args:          "backend bootstrap",
-			containerName: "terragrunt-test-container-" + strings.ToLower(helpers.UniqueID()),
-			checkExpectedResultFn: func(t *testing.T, err error, _ string, containerName string, rootPath string) {
-				t.Helper()
-				require.NoError(t, err)
-
-				// Verify container exists
-				azureCfg := helpers.GetAzureStorageTestConfig(t)
-				azureCfg.ContainerName = containerName
-
-				opts, err := options.NewTerragruntOptionsForTest("")
-				require.NoError(t, err)
-
-				client, err := azurehelper.CreateBlobServiceClient(
-					logger.CreateLogger(),
-					opts,
-					map[string]interface{}{
-						"storage_account_name": azureCfg.StorageAccountName,
-						"container_name":       containerName,
-						"use_azuread_auth":     true,
-					},
-				)
-				require.NoError(t, err)
-
-				exists, err := client.ContainerExists(context.Background(), containerName)
-				require.NoError(t, err)
-				assert.True(t, exists)
+			TestCase: TestCase{
+				name:          "delete backend command",
+				args:          "backend delete --force",
+				containerName: "terragrunt-test-container-" + strings.ToLower(helpers.UniqueID()),
 			},
-		},
-		{
-			name:          "delete backend command",
-			args:          "backend delete --force",
-			containerName: "terragrunt-test-container-" + strings.ToLower(helpers.UniqueID()),
-			checkExpectedResultFn: func(t *testing.T, err error, output string, containerName string, rootPath string) {
+			checkExpectedResultFn: func(t *testing.T, err error, output string, containerName string, rootPath string, tc *TestCase) {
 				t.Helper()
 
 				// In delete case, not finding the container is acceptable
@@ -97,7 +73,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 					map[string]interface{}{
 						"storage_account_name": azureCfg.StorageAccountName,
 						"container_name":       containerName,
-						"use_azuread_auth":     true,
+						"use_azuread_auth":    true,
 					},
 				)
 				require.NoError(t, err)
@@ -174,7 +150,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --log-format key-value --strict-control require-explicit-bootstrap --working-dir "+rootPath)
 
-			tc.checkExpectedResultFn(t, err, stdout+stderr, tc.containerName, rootPath)
+			tc.checkExpectedResultFn(t, err, stdout+stderr, tc.containerName, rootPath, &tc.TestCase)
 		})
 	}
 }

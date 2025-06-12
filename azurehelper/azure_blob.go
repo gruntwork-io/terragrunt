@@ -17,6 +17,7 @@ import (
 // BlobServiceClient wraps Azure's azblob client to provide a simpler interface for our needs
 type BlobServiceClient struct {
 	client *azblob.Client
+	config map[string]interface{}
 }
 
 // GetObjectInput represents input parameters for getting a blob
@@ -49,7 +50,10 @@ func CreateBlobServiceClient(l log.Logger, opts *options.TerragruntOptions, conf
 		return nil, fmt.Errorf("error creating blob client with default credential: %w", err)
 	}
 
-	return &BlobServiceClient{client: client}, nil
+	return &BlobServiceClient{
+		client: client,
+		config: config,
+	}, nil
 }
 
 // GetObject downloads a blob from Azure Storage
@@ -107,7 +111,6 @@ func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName s
 // CreateContainerIfNecessary creates a container if it doesn't exist
 func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l log.Logger, containerName string) error {
 	exists, err := c.ContainerExists(ctx, containerName)
-
 	if err != nil {
 		return err
 	}
@@ -115,7 +118,6 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 	if !exists {
 		l.Infof("Creating Azure Storage container %s", containerName)
 		_, err = c.client.CreateContainer(ctx, containerName, nil)
-
 		if err != nil {
 			return fmt.Errorf("error creating container: %w", err)
 		}
@@ -210,22 +212,16 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 	if err != nil {
 		return fmt.Errorf("error getting source blob: %w", err)
 	}
+	defer srcBlob.Body.Close()
 
-	defer func() {
-		if cerr := srcBlob.Body.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("error closing source blob: %w", cerr)
-		}
-	}()
-
+	// Read the source blob data
 	data, err := io.ReadAll(srcBlob.Body)
 	if err != nil {
 		return fmt.Errorf("error reading source blob: %w", err)
 	}
 
-	container := dstClient.client.ServiceClient().NewContainerClient(dstContainer)
-	blockBlob := container.NewBlockBlobClient(dstKey)
-
-	_, err = blockBlob.UploadBuffer(ctx, data, nil)
+	// Upload to destination
+	err = dstClient.UploadBlob(ctx, log.Default(), dstContainer, dstKey, data)
 	if err != nil {
 		return fmt.Errorf("error uploading to destination: %w", err)
 	}
@@ -233,24 +229,4 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 	return nil
 }
 
-// DeleteBlob deletes a blob from a container
-func (c *BlobServiceClient) DeleteBlob(ctx context.Context, containerName, blobKey string) error {
-	if containerName == "" || blobKey == "" {
-		return errors.New("container name and blob key are required")
-	}
 
-	container := c.client.ServiceClient().NewContainerClient(containerName)
-	blob := container.NewBlobClient(blobKey)
-
-	_, err := blob.Delete(ctx, nil)
-	if err != nil {
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.ErrorCode == "BlobNotFound" {
-			return nil
-		}
-
-		return fmt.Errorf("error deleting blob: %w", err)
-	}
-
-	return nil
-}

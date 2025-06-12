@@ -14,7 +14,6 @@ const BackendName = "azurerm"
 // terragruntOnlyConfigs are settings that appear in the remote_state config that are only used by
 // Terragrunt and not passed on to the Azure backend configuration
 var terragruntOnlyConfigs = []string{
-	"container_tags",
 	"disable_blob_public_access",
 }
 
@@ -45,7 +44,6 @@ type RemoteStateConfigAzurerm struct {
 
 // ExtendedRemoteStateConfigAzurerm provides extended configuration for the Azure RM backend
 type ExtendedRemoteStateConfigAzurerm struct {
-	ContainerTags            map[string]string        `mapstructure:"container_tags"`             // map pointer type (8 bytes) - place first for alignment
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm `mapstructure:",squash"`                    // large struct - align after pointer
 	DisableBlobPublicAccess  bool                     `mapstructure:"disable_blob_public_access"` // 1 byte at end
 	_                        struct{}                 // padding for optimal alignment
