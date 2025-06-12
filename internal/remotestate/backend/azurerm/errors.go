@@ -13,12 +13,12 @@ func (configName MissingRequiredAzureRemoteStateConfig) Error() string {
 type MaxRetriesWaitingForContainerExceeded string
 
 func (err MaxRetriesWaitingForContainerExceeded) Error() string {
-	return fmt.Sprintf("Exceeded max retries waiting for Azure Storage container %s", string(err))
+	return "Exceeded max retries waiting for Azure Storage container " + string(err)
 }
 
 type ContainerDoesNotExist struct {
+	Underlying    error
 	ContainerName string
-	Underlying   error
 }
 
 func (err ContainerDoesNotExist) Error() string {

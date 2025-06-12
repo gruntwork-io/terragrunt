@@ -1,47 +1,47 @@
-package azurerm
+package azurerm_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFilterOutTerragruntKeys(t *testing.T) {
 	t.Parallel()
-
 	testCases := []struct {
+		config   azurerm.Config
+		expected azurerm.Config
 		name     string
-		config   Config
-		expected Config
 	}{
 		{
 			name: "no-terragrunt-keys",
-			config: Config{
+			config: azurerm.Config{
 				"storage_account_name": "testaccount",
-				"container_name":      "test-container",
-				"key":                "test/terraform.tfstate",
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
 			},
-			expected: Config{
+			expected: azurerm.Config{
 				"storage_account_name": "testaccount",
-				"container_name":      "test-container",
-				"key":                "test/terraform.tfstate",
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
 			},
 		},
 		{
 			name: "with-terragrunt-keys",
-			config: Config{
-				"storage_account_name":      "testaccount",
-				"container_name":           "test-container",
-				"key":                     "test/terraform.tfstate",
+			config: azurerm.Config{
+				"storage_account_name": "testaccount",
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
 				"container_tags": map[string]string{
 					"Environment": "Test",
 				},
 			},
-			expected: Config{
+			expected: azurerm.Config{
 				"storage_account_name": "testaccount",
-				"container_name":      "test-container",
-				"key":                "test/terraform.tfstate",
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
 			},
 		},
 	}
@@ -51,7 +51,7 @@ func TestFilterOutTerragruntKeys(t *testing.T) {
 			t.Parallel()
 			filtered := tc.config.FilterOutTerragruntKeys()
 			// Convert filtered map[string]interface{} to Config for comparison
-			filteredConfig := Config(filtered)
+			filteredConfig := azurerm.Config(filtered)
 			assert.Equal(t, tc.expected, filteredConfig)
 		})
 	}
@@ -61,16 +61,16 @@ func TestParseExtendedAzureConfig(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		config      azurerm.Config
 		name        string
-		config      Config
 		expectError bool
 	}{
 		{
 			name: "valid-config",
-			config: Config{
+			config: azurerm.Config{
 				"storage_account_name": "testaccount",
-				"container_name":      "test-container",
-				"key":                "test/terraform.tfstate",
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
 				"container_tags": map[string]string{
 					"Environment": "Test",
 				},
@@ -79,47 +79,47 @@ func TestParseExtendedAzureConfig(t *testing.T) {
 		},
 		{
 			name: "with-connection-string",
-			config: Config{
+			config: azurerm.Config{
 				"storage_account_name": "testaccount",
-				"container_name":      "test-container",
-				"key":                "test/terraform.tfstate",
-				"connection_string":  "test-connection-string",
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
+				"connection_string":    "test-connection-string",
 			},
 			expectError: false,
 		},
 
 		{
 			name: "with-container-tags",
-			config: Config{
+			config: azurerm.Config{
 				"storage_account_name": "testaccount",
-				"container_name":      "test-container",
-				"key":                "test/terraform.tfstate",
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
 				"container_tags": map[string]string{
 					"Environment": "Test",
-					"Project":    "Terragrunt",
+					"Project":     "Terragrunt",
 				},
 			},
 			expectError: false,
 		},
 		{
 			name: "with-invalid-container-tags",
-			config: Config{
+			config: azurerm.Config{
 				"storage_account_name": "testaccount",
-				"container_name":      "test-container",
-				"key":                "test/terraform.tfstate",
-				"container_tags":     "invalid-tags", // Should be a map[string]string
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
+				"container_tags":       "invalid-tags", // Should be a map[string]string
 			},
 			expectError: true,
 		},
 		{
 			name: "with-all-extended-features",
-			config: Config{
+			config: azurerm.Config{
 				"storage_account_name": "testaccount",
-				"container_name":      "test-container",
-				"key":                "test/terraform.tfstate",
+				"container_name":       "test-container",
+				"key":                  "test/terraform.tfstate",
 				"container_tags": map[string]string{
 					"Environment": "Test",
-					"Project":    "Terragrunt",
+					"Project":     "Terragrunt",
 				},
 				"connection_string": "test-connection-string",
 			},
@@ -134,7 +134,7 @@ func TestParseExtendedAzureConfig(t *testing.T) {
 
 			config, err := tc.config.ParseExtendedAzureConfig()
 			if tc.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, config)
 			} else {
 				require.NoError(t, err)
@@ -158,47 +158,47 @@ func TestConfigValidation(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name        string
-		config      *ExtendedRemoteStateConfigAzurerm
-		expectError bool
+		config      *azurerm.ExtendedRemoteStateConfigAzurerm // pointer type (8 bytes)
+		name        string                                    // string (16 bytes)
+		expectError bool                                      // bool (1 byte)
 	}{
 		{
 			name: "valid-config",
-			config: &ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: &azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					ContainerName:     "test-container",
-					Key:              "test/terraform.tfstate",
+					ContainerName:      "test-container",
+					Key:                "test/terraform.tfstate",
 				},
 			},
 			expectError: false,
 		},
 		{
 			name: "missing-storage-account",
-			config: &ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: &azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					ContainerName: "test-container",
-					Key:          "test/terraform.tfstate",
+					Key:           "test/terraform.tfstate",
 				},
 			},
 			expectError: true,
 		},
 		{
 			name: "missing-container",
-			config: &ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: &azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					Key:               "test/terraform.tfstate",
+					Key:                "test/terraform.tfstate",
 				},
 			},
 			expectError: true,
 		},
 		{
 			name: "missing-key",
-			config: &ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: &azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					ContainerName:     "test-container",
+					ContainerName:      "test-container",
 				},
 			},
 			expectError: true,
@@ -206,39 +206,39 @@ func TestConfigValidation(t *testing.T) {
 
 		{
 			name: "with-container-tags",
-			config: &ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: &azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					ContainerName:     "test-container",
-					Key:              "test/terraform.tfstate",
+					ContainerName:      "test-container",
+					Key:                "test/terraform.tfstate",
 				},
 				ContainerTags: map[string]string{
 					"Environment": "Test",
-					"Project":    "Terragrunt",
+					"Project":     "Terragrunt",
 				},
 			},
 			expectError: false,
 		},
 		{
 			name: "with-environment-specified",
-			config: &ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: &azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					ContainerName:     "test-container",
-					Key:              "test/terraform.tfstate",
-					Environment:      "usgovernment",
+					ContainerName:      "test-container",
+					Key:                "test/terraform.tfstate",
+					Environment:        "usgovernment",
 				},
 			},
 			expectError: false,
 		},
 		{
 			name: "with-resource-group-name",
-			config: &ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: &azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					ContainerName:     "test-container",
-					Key:              "test/terraform.tfstate",
-					ResourceGroupName: "terragrunt-test",
+					ContainerName:      "test-container",
+					Key:                "test/terraform.tfstate",
+					ResourceGroupName:  "terragrunt-test",
 				},
 			},
 			expectError: false,
@@ -264,43 +264,43 @@ func TestCacheKey(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name       string
-		config     ExtendedRemoteStateConfigAzurerm
-		expected   string
+		name     string                                   // string (16 bytes) - first for alignment
+		expected string                                   // string (16 bytes) - group strings together
+		config   azurerm.ExtendedRemoteStateConfigAzurerm // largest field at end
 	}{
 		{
-			name: "basic-config",
-			config: ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					ContainerName:     "test-container",
-					Key:              "test/terraform.tfstate",
+					ContainerName:      "test-container",
+					Key:                "test/terraform.tfstate",
 				},
 			},
 			expected: "testaccount-test-container-test/terraform.tfstate",
+			name:     "basic-config",
 		},
 		{
-			name: "with-resource-group",
-			config: ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					ContainerName:     "test-container",
-					Key:              "test/terraform.tfstate",
-					ResourceGroupName: "test-rg",
+					ContainerName:      "test-container",
+					Key:                "test/terraform.tfstate",
+					ResourceGroupName:  "test-rg",
 				},
 			},
 			expected: "testaccount-test-container-test/terraform.tfstate",
+			name:     "with-resource-group",
 		},
 		{
-			name: "with-nested-key",
-			config: ExtendedRemoteStateConfigAzurerm{
-				RemoteStateConfigAzurerm: RemoteStateConfigAzurerm{
+			config: azurerm.ExtendedRemoteStateConfigAzurerm{
+				RemoteStateConfigAzurerm: azurerm.RemoteStateConfigAzurerm{
 					StorageAccountName: "testaccount",
-					ContainerName:     "test-container",
-					Key:              "env/prod/region/us-east-1/terraform.tfstate",
+					ContainerName:      "test-container",
+					Key:                "env/prod/region/us-east-1/terraform.tfstate",
 				},
 			},
 			expected: "testaccount-test-container-env/prod/region/us-east-1/terraform.tfstate",
+			name:     "with-nested-key",
 		},
 	}
 

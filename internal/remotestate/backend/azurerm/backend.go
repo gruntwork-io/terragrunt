@@ -3,6 +3,7 @@ package azurerm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -44,33 +45,34 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 	// Check environment variables if no explicit credentials in config
 	hasEnvCreds := false
+
 	if !hasAzureAD && !hasMSI && !hasServicePrincipal && !hasSasToken && !hasKeyAuth {
 		// Check for service principal environment variables first
-		if envClientID := os.Getenv("AZURE_CLIENT_ID"); envClientID != "" {
-			if envClientSecret := os.Getenv("AZURE_CLIENT_SECRET"); envClientSecret != "" {
-				if envTenantID := os.Getenv("AZURE_TENANT_ID"); envTenantID != "" {
-					if envSubID := os.Getenv("AZURE_SUBSCRIPTION_ID"); envSubID != "" {
-						hasServicePrincipal = true
-						hasEnvCreds = true
-					}
-				}
-			}
+		// Check all required service principal environment variables
+		envClientID := os.Getenv("AZURE_CLIENT_ID")
+		envClientSecret := os.Getenv("AZURE_CLIENT_SECRET")
+		envTenantID := os.Getenv("AZURE_TENANT_ID")
+		envSubID := os.Getenv("AZURE_SUBSCRIPTION_ID")
+
+		if envClientID != "" && envClientSecret != "" && envTenantID != "" && envSubID != "" {
+			hasServicePrincipal, hasEnvCreds = true, true
 		}
 
-		if envSas := os.Getenv("AZURE_STORAGE_SAS_TOKEN"); envSas != "" {
-			hasSasToken = true
-			hasEnvCreds = true
+		envSas := os.Getenv("AZURE_STORAGE_SAS_TOKEN")
+		if envSas != "" {
+			hasSasToken, hasEnvCreds = true, true
 		}
 
 		// Legacy/Deprecated environment variables - show deprecation warning
-		if envKey := os.Getenv("ARM_ACCESS_KEY"); envKey != "" {
+		envKey := os.Getenv("ARM_ACCESS_KEY")
+		if envKey != "" {
 			l.Warn("Using ARM_ACCESS_KEY is deprecated. Please switch to Azure AD authentication.")
-			hasKeyAuth = true
-			hasEnvCreds = true
+
+			hasKeyAuth, hasEnvCreds = true, true
 		} else if envKey := os.Getenv("AZURE_STORAGE_KEY"); envKey != "" {
 			l.Warn("Using AZURE_STORAGE_KEY is deprecated. Please switch to Azure AD authentication.")
-			hasKeyAuth = true
-			hasEnvCreds = true
+
+			hasKeyAuth, hasEnvCreds = true, true
 		}
 	}
 
@@ -79,7 +81,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	}
 
 	if !hasAzureAD && !hasMSI && !hasServicePrincipal && !hasSasToken && !hasKeyAuth && !hasEnvCreds {
-		return fmt.Errorf("no valid authentication method found: Azure AD auth is recommended. Alternatively, provide one of: MSI, service principal credentials, or SAS token")
+		return errors.New("no valid authentication method found: Azure AD auth is recommended. Alternatively, provide one of: MSI, service principal credentials, or SAS token")
 	}
 
 	// ensure that only one goroutine can initialize storage
@@ -103,6 +105,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	}
 
 	backend.MarkConfigInited(azureCfg)
+
 	return nil
 }
 
@@ -123,9 +126,10 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		return false, err
 	}
 
-	containerExists, err := client.ContainerExists(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
-	if err != nil {
-		return false, err
+	containerExists, existsErr := client.ContainerExists(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+
+	if existsErr != nil {
+		return false, existsErr
 	}
 
 	if !containerExists {
@@ -143,10 +147,12 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 	}
 
 	prompt := fmt.Sprintf("Azure Storage container %s blob %s will be deleted. Do you want to continue?", azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
+
 	shouldContinue, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
 		return err
 	}
+
 	if !shouldContinue {
 		return nil
 	}
@@ -167,10 +173,12 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 	}
 
 	prompt := fmt.Sprintf("Azure Storage container %s and all its contents will be deleted. Do you want to continue?", azureCfg.RemoteStateConfigAzurerm.ContainerName)
+
 	shouldContinue, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
 		return err
 	}
+
 	if !shouldContinue {
 		return nil
 	}
@@ -213,19 +221,22 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 	// Check that source container exists and state file is present
 	srcContainer := srcCfg.RemoteStateConfigAzurerm.ContainerName
 	srcKey := srcCfg.RemoteStateConfigAzurerm.Key
-	exists, err := srcClient.ContainerExists(ctx, srcContainer)
-	if err != nil {
-		return fmt.Errorf("error checking source container existence: %w", err)
+
+	exists, existsErr := srcClient.ContainerExists(ctx, srcContainer)
+	if existsErr != nil {
+		return fmt.Errorf("error checking source container existence: %w", existsErr)
 	}
+
 	if !exists {
 		return fmt.Errorf("source container %s does not exist", srcContainer)
 	}
 
 	// Ensure destination container exists (create if necessary)
 	dstContainer := dstCfg.RemoteStateConfigAzurerm.ContainerName
-	err = dstClient.CreateContainerIfNecessary(ctx, l, dstContainer)
-	if err != nil {
-		return fmt.Errorf("error creating destination container: %w", err)
+
+	createErr := dstClient.CreateContainerIfNecessary(ctx, l, dstContainer)
+	if createErr != nil {
+		return fmt.Errorf("error creating destination container: %w", createErr)
 	}
 
 	// Copy state file from source to destination
@@ -239,15 +250,16 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		Bucket: &dstContainer,
 		Key:    &dstCfg.RemoteStateConfigAzurerm.Key,
 	}
-	_, err = dstClient.GetObject(dstInput)
-	if err != nil {
-		return fmt.Errorf("error verifying destination state file: %w", err)
+
+	_, getObjectErr := dstClient.GetObject(ctx, dstInput)
+	if getObjectErr != nil {
+		return fmt.Errorf("error verifying destination state file: %w", getObjectErr)
 	}
 
 	// Delete the source state file
-	err = srcClient.DeleteBlob(ctx, srcContainer, srcKey)
-	if err != nil {
-		return fmt.Errorf("error deleting source state file: %w", err)
+	deleteErr := srcClient.DeleteBlob(ctx, srcContainer, srcKey)
+	if deleteErr != nil {
+		return fmt.Errorf("error deleting source state file: %w", deleteErr)
 	}
 
 	return nil

@@ -151,96 +151,96 @@ func TestConfig_AzureBackendComparison(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name            string
 		existingBackend backend.Config
 		newConfig       backend.Config
+		name            string
 		expected        bool
 	}{
 		{
-			"authentication method change - access key to MSI",
-			backend.Config{
+			existingBackend: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"access_key":         "abcd1234",
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"access_key":           "abcd1234",
 			},
-			backend.Config{
+			newConfig: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"use_msi":           true,
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"use_msi":              true,
 			},
-			false,
+			name:     "authentication method change - access key to MSI",
+			expected: false,
 		},
 		{
-			"authentication method unchanged - MSI",
-			backend.Config{
+			existingBackend: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"use_msi":           true,
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"use_msi":              true,
 			},
-			backend.Config{
+			newConfig: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"use_msi":           true,
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"use_msi":              true,
 			},
-			true,
+			name:     "authentication method unchanged - MSI",
+			expected: true,
 		},
 		{
-			"client config credentials change",
-			backend.Config{
+			existingBackend: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"client_id":          "old-id",
-				"client_secret":      "old-secret",
-				"tenant_id":          "tenant-id",
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"client_id":            "old-id",
+				"client_secret":        "old-secret",
+				"tenant_id":            "tenant-id",
 			},
-			backend.Config{
+			newConfig: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"client_id":          "new-id",
-				"client_secret":      "new-secret",
-				"tenant_id":          "tenant-id",
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"client_id":            "new-id",
+				"client_secret":        "new-secret",
+				"tenant_id":            "tenant-id",
 			},
-			false,
+			name:     "client config credentials change",
+			expected: false,
 		},
 		{
-			"endpoint configuration change",
-			backend.Config{
+			existingBackend: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"endpoint":           "core.windows.net",
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"endpoint":             "core.windows.net",
 			},
-			backend.Config{
+			newConfig: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"endpoint":           "core.chinacloudapi.cn",
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"endpoint":             "core.chinacloudapi.cn",
 			},
-			false,
+			name:     "endpoint configuration change",
+			expected: false,
 		},
 		{
-			"subscription and tenant change",
-			backend.Config{
+			existingBackend: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"subscription_id":    "sub1",
-				"tenant_id":          "tenant1",
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"subscription_id":      "sub1",
+				"tenant_id":            "tenant1",
 			},
-			backend.Config{
+			newConfig: backend.Config{
 				"storage_account_name": "myaccount",
-				"container_name":      "states",
-				"key":                "terraform.tfstate",
-				"subscription_id":    "sub2",
-				"tenant_id":          "tenant2",
+				"container_name":       "states",
+				"key":                  "terraform.tfstate",
+				"subscription_id":      "sub2",
+				"tenant_id":            "tenant2",
 			},
-			false,
+			name:     "subscription and tenant change",
+			expected: false,
 		},
 	}
 
