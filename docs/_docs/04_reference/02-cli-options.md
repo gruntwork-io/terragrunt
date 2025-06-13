@@ -1715,7 +1715,7 @@ For more information, see the [Run Report](/docs/features/run-report#disabling-t
 **CLI Arg**: `--summary-per-unit`<br/>
 **Environment Variable**: `TG_SUMMARY_PER_UNIT`<br/>
 
-When enabled, Terragrunt will show the duration of each unit in the run summary. The units are sorted by duration, with the longest-running units shown first.
+When enabled, Terragrunt will break down the run summary by unit. The units are sorted by result, then duration, with the longest-running units shown first.
 
 For more information, see the [Run Report](/docs/features/run-report) feature.
 
