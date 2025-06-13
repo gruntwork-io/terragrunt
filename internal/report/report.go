@@ -710,18 +710,18 @@ func (r *Report) WriteSummary(w io.Writer) error {
 func (s *Summary) Write(w io.Writer) error {
 	colorizer := NewColorizer(s.shouldColor)
 
+	if s.showUnitTiming {
+		// When showing unit timing, use a different format that integrates categories with their units
+		return s.writeIntegratedSummary(w, colorizer)
+	}
+
+	// Original format for when unit timing is not shown
 	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(runSummaryHeader)); err != nil {
 		return err
 	}
 
 	if err := s.writeSummaryEntry(w, durationLabel, s.TotalDurationString(colorizer)); err != nil {
 		return err
-	}
-
-	if s.showUnitTiming {
-		if err := s.writeUnitsTiming(w, colorizer); err != nil {
-			return err
-		}
 	}
 
 	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits()))); err != nil {
@@ -786,26 +786,67 @@ func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) err
 	return nil
 }
 
-func (s *Summary) writeUnitsTiming(w io.Writer, colorizer *Colorizer) error {
-	errs := []error{}
-
-	// Sort the runs by duration, longest first.
-	sortedRuns := slices.Clone(s.runs)
-	slices.SortFunc(sortedRuns, func(a, b *Run) int {
-		aDuration := a.Ended.Sub(a.Started)
-		bDuration := b.Ended.Sub(b.Started)
-
-		return int(bDuration - aDuration)
-	})
-
-	for _, run := range sortedRuns {
-		if err := s.writeUnitTiming(w, run, colorizer); err != nil {
-			errs = append(errs, err)
-		}
+// writeIntegratedSummary writes the summary with integrated unit timing grouped by categories
+func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) error {
+	// Write header with total units and duration
+	header := fmt.Sprintf("%s  %d units  %s", runSummaryHeader, s.TotalUnits(), s.TotalDurationString(colorizer))
+	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(header)); err != nil {
+		return err
 	}
 
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+	// Write separator line
+	separatorLine := fmt.Sprintf("%s%s", prefix, strings.Repeat("─", 28))
+	if err := s.writeSummaryHeader(w, separatorLine); err != nil {
+		return err
+	}
+
+	// Group runs by result type
+	resultGroups := map[Result][]*Run{
+		ResultSucceeded: {},
+		ResultFailed:    {},
+		ResultEarlyExit: {},
+		ResultExcluded:  {},
+	}
+
+	for _, run := range s.runs {
+		resultGroups[run.Result] = append(resultGroups[run.Result], run)
+	}
+
+	// Write each category with its units
+	categories := []struct {
+		result    Result
+		label     string
+		count     int
+		colorizer func(string) string
+	}{
+		{ResultSucceeded, successLabel, s.UnitsSucceeded, colorizer.successColorizer},
+		{ResultFailed, failureLabel, s.UnitsFailed, colorizer.failureColorizer},
+		{ResultEarlyExit, earlyExitLabel, s.EarlyExits, colorizer.exitColorizer},
+		{ResultExcluded, excludeLabel, s.Excluded, colorizer.excludeColorizer},
+	}
+
+	for _, category := range categories {
+		if category.count > 0 {
+			// Write category header
+			if err := s.writeSummaryEntry(w, category.label, category.colorizer(strconv.Itoa(category.count))); err != nil {
+				return err
+			}
+
+			// Sort runs in this category by duration (longest first)
+			runs := resultGroups[category.result]
+			slices.SortFunc(runs, func(a, b *Run) int {
+				aDuration := a.Ended.Sub(a.Started)
+				bDuration := b.Ended.Sub(b.Started)
+				return int(bDuration - aDuration)
+			})
+
+			// Write each unit in this category
+			for _, run := range runs {
+				if err := s.writeCleanUnitTiming(w, run, colorizer); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil
@@ -825,6 +866,30 @@ func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) e
 		name,
 		separator,
 		s.unitDurationPadding(name),
+		colorizer.colorDuration(duration),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// writeCleanUnitTiming writes unit timing with cleaner formatting (no colons, better alignment)
+func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) error {
+	duration := run.Ended.Sub(run.Started)
+
+	name := run.Path
+	if s.workingDir != "" {
+		name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+	}
+
+	padding := s.cleanUnitDurationPadding(name)
+	_, err := fmt.Fprintf(
+		w, "%s%s%s%s\n",
+		strings.Repeat(prefix, unitPrefixMultiplier),
+		name,
+		padding,
 		colorizer.colorDuration(duration),
 	)
 	if err != nil {
@@ -902,4 +967,44 @@ func (s *Summary) unitDurationPadding(name string) string {
 	labelLength := (len(prefix) * unitPrefixMultiplier) + len(name) + len(separator)
 
 	return strings.Repeat(s.padder, longestLineLength-labelLength)
+}
+
+// cleanUnitDurationPadding calculates padding for unit names to align durations with header
+func (s *Summary) cleanUnitDurationPadding(name string) string {
+	// Calculate where the duration starts in the header
+	// Header format: "❯❯ Run Summary  13 units  200ms"
+	headerPrefix := fmt.Sprintf("%s  %d units  ", runSummaryHeader, s.TotalUnits())
+	headerDurationColumn := len(headerPrefix)
+
+	// Calculate current position for this unit
+	unitPrefix := strings.Repeat(prefix, unitPrefixMultiplier)
+	currentPosition := len(unitPrefix) + len(name)
+
+	// Calculate padding needed to align with header duration column
+	// Subtract 4 spaces to move durations closer to the left for better alignment
+	paddingNeeded := headerDurationColumn - currentPosition - 4
+
+	if paddingNeeded < 1 {
+		paddingNeeded = 1
+	}
+
+	return strings.Repeat(s.padder, paddingNeeded)
+}
+
+// longestUnitNameLength finds the longest unit name length
+func (s *Summary) longestUnitNameLength() int {
+	maxLength := 0
+
+	for _, run := range s.runs {
+		name := run.Path
+		if s.workingDir != "" {
+			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+		}
+
+		if len(name) > maxLength {
+			maxLength = len(name)
+		}
+	}
+
+	return maxLength
 }

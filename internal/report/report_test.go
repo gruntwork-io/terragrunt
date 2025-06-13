@@ -1058,9 +1058,8 @@ func TestWriteUnitsTiming(t *testing.T) {
 				// No runs added
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:  x
-   Units:     0
+❯❯ Run Summary  0 units  x
+   ────────────────────────────
 `,
 		},
 		{
@@ -1071,11 +1070,10 @@ func TestWriteUnitsTiming(t *testing.T) {
 				r.EndRun(run.Path)
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:   x
-      single-run:  x
-   Units:      1
+❯❯ Run Summary  1 units  x
+   ────────────────────────────
    Succeeded:  1
+      single-run         x
 `,
 		},
 		{
@@ -1096,13 +1094,43 @@ func TestWriteUnitsTiming(t *testing.T) {
 				r.EndRun(longRun.Path)
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:   x
-      long-run:    x
-      medium-run:  x
-      short-run:   x
-   Units:      3
+❯❯ Run Summary  3 units  x
+   ────────────────────────────
    Succeeded:  3
+      long-run           x
+      medium-run         x
+      short-run          x
+`,
+		},
+		{
+			name: "mixed results grouped by category",
+			setup: func(r *report.Report) {
+				// Add runs with different results
+				successRun1 := newRun(t, filepath.Join(tmp, "success-1"))
+				successRun2 := newRun(t, filepath.Join(tmp, "success-2"))
+				failRun := newRun(t, filepath.Join(tmp, "fail-run"))
+				excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+
+				r.AddRun(successRun1)
+				r.AddRun(successRun2)
+				r.AddRun(failRun)
+				r.AddRun(excludedRun)
+
+				r.EndRun(successRun1.Path)
+				r.EndRun(successRun2.Path)
+				r.EndRun(failRun.Path, report.WithResult(report.ResultFailed))
+				r.EndRun(excludedRun.Path, report.WithResult(report.ResultExcluded))
+			},
+			expected: `
+❯❯ Run Summary  4 units  x
+   ────────────────────────────
+   Succeeded:  2
+      success-1          x
+      success-2          x
+   Failed:     1
+      fail-run           x
+   Excluded:   1
+      excluded-run       x
 `,
 		},
 	}
@@ -1127,8 +1155,12 @@ func TestWriteUnitsTiming(t *testing.T) {
 			re := regexp.MustCompile(`Duration:(\s+).*`)
 			output = re.ReplaceAllString(output, "Duration:${1}x")
 
-			// Replace the actual durations with x
-			re = regexp.MustCompile(`([ ]{6})([^\s]+:)(\s+)(.*)`)
+			// Replace the duration in the header line (e.g., "3 units  8µs" -> "3 units  x")
+			re = regexp.MustCompile(`(\d+ units\s+).*`)
+			output = re.ReplaceAllString(output, "${1}x")
+
+			// Replace the actual durations with x (for the new clean format without colons)
+			re = regexp.MustCompile(`([ ]{6})([^\s]+)(\s+)(\d+[µnms]+|\d+[smh])`)
 			output = re.ReplaceAllString(output, "${1}${2}${3}x")
 
 			expected := strings.TrimSpace(tt.expected)
