@@ -93,6 +93,9 @@ type Colorizer struct {
 
 // NewColorizer creates a new Colorizer.
 func NewColorizer(shouldColor bool) *Colorizer {
+	// Check if unit colorizing is enabled via environment variable
+	shouldColorizeUnits := shouldColor && os.Getenv(envTmpUndocumentedReportUnitColorize) != ""
+
 	if !shouldColor {
 		return &Colorizer{
 			headingColorizer:     func(s string) string { return s },
@@ -113,16 +116,30 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		}
 	}
 
+	// Define unit colorizers based on environment variable
+	var successUnitColorizer, failureUnitColorizer, exitUnitColorizer, excludeUnitColorizer func(string) string
+	if shouldColorizeUnits {
+		successUnitColorizer = ansi.ColorFunc("green+h")
+		failureUnitColorizer = ansi.ColorFunc("red+h")
+		exitUnitColorizer = ansi.ColorFunc("yellow+h")
+		excludeUnitColorizer = ansi.ColorFunc("blue+h")
+	} else {
+		successUnitColorizer = func(s string) string { return s }
+		failureUnitColorizer = func(s string) string { return s }
+		exitUnitColorizer = func(s string) string { return s }
+		excludeUnitColorizer = func(s string) string { return s }
+	}
+
 	return &Colorizer{
 		headingColorizer:     ansi.ColorFunc("yellow+bh"),
 		successColorizer:     ansi.ColorFunc("green+bh"),
 		failureColorizer:     ansi.ColorFunc("red+bh"),
 		exitColorizer:        ansi.ColorFunc("yellow+bh"),
 		excludeColorizer:     ansi.ColorFunc("blue+bh"),
-		successUnitColorizer: ansi.ColorFunc("green+h"),
-		failureUnitColorizer: ansi.ColorFunc("red+h"),
-		exitUnitColorizer:    ansi.ColorFunc("yellow+h"),
-		excludeUnitColorizer: ansi.ColorFunc("blue+h"),
+		successUnitColorizer: successUnitColorizer,
+		failureUnitColorizer: failureUnitColorizer,
+		exitUnitColorizer:    exitUnitColorizer,
+		excludeUnitColorizer: excludeUnitColorizer,
 		nanosecondColorizer:  ansi.ColorFunc("cyan+bh"),
 		microsecondColorizer: ansi.ColorFunc("cyan+bh"),
 		millisecondColorizer: ansi.ColorFunc("cyan+bh"),
@@ -387,7 +404,8 @@ func withCause(name string) EndOption {
 // These are undocumented temporary environment variables that are used
 // to play with the summary, so that we can experiment with it.
 const (
-	envTmpUndocumentedReportPadder = "TMP_UNDOCUMENTED_REPORT_PADDER"
+	envTmpUndocumentedReportPadder       = "TMP_UNDOCUMENTED_REPORT_PADDER"
+	envTmpUndocumentedReportUnitColorize = "TMP_UNDOCUMENTED_REPORT_UNIT_COLORIZE"
 )
 
 // Summarize returns a summary of the report.
