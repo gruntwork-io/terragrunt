@@ -134,7 +134,12 @@ export default defineConfig({
         ],
       }),
     ],
-  }), d2(), partytown({
+  }), d2({
+    // It's recommended that we just skip generation in Vercel,
+    // and generate diagrams locally:
+    // https://astro-d2.vercel.app/guides/how-astro-d2-works/#deployment
+    skipGeneration: !!process.env['VERCEL']
+  }), partytown({
     config: {
       forward: ['dataLayer.push']
     }

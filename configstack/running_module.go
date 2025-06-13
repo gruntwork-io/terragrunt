@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -64,12 +66,12 @@ func newRunningModule(module *TerraformModule) *RunningModule {
 }
 
 // Run a module once all of its dependencies have finished executing.
-func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, semaphore chan struct{}) {
+func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, semaphore chan struct{}) {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "wait_for_module_ready", map[string]any{
 		"path":             module.Module.Path,
 		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 	}, func(_ context.Context) error {
-		return module.waitForDependencies()
+		return module.waitForDependencies(opts, r)
 	})
 
 	semaphore <- struct{}{} // Add one to the buffered channel. Will block if parallelism limit is met
@@ -82,16 +84,16 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 			"path":             module.Module.Path,
 			"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 		}, func(ctx context.Context) error {
-			return module.runNow(ctx, opts)
+			return module.runNow(ctx, opts, r)
 		})
 	}
 
-	module.moduleFinished(err)
+	module.moduleFinished(err, r, opts.Experiments.Evaluate(experiment.Report))
 }
 
 // Wait for all of this modules dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this module has no dependencies.
-func (module *RunningModule) waitForDependencies() error {
+func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions, r *report.Report) error {
 	module.Logger.Debugf("Module %s must wait for %d dependencies to finish", module.Module.Path, len(module.Dependencies))
 
 	for len(module.Dependencies) > 0 {
@@ -103,6 +105,37 @@ func (module *RunningModule) waitForDependencies() error {
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
+
+				if opts.Experiments.Evaluate(experiment.Report) {
+					run, err := r.GetRun(module.Module.Path)
+					if err != nil {
+						if errors.Is(err, report.ErrRunNotFound) {
+							run, err = report.NewRun(module.Module.Path)
+							if err != nil {
+								module.Logger.Errorf("Error creating run for unit %s: %v", module.Module.Path, err)
+								return err
+							}
+
+							if err := r.AddRun(run); err != nil {
+								module.Logger.Errorf("Error adding run for unit %s: %v", module.Module.Path, err)
+								return err
+							}
+						} else {
+							module.Logger.Errorf("Error getting run for unit %s: %v", module.Module.Path, err)
+							return err
+						}
+					}
+
+					if err := r.EndRun(
+						run.Path,
+						report.WithResult(report.ResultEarlyExit),
+						report.WithReason(report.ReasonAncestorError),
+						report.WithCauseAncestorExit(doneDependency.Module.Path),
+					); err != nil {
+						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+					}
+				}
+
 				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {
@@ -113,25 +146,36 @@ func (module *RunningModule) waitForDependencies() error {
 	return nil
 }
 
-func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions) error {
+func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	module.Logger.Debugf("Running %s", module.Module.Path)
 
 	opts.Writer = NewModuleWriter(opts.Writer)
 
 	defer module.Module.FlushOutput() //nolint:errcheck
 
-	return opts.RunTerragrunt(ctx, module.Logger, opts)
+	if opts.Experiments.Evaluate(experiment.Report) {
+		run, err := report.NewRun(module.Module.Path)
+		if err != nil {
+			return err
+		}
+
+		if err := r.AddRun(run); err != nil {
+			return err
+		}
+	}
+
+	return opts.RunTerragrunt(ctx, module.Logger, opts, r)
 }
 
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
-func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.TerragruntOptions) error {
+func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.TerragruntOptions, r *report.Report) error {
 	module.Status = Running
 
 	if module.Module.AssumeAlreadyApplied {
 		module.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.Path)
 		return nil
 	} else {
-		if err := module.runTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
+		if err := module.runTerragrunt(ctx, module.Module.TerragruntOptions, r); err != nil {
 			return err
 		}
 
@@ -149,7 +193,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			jsonOptions.TerraformCommand = tf.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.planFile(l, rootOptions)}
 
-			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions); err != nil {
+			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
 				return err
 			}
 
@@ -171,11 +215,54 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 }
 
 // Record that a module has finished executing and notify all of this module's dependencies
-func (module *RunningModule) moduleFinished(moduleErr error) {
+func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, reportExperiment bool) {
 	if moduleErr == nil {
 		module.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
+
+		if reportExperiment {
+			if err := r.EndRun(module.Module.Path); err != nil {
+				module.Logger.Errorf("Error ending run for module %s: %v", module.Module.Path, err)
+			}
+		}
 	} else {
 		module.Logger.Errorf("Module %s has finished with an error", module.Module.Path)
+
+		if reportExperiment {
+			if err := r.EndRun(
+				module.Module.Path,
+				report.WithResult(report.ResultFailed),
+				report.WithReason(report.ReasonRunError),
+				report.WithCauseRunError(moduleErr.Error()),
+			); err != nil {
+				// If we can't find the run, then it never started,
+				// So we should start it and then end it as a failed run.
+				//
+				// Early exit runs should already be ended at this point.
+				if errors.Is(err, report.ErrRunNotFound) {
+					run, err := report.NewRun(module.Module.Path)
+					if err != nil {
+						module.Logger.Errorf("Error creating run for unit %s: %v", module.Module.Path, err)
+						return
+					}
+
+					if err := r.AddRun(run); err != nil {
+						module.Logger.Errorf("Error adding run for unit %s: %v", module.Module.Path, err)
+						return
+					}
+
+					if err := r.EndRun(
+						run.Path,
+						report.WithResult(report.ResultFailed),
+						report.WithReason(report.ReasonRunError),
+						report.WithCauseRunError(moduleErr.Error()),
+					); err != nil {
+						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+					}
+				} else {
+					module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+				}
+			}
+		}
 	}
 
 	module.Status = Finished
@@ -281,8 +368,10 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 
 // RemoveFlagExcluded returns a cleaned-up map that only contains modules and
 // dependencies that should not be excluded
-func (modules RunningModules) RemoveFlagExcluded() map[string]*RunningModule {
+func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperiment bool) (RunningModules, error) {
 	var finalModules = make(map[string]*RunningModule)
+
+	var errs []error
 
 	for key, module := range modules {
 		// Only add modules that should not be excluded
@@ -303,16 +392,42 @@ func (modules RunningModules) RemoveFlagExcluded() map[string]*RunningModule {
 					finalModules[key].Dependencies[path] = dependency
 				}
 			}
+		} else if reportExperiment {
+			run, err := r.GetRun(module.Module.Path)
+			if errors.Is(err, report.ErrRunNotFound) {
+				run, err = report.NewRun(module.Module.Path)
+				if err != nil {
+					errs = append(errs, err)
+					continue
+				}
+
+				if err := r.AddRun(run); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+			}
+
+			if err := r.EndRun(
+				run.Path,
+				report.WithResult(report.ResultExcluded),
+				report.WithReason(report.ReasonExcludeBlock),
+			); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 
-	return finalModules
+	if len(errs) > 0 {
+		return finalModules, errors.Join(errs...)
+	}
+
+	return finalModules, nil
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (modules RunningModules) runModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
+func (modules RunningModules) runModules(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
 	var (
 		waitGroup sync.WaitGroup
 		semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
@@ -324,7 +439,7 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 		go func(module *RunningModule) {
 			defer waitGroup.Done()
 
-			module.runModuleWhenReady(ctx, opts, semaphore)
+			module.runModuleWhenReady(ctx, opts, r, semaphore)
 		}(module)
 	}
 

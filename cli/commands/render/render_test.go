@@ -28,7 +28,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal(outputBuffer.Bytes(), &result)
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -50,7 +50,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal(outputBuffer.Bytes(), &result)
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -76,7 +76,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	content, err := os.ReadFile(outputPath)
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal(content, &result)
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -126,20 +126,20 @@ func setupTest(t *testing.T) (*render.Options, string) {
 }
 
 // validateRenderedJSON validates the common JSON structure and values
-func validateRenderedJSON(t *testing.T, result map[string]interface{}, withMetadata bool) {
+func validateRenderedJSON(t *testing.T, result map[string]any, withMetadata bool) {
 	t.Helper()
 
-	inputs, ok := result["inputs"].(map[string]interface{})
+	inputs, ok := result["inputs"].(map[string]any)
 	require.True(t, ok)
 
 	stringInput := inputs["string_input"]
 
 	if withMetadata {
-		data, ok := stringInput.(map[string]interface{})
+		data, ok := stringInput.(map[string]any)
 		require.True(t, ok)
 		assert.NotNil(t, data)
 
-		metadata, ok := data["metadata"].(map[string]interface{})
+		metadata, ok := data["metadata"].(map[string]any)
 		require.True(t, ok)
 		assert.NotNil(t, metadata)
 
@@ -153,7 +153,7 @@ func validateRenderedJSON(t *testing.T, result map[string]interface{}, withMetad
 	numberInput := inputs["number_input"]
 
 	if withMetadata {
-		data, ok := numberInput.(map[string]interface{})
+		data, ok := numberInput.(map[string]any)
 		require.True(t, ok)
 		assert.NotNil(t, data)
 	} else {
@@ -163,7 +163,7 @@ func validateRenderedJSON(t *testing.T, result map[string]interface{}, withMetad
 	boolInput := inputs["bool_input"]
 
 	if withMetadata {
-		data, ok := boolInput.(map[string]interface{})
+		data, ok := boolInput.(map[string]any)
 		require.True(t, ok)
 		assert.NotNil(t, data)
 	} else {
@@ -173,21 +173,21 @@ func validateRenderedJSON(t *testing.T, result map[string]interface{}, withMetad
 	listInput := inputs["list_input"]
 
 	if withMetadata {
-		data, ok := listInput.(map[string]interface{})
+		data, ok := listInput.(map[string]any)
 		require.True(t, ok)
 		assert.NotNil(t, data)
 	} else {
-		assert.Equal(t, []interface{}{"item1", "item2"}, listInput)
+		assert.Equal(t, []any{"item1", "item2"}, listInput)
 	}
 
 	mapInput := inputs["map_input"]
 
 	if withMetadata {
-		data, ok := mapInput.(map[string]interface{})
+		data, ok := mapInput.(map[string]any)
 		require.True(t, ok)
 		assert.NotNil(t, data)
 	} else {
-		assert.Equal(t, map[string]interface{}{"key": "value"}, mapInput)
+		assert.Equal(t, map[string]any{"key": "value"}, mapInput)
 	}
 }
 

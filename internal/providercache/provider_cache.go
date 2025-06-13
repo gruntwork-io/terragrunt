@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"maps"
+
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -347,9 +349,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
 	// make copy + ensure non-nil
 	envs := make(map[string]string, len(opts.Env))
-	for k, v := range opts.Env {
-		envs[k] = v
-	}
+	maps.Copy(envs, opts.Env)
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))

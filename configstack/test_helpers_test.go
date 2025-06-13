@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -193,7 +194,7 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 	if err != nil {
 		t.Fatalf("Error creating terragrunt options for test %v", err)
 	}
-	opts.RunTerragrunt = func(_ context.Context, _ log.Logger, _ *options.TerragruntOptions) error {
+	opts.RunTerragrunt = func(_ context.Context, _ log.Logger, _ *options.TerragruntOptions, _ *report.Report) error {
 		*executed = true
 		return toReturnFromTerragruntCommand
 	}

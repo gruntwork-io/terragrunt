@@ -78,9 +78,9 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 
 	var results []LsRemoteResult
 
-	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	lines := strings.SplitSeq(strings.TrimSpace(stdout.String()), "\n")
 
-	for _, line := range lines {
+	for line := range lines {
 		if line == "" {
 			continue
 		}

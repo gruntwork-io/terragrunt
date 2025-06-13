@@ -105,7 +105,7 @@ func (c *Content) ensureTargetDirectory(targetPath string) error {
 
 // Store stores a single content item. This is typically used for trees,
 // As blobs are written directly from git cat-file stdout.
-func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
+func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	c.store.mapLock.Lock()
 
 	if _, ok := c.store.locks[hash]; !ok {
@@ -141,7 +141,7 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 		f.Close()
 
 		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("write_to_store", tempPath, err)
@@ -151,7 +151,7 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 		f.Close()
 
 		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("flush_buffer", tempPath, err)
@@ -159,7 +159,7 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 
 	if err := f.Close(); err != nil {
 		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("close_file", tempPath, err)
@@ -168,7 +168,7 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	// Set read-only permissions on the temporary file
 	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
 		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("chmod_temp_file", tempPath, err)
@@ -180,7 +180,7 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 		if _, err := os.Stat(path); err == nil {
 			// File exists, make it writable before rename operation
 			if err := os.Chmod(path, RegularFilePerms); err != nil {
-				(*l).Warnf("failed to make destination file writable %s: %v", path, err)
+				l.Warnf("failed to make destination file writable %s: %v", path, err)
 			}
 		}
 	}
@@ -188,7 +188,7 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
 		if err := os.Remove(tempPath); err != nil {
-			(*l).Warnf("failed to remove temp file %s: %v", tempPath, err)
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
 		}
 
 		return wrapError("finalize_store", path, err)
@@ -206,7 +206,7 @@ func (c *Content) Store(l *log.Logger, hash string, data []byte) error {
 }
 
 // Ensure ensures that a content item exists in the store
-func (c *Content) Ensure(l *log.Logger, hash string, data []byte) error {
+func (c *Content) Ensure(l log.Logger, hash string, data []byte) error {
 	path := c.getPath(hash)
 	if c.store.hasContent(path) {
 		return nil
@@ -216,7 +216,7 @@ func (c *Content) Ensure(l *log.Logger, hash string, data []byte) error {
 }
 
 // EnsureCopy ensures that a content item exists in the store by copying from a file
-func (c *Content) EnsureCopy(l *log.Logger, hash, src string) error {
+func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 	path := c.getPath(hash)
 	if c.store.hasContent(path) {
 		return nil

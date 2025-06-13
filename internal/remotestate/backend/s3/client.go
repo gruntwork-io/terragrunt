@@ -1379,7 +1379,7 @@ func (client *Client) DeleteS3Bucket(ctx context.Context, l log.Logger, bucketNa
 func (client *Client) WaitUntilS3BucketDeleted(ctx context.Context, l log.Logger, bucketName string) error {
 	l.Debugf("Waiting for bucket %s to be deleted", bucketName)
 
-	for retries := 0; retries < maxRetriesWaitingForS3Bucket; retries++ {
+	for retries := range maxRetriesWaitingForS3Bucket {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

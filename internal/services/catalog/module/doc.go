@@ -242,9 +242,9 @@ func (doc *Doc) parseFrontmatter(key docDataKey) string {
 			return ""
 		}
 
-		lines := strings.Split(match[1], "\n")
+		lines := strings.SplitSeq(match[1], "\n")
 
-		for _, line := range lines {
+		for line := range lines {
 			if parts := strings.Split(line, ":"); len(parts) > 1 {
 				key := strings.ToLower(strings.TrimSpace(parts[0]))
 				val := strings.TrimSpace(parts[1])
