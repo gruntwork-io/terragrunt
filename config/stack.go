@@ -245,7 +245,7 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		stackNamesSorted := make([]string, len(stackNames))
 		copy(stackNamesSorted, stackNames)
 
-		for i := 0; i < len(stackNamesSorted); i++ {
+		for i := range stackNamesSorted {
 			for j := i + 1; j < len(stackNamesSorted); j++ {
 				// Compare lengths of the actual paths from the nameToPath map, not the declaredStacks lookup
 				if len(nameToPath[stackNamesSorted[i]]) < len(nameToPath[stackNamesSorted[j]]) {

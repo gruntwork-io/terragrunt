@@ -37,36 +37,33 @@ func TestGcpBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		checkExpectedResultFn func(t *testing.T, err error, gcsBucketNameName string)
+		checkExpectedResultFn func(t *testing.T, stderr string, gcsBucketNameName string)
 		name                  string
 		args                  string
 	}{
 		{
 			name: "no bootstrap gcs backend without flag",
 			args: "run apply",
-			checkExpectedResultFn: func(t *testing.T, err error, gcsBucketNameName string) {
+			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketNameName string) {
 				t.Helper()
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "bucket doesn't exist")
+
+				assert.Contains(t, stderr, "bucket doesn't exist")
 			},
 		},
 		{
 			name: "bootstrap gcs backend with flag",
 			args: "run apply --backend-bootstrap",
-			checkExpectedResultFn: func(t *testing.T, err error, gcsBucketName string) {
+			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string) {
 				t.Helper()
 
-				require.NoError(t, err)
 				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 			},
 		},
 		{
 			name: "bootstrap gcs backend by backend command",
 			args: "backend bootstrap",
-			checkExpectedResultFn: func(t *testing.T, err error, gcsBucketName string) {
+			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string) {
 				t.Helper()
-
-				require.NoError(t, err)
 
 				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 			},
@@ -91,9 +88,10 @@ func TestGcpBootstrapBackend(t *testing.T) {
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 			copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath)
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath)
+			require.NoError(t, err)
 
-			tc.checkExpectedResultFn(t, err, gcsBucketName)
+			tc.checkExpectedResultFn(t, stderr, gcsBucketName)
 		})
 	}
 }
@@ -120,8 +118,9 @@ func TestGcpBootstrapBackendWithoutVersioning(t *testing.T) {
 
 	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
-	require.Error(t, err)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Run failed")
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all --force")
 	require.NoError(t, err)
