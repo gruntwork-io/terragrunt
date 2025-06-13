@@ -1041,7 +1041,7 @@ func TestSchemaIsValid(t *testing.T) {
 	assert.Equal(t, "ignore-block", *ignored.Cause)
 }
 
-func TestWriteUnitsTiming(t *testing.T) {
+func TestWriteUnitLevelSummary(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
@@ -1132,6 +1132,56 @@ func TestWriteUnitsTiming(t *testing.T) {
       excluded-run       x
 `,
 		},
+		{
+			name: "very short unit names",
+			setup: func(r *report.Report) {
+				// Add runs with very short names
+				a := newRun(t, filepath.Join(tmp, "a"))
+				b := newRun(t, filepath.Join(tmp, "b"))
+				c := newRun(t, filepath.Join(tmp, "c"))
+
+				r.AddRun(a)
+				r.AddRun(b)
+				r.AddRun(c)
+
+				r.EndRun(a.Path)
+				r.EndRun(b.Path)
+				r.EndRun(c.Path)
+			},
+			expected: `
+❯❯ Run Summary  3 units  x
+   ────────────────────────────
+   Succeeded (3)
+      a                  x
+      b                  x
+      c                  x
+`,
+		},
+		{
+			name: "very long unit names",
+			setup: func(r *report.Report) {
+				// Add runs with very long names
+				longName1 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-1"))
+				longName2 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-2"))
+				longName3 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-3"))
+
+				r.AddRun(longName1)
+				r.AddRun(longName2)
+				r.AddRun(longName3)
+
+				r.EndRun(longName1.Path)
+				r.EndRun(longName2.Path)
+				r.EndRun(longName3.Path)
+			},
+			expected: `
+❯❯ Run Summary  3 units           x
+   ───────────────────────────────────
+   Succeeded (3)
+      this-is-a-very-long-name-1  x
+      this-is-a-very-long-name-2  x
+      this-is-a-very-long-name-3  x
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1140,7 +1190,7 @@ func TestWriteUnitsTiming(t *testing.T) {
 
 			r := report.NewReport().
 				WithDisableColor().
-				WithShowUnitTiming().
+				WithShowUnitLevelSummary().
 				WithWorkingDir(tmp)
 
 			tt.setup(r)
@@ -1155,8 +1205,9 @@ func TestWriteUnitsTiming(t *testing.T) {
 			output = re.ReplaceAllString(output, "Duration:${1}x")
 
 			// Replace the duration in the header line (e.g., "3 units  8µs" -> "3 units  x")
-			re = regexp.MustCompile(`(\d+ units\s+).*`)
-			output = re.ReplaceAllString(output, "${1}x")
+			// Updated to handle variable spacing for long unit names
+			re = regexp.MustCompile(`(\d+ units\s+)(\s*)(\d+[µnms]+|\d+[smh]|[^\s]+)`)
+			output = re.ReplaceAllString(output, "${1}${2}x")
 
 			// Replace the actual durations with x (for the new clean format without colons)
 			re = regexp.MustCompile(`([ ]{6})([^\s]+)(\s+)(\d+[µnms]+|\d+[smh])`)

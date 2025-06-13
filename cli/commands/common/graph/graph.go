@@ -61,7 +61,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 
 		if opts.SummaryPerUnit {
-			r.WithShowUnitTiming()
+			r.WithShowUnitLevelSummary()
 		}
 
 		stackOpts = append(stackOpts, configstack.WithReport(r))

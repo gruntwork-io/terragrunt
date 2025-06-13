@@ -22,12 +22,12 @@ import (
 
 // Report captures data for a report/summary.
 type Report struct {
-	workingDir     string
-	format         Format
-	Runs           []*Run
-	mu             sync.RWMutex
-	shouldColor    bool
-	showUnitTiming bool
+	workingDir           string
+	format               Format
+	Runs                 []*Run
+	mu                   sync.RWMutex
+	shouldColor          bool
+	showUnitLevelSummary bool
 }
 
 // Run captures data for a run.
@@ -60,17 +60,17 @@ const (
 
 // Summary formats data from a report for output as a summary.
 type Summary struct {
-	firstRunStart  *time.Time
-	lastRunEnd     *time.Time
-	padder         string
-	workingDir     string
-	runs           []*Run
-	UnitsSucceeded int
-	UnitsFailed    int
-	EarlyExits     int
-	Excluded       int
-	shouldColor    bool
-	showUnitTiming bool
+	firstRunStart        *time.Time
+	lastRunEnd           *time.Time
+	padder               string
+	workingDir           string
+	runs                 []*Run
+	UnitsSucceeded       int
+	UnitsFailed          int
+	EarlyExits           int
+	Excluded             int
+	shouldColor          bool
+	showUnitLevelSummary bool
 }
 
 // Colorizer is a colorizer for the run summary output.
@@ -205,11 +205,11 @@ func (r *Report) WithFormat(format Format) *Report {
 	return r
 }
 
-// WithShowUnitTiming sets the showUnitTiming flag for the report.
+// WithShowUnitLevelSummary sets the showUnitLevelSummary flag for the report.
 //
 // When enabled, the summary of the report will include timings for each unit.
-func (r *Report) WithShowUnitTiming() *Report {
-	r.showUnitTiming = true
+func (r *Report) WithShowUnitLevelSummary() *Report {
+	r.showUnitLevelSummary = true
 
 	return r
 }
@@ -412,11 +412,11 @@ const (
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
-		workingDir:     r.workingDir,
-		shouldColor:    r.shouldColor,
-		showUnitTiming: r.showUnitTiming,
-		padder:         " ",
-		runs:           r.Runs,
+		workingDir:           r.workingDir,
+		shouldColor:          r.shouldColor,
+		showUnitLevelSummary: r.showUnitLevelSummary,
+		padder:               " ",
+		runs:                 r.Runs,
 	}
 
 	if os.Getenv(envTmpUndocumentedReportPadder) != "" {
@@ -723,8 +723,8 @@ func (r *Report) WriteSummary(w io.Writer) error {
 func (s *Summary) Write(w io.Writer) error {
 	colorizer := NewColorizer(s.shouldColor)
 
-	if s.showUnitTiming {
-		return s.writeIntegratedSummary(w, colorizer)
+	if s.showUnitLevelSummary {
+		return s.writeUnitLevelSummary(w, colorizer)
 	}
 
 	header := fmt.Sprintf("%s  %d units  %s", runSummaryHeader, s.TotalUnits(), s.TotalDurationString(colorizer))
@@ -765,19 +765,22 @@ func (s *Summary) Write(w io.Writer) error {
 }
 
 const (
-	prefix                  = "   "
-	unitPrefixMultiplier    = 2
-	runSummaryHeader        = "❯❯ Run Summary"
-	durationLabel           = "Duration"
-	unitsLabel              = "Units"
-	successLabel            = "Succeeded"
-	failureLabel            = "Failed"
-	earlyExitLabel          = "Early Exits"
-	excludeLabel            = "Excluded"
-	separator               = "  "
-	separatorLineLength     = 28
-	durationAlignmentOffset = 4
-	headerUnitCountSpacing  = 2
+	prefix                     = "   "
+	unitPrefixMultiplier       = 2
+	runSummaryHeader           = "❯❯ Run Summary"
+	durationLabel              = "Duration"
+	unitsLabel                 = "Units"
+	successLabel               = "Succeeded"
+	failureLabel               = "Failed"
+	earlyExitLabel             = "Early Exits"
+	excludeLabel               = "Excluded"
+	separator                  = "  "
+	separatorLineLength        = 28
+	durationAlignmentOffset    = 4
+	headerUnitCountSpacing     = 2
+	defaultUnitNameLength      = 20
+	headerPaddingAdjustment    = 3
+	separatorPaddingAdjustment = 2
 )
 
 func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
@@ -798,14 +801,37 @@ func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) err
 	return nil
 }
 
-// writeIntegratedSummary writes the summary with integrated unit timing grouped by categories
-func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) error {
-	header := fmt.Sprintf("%s  %d units  %s", runSummaryHeader, s.TotalUnits(), s.TotalDurationString(colorizer))
+// writeUnitLevelSummary writes the summary with unit level summaries grouped by categories
+func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error {
+	maxUnitNameLength := 0
+
+	for _, run := range s.runs {
+		name := run.Path
+		if s.workingDir != "" {
+			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+		}
+
+		if len(name) > maxUnitNameLength {
+			maxUnitNameLength = len(name)
+		}
+	}
+
+	headerPadding := 0
+	if maxUnitNameLength > defaultUnitNameLength {
+		headerPadding = maxUnitNameLength - defaultUnitNameLength + headerPaddingAdjustment
+	}
+
+	header := fmt.Sprintf("%s  %d units%s  %s", runSummaryHeader, s.TotalUnits(), strings.Repeat(" ", headerPadding), s.TotalDurationString(colorizer))
 	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(header)); err != nil {
 		return err
 	}
 
-	separatorLine := fmt.Sprintf("%s%s", prefix, strings.Repeat("─", separatorLineLength))
+	separatorAdjustment := 0
+	if headerPadding > 0 {
+		separatorAdjustment = headerPadding - separatorPaddingAdjustment
+	}
+
+	separatorLine := fmt.Sprintf("%s%s", prefix, strings.Repeat("─", separatorLineLength+separatorAdjustment))
 	if err := s.writeSummaryHeader(w, separatorLine); err != nil {
 		return err
 	}
@@ -938,8 +964,26 @@ func (s *Summary) visualLength(text string) int {
 
 // cleanUnitDurationPadding calculates padding for unit names to align durations with header
 func (s *Summary) cleanUnitDurationPadding(name string) string {
+	maxUnitNameLength := 0
+
+	for _, run := range s.runs {
+		runName := run.Path
+		if s.workingDir != "" {
+			runName = strings.TrimPrefix(runName, s.workingDir+string(os.PathSeparator))
+		}
+
+		if len(runName) > maxUnitNameLength {
+			maxUnitNameLength = len(runName)
+		}
+	}
+
+	headerPadding := 0
+	if maxUnitNameLength > defaultUnitNameLength {
+		headerPadding = maxUnitNameLength - defaultUnitNameLength + headerPaddingAdjustment
+	}
+
 	headerPrefix := fmt.Sprintf("%s  %d units  ", runSummaryHeader, s.TotalUnits())
-	headerDurationColumn := len(headerPrefix)
+	headerDurationColumn := len(headerPrefix) + headerPadding
 
 	unitPrefix := strings.Repeat(prefix, unitPrefixMultiplier)
 	currentPosition := len(unitPrefix) + len(name)
