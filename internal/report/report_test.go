@@ -1072,7 +1072,7 @@ func TestWriteUnitsTiming(t *testing.T) {
 			expected: `
 ❯❯ Run Summary  1 units  x
    ────────────────────────────
-   Succeeded:  1
+   Succeeded (1)
       single-run         x
 `,
 		},
@@ -1096,7 +1096,7 @@ func TestWriteUnitsTiming(t *testing.T) {
 			expected: `
 ❯❯ Run Summary  3 units  x
    ────────────────────────────
-   Succeeded:  3
+   Succeeded (3)
       long-run           x
       medium-run         x
       short-run          x
@@ -1124,12 +1124,12 @@ func TestWriteUnitsTiming(t *testing.T) {
 			expected: `
 ❯❯ Run Summary  4 units  x
    ────────────────────────────
-   Succeeded:  2
+   Succeeded (2)
       success-1          x
       success-2          x
-   Failed:     1
+   Failed (1)
       fail-run           x
-   Excluded:   1
+   Excluded (1)
       excluded-run       x
 `,
 		},

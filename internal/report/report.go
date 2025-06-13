@@ -79,6 +79,10 @@ type Colorizer struct {
 	failureColorizer     func(string) string
 	exitColorizer        func(string) string
 	excludeColorizer     func(string) string
+	successUnitColorizer func(string) string
+	failureUnitColorizer func(string) string
+	exitUnitColorizer    func(string) string
+	excludeUnitColorizer func(string) string
 	nanosecondColorizer  func(string) string
 	microsecondColorizer func(string) string
 	millisecondColorizer func(string) string
@@ -96,6 +100,10 @@ func NewColorizer(shouldColor bool) *Colorizer {
 			failureColorizer:     func(s string) string { return s },
 			exitColorizer:        func(s string) string { return s },
 			excludeColorizer:     func(s string) string { return s },
+			successUnitColorizer: func(s string) string { return s },
+			failureUnitColorizer: func(s string) string { return s },
+			exitUnitColorizer:    func(s string) string { return s },
+			excludeUnitColorizer: func(s string) string { return s },
 			nanosecondColorizer:  func(s string) string { return s },
 			microsecondColorizer: func(s string) string { return s },
 			millisecondColorizer: func(s string) string { return s },
@@ -111,6 +119,10 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		failureColorizer:     ansi.ColorFunc("red+bh"),
 		exitColorizer:        ansi.ColorFunc("yellow+bh"),
 		excludeColorizer:     ansi.ColorFunc("blue+bh"),
+		successUnitColorizer: ansi.ColorFunc("green+h"),
+		failureUnitColorizer: ansi.ColorFunc("red+h"),
+		exitUnitColorizer:    ansi.ColorFunc("yellow+h"),
+		excludeUnitColorizer: ansi.ColorFunc("blue+h"),
 		nanosecondColorizer:  ansi.ColorFunc("cyan+bh"),
 		microsecondColorizer: ansi.ColorFunc("cyan+bh"),
 		millisecondColorizer: ansi.ColorFunc("cyan+bh"),
@@ -816,41 +828,49 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 
 	// Write each category with its units
 	categories := []struct {
-		colorizer func(string) string
-		result    Result
-		label     string
-		count     int
+		colorizer     func(string) string
+		unitColorizer func(string) string
+		result        Result
+		label         string
+		count         int
 	}{
 		{
-			colorizer: colorizer.successColorizer,
-			result:    ResultSucceeded,
-			label:     successLabel,
-			count:     s.UnitsSucceeded,
+			colorizer:     colorizer.successColorizer,
+			unitColorizer: colorizer.successUnitColorizer,
+			result:        ResultSucceeded,
+			label:         successLabel,
+			count:         s.UnitsSucceeded,
 		},
 		{
-			colorizer: colorizer.failureColorizer,
-			result:    ResultFailed,
-			label:     failureLabel,
-			count:     s.UnitsFailed,
+			colorizer:     colorizer.failureColorizer,
+			unitColorizer: colorizer.failureUnitColorizer,
+			result:        ResultFailed,
+			label:         failureLabel,
+			count:         s.UnitsFailed,
 		},
 		{
-			colorizer: colorizer.exitColorizer,
-			result:    ResultEarlyExit,
-			label:     earlyExitLabel,
-			count:     s.EarlyExits,
+			colorizer:     colorizer.exitColorizer,
+			unitColorizer: colorizer.exitUnitColorizer,
+			result:        ResultEarlyExit,
+			label:         earlyExitLabel,
+			count:         s.EarlyExits,
 		},
 		{
-			colorizer: colorizer.excludeColorizer,
-			result:    ResultExcluded,
-			label:     excludeLabel,
-			count:     s.Excluded,
+			colorizer:     colorizer.excludeColorizer,
+			unitColorizer: colorizer.excludeUnitColorizer,
+			result:        ResultExcluded,
+			label:         excludeLabel,
+			count:         s.Excluded,
 		},
 	}
 
 	for _, category := range categories {
 		if category.count > 0 {
-			// Write category header
-			if err := s.writeSummaryEntry(w, category.label, category.colorizer(strconv.Itoa(category.count))); err != nil {
+			// Write category header with count in parentheses
+			categoryHeader := fmt.Sprintf("%s (%d)", category.label, category.count)
+
+			categoryHeaderColored := category.colorizer(categoryHeader)
+			if _, err := fmt.Fprintf(w, "%s%s\n", prefix, categoryHeaderColored); err != nil {
 				return err
 			}
 
@@ -865,7 +885,7 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 
 			// Write each unit in this category
 			for _, run := range runs {
-				if err := s.writeCleanUnitTiming(w, run, colorizer); err != nil {
+				if err := s.writeCleanUnitTiming(w, run, colorizer, category.unitColorizer); err != nil {
 					return err
 				}
 			}
@@ -876,7 +896,7 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 }
 
 // writeCleanUnitTiming writes unit timing with cleaner formatting (no colons, better alignment)
-func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) error {
+func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Colorizer, unitColorizer func(string) string) error {
 	duration := run.Ended.Sub(run.Started)
 
 	name := run.Path
@@ -889,7 +909,7 @@ func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Coloriz
 	_, err := fmt.Fprintf(
 		w, "%s%s%s%s\n",
 		strings.Repeat(prefix, unitPrefixMultiplier),
-		name,
+		unitColorizer(name),
 		padding,
 		colorizer.colorDuration(duration),
 	)
