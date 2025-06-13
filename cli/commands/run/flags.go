@@ -29,6 +29,7 @@ const (
 	UnitsThatIncludeFlagName               = "units-that-include"
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
+	VersionCacheFileFlagName               = "version-cache-file"
 	SummaryUnitDurationFlagName            = "summary-unit-duration"
 
 	BackendBootstrapFlagName        = "backend-bootstrap"
@@ -341,6 +342,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --iam-role option if provided.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("use-partial-parse-config-cache"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        VersionCacheFileFlagName,
+			EnvVars:     tgPrefix.EnvVars(VersionCacheFileFlagName),
+			Destination: &opts.VersionCacheFiles,
+			Usage:       "File names used during the computation of the cache key for the -version command.",
+		}),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DependencyFetchOutputFromStateFlagName,
