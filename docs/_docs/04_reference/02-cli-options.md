@@ -1710,6 +1710,15 @@ When passed in, disable the summary output at the end of a run.
 
 For more information, see the [Run Report](/docs/features/run-report#disabling-the-summary) feature.
 
+### summary-unit-duration
+
+**CLI Arg**: `--summary-unit-duration`<br/>
+**Environment Variable**: `TG_SUMMARY_UNIT_DURATION`<br/>
+
+When enabled, Terragrunt will show the duration of each unit in the run summary. The units are sorted by duration, with the longest-running units shown first.
+
+For more information, see the [Run Report](/docs/features/run-report) feature.
+
 ### iam-assume-role
 
 **CLI Arg**: `--iam-assume-role`<br/>

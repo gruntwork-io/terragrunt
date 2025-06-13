@@ -21,11 +21,12 @@ import (
 
 // Report captures data for a report/summary.
 type Report struct {
-	workingDir  string
-	format      Format
-	Runs        []*Run
-	mu          sync.RWMutex
-	shouldColor bool
+	workingDir     string
+	format         Format
+	Runs           []*Run
+	mu             sync.RWMutex
+	shouldColor    bool
+	showUnitTiming bool
 }
 
 // Run captures data for a run.
@@ -61,12 +62,14 @@ type Summary struct {
 	firstRunStart  *time.Time
 	lastRunEnd     *time.Time
 	padder         string
-	TotalUnits     int
+	workingDir     string
+	runs           []*Run
 	UnitsSucceeded int
 	UnitsFailed    int
 	EarlyExits     int
 	Excluded       int
 	shouldColor    bool
+	showUnitTiming bool
 }
 
 // Colorizer is a colorizer for the run summary output.
@@ -76,6 +79,7 @@ type Colorizer struct {
 	failureColorizer     func(string) string
 	exitColorizer        func(string) string
 	excludeColorizer     func(string) string
+	nanosecondColorizer  func(string) string
 	microsecondColorizer func(string) string
 	millisecondColorizer func(string) string
 	secondColorizer      func(string) string
@@ -92,6 +96,7 @@ func NewColorizer(shouldColor bool) *Colorizer {
 			failureColorizer:     func(s string) string { return s },
 			exitColorizer:        func(s string) string { return s },
 			excludeColorizer:     func(s string) string { return s },
+			nanosecondColorizer:  func(s string) string { return s },
 			microsecondColorizer: func(s string) string { return s },
 			millisecondColorizer: func(s string) string { return s },
 			secondColorizer:      func(s string) string { return s },
@@ -106,12 +111,34 @@ func NewColorizer(shouldColor bool) *Colorizer {
 		failureColorizer:     ansi.ColorFunc("red+bh"),
 		exitColorizer:        ansi.ColorFunc("yellow+bh"),
 		excludeColorizer:     ansi.ColorFunc("blue+bh"),
+		nanosecondColorizer:  ansi.ColorFunc("cyan+bh"),
 		microsecondColorizer: ansi.ColorFunc("cyan+bh"),
 		millisecondColorizer: ansi.ColorFunc("cyan+bh"),
 		secondColorizer:      ansi.ColorFunc("green+bh"),
 		minuteColorizer:      ansi.ColorFunc("yellow+bh"),
 		defaultColorizer:     ansi.ColorFunc("white+bh"),
 	}
+}
+
+// colorDuration returns the duration as a string, colored based on the duration.
+func (c *Colorizer) colorDuration(duration time.Duration) string {
+	if duration < time.Microsecond {
+		return c.nanosecondColorizer(fmt.Sprintf("%dns", duration.Nanoseconds()))
+	}
+
+	if duration < time.Millisecond {
+		return c.microsecondColorizer(fmt.Sprintf("%dµs", duration.Microseconds()))
+	}
+
+	if duration < time.Second {
+		return c.millisecondColorizer(fmt.Sprintf("%dms", duration.Milliseconds()))
+	}
+
+	if duration < time.Minute {
+		return c.secondColorizer(fmt.Sprintf("%ds", int(duration.Seconds())))
+	}
+
+	return c.minuteColorizer(fmt.Sprintf("%dm", int(duration.Minutes())))
 }
 
 // NewReport creates a new report.
@@ -144,6 +171,15 @@ func (r *Report) WithWorkingDir(workingDir string) *Report {
 // WithFormat sets the format for the report.
 func (r *Report) WithFormat(format Format) *Report {
 	r.format = format
+
+	return r
+}
+
+// WithShowUnitTiming sets the showUnitTiming flag for the report.
+//
+// When enabled, the summary of the report will include timings for each unit.
+func (r *Report) WithShowUnitTiming() *Report {
+	r.showUnitTiming = true
 
 	return r
 }
@@ -345,9 +381,11 @@ const (
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
-		TotalUnits:  len(r.Runs),
-		shouldColor: r.shouldColor,
-		padder:      " ",
+		workingDir:     r.workingDir,
+		shouldColor:    r.shouldColor,
+		showUnitTiming: r.showUnitTiming,
+		padder:         " ",
+		runs:           r.Runs,
 	}
 
 	if os.Getenv(envTmpUndocumentedReportPadder) != "" {
@@ -363,6 +401,10 @@ func (r *Report) Summarize() *Summary {
 	}
 
 	return summary
+}
+
+func (s *Summary) TotalUnits() int {
+	return len(s.runs)
 }
 
 func (s *Summary) Update(run *Run) {
@@ -403,19 +445,7 @@ func (s *Summary) TotalDuration() time.Duration {
 func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 	duration := s.TotalDuration()
 
-	if duration < time.Millisecond {
-		return colorizer.microsecondColorizer(fmt.Sprintf("%dµs", duration.Microseconds()))
-	}
-
-	if duration < time.Second {
-		return colorizer.millisecondColorizer(fmt.Sprintf("%dms", duration.Milliseconds()))
-	}
-
-	if duration < time.Minute {
-		return colorizer.secondColorizer(fmt.Sprintf("%ds", int(duration.Seconds())))
-	}
-
-	return colorizer.minuteColorizer(fmt.Sprintf("%dm", int(duration.Minutes())))
+	return colorizer.colorDuration(duration)
 }
 
 // WriteToFile writes the report to a file.
@@ -688,7 +718,13 @@ func (s *Summary) Write(w io.Writer) error {
 		return err
 	}
 
-	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits))); err != nil {
+	if s.showUnitTiming {
+		if err := s.writeUnitsTiming(w, colorizer); err != nil {
+			return err
+		}
+	}
+
+	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits()))); err != nil {
 		return err
 	}
 
@@ -720,15 +756,16 @@ func (s *Summary) Write(w io.Writer) error {
 }
 
 const (
-	prefix           = "   "
-	runSummaryHeader = "❯❯ Run Summary"
-	durationLabel    = "Duration"
-	unitsLabel       = "Units"
-	successLabel     = "Succeeded"
-	failureLabel     = "Failed"
-	earlyExitLabel   = "Early Exits"
-	excludeLabel     = "Excluded"
-	separator        = ": "
+	prefix               = "   "
+	unitPrefixMultiplier = 2
+	runSummaryHeader     = "❯❯ Run Summary"
+	durationLabel        = "Duration"
+	unitsLabel           = "Units"
+	successLabel         = "Succeeded"
+	failureLabel         = "Failed"
+	earlyExitLabel       = "Early Exits"
+	excludeLabel         = "Excluded"
+	separator            = ": "
 )
 
 func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
@@ -742,6 +779,54 @@ func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
 
 func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) error {
 	_, err := fmt.Fprintf(w, "%s%s%s%s %s\n", prefix, label, separator, s.padding(label), value)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Summary) writeUnitsTiming(w io.Writer, colorizer *Colorizer) error {
+	errs := []error{}
+
+	// Sort the runs by duration, longest first.
+	sortedRuns := slices.Clone(s.runs)
+	slices.SortFunc(sortedRuns, func(a, b *Run) int {
+		aDuration := a.Ended.Sub(a.Started)
+		bDuration := b.Ended.Sub(b.Started)
+
+		return int(bDuration - aDuration)
+	})
+
+	for _, run := range sortedRuns {
+		if err := s.writeUnitTiming(w, run, colorizer); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
+func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) error {
+	duration := run.Ended.Sub(run.Started)
+
+	name := run.Path
+	if s.workingDir != "" {
+		name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+	}
+
+	_, err := fmt.Fprintf(
+		w, "%s%s%s%s %s\n",
+		strings.Repeat(prefix, unitPrefixMultiplier),
+		name,
+		separator,
+		s.unitDurationPadding(name),
+		colorizer.colorDuration(duration),
+	)
 	if err != nil {
 		return err
 	}
@@ -792,6 +877,29 @@ func (s *Summary) padding(label string) string {
 	longestLineLength := s.longestLineLength()
 
 	labelLength := len(prefix) + len(label) + len(separator)
+
+	return strings.Repeat(s.padder, longestLineLength-labelLength)
+}
+
+func (s *Summary) longestUnitDurationLineLength() int {
+	names := make([]int, 0, len(s.runs))
+
+	for _, run := range s.runs {
+		name := run.Path
+		if s.workingDir != "" {
+			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
+		}
+
+		names = append(names, len(name))
+	}
+
+	return slices.Max(names) + (len(prefix) * unitPrefixMultiplier) + len(separator)
+}
+
+func (s *Summary) unitDurationPadding(name string) string {
+	longestLineLength := s.longestUnitDurationLineLength()
+
+	labelLength := (len(prefix) * unitPrefixMultiplier) + len(name) + len(separator)
 
 	return strings.Repeat(s.padder, longestLineLength-labelLength)
 }

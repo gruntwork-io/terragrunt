@@ -41,6 +41,26 @@ This output is called the "Run Summary". It provides at-a-glance information abo
 - Excluded: The number of units that were excluded from the run (if any were).
 - Early Exits: The number of units that exited early, due to a failure in a dependency (if any did).
 
+### Showing Unit Durations
+
+You can enable showing the duration of each unit in the run summary by using the `--summary-unit-duration` flag.
+
+```bash
+$ terragrunt run --all plan --summary-unit-duration
+
+# Omitted for brevity...
+
+❯❯ Run Summary
+   Duration:   10m
+      long-running-unit:    10m
+      medium-running-unit:  12s
+      short-running-unit:   5ms
+   Units:      3
+   Succeeded:  3
+```
+
+The units are sorted by duration, with the longest-running units shown first.
+
 ### Disabling the summary
 
 You can disable the summary output by using the `--summary-disable` flag.
@@ -215,7 +235,8 @@ Reasons are more granular details of those results, and will always be one of th
 
 Causes indicate the specific reason for a given result, and are generally not guessable. These provide information on the exact mechanism that caused the result.
 
-- `retry succeeded`: You will find the name of the `retry` block that resulted in a successful retry of the unit run.
 - `error ignored`: You will find the name of the `ignore` block that resulted in the error being ignored.
 - `run error`: You will find the actual error message of the unit that failed.
-- `ancestor error`: You will find the name of the unit that failed, and the error message of the failure.
+- `ancestor error`: You will find the name of the unit that failed.
+
+The `retry succeeded` reason does not have a cause. The reason for this is that backwards compatibility with the deprecated [retryable_errors](/docs/reference/config-blocks-and-attributes/#retryable_errors) attribute prevents consistent reporting of the cause, as the `retryable_errors` attribute doesn't have a label. In the future, once the `retryable_errors` attribute is removed, a cause can be added here.
