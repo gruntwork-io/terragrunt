@@ -186,6 +186,86 @@ func TestEndRun(t *testing.T) {
 	}
 }
 
+func TestEndRunAlreadyEnded(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		name           string
+		initialResult  report.Result
+		expectedResult report.Result
+		secondResult   report.Result
+		initialOptions []report.EndOption
+		secondOptions  []report.EndOption
+	}{
+		{
+			name:           "already ended with early exit is not overwritten",
+			initialResult:  report.ResultEarlyExit,
+			secondResult:   report.ResultSucceeded,
+			expectedResult: report.ResultEarlyExit,
+		},
+		{
+			name:           "already ended with excluded is not overwritten",
+			initialResult:  report.ResultExcluded,
+			secondResult:   report.ResultSucceeded,
+			expectedResult: report.ResultExcluded,
+		},
+		{
+			name:           "already ended with retry succeeded is overwritten",
+			initialResult:  report.ResultSucceeded,
+			initialOptions: []report.EndOption{report.WithReason(report.ReasonRetrySucceeded)},
+			secondResult:   report.ResultSucceeded,
+			expectedResult: report.ResultSucceeded,
+		},
+		{
+			name:           "already ended with retry failed is overwritten",
+			initialResult:  report.ResultSucceeded,
+			initialOptions: []report.EndOption{report.WithReason(report.ReasonRetrySucceeded)},
+			secondResult:   report.ResultFailed,
+			expectedResult: report.ResultFailed,
+		},
+		{
+			name:           "already ended with error ignored is overwritten",
+			initialResult:  report.ResultSucceeded,
+			initialOptions: []report.EndOption{report.WithReason(report.ReasonErrorIgnored)},
+			secondResult:   report.ResultSucceeded,
+			expectedResult: report.ResultSucceeded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a new report and run for each test case
+			r := report.NewReport()
+			runName := filepath.Join(tmp, tt.name)
+			run := newRun(t, runName)
+			r.AddRun(run)
+
+			// Set up initial options with the initial result
+			initialOptions := append(tt.initialOptions, report.WithResult(tt.initialResult))
+
+			// End the run with the initial state
+			err := r.EndRun(runName, initialOptions...)
+			require.NoError(t, err)
+
+			// Set up second options with the second result
+			secondOptions := append(tt.secondOptions, report.WithResult(tt.secondResult))
+
+			// Then try to end it again with a different state
+			err = r.EndRun(runName, secondOptions...)
+			require.NoError(t, err)
+
+			// Verify that the result is the expected one
+			endedRun, err := r.GetRun(runName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedResult, endedRun.Result)
+		})
+	}
+}
+
 func TestSummarize(t *testing.T) {
 	t.Parallel()
 
@@ -253,7 +333,7 @@ func TestSummarize(t *testing.T) {
 			}
 
 			summary := r.Summarize()
-			assert.Equal(t, tt.wantTotalUnits, summary.TotalUnits)
+			assert.Equal(t, tt.wantTotalUnits, summary.TotalUnits())
 			assert.Equal(t, tt.wantSucceeded, summary.UnitsSucceeded)
 			assert.Equal(t, tt.wantFailed, summary.UnitsFailed)
 			assert.Equal(t, tt.wantEarlyExits, summary.EarlyExits)
@@ -960,6 +1040,101 @@ func TestSchemaIsValid(t *testing.T) {
 	assert.Equal(t, "succeeded", ignored.Result)
 	assert.Equal(t, "error ignored", *ignored.Reason)
 	assert.Equal(t, "ignore-block", *ignored.Cause)
+}
+
+func TestWriteUnitsTiming(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		name     string
+		setup    func(*report.Report)
+		expected string
+	}{
+		{
+			name: "empty runs",
+			setup: func(r *report.Report) {
+				// No runs added
+			},
+			expected: `
+❯❯ Run Summary
+   Duration:  x
+   Units:     0
+`,
+		},
+		{
+			name: "single run",
+			setup: func(r *report.Report) {
+				run := newRun(t, filepath.Join(tmp, "single-run"))
+				r.AddRun(run)
+				r.EndRun(run.Path)
+			},
+			expected: `
+❯❯ Run Summary
+   Duration:   x
+      single-run:  x
+   Units:      1
+   Succeeded:  1
+`,
+		},
+		{
+			name: "multiple runs sorted by duration",
+			setup: func(r *report.Report) {
+				// Add runs with different durations
+				longRun := newRun(t, filepath.Join(tmp, "long-run"))
+				r.AddRun(longRun)
+
+				mediumRun := newRun(t, filepath.Join(tmp, "medium-run"))
+				r.AddRun(mediumRun)
+
+				shortRun := newRun(t, filepath.Join(tmp, "short-run"))
+				r.AddRun(shortRun)
+
+				r.EndRun(shortRun.Path)
+				r.EndRun(mediumRun.Path)
+				r.EndRun(longRun.Path)
+			},
+			expected: `
+❯❯ Run Summary
+   Duration:   x
+      long-run:    x
+      medium-run:  x
+      short-run:   x
+   Units:      3
+   Succeeded:  3
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := report.NewReport().
+				WithDisableColor().
+				WithShowUnitTiming().
+				WithWorkingDir(tmp)
+
+			tt.setup(r)
+
+			var buf bytes.Buffer
+			err := r.WriteSummary(&buf)
+			require.NoError(t, err)
+
+			// Replace the duration with x since we can't control the actual duration in tests
+			output := buf.String()
+			re := regexp.MustCompile(`Duration:(\s+).*`)
+			output = re.ReplaceAllString(output, "Duration:${1}x")
+
+			// Replace the actual durations with x
+			re = regexp.MustCompile(`([ ]{6})([^\s]+:)(\s+)(.*)`)
+			output = re.ReplaceAllString(output, "${1}${2}${3}x")
+
+			expected := strings.TrimSpace(tt.expected)
+			assert.Equal(t, expected, strings.TrimSpace(output))
+		})
+	}
 }
 
 // newRun creates a new run, and asserts that it doesn't error.

@@ -370,3 +370,113 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
+	t.Parallel()
+
+	// Set up test environment
+	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureReportPath)
+
+	// Run terragrunt with report experiment enabled and unit timing enabled
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-unit-duration", &stdout, &stderr)
+	require.NoError(t, err)
+
+	// Verify the report output contains expected information
+	stdoutStr := stdout.String()
+
+	// Replace the duration lines with fixed durations
+	re := regexp.MustCompile(`Duration:(\s+)(.*)`)
+	stdoutStr = re.ReplaceAllString(stdoutStr, "Duration:${1}x")
+
+	// Replace unit timing durations with x
+	re = regexp.MustCompile(`([ ]{6})([^\s]+:)(\s+)(.*)`)
+	stdoutStr = re.ReplaceAllString(stdoutStr, "${1}${2}${3}x")
+
+	// Find and extract the run summary section
+	lines := strings.Split(stdoutStr, "\n")
+
+	// Find the "Run Summary" line
+	summaryStartIdx := -1
+	for i, line := range lines {
+		if strings.Contains(line, "Run Summary") {
+			summaryStartIdx = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, summaryStartIdx, "Could not find 'Run Summary' line")
+
+	// Find the end of the summary (last non-empty line after summary start)
+	summaryEndIdx := len(lines) - 1
+	for i := summaryEndIdx; i > summaryStartIdx; i-- {
+		if strings.TrimSpace(lines[i]) != "" {
+			summaryEndIdx = i
+			break
+		}
+	}
+
+	// Extract unit duration lines (lines that start with 6 spaces and contain a colon)
+	var unitLogLines []string
+	var otherLines []string
+
+	for i := summaryStartIdx; i <= summaryEndIdx; i++ {
+		line := lines[i]
+		// Check if this is a unit duration line (6 spaces + unit name + colon)
+		if strings.HasPrefix(line, "      ") && strings.Contains(line, ":") && !strings.Contains(line, "Duration:") {
+			unitLogLines = append(unitLogLines, line)
+		} else {
+			otherLines = append(otherLines, line)
+		}
+	}
+
+	// Sort the duration lines alphabetically so that they show up consistently
+	sort.Slice(unitLogLines, func(i, j int) bool {
+		// Extract the unit name from the line
+		unitNameI := strings.TrimSpace(re.ReplaceAllString(unitLogLines[i], "${2}"))
+		unitNameJ := strings.TrimSpace(re.ReplaceAllString(unitLogLines[j], "${2}"))
+
+		// Compare the unit names
+		return unitNameI < unitNameJ
+	})
+
+	// Reconstruct the summary with sorted unit lines
+	// Insert sorted unit lines after the "Duration:" line
+	finalLines := make([]string, 0, len(otherLines)+len(unitLogLines))
+
+	unitInserted := false
+	for _, line := range otherLines {
+		finalLines = append(finalLines, line)
+		if strings.Contains(line, "Duration:") && !unitInserted {
+			finalLines = append(finalLines, unitLogLines...)
+			unitInserted = true
+		}
+	}
+
+	stdoutStr = strings.Join(finalLines, "\n")
+
+	assert.Equal(t, strings.TrimSpace(`
+❯❯ Run Summary
+   Duration:     x
+      chain-a:            x
+      chain-b:            x
+      chain-c:            x
+      error-ignore:       x
+      first-early-exit:   x
+      first-exclude:      x
+      first-failure:      x
+      first-success:      x
+      retry-success:      x
+      second-early-exit:  x
+      second-exclude:     x
+      second-failure:     x
+      second-success:     x
+   Units:        13
+   Succeeded:    4
+   Failed:       3
+   Early Exits:  4
+   Excluded:     2
+`), strings.TrimSpace(stdoutStr))
+}
