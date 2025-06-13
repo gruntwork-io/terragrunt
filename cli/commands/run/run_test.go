@@ -406,6 +406,12 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
 			[]string{"--foo", "bar", "foo"},
 		},
+		// apply with some parameters, providing a file in a different order => no var files included
+		{
+			mockCmdOptions(t, workingDir, []string{"apply", temporaryFile, "-no-color", "-foo"}),
+			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
+			[]string{"--foo", "bar", "foo"},
+		},
 		// destroy providing a folder, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy", workingDir}),
