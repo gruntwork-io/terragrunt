@@ -45,7 +45,7 @@ Under the hood, Terragrunt [dependency](/docs/reference/config-blocks-and-attrib
 
 The OpenTofu/Terraform `output -json` command does a bit more work than simply fetching output values from state, and a significant portion of that slowdown is loading providers, which it doesn't really need in most cases.
 
-You can significantly improve the performance of dependency blocks by using the [--dependency-fetch-output-from-state](/docs/reference/cli-options/#dependency-fetch-output-from-state) flag. When the flag is set, Terragrunt will directly fetch the backend state file from S3 and parse it directly, avoiding any overhead incurred by calling the `output -json` command.
+You can significantly improve the performance of dependency blocks by using the [--dependency-fetch-output-from-state](/docs/reference/cli-options/#dependency-fetch-output-from-state) flag. When the flag is set, Terragrunt will directly fetch the backend state file from the supported storage backend (AWS S3 or Azure Storage) and parse it directly, avoiding any overhead incurred by calling the `output -json` command.
 
 For example:
 
@@ -55,7 +55,7 @@ terragrunt run --all plan --dependency-fetch-output-from-state
 
 #### Fetching Output From State - Gotchas
 
-The first thing you need to be aware of when considering usage of the `--dependency-fetch-output-from-state` flag is that it only works for S3 backends. If you are using a different backend, this flag won't do anything.
+The first thing you need to be aware of when considering usage of the `--dependency-fetch-output-from-state` flag is that it only works for AWS S3 and Azure Storage backends. If you are using a different backend, this flag won't do anything.
 
 Next, you should be aware that there is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform.
 

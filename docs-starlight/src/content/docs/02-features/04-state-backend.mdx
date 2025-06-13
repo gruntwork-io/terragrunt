@@ -164,14 +164,34 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
   In addition, you can let Terragrunt label the bucket with custom labels that you specify in `remote_state.config.gcs_bucket_labels`.
 
-- **Azure Storage container**: If you are using the [Azure Storage backend](https://opentofu.org/docs/language/settings/backends/azurerm) for remote state storage and the `container_name` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it automatically, with [blob versioning](https://learn.microsoft.com/en-us/azure/storage/blobs/versioning-overview) enabled. You will need to specify `storage_account_name` and authentication credentials in `remote_state.config`. Authentication can be provided through:
-  - Storage account key via `storage_account_key`
-  - SAS token via `sas_token`
-  - Azure AD credentials (automatically used if no other auth method is specified)
+- **Azure Storage container**: If you are using the [Azure Storage backend](https://opentofu.org/docs/language/settings/backends/azurerm) for remote state storage and the `container_name` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it automatically. The container will be created with:
+  - [Blob versioning](https://learn.microsoft.com/en-us/azure/storage/blobs/versioning-overview) enabled at the storage account level (if supported)
+  - Server-side encryption using Azure Storage encryption
+  - Container level access policies configured for secure access
 
-  If you want to skip blob versioning, set `skip_blob_versioning` to `true`. You can also tag the storage container using `container_tags`.
+  You will need to specify `storage_account_name` and authentication credentials in `remote_state.config`. Authentication can be provided through (in order of recommended security practices):
+  
+  1. Azure AD credentials (automatically used if no other auth method is specified)
+     - Supports Managed Identity, Service Principal, and User credentials
+     - Most secure option with full audit trail and access control
+     - Supports conditional access and MFA policies
+  
+  2. SAS token via `sas_token`
+     - Good for limited-time access
+     - Can be scoped to specific permissions
+     - Must be regenerated when expired
+  
+  3. Storage account key via `storage_account_key`
+     - Provides full access to the storage account
+     - Should only be used when Azure AD authentication is not possible
+     - Recommended to rotate keys regularly
 
-  We strongly recommend enabling [Azure Storage logging and metrics](https://learn.microsoft.com/en-us/azure/storage/common/storage-analytics-logging) to audit and track operations against the state container.
+  Best practices:
+  - Enable [Azure Storage logging and metrics](https://learn.microsoft.com/en-us/azure/storage/common/storage-analytics-logging) for audit and operations tracking
+  - Use Azure AD authentication when possible
+  - Enable [soft delete for blobs](https://learn.microsoft.com/en-us/azure/storage/blobs/soft-delete-blob-overview) on the storage account
+  - Set up [Azure Monitor alerts](https://learn.microsoft.com/en-us/azure/storage/blobs/monitor-blob-storage) for unauthorized access attempts
+  - Consider using [Azure Private Endpoints](https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview) for secure network access
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket or DynamoDB table.
 
@@ -215,27 +235,31 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
+    # Required settings
     storage_account_name = "mystorageaccount"
     container_name      = "terraform-state"
     key                = "${path_relative_to_include()}/terraform.tfstate"
     
-    # Authentication via storage account key
-    storage_account_key = "your-storage-account-key"
+    # Optional: Use Azure region different from the storage account's location
+    resource_group_name = "my-terraform-state-rg"    # If storage account is in a different resource group
+    subscription_id    = "00000000-0000-0000-0000-000000000000"  # If storage account is in a different subscription
+
+    # Authentication Methods (choose one):
     
-    # Or authentication via SAS token
+    # 1. Azure AD Authentication (recommended)
+    use_azuread_auth   = true    # Optional, defaults to true if no other auth method specified
+    # Supports Managed Identity, Service Principal, and az cli credentials automatically
+    
+    # 2. SAS Token Authentication
     # sas_token         = "your-sas-token"
+    # use_azuread_auth  = false
     
-    # Or use Azure AD authentication by not specifying either
-    # storage_account_key or sas_token
+    # 3. Storage Account Key Authentication (least recommended)
+    # storage_account_key = "your-storage-account-key"
+    # use_azuread_auth   = false
     
-    # Optional: Tag the storage container
-    container_tags     = {
-      Environment = "Production"
-      Project     = "MyApp"
-    }
-    
-    # Optional: Skip blob versioning
-    # skip_blob_versioning = true
+    # Optional: Disable Terragrunt's automatic container management
+    disable_container_update = true  # Set to true if you want to manage container settings manually
   }
 }
 ```
@@ -268,86 +292,57 @@ Check out the [terragrunt-infrastructure-modules-example](https://github.com/gru
 
 ## Azure-specific remote state settings
 
-For the `azurerm` backend, the following config options can be used to customize Azure Storage behavior:
+For the `azurerm` backend, Terragrunt will automatically create the following resources if they don't exist:
+
+- **Azure Storage Container**: If you are using the [Azure Storage backend](https://learn.microsoft.com/en-us/azure/developer/terraform/store-state-in-azure-storage?tabs=azure-cli) for remote state storage and the container you specify in `remote_state.config` doesn't exist, Terragrunt will create it automatically.
+
+Here's an example of using the `remote_state` block to configure the Azure Storage backend:
 
 ```hcl
-# root.hcl
 remote_state {
-  # ...
-
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
   config = {
-    skip_blob_versioning = true         # use only if blob versioning should be disabled
-    container_tags      = {             # optional tags to apply to the Azure Storage container
-      Environment = "Production"
-      Project     = "MyApp"
-    }
-    disable_container_update = true     # disable automatic container updates by Terragrunt
-
-    # Authentication options (choose one):
-    storage_account_key = "your-key"    # authenticate using storage account key
-    sas_token          = "your-token"   # authenticate using SAS token
-    # If neither is specified, Azure AD authentication will be used
+    storage_account_name = "mystorageaccount"
+    container_name      = "terraform-state"
+    key                = "${path_relative_to_include()}/terraform.tfstate"
+    use_azuread_auth   = true   # Use Azure AD authentication (recommended)
   }
 }
 ```
 
-The config options `container_tags`, `skip_blob_versioning`, and `disable_container_update` are only valid for backend `azurerm`. They are used by Terragrunt and are **not** passed on to OpenTofu/Terraform.
+### Azure Authentication Methods
 
-## S3-specific remote state settings
+The Azure backend supports multiple authentication methods:
 
-For the `s3` backend, the following config options can be used for S3-compatible object stores, as necessary:
+1. **Azure AD Authentication** (recommended) - Set `use_azuread_auth = true`
+2. **Storage Account Key** - Provide via `access_key`
+3. **SAS Token** - Provide via `sas_token`
 
-**Note**: The `skip_bucket_accesslogging` is now DEPRECATED. It is replaced by `accesslogging_bucket_name`. Please read below for more details on when to use the new config option.
+### Important Notes
 
-```hcl
-# root.hcl
-remote_state {
-  # ...
+1. **Versioning**: In Azure Storage, blob versioning is a storage account level setting and cannot be configured at the container level.
+2. **Server-Side Encryption**: Azure Storage automatically encrypts all data at rest.
+3. **Authentication**: Azure AD authentication is recommended over access keys or SAS tokens for better security.
+4. **Locking**: Azure Blob lease is used for state locking, no additional resources needed.
 
-  config = {
-    skip_bucket_versioning         = true # use only if the object store does not support versioning
-    skip_bucket_ssencryption       = true # use only if non-encrypted OpenTofu/Terraform State is required and/or the object store does not support server-side encryption
-    skip_bucket_root_access        = true # use only if the AWS account root user should not have access to the remote state bucket for some reason
-    skip_bucket_enforced_tls       = true # use only if you need to access the S3 bucket without TLS being enforced
-    skip_credentials_validation    = true # skip validation of AWS credentials, useful when is used S3 compatible object store different from AWS
-    enable_lock_table_ssencryption = true # use only if non-encrypted DynamoDB Lock Table for the OpenTofu/Terraform State is required and/or the NoSQL database service does not support server-side encryption
-    accesslogging_bucket_name      = <string> # use only if you need server access logging to be enabled for your terraform state S3 bucket. Provide a <string> value representing the name of the target bucket to be used for logs output.
-    accesslogging_target_prefix    = <string> # use only if you want to set a specific prefix for your terraform state S3 bucket access logs when Server Access Logging is enabled. Provide a <string> value representing the TargetPrefix to be used for the logs output objects. If set to empty <string>, then TargetPrefix will be set to empty <string>. If attribute is not provided at all, then TargetPrefix will be set to default value `TFStateLogs/`.
+### Error Messages
 
-    shared_credentials_file     = "/path/to/credentials/file"
-    skip_metadata_api_check     = true
-    force_path_style            = true
-  }
-}
-```
+Common error messages and their resolutions:
 
-If you experience an error for any of these configurations, confirm you are using OpenTofu or Terraform v0.12.2 or greater.
+| Error Message | Resolution |
+|--------------|------------|
+| `container name is required` | Specify a valid container name in config |
+| `authentication failed` | Check Azure credentials and permissions |
+| `error checking container existence` | Verify network connectivity and access |
+| `blob not found` | Verify state file path and container name |
 
-Further, the `config` options `s3_bucket_tags`, `dynamodb_table_tags`, `accesslogging_bucket_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `skip_bucket_public_access_blocking`, `accesslogging_bucket_name`, `accesslogging_target_prefix`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to OpenTofu/Terraform. See section [Create remote state resources automatically](#create-remote-state-resources-automatically)
+### Best Practices
 
-## GCS-specific remote state settings
-
-For the `gcs` backend, the following config options can be used for GCS-compatible object stores, as necessary:
-
-```hcl
-# root.hcl
-remote_state {
- # ...
-
- skip_bucket_versioning = true # use only if the object store does not support versioning
-
- enable_bucket_policy_only = false # use only if uniform bucket-level access is needed (https://cloud.google.com/storage/docs/uniform-bucket-level-access)
-
- encryption_key = "GOOGLE_ENCRYPTION_KEY"
-}
-```
-
-If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
-
-Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `enable_bucket_policy_only` are only valid for the backend `gcs`. They are used by Terragrunt and are **not** passed on to OpenTofu/Terraform. See "[Create remote state resources automatically](#create-remote-state-resources-automatically)" for more details.
-
-## Further reading
-
-Managing your remote state like this is really valuable when you organize your units into a [stack](/docs/features/stacks).
-
-Reading about those concepts will help you understand how to organize your infrastructure such that different units stored in isolated state can interact with each other.
+1. Use Azure AD authentication by setting `use_azuread_auth = true`
+2. Enable blob versioning at the storage account level
+3. Use separate containers for different environments
+4. Use descriptive paths in the `key` parameter

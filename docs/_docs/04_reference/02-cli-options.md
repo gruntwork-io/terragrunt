@@ -2216,7 +2216,7 @@ block is not evaluated until _after_ the queue has been populated with units to 
 When using many dependencies, this option can speed up the dependency processing by fetching dependency output directly
 from the state file instead of using `tofu/terraform output` to fetch them.
 
-At this time, the only backend that supports this feature is the AWS S3 backend.
+At this time, this feature is supported by the AWS S3 and Azure Storage backends.
 
 **NOTE**: Avoid using this flag without pinning the version of OpenTofu/Terraform you are using. There is no guarantee that OpenTofu/Terraform will maintain the existing schema of their state files, so there is also no guarantee that the flag will work as expected in future versions of OpenTofu/Terraform. They have not changed the schema of the state file in a long time, but there is no guarantee that they will not change it in the future. We are coordinating with the OpenTofu team to encourage stability in the state file schema, unless significant performance improvements can be made to OpenTofu output fetching to make this flag unnecessary.
 
