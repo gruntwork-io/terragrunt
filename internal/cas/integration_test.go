@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +15,7 @@ import (
 func TestIntegration_CloneAndReuse(t *testing.T) {
 	t.Parallel()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
@@ -28,7 +28,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, cas1.Clone(t.Context(), &l, &cas.CloneOptions{
+		require.NoError(t, cas1.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir: firstClonePath,
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
@@ -43,7 +43,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, cas2.Clone(t.Context(), &l, &cas.CloneOptions{
+		require.NoError(t, cas2.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir: secondClonePath,
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
@@ -69,7 +69,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), &l, &cas.CloneOptions{
+		err = c.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir:    filepath.Join(tempDir, "repo"),
 			Branch: "nonexistent-branch",
 		}, "https://github.com/gruntwork-io/terragrunt.git")
@@ -88,7 +88,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = c.Clone(t.Context(), &l, &cas.CloneOptions{
+		err = c.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "repo"),
 		}, "https://github.com/yhakbar/nonexistent-repo.git")
 		require.Error(t, err)
@@ -103,7 +103,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 
 	ctx := t.Context()
 
-	l := log.New()
+	l := logger.CreateLogger()
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()
@@ -115,7 +115,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
-		require.NoError(t, c.Clone(ctx, &l, &cas.CloneOptions{
+		require.NoError(t, c.Clone(ctx, l, &cas.CloneOptions{
 			Dir: filepath.Join(tempDir, "repo"),
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 

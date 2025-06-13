@@ -132,6 +132,7 @@ The following strict mode controls are available:
   - [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
   - [default-command](#default-command)
   - [cli-redesign](#cli-redesign)
+  - [bare-include](#bare-include)
 - [Control Categories](#control-categories)
   - [deprecated-commands](#deprecated-commands)
   - [deprecated-flags](#deprecated-flags)
@@ -239,6 +240,12 @@ Throw an error when using commands that were deprecated as part of the CLI redes
 - [validate-inputs](/docs/reference/cli-options/#validate-inputs)
 
 **Reason**: These commands have been deprecated in favor of more consistent and intuitive commands as part of the CLI redesign. For more information, see the [CLI Redesign Migration Guide](/docs/migrate/cli-redesign/).
+
+### bare-include
+
+Throw an error when using a bare include.
+
+**Reason**: Backwards compatibility for supporting bare includes results in a performance penalty for Terragrunt, and deprecating support provides a significant performance improvement. For more information, see the [Bare Include Migration Guide](/docs/migrate/bare-include/).
 
 ## Control Categories
 

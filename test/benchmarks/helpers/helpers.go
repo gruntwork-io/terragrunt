@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,9 +33,12 @@ func RunTerragruntCommand(b *testing.B, args ...string) {
 	errwriter := io.Discard
 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
-	app := cli.NewApp(opts) //nolint:contextcheck
 
-	ctx := log.ContextWithLogger(b.Context(), opts.Logger)
+	l := logger.CreateLogger().WithOptions(log.WithOutput(io.Discard))
+
+	app := cli.NewApp(l, opts) //nolint:contextcheck
+
+	ctx := log.ContextWithLogger(b.Context(), l)
 
 	err := app.RunContext(ctx, args)
 	require.NoError(b, err)

@@ -27,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/gruntwork-io/terratest/modules/git"
@@ -57,27 +58,24 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		checkExpectedResultFn func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string)
+		checkExpectedResultFn func(t *testing.T, output string, s3BucketName, dynamoDBName string)
 		name                  string
 		args                  string
 	}{
 		{
 			name: "no bootstrap s3 backend without flag",
 			args: "run apply",
-			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string) {
 				t.Helper()
 
-				require.Error(t, err)
 				assert.Regexp(t, "(S3 bucket must have been previously created)|(S3 bucket does not exist)", output)
 			},
 		},
 		{
 			name: "bootstrap s3 backend with flag",
 			args: "run apply --backend-bootstrap",
-			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string) {
 				t.Helper()
-
-				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
@@ -86,10 +84,8 @@ func TestAwsBootstrapBackend(t *testing.T) {
 		{
 			name: "bootstrap s3 backend with lock table ssencryption",
 			args: "run apply --backend-bootstrap --feature enable_lock_table_ssencryption=true",
-			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string) {
 				t.Helper()
-
-				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, true)
@@ -98,10 +94,8 @@ func TestAwsBootstrapBackend(t *testing.T) {
 		{
 			name: "bootstrap s3 backend by backend command",
 			args: "backend bootstrap",
-			checkExpectedResultFn: func(t *testing.T, err error, output string, s3BucketName, dynamoDBName string) {
+			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string) {
 				t.Helper()
-
-				require.NoError(t, err)
 
 				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
@@ -131,8 +125,9 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --strict-control require-explicit-bootstrap --working-dir "+rootPath)
+			require.NoError(t, err)
 
-			tc.checkExpectedResultFn(t, err, stdout+stderr, s3BucketName, dynamoDBName)
+			tc.checkExpectedResultFn(t, stdout+stderr, s3BucketName, dynamoDBName)
 		})
 	}
 }
@@ -207,7 +202,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all")
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt --non-interactive --log-level debug --working-dir "+rootPath+" --feature disable_versioning=true backend delete --all --force")
 	require.NoError(t, err)
@@ -776,7 +771,7 @@ func TestAwsRemoteWithBackend(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+rootPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
@@ -1312,7 +1307,9 @@ func TestAwsAssumeRole(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 
-	session, err := awshelper.CreateAwsSession(nil, opts)
+	l := logger.CreateLogger()
+
+	session, err := awshelper.CreateAwsSession(l, nil, opts)
 	require.NoError(t, err)
 
 	identityARN, err := awshelper.GetAWSIdentityArn(session)
@@ -1348,7 +1345,9 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 
-	session, err := awshelper.CreateAwsSession(nil, opts)
+	l := logger.CreateLogger()
+
+	session, err := awshelper.CreateAwsSession(l, nil, opts)
 	require.NoError(t, err)
 
 	identityARN, err := awshelper.GetAWSIdentityArn(session)
@@ -1372,7 +1371,7 @@ func TestAwsInitConfirmation(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all init --working-dir "+tmpEnvPath, &stdout, &stderr)
-	require.Error(t, err)
+	require.NoError(t, err)
 	errout := stderr.String()
 	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
 }
@@ -1442,7 +1441,9 @@ func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
 func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	t.Parallel()
 
-	session, err := awshelper.CreateAwsSession(nil, &options.TerragruntOptions{})
+	l := logger.CreateLogger()
+
+	session, err := awshelper.CreateAwsSession(l, nil, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
 	identityArn, err := awshelper.GetAWSIdentityArn(session)
@@ -1617,7 +1618,7 @@ func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, 
 
 	if versioning {
 		require.NotNil(t, res.Status)
-		assert.Equal(t, *res.Status, s3.BucketVersioningStatusEnabled, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
+		assert.Equal(t, s3.BucketVersioningStatusEnabled, *res.Status, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
 	} else {
 		require.Nil(t, res.Status)
 	}

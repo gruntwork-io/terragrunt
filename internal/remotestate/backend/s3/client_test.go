@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +36,9 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 		},
 	}
 
-	client, err := s3backend.NewClient(extS3Cfg, mockOptions)
+	l := logger.CreateLogger()
+
+	client, err := s3backend.NewClient(l, extS3Cfg, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return client
@@ -62,6 +65,8 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 	// Use a WaitGroup to ensure the test doesn't exit before all goroutines finish.
 	var waitGroup sync.WaitGroup
 
+	l := logger.CreateLogger()
+
 	// Launch a bunch of goroutines who will all try to create the same table at more or less the same time.
 	// DynamoDB will, of course, only allow a single table to be created, but we still need to make sure none of
 	// the goroutines report an error.
@@ -69,7 +74,7 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			err := client.CreateLockTableIfNecessary(t.Context(), tableName, nil)
+			err := client.CreateLockTableIfNecessary(t.Context(), l, tableName, nil)
 			assert.NoError(t, err, "Unexpected error: %v", err)
 		}()
 	}
@@ -84,7 +89,9 @@ func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	tableName := "terragrunt-table-does-not-exist"
 	retries := 5
 
-	err := client.WaitForTableToBeActiveWithRandomSleep(t.Context(), tableName, retries, 1*time.Millisecond, 500*time.Millisecond)
+	l := logger.CreateLogger()
+
+	err := client.WaitForTableToBeActiveWithRandomSleep(t.Context(), l, tableName, retries, 1*time.Millisecond, 500*time.Millisecond)
 
 	errorMatchs := errors.IsError(err, s3backend.TableActiveRetriesExceeded{TableName: tableName, Retries: retries})
 	assert.True(t, errorMatchs, "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
@@ -99,8 +106,10 @@ func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	WithLockTable(t, client, func(tableName string, client *s3backend.Client) {
 		AssertCanWriteToTable(t, tableName, client)
 
+		l := logger.CreateLogger()
+
 		// Try to create the table the second time and make sure you get no errors
-		err := client.CreateLockTableIfNecessary(t.Context(), tableName, nil)
+		err := client.CreateLockTableIfNecessary(t.Context(), l, tableName, nil)
 		require.NoError(t, err, "Unexpected error: %v", err)
 	})
 }
@@ -117,8 +126,10 @@ func TestAwsTableTagging(t *testing.T) {
 
 		assertTags(t, tags, tableName, client)
 
+		l := logger.CreateLogger()
+
 		// Try to create the table the second time and make sure you get no errors
-		err := client.CreateLockTableIfNecessary(t.Context(), tableName, nil)
+		err := client.CreateLockTableIfNecessary(t.Context(), l, tableName, nil)
 		require.NoError(t, err, "Unexpected error: %v", err)
 	})
 }
@@ -175,7 +186,9 @@ func UniqueTableNameForTest() string {
 func CleanupTableForTest(t *testing.T, tableName string, client *s3backend.Client) {
 	t.Helper()
 
-	err := client.DeleteTable(t.Context(), tableName)
+	l := logger.CreateLogger()
+
+	err := client.DeleteTable(t.Context(), l, tableName)
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
@@ -203,7 +216,9 @@ func WithLockTableTagged(t *testing.T, tags map[string]string, client *s3backend
 
 	tableName := UniqueTableNameForTest()
 
-	err := client.CreateLockTableIfNecessary(t.Context(), tableName, tags)
+	l := logger.CreateLogger()
+
+	err := client.CreateLockTableIfNecessary(t.Context(), l, tableName, tags)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	defer CleanupTableForTest(t, tableName, client)
 

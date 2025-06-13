@@ -55,14 +55,14 @@ func TestDeprecatedRunAllCommand_TerragruntReportsTerraformErrorsWithPlanAll(t *
 	)
 	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-	require.Error(t, err, "Failed to properly fail command: %v. The terraform should be bad", cmd)
+	require.NoError(t, err)
 
 	output := stdout.String()
 	errOutput := stderr.String()
 	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
 
-	require.ErrorContains(t, err, "missingvar1")
-	require.ErrorContains(t, err, "missingvar2")
+	assert.Contains(t, errOutput, "missingvar1")
+	assert.Contains(t, errOutput, "missingvar2")
 }
 
 func TestDeprecatedLegacyAllCommand_TerragruntStackCommandsWithPlanFile(t *testing.T) {

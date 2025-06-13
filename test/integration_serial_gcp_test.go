@@ -19,8 +19,8 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	// There is no true way to properly unset env vars from the environment, but we still try
 	// to unset the CI credentials during this test.
 	defaultCreds := os.Getenv("GCLOUD_SERVICE_KEY")
-	defer os.Setenv("GCLOUD_SERVICE_KEY", defaultCreds)
-	os.Unsetenv("GCLOUD_SERVICE_KEY")
+	defer os.Setenv("GCLOUD_SERVICE_KEY", defaultCreds) //nolint:usetesting
+	os.Unsetenv("GCLOUD_SERVICE_KEY")                   //nolint:usetesting
 	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
 
 	helpers.CleanupTerraformFolder(t, testFixtureGcsPath)

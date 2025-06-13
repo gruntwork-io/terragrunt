@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -20,41 +21,41 @@ const defaultPermissions = int(0600)
 
 // WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the terraform module in the same way
 // that terragrunt invokes the module, so that you can debug issues with the terragrunt config.
-func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Infof(
+func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+	l.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,
-		terragruntOptions.WorkingDir,
+		opts.WorkingDir,
 	)
 
-	required, optional, err := tf.ModuleVariables(terragruntOptions.WorkingDir)
+	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 
 	variables := append(required, optional...)
 
-	terragruntOptions.Logger.Debugf("The following variables were detected in the terraform module:")
-	terragruntOptions.Logger.Debugf("%v", variables)
+	l.Debugf("The following variables were detected in the terraform module:")
+	l.Debugf("%v", variables)
 
-	fileContents, err := terragruntDebugFileContents(terragruntOptions, terragruntConfig, variables)
+	fileContents, err := terragruntDebugFileContents(l, opts, cfg, variables)
 	if err != nil {
 		return err
 	}
 
-	configFolder := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+	configFolder := filepath.Dir(opts.TerragruntConfigPath)
 
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
 	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
 		return errors.New(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Variables passed to terraform are located in \"%s\"", fileName)
-	terragruntOptions.Logger.Debugf("Run this command to replicate how terraform was invoked:")
-	terragruntOptions.Logger.Debugf(
+	l.Debugf("Variables passed to terraform are located in \"%s\"", fileName)
+	l.Debugf("Run this command to replicate how terraform was invoked:")
+	l.Debugf(
 		"\tterraform -chdir=\"%s\" %s -var-file=\"%s\" ",
-		terragruntOptions.WorkingDir,
-		strings.Join(terragruntOptions.TerraformCliArgs, " "),
+		opts.WorkingDir,
+		strings.Join(opts.TerraformCliArgs, " "),
 		fileName,
 	)
 
@@ -65,18 +66,19 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 // that should be set to invoke the terraform module in the same way as terragrunt. Note that this will only include the
 // values of variables that are actually defined in the module.
 func terragruntDebugFileContents(
-	terragruntOptions *options.TerragruntOptions,
-	terragruntConfig *config.TerragruntConfig,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
 	moduleVariables []string,
 ) ([]byte, error) {
 	envVars := map[string]string{}
-	if terragruntOptions.Env != nil {
-		envVars = terragruntOptions.Env
+	if opts.Env != nil {
+		envVars = opts.Env
 	}
 
 	jsonValuesByKey := make(map[string]any)
 
-	for varName, varValue := range terragruntConfig.Inputs {
+	for varName, varValue := range cfg.Inputs {
 		nameAsEnvVar := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
 		_, varIsInEnv := envVars[nameAsEnvVar]
 		varIsDefined := util.ListContainsElement(moduleVariables, varName)
@@ -88,12 +90,12 @@ func terragruntDebugFileContents(
 		case !varIsInEnv && varIsDefined:
 			jsonValuesByKey[varName] = varValue
 		case varIsInEnv:
-			terragruntOptions.Logger.Debugf(
+			l.Debugf(
 				"WARN: The variable %s was omitted from the debug file because the env var %s is already set.",
 				varName, nameAsEnvVar,
 			)
 		case !varIsDefined:
-			terragruntOptions.Logger.Debugf(
+			l.Debugf(
 				"WARN: The variable %s was omitted because it is not defined in the terraform module.",
 				varName,
 			)

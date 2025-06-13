@@ -3,10 +3,11 @@
 package cas_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,16 +16,21 @@ import (
 func TestCASGetterGetWithRacing(t *testing.T) {
 	t.Parallel()
 
-	c, err := cas.New(cas.Options{})
+	tempDir := t.TempDir()
+	storePath := filepath.Join(tempDir, "store")
+
+	c, err := cas.New(cas.Options{
+		StorePath: storePath,
+	})
 	require.NoError(t, err)
 
 	opts := &cas.CloneOptions{
 		Branch: "main",
 	}
 
-	l := log.New()
+	l := logger.CreateLogger()
 
-	g := cas.NewCASGetter(&l, c, opts)
+	g := cas.NewCASGetter(l, c, opts)
 	client := getter.Client{
 		Getters: []getter.Getter{g},
 	}

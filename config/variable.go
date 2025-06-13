@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -25,7 +26,7 @@ type ParsedVariable struct {
 }
 
 // ParseVariables - parse variables from tf files.
-func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*ParsedVariable, error) {
+func ParseVariables(l log.Logger, opts *options.TerragruntOptions, directoryPath string) ([]*ParsedVariable, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 	// list all tf files
@@ -34,7 +35,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 		return nil, errors.New(err)
 	}
 
-	parser := hclparse.NewParser(DefaultParserOptions(opts)...)
+	parser := hclparse.NewParser(DefaultParserOptions(l, opts)...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable
@@ -59,7 +60,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 
 						descriptionAttr, err := readBlockAttribute(ctx, block, "description")
 						if err != nil {
-							opts.Logger.Warnf("Failed to read descriptionAttr for %s %v", name, err)
+							l.Warnf("Failed to read descriptionAttr for %s %v", name, err)
 
 							descriptionAttr = nil
 						}
@@ -74,7 +75,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 
 						typeAttr, err := readBlockAttribute(ctx, block, "type")
 						if err != nil {
-							opts.Logger.Warnf("Failed to read type attribute for %s %v", name, err)
+							l.Warnf("Failed to read type attribute for %s %v", name, err)
 						}
 
 						if typeAttr != nil {
@@ -85,7 +86,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 
 						defaultValue, err := readBlockAttribute(ctx, block, "default")
 						if err != nil {
-							opts.Logger.Warnf("Failed to read default value for %s %v", name, err)
+							l.Warnf("Failed to read default value for %s %v", name, err)
 
 							defaultValue = nil
 						}

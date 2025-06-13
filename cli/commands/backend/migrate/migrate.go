@@ -9,10 +9,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *options.TerragruntOptions) error {
 	var err error
 
 	srcPath, err = util.CanonicalPath(srcPath, opts.WorkingDir)
@@ -20,42 +21,42 @@ func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntO
 		return err
 	}
 
-	opts.Logger.Debugf("Source unit path %s", srcPath)
+	l.Debugf("Source unit path %s", srcPath)
 
 	dstPath, err = util.CanonicalPath(dstPath, opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 
-	opts.Logger.Debugf("Destination unit path %s", dstPath)
+	l.Debugf("Destination unit path %s", dstPath)
 
-	stack, err := configstack.FindStackInSubfolders(ctx, opts)
+	stack, err := configstack.FindStackInSubfolders(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
-	srcModule := stack.Modules.FindByPath(srcPath)
+	srcModule := stack.FindModuleByPath(srcPath)
 	if srcModule == nil {
 		return errors.Errorf("src unit not found at %s", srcPath)
 	}
 
-	dstModule := stack.Modules.FindByPath(dstPath)
+	dstModule := stack.FindModuleByPath(dstPath)
 	if dstModule == nil {
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, srcModule.TerragruntOptions)
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcModule.TerragruntOptions)
 	if err != nil || srcRemoteState == nil {
 		return err
 	}
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, dstModule.TerragruntOptions)
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstModule.TerragruntOptions)
 	if err != nil || dstRemoteState == nil {
 		return err
 	}
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, srcModule.TerragruntOptions)
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcModule.TerragruntOptions)
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -65,5 +66,5 @@ func Run(ctx context.Context, srcPath, dstPath string, opts *options.TerragruntO
 		}
 	}
 
-	return srcRemoteState.Migrate(ctx, srcModule.TerragruntOptions, dstModule.TerragruntOptions, dstRemoteState)
+	return srcRemoteState.Migrate(ctx, l, srcModule.TerragruntOptions, dstModule.TerragruntOptions, dstRemoteState)
 }

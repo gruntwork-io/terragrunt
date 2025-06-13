@@ -1,0 +1,3 @@
+variable "baz" {
+  type = string
+}

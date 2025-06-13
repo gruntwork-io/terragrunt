@@ -8,7 +8,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -156,9 +158,6 @@ func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArg
 func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual options.TerragruntOptions, messageAndArgs ...any) {
 	t.Helper()
 
-	assert.NotNil(t, expected.Logger, messageAndArgs...)
-	assert.NotNil(t, actual.Logger, messageAndArgs...)
-
 	assert.Equal(t, expected.TerragruntConfigPath, actual.TerragruntConfigPath, messageAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, messageAndArgs...)
 	assert.Equal(t, expected.TerraformCliArgs, actual.TerraformCliArgs, messageAndArgs...)
@@ -195,7 +194,7 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 	if err != nil {
 		t.Fatalf("Error creating terragrunt options for test %v", err)
 	}
-	opts.RunTerragrunt = func(_ context.Context, _ *options.TerragruntOptions) error {
+	opts.RunTerragrunt = func(_ context.Context, _ log.Logger, _ *options.TerragruntOptions, _ *report.Report) error {
 		*executed = true
 		return toReturnFromTerragruntCommand
 	}

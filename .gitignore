@@ -18,3 +18,5 @@ terragrunt
 .devcontainer.json
 .cursor/
 .env
+.licensei.cache
+bin

@@ -5,7 +5,7 @@ category: migrate
 categories_url: migrate
 excerpt: Migration guide to rewrite configurations to use Terragrunt Stacks
 tags: ["migration", "community"]
-order: 503
+order: 604
 nav_title: Documentation
 nav_title_link: /docs/
 slug: terragrunt-stacks

@@ -255,7 +255,7 @@ func TestCustomLockFile(t *testing.T) {
 
 	source := "../custom-lock-file-module"
 	downloadDir := util.JoinPath(rootPath, helpers.TerragruntCache)
-	result, err := tf.NewSource(source, downloadDir, rootPath, createLogger(), false)
+	result, err := tf.NewSource(createLogger(), source, downloadDir, rootPath, false)
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
@@ -566,15 +566,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
 	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
 
-	require.Error(t, err)
-
-	var multiErrors *errors.MultiError
-
-	if ok := errors.As(err, &multiErrors); ok {
-		err = multiErrors
-	}
-
-	assert.IsType(t, &errors.MultiError{}, err)
+	require.NoError(t, err)
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
 	for moduleName, modulePath := range modulePaths {

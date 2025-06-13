@@ -14,12 +14,14 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mgutz/ansi"
 )
 
 // Run runs the list command.
-func Run(ctx context.Context, opts *Options) error {
+func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d := discovery.
 		NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors()
@@ -55,12 +57,12 @@ func Run(ctx context.Context, opts *Options) error {
 		"dependencies": shouldDiscoverDependencies(opts),
 		"external":     opts.External,
 	}, func(ctx context.Context) error {
-		cfgs, discoverErr = d.Discover(ctx, opts.TerragruntOptions)
+		cfgs, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)
 		return discoverErr
 	})
 
 	if err != nil {
-		opts.Logger.Debugf("Errors encountered while discovering configurations:\n%s", err)
+		l.Debugf("Errors encountered while discovering configurations:\n%s", err)
 	}
 
 	switch opts.Mode {
@@ -109,11 +111,11 @@ func Run(ctx context.Context, opts *Options) error {
 
 	switch opts.Format {
 	case FormatText:
-		return outputText(opts, listedCfgs)
+		return outputText(l, opts, listedCfgs)
 	case FormatTree:
-		return outputTree(opts, listedCfgs, opts.Mode)
+		return outputTree(l, opts, listedCfgs, opts.Mode)
 	case FormatLong:
-		return outputLong(opts, listedCfgs)
+		return outputLong(l, opts, listedCfgs)
 	default:
 		// This should never happen, because of validation in the command.
 		// If it happens, we want to throw so we can fix the validation.
@@ -306,22 +308,22 @@ func (c *Colorizer) ColorizeHeading(dep string) string {
 }
 
 // outputText outputs the discovered configurations in text format.
-func outputText(opts *Options, configs ListedConfigs) error {
-	colorizer := NewColorizer(shouldColor(opts))
+func outputText(l log.Logger, opts *Options, configs ListedConfigs) error {
+	colorizer := NewColorizer(shouldColor(l))
 
 	return renderTabular(opts, configs, colorizer)
 }
 
 // outputLong outputs the discovered configurations in long format.
-func outputLong(opts *Options, configs ListedConfigs) error {
-	colorizer := NewColorizer(shouldColor(opts))
+func outputLong(l log.Logger, opts *Options, configs ListedConfigs) error {
+	colorizer := NewColorizer(shouldColor(l))
 
 	return renderLong(opts, configs, colorizer)
 }
 
 // shouldColor returns true if the output should be colored.
-func shouldColor(opts *Options) bool {
-	return !opts.TerragruntOptions.Logger.Formatter().DisabledColors() && !isStdoutRedirected()
+func shouldColor(l log.Logger) bool {
+	return !l.Formatter().DisabledColors() && !stdout.IsRedirected()
 }
 
 // renderLong renders the configurations in a long format.
@@ -444,8 +446,8 @@ func renderTabular(opts *Options, configs ListedConfigs, c *Colorizer) error {
 }
 
 // outputTree outputs the discovered configurations in tree format.
-func outputTree(opts *Options, configs ListedConfigs, sort string) error {
-	s := NewTreeStyler(shouldColor(opts))
+func outputTree(l log.Logger, opts *Options, configs ListedConfigs, sort string) error {
+	s := NewTreeStyler(shouldColor(l))
 
 	return renderTree(opts, configs, s, sort)
 }
@@ -681,14 +683,4 @@ func getLongestPathLen(configs ListedConfigs) int {
 	}
 
 	return longest
-}
-
-// isStdoutRedirected returns true if the stdout is redirected.
-func isStdoutRedirected() bool {
-	stat, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-
-	return (stat.Mode() & os.ModeCharDevice) == 0
 }

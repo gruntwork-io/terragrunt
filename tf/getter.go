@@ -17,8 +17,10 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
+	svchost "github.com/hashicorp/terraform-svchost"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -70,6 +72,7 @@ type RegistryServicePath struct {
 type RegistryGetter struct {
 	client            *getter.Client
 	TerragruntOptions *options.TerragruntOptions
+	Logger            log.Logger
 }
 
 // SetClient allows the getter to know what getter client (different from the underlying HTTP client) to use for
@@ -137,7 +140,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 
 	version := versionList[0]
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.TerragruntOptions.Logger, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.Logger, registryDomain)
 	if err != nil {
 		return err
 	}
@@ -147,7 +150,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return err
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.TerragruntOptions.Logger, *moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.Logger, *moduleURL)
 	if err != nil {
 		return err
 	}
@@ -171,7 +174,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	}
 
 	// We have a subdir, time to jump some hoops
-	return tfrGetter.getSubdir(ctx, dstPath, source, path.Join(subDir, moduleSubDir))
+	return tfrGetter.getSubdir(ctx, tfrGetter.Logger, dstPath, source, path.Join(subDir, moduleSubDir))
 }
 
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
@@ -181,7 +184,7 @@ func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
-func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL, subDir string) error {
+func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, l log.Logger, dstPath, sourceURL, subDir string) error {
 	// Create a temporary directory to store the full source. This has to be a non-existent directory.
 	tempdirPath, tempdirCloser, err := safetemp.Dir("", "getter")
 	if err != nil {
@@ -190,7 +193,7 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	defer func(tempdirCloser io.Closer) {
 		err := tempdirCloser.Close()
 		if err != nil {
-			tfrGetter.TerragruntOptions.Logger.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
+			l.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
 		}
 	}(tempdirCloser)
 
@@ -235,11 +238,11 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	defer func(name string) {
 		err := os.Remove(name)
 		if err != nil {
-			tfrGetter.TerragruntOptions.Logger.Warnf("Error removing temporary directory %s: %v", name, err)
+			l.Warnf("Error removing temporary directory %s: %v", name, err)
 		}
 	}(manifestPath)
 
-	return util.CopyFolderContentsWithFilter(tfrGetter.TerragruntOptions.Logger, sourcePath, dstPath, manifestFname, func(path string) bool { return true })
+	return util.CopyFolderContentsWithFilter(l, sourcePath, dstPath, manifestFname, func(path string) bool { return true })
 }
 
 // GetModuleRegistryURLBasePath uses the service discovery protocol
@@ -325,6 +328,25 @@ func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, e
 	return terraformGet, nil
 }
 
+func applyHostToken(req *http.Request) (*http.Request, error) {
+	cliCfg, err := cliconfig.LoadUserConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if creds := cliCfg.CredentialsSource().ForHost(svchost.Hostname(req.URL.Hostname())); creds != nil {
+		creds.PrepareRequest(req)
+	} else {
+		// fall back to the TG_TF_REGISTRY_TOKEN
+		authToken := os.Getenv(authTokenEnvName)
+		if authToken != "" {
+			req.Header.Add("Authorization", "Bearer "+authToken)
+		}
+	}
+
+	return req, nil
+}
+
 // httpGETAndGetResponse is a helper function to make a GET request to the given URL using the http client. This
 // function will then read the response and return the contents + the response header.
 func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.URL) ([]byte, *http.Header, error) {
@@ -335,9 +357,9 @@ func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.UR
 
 	// Handle authentication via env var. Authentication is done by providing the registry token as a bearer token in
 	// the request header.
-	authToken := os.Getenv(authTokenEnvName)
-	if authToken != "" {
-		req.Header.Add("Authorization", "Bearer "+authToken)
+	req, err = applyHostToken(req)
+	if err != nil {
+		return nil, nil, errors.New(err)
 	}
 
 	resp, err := httpClient.Do(req)

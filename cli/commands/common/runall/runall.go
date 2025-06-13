@@ -2,10 +2,16 @@ package runall
 
 import (
 	"context"
+	"os"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -29,7 +35,7 @@ var runAllDisabledCommands = map[string]string{
 	// - version        : Supporting `version` with run --all could be useful for sanity checking a multi-version setup.
 }
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
 		return errors.New(MissingCommand{})
 	}
@@ -42,18 +48,50 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, opts)
+	stackOpts := []configstack.Option{}
+
+	if opts.Experiments.Evaluate(experiment.Report) {
+		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
+
+		if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+			r.WithDisableColor()
+		}
+
+		if opts.ReportFormat != "" {
+			r.WithFormat(opts.ReportFormat)
+		}
+
+		if opts.SummaryUnitDuration {
+			r.WithShowUnitTiming()
+		}
+
+		stackOpts = append(stackOpts, configstack.WithReport(r))
+
+		if opts.ReportSchemaFile != "" {
+			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		}
+
+		if opts.ReportFile != "" {
+			defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		}
+
+		if !opts.SummaryDisable {
+			defer r.WriteSummary(opts.Writer) //nolint:errcheck
+		}
+	}
+
+	stack, err := configstack.FindStackInSubfolders(ctx, l, opts, stackOpts...)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, opts, stack)
+	return RunAllOnStack(ctx, l, opts, stack)
 }
 
-func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *configstack.Stack) error {
-	opts.Logger.Debugf("%s", stack.String())
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stack configstack.Stack) error {
+	l.Debugf("%s", stack.String())
 
-	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
+	if err := stack.LogModuleDeployOrder(l, opts.TerraformCommand); err != nil {
 		return err
 	}
 
@@ -69,13 +107,14 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(ctx, prompt, opts)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 		if err != nil {
 			return err
 		}
 
 		if !shouldRunAll {
-			return nil
+			// We explicitly exit here to avoid running any defers that might be registered, like from the run summary.
+			os.Exit(0)
 		}
 	}
 
@@ -83,6 +122,26 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return stack.Run(ctx, opts)
+		err := stack.Run(ctx, l, opts)
+		if err != nil {
+			// At this stage, we can't handle the error any further, so we just log it and return nil.
+			// After this point, we'll need to report on what happened, and we want that to happen
+			// after the error summary.
+			l.Errorf("Run failed: %v", err)
+
+			// Update the exit code in ctx
+			exitCode := tf.DetailedExitCodeFromContext(ctx)
+			if exitCode == nil {
+				exitCode = &tf.DetailedExitCode{
+					Code: 1,
+				}
+			}
+
+			exitCode.Set(int(cli.ExitCodeGeneralError))
+
+			return nil
+		}
+
+		return nil
 	})
 }

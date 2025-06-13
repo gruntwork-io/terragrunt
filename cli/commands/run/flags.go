@@ -2,12 +2,16 @@
 package run
 
 import (
+	"fmt"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -25,6 +29,7 @@ const (
 	UnitsThatIncludeFlagName               = "units-that-include"
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
+	SummaryUnitDurationFlagName            = "summary-unit-duration"
 
 	BackendBootstrapFlagName        = "backend-bootstrap"
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
@@ -75,6 +80,13 @@ const (
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
 
+	// Report related flags.
+
+	SummaryDisableFlagName = "summary-disable"
+	ReportFileFlagName     = "report-file"
+	ReportFormatFlagName   = "report-format"
+	ReportSchemaFlagName   = "report-schema-file"
+
 	// `--all` related flags.
 
 	OutDirFlagName     = "out-dir"
@@ -86,7 +98,7 @@ const (
 )
 
 // NewFlags creates and returns global flags.
-func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := flags.Prefix{flags.TgPrefix}
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
@@ -350,7 +362,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				EnvVars: terragruntPrefix.EnvVars("include-module-prefix"),
 				Usage:   "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 				Action: func(_ *cli.Context, _ bool) error {
-					opts.Logger.Warnf("The --include-module-prefix flag is deprecated. Use the functionality-inverted --%s flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TFForwardStdoutFlagName)
+					l.Warnf("The --include-module-prefix flag is deprecated. Use the functionality-inverted --%s flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TFForwardStdoutFlagName)
 
 					return nil
 				},
@@ -529,6 +541,79 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Hidden:      true,
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("engine-log-level"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        SummaryDisableFlagName,
+			EnvVars:     tgPrefix.EnvVars(SummaryDisableFlagName),
+			Destination: &opts.SummaryDisable,
+			Usage:       `Disable the summary output at the end of a run.`,
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        SummaryUnitDurationFlagName,
+			EnvVars:     tgPrefix.EnvVars(SummaryUnitDurationFlagName),
+			Destination: &opts.SummaryUnitDuration,
+			Usage:       `Show duration information for each unit in the summary output.`,
+		}),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:    ReportFileFlagName,
+			EnvVars: tgPrefix.EnvVars(ReportFileFlagName),
+			Usage:   `Path to generate report file in.`,
+			Setter: func(value string) error {
+				if value == "" {
+					return nil
+				}
+
+				opts.ReportFile = value
+
+				ext := filepath.Ext(value)
+				if ext == "" {
+					ext = ".csv"
+				}
+
+				if ext != ".csv" && ext != ".json" {
+					return nil
+				}
+
+				if opts.ReportFormat == "" {
+					opts.ReportFormat = report.Format(ext[1:])
+				}
+
+				return nil
+			},
+		}),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:    ReportFormatFlagName,
+			EnvVars: tgPrefix.EnvVars(ReportFormatFlagName),
+			Usage:   `Format of the report file.`,
+			Setter: func(value string) error {
+				if value == "" && opts.ReportFormat == "" {
+					opts.ReportFormat = report.FormatCSV
+
+					return nil
+				}
+
+				opts.ReportFormat = report.Format(value)
+
+				switch opts.ReportFormat {
+				case report.FormatCSV:
+				case report.FormatJSON:
+				default:
+					return fmt.Errorf("unsupported report format: %s", value)
+				}
+
+				return nil
+			},
+		}),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        ReportSchemaFlagName,
+			EnvVars:     tgPrefix.EnvVars(ReportSchemaFlagName),
+			Usage:       `Path to generate report schema file in.`,
+			Destination: &opts.ReportSchemaFile,
+		}),
 	}
 
 	return flags.Sort()

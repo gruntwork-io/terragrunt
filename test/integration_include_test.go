@@ -112,8 +112,8 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	assert.Contains(t, planOutput, "beta")
 	assert.Contains(t, planOutput, "charlie")
 
-	stdoutLines := strings.Split(stderr.String(), "\n")
-	for _, line := range stdoutLines {
+	stdoutLines := strings.SplitSeq(stderr.String(), "\n")
+	for line := range stdoutLines {
 		if strings.Contains(line, "alpha") {
 			assert.Contains(t, line, "prefix=a")
 		}
