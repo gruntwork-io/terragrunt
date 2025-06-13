@@ -433,8 +433,8 @@ func TerragruntExcludes(path string) bool {
 		return false
 	}
 
-	pathParts := strings.Split(path, string(filepath.Separator))
-	for _, pathPart := range pathParts {
+	pathParts := strings.SplitSeq(path, string(filepath.Separator))
+	for pathPart := range pathParts {
 		if strings.HasPrefix(pathPart, ".") && pathPart != "." && pathPart != ".." {
 			return true
 		}
@@ -765,8 +765,8 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 
 	var dirs []string
 
-	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
-	for _, dir := range lines {
+	lines := strings.SplitSeq(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	for dir := range lines {
 		if dir := strings.TrimSpace(dir); dir == "" || strings.HasPrefix(dir, "#") {
 			continue
 		}
@@ -786,7 +786,7 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 func MatchSha256Checksum(file, filename []byte) []byte {
 	var checksum []byte
 
-	for _, line := range bytes.Split(file, []byte("\n")) {
+	for line := range bytes.SplitSeq(file, []byte("\n")) {
 		parts := bytes.Fields(line)
 		if len(parts) > 1 && bytes.Equal(parts[1], filename) {
 			checksum = parts[0]
