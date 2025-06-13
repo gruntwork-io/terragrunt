@@ -2,7 +2,6 @@ module github.com/gruntwork-io/terragrunt
 
 go 1.24
 
-
 require (
 	cloud.google.com/go/storage v1.54.0
 	dario.cat/mergo v1.0.1
