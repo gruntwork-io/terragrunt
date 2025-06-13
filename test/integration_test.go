@@ -114,6 +114,7 @@ const (
 	testFixtureTfPath                         = "fixtures/tf-path"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
+	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
 
 	terraformFolder = ".terraform"
 

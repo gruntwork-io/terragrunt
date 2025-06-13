@@ -3,6 +3,7 @@ package test_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -123,4 +124,62 @@ func TestRunNoStacksGenerate(t *testing.T) {
 			assert.NoDirExists(t, genPath)
 		})
 	}
+}
+
+func TestRunVersionFilesCacheKey(t *testing.T) {
+	t.Parallel()
+
+	testdata := []struct {
+		name         string
+		expect       string
+		versionFiles []string
+	}{
+		{
+			name:         "use default",
+			expect:       "r01AJjVD7VSXCQk1ORuh_no_NRY",
+			versionFiles: nil,
+		},
+		{
+			name:   "custom files provided",
+			expect: "XBE-VO9pOnQjPQDmLQCvSCdckSQ",
+			versionFiles: []string{
+				".terraform-version",
+				".tool-versions",
+			},
+		},
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureVersionFilesCacheKey)
+
+	for _, tt := range testdata {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionFilesCacheKey, tt.versionFiles...)
+			path := util.JoinPath(tmpEnvPath, testFixtureVersionFilesCacheKey)
+			flags := []string{
+				"-non-interactive",
+				"--log-level debug",
+				"--working-dir",
+				path,
+			}
+
+			for _, file := range tt.versionFiles {
+				flags = append(
+					flags,
+					"--version-manager-file-name",
+					file,
+				)
+			}
+
+			cmd := "terragrunt run apply " + strings.Join(flags, " ") + " -- -auto-approve"
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+			assert.NotEmpty(t, stdout)
+			assert.NotEmpty(t, stderr)
+			assert.Contains(t, stderr, "using cache key for version files: "+tt.expect)
+		})
+	}
+
 }
