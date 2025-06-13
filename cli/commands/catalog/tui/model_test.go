@@ -34,9 +34,38 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
 		// Create a temporary directory structure for testing
 		dummyRepoDir := filepath.Join(t.TempDir(), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
-		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
-		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
-		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
+
+		// Initialize as a proper git repository
+		os.MkdirAll(dummyRepoDir, 0755)
+
+		// Initialize git repository
+		gitDir := filepath.Join(dummyRepoDir, ".git")
+		os.MkdirAll(gitDir, 0755)
+		os.WriteFile(filepath.Join(gitDir, "config"), []byte(fmt.Sprintf(`[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "origin"]
+	url = %s
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+`, repoURL)), 0644)
+		os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0644)
+
+		// Create refs directory structure
+		refsDir := filepath.Join(gitDir, "refs")
+		headsDir := filepath.Join(refsDir, "heads")
+		remotesDir := filepath.Join(refsDir, "remotes", "origin")
+		os.MkdirAll(headsDir, 0755)
+		os.MkdirAll(remotesDir, 0755)
+
+		// Create a fake commit hash for main branch
+		fakeCommitHash := "1234567890abcdef1234567890abcdef12345678"
+		os.WriteFile(filepath.Join(headsDir, "main"), []byte(fakeCommitHash+"\n"), 0644)
+		os.WriteFile(filepath.Join(remotesDir, "main"), []byte(fakeCommitHash+"\n"), 0644)
 
 		// Create test modules based on repoURL
 		switch repoURL {
@@ -276,4 +305,62 @@ func TestTUIWindowResize(t *testing.T) {
 	})
 
 	tm.WaitFinished(t, teatest.WithFinalTimeout(time.Second*2))
+}
+
+// TestTUIScaffoldWithRealRepository tests scaffold functionality using a real git repository
+// This test requires network access and may be slower, but provides more realistic testing
+func TestTUIScaffoldWithRealRepository(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	// Create a temp directory for scaffold output
+	tempDir := t.TempDir()
+	opts.WorkingDir = tempDir
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
+	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
+
+	// Use real terraform-fake-modules repository
+	svc := catalog.NewCatalogService(opts).WithRepoURL("https://github.com/gruntwork-io/terraform-fake-modules.git")
+
+	// Load modules from the real repository
+	ctx := t.Context()
+	l := logger.CreateLogger()
+	err = svc.Load(ctx, l)
+	require.NoError(t, err)
+
+	modules := svc.Modules()
+	require.NotEmpty(t, modules, "should have modules from real repository")
+
+	m := tui.NewModel(l, opts, svc)
+
+	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
+
+	// Wait for initial render
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte("List of Modules"))
+	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
+
+	// Press 'S' to scaffold the first module
+	tm.Send(tea.KeyMsg{
+		Type:  tea.KeyRunes,
+		Runes: []rune("S"),
+	})
+
+	// Wait for scaffold to complete - the application should quit after scaffolding
+	tm.WaitFinished(t, teatest.WithFinalTimeout(time.Second*10))
+
+	fm := tm.FinalModel(t)
+	finalModel, ok := fm.(tui.Model)
+	require.True(t, ok, "final model should be of type model")
+
+	// Verify the model transitioned to ScaffoldState
+	assert.Equal(t, tui.ScaffoldState, finalModel.State)
+	assert.NotNil(t, finalModel.SVC)
+	assert.NotEmpty(t, finalModel.SVC.Modules())
+
+	// Verify that a terragrunt.hcl file was actually created
+	terragruntFile := filepath.Join(tempDir, "terragrunt.hcl")
+	assert.FileExists(t, terragruntFile, "scaffold should create terragrunt.hcl file")
 }
