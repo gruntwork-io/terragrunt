@@ -756,16 +756,18 @@ func (s *Summary) Write(w io.Writer) error {
 }
 
 const (
-	prefix               = "   "
-	unitPrefixMultiplier = 2
-	runSummaryHeader     = "❯❯ Run Summary"
-	durationLabel        = "Duration"
-	unitsLabel           = "Units"
-	successLabel         = "Succeeded"
-	failureLabel         = "Failed"
-	earlyExitLabel       = "Early Exits"
-	excludeLabel         = "Excluded"
-	separator            = ": "
+	prefix                  = "   "
+	unitPrefixMultiplier    = 2
+	runSummaryHeader        = "❯❯ Run Summary"
+	durationLabel           = "Duration"
+	unitsLabel              = "Units"
+	successLabel            = "Succeeded"
+	failureLabel            = "Failed"
+	earlyExitLabel          = "Early Exits"
+	excludeLabel            = "Excluded"
+	separator               = ": "
+	separatorLineLength     = 28
+	durationAlignmentOffset = 4
 )
 
 func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
@@ -795,7 +797,7 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 	}
 
 	// Write separator line
-	separatorLine := fmt.Sprintf("%s%s", prefix, strings.Repeat("─", 28))
+	separatorLine := fmt.Sprintf("%s%s", prefix, strings.Repeat("─", separatorLineLength))
 	if err := s.writeSummaryHeader(w, separatorLine); err != nil {
 		return err
 	}
@@ -814,15 +816,35 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 
 	// Write each category with its units
 	categories := []struct {
+		colorizer func(string) string
 		result    Result
 		label     string
 		count     int
-		colorizer func(string) string
 	}{
-		{ResultSucceeded, successLabel, s.UnitsSucceeded, colorizer.successColorizer},
-		{ResultFailed, failureLabel, s.UnitsFailed, colorizer.failureColorizer},
-		{ResultEarlyExit, earlyExitLabel, s.EarlyExits, colorizer.exitColorizer},
-		{ResultExcluded, excludeLabel, s.Excluded, colorizer.excludeColorizer},
+		{
+			colorizer: colorizer.successColorizer,
+			result:    ResultSucceeded,
+			label:     successLabel,
+			count:     s.UnitsSucceeded,
+		},
+		{
+			colorizer: colorizer.failureColorizer,
+			result:    ResultFailed,
+			label:     failureLabel,
+			count:     s.UnitsFailed,
+		},
+		{
+			colorizer: colorizer.exitColorizer,
+			result:    ResultEarlyExit,
+			label:     earlyExitLabel,
+			count:     s.EarlyExits,
+		},
+		{
+			colorizer: colorizer.excludeColorizer,
+			result:    ResultExcluded,
+			label:     excludeLabel,
+			count:     s.Excluded,
+		},
 	}
 
 	for _, category := range categories {
@@ -837,6 +859,7 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 			slices.SortFunc(runs, func(a, b *Run) int {
 				aDuration := a.Ended.Sub(a.Started)
 				bDuration := b.Ended.Sub(b.Started)
+
 				return int(bDuration - aDuration)
 			})
 
@@ -852,29 +875,6 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 	return nil
 }
 
-func (s *Summary) writeUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) error {
-	duration := run.Ended.Sub(run.Started)
-
-	name := run.Path
-	if s.workingDir != "" {
-		name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
-	}
-
-	_, err := fmt.Fprintf(
-		w, "%s%s%s%s %s\n",
-		strings.Repeat(prefix, unitPrefixMultiplier),
-		name,
-		separator,
-		s.unitDurationPadding(name),
-		colorizer.colorDuration(duration),
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // writeCleanUnitTiming writes unit timing with cleaner formatting (no colons, better alignment)
 func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Colorizer) error {
 	duration := run.Ended.Sub(run.Started)
@@ -885,6 +885,7 @@ func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Coloriz
 	}
 
 	padding := s.cleanUnitDurationPadding(name)
+
 	_, err := fmt.Fprintf(
 		w, "%s%s%s%s\n",
 		strings.Repeat(prefix, unitPrefixMultiplier),
@@ -946,29 +947,6 @@ func (s *Summary) padding(label string) string {
 	return strings.Repeat(s.padder, longestLineLength-labelLength)
 }
 
-func (s *Summary) longestUnitDurationLineLength() int {
-	names := make([]int, 0, len(s.runs))
-
-	for _, run := range s.runs {
-		name := run.Path
-		if s.workingDir != "" {
-			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
-		}
-
-		names = append(names, len(name))
-	}
-
-	return slices.Max(names) + (len(prefix) * unitPrefixMultiplier) + len(separator)
-}
-
-func (s *Summary) unitDurationPadding(name string) string {
-	longestLineLength := s.longestUnitDurationLineLength()
-
-	labelLength := (len(prefix) * unitPrefixMultiplier) + len(name) + len(separator)
-
-	return strings.Repeat(s.padder, longestLineLength-labelLength)
-}
-
 // cleanUnitDurationPadding calculates padding for unit names to align durations with header
 func (s *Summary) cleanUnitDurationPadding(name string) string {
 	// Calculate where the duration starts in the header
@@ -981,30 +959,12 @@ func (s *Summary) cleanUnitDurationPadding(name string) string {
 	currentPosition := len(unitPrefix) + len(name)
 
 	// Calculate padding needed to align with header duration column
-	// Subtract 4 spaces to move durations closer to the left for better alignment
-	paddingNeeded := headerDurationColumn - currentPosition - 4
+	// Subtract offset spaces to move durations closer to the left for better alignment
+	paddingNeeded := headerDurationColumn - currentPosition - durationAlignmentOffset
 
 	if paddingNeeded < 1 {
 		paddingNeeded = 1
 	}
 
 	return strings.Repeat(s.padder, paddingNeeded)
-}
-
-// longestUnitNameLength finds the longest unit name length
-func (s *Summary) longestUnitNameLength() int {
-	maxLength := 0
-
-	for _, run := range s.runs {
-		name := run.Path
-		if s.workingDir != "" {
-			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
-		}
-
-		if len(name) > maxLength {
-			maxLength = len(name)
-		}
-	}
-
-	return maxLength
 }
