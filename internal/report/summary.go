@@ -306,7 +306,7 @@ func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error
 			})
 
 			for _, run := range runs {
-				if err := s.writeCleanUnitTiming(w, run, colorizer, category.unitColorizer); err != nil {
+				if err := s.writeUnitDuration(w, run, colorizer, category.unitColorizer); err != nil {
 					return err
 				}
 			}
@@ -316,8 +316,8 @@ func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error
 	return nil
 }
 
-// writeCleanUnitTiming writes unit timing with cleaner formatting (no colons, better alignment)
-func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Colorizer, unitColorizer func(string) string) error {
+// writeUnitDuration writes unit duration with cleaner formatting
+func (s *Summary) writeUnitDuration(w io.Writer, run *Run, colorizer *Colorizer, unitColorizer func(string) string) error {
 	duration := run.Ended.Sub(run.Started)
 
 	name := run.Path
@@ -325,7 +325,7 @@ func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Coloriz
 		name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
 	}
 
-	padding := s.cleanUnitDurationPadding(name)
+	padding := s.unitDurationPadding(name)
 
 	_, err := fmt.Fprintf(
 		w, "%s%s%s%s\n",
@@ -366,8 +366,8 @@ func (s *Summary) visualLength(text string) int {
 	return len(cleanText)
 }
 
-// cleanUnitDurationPadding calculates padding for unit names to align durations with header
-func (s *Summary) cleanUnitDurationPadding(name string) string {
+// unitDurationPadding calculates padding for unit names to align durations with header
+func (s *Summary) unitDurationPadding(name string) string {
 	maxUnitNameLength := 0
 
 	for _, run := range s.runs {
