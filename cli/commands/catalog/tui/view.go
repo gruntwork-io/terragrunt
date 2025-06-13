@@ -16,15 +16,15 @@ var (
 
 // View is the main view, which just calls the appropriate sub-view and returns a string representation of the TUI
 // based on the application's state.
-func (m model) View() string {
+func (m Model) View() string {
 	var s string
 
-	switch m.state {
-	case listState:
+	switch m.State {
+	case ListState:
 		s = m.listView()
-	case pagerState:
+	case PagerState:
 		s = m.pagerView()
-	case scaffoldState:
+	case ScaffoldState:
 	default:
 		s = ""
 	}
@@ -32,15 +32,15 @@ func (m model) View() string {
 	return s
 }
 
-func (m model) listView() string {
-	return m.list.View()
+func (m Model) listView() string {
+	return m.List.View()
 }
 
-func (m model) pagerView() string {
+func (m Model) pagerView() string {
 	return lipgloss.JoinVertical(lipgloss.Left, m.viewport.View(), m.footerView())
 }
 
-func (m model) footerView() string {
+func (m Model) footerView() string {
 	var percent float64 = 100
 	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", m.viewport.ScrollPercent()*percent))
 
