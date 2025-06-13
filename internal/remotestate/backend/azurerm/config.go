@@ -8,16 +8,16 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-// BackendName is the name of the Azure RM backend
+// BackendName is the name of the Azure RM backend.
 const BackendName = "azurerm"
 
 // terragruntOnlyConfigs are settings that appear in the remote_state config that are only used by
-// Terragrunt and not passed on to the Azure backend configuration
+// Terragrunt and not passed on to the Azure backend configuration.
 var terragruntOnlyConfigs = []string{
 	"disable_blob_public_access",
 }
 
-// RemoteStateConfigAzurerm represents the configuration for Azure Storage backend
+// RemoteStateConfigAzurerm represents the configuration for Azure Storage backend.
 type RemoteStateConfigAzurerm struct {
 	// Group all string fields together for optimal alignment (16 bytes each)
 	StorageAccountName string `mapstructure:"storage_account_name"`
@@ -42,17 +42,17 @@ type RemoteStateConfigAzurerm struct {
 	UseAzureADAuth bool `mapstructure:"use_azuread_auth"`
 }
 
-// ExtendedRemoteStateConfigAzurerm provides extended configuration for the Azure RM backend
+// ExtendedRemoteStateConfigAzurerm provides extended configuration for the Azure RM backend.
 type ExtendedRemoteStateConfigAzurerm struct {
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm `mapstructure:",squash"`                    // large struct - align after pointer
 	DisableBlobPublicAccess  bool                     `mapstructure:"disable_blob_public_access"` // 1 byte at end
 	_                        struct{}                 // padding for optimal alignment
 }
 
-// Config represents the configuration for Azure Storage backend
+// Config represents the configuration for Azure Storage backend.
 type Config map[string]interface{}
 
-// FilterOutTerragruntKeys returns a new map without Terragrunt-specific keys
+// FilterOutTerragruntKeys returns a new map without Terragrunt-specific keys.
 func (cfg Config) FilterOutTerragruntKeys() map[string]interface{} {
 	filtered := make(map[string]interface{})
 
@@ -67,7 +67,7 @@ func (cfg Config) FilterOutTerragruntKeys() map[string]interface{} {
 	return filtered
 }
 
-// ParseExtendedAzureConfig parses the config into an ExtendedRemoteStateConfigAzurerm
+// ParseExtendedAzureConfig parses the config into an ExtendedRemoteStateConfigAzurerm.
 func (cfg Config) ParseExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm, error) {
 	var extConfig ExtendedRemoteStateConfigAzurerm
 
@@ -78,7 +78,7 @@ func (cfg Config) ParseExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm,
 	return &extConfig, nil
 }
 
-// ExtendedAzureConfig parses and validates the config
+// ExtendedAzureConfig parses and validates the config.
 func (cfg Config) ExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm, error) {
 	extConfig, parseErr := cfg.ParseExtendedAzureConfig()
 
@@ -93,7 +93,7 @@ func (cfg Config) ExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm, erro
 	return extConfig, nil
 }
 
-// Validate checks if all required fields are set and validates auth methods
+// Validate checks if all required fields are set and validates auth methods.
 func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	if cfg.RemoteStateConfigAzurerm.StorageAccountName == "" {
 		return MissingRequiredAzureRemoteStateConfig("storage_account_name")
@@ -172,7 +172,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	return nil
 }
 
-// CacheKey returns a key that uniquely identifies this config
+// CacheKey returns a key that uniquely identifies this config.
 func (cfg *ExtendedRemoteStateConfigAzurerm) CacheKey() string {
 	return fmt.Sprintf("%s-%s-%s", cfg.RemoteStateConfigAzurerm.StorageAccountName, cfg.RemoteStateConfigAzurerm.ContainerName, cfg.RemoteStateConfigAzurerm.Key)
 }

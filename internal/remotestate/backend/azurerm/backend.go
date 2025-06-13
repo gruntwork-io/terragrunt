@@ -16,17 +16,17 @@ import (
 
 var _ backend.Backend = new(Backend)
 
-// Backend implements the backend interface for the Azure backend
+// Backend implements the backend interface for the Azure backend.
 type Backend struct {
 	*backend.CommonBackend
 }
 
-// NewBackend creates a new Azure backend
+// NewBackend creates a new Azure backend.
 func NewBackend() *Backend {
 	return &Backend{CommonBackend: backend.NewCommonBackend(BackendName)}
 }
 
-// Bootstrap creates the Azure Storage container if it doesn't exist
+// Bootstrap creates the Azure Storage container if it doesn't exist.
 func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -109,7 +109,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	return nil
 }
 
-// NeedsBootstrap checks if Azure Storage container needs initialization
+// NeedsBootstrap checks if Azure Storage container needs initialization.
 func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -139,7 +139,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 	return false, nil
 }
 
-// Delete deletes the remote state file from Azure Storage
+// Delete deletes the remote state file from Azure Storage.
 func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -165,7 +165,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 	return client.DeleteBlobIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
 }
 
-// DeleteBucket deletes the entire Azure Storage container
+// DeleteBucket deletes the entire Azure Storage container.
 func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -191,7 +191,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 	return client.DeleteContainer(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
 }
 
-// Migrate copies the state file from source container to destination container and deletes the original
+// Migrate copies the state file from source container to destination container and deletes the original.
 func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
 	// If not using force flag, warn about versioning being a storage account level setting
 	if !opts.ForceBackendMigrate {
@@ -265,7 +265,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 	return nil
 }
 
-// GetTFInitArgs returns the subset of config to pass to terraform init
+// GetTFInitArgs returns the subset of config to pass to terraform init.
 func (backend *Backend) GetTFInitArgs(backendConfig backend.Config) map[string]any {
 	// Azure backend takes all config values and filters out terragruntOnly ones
 	return Config(backendConfig).FilterOutTerragruntKeys()

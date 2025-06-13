@@ -14,24 +14,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// BlobServiceClient wraps Azure's azblob client to provide a simpler interface for our needs
+// BlobServiceClient wraps Azure's azblob client to provide a simpler interface for our needs.
 type BlobServiceClient struct {
 	client *azblob.Client
 	config map[string]interface{}
 }
 
-// GetObjectInput represents input parameters for getting a blob
+// GetObjectInput represents input parameters for getting a blob.
 type GetObjectInput struct {
 	Bucket *string
 	Key    *string
 }
 
-// GetObjectOutput represents the output from getting a blob
+// GetObjectOutput represents the output from getting a blob.
 type GetObjectOutput struct {
 	Body io.ReadCloser
 }
 
-// CreateBlobServiceClient creates a new Azure Blob Service client using the configuration from the backend
+// CreateBlobServiceClient creates a new Azure Blob Service client using the configuration from the backend.
 func CreateBlobServiceClient(l log.Logger, opts *options.TerragruntOptions, config map[string]interface{}) (*BlobServiceClient, error) {
 	storageAccountName, okStorageAccountName := config["storage_account_name"].(string)
 	if !okStorageAccountName || storageAccountName == "" {
@@ -56,7 +56,7 @@ func CreateBlobServiceClient(l log.Logger, opts *options.TerragruntOptions, conf
 	}, nil
 }
 
-// GetObject downloads a blob from Azure Storage
+// GetObject downloads a blob from Azure Storage.
 func (c *BlobServiceClient) GetObject(ctx context.Context, input *GetObjectInput) (*GetObjectOutput, error) {
 	if input.Bucket == nil || *input.Bucket == "" {
 		return nil, errors.New("container name is required")
@@ -81,7 +81,7 @@ func (c *BlobServiceClient) GetObject(ctx context.Context, input *GetObjectInput
 	}, nil
 }
 
-// ContainerExists checks if a container exists
+// ContainerExists checks if a container exists.
 func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName string) (bool, error) {
 	if containerName == "" {
 		return false, errors.New("container name is required")
@@ -108,7 +108,7 @@ func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName s
 	return true, nil
 }
 
-// CreateContainerIfNecessary creates a container if it doesn't exist
+// CreateContainerIfNecessary creates a container if it doesn't exist.
 func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l log.Logger, containerName string) error {
 	exists, err := c.ContainerExists(ctx, containerName)
 	if err != nil {
@@ -138,14 +138,14 @@ func (c *BlobServiceClient) IsVersioningEnabled(ctx context.Context, containerNa
 	return true, nil
 }
 
-// EnableVersioningIfNecessary is deprecated as versioning is a storage account level setting
+// EnableVersioningIfNecessary is deprecated as versioning is a storage account level setting.
 func (c *BlobServiceClient) EnableVersioningIfNecessary(ctx context.Context, l log.Logger, containerName string) error {
 	l.Warnf("Warning: Blob versioning in Azure Storage is a storage account level setting and cannot be configured at container level")
 
 	return nil
 }
 
-// DeleteBlobIfNecessary deletes a blob if it exists
+// DeleteBlobIfNecessary deletes a blob if it exists.
 func (c *BlobServiceClient) DeleteBlobIfNecessary(ctx context.Context, l log.Logger, containerName string, blobName string) error {
 	_, err := c.client.DeleteBlob(ctx, containerName, blobName, nil)
 	if err != nil {
@@ -160,7 +160,7 @@ func (c *BlobServiceClient) DeleteBlobIfNecessary(ctx context.Context, l log.Log
 	return nil
 }
 
-// DeleteContainer deletes a container and all its contents
+// DeleteContainer deletes a container and all its contents.
 func (c *BlobServiceClient) DeleteContainer(ctx context.Context, l log.Logger, containerName string) error {
 	if containerName == "" {
 		return errors.New("container name is required")
@@ -181,7 +181,7 @@ func (c *BlobServiceClient) DeleteContainer(ctx context.Context, l log.Logger, c
 	return nil
 }
 
-// UploadBlob uploads a blob with the given data
+// UploadBlob uploads a blob with the given data.
 func (c *BlobServiceClient) UploadBlob(ctx context.Context, l log.Logger, containerName, blobName string, data []byte) error {
 	if containerName == "" || blobName == "" {
 		return errors.New("container name and blob key are required")
@@ -198,8 +198,9 @@ func (c *BlobServiceClient) UploadBlob(ctx context.Context, l log.Logger, contai
 	return nil
 }
 
-// CopyBlobToContainer copies a blob from one container to another, potentially across storage accounts
-func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient *BlobServiceClient, dstContainer, dstKey string) error {
+// CopyBlobToContainer copies a blob from one container to another, potentially across storage accounts.
+func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient *BlobServiceClient, 
+	dstContainer, dstKey string) error {
 	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
 		return errors.New("container names and blob keys are required")
 	}

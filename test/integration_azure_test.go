@@ -26,7 +26,7 @@ const (
 	testFixtureAzureOutputFromRemoteState = "./fixtures/azure-output-from-remote-state"
 )
 
-// TestCase represents the test case data without the check function
+// TestCase represents the test case data without the check function.
 type TestCase struct {
 	name          string
 	args          string
@@ -155,7 +155,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 	}
 }
 
-// TestAzureOutputFromRemoteState tests the ability to get outputs from remote state stored in Azure Storage
+// TestAzureOutputFromRemoteState tests the ability to get outputs from remote state stored in Azure Storage.
 func TestAzureOutputFromRemoteState(t *testing.T) {
 	t.Parallel()
 
