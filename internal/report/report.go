@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -480,18 +481,15 @@ func (s *Summary) TotalDurationString(colorizer *Colorizer) string {
 
 // WriteToFile writes the report to a file.
 func (r *Report) WriteToFile(path string) error {
-	// Create a temporary file to write to
 	tmpFile, err := os.CreateTemp("", "terragrunt-report-*")
 	if err != nil {
 		return err
 	}
 
-	// Sort the runs before writing to the temporary file
 	r.mu.Lock()
 	r.SortRuns()
 	r.mu.Unlock()
 
-	// Write the report to the temporary file
 	switch r.format {
 	case FormatCSV:
 		err = r.WriteCSV(tmpFile)
@@ -505,7 +503,6 @@ func (r *Report) WriteToFile(path string) error {
 		return fmt.Errorf("failed to write report: %w", err)
 	}
 
-	// Close the temporary file
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("failed to close report file: %w", err)
 	}
@@ -514,7 +511,6 @@ func (r *Report) WriteToFile(path string) error {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	// Move the temporary file to the final destination
 	return os.Rename(tmpFile.Name(), path)
 }
 
@@ -652,18 +648,15 @@ func (r *Report) WriteJSON(w io.Writer) error {
 
 // WriteSchemaToFile writes a JSON schema for the report to a file.
 func (r *Report) WriteSchemaToFile(path string) error {
-	// Create a temporary file to write to
 	tmpFile, err := os.CreateTemp("", "terragrunt-schema-*")
 	if err != nil {
 		return err
 	}
 
-	// Write the schema to the temporary file
 	if err := r.WriteSchema(tmpFile); err != nil {
 		return fmt.Errorf("failed to write schema: %w", err)
 	}
 
-	// Close the temporary file
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("failed to close schema file: %w", err)
 	}
@@ -672,19 +665,15 @@ func (r *Report) WriteSchemaToFile(path string) error {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	// Move the temporary file to the final destination
 	return os.Rename(tmpFile.Name(), path)
 }
 
 // WriteSchema writes a JSON schema for the report to a writer.
 func (r *Report) WriteSchema(w io.Writer) error {
-	// Create a new reflector
 	reflector := jsonschema.Reflector{
-		// Add descriptions from Go comments
 		DoNotReference: true,
 	}
 
-	// Generate the schema for JSONRun
 	schema := reflector.Reflect(&JSONRun{})
 
 	schema.Description = "Schema for Terragrunt run report"
@@ -698,16 +687,13 @@ func (r *Report) WriteSchema(w io.Writer) error {
 		Items:       schema,
 	}
 
-	// Marshal the schema to JSON
 	jsonBytes, err := json.MarshalIndent(arraySchema, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	// Add a newline at the end
 	jsonBytes = append(jsonBytes, '\n')
 
-	// Write the schema
 	_, err = w.Write(jsonBytes)
 
 	return err
@@ -715,19 +701,16 @@ func (r *Report) WriteSchema(w io.Writer) error {
 
 // WriteSummary writes the summary to a writer.
 func (r *Report) WriteSummary(w io.Writer) error {
-	// Create a line gap before the summary
 	_, err := fmt.Fprintf(w, "\n")
 	if err != nil {
 		return err
 	}
 
-	// Write the summary
 	err = r.Summarize().Write(w)
 	if err != nil {
 		return err
 	}
 
-	// Write a line gap after the summary
 	_, err = fmt.Fprintf(w, "\n")
 	if err != nil {
 		return err
@@ -741,43 +724,39 @@ func (s *Summary) Write(w io.Writer) error {
 	colorizer := NewColorizer(s.shouldColor)
 
 	if s.showUnitTiming {
-		// When showing unit timing, use a different format that integrates categories with their units
 		return s.writeIntegratedSummary(w, colorizer)
 	}
 
-	// Original format for when unit timing is not shown
-	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(runSummaryHeader)); err != nil {
+	header := fmt.Sprintf("%s  %d units  %s", runSummaryHeader, s.TotalUnits(), s.TotalDurationString(colorizer))
+	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(header)); err != nil {
 		return err
 	}
 
-	if err := s.writeSummaryEntry(w, durationLabel, s.TotalDurationString(colorizer)); err != nil {
-		return err
-	}
-
-	if err := s.writeSummaryEntry(w, unitsLabel, colorizer.defaultColorizer(strconv.Itoa(s.TotalUnits()))); err != nil {
+	separatorLine := fmt.Sprintf("%s%s", prefix, strings.Repeat("─", separatorLineLength))
+	if err := s.writeSummaryHeader(w, separatorLine); err != nil {
 		return err
 	}
 
 	if s.UnitsSucceeded > 0 {
-		if err := s.writeSummaryEntry(w, successLabel, colorizer.successColorizer(strconv.Itoa(s.UnitsSucceeded))); err != nil {
+		if err := s.writeSummaryEntry(w, colorizer.successColorizer(successLabel), colorizer.successUnitColorizer(strconv.Itoa(s.UnitsSucceeded))); err != nil {
 			return err
 		}
 	}
 
 	if s.UnitsFailed > 0 {
-		if err := s.writeSummaryEntry(w, failureLabel, colorizer.failureColorizer(strconv.Itoa(s.UnitsFailed))); err != nil {
+		if err := s.writeSummaryEntry(w, colorizer.failureColorizer(failureLabel), colorizer.failureUnitColorizer(strconv.Itoa(s.UnitsFailed))); err != nil {
 			return err
 		}
 	}
 
 	if s.EarlyExits > 0 {
-		if err := s.writeSummaryEntry(w, earlyExitLabel, colorizer.exitColorizer(strconv.Itoa(s.EarlyExits))); err != nil {
+		if err := s.writeSummaryEntry(w, colorizer.exitColorizer(earlyExitLabel), colorizer.exitUnitColorizer(strconv.Itoa(s.EarlyExits))); err != nil {
 			return err
 		}
 	}
 
 	if s.Excluded > 0 {
-		if err := s.writeSummaryEntry(w, excludeLabel, colorizer.excludeColorizer(strconv.Itoa(s.Excluded))); err != nil {
+		if err := s.writeSummaryEntry(w, colorizer.excludeColorizer(excludeLabel), colorizer.excludeUnitColorizer(strconv.Itoa(s.Excluded))); err != nil {
 			return err
 		}
 	}
@@ -795,9 +774,10 @@ const (
 	failureLabel            = "Failed"
 	earlyExitLabel          = "Early Exits"
 	excludeLabel            = "Excluded"
-	separator               = ": "
+	separator               = "  "
 	separatorLineLength     = 28
 	durationAlignmentOffset = 4
+	headerUnitCountSpacing  = 2
 )
 
 func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
@@ -810,7 +790,7 @@ func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
 }
 
 func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) error {
-	_, err := fmt.Fprintf(w, "%s%s%s%s %s\n", prefix, label, separator, s.padding(label), value)
+	_, err := fmt.Fprintf(w, "%s%s%s%s%s\n", prefix, label, separator, s.padding(label), value)
 	if err != nil {
 		return err
 	}
@@ -820,19 +800,16 @@ func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) err
 
 // writeIntegratedSummary writes the summary with integrated unit timing grouped by categories
 func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) error {
-	// Write header with total units and duration
 	header := fmt.Sprintf("%s  %d units  %s", runSummaryHeader, s.TotalUnits(), s.TotalDurationString(colorizer))
 	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(header)); err != nil {
 		return err
 	}
 
-	// Write separator line
 	separatorLine := fmt.Sprintf("%s%s", prefix, strings.Repeat("─", separatorLineLength))
 	if err := s.writeSummaryHeader(w, separatorLine); err != nil {
 		return err
 	}
 
-	// Group runs by result type
 	resultGroups := map[Result][]*Run{
 		ResultSucceeded: {},
 		ResultFailed:    {},
@@ -844,7 +821,6 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 		resultGroups[run.Result] = append(resultGroups[run.Result], run)
 	}
 
-	// Write each category with its units
 	categories := []struct {
 		colorizer     func(string) string
 		unitColorizer func(string) string
@@ -884,7 +860,6 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 
 	for _, category := range categories {
 		if category.count > 0 {
-			// Write category header with count in parentheses
 			categoryHeader := fmt.Sprintf("%s (%d)", category.label, category.count)
 
 			categoryHeaderColored := category.colorizer(categoryHeader)
@@ -892,7 +867,6 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 				return err
 			}
 
-			// Sort runs in this category by duration (longest first)
 			runs := resultGroups[category.result]
 			slices.SortFunc(runs, func(a, b *Run) int {
 				aDuration := a.Ended.Sub(a.Started)
@@ -901,7 +875,6 @@ func (s *Summary) writeIntegratedSummary(w io.Writer, colorizer *Colorizer) erro
 				return int(bDuration - aDuration)
 			})
 
-			// Write each unit in this category
 			for _, run := range runs {
 				if err := s.writeCleanUnitTiming(w, run, colorizer, category.unitColorizer); err != nil {
 					return err
@@ -938,66 +911,39 @@ func (s *Summary) writeCleanUnitTiming(w io.Writer, run *Run, colorizer *Coloriz
 	return nil
 }
 
-func (s *Summary) longestLineLength() int {
-	// Start with the length of the labels
-	// That are always present
-	lengths := []int{
-		len(durationLabel),
-		len(unitsLabel),
+func (s *Summary) padding(label string) string {
+	headerUnitCountVisualPosition := s.visualLength(runSummaryHeader) + headerUnitCountSpacing
+
+	currentLabelLength := s.visualLength(label)
+	currentPosition := len(prefix) + currentLabelLength + len(separator)
+
+	paddingNeeded := headerUnitCountVisualPosition - currentPosition
+
+	paddingNeeded -= 4
+
+	if paddingNeeded < 0 {
+		paddingNeeded = 0
 	}
 
-	// Add the length of the labels that are only present if there are any runs of that type
-	if s.UnitsSucceeded > 0 {
-		lengths = append(lengths, len(successLabel))
-	}
-
-	if s.UnitsFailed > 0 {
-		lengths = append(lengths, len(failureLabel))
-	}
-
-	if s.EarlyExits > 0 {
-		lengths = append(lengths, len(earlyExitLabel))
-	}
-
-	if s.Excluded > 0 {
-		lengths = append(lengths, len(excludeLabel))
-	}
-
-	// Add the length of the entry prefix to each length
-	for i, length := range lengths {
-		lengths[i] = length + len(prefix)
-	}
-
-	// Account for the separator between the label and the value
-	for i, length := range lengths {
-		lengths[i] = length + len(separator)
-	}
-
-	// Return the longest length
-	return slices.Max(lengths)
+	return strings.Repeat(s.padder, paddingNeeded)
 }
 
-func (s *Summary) padding(label string) string {
-	longestLineLength := s.longestLineLength()
+// visualLength calculates the visual length of a string by removing ANSI escape codes
+func (s *Summary) visualLength(text string) int {
+	ansiRegex := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	cleanText := ansiRegex.ReplaceAllString(text, "")
 
-	labelLength := len(prefix) + len(label) + len(separator)
-
-	return strings.Repeat(s.padder, longestLineLength-labelLength)
+	return len(cleanText)
 }
 
 // cleanUnitDurationPadding calculates padding for unit names to align durations with header
 func (s *Summary) cleanUnitDurationPadding(name string) string {
-	// Calculate where the duration starts in the header
-	// Header format: "❯❯ Run Summary  13 units  200ms"
 	headerPrefix := fmt.Sprintf("%s  %d units  ", runSummaryHeader, s.TotalUnits())
 	headerDurationColumn := len(headerPrefix)
 
-	// Calculate current position for this unit
 	unitPrefix := strings.Repeat(prefix, unitPrefixMultiplier)
 	currentPosition := len(unitPrefix) + len(name)
 
-	// Calculate padding needed to align with header duration column
-	// Subtract offset spaces to move durations closer to the left for better alignment
 	paddingNeeded := headerDurationColumn - currentPosition - durationAlignmentOffset
 
 	if paddingNeeded < 1 {

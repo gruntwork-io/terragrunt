@@ -799,10 +799,9 @@ func TestWriteSummary(t *testing.T) {
 				r.EndRun(run.Path)
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:   x
-   Units:      1
-   Succeeded:  1
+❯❯ Run Summary  1 units  x
+   ────────────────────────────
+   Succeeded    1
 `,
 		},
 		{
@@ -845,13 +844,12 @@ func TestWriteSummary(t *testing.T) {
 				r.EndRun(secondEarlyExitRun.Path, report.WithResult(report.ResultEarlyExit))
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:     x
-   Units:        8
-   Succeeded:    2
-   Failed:       2
-   Early Exits:  2
-   Excluded:     2
+❯❯ Run Summary  8 units  x
+   ────────────────────────────
+   Succeeded    2
+   Failed       2
+   Early Exits  2
+   Excluded     2
 `,
 		},
 	}
@@ -869,9 +867,10 @@ func TestWriteSummary(t *testing.T) {
 
 			output := buf.String()
 
-			// Replace the duration with x
-			re := regexp.MustCompile(`Duration:(\s+).*`)
-			output = re.ReplaceAllString(output, "Duration:${1}x")
+			// Replace the duration in the header with x
+			// Pattern matches: "❯❯ Run Summary  8 units  42µs" -> "❯❯ Run Summary  8 units  x"
+			re := regexp.MustCompile(`(❯❯ Run Summary\s+\d+\s+units\s+)[^\n]+`)
+			output = re.ReplaceAllString(output, "${1}x")
 
 			expected := strings.TrimSpace(tt.expected)
 			assert.Equal(t, expected, strings.TrimSpace(output))
