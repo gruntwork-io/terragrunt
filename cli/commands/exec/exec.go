@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -22,7 +23,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 
 	target := run.NewTarget(targetConfigPoint, runTargetCommand(cmdOpts, args))
 
-	return run.RunWithTarget(ctx, l, opts, target)
+	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
 }
 
 func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {
