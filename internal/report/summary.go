@@ -358,9 +358,12 @@ func (s *Summary) padding(label string) string {
 	return strings.Repeat(s.padder, paddingNeeded)
 }
 
+// ansiRegex is used to remove ANSI escape codes from strings.
+// We compile it here to avoid re-compiling it on every call to visualLength.
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
 // visualLength calculates the visual length of a string by removing ANSI escape codes
 func (s *Summary) visualLength(text string) int {
-	ansiRegex := regexp.MustCompile(`\x1b\[[0-9;]*m`)
 	cleanText := ansiRegex.ReplaceAllString(text, "")
 
 	return len(cleanText)
