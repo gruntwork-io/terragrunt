@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -779,6 +780,7 @@ func getTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 			RemoteStateBlock,
 			TerragruntFlags,
 			EngineBlock,
+			TerraformBlock,
 		),
 		l,
 		targetConfig,
@@ -812,15 +814,14 @@ func getTerragruntOutputJSON(ctx *ParsingContext, l log.Logger, targetConfig str
 	ctx.TerragruntOptions.Engine = engineOpts
 
 	if isInit {
-		return getTerragruntOutputJSONFromInitFolder(ctx, l, workingDir, remoteStateTGConfig.GetIAMRoleOptions())
+		return getTerragruntOutputJSONFromInitFolder(ctx, l, workingDir, remoteStateTGConfig)
 	}
 
 	return getTerragruntOutputJSONFromRemoteState(
 		ctx,
 		l,
 		targetConfig,
-		remoteStateTGConfig.RemoteState,
-		remoteStateTGConfig.GetIAMRoleOptions(),
+		remoteStateTGConfig,
 	)
 }
 
@@ -874,10 +875,10 @@ func terragruntAlreadyInit(l log.Logger, opts *options.TerragruntOptions, config
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
 // running init.
-func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, l log.Logger, terraformWorkingDir string, iamRoleOpts options.IAMRoleOptions) ([]byte, error) {
+func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, l log.Logger, terraformWorkingDir string, targetConfig *TerragruntConfig) ([]byte, error) {
 	targetConfigPath := ctx.TerragruntOptions.TerragruntConfigPath
 
-	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, l, terraformWorkingDir, targetConfigPath, iamRoleOpts)
+	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, l, terraformWorkingDir, targetConfigPath, targetConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -911,8 +912,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	ctx *ParsingContext,
 	l log.Logger,
 	targetConfigPath string,
-	remoteState *remotestate.RemoteState,
-	iamRoleOpts options.IAMRoleOptions,
+	targetConfig *TerragruntConfig,
 ) ([]byte, error) {
 	l.Debugf("Detected remote state block with generate config. Resolving dependency by pulling remote state.")
 	// Create working directory where we will run terraform in. We will create the temporary directory in the download
@@ -936,12 +936,13 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	l.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
-	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, l, tempWorkDir, targetConfigPath, iamRoleOpts)
+	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, l, tempWorkDir, targetConfigPath, targetConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx = ctx.WithTerragruntOptions(targetTGOptions)
+	remoteState := targetConfig.RemoteState
 
 	// To speed up dependencies processing it is possible to retrieve its output directly from the backend without init dependencies
 	if ctx.TerragruntOptions.FetchDependencyOutputFromState {
@@ -1058,9 +1059,74 @@ func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.Terrag
 	return jsonOutputs, nil
 }
 
+func FilterTerraformExtraArgs(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *TerragruntConfig) []string {
+	out := []string{}
+	cmd := opts.TerraformCliArgs.First()
+
+	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+		for _, argCmd := range arg.Commands {
+			if cmd == argCmd {
+				lastArg := opts.TerraformCliArgs.Last()
+				skipVars := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) && util.IsFile(lastArg)
+
+				// The following is a fix for GH-493.
+				// If the first argument is "apply" and the second argument is a file (plan),
+				// we don't add any -var-file to the command.
+				if arg.Arguments != nil {
+					if skipVars {
+						// If we have to skip vars, we need to iterate over all elements of array...
+						for _, a := range *arg.Arguments {
+							if !strings.HasPrefix(a, "-var") {
+								out = append(out, a)
+							}
+						}
+					} else {
+						// ... Otherwise, let's add all the arguments
+						out = append(out, *arg.Arguments...)
+					}
+				}
+
+				if !skipVars {
+					varFiles := arg.GetVarFiles(l)
+					for _, file := range varFiles {
+						out = append(out, "-var-file="+file)
+					}
+				}
+			}
+		}
+	}
+
+	return out
+}
+
+func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) map[string]string {
+	out := map[string]string{}
+	cmd := terragruntOptions.TerraformCliArgs.First()
+
+	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
+		if arg.EnvVars == nil {
+			continue
+		}
+
+		for _, argcmd := range arg.Commands {
+			if cmd == argcmd {
+				maps.Copy(out, *arg.EnvVars)
+			}
+		}
+	}
+
+	return out
+}
+
 // setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform
 // without going through the full RunTerragrunt operation.
-func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, l log.Logger, workingDir string, configPath string, iamRoleOpts options.IAMRoleOptions) (*options.TerragruntOptions, error) {
+func setupTerragruntOptionsForBareTerraform(
+	ctx *ParsingContext,
+	l log.Logger,
+	workingDir string,
+	configPath string,
+	targetConfig *TerragruntConfig,
+) (*options.TerragruntOptions, error) {
 	// Here we clone the terragrunt options again since we need to make further modifications to it to allow running
 	// terraform directly.
 	// Set the terraform working dir to the tempdir, and set stdout writer to io.Discard so that output content is
@@ -1074,9 +1140,17 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, l log.Logger, w
 	targetTGOptions.Writer = io.Discard
 	targetTGOptions.Engine = ctx.TerragruntOptions.Engine
 
+	if targetConfig.Terraform != nil && targetConfig.Terraform.ExtraArgs != nil && len(targetConfig.Terraform.ExtraArgs) > 0 {
+		args := FilterTerraformExtraArgs(l, targetTGOptions, targetConfig)
+
+		targetTGOptions.InsertTerraformCliArgs(args...)
+
+		maps.Copy(targetTGOptions.Env, filterTerraformEnvVarsFromExtraArgs(targetTGOptions, targetConfig))
+	}
+
 	// If the target config has an IAM role directive and it was not set on the command line, set it to
 	// the one we retrieved from the config.
-	targetTGOptions.IAMRoleOptions = options.MergeIAMRoleOptions(iamRoleOpts, targetTGOptions.OriginalIAMRoleOptions)
+	targetTGOptions.IAMRoleOptions = options.MergeIAMRoleOptions(targetConfig.GetIAMRoleOptions(), targetTGOptions.OriginalIAMRoleOptions)
 
 	// Make sure to assume any roles set by TG_IAM_ROLE
 	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, targetTGOptions,
