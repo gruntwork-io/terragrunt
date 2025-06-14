@@ -1,0 +1,2 @@
+# Ensure golden test files are not treated as text files to prevent line ending conversions
+*.golden -text

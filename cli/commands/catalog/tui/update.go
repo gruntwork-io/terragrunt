@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -27,13 +27,13 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Don't match any of the keys below if we're actively filtering.
-		if m.list.FilterState() == list.Filtering {
+		if m.List.FilterState() == list.Filtering {
 			break
 		}
 
 		switch {
 		case key.Matches(msg, m.delegateKeys.choose, m.delegateKeys.scaffold):
-			if selectedModule, ok := m.list.SelectedItem().(*module.Module); ok {
+			if selectedModule, ok := m.List.SelectedItem().(*module.Module); ok {
 				switch {
 				case key.Matches(msg, m.delegateKeys.choose):
 					// prepare the viewport
@@ -81,10 +81,10 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 					// advance state
 					m.selectedModule = selectedModule
-					m.state = pagerState
+					m.State = PagerState
 				case key.Matches(msg, m.delegateKeys.scaffold):
-					m.state = scaffoldState
-					return m, scaffoldModuleCmd(m.logger, m, m.svc, selectedModule)
+					m.State = ScaffoldState
+					return m, scaffoldModuleCmd(m.logger, m, m.SVC, selectedModule)
 				}
 			} else {
 				break
@@ -97,7 +97,7 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle keyboard and mouse events for the list
-	m.list, cmd = m.list.Update(msg)
+	m.List, cmd = m.List.Update(msg)
 
 	// Append any commands from button bar initialization
 	if len(cmds) > 0 {
@@ -107,7 +107,7 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -132,8 +132,8 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			switch currentAction {
 			case scaffoldBtn:
-				m.state = scaffoldState
-				return m, scaffoldModuleCmd(m.logger, m, m.svc, m.selectedModule)
+				m.State = ScaffoldState
+				return m, scaffoldModuleCmd(m.logger, m, m.SVC, m.selectedModule)
 			case viewSourceBtn:
 				if m.selectedModule.URL() != "" {
 					if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
@@ -145,12 +145,12 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
-			m.state = scaffoldState
-			return m, scaffoldModuleCmd(m.logger, m, m.svc, m.selectedModule)
+			m.State = ScaffoldState
+			return m, scaffoldModuleCmd(m.logger, m, m.SVC, m.selectedModule)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
 			// because we're on the second screen, we need to go back
-			m.state = listState
+			m.State = ListState
 			return m, nil
 		}
 	case buttonbar.ActiveBtnMsg:
@@ -168,11 +168,11 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 }
 
 // Update handles all TUI interactions and implements bubbletea.Model.Update.
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := appStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.List.SetSize(msg.Width-h, msg.Height-v)
 		m.width = msg.Width
 		m.height = msg.Height
 
@@ -199,17 +199,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case rendererErrMsg:
 		m.viewport.SetContent("there was an error rendering markdown: " + msg.err.Error())
 		// ensure we show the viewport
-		m.state = pagerState
+		m.State = PagerState
 	}
 
 	// Hand off the message and model to the appropriate update function for the
 	// appropriate view based on the current state.
-	switch m.state {
-	case listState:
+	switch m.State {
+	case ListState:
 		return updateList(msg, m)
-	case pagerState:
+	case PagerState:
 		return updatePager(msg, m)
-	case scaffoldState:
+	case ScaffoldState:
 		// if we're on the scaffold state, we do nothing and wait for the
 		// scaffoldFinishedMsg message. This prevents further input.
 		return m, nil
@@ -229,7 +229,7 @@ func rendererErrCmd(err error) tea.Cmd {
 type scaffoldFinishedMsg struct{ err error }
 
 // Return a tea.Cmd that will scaffold the given module.
-func scaffoldModuleCmd(l log.Logger, m model, svc catalog.CatalogService, module *module.Module) tea.Cmd {
+func scaffoldModuleCmd(l log.Logger, m Model, svc catalog.CatalogService, module *module.Module) tea.Cmd {
 	return tea.Exec(command.NewScaffold(l, m.terragruntOptions, svc, module), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})
