@@ -129,8 +129,8 @@ provider "registry.terraform.io/hashicorp/template" {
 `,
 		},
 		{
-			[]getproviders.Provider{},
-			`
+			providers: []getproviders.Provider{},
+			initialLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.36.0"
   constraints = ">= 5.36.0"
@@ -151,7 +151,7 @@ provider "registry.terraform.io/hashicorp/template" {
   ]
 }			
 `,
-			`
+			expectedLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.37.0"
   constraints = ">= 5.36.0"
@@ -193,7 +193,7 @@ provider "registry.terraform.io/hashicorp/template" {
 					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
 				}
 			case 2:
-				tc.providers = []Provider{
+				tc.providers = []getproviders.Provider{
 					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0"),
 					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
 				}
