@@ -67,7 +67,7 @@ type model struct {
 	ready               bool
 }
 
-func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model {
+func newModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) model {
 	var (
 		modules      = svc.Modules()
 		items        = make([]list.Item, 0, len(modules))
@@ -112,6 +112,7 @@ func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
 		svc:               svc,
+		logger:            l,
 	}
 }
 

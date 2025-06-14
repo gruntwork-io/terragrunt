@@ -28,5 +28,5 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, rep
 		return errors.New("no modules found by the catalog service")
 	}
 
-	return tui.Run(ctx, opts, svc)
+	return tui.Run(ctx, l, opts, svc)
 }
