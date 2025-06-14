@@ -1189,6 +1189,9 @@ func ParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string, inclu
 
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				return errors.New(TerragruntConfigNotFoundError{Path: configPath})
+			}
 			return errors.Errorf("failed to get file info: %w", err)
 		}
 
