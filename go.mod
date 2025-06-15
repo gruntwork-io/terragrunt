@@ -23,7 +23,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gruntwork-io/boilerplate v0.6.1
 	github.com/gruntwork-io/go-commons v0.17.2
-	github.com/gruntwork-io/terragrunt-engine-go v0.0.14
+	github.com/gruntwork-io/terragrunt-engine-go v0.0.15
 	github.com/gruntwork-io/terratest v0.49.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-getter v1.7.8
@@ -63,11 +63,11 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.36.0
-	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.35.0
+	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.36.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.35.0
 	go.opentelemetry.io/otel/metric v1.36.0
 	go.opentelemetry.io/otel/sdk v1.36.0
-	go.opentelemetry.io/otel/sdk/metric v1.35.0
+	go.opentelemetry.io/otel/sdk/metric v1.36.0
 	go.opentelemetry.io/otel/trace v1.36.0
 	golang.org/x/mod v0.24.0
 	golang.org/x/oauth2 v0.30.0
@@ -174,7 +174,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.3.0 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
-	github.com/cloudflare/circl v1.6.0 // indirect
+	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cncf/xds/go v0.0.0-20250326154945-ae57f3c0d45f // indirect
 	github.com/containerd/console v1.0.4 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
