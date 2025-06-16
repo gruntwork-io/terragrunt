@@ -4,7 +4,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 )
 
 // Option is a function that modifies a Stack.

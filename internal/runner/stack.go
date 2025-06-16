@@ -5,12 +5,11 @@ package runner
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/runner/configstack"
-	"github.com/gruntwork-io/terragrunt/runner/pool"
-
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	configstack2 "github.com/gruntwork-io/terragrunt/internal/runner/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/runner/pool"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -25,10 +24,10 @@ type Stack interface {
 	JSONModuleDeployOrder(terraformCommand string) (string, error)
 	Graph(l log.Logger, opts *options.TerragruntOptions)
 	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error
-	GetModuleRunGraph(terraformCommand string) ([]configstack.TerraformModules, error)
+	GetModuleRunGraph(terraformCommand string) ([]configstack2.TerraformModules, error)
 	ListStackDependentModules() map[string][]string
-	Modules() configstack.TerraformModules
-	FindModuleByPath(path string) *configstack.Unit
+	Modules() configstack2.TerraformModules
+	FindModuleByPath(path string) *configstack2.Unit
 	SetTerragruntConfig(config *config.TerragruntConfig)
 	GetTerragruntConfig() *config.TerragruntConfig
 	SetParseOptions(parserOptions []hclparse.Option)
@@ -41,12 +40,12 @@ type Stack interface {
 
 // StackBuilder is the abstraction for building a Stack.
 type StackBuilder interface {
-	BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...configstack.Option) (Stack, error)
+	BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...configstack2.Option) (Stack, error)
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...configstack.Option) (Stack, error) {
+func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...configstack2.Option) (Stack, error) {
 	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
 		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
 
@@ -55,7 +54,7 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 		return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 	}
 
-	builder := &configstack.DefaultStackBuilder{}
+	builder := &configstack2.DefaultStackBuilder{}
 
 	return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 }

@@ -3,12 +3,11 @@ package pool
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/runner"
-	"github.com/gruntwork-io/terragrunt/runner/configstack"
-
-	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )

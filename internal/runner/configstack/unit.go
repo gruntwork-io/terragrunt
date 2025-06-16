@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
