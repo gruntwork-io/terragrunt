@@ -142,7 +142,7 @@ type TerragruntConfigNotFoundError struct {
 }
 
 func (err TerragruntConfigNotFoundError) Error() string {
-	return fmt.Sprintf("You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file. Please add a terragrunt.hcl file and try again.\n\nPath: %s", err.Path)
+	return fmt.Sprintf("You attempted to run terragrunt in a folder that does not contain a terragrunt.hcl file. Please add a terragrunt.hcl file and try again.\n\nPath: %q", err.Path)
 }
 
 type InvalidSourceURLError struct {
