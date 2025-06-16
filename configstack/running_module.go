@@ -41,7 +41,7 @@ type DependencyOrder int
 // as part of the run --all apply or run --all destroy command.
 type RunningModule struct {
 	Err            error
-	Module         *TerraformModule
+	Module         *Unit
 	Logger         log.Logger
 	DependencyDone chan *RunningModule
 	Dependencies   map[string]*RunningModule
@@ -53,7 +53,7 @@ type RunningModule struct {
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
 // except for the Dependencies and NotifyWhenDone, both of which will be empty. You should fill these using a
 // function such as crossLinkDependencies.
-func newRunningModule(module *TerraformModule) *RunningModule {
+func newRunningModule(module *Unit) *RunningModule {
 	return &RunningModule{
 		Module:         module,
 		Status:         Waiting,

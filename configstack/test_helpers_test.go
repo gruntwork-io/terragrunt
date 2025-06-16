@@ -30,7 +30,7 @@ func (byPath RunningModuleByPath) Less(i, j int) bool {
 	return byPath[i].Module.Path < byPath[j].Module.Path
 }
 
-// We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
+// We can't use assert.Equals on Unit or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
 func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformModules, actualModules configstack.TerraformModules, messageAndArgs ...any) {
 	t.Helper()
@@ -50,9 +50,9 @@ func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformM
 	}
 }
 
-// We can't use assert.Equals on TerraformModule because it contains some fields (e.g. TerragruntOptions) that cannot
+// We can't use assert.Equals on Unit because it contains some fields (e.g. TerragruntOptions) that cannot
 // be compared directly
-func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, actual *configstack.TerraformModule, messageAndArgs ...any) {
+func assertModulesEqual(t *testing.T, expected *configstack.Unit, actual *configstack.Unit, messageAndArgs ...any) {
 	t.Helper()
 
 	if assert.NotNil(t, actual, messageAndArgs...) {
@@ -75,7 +75,7 @@ func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, act
 	}
 }
 
-// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
+// We can't use assert.Equals on Unit or any data structure that contains it (e.g. configstack.RunningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
 func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*configstack.RunningModule, actualModules map[string]*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()
@@ -93,7 +93,7 @@ func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*conf
 	}
 }
 
-// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
+// We can't use assert.Equals on Unit or any data structure that contains it (e.g. configstack.RunningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
 func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.RunningModule, actualModules []*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()
@@ -113,7 +113,7 @@ func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.
 	}
 }
 
-// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
+// We can't use assert.Equals on Unit or any data structure that contains it (e.g. configstack.RunningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
 func assertRunningModulesEqual(t *testing.T, expected *configstack.RunningModule, actual *configstack.RunningModule, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()

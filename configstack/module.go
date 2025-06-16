@@ -2,7 +2,6 @@ package configstack
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -30,9 +29,9 @@ import (
 const maxLevelsOfRecursion = 20
 const existingModulesCacheName = "existingModules"
 
-// TerraformModule represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
+// Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
-type TerraformModule struct {
+type Unit struct {
 	Stack                Stack
 	TerragruntOptions    *options.TerragruntOptions
 	Logger               log.Logger
@@ -44,7 +43,7 @@ type TerraformModule struct {
 }
 
 // String renders this module as a human-readable string
-func (module *TerraformModule) String() string {
+func (module *Unit) String() string {
 	dependencies := []string{}
 	for _, dependency := range module.Dependencies {
 		dependencies = append(dependencies, dependency.Path)
@@ -56,12 +55,8 @@ func (module *TerraformModule) String() string {
 	)
 }
 
-func (module *TerraformModule) MarshalJSON() ([]byte, error) {
-	return json.Marshal(module.Path)
-}
-
 // FlushOutput flushes buffer data to the output writer.
-func (module *TerraformModule) FlushOutput() error {
+func (module *Unit) FlushOutput() error {
 	if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
 		module.Stack.Lock()
 		defer module.Stack.Unlock()
@@ -72,38 +67,8 @@ func (module *TerraformModule) FlushOutput() error {
 	return nil
 }
 
-// Check for cycles using a depth-first-search as described here:
-// https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
-//
-// Note that this method uses two lists, visitedPaths, and currentTraversalPaths, to track what nodes have already been
-// seen. We need to use lists to maintain ordering so we can show the proper order of paths in a cycle. Of course, a
-// list doesn't perform well with repeated contains() and remove() checks, so ideally we'd use an ordered Map (e.g.
-// Java's LinkedHashMap), but since Go doesn't have such a data structure built-in, and our lists are going to be very
-// small (at most, a few dozen paths), there is no point in worrying about performance.
-func (module *TerraformModule) checkForCyclesUsingDepthFirstSearch(visitedPaths *[]string, currentTraversalPaths *[]string) error {
-	if util.ListContainsElement(*visitedPaths, module.Path) {
-		return nil
-	}
-
-	if util.ListContainsElement(*currentTraversalPaths, module.Path) {
-		return errors.New(DependencyCycleError(append(*currentTraversalPaths, module.Path)))
-	}
-
-	*currentTraversalPaths = append(*currentTraversalPaths, module.Path)
-	for _, dependency := range module.Dependencies {
-		if err := dependency.checkForCyclesUsingDepthFirstSearch(visitedPaths, currentTraversalPaths); err != nil {
-			return err
-		}
-	}
-
-	*visitedPaths = append(*visitedPaths, module.Path)
-	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
-
-	return nil
-}
-
 // planFile - return plan file location, if output folder is set
-func (module *TerraformModule) planFile(l log.Logger, opts *options.TerragruntOptions) string {
+func (module *Unit) planFile(l log.Logger, opts *options.TerragruntOptions) string {
 	var planFile string
 
 	// set plan file location if output folder is set
@@ -120,16 +85,16 @@ func (module *TerraformModule) planFile(l log.Logger, opts *options.TerragruntOp
 }
 
 // outputFile - return plan file location, if output folder is set
-func (module *TerraformModule) outputFile(l log.Logger, opts *options.TerragruntOptions) string {
+func (module *Unit) outputFile(l log.Logger, opts *options.TerragruntOptions) string {
 	return module.getPlanFilePath(l, opts, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
 // outputJSONFile - return plan JSON file location, if JSON output folder is set
-func (module *TerraformModule) outputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
+func (module *Unit) outputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
 	return module.getPlanFilePath(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 
-func (module *TerraformModule) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
+func (module *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}
@@ -150,7 +115,7 @@ func (module *TerraformModule) getPlanFilePath(l log.Logger, opts *options.Terra
 }
 
 // findModuleInPath returns true if a module is located under one of the target directories
-func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
+func (module *Unit) findModuleInPath(targetDirs []string) bool {
 	return slices.Contains(targetDirs, module.Path)
 }
 
@@ -159,7 +124,7 @@ func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 // Note that we skip the prompt for `run --all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
 // with the --queue-include-external or --queue-include-dir flags.
-func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.Context, l log.Logger, dependency *TerraformModule, opts *options.TerragruntOptions) (bool, error) {
+func (module *Unit) confirmShouldApplyExternalDependency(ctx context.Context, l log.Logger, dependency *Unit, opts *options.TerragruntOptions) (bool, error) {
 	if opts.IncludeExternalDependencies {
 		l.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return true, nil
@@ -182,7 +147,7 @@ func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.
 }
 
 // Get the list of modules this module depends on
-func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModulesMap, terragruntConfigPaths []string) (TerraformModules, error) {
+func (module *Unit) getDependenciesForModule(modulesMap TerraformModulesMap, terragruntConfigPaths []string) (TerraformModules, error) {
 	dependencies := TerraformModules{}
 
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
@@ -217,7 +182,7 @@ func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModu
 	return dependencies, nil
 }
 
-type TerraformModules []*TerraformModule
+type TerraformModules []*Unit
 
 // FindWhereWorkingDirIsIncluded - find where working directory is included, flow:
 // 1. Find root git top level directory and build list of modules
@@ -287,7 +252,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 	return matchedModules
 }
 
-func (modules TerraformModules) FindByPath(path string) *TerraformModule {
+func (modules TerraformModules) FindByPath(path string) *Unit {
 	for _, module := range modules {
 		if module.Path == path {
 			return module
@@ -404,7 +369,7 @@ func (modules TerraformModules) CheckForCycles() error {
 	currentTraversalPaths := []string{}
 
 	for _, module := range modules {
-		err := module.checkForCyclesUsingDepthFirstSearch(&visitedPaths, &currentTraversalPaths)
+		err := checkForCyclesUsingDepthFirstSearch(module, &visitedPaths, &currentTraversalPaths)
 		if err != nil {
 			return err
 		}
@@ -629,7 +594,7 @@ func (modules TerraformModules) flagExcludedDirs(l log.Logger, opts *options.Ter
 
 var existingModules = cache.NewCache[*TerraformModulesMap](existingModulesCacheName)
 
-type TerraformModulesMap map[string]*TerraformModule
+type TerraformModulesMap map[string]*Unit
 
 // Merge the given external dependencies into the given map of modules if those dependencies aren't already in the
 // modules map

@@ -315,8 +315,8 @@ func (stack *DefaultStack) createStackForTerragruntConfigPaths(ctx context.Conte
 }
 
 // ResolveTerraformModules goes through each of the given Terragrunt configuration files
-// and resolve the module that configuration file represents into a TerraformModule struct.
-// Return the list of these TerraformModule structs.
+// and resolve the module that configuration file represents into a Unit struct.
+// Return the list of these Unit structs.
 func (stack *DefaultStack) ResolveTerraformModules(ctx context.Context, l log.Logger, terragruntConfigPaths []string) (TerraformModules, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
 	if err != nil {
@@ -459,8 +459,8 @@ func (stack *DefaultStack) ResolveTerraformModules(ctx context.Context, l log.Lo
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
-// into a TerraformModule struct. Note that this method will NOT fill in the Dependencies field of the TerraformModule
-// struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
+// into a Unit struct. Note that this method will NOT fill in the Dependencies field of the Unit
+// struct (see the crosslinkDependencies method for that). Return a map from module path to Unit struct.
 func (stack *DefaultStack) resolveModules(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string, howTheseModulesWereFound string) (TerraformModulesMap, error) {
 	modulesMap := TerraformModulesMap{}
 
@@ -469,7 +469,7 @@ func (stack *DefaultStack) resolveModules(ctx context.Context, l log.Logger, can
 			return nil, ProcessingModuleError{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
 		}
 
-		var module *TerraformModule
+		var module *Unit
 
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_terraform_module", map[string]any{
 			"config_path": terragruntConfigPath,
@@ -519,10 +519,10 @@ func (stack *DefaultStack) resolveModules(ctx context.Context, l log.Logger, can
 	return modulesMap, nil
 }
 
-// Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
-// Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
+// Create a Unit struct for the Terraform module specified by the given Terragrunt configuration file path.
+// Note that this method will NOT fill in the Dependencies field of the Unit struct (see the
 // crosslinkDependencies method for that).
-func (stack *DefaultStack) resolveTerraformModule(ctx context.Context, l log.Logger, terragruntConfigPath string, modulesMap TerraformModulesMap, howThisModuleWasFound string) (*TerraformModule, error) {
+func (stack *DefaultStack) resolveTerraformModule(ctx context.Context, l log.Logger, terragruntConfigPath string, modulesMap TerraformModulesMap, howThisModuleWasFound string) (*Unit, error) {
 	modulePath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 	if err != nil {
 		return nil, err
@@ -557,7 +557,7 @@ func (stack *DefaultStack) resolveTerraformModule(ctx context.Context, l log.Log
 
 	if collections.ListContainsElement(opts.ExcludeDirs, modulePath) {
 		// module is excluded
-		return &TerraformModule{Path: modulePath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
+		return &Unit{Path: modulePath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
 	parseCtx := config.NewParsingContext(ctx, l, opts).
@@ -637,13 +637,13 @@ func (stack *DefaultStack) resolveTerraformModule(ctx context.Context, l log.Log
 		return nil, nil
 	}
 
-	return &TerraformModule{Stack: stack, Path: modulePath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return &Unit{Stack: stack, Path: modulePath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
-// user is trying to run --all apply or run --all destroy. Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
-func (stack *DefaultStack) resolveDependenciesForModule(ctx context.Context, l log.Logger, module *TerraformModule, modulesMap TerraformModulesMap, skipExternal bool) (TerraformModulesMap, error) {
+// user is trying to run --all apply or run --all destroy. Note that this method will NOT fill in the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
+func (stack *DefaultStack) resolveDependenciesForModule(ctx context.Context, l log.Logger, module *Unit, modulesMap TerraformModulesMap, skipExternal bool) (TerraformModulesMap, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return TerraformModulesMap{}, nil
 	}
@@ -689,7 +689,7 @@ func (stack *DefaultStack) resolveDependenciesForModule(ctx context.Context, l l
 // These external dependencies are outside of the current working directory, which means they may not be part of the
 // environment the user is trying to run --all apply or run --all destroy. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
-// the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
+// the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
 func (stack *DefaultStack) resolveExternalDependenciesForModules(ctx context.Context, l log.Logger, modulesMap, modulesAlreadyProcessed TerraformModulesMap, recursionLevel int) (TerraformModulesMap, error) {
 	allExternalDependencies := TerraformModulesMap{}
 	modulesToSkip := modulesMap.mergeMaps(modulesAlreadyProcessed)
@@ -807,13 +807,43 @@ func (stack *DefaultStack) ListStackDependentModules() map[string][]string {
 	return dependentModules
 }
 
+// Check for cycles using a depth-first-search as described here:
+// https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
+//
+// Note that this method uses two lists, visitedPaths, and currentTraversalPaths, to track what nodes have already been
+// seen. We need to use lists to maintain ordering so we can show the proper order of paths in a cycle. Of course, a
+// list doesn't perform well with repeated contains() and remove() checks, so ideally we'd use an ordered Map (e.g.
+// Java's LinkedHashMap), but since Go doesn't have such a data structure built-in, and our lists are going to be very
+// small (at most, a few dozen paths), there is no point in worrying about performance.
+func checkForCyclesUsingDepthFirstSearch(module *Unit, visitedPaths *[]string, currentTraversalPaths *[]string) error {
+	if util.ListContainsElement(*visitedPaths, module.Path) {
+		return nil
+	}
+
+	if util.ListContainsElement(*currentTraversalPaths, module.Path) {
+		return errors.New(DependencyCycleError(append(*currentTraversalPaths, module.Path)))
+	}
+
+	*currentTraversalPaths = append(*currentTraversalPaths, module.Path)
+	for _, dependency := range module.Dependencies {
+		if err := checkForCyclesUsingDepthFirstSearch(dependency, visitedPaths, currentTraversalPaths); err != nil {
+			return err
+		}
+	}
+
+	*visitedPaths = append(*visitedPaths, module.Path)
+	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
+
+	return nil
+}
+
 // Modules returns the Terraform modules in the stack.
 func (stack *DefaultStack) Modules() TerraformModules {
 	return stack.modules
 }
 
 // FindModuleByPath finds a module by its path.
-func (stack *DefaultStack) FindModuleByPath(path string) *TerraformModule {
+func (stack *DefaultStack) FindModuleByPath(path string) *Unit {
 	for _, module := range stack.modules {
 		if module.Path == path {
 			return module

@@ -62,7 +62,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			continue // skip on error
 		}
 
-		mod := &TerraformModule{
+		mod := &Unit{
 			Stack:             stack,
 			TerragruntOptions: modOpts,
 			Logger:            modLogger,
@@ -86,7 +86,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	}
 	// Reorder linkedModules to match the order of canonicalTerragruntConfigPaths
 	orderedModules := make(TerraformModules, 0, len(canonicalTerragruntConfigPaths))
-	pathToModule := make(map[string]*TerraformModule)
+	pathToModule := make(map[string]*Unit)
 
 	for _, m := range linkedModules {
 		pathToModule[config.GetDefaultConfigPath(m.Path)] = m
@@ -248,7 +248,7 @@ func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {
 	return dependentModules
 }
 
-func (stack *RunnerPoolStack) FindModuleByPath(path string) *TerraformModule {
+func (stack *RunnerPoolStack) FindModuleByPath(path string) *Unit {
 	for _, module := range stack.modules {
 		if module.Path == path {
 			return module

@@ -33,7 +33,7 @@ func TestToRunningModulesNoModules(t *testing.T) {
 func TestToRunningModulesOneModuleNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -57,7 +57,7 @@ func TestToRunningModulesOneModuleNoDependencies(t *testing.T) {
 func TestToRunningModulesTwoModulesNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -72,7 +72,7 @@ func TestToRunningModulesTwoModulesNoDependencies(t *testing.T) {
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -96,7 +96,7 @@ func TestToRunningModulesTwoModulesNoDependencies(t *testing.T) {
 func TestToRunningModulesTwoModulesWithDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -111,7 +111,7 @@ func TestToRunningModulesTwoModulesWithDependencies(t *testing.T) {
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -137,7 +137,7 @@ func TestToRunningModulesTwoModulesWithDependencies(t *testing.T) {
 func TestToRunningModulesTwoModulesWithDependenciesReverseOrder(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -152,7 +152,7 @@ func TestToRunningModulesTwoModulesWithDependenciesReverseOrder(t *testing.T) {
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -178,7 +178,7 @@ func TestToRunningModulesTwoModulesWithDependenciesReverseOrder(t *testing.T) {
 func TestToRunningModulesTwoModulesWithDependenciesIgnoreOrder(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -193,7 +193,7 @@ func TestToRunningModulesTwoModulesWithDependenciesIgnoreOrder(t *testing.T) {
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -217,7 +217,7 @@ func TestToRunningModulesTwoModulesWithDependenciesIgnoreOrder(t *testing.T) {
 func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -232,7 +232,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T)
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -247,7 +247,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T)
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleC := &configstack.TerraformModule{
+	moduleC := &configstack.Unit{
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -262,7 +262,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T)
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleD := &configstack.TerraformModule{
+	moduleD := &configstack.Unit{
 		Path:              "d",
 		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
@@ -277,7 +277,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T)
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleE := &configstack.TerraformModule{
+	moduleE := &configstack.Unit{
 		Path:              "e",
 		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD},
 		Config:            config.TerragruntConfig{},
@@ -317,7 +317,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T)
 func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -332,7 +332,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -347,7 +347,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t
 		NotifyWhenDone: []*configstack.RunningModule{runningModuleA},
 	}
 
-	moduleC := &configstack.TerraformModule{
+	moduleC := &configstack.Unit{
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -362,7 +362,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t
 		NotifyWhenDone: []*configstack.RunningModule{runningModuleA},
 	}
 
-	moduleD := &configstack.TerraformModule{
+	moduleD := &configstack.Unit{
 		Path:              "d",
 		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
@@ -377,7 +377,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t
 		NotifyWhenDone: []*configstack.RunningModule{runningModuleC},
 	}
 
-	moduleE := &configstack.TerraformModule{
+	moduleE := &configstack.Unit{
 		Path:              "e",
 		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD},
 		Config:            config.TerragruntConfig{},
@@ -412,7 +412,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t
 func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -427,7 +427,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -442,7 +442,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleC := &configstack.TerraformModule{
+	moduleC := &configstack.Unit{
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -457,7 +457,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleD := &configstack.TerraformModule{
+	moduleD := &configstack.Unit{
 		Path:              "d",
 		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
@@ -472,7 +472,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleE := &configstack.TerraformModule{
+	moduleE := &configstack.Unit{
 		Path:              "e",
 		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD},
 		Config:            config.TerragruntConfig{},
@@ -511,7 +511,7 @@ func testToRunningModules(t *testing.T, modules configstack.TerraformModules, or
 func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -527,7 +527,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -543,7 +543,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleC := &configstack.TerraformModule{
+	moduleC := &configstack.Unit{
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -559,7 +559,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleD := &configstack.TerraformModule{
+	moduleD := &configstack.Unit{
 		Path:              "d",
 		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
@@ -575,7 +575,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleE := &configstack.TerraformModule{
+	moduleE := &configstack.Unit{
 		Path:              "e",
 		Dependencies:      configstack.TerraformModules{moduleB, moduleD},
 		Config:            config.TerragruntConfig{},
@@ -619,7 +619,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -635,7 +635,7 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -651,7 +651,7 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleC := &configstack.TerraformModule{
+	moduleC := &configstack.Unit{
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -687,7 +687,7 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &configstack.TerraformModule{
+	moduleA := &configstack.Unit{
 		Path:              "a",
 		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
@@ -703,7 +703,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleB := &configstack.TerraformModule{
+	moduleB := &configstack.Unit{
 		Path:              "b",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -719,7 +719,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleC := &configstack.TerraformModule{
+	moduleC := &configstack.Unit{
 		Path:              "c",
 		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
@@ -735,7 +735,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 		FlagExcluded:   true,
 	}
 
-	moduleD := &configstack.TerraformModule{
+	moduleD := &configstack.Unit{
 		Path:              "d",
 		Dependencies:      configstack.TerraformModules{moduleB, moduleC},
 		Config:            config.TerragruntConfig{},
@@ -754,7 +754,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 		FlagExcluded:   false,
 	}
 
-	moduleE := &configstack.TerraformModule{
+	moduleE := &configstack.Unit{
 		Path:              "e",
 		Dependencies:      configstack.TerraformModules{moduleB, moduleD},
 		Config:            config.TerragruntConfig{},

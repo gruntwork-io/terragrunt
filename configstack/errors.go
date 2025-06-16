@@ -35,7 +35,7 @@ func (err ProcessingModuleError) Unwrap() error {
 }
 
 type InfiniteRecursionError struct {
-	Modules        map[string]*TerraformModule
+	Modules        map[string]*Unit
 	RecursionLevel int
 }
 
@@ -52,8 +52,8 @@ func (err DependencyCycleError) Error() string {
 }
 
 type ProcessingModuleDependencyError struct {
-	Module     *TerraformModule
-	Dependency *TerraformModule
+	Module     *Unit
+	Dependency *Unit
 	Err        error
 }
 
@@ -75,7 +75,7 @@ func (err ProcessingModuleDependencyError) Unwrap() error {
 
 type DependencyNotFoundWhileCrossLinkingError struct {
 	Module     *RunningModule
-	Dependency *TerraformModule
+	Dependency *Unit
 }
 
 func (err DependencyNotFoundWhileCrossLinkingError) Error() string {

@@ -25,7 +25,7 @@ type Stack interface {
 	GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error)
 	ListStackDependentModules() map[string][]string
 	Modules() TerraformModules
-	FindModuleByPath(path string) *TerraformModule
+	FindModuleByPath(path string) *Unit
 	SetTerragruntConfig(config *config.TerragruntConfig)
 	GetTerragruntConfig() *config.TerragruntConfig
 	SetParseOptions(parserOptions []hclparse.Option)
