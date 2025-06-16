@@ -31,19 +31,6 @@ import (
 const maxLevelsOfRecursion = 20
 const existingModulesCacheName = "existingModules"
 
-// Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
-// module and the list of other modules that this module depends on
-type Unit struct {
-	Stack                runner.Stack
-	TerragruntOptions    *options.TerragruntOptions
-	Logger               log.Logger
-	Path                 string
-	Dependencies         TerraformModules
-	Config               config.TerragruntConfig
-	AssumeAlreadyApplied bool
-	FlagExcluded         bool
-}
-
 // String renders this module as a human-readable string
 func (module *Unit) String() string {
 	dependencies := []string{}
@@ -183,8 +170,6 @@ func (module *Unit) getDependenciesForModule(modulesMap TerraformModulesMap, ter
 
 	return dependencies, nil
 }
-
-type TerraformModules []*Unit
 
 // FindWhereWorkingDirIsIncluded - find where working directory is included, flow:
 // 1. Find root git top level directory and build list of modules
