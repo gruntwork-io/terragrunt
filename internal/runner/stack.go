@@ -5,8 +5,9 @@ package runner
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
+
 	configstack2 "github.com/gruntwork-io/terragrunt/internal/runner/configstack"
-	"github.com/gruntwork-io/terragrunt/internal/runner/pool"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -49,7 +50,7 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
 		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
 
-		builder := pool.NewRunnerPoolStackBuilder()
+		builder := runnerpool.NewRunnerPoolStackBuilder()
 
 		return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 	}
