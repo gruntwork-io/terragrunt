@@ -139,7 +139,7 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 		{
 			name:     "dag with dependencies json output",
 			args:     "--dag --dependencies --json",
-			expected: `[{"type":"unit","path":"b-dependency"},{"type":"unit","path":"a-dependent","dependencies":["b-dependency"]},{"type":"unit","path":"d-dependencies-only","dependencies":["b-dependency"]},{"type":"unit","path":"c-mixed-deps","dependencies":["a-dependent","d-dependencies-only"]}]`,
+			expected: `[{"type":"unit","path":"b-dependency"},{"type":"unit","path":"a-dependent","dependencies":["b-dependency"]},{"type":"unit","path":"d-dependencies-only","dependencies":["a-dependent"]},{"type":"unit","path":"c-mixed-deps","dependencies":["a-dependent","d-dependencies-only"]}]`,
 		},
 	}
 
