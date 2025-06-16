@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/runner"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -32,7 +34,7 @@ const existingModulesCacheName = "existingModules"
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type Unit struct {
-	Stack                Stack
+	Stack                runner.Stack
 	TerragruntOptions    *options.TerragruntOptions
 	Logger               log.Logger
 	Path                 string
@@ -223,7 +225,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 		cfgOptions.NonInteractive = true
 
 		// build stack from config directory
-		stack, err := FindStackInSubfolders(ctx, l, cfgOptions, WithChildTerragruntConfig(terragruntConfig))
+		stack, err := runner.FindStackInSubfolders(ctx, l, cfgOptions, WithChildTerragruntConfig(terragruntConfig))
 		if err != nil {
 			// log error as debug since in some cases stack building may fail because parent files can be designed
 			// to work with relative paths from downstream modules

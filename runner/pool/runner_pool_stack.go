@@ -1,4 +1,4 @@
-package configstack
+package pool
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/runner/configstack"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
@@ -30,14 +32,14 @@ type RunnerPoolStack struct {
 	report            *report.Report
 	terragruntOptions *options.TerragruntOptions
 	childConfig       *config.TerragruntConfig
-	modules           TerraformModules
+	modules           configstack.TerraformModules
 	parserOptions     []hclparse.Option
 	outputMu          sync.Mutex
 }
 
 // NewRunnerPoolStack creates a new stack from discovered modules.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs) (*RunnerPoolStack, error) {
-	modulesMap := make(TerraformModulesMap, len(discovered))
+	modulesMap := make(configstack.TerraformModulesMap, len(discovered))
 
 	stack := &RunnerPoolStack{
 		terragruntOptions: terragruntOptions,
@@ -62,7 +64,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			continue // skip on error
 		}
 
-		mod := &Unit{
+		mod := &configstack.Unit{
 			Stack:             stack,
 			TerragruntOptions: modOpts,
 			Logger:            modLogger,
@@ -85,8 +87,8 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, err
 	}
 	// Reorder linkedModules to match the order of canonicalTerragruntConfigPaths
-	orderedModules := make(TerraformModules, 0, len(canonicalTerragruntConfigPaths))
-	pathToModule := make(map[string]*Unit)
+	orderedModules := make(configstack.TerraformModules, 0, len(canonicalTerragruntConfigPaths))
+	pathToModule := make(map[string]*configstack.Unit)
 
 	for _, m := range linkedModules {
 		pathToModule[config.GetDefaultConfigPath(m.Path)] = m
@@ -191,7 +193,7 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 
 	// Run each module in the stack sequentially, convert each module to a running module, and run it.
 	for _, module := range stack.modules {
-		moduleToRun := newRunningModule(module)
+		moduleToRun := configstack.newRunningModule(module)
 		if err := moduleToRun.runNow(ctx, module.TerragruntOptions, stack.report); err != nil {
 			errs = append(errs, err)
 		}
@@ -204,10 +206,10 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 	return nil
 }
 
-func (stack *RunnerPoolStack) GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
-	groups := make([]TerraformModules, 0, len(stack.modules))
+func (stack *RunnerPoolStack) GetModuleRunGraph(terraformCommand string) ([]configstack.TerraformModules, error) {
+	groups := make([]configstack.TerraformModules, 0, len(stack.modules))
 	for _, module := range stack.modules {
-		groups = append(groups, TerraformModules{module})
+		groups = append(groups, configstack.TerraformModules{module})
 	}
 
 	return groups, nil
@@ -248,7 +250,7 @@ func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {
 	return dependentModules
 }
 
-func (stack *RunnerPoolStack) FindModuleByPath(path string) *Unit {
+func (stack *RunnerPoolStack) FindModuleByPath(path string) *configstack.Unit {
 	for _, module := range stack.modules {
 		if module.Path == path {
 			return module
@@ -329,7 +331,7 @@ func (stack *RunnerPoolStack) GetParseOptions() []hclparse.Option {
 	return stack.parserOptions
 }
 
-func (stack *RunnerPoolStack) SetModules(modules TerraformModules) {
+func (stack *RunnerPoolStack) SetModules(modules configstack.TerraformModules) {
 	stack.modules = modules
 }
 
@@ -341,6 +343,6 @@ func (stack *RunnerPoolStack) Unlock() {
 	stack.outputMu.Unlock()
 }
 
-func (stack *RunnerPoolStack) Modules() TerraformModules {
+func (stack *RunnerPoolStack) Modules() configstack.TerraformModules {
 	return stack.modules
 }

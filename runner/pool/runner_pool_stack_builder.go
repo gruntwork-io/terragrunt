@@ -1,7 +1,10 @@
-package configstack
+package pool
 
 import (
 	"context"
+
+	"github.com/gruntwork-io/terragrunt/runner"
+	"github.com/gruntwork-io/terragrunt/runner/configstack"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 
@@ -21,7 +24,7 @@ func NewRunnerPoolStackBuilder() *RunnerPoolStackBuilder {
 }
 
 // BuildStack discovers modules and builds a new DefaultStack, returning it as a Stack interface.
-func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
+func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...configstack.Option) (runner.Stack, error) {
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).

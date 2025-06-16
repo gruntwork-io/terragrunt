@@ -1,9 +1,12 @@
 // Package configstack contains the logic for managing a stack of Terraform modules (i.e. folders with Terraform templates)
 // that you can "spin up" or "spin down" in a single command.
-package configstack
+package runner
 
 import (
 	"context"
+
+	"github.com/gruntwork-io/terragrunt/runner/configstack"
+	"github.com/gruntwork-io/terragrunt/runner/pool"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 
@@ -22,10 +25,10 @@ type Stack interface {
 	JSONModuleDeployOrder(terraformCommand string) (string, error)
 	Graph(l log.Logger, opts *options.TerragruntOptions)
 	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error
-	GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error)
+	GetModuleRunGraph(terraformCommand string) ([]configstack.TerraformModules, error)
 	ListStackDependentModules() map[string][]string
-	Modules() TerraformModules
-	FindModuleByPath(path string) *Unit
+	Modules() configstack.TerraformModules
+	FindModuleByPath(path string) *configstack.Unit
 	SetTerragruntConfig(config *config.TerragruntConfig)
 	GetTerragruntConfig() *config.TerragruntConfig
 	SetParseOptions(parserOptions []hclparse.Option)
@@ -38,21 +41,21 @@ type Stack interface {
 
 // StackBuilder is the abstraction for building a Stack.
 type StackBuilder interface {
-	BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error)
+	BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...configstack.Option) (Stack, error)
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
+func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...configstack.Option) (Stack, error) {
 	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
 		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
 
-		builder := NewRunnerPoolStackBuilder()
+		builder := pool.NewRunnerPoolStackBuilder()
 
 		return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 	}
 
-	builder := &DefaultStackBuilder{}
+	builder := &configstack.DefaultStackBuilder{}
 
 	return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 }
