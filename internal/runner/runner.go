@@ -1,12 +1,11 @@
-// Package configstack contains the logic for managing a stack of Terraform modules (i.e. folders with Terraform templates)
-// that you can "spin up" or "spin down" in a single command.
+// Package runner provides logic for applying Stacks and Units Terragrunt.
 package runner
 
 import (
 	"context"
 
 	configstack2 "github.com/gruntwork-io/terragrunt/internal/runner/configstack"
-	"github.com/gruntwork-io/terragrunt/internal/runner/stack"
+	"github.com/gruntwork-io/terragrunt/internal/runner/model"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
@@ -18,7 +17,7 @@ import (
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...stack.Option) (stack.Stack, error) {
+func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...model.Option) (model.Stack, error) {
 	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
 		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
 

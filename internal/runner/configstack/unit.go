@@ -8,9 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	stack2 "github.com/gruntwork-io/terragrunt/internal/runner/stack"
-	"github.com/gruntwork-io/terragrunt/internal/stack"
-
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -33,7 +30,7 @@ const maxLevelsOfRecursion = 20
 const existingModulesCacheName = "existingModules"
 
 // String renders this module as a human-readable string
-func (module *Unit) String() string {
+func (module *model.Unit) String() string {
 	dependencies := []string{}
 	for _, dependency := range module.Dependencies {
 		dependencies = append(dependencies, dependency.Path)
@@ -211,7 +208,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 		cfgOptions.NonInteractive = true
 
 		// build stack from config directory
-		stack, err := stack.FindStackInSubfolders(ctx, l, cfgOptions, stack2.WithChildTerragruntConfig(terragruntConfig))
+		stack, err := model.FindStackInSubfolders(ctx, l, cfgOptions, stack2.WithChildTerragruntConfig(terragruntConfig))
 		if err != nil {
 			// log error as debug since in some cases stack building may fail because parent files can be designed
 			// to work with relative paths from downstream modules

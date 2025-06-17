@@ -1,4 +1,4 @@
-package stack
+package model
 
 import (
 	"github.com/gruntwork-io/terragrunt/config"

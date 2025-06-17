@@ -1,6 +1,6 @@
-// Package configstack contains the logic for managing a stack of Terraform modules (i.e. folders with Terraform templates)
-// that you can "spin up" or "spin down" in a single command.
-package stack
+// Defines the Stack and StackBuilder interfaces for managing and building stacks of units in Terragrunt.
+// Provides abstractions for stack operations, module orchestration, and configuration handling.
+package model
 
 import (
 	"context"

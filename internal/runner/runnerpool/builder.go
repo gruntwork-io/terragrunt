@@ -3,10 +3,9 @@ package runnerpool
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/stack"
-
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/runner/model"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -22,7 +21,7 @@ func NewRunnerPoolStackBuilder() *RunnerPoolStackBuilder {
 }
 
 // BuildStack discovers modules and builds a new DefaultStack, returning it as a Stack interface.
-func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...stack.Option) (stack.Stack, error) {
+func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...model.Option) (model.Stack, error) {
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
