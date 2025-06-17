@@ -327,6 +327,10 @@ type TerragruntOptions struct {
 	TFPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
 	FailFast bool
+	// SummaryUnitDuration enables showing duration information for each unit in the summary.
+	SummaryUnitDuration bool
+	// DisableDependencyPrompt disables prompt for confirmation to include dependencies when using scaffolding.
+	DisableDependencyPrompt bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -435,6 +439,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		NoStackGenerate:            false,
 		VersionManagerFileName:     defaultVersionManagerFileName,
 		NoAutoProviderCacheDir:     false,
+		DisableDependencyPrompt:    false,
 	}
 }
 

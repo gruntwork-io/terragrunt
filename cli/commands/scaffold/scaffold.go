@@ -197,14 +197,15 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 
 	l.Infof("Running boilerplate generation to %s", outputDir)
 	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
-		OutputFolder:    outputDir,
-		OnMissingKey:    boilerplate_options.DefaultMissingKeyAction,
-		OnMissingConfig: boilerplate_options.DefaultMissingConfigAction,
-		Vars:            vars,
-		DisableShell:    true,
-		DisableHooks:    true,
-		NonInteractive:  opts.NonInteractive,
-		TemplateFolder:  boilerplateDir,
+		OutputFolder:            outputDir,
+		OnMissingKey:            boilerplate_options.DefaultMissingKeyAction,
+		OnMissingConfig:         boilerplate_options.DefaultMissingConfigAction,
+		Vars:                    vars,
+		DisableShell:            true,
+		DisableHooks:            true,
+		NonInteractive:          opts.NonInteractive,
+		DisableDependencyPrompt: opts.DisableDependencyPrompt,
+		TemplateFolder:          boilerplateDir,
 	}
 
 	emptyDep := variables.Dependency{}
