@@ -25,7 +25,7 @@ func BenchmarkCASInit(b *testing.B) {
 		require.NoError(b, os.WriteFile(remoteTerragruntConfigPath, originalConfig, helpers.DefaultFilePermissions))
 
 		// Run initial init to avoid noise from the first iteration being slower
-		helpers.RunTerragruntCommand(b, "terragrunt", "init", "--non-interactive", "--working-dir", tmpDir)
+		helpers.RunTerragruntCommand(b, "terragrunt", "init", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
 	}
 
 	b.Run("remote init without CAS", func(b *testing.B) {
@@ -37,7 +37,7 @@ func BenchmarkCASInit(b *testing.B) {
 
 		for b.Loop() {
 			// Clean up cache between iterations to force re-download
-			helpers.RunTerragruntCommand(b, "terragrunt", "init", "--non-interactive", "--working-dir", tmpDir)
+			helpers.RunTerragruntCommand(b, "terragrunt", "init", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
 		}
 	})
 
@@ -49,7 +49,7 @@ func BenchmarkCASInit(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			helpers.RunTerragruntCommand(b, "terragrunt", "init", "--experiment", "cas", "--non-interactive", "--working-dir", tmpDir)
+			helpers.RunTerragruntCommand(b, "terragrunt", "init", "--experiment", "cas", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
 		}
 	})
 }
@@ -71,7 +71,7 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 		}
 
 		// Run initial init to avoid noise from the first iteration being slower
-		helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--non-interactive", "--working-dir", tmpDir)
+		helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
 	}
 
 	counts := []int{1, 2, 4, 8, 16, 32, 64, 128}
@@ -96,6 +96,7 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 					"--all",
 					"init",
 					"--non-interactive",
+					"--provider-cache",
 					"--working-dir",
 					tmpDir,
 				}
@@ -119,99 +120,3 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 		}
 	}
 }
-
-// // BenchmarkCASWithManyUnits benchmarks Terragrunt init with many remote units with and without CAS enabled
-// func BenchmarkCASWithManyUnits(b *testing.B) {
-// 	setup := func(tmpDir string, count int) {
-// 		remoteFixtureSource := filepath.Join("..", "fixtures", "download", "remote")
-// 		originalConfig, err := os.ReadFile(filepath.Join(remoteFixtureSource, "terragrunt.hcl"))
-// 		require.NoError(b, err)
-
-// 		// Generate units with the remote configuration
-// 		for i := range count {
-// 			unitDir := filepath.Join(tmpDir, "unit-"+strconv.Itoa(i))
-// 			require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
-
-// 			unitTerragruntConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
-// 			require.NoError(b, os.WriteFile(unitTerragruntConfigPath, originalConfig, helpers.DefaultFilePermissions))
-// 		}
-
-// 		// Run initial init to avoid noise from the first iteration being slower
-// 		helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--non-interactive", "--working-dir", tmpDir)
-// 	}
-
-// 	count := 1
-// 	b.Run(strconv.Itoa(count)+" remote units without CAS", func(b *testing.B) {
-// 		tmpDir := b.TempDir()
-
-// 		setup(tmpDir, count)
-
-// 		b.ResetTimer()
-
-// 		for b.Loop() {
-// 			helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--non-interactive", "--working-dir", tmpDir)
-// 		}
-// 	})
-
-// 	b.Run(strconv.Itoa(count)+" remote units with CAS", func(b *testing.B) {
-// 		tmpDir := b.TempDir()
-
-// 		setup(tmpDir, count)
-
-// 		b.ResetTimer()
-
-// 		for b.Loop() {
-// 			helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--experiment", "cas", "--non-interactive", "--working-dir", tmpDir)
-// 		}
-// 	})
-
-// 	count = 10
-// 	b.Run(strconv.Itoa(count)+" remote units without CAS", func(b *testing.B) {
-// 		tmpDir := b.TempDir()
-
-// 		setup(tmpDir, count)
-
-// 		b.ResetTimer()
-
-// 		for b.Loop() {
-// 			helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--non-interactive", "--working-dir", tmpDir)
-// 		}
-// 	})
-
-// 	b.Run(strconv.Itoa(count)+" remote units with CAS", func(b *testing.B) {
-// 		tmpDir := b.TempDir()
-
-// 		setup(tmpDir, count)
-
-// 		b.ResetTimer()
-
-// 		for b.Loop() {
-// 			helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--experiment", "cas", "--non-interactive", "--working-dir", tmpDir)
-// 		}
-// 	})
-
-// 	count = 100
-// 	b.Run(strconv.Itoa(count)+" remote units without CAS", func(b *testing.B) {
-// 		tmpDir := b.TempDir()
-
-// 		setup(tmpDir, count)
-
-// 		b.ResetTimer()
-
-// 		for b.Loop() {
-// 			helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--non-interactive", "--working-dir", tmpDir)
-// 		}
-// 	})
-
-// 	b.Run(strconv.Itoa(count)+" remote units with CAS", func(b *testing.B) {
-// 		tmpDir := b.TempDir()
-
-// 		setup(tmpDir, count)
-
-// 		b.ResetTimer()
-
-// 		for b.Loop() {
-// 			helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--experiment", "cas", "--non-interactive", "--working-dir", tmpDir)
-// 		}
-// 	})
-// }
