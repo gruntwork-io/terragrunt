@@ -511,7 +511,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		depPaths = append(depPaths, depPath)
 	}
 
-	if dCfg.Dependencies != nil {
+	if dCfg.Parsed.Dependencies != nil {
 		for _, dependency := range dCfg.Parsed.Dependencies.Paths {
 			if !filepath.IsAbs(dependency) {
 				dependency = filepath.Join(dCfg.Path, dependency)

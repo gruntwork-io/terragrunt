@@ -119,7 +119,7 @@ To transition the `cas` feature to a stable release, the following must be addre
 - [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
 - [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
 
-#### `report`
+### `report`
 
 Support for Terragrunt Run Reports and Summaries.
 
@@ -142,7 +142,7 @@ To transition the `report` feature to a stable release, the following must be ad
 - [ ] Add comprehensive integration tests for the `report` experiment.
 - [ ] Finalize the design of run summaries and reports.
 
-#### `runner-pool`
+### `runner-pool`
 
 Proposes replacing Terragrunt’s group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
 This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.

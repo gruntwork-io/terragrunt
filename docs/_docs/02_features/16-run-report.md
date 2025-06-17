@@ -26,10 +26,9 @@ $ terragrunt run --all plan
 
 # Omitted for brevity...
 
-❯❯ Run Summary
-   Duration:   62ms
-   Units:      3
-   Succeeded:  3
+❯❯ Run Summary  3 units  62ms
+   ────────────────────────────
+   Succeeded    3
 ```
 
 This output is called the "Run Summary". It provides at-a-glance information about the run that was just performed, including the following (as relevant):
@@ -43,20 +42,19 @@ This output is called the "Run Summary". It provides at-a-glance information abo
 
 ### Showing Unit Durations
 
-You can enable showing the duration of each unit in the run summary by using the `--summary-unit-duration` flag.
+You can enable showing the duration of each unit in the run summary by using the `--summary-per-unit` flag.
 
 ```bash
-$ terragrunt run --all plan --summary-unit-duration
+$ terragrunt run --all plan --summary-per-unit
 
 # Omitted for brevity...
 
-❯❯ Run Summary
-   Duration:   10m
-      long-running-unit:    10m
-      medium-running-unit:  12s
-      short-running-unit:   5ms
-   Units:      3
-   Succeeded:  3
+❯❯ Run Summary  3 units     10m
+   ──────────────────────────────
+   Succeeded (3)
+      long-running-unit     10m
+      medium-running-unit   12s
+      short-running-unit    5ms
 ```
 
 The units are sorted by duration, with the longest-running units shown first.
