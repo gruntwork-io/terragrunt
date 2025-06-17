@@ -62,14 +62,15 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	require.NoError(t, err)
 
 	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
-		OutputFolder:    outputDir,
-		OnMissingKey:    boilerplateoptions.DefaultMissingKeyAction,
-		OnMissingConfig: boilerplateoptions.DefaultMissingConfigAction,
-		Vars:            vars,
-		DisableShell:    true,
-		DisableHooks:    true,
-		NonInteractive:  true,
-		TemplateFolder:  templateDir,
+		OutputFolder:            outputDir,
+		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
+		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
+		Vars:                    vars,
+		DisableShell:            true,
+		DisableHooks:            true,
+		NonInteractive:          true,
+		DisableDependencyPrompt: false,
+		TemplateFolder:          templateDir,
 	}
 
 	emptyDep := variables.Dependency{}
