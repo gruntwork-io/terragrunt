@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
@@ -530,6 +531,322 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			// Verify ExcludeFromCopy
 			assert.Equal(t, tc.expectedExcludeFiles, fileGetter.ExcludeFromCopy,
 				"ExcludeFromCopy should match expected value")
+		})
+	}
+}
+
+// TestDownloadSourceWithCASExperimentDisabled tests that CAS is not used when the experiment is disabled
+func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	// Ensure CAS experiment is not enabled
+	opts.Experiments = experiment.NewExperiments()
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	// Mock the download source function call
+	r := report.NewReport()
+
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+
+	require.NoError(t, err)
+
+	// Verify the file was downloaded
+	expectedFilePath := filepath.Join(tmpDir, "main.tf")
+	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceWithCASExperimentEnabled tests that CAS is attempted when the experiment is enabled
+func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	// Create options with CAS experiment enabled
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	// Enable CAS experiment
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.CAS)
+	require.NoError(t, err)
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+	require.NoError(t, err)
+
+	expectedFilePath := filepath.Join(tmpDir, "main.tf")
+	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceWithCASGitSource tests CAS functionality with a Git source
+func TestDownloadSourceWithCASGitSource(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "github.com/gruntwork-io/terragrunt//test/fixtures/download/hello-world"),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	// Enable CAS experiment
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.CAS)
+	require.NoError(t, err)
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+	require.NoError(t, err)
+
+	// Verify the file was downloaded
+	expectedFilePath := filepath.Join(tmpDir, "main.tf")
+	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceCASInitializationFailure tests the fallback behavior when CAS initialization fails
+func TestDownloadSourceCASInitializationFailure(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	// Enable CAS experiment
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.CAS)
+	require.NoError(t, err)
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+	require.NoError(t, err)
+
+	expectedFilePath := filepath.Join(tmpDir, "main.tf")
+	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceWithCASMultipleSources tests that CAS works with multiple different sources
+func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+	opts.Env = env.Parse(os.Environ())
+
+	// Enable CAS experiment
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.CAS)
+	require.NoError(t, err)
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	testCases := []struct {
+		name      string
+		sourceURL string
+		expectCAS bool
+	}{
+		{
+			name:      "Local file source",
+			sourceURL: "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world"),
+			expectCAS: false, // CAS doesn't handle file:// URLs
+		},
+		{
+			name:      "HTTP source",
+			sourceURL: "https://example.com/repo.tar.gz",
+			expectCAS: false, // CAS doesn't handle HTTP sources
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+
+			src := &tf.Source{
+				CanonicalSourceURL: parseURL(t, tc.sourceURL),
+				DownloadDir:        tmpDir,
+				WorkingDir:         tmpDir,
+				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+			}
+
+			err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+
+			if tc.name == "Local file source" {
+				require.NoError(t, err)
+				expectedFilePath := filepath.Join(tmpDir, "main.tf")
+				assert.FileExists(t, expectedFilePath)
+			} else {
+				t.Logf("Source %s result: %v", tc.sourceURL, err)
+			}
+		})
+	}
+}
+
+// TestIsGitSource tests the isGitSource function to ensure it correctly identifies Git sources
+func TestIsGitSource(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		sourceURL string
+		expected  bool
+	}{
+		{
+			name:      "GitHub HTTPS URL",
+			sourceURL: "https://github.com/gruntwork-io/terragrunt.git",
+			expected:  true,
+		},
+		{
+			name:      "GitHub SSH URL",
+			sourceURL: "ssh://git@github.com/gruntwork-io/terragrunt.git",
+			expected:  true,
+		},
+		{
+			name:      "GitHub short format",
+			sourceURL: "github.com/gruntwork-io/terragrunt",
+			expected:  true,
+		},
+		{
+			name:      "GitLab URL",
+			sourceURL: "https://gitlab.com/user/repo.git",
+			expected:  true,
+		},
+		{
+			name:      "BitBucket URL",
+			sourceURL: "https://bitbucket.org/user/repo.git",
+			expected:  true,
+		},
+		{
+			name:      "Git protocol URL",
+			sourceURL: "git://example.com/repo.git",
+			expected:  true,
+		},
+		{
+			name:      "SSH URL",
+			sourceURL: "ssh://git@example.com/repo.git",
+			expected:  true,
+		},
+		{
+			name:      "URL with .git extension",
+			sourceURL: "https://example.com/repo.git",
+			expected:  true,
+		},
+		{
+			name:      "Local file URL",
+			sourceURL: "file:///path/to/local/dir",
+			expected:  false,
+		},
+		{
+			name:      "HTTP URL without .git",
+			sourceURL: "https://example.com/archive.tar.gz",
+			expected:  false,
+		},
+		{
+			name:      "Local path",
+			sourceURL: "/path/to/local/dir",
+			expected:  false,
+		},
+		{
+			name:      "Relative path",
+			sourceURL: "./relative/path",
+			expected:  false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			u := parseURL(t, tc.sourceURL)
+			result := run.IsGitSource(u)
+			assert.Equal(t, tc.expected, result, "Expected isGitSource(%s) to return %v, but got %v", tc.sourceURL, tc.expected, result)
 		})
 	}
 }

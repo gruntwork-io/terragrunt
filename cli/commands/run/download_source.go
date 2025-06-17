@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -272,6 +273,55 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 	}
 }
 
+// IsGitSource checks if the given URL represents a Git-based source that CAS can handle
+func IsGitSource(sourceURL *url.URL) bool {
+	if sourceURL == nil {
+		return false
+	}
+
+	// Get the full URL string for additional checks
+	urlString := strings.ToLower(sourceURL.String())
+
+	// Check for common Git hosting services in host
+	host := strings.ToLower(sourceURL.Host)
+	if strings.Contains(host, "github.com") ||
+		strings.Contains(host, "gitlab.com") ||
+		strings.Contains(host, "bitbucket.org") {
+		return true
+	}
+
+	// Check for common Git hosting services in URL string (handles cases without scheme)
+	if strings.Contains(urlString, "github.com/") ||
+		strings.Contains(urlString, "gitlab.com/") ||
+		strings.Contains(urlString, "bitbucket.org/") {
+		return true
+	}
+
+	// Check for Git-specific schemes
+	scheme := strings.ToLower(sourceURL.Scheme)
+	if scheme == "git" || scheme == "ssh" {
+		return true
+	}
+
+	// Check for .git extension in path
+	path := strings.ToLower(sourceURL.Path)
+	if strings.HasSuffix(path, ".git") {
+		return true
+	}
+
+	// Check for .git extension in URL string
+	if strings.HasSuffix(urlString, ".git") {
+		return true
+	}
+
+	// Check for git@ SSH format (appears in Opaque field for some URLs)
+	if strings.HasPrefix(strings.ToLower(sourceURL.Opaque), "git@") {
+		return true
+	}
+
+	return false
+}
+
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
@@ -286,7 +336,7 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 		src.DownloadDir)
 
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
-	if allowCAS {
+	if allowCAS && IsGitSource(src.CanonicalSourceURL) {
 		l.Debugf("CAS experiment enabled: attempting to use Content-Addressable Storage for Git source: %s", canonicalSourceURL)
 
 		c, err := cas.New(cas.Options{})
@@ -300,18 +350,21 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 
 			casGetter := cas.NewCASGetter(l, c, &cloneOpts)
 
+			// Use go-getter v2 Client to properly process the Request
+			client := getterv2.Client{
+				Getters: []getterv2.Getter{casGetter},
+			}
+
 			req := &getterv2.Request{
 				Src: src.CanonicalSourceURL.String(),
 				Dst: src.DownloadDir,
 			}
 
-			if detected, _ := casGetter.Detect(req); detected {
-				if casErr := casGetter.Get(ctx, req); casErr == nil {
-					l.Debugf("Successfully downloaded source using CAS: %s", canonicalSourceURL)
-					return nil
-				} else {
-					l.Warnf("CAS download failed: %v. Falling back to standard getter.", casErr)
-				}
+			if _, casErr := client.Get(ctx, req); casErr == nil {
+				l.Debugf("Successfully downloaded source using CAS: %s", canonicalSourceURL)
+				return nil
+			} else {
+				l.Warnf("CAS download failed: %v. Falling back to standard getter.", casErr)
 			}
 		}
 	}
