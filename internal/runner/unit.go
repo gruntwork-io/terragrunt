@@ -20,3 +20,5 @@ type Unit struct {
 }
 
 type Units []*Unit
+
+type UnitsMap map[string]*Unit

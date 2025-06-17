@@ -5,9 +5,9 @@ package runner
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
-
 	configstack2 "github.com/gruntwork-io/terragrunt/internal/runner/configstack"
+
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -25,10 +25,10 @@ type Stack interface {
 	JSONModuleDeployOrder(terraformCommand string) (string, error)
 	Graph(l log.Logger, opts *options.TerragruntOptions)
 	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error
-	GetModuleRunGraph(terraformCommand string) ([]configstack2.TerraformModules, error)
+	GetModuleRunGraph(terraformCommand string) ([]Units, error)
 	ListStackDependentModules() map[string][]string
-	Modules() configstack2.TerraformModules
-	FindModuleByPath(path string) *configstack2.Unit
+	Modules() Units
+	FindModuleByPath(path string) *Unit
 	SetTerragruntConfig(config *config.TerragruntConfig)
 	GetTerragruntConfig() *config.TerragruntConfig
 	SetParseOptions(parserOptions []hclparse.Option)

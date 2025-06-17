@@ -581,8 +581,6 @@ func (modules TerraformModules) flagExcludedDirs(l log.Logger, opts *options.Ter
 
 var existingModules = cache.NewCache[*TerraformModulesMap](existingModulesCacheName)
 
-type TerraformModulesMap map[string]*Unit
-
 // Merge the given external dependencies into the given map of modules if those dependencies aren't already in the
 // modules map
 func (modulesMap TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap) TerraformModulesMap {
