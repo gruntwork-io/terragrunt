@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	configstack2 "github.com/gruntwork-io/terragrunt/internal/runner/configstack"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/tf"
