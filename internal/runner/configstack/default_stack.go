@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/stack"
+
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
@@ -40,7 +42,7 @@ type DefaultStack struct {
 }
 
 // NewDefaultStack creates a new DefaultStack.
-func NewDefaultStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) *DefaultStack {
+func NewDefaultStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...stack.Option) *DefaultStack {
 	stack := &DefaultStack{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
@@ -50,7 +52,7 @@ func NewDefaultStack(l log.Logger, terragruntOptions *options.TerragruntOptions,
 }
 
 // WithOptions updates the stack with the provided options.
-func (stack *DefaultStack) WithOptions(opts ...Option) *DefaultStack {
+func (stack *DefaultStack) WithOptions(opts ...stack.Option) *DefaultStack {
 	for _, opt := range opts {
 		opt(stack)
 	}

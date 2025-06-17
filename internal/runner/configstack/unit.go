@@ -8,7 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner"
+	stack2 "github.com/gruntwork-io/terragrunt/internal/runner/stack"
+	"github.com/gruntwork-io/terragrunt/internal/stack"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -210,7 +211,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 		cfgOptions.NonInteractive = true
 
 		// build stack from config directory
-		stack, err := runner.FindStackInSubfolders(ctx, l, cfgOptions, WithChildTerragruntConfig(terragruntConfig))
+		stack, err := stack.FindStackInSubfolders(ctx, l, cfgOptions, stack2.WithChildTerragruntConfig(terragruntConfig))
 		if err != nil {
 			// log error as debug since in some cases stack building may fail because parent files can be designed
 			// to work with relative paths from downstream modules

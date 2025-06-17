@@ -1,4 +1,4 @@
-package runner
+package stack
 
 import (
 	"github.com/gruntwork-io/terragrunt/config"
