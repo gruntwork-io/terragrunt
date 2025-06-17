@@ -287,7 +287,7 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
 	if allowCAS {
-		l.Debugf("CAS experiment enabled: attempting to use Content-Addressable Storage for Git source: %s", canonicalSourceURL)
+		l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
 
 		c, err := cas.New(cas.Options{})
 		if err != nil {
