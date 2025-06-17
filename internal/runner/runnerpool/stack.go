@@ -30,14 +30,14 @@ type RunnerPoolStack struct {
 	report            *report.Report
 	terragruntOptions *options.TerragruntOptions
 	childConfig       *config.TerragruntConfig
-	modules           configstack2.TerraformModules
+	modules           config.Units
 	parserOptions     []hclparse.Option
 	outputMu          sync.Mutex
 }
 
 // NewRunnerPoolStack creates a new stack from discovered modules.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs) (*RunnerPoolStack, error) {
-	modulesMap := make(configstack2.TerraformModulesMap, len(discovered))
+	modulesMap := make(config.UnitsMap, len(discovered))
 
 	stack := &RunnerPoolStack{
 		terragruntOptions: terragruntOptions,
@@ -62,7 +62,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			continue // skip on error
 		}
 
-		mod := &configstack2.Unit{
+		mod := &config.Unit{
 			Stack:             stack,
 			TerragruntOptions: modOpts,
 			Logger:            modLogger,
@@ -85,8 +85,8 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, err
 	}
 	// Reorder linkedModules to match the order of canonicalTerragruntConfigPaths
-	orderedModules := make(configstack2.TerraformModules, 0, len(canonicalTerragruntConfigPaths))
-	pathToModule := make(map[string]*configstack2.Unit)
+	orderedModules := make(config.Units, 0, len(canonicalTerragruntConfigPaths))
+	pathToModule := make(map[string]*config.Unit)
 
 	for _, m := range linkedModules {
 		pathToModule[config.GetDefaultConfigPath(m.Path)] = m
@@ -329,7 +329,7 @@ func (stack *RunnerPoolStack) GetParseOptions() []hclparse.Option {
 	return stack.parserOptions
 }
 
-func (stack *RunnerPoolStack) SetModules(modules configstack2.TerraformModules) {
+func (stack *RunnerPoolStack) SetModules(modules config.Units) {
 	stack.modules = modules
 }
 
@@ -341,6 +341,6 @@ func (stack *RunnerPoolStack) Unlock() {
 	stack.outputMu.Unlock()
 }
 
-func (stack *RunnerPoolStack) Modules() configstack2.TerraformModules {
+func (stack *RunnerPoolStack) Modules() config.Units {
 	return stack.modules
 }

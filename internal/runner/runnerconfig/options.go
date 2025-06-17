@@ -1,4 +1,4 @@
-package model
+package runnerconfig
 
 import (
 	"github.com/gruntwork-io/terragrunt/config"

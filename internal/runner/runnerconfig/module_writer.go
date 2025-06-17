@@ -1,4 +1,4 @@
-package configstack
+package runnerconfig
 
 import (
 	"bytes"

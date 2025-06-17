@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerconfig"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -149,7 +150,7 @@ func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions
 func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	module.Logger.Debugf("Running %s", module.Module.Path)
 
-	opts.Writer = NewModuleWriter(opts.Writer)
+	opts.Writer = runnerconfig.NewModuleWriter(opts.Writer)
 
 	defer module.Module.FlushOutput() //nolint:errcheck
 

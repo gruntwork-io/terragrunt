@@ -24,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/model"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -41,7 +40,7 @@ type DefaultStack struct {
 }
 
 // NewDefaultStack creates a new DefaultStack.
-func NewDefaultStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...model.Option) *DefaultStack {
+func NewDefaultStack(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...config.Option) *DefaultStack {
 	stack := &DefaultStack{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
@@ -51,7 +50,7 @@ func NewDefaultStack(l log.Logger, terragruntOptions *options.TerragruntOptions,
 }
 
 // WithOptions updates the stack with the provided options.
-func (stack *DefaultStack) WithOptions(opts ...model.Option) *DefaultStack {
+func (stack *DefaultStack) WithOptions(opts ...config.Option) *DefaultStack {
 	for _, opt := range opts {
 		opt(stack)
 	}

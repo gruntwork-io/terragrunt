@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/model"
-
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -37,7 +36,7 @@ func (err ProcessingModuleError) Unwrap() error {
 }
 
 type InfiniteRecursionError struct {
-	Modules        map[string]*model.Unit
+	Modules        map[string]*config.Unit
 	RecursionLevel int
 }
 
@@ -54,8 +53,8 @@ func (err DependencyCycleError) Error() string {
 }
 
 type ProcessingModuleDependencyError struct {
-	Module     *model.Unit
-	Dependency *model.Unit
+	Module     *config.Unit
+	Dependency *config.Unit
 	Err        error
 }
 
@@ -77,7 +76,7 @@ func (err ProcessingModuleDependencyError) Unwrap() error {
 
 type DependencyNotFoundWhileCrossLinkingError struct {
 	Module     *RunningModule
-	Dependency *model.Unit
+	Dependency *config.Unit
 }
 
 func (err DependencyNotFoundWhileCrossLinkingError) Error() string {
