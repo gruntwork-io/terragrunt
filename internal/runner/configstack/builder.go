@@ -3,6 +3,8 @@ package configstack
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerconfig"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -13,7 +15,7 @@ import (
 type DefaultStackBuilder struct{}
 
 // BuildStack builds a new DefaultStack.
-func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...config.Option) (config.Stack, error) {
+func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...runnerconfig.Option) (runnerconfig.Stack, error) {
 	var terragruntConfigFiles []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_files_in_path", map[string]any{

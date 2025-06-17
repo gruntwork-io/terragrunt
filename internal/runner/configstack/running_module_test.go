@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +27,7 @@ func cloneOptions(t *testing.T, l log.Logger, opts *options.TerragruntOptions, t
 func TestToRunningModulesNoModules(t *testing.T) {
 	t.Parallel()
 
-	testToRunningModules(t, configstack.TerraformModules{}, configstack.NormalOrder, configstack.RunningModules{})
+	testToRunningModules(t, runnerconfig.TerraformModules{}, configstack.NormalOrder, configstack.RunningModules{})
 }
 
 func TestToRunningModulesOneModuleNoDependencies(t *testing.T) {

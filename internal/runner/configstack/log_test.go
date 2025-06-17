@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 
