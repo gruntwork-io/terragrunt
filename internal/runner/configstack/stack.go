@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
@@ -35,7 +37,7 @@ type DefaultStack struct {
 	parserOptions         []hclparse.Option
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
-	modules               TerraformModules
+	modules               common.Units
 	outputMu              sync.Mutex
 }
 
@@ -50,7 +52,7 @@ func NewDefaultStack(l log.Logger, terragruntOptions *options.TerragruntOptions,
 }
 
 // WithOptions updates the stack with the provided options.
-func (stack *DefaultStack) WithOptions(opts ...config.Option) *DefaultStack {
+func (stack *DefaultStack) WithOptions(opts ...common.Option) *DefaultStack {
 	for _, opt := range opts {
 		opt(stack)
 	}

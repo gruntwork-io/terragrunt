@@ -1,4 +1,4 @@
-package runnerconfig
+package common
 
 import (
 	"fmt"
@@ -76,8 +76,8 @@ func (module *Unit) outputFile(l log.Logger, opts *options.TerragruntOptions) st
 	return module.getPlanFilePath(l, opts, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
-// outputJSONFile - return plan JSON file location, if JSON output folder is set
-func (module *Unit) outputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
+// OutputJSONFile - return plan JSON file location, if JSON output folder is set
+func (module *Unit) OutputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
 	return module.getPlanFilePath(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 

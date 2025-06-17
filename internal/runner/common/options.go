@@ -1,4 +1,4 @@
-package runnerconfig
+package common
 
 import (
 	"github.com/gruntwork-io/terragrunt/config"

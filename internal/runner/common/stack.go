@@ -1,6 +1,6 @@
 // Defines the Stack and StackBuilder interfaces for managing and building stacks of units in Terragrunt.
 // Provides abstractions for stack operations, module orchestration, and configuration handling.
-package runnerconfig
+package common
 
 import (
 	"context"

@@ -8,10 +8,11 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runnerconfig"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -42,7 +43,7 @@ type DependencyOrder int
 // as part of the run --all apply or run --all destroy command.
 type RunningModule struct {
 	Err            error
-	Module         *runnerconfig.Unit
+	Module         *common.Unit
 	Logger         log.Logger
 	DependencyDone chan *RunningModule
 	Dependencies   map[string]*RunningModule
@@ -54,7 +55,7 @@ type RunningModule struct {
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
 // except for the Dependencies and NotifyWhenDone, both of which will be empty. You should fill these using a
 // function such as crossLinkDependencies.
-func newRunningModule(module *runnerconfig.Unit) *RunningModule {
+func newRunningModule(module *common.Unit) *RunningModule {
 	return &RunningModule{
 		Module:         module,
 		Status:         Waiting,
@@ -150,7 +151,7 @@ func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions
 func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	module.Logger.Debugf("Running %s", module.Module.Path)
 
-	opts.Writer = runnerconfig.NewModuleWriter(opts.Writer)
+	opts.Writer = common.NewModuleWriter(opts.Writer)
 
 	defer module.Module.FlushOutput() //nolint:errcheck
 
@@ -181,7 +182,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 		}
 
 		// convert terragrunt output to json
-		if module.Module.outputJSONFile(module.Logger, module.Module.TerragruntOptions) != "" {
+		if module.Module.OutputJSONFile(module.Logger, module.Module.TerragruntOptions) != "" {
 			l, jsonOptions, err := module.Module.TerragruntOptions.CloneWithConfigPath(module.Logger, module.Module.TerragruntOptions.TerragruntConfigPath)
 			if err != nil {
 				return err
@@ -199,7 +200,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			}
 
 			// save the json output to the file plan file
-			outputFile := module.Module.outputJSONFile(l, rootOptions)
+			outputFile := module.Module.OutputJSONFile(l, rootOptions)
 			jsonDir := filepath.Dir(outputFile)
 
 			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
@@ -276,13 +277,13 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 
 type RunningModules map[string]*RunningModule
 
-func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []TerraformModules {
+func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []common.Units {
 	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
 	// the modules that have no dependencies and captures that as a run group.
-	groups := []TerraformModules{}
+	groups := []common.Units{}
 
 	for len(modules) > 0 && len(groups) < maxDepth {
-		currentIterationDeploy := TerraformModules{}
+		currentIterationDeploy := common.Units{}
 
 		// next tracks which modules are being deferred to a later run.
 		next := RunningModules{}

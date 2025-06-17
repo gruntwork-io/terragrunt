@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -52,7 +53,7 @@ func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformM
 
 // We can't use assert.Equals on Unit because it contains some fields (e.g. TerragruntOptions) that cannot
 // be compared directly
-func assertModulesEqual(t *testing.T, expected *configstack.Unit, actual *configstack.Unit, messageAndArgs ...any) {
+func assertModulesEqual(t *testing.T, expected *common.Unit, actual *common.Unit, messageAndArgs ...any) {
 	t.Helper()
 
 	if assert.NotNil(t, actual, messageAndArgs...) {

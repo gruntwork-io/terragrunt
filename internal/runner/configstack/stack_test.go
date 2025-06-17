@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -123,33 +124,33 @@ func createTestStack() configstack.Stack {
 	l := logger.CreateLogger()
 
 	basePath := "/stage/mystack"
-	accountBaseline := &configstack.Unit{
+	accountBaseline := &common.Unit{
 		Path:         filepath.Join(basePath, "account-baseline"),
 		FlagExcluded: true,
 		Logger:       l,
 	}
-	vpc := &configstack.Unit{
+	vpc := &common.Unit{
 		Path:         filepath.Join(basePath, "vpc"),
 		Dependencies: configstack.TerraformModules{accountBaseline},
 		Logger:       l,
 	}
-	lambda := &configstack.Unit{
+	lambda := &common.Unit{
 		Path:                 filepath.Join(basePath, "lambda"),
 		Dependencies:         configstack.TerraformModules{vpc},
 		AssumeAlreadyApplied: true,
 		Logger:               l,
 	}
-	mysql := &configstack.Unit{
+	mysql := &common.Unit{
 		Path:         filepath.Join(basePath, "mysql"),
 		Dependencies: configstack.TerraformModules{vpc},
 		Logger:       l,
 	}
-	redis := &configstack.Unit{
+	redis := &common.Unit{
 		Path:         filepath.Join(basePath, "redis"),
 		Dependencies: configstack.TerraformModules{vpc},
 		Logger:       l,
 	}
-	myapp := &configstack.Unit{
+	myapp := &common.Unit{
 		Path:         filepath.Join(basePath, "myapp"),
 		Dependencies: configstack.TerraformModules{mysql, redis},
 		Logger:       l,
@@ -222,7 +223,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -249,7 +250,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/json-module-a/"+config.DefaultTerragruntJSONConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/json-module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -276,7 +277,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)
-	moduleB := &configstack.Unit{
+	moduleB := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -348,7 +349,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, childConfigPath)
-	moduleM := &configstack.Unit{
+	moduleM := &common.Unit{
 		Path:         canonical(t, childDir),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -397,7 +398,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/json-module-b/module-b-child/"+config.DefaultTerragruntJSONConfigPath)
-	moduleB := &configstack.Unit{
+	moduleB := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/json-module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -427,7 +428,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/hcl-module-b/module-b-child/"+config.DefaultTerragruntConfigPath)
-	moduleB := &configstack.Unit{
+	moduleB := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/hcl-module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -457,7 +458,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -470,7 +471,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -498,7 +499,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -511,7 +512,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/json-module-c/"+config.DefaultTerragruntJSONConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/json-module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -539,7 +540,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/json-module-a/"+config.DefaultTerragruntJSONConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/json-module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -552,7 +553,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/hcl-module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/hcl-module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -583,7 +584,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	l := logger.CreateLogger()
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:              canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies:      configstack.TerraformModules{},
 		TerragruntOptions: optsA,
@@ -591,7 +592,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	}
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -627,7 +628,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
 
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:              canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies:      configstack.TerraformModules{},
 		TerragruntOptions: optsA,
@@ -636,7 +637,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
 
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -651,7 +652,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	lAbba, optsAbba := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath)
 
-	moduleAbba := &configstack.Unit{
+	moduleAbba := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-abba"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -686,7 +687,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	l := logger.CreateLogger()
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:              canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies:      configstack.TerraformModules{},
 		TerragruntOptions: optsA,
@@ -694,7 +695,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	}
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -708,7 +709,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	}
 
 	lAbba, optsAbba := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath)
-	moduleAbba := &configstack.Unit{
+	moduleAbba := &common.Unit{
 		Path:              canonical(t, "../test/fixtures/modules/module-abba"),
 		Dependencies:      configstack.TerraformModules{},
 		TerragruntOptions: optsAbba,
@@ -737,7 +738,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	l := logger.CreateLogger()
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -750,7 +751,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	}
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:              canonical(t, "../test/fixtures/modules/module-c"),
 		TerragruntOptions: optsC,
 		Logger:            lC,
@@ -778,7 +779,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	l := logger.CreateLogger()
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
 
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -792,7 +793,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
 
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -829,7 +830,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
 
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -843,7 +844,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
 
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -879,7 +880,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	l := logger.CreateLogger()
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -892,7 +893,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	}
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -906,7 +907,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	}
 
 	lF, optsF := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-f/"+config.DefaultTerragruntConfigPath)
-	moduleF := &configstack.Unit{
+	moduleF := &common.Unit{
 		Path:                 canonical(t, "../test/fixtures/modules/module-f"),
 		Dependencies:         configstack.TerraformModules{},
 		TerragruntOptions:    optsF,
@@ -933,7 +934,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
 
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -946,7 +947,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)
-	moduleB := &configstack.Unit{
+	moduleB := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -962,7 +963,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -976,7 +977,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-d/"+config.DefaultTerragruntConfigPath)
-	moduleD := &configstack.Unit{
+	moduleD := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-d"),
 		Dependencies: configstack.TerraformModules{moduleA, moduleB, moduleC},
 		Config: config.TerragruntConfig{
@@ -1003,7 +1004,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -1016,7 +1017,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/json-module-b/module-b-child/"+config.DefaultTerragruntJSONConfigPath)
-	moduleB := &configstack.Unit{
+	moduleB := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/json-module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -1032,7 +1033,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &configstack.Unit{
+	moduleC := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-c"),
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
@@ -1046,7 +1047,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/json-module-d/"+config.DefaultTerragruntJSONConfigPath)
-	moduleD := &configstack.Unit{
+	moduleD := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/json-module-d"),
 		Dependencies: configstack.TerraformModules{moduleA, moduleB, moduleC},
 		Config: config.TerragruntConfig{
@@ -1073,7 +1074,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &configstack.Unit{
+	moduleA := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -1086,7 +1087,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)
-	moduleB := &configstack.Unit{
+	moduleB := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -1102,7 +1103,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-e/module-e-child/"+config.DefaultTerragruntConfigPath)
-	moduleE := &configstack.Unit{
+	moduleE := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-e/module-e-child"),
 		Dependencies: configstack.TerraformModules{moduleA, moduleB},
 		Config: config.TerragruntConfig{
@@ -1133,7 +1134,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-f/"+config.DefaultTerragruntConfigPath)
-	moduleF := &configstack.Unit{
+	moduleF := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-f"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -1146,7 +1147,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-g/"+config.DefaultTerragruntConfigPath)
-	moduleG := &configstack.Unit{
+	moduleG := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-g"),
 		Dependencies: configstack.TerraformModules{moduleF},
 		Config: config.TerragruntConfig{
@@ -1174,7 +1175,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-h/"+config.DefaultTerragruntConfigPath)
-	moduleH := &configstack.Unit{
+	moduleH := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-h"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
@@ -1187,7 +1188,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-i/"+config.DefaultTerragruntConfigPath)
-	moduleI := &configstack.Unit{
+	moduleI := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-i"),
 		Dependencies: configstack.TerraformModules{moduleH},
 		Config: config.TerragruntConfig{
@@ -1201,7 +1202,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-j/"+config.DefaultTerragruntConfigPath)
-	moduleJ := &configstack.Unit{
+	moduleJ := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-j"),
 		Dependencies: configstack.TerraformModules{moduleI},
 		Config: config.TerragruntConfig{
@@ -1215,7 +1216,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../test/fixtures/modules/module-k/"+config.DefaultTerragruntConfigPath)
-	moduleK := &configstack.Unit{
+	moduleK := &common.Unit{
 		Path:         canonical(t, "../test/fixtures/modules/module-k"),
 		Dependencies: configstack.TerraformModules{moduleH},
 		Config: config.TerragruntConfig{
@@ -1277,9 +1278,9 @@ func TestBasicDependency(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	moduleC := &configstack.Unit{Path: "C", Dependencies: configstack.TerraformModules{}, Logger: l}
-	moduleB := &configstack.Unit{Path: "B", Dependencies: configstack.TerraformModules{moduleC}, Logger: l}
-	moduleA := &configstack.Unit{Path: "A", Dependencies: configstack.TerraformModules{moduleB}, Logger: l}
+	moduleC := &common.Unit{Path: "C", Dependencies: configstack.TerraformModules{}, Logger: l}
+	moduleB := &common.Unit{Path: "B", Dependencies: configstack.TerraformModules{moduleC}, Logger: l}
+	moduleA := &common.Unit{Path: "A", Dependencies: configstack.TerraformModules{moduleB}, Logger: l}
 
 	stack := configstack.NewDefaultStack(l, mockOptions)
 	stack.SetModules(configstack.TerraformModules{moduleA, moduleB, moduleC})
@@ -1301,10 +1302,10 @@ func TestNestedDependencies(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	moduleD := &configstack.Unit{Path: "D", Dependencies: configstack.TerraformModules{}, Logger: l}
-	moduleC := &configstack.Unit{Path: "C", Dependencies: configstack.TerraformModules{moduleD}, Logger: l}
-	moduleB := &configstack.Unit{Path: "B", Dependencies: configstack.TerraformModules{moduleC}, Logger: l}
-	moduleA := &configstack.Unit{Path: "A", Dependencies: configstack.TerraformModules{moduleB}, Logger: l}
+	moduleD := &common.Unit{Path: "D", Dependencies: configstack.TerraformModules{}, Logger: l}
+	moduleC := &common.Unit{Path: "C", Dependencies: configstack.TerraformModules{moduleD}, Logger: l}
+	moduleB := &common.Unit{Path: "B", Dependencies: configstack.TerraformModules{moduleC}, Logger: l}
+	moduleA := &common.Unit{Path: "A", Dependencies: configstack.TerraformModules{moduleB}, Logger: l}
 
 	// Create a mock stack
 	stack := configstack.NewDefaultStack(l, mockOptions)
@@ -1331,9 +1332,9 @@ func TestCircularDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	// Mock modules with circular dependencies
-	moduleA := &configstack.Unit{Path: "A", Logger: l}
-	moduleB := &configstack.Unit{Path: "B", Logger: l}
-	moduleC := &configstack.Unit{Path: "C", Logger: l}
+	moduleA := &common.Unit{Path: "A", Logger: l}
+	moduleB := &common.Unit{Path: "B", Logger: l}
+	moduleC := &common.Unit{Path: "C", Logger: l}
 
 	moduleA.Dependencies = configstack.TerraformModules{moduleB}
 	moduleB.Dependencies = configstack.TerraformModules{moduleC}

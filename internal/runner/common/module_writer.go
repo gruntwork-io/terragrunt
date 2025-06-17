@@ -1,4 +1,4 @@
-package runnerconfig
+package common
 
 import (
 	"bytes"
