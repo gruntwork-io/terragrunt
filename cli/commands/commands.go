@@ -283,7 +283,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	}
 
 	if !opts.ExcludeByDefault && len(opts.ModulesThatInclude) > 0 {
-		l.Debugf("Units that include set. Excluding by default.")
+		l.Debugf("Modules that include set. Excluding by default.")
 
 		opts.ExcludeByDefault = true
 	}

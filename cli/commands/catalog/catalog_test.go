@@ -36,7 +36,7 @@ func TestCatalogCommandInitialization(t *testing.T) {
 		switch repoURL {
 		case "github.com/gruntwork-io/test-repo-1":
 			readme1Path := filepath.Join(dummyRepoDir, "README.md")
-			os.WriteFile(readme1Path, []byte("# AWS VPC Unit\nThis module creates a VPC in AWS with all the necessary components."), 0644)
+			os.WriteFile(readme1Path, []byte("# AWS VPC Module\nThis module creates a VPC in AWS with all the necessary components."), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte("# VPC terraform configuration"), 0644)
 		default:
 			return nil, fmt.Errorf("unexpected repoURL in mock: %s", repoURL)
@@ -70,7 +70,7 @@ func TestCatalogCommandInitialization(t *testing.T) {
 
 	modules := svc.Modules()
 	assert.Len(t, modules, 1, "should have 1 test module")
-	assert.Equal(t, "AWS VPC Unit", modules[0].Title())
+	assert.Equal(t, "AWS VPC Module", modules[0].Title())
 
 	// Test that the Run function would not return an error for no modules found
 	// (since we have modules loaded)

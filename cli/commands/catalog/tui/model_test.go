@@ -71,11 +71,11 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 		switch repoURL {
 		case "github.com/gruntwork-io/test-repo-1":
 			readme1Path := filepath.Join(dummyRepoDir, "README.md")
-			os.WriteFile(readme1Path, []byte("# AWS VPC Unit\nThis module creates a VPC in AWS with all the necessary components."), 0644)
+			os.WriteFile(readme1Path, []byte("# AWS VPC Module\nThis module creates a VPC in AWS with all the necessary components."), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte("# VPC terraform configuration"), 0644)
 		case "github.com/gruntwork-io/test-repo-2":
 			readme2Path := filepath.Join(dummyRepoDir, "README.md")
-			os.WriteFile(readme2Path, []byte("# AWS EKS Unit\nThis module creates an EKS cluster in AWS."), 0644)
+			os.WriteFile(readme2Path, []byte("# AWS EKS Module\nThis module creates an EKS cluster in AWS."), 0644)
 			os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte("# EKS terraform configuration"), 0644)
 		default:
 			return nil, fmt.Errorf("unexpected repoURL in mock: %s", repoURL)
@@ -182,7 +182,7 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Units"))
+		return bytes.Contains(bts, []byte("List of Modules"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Press Enter to select the first module (assuming it's pre-selected)
@@ -205,7 +205,7 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 
 	// Wait for return to list view
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Units"))
+		return bytes.Contains(bts, []byte("List of Modules"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Finally quit the application
@@ -232,7 +232,7 @@ func TestTUIModuleFiltering(t *testing.T) {
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Units"))
+		return bytes.Contains(bts, []byte("List of Modules"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Activate filtering with '/'
@@ -287,7 +287,7 @@ func TestTUIWindowResize(t *testing.T) {
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Units"))
+		return bytes.Contains(bts, []byte("List of Modules"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Send window resize message
@@ -295,7 +295,7 @@ func TestTUIWindowResize(t *testing.T) {
 
 	// Verify the interface handles resize gracefully
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Units"))
+		return bytes.Contains(bts, []byte("List of Modules"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Quit
@@ -339,7 +339,7 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Units"))
+		return bytes.Contains(bts, []byte("List of Modules"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
 
 	// Press 'S' to scaffold the first module
