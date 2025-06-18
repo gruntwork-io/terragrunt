@@ -6,6 +6,7 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -23,11 +24,11 @@ import (
 
 // Stack represents a stack of units that you can "spin up" or "spin down"
 type Stack struct {
-	Report            *report.Report
-	TerragruntOptions *options.TerragruntOptions
-	ChildConfig       *config.TerragruntConfig
-	Modules           Units
-	parserOptions     []hclparse.Option
+	Report                *report.Report
+	TerragruntOptions     *options.TerragruntOptions
+	ChildTerragruntConfig *config.TerragruntConfig
+	Units                 Units
+	ParserOptions         []hclparse.Option
 }
 
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
@@ -118,8 +119,8 @@ func (module *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOption
 	return filepath.Join(dir, fileName)
 }
 
-// findModuleInPath returns true if a module is located under one of the target directories
-func (module *Unit) findModuleInPath(targetDirs []string) bool {
+// FindModuleInPath returns true if a module is located under one of the target directories
+func (module *Unit) FindModuleInPath(targetDirs []string) bool {
 	return slices.Contains(targetDirs, module.Path)
 }
 
@@ -161,7 +162,7 @@ func (module *Unit) getDependenciesForModule(modulesMap UnitsMap, terragruntConf
 
 // Merge the given external dependencies into the given map of modules if those dependencies aren't already in the
 // modules map
-func (unitsMap UnitsMap) mergeMaps(externalDependencies UnitsMap) UnitsMap {
+func (unitsMap UnitsMap) MergeMaps(externalDependencies UnitsMap) UnitsMap {
 	out := UnitsMap{}
 
 	maps.Copy(out, externalDependencies)
@@ -179,6 +180,28 @@ func (unitsMap UnitsMap) FindByPath(path string) *Unit {
 	}
 
 	return nil
+}
+
+// Go through each module in the given map and cross-link its dependencies to the other modules in that same map. If
+// a dependency is referenced that is not in the given map, return an error.
+func (modulesMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []string) (Units, error) {
+	modules := Units{}
+
+	keys := modulesMap.SortedKeys()
+
+	for _, key := range keys {
+		module := modulesMap[key]
+
+		dependencies, err := module.getDependenciesForModule(modulesMap, canonicalTerragruntConfigPaths)
+		if err != nil {
+			return modules, err
+		}
+
+		module.Dependencies = dependencies
+		modules = append(modules, module)
+	}
+
+	return modules, nil
 }
 
 // WriteDot is used to emit a GraphViz compatible definition
@@ -231,11 +254,11 @@ func (units Units) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntO
 }
 
 // CheckForCycles checks for dependency cycles in the given list of modules and return an error if one is found.
-func (unitsMap UnitsMap) CheckForCycles() error {
+func (units Units) CheckForCycles() error {
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{}
 
-	for _, module := range unitsMap {
+	for _, module := range units {
 		err := checkForCyclesUsingDepthFirstSearch(module, &visitedPaths, &currentTraversalPaths)
 		if err != nil {
 			return err
@@ -243,6 +266,19 @@ func (unitsMap UnitsMap) CheckForCycles() error {
 	}
 
 	return nil
+}
+
+// Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of modules
+// in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
+func (unitsMap UnitsMap) SortedKeys() []string {
+	keys := []string{}
+	for key := range unitsMap {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	return keys
 }
 
 // Check for cycles using a depth-first-search as described here:
@@ -273,4 +309,16 @@ func checkForCyclesUsingDepthFirstSearch(module *Unit, visitedPaths *[]string, c
 	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
 
 	return nil
+}
+
+// String renders this stack as a human-readable string
+func (stack *Stack) String() string {
+	var modules []string
+	for _, module := range stack.Units {
+		modules = append(modules, "  => "+module.String())
+	}
+
+	sort.Strings(modules)
+
+	return fmt.Sprintf("Stack at %s:\n%s", stack.TerragruntOptions.WorkingDir, strings.Join(modules, "\n"))
 }

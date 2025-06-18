@@ -66,7 +66,7 @@ func runAwsProviderPatch(ctx context.Context, l log.Logger, opts *options.Terrag
 
 // TerraformModulesJSON is the format we expect in the .terraform/modules/modules.json file
 type TerraformModulesJSON struct {
-	Modules []TerraformModule `json:"Modules"`
+	Modules []TerraformModule `json:"Units"`
 }
 
 type TerraformModule struct {

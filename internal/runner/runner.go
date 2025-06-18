@@ -31,7 +31,7 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 		return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 	}
 
-	builder := &configstack2.DefaultStackBuilder{}
+	builder := &configstack2.ConfigStackBuilder{}
 
 	return builder.BuildStack(ctx, l, terragruntOptions, opts...)
 }

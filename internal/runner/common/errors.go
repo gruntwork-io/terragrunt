@@ -7,7 +7,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -38,12 +37,12 @@ func (err ProcessingModuleError) Unwrap() error {
 }
 
 type InfiniteRecursionError struct {
-	Modules        map[string]*config.Unit
+	Modules        map[string]*Unit
 	RecursionLevel int
 }
 
 func (err InfiniteRecursionError) Error() string {
-	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Modules involved: %v", err.RecursionLevel, err.Modules)
+	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Units involved: %v", err.RecursionLevel, err.Modules)
 }
 
 var ErrNoTerraformModulesFound = errors.New("could not find any subfolders with Terragrunt configuration files")
@@ -78,7 +77,7 @@ func (err ProcessingModuleDependencyError) Unwrap() error {
 
 type DependencyNotFoundWhileCrossLinkingError struct {
 	Module     *configstack.RunningModule
-	Dependency *config.Unit
+	Dependency *Unit
 }
 
 func (err DependencyNotFoundWhileCrossLinkingError) Error() string {

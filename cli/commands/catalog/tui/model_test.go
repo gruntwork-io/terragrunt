@@ -182,7 +182,7 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
+		return bytes.Contains(bts, []byte("List of Units"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Press Enter to select the first module (assuming it's pre-selected)
@@ -205,7 +205,7 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 
 	// Wait for return to list view
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
+		return bytes.Contains(bts, []byte("List of Units"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Finally quit the application
@@ -232,7 +232,7 @@ func TestTUIModuleFiltering(t *testing.T) {
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
+		return bytes.Contains(bts, []byte("List of Units"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Activate filtering with '/'
@@ -287,7 +287,7 @@ func TestTUIWindowResize(t *testing.T) {
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
+		return bytes.Contains(bts, []byte("List of Units"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Send window resize message
@@ -295,7 +295,7 @@ func TestTUIWindowResize(t *testing.T) {
 
 	// Verify the interface handles resize gracefully
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
+		return bytes.Contains(bts, []byte("List of Units"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Quit
@@ -339,7 +339,7 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
+		return bytes.Contains(bts, []byte("List of Units"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
 
 	// Press 'S' to scaffold the first module

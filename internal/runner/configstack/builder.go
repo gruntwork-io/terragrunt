@@ -11,11 +11,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
-// DefaultStackBuilder implements StackBuilder for DefaultStack
-type DefaultStackBuilder struct{}
+// ConfigStackBuilder implements StackBuilder for Runner
+type ConfigStackBuilder struct{}
 
-// BuildStack builds a new DefaultStack.
-func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.Stack, error) {
+// BuildStack builds a new Runner.
+func (b *ConfigStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
 	var terragruntConfigFiles []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_files_in_path", map[string]any{
@@ -35,7 +35,7 @@ func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terr
 		return nil, err
 	}
 
-	stack := NewDefaultStack(l, terragruntOptions, opts...)
+	stack := NewRunner(l, terragruntOptions, opts...)
 	if err := stack.createStackForTerragruntConfigPaths(ctx, l, terragruntConfigFiles); err != nil {
 		return nil, err
 	}
