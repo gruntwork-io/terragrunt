@@ -38,7 +38,7 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
-	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
+	assert.Regexp(t, `(?smi)(?:(Unit E|Unit D|Unit B).*){3}(?:(Unit A|Unit C).*){2}`, stdout)
 }
 
 func TestTerragruntApplyDestroyOrder(t *testing.T) {
@@ -52,7 +52,7 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --tf-forward-stdout --working-dir "+rootPath+" -- apply -destroy")
 	require.NoError(t, err)
-	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
+	assert.Regexp(t, `(?smi)(?:(Unit E|Unit D|Unit B).*){3}(?:(Unit A|Unit C).*){2}`, stdout)
 }
 
 func TestPreventDestroyOverride(t *testing.T) {
@@ -242,11 +242,11 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		output := showStdout.String()
 		switch moduleName {
 		case "module-a":
-			assert.Contains(t, output, "Hello, Module A")
+			assert.Contains(t, output, "Hello, Unit A")
 		case "module-b":
-			assert.Contains(t, output, "Hello, Module B")
+			assert.Contains(t, output, "Hello, Unit B")
 		case "module-c":
-			assert.NotContains(t, output, "Hello, Module C")
+			assert.NotContains(t, output, "Hello, Unit C")
 		}
 	}
 }

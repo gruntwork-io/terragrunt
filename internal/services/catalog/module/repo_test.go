@@ -30,14 +30,14 @@ func TestFindModules(t *testing.T) {
 			repoPath: "testdata/find_modules",
 			expectedData: []moduleData{
 				{
-					title:       "ALB Ingress Controller Module",
-					description: "This Terraform Module installs and configures the AWS ALB Ingress Controller on an EKS cluster, so that you can configure an ALB using Ingress resources.",
+					title:       "ALB Ingress Controller Unit",
+					description: "This Terraform Unit installs and configures the AWS ALB Ingress Controller on an EKS cluster, so that you can configure an ALB using Ingress resources.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-alb-ingress-controller",
 					moduleDir:   "modules/eks-alb-ingress-controller",
 				},
 				{
-					title:       "ALB Ingress Controller IAM Policy Module",
-					description: "This Terraform Module defines an IAM policy that defines the minimal set of permissions necessary for the AWS ALB Ingress Controller.",
+					title:       "ALB Ingress Controller IAM Policy Unit",
+					description: "This Terraform Unit defines an IAM policy that defines the minimal set of permissions necessary for the AWS ALB Ingress Controller.",
 					url:         "https://github.com/gruntwork-io/terraform-aws-eks/tree/master/modules/eks-alb-ingress-controller-iam-policy",
 					moduleDir:   "modules/eks-alb-ingress-controller-iam-policy",
 				},

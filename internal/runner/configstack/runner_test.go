@@ -1248,7 +1248,7 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	_, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.Error(t, actualErr)
 
-	var processingModuleError runbase.ProcessingModuleError
+	var processingModuleError runbase.ProcessingUnitError
 	ok := errors.As(actualErr, &processingModuleError)
 	require.True(t, ok)
 

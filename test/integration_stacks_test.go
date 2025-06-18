@@ -727,7 +727,7 @@ func TestStackApplyWithDependency(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app-with-dependency")
 
 	// check that test
 	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -744,7 +744,7 @@ func TestStackApplyWithDependencyParallelism(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 10 --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app-with-dependency")
 
 	// check that test
 	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -761,7 +761,7 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 1 --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app-with-dependency")
 
 	// check that test
 	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -779,7 +779,7 @@ func TestStackApplyDestroyWithDependency(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app-with-dependency")
 
 	// check that the data.txt file was deleted
 	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -830,9 +830,9 @@ func TestStackApplyStrictInclude(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --queue-strict-include --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app1")
-	assert.NotContains(t, stderr, "Module ./.terragrunt-stack/app2")
-	assert.NotContains(t, stderr, "Module ./.terragrunt-stack/app-with-dependency")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app1")
+	assert.NotContains(t, stderr, "Unit ./.terragrunt-stack/app2")
+	assert.NotContains(t, stderr, "Unit ./.terragrunt-stack/app-with-dependency")
 
 	// check that test file wasn't created
 	dataPath := util.JoinPath(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -899,8 +899,8 @@ func TestStacksSourceMapModule(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app1")
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/app2")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app1")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/app2")
 }
 
 func TestStacksGenerateAbsolutePathError(t *testing.T) {
@@ -1248,8 +1248,8 @@ func TestStacksNoValidation(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/stack1/stack1/.terragrunt-stack/unit2/app1/code")
-	assert.Contains(t, stderr, "Module ./.terragrunt-stack/unit1/app1/code")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/stack1/stack1/.terragrunt-stack/unit2/app1/code")
+	assert.Contains(t, stderr, "Unit ./.terragrunt-stack/unit1/app1/code")
 
 	assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy")
 	assert.Contains(t, stdout, "local_file.file will be created")

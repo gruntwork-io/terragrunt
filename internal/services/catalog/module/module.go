@@ -50,7 +50,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 
 	module.url = repo.ModuleURL(moduleDir)
 
-	repo.logger.Debugf("Module URL: %s", module.url)
+	repo.logger.Debugf("Unit URL: %s", module.url)
 
 	modulePath := filepath.Join(module.repoPath, module.moduleDir)
 

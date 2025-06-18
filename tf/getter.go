@@ -51,7 +51,7 @@ type RegistryServicePath struct {
 // registry path for the module (e.g., terraform-aws-modules/vpc/aws), and VERSION is the specific version of the module
 // to download (e.g., 2.2.0).
 //
-// This protocol will use the Module Registry Protocol (documented at
+// This protocol will use the Unit Registry Protocol (documented at
 // https://www.terraform.io/docs/internals/module-registry-protocol.html) to lookup the module source URL and download
 // it.
 //

@@ -1,3 +1,4 @@
+// Package configstack provides the implementation of the Runner, which run units as groups.
 package configstack
 
 import (
@@ -272,7 +273,7 @@ func (runner *Runner) createStackForTerragruntConfigPaths(ctx context.Context, l
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		if len(terragruntConfigPaths) == 0 {
-			return errors.New(runbase.ErrNoTerraformModulesFound)
+			return errors.New(runbase.ErrNoUnitsFound)
 		}
 
 		modules, err := runner.ResolveTerraformModules(ctx, l, terragruntConfigPaths)
@@ -456,7 +457,7 @@ func (runner *Runner) resolveModules(ctx context.Context, l log.Logger, canonica
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
 		if !util.FileExists(terragruntConfigPath) {
-			return nil, runbase.ProcessingModuleError{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
+			return nil, runbase.ProcessingUnitError{UnderlyingError: os.ErrNotExist, UnitPath: terragruntConfigPath, HowThisUnitWasFound: howTheseModulesWereFound}
 		}
 
 		var module *runbase.Unit
@@ -582,10 +583,10 @@ func (runner *Runner) resolveTerraformModule(ctx context.Context, l log.Logger, 
 		includeConfig,
 	)
 	if err != nil {
-		return nil, errors.New(runbase.ProcessingModuleError{
-			UnderlyingError:       err,
-			HowThisModuleWasFound: howThisModuleWasFound,
-			ModulePath:            terragruntConfigPath,
+		return nil, errors.New(runbase.ProcessingUnitError{
+			UnderlyingError:     err,
+			HowThisUnitWasFound: howThisModuleWasFound,
+			UnitPath:            terragruntConfigPath,
 		})
 	}
 
@@ -623,7 +624,7 @@ func (runner *Runner) resolveTerraformModule(ctx context.Context, l log.Logger, 
 	}
 
 	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && matches == nil {
-		l.Debugf("Module %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
+		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}
 
@@ -687,7 +688,7 @@ func (runner *Runner) resolveExternalDependenciesForModules(ctx context.Context,
 
 	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
 	if recursionLevel > maxLevelsOfRecursion {
-		return allExternalDependencies, errors.New(runbase.InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
+		return allExternalDependencies, errors.New(runbase.InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Units: modulesToSkip})
 	}
 
 	sortedKeys := modulesMap.SortedKeys()
@@ -836,7 +837,7 @@ func confirmShouldApplyExternalDependency(ctx context.Context, unit *runbase.Uni
 		return false, nil
 	}
 
-	l.Infof("Module %s has external dependency %s", unit.Path, dependency.Path)
+	l.Infof("Unit %s has external dependency %s", unit.Path, dependency.Path)
 
 	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt apply the external dependency?", opts)
 }
@@ -998,7 +999,7 @@ func flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, modules ru
 		}
 
 		if excludeConfig.If {
-			l.Debugf("Module %s is excluded by exclude block", module.Path)
+			l.Debugf("Unit %s is excluded by exclude block", module.Path)
 			module.FlagExcluded = true
 		}
 

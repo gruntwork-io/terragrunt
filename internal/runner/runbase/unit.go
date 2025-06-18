@@ -9,9 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/internal/report"
-
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -21,15 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
-
-// Stack represents a stack of units that you can "spin up" or "spin down"
-type Stack struct {
-	Report                *report.Report
-	TerragruntOptions     *options.TerragruntOptions
-	ChildTerragruntConfig *config.TerragruntConfig
-	Units                 Units
-	ParserOptions         []hclparse.Option
-}
 
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
@@ -55,7 +43,7 @@ func (module *Unit) String() string {
 	}
 
 	return fmt.Sprintf(
-		"Module %s (excluded: %v, assume applied: %v, dependencies: [%s])",
+		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
 		module.Path, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
 	)
 }
@@ -143,7 +131,7 @@ func (module *Unit) getDependenciesForModule(modulesMap UnitsMap, terragruntConf
 		dependencyModule, foundModule := modulesMap[dependencyModulePath]
 		if !foundModule {
 			err := UnrecognizedDependencyError{
-				ModulePath:            module.Path,
+				UnitPath:              module.Path,
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
@@ -306,16 +294,4 @@ func checkForCyclesUsingDepthFirstSearch(module *Unit, visitedPaths *[]string, c
 	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
 
 	return nil
-}
-
-// String renders this stack as a human-readable string
-func (stack *Stack) String() string {
-	modules := make([]string, len(stack.Units))
-	for _, module := range stack.Units {
-		modules = append(modules, "  => "+module.String())
-	}
-
-	sort.Strings(modules)
-
-	return fmt.Sprintf("Stack at %s:\n%s", stack.TerragruntOptions.WorkingDir, strings.Join(modules, "\n"))
 }

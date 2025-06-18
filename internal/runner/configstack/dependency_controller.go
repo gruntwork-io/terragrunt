@@ -35,7 +35,7 @@ type DependencyController struct {
 	NotifyWhenDone []*DependencyController
 }
 
-// Create a new NewDependencyController struct for the given module.
+// NewDependencyController Create a new dependency controller for the given module.
 func NewDependencyController(module *runbase.Unit) *DependencyController {
 	return &DependencyController{
 		Runner:         runbase.NewUnitRunner(module),
@@ -74,7 +74,7 @@ func (ctrl *DependencyController) runModuleWhenReady(ctx context.Context, opts *
 // Wait for all of this module's dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this module has no dependencies.
 func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOptions, r *report.Report) error {
-	ctrl.Runner.Logger.Debugf("Module %s must wait for %d dependencies to finish", ctrl.Runner.Module.Path, len(ctrl.Dependencies))
+	ctrl.Runner.Logger.Debugf("Unit %s must wait for %d dependencies to finish", ctrl.Runner.Module.Path, len(ctrl.Dependencies))
 
 	for len(ctrl.Dependencies) > 0 {
 		doneDependency := <-ctrl.DependencyDone
@@ -82,9 +82,9 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 
 		if doneDependency.Runner.Err != nil {
 			if ctrl.Runner.Module.TerragruntOptions.IgnoreDependencyErrors {
-				ctrl.Runner.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path)
+				ctrl.Runner.Logger.Errorf("Dependency %s of module %s just finished with an error. Unit %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path)
 			} else {
-				ctrl.Runner.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path)
+				ctrl.Runner.Logger.Errorf("Dependency %s of module %s just finished with an error. Unit %s will have to return an error too.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path)
 
 				if opts.Experiments.Evaluate(experiment.Report) {
 					run, err := r.GetRun(ctrl.Runner.Module.Path)
@@ -116,10 +116,10 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 					}
 				}
 
-				return runbase.ProcessingModuleDependencyError{Module: ctrl.Runner.Module, Dependency: doneDependency.Runner.Module, Err: doneDependency.Runner.Err}
+				return runbase.ProcessingUnitDependencyError{Unit: ctrl.Runner.Module, Dependency: doneDependency.Runner.Module, Err: doneDependency.Runner.Err}
 			}
 		} else {
-			ctrl.Runner.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path, len(ctrl.Dependencies))
+			ctrl.Runner.Logger.Debugf("Dependency %s of module %s just finished successfully. Unit %s must wait on %d more dependencies.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path, len(ctrl.Dependencies))
 		}
 	}
 
@@ -129,7 +129,7 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 // Record that a module has finished executing and notify all of this module's dependencies
 func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Report, reportExperiment bool) {
 	if moduleErr == nil {
-		ctrl.Runner.Logger.Debugf("Module %s has finished successfully!", ctrl.Runner.Module.Path)
+		ctrl.Runner.Logger.Debugf("Unit %s has finished successfully!", ctrl.Runner.Module.Path)
 
 		if reportExperiment {
 			if err := r.EndRun(ctrl.Runner.Module.Path); err != nil {
@@ -137,7 +137,7 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 			}
 		}
 	} else {
-		ctrl.Runner.Logger.Errorf("Module %s has finished with an error", ctrl.Runner.Module.Path)
+		ctrl.Runner.Logger.Errorf("Unit %s has finished with an error", ctrl.Runner.Module.Path)
 
 		if reportExperiment {
 			if err := r.EndRun(

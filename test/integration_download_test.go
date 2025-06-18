@@ -287,9 +287,9 @@ func TestExcludeDirs(t *testing.T) {
 		excludeArgs           string
 		excludedModuleOutputs []string
 	}{
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**/*", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Module GCE C", "Module AWS D", "Module GCE E"}},
-		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"}},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir **/gce/**/*", []string{"Unit GCE B", "Unit GCE C", "Unit GCE E"}},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir production-env/**/* --queue-exclude-dir **/module-gce-c", []string{"Unit GCE C", "Unit AWS D", "Unit GCE E"}},
+		{testFixtureLocalWithExcludeDir, "--queue-exclude-dir integration-env/gce/module-gce-b --queue-exclude-dir integration-env/gce/module-gce-c --queue-exclude-dir **/module-aws*", []string{"Unit AWS A", "Unit GCE B", "Unit GCE C", "Unit AWS D"}},
 	}
 
 	modulePaths := make(map[string]string, len(moduleNames))
@@ -354,9 +354,9 @@ func TestIncludeDirs(t *testing.T) {
 		includedModuleOutputs []string
 	}{
 		{testFixtureLocalWithIncludeDir, "--queue-include-dir xyz", []string{}},
-		{testFixtureLocalWithIncludeDir, "--queue-include-dir */aws", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
-		{testFixtureLocalWithIncludeDir, "--queue-include-dir production-env --queue-include-dir **/module-gce-c", []string{"Module GCE B", "Module AWS A"}},
-		{testFixtureLocalWithIncludeDir, "--queue-include-dir integration-env/gce/module-gce-b --queue-include-dir integration-env/gce/module-gce-c --queue-include-dir **/module-aws*", []string{"Module GCE E"}},
+		{testFixtureLocalWithIncludeDir, "--queue-include-dir */aws", []string{"Unit GCE B", "Unit GCE C", "Unit GCE E"}},
+		{testFixtureLocalWithIncludeDir, "--queue-include-dir production-env --queue-include-dir **/module-gce-c", []string{"Unit GCE B", "Unit AWS A"}},
+		{testFixtureLocalWithIncludeDir, "--queue-include-dir integration-env/gce/module-gce-b --queue-include-dir integration-env/gce/module-gce-c --queue-include-dir **/module-aws*", []string{"Unit GCE E"}},
 	}
 
 	modulePaths := make(map[string]string, len(moduleNames))
@@ -583,15 +583,15 @@ func TestPreventDestroyDependencies(t *testing.T) {
 		output := showStdout.String()
 		switch moduleName {
 		case "module-a":
-			assert.Contains(t, output, "Hello, Module A")
+			assert.Contains(t, output, "Hello, Unit A")
 		case "module-b":
-			assert.Contains(t, output, "Hello, Module B")
+			assert.Contains(t, output, "Hello, Unit B")
 		case "module-c":
-			assert.NotContains(t, output, "Hello, Module C")
+			assert.NotContains(t, output, "Hello, Unit C")
 		case "module-d":
-			assert.NotContains(t, output, "Hello, Module D")
+			assert.NotContains(t, output, "Hello, Unit D")
 		case "module-e":
-			assert.NotContains(t, output, "Hello, Module E")
+			assert.NotContains(t, output, "Hello, Unit E")
 		}
 	}
 }

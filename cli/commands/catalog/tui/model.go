@@ -20,7 +20,7 @@ type sessionState int
 type button int
 
 const (
-	title = "List of Modules"
+	title = "List of Units"
 
 	titleForegroundColor = "#A8ACB1"
 	titleBackgroundColor = "#1D252F"

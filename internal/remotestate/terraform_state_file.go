@@ -24,7 +24,7 @@ const DefaultPathToRemoteStateFile = "terraform.tfstate"
 // TerraformState - represents the structure of the Terraform .tfstate file.
 type TerraformState struct {
 	Backend *TerraformBackend      `json:"Backend"`
-	Modules []TerraformStateModule `json:"Modules"`
+	Modules []TerraformStateModule `json:"Units"`
 	Version int                    `json:"Version"`
 	Serial  int                    `json:"Serial"`
 }

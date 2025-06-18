@@ -77,7 +77,7 @@ func TestFrontmatter(t *testing.T) {
 }
 
 var testH1EksK8sArgocd = `
-# EKS K8s GitOps Module
+# EKS K8s GitOps Unit
 This module deploys [Argo CD](https://argo-cd.readthedocs.io/en/stable/) to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the [Argo CD](https://argo-cd.readthedocs.io/en/stable/) for more details. This module supports deploying the Argo CD resources to Fargate in addition to EC2 Worker Nodes.
 
 
@@ -91,9 +91,9 @@ To use this module, you will need to have a running EKS cluster prior to deployi
 `
 
 var testH1EksCloudwatchAgent = `
-# EKS CloudWatch Agent Module
+# EKS CloudWatch Agent Unit
 
-This Terraform Module installs and configures
+This Terraform Unit installs and configures
 [Amazon CloudWatch Agent](https://github.com/aws/amazon-cloudwatch-agent/) on an EKS cluster, so that
 each node runs the agent to collect more system-level metrics from Amazon EC2 instances and ship them to Amazon CloudWatch.
 This extra metric data allows using [CloudWatch Container Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContainerInsights.html)
@@ -190,15 +190,15 @@ func TestElement(t *testing.T) {
 			content:              testH1EksK8sArgocd,
 			fileExt:              ".md",
 			maxDescriptionLength: 200,
-			expectedTitle:        "EKS K8s GitOps Module",
+			expectedTitle:        "EKS K8s GitOps Unit",
 			expectedDescription:  "This module deploys Argo CD to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the Argo CD for more details.",
 		},
 		{
 			content:              testH1EksCloudwatchAgent,
 			fileExt:              ".md",
 			maxDescriptionLength: 200,
-			expectedTitle:        "EKS CloudWatch Agent Module",
-			expectedDescription:  "This Terraform Module installs and configures Amazon CloudWatch Agent on an EKS cluster, so that each node runs the agent to collect more system-level metrics from Amazon EC2 instances and ship them to Amazon CloudWatch.",
+			expectedTitle:        "EKS CloudWatch Agent Unit",
+			expectedDescription:  "This Terraform Unit installs and configures Amazon CloudWatch Agent on an EKS cluster, so that each node runs the agent to collect more system-level metrics from Amazon EC2 instances and ship them to Amazon CloudWatch.",
 		},
 		{
 			content:              testH1EcsCluster,

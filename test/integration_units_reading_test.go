@@ -144,7 +144,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 		},
 	}
 
-	includedLogEntryRegex := regexp.MustCompile(`=> Module ./([^ ]+) \(excluded: false`)
+	includedLogEntryRegex := regexp.MustCompile(`=> Unit ./([^ ]+) \(excluded: false`)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

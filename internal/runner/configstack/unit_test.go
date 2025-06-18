@@ -1009,7 +1009,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrC := runbase.ProcessingModuleDependencyError{Module: moduleC, Dependency: moduleB, Err: expectedErrB}
+	expectedErrC := runbase.ProcessingUnitDependencyError{Unit: moduleC, Dependency: moduleB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1120,7 +1120,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrA := runbase.ProcessingModuleDependencyError{Module: moduleA, Dependency: moduleB, Err: expectedErrB}
+	expectedErrA := runbase.ProcessingUnitDependencyError{Unit: moduleA, Dependency: moduleB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1226,8 +1226,8 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrB := runbase.ProcessingModuleDependencyError{Module: moduleB, Dependency: moduleA, Err: expectedErrA}
-	expectedErrC := runbase.ProcessingModuleDependencyError{Module: moduleC, Dependency: moduleB, Err: expectedErrB}
+	expectedErrB := runbase.ProcessingUnitDependencyError{Unit: moduleB, Dependency: moduleA, Err: expectedErrA}
+	expectedErrC := runbase.ProcessingUnitDependencyError{Unit: moduleC, Dependency: moduleB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1451,8 +1451,8 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-g", nil, &gRan),
 	}
 
-	expectedErrD := runbase.ProcessingModuleDependencyError{Module: moduleD, Dependency: moduleC, Err: expectedErrC}
-	expectedErrF := runbase.ProcessingModuleDependencyError{Module: moduleF, Dependency: moduleD, Err: expectedErrD}
+	expectedErrD := runbase.ProcessingUnitDependencyError{Unit: moduleD, Dependency: moduleC, Err: expectedErrC}
+	expectedErrF := runbase.ProcessingUnitDependencyError{Unit: moduleF, Dependency: moduleD, Err: expectedErrD}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1537,8 +1537,8 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
 	}
 
-	expectedErrB := runbase.ProcessingModuleDependencyError{Module: moduleB, Dependency: moduleC, Err: expectedErrC}
-	expectedErrA := runbase.ProcessingModuleDependencyError{Module: moduleA, Dependency: moduleB, Err: expectedErrB}
+	expectedErrB := runbase.ProcessingUnitDependencyError{Unit: moduleB, Dependency: moduleC, Err: expectedErrC}
+	expectedErrA := runbase.ProcessingUnitDependencyError{Unit: moduleA, Dependency: moduleB, Err: expectedErrB}
 
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, optsErr)

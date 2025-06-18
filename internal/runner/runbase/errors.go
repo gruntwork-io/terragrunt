@@ -11,39 +11,39 @@ import (
 // Custom error types
 
 type UnrecognizedDependencyError struct {
-	ModulePath            string
+	UnitPath              string
 	DependencyPath        string
 	TerragruntConfigPaths []string
 }
 
 func (err UnrecognizedDependencyError) Error() string {
-	return fmt.Sprintf("Module %s specifies %s as a dependency, but that dependency was not one of the ones found while scanning subfolders: %v", err.ModulePath, err.DependencyPath, err.TerragruntConfigPaths)
+	return fmt.Sprintf("Unit %s specifies %s as a dependency, but that dependency was not one of the ones found while scanning subfolders: %v", err.UnitPath, err.DependencyPath, err.TerragruntConfigPaths)
 }
 
-type ProcessingModuleError struct {
-	UnderlyingError       error
-	ModulePath            string
-	HowThisModuleWasFound string
+type ProcessingUnitError struct {
+	UnderlyingError     error
+	UnitPath            string
+	HowThisUnitWasFound string
 }
 
-func (err ProcessingModuleError) Error() string {
-	return fmt.Sprintf("Error processing module at '%s'. How this module was found: %s. Underlying error: %v", err.ModulePath, err.HowThisModuleWasFound, err.UnderlyingError)
+func (err ProcessingUnitError) Error() string {
+	return fmt.Sprintf("Error processing unit at '%s'. How this unit was found: %s. Underlying error: %v", err.UnitPath, err.HowThisUnitWasFound, err.UnderlyingError)
 }
 
-func (err ProcessingModuleError) Unwrap() error {
+func (err ProcessingUnitError) Unwrap() error {
 	return err.UnderlyingError
 }
 
 type InfiniteRecursionError struct {
-	Modules        map[string]*Unit
+	Units          map[string]*Unit
 	RecursionLevel int
 }
 
 func (err InfiniteRecursionError) Error() string {
-	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Units involved: %v", err.RecursionLevel, err.Modules)
+	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Units involved: %v", err.RecursionLevel, err.Units)
 }
 
-var ErrNoTerraformModulesFound = errors.New("could not find any subfolders with Terragrunt configuration files")
+var ErrNoUnitsFound = errors.New("could not find any subfolders with Terragrunt configuration files")
 
 type DependencyCycleError []string
 
@@ -51,17 +51,17 @@ func (err DependencyCycleError) Error() string {
 	return "Found a dependency cycle between modules: " + strings.Join([]string(err), " -> ")
 }
 
-type ProcessingModuleDependencyError struct {
-	Module     *Unit
+type ProcessingUnitDependencyError struct {
+	Unit       *Unit
 	Dependency *Unit
 	Err        error
 }
 
-func (err ProcessingModuleDependencyError) Error() string {
-	return fmt.Sprintf("Cannot process module %s because one of its dependencies, %s, finished with an error: %s", err.Module, err.Dependency, err.Err)
+func (err ProcessingUnitDependencyError) Error() string {
+	return fmt.Sprintf("Cannot process module %s because one of its dependencies, %s, finished with an error: %s", err.Unit, err.Dependency, err.Err)
 }
 
-func (err ProcessingModuleDependencyError) ExitStatus() (int, error) {
+func (err ProcessingUnitDependencyError) ExitStatus() (int, error) {
 	if exitCode, err := util.GetExitCode(err.Err); err == nil {
 		return exitCode, nil
 	}
@@ -69,7 +69,7 @@ func (err ProcessingModuleDependencyError) ExitStatus() (int, error) {
 	return -1, err
 }
 
-func (err ProcessingModuleDependencyError) Unwrap() error {
+func (err ProcessingUnitDependencyError) Unwrap() error {
 	return err.Err
 }
 
