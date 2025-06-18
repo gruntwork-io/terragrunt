@@ -240,7 +240,7 @@ func (runner *Runner) syncTerraformCliArgs(l log.Logger, opts *options.Terragrun
 	}
 }
 
-func (runner *Runner) toRunningModules(terraformCommand string) (RunningModules, error) {
+func (runner *Runner) toRunningModules(terraformCommand string) (RunningUnits, error) {
 	switch terraformCommand {
 	case tf.CommandNameDestroy:
 		return ToRunningModules(runner.Stack.Units, ReverseOrder, runner.Stack.Report, runner.Stack.TerragruntOptions)
@@ -880,8 +880,8 @@ func (runner *Runner) RunModulesIgnoreOrder(ctx context.Context, opts *options.T
 // ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func ToRunningModules(units runbase.Units, dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningModules, error) {
-	runningModules := RunningModules{}
+func ToRunningModules(units runbase.Units, dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningUnits, error) {
+	runningModules := RunningUnits{}
 	for _, module := range units {
 		runningModules[module.Path] = NewDependencyController(module)
 	}

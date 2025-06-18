@@ -185,9 +185,9 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 	}
 }
 
-type RunningModules map[string]*DependencyController
+type RunningUnits map[string]*DependencyController
 
-func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []runbase.Units {
+func (modules RunningUnits) toTerraformModuleGroups(maxDepth int) []runbase.Units {
 	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
 	// the modules that have no dependencies and captures that as a run group.
 	groups := []runbase.Units{}
@@ -196,7 +196,7 @@ func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []runbase.Un
 		currentIterationDeploy := runbase.Units{}
 
 		// next tracks which modules are being deferred to a later run.
-		next := RunningModules{}
+		next := RunningUnits{}
 		// removeDep tracks which modules are run in the current iteration so that they need to be removed in the
 		// dependency list for the next iteration. This is separately tracked from currentIterationDeploy for
 		// convenience: this tracks the map key of the Dependencies attribute.
@@ -253,7 +253,7 @@ func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []runbase.Un
 //     modules that depend on M into the NotifyWhenDone field.
 //   - If dependencyOrder is ReverseOrder, do the reverse.
 //   - If dependencyOrder is IgnoreOrder, do nothing.
-func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOrder) (RunningModules, error) {
+func (modules RunningUnits) crossLinkDependencies(dependencyOrder DependencyOrder) (RunningUnits, error) {
 	for _, module := range modules {
 		for _, dependency := range module.Runner.Unit.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
@@ -280,7 +280,7 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 
 // RemoveFlagExcluded returns a cleaned-up map that only contains modules and
 // dependencies that should not be excluded
-func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperiment bool) (RunningModules, error) {
+func (modules RunningUnits) RemoveFlagExcluded(r *report.Report, reportExperiment bool) (RunningUnits, error) {
 	var finalModules = make(map[string]*DependencyController)
 
 	var errs []error
@@ -336,7 +336,7 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 // Run the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (modules RunningModules) runModules(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+func (modules RunningUnits) runModules(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
 	var (
 		waitGroup sync.WaitGroup
 		semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
@@ -359,7 +359,7 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 
 // Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
 // occurred
-func (modules RunningModules) collectErrors() error {
+func (modules RunningUnits) collectErrors() error {
 	var errs *errors.MultiError
 
 	for _, module := range modules {

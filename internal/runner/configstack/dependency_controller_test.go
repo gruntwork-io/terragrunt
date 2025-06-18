@@ -29,7 +29,7 @@ func cloneOptions(t *testing.T, l log.Logger, opts *options.TerragruntOptions, t
 func TestToRunningModulesNoModules(t *testing.T) {
 	t.Parallel()
 
-	testToRunningModules(t, runbase.Units{}, configstack.NormalOrder, configstack.RunningModules{})
+	testToRunningModules(t, runbase.Units{}, configstack.NormalOrder, configstack.RunningUnits{})
 }
 
 func TestToRunningModulesOneModuleNoDependencies(t *testing.T) {
@@ -49,7 +49,7 @@ func TestToRunningModulesOneModuleNoDependencies(t *testing.T) {
 	ctrlA.Runner.Err = nil
 
 	modules := runbase.Units{moduleA}
-	expected := configstack.RunningModules{"a": ctrlA}
+	expected := configstack.RunningUnits{"a": ctrlA}
 
 	testToRunningModules(t, modules, configstack.NormalOrder, expected)
 }
@@ -84,7 +84,7 @@ func TestToRunningModulesTwoModulesNoDependencies(t *testing.T) {
 	ctrlB.Runner.Err = nil
 
 	modules := runbase.Units{moduleA, moduleB}
-	expected := configstack.RunningModules{"a": ctrlA, "b": ctrlB}
+	expected := configstack.RunningUnits{"a": ctrlA, "b": ctrlB}
 
 	testToRunningModules(t, modules, configstack.NormalOrder, expected)
 }
@@ -121,7 +121,7 @@ func TestToRunningModulesTwoModulesWithDependencies(t *testing.T) {
 	ctrlA.NotifyWhenDone = []*configstack.DependencyController{ctrlB}
 
 	modules := runbase.Units{moduleA, moduleB}
-	expected := configstack.RunningModules{"a": ctrlA, "b": ctrlB}
+	expected := configstack.RunningUnits{"a": ctrlA, "b": ctrlB}
 
 	testToRunningModules(t, modules, configstack.NormalOrder, expected)
 }
@@ -155,10 +155,10 @@ func TestToRunningModulesTwoModulesWithDependenciesReverseOrder(t *testing.T) {
 	ctrlB.Runner.Status = runbase.Waiting
 	ctrlB.Runner.Err = nil
 
-	ctrlA.Dependencies = configstack.RunningModules{"b": ctrlB}
+	ctrlA.Dependencies = configstack.RunningUnits{"b": ctrlB}
 
 	modules := runbase.Units{moduleA, moduleB}
-	expected := configstack.RunningModules{"a": ctrlA, "b": ctrlB}
+	expected := configstack.RunningUnits{"a": ctrlA, "b": ctrlB}
 
 	testToRunningModules(t, modules, configstack.ReverseOrder, expected)
 }
@@ -193,7 +193,7 @@ func TestToRunningModulesTwoModulesWithDependenciesIgnoreOrder(t *testing.T) {
 	ctrlB.Runner.Err = nil
 
 	modules := runbase.Units{moduleA, moduleB}
-	expected := configstack.RunningModules{"a": ctrlA, "b": ctrlB}
+	expected := configstack.RunningUnits{"a": ctrlA, "b": ctrlB}
 
 	testToRunningModules(t, modules, configstack.IgnoreOrder, expected)
 }
@@ -267,7 +267,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T)
 	}
 
 	ctrlE := configstack.NewDependencyController(moduleE)
-	ctrlE.Dependencies = configstack.RunningModules{
+	ctrlE.Dependencies = configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
@@ -283,7 +283,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T)
 	ctrlD.NotifyWhenDone = []*configstack.DependencyController{ctrlE}
 
 	modules := runbase.Units{moduleA, moduleB, moduleC, moduleD, moduleE}
-	expected := configstack.RunningModules{
+	expected := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
@@ -353,34 +353,34 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t
 	ctrlE.Runner.Err = nil
 
 	// Set up dependencies and notify lists for reverse order
-	ctrlA.Dependencies = configstack.RunningModules{
+	ctrlA.Dependencies = configstack.RunningUnits{
 		"b": ctrlB,
 		"c": ctrlC,
 		"e": ctrlE,
 	}
 	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
 
-	ctrlB.Dependencies = configstack.RunningModules{
+	ctrlB.Dependencies = configstack.RunningUnits{
 		"e": ctrlE,
 	}
 	ctrlB.NotifyWhenDone = []*configstack.DependencyController{ctrlA}
 
-	ctrlC.Dependencies = configstack.RunningModules{
+	ctrlC.Dependencies = configstack.RunningUnits{
 		"d": ctrlD,
 		"e": ctrlE,
 	}
 	ctrlC.NotifyWhenDone = []*configstack.DependencyController{ctrlA}
 
-	ctrlD.Dependencies = configstack.RunningModules{
+	ctrlD.Dependencies = configstack.RunningUnits{
 		"e": ctrlE,
 	}
 	ctrlD.NotifyWhenDone = []*configstack.DependencyController{ctrlC}
 
-	ctrlE.Dependencies = configstack.RunningModules{}
+	ctrlE.Dependencies = configstack.RunningUnits{}
 	ctrlE.NotifyWhenDone = []*configstack.DependencyController{ctrlA, ctrlB, ctrlC, ctrlD}
 
 	modules := runbase.Units{moduleA, moduleB, moduleC, moduleD, moduleE}
-	expected := configstack.RunningModules{
+	expected := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
@@ -454,13 +454,13 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 	}
 
 	ctrlE := configstack.NewDependencyController(moduleE)
-	ctrlE.Dependencies = configstack.RunningModules{}
+	ctrlE.Dependencies = configstack.RunningUnits{}
 	ctrlE.NotifyWhenDone = []*configstack.DependencyController{}
 	ctrlE.Runner.Status = runbase.Waiting
 	ctrlE.Runner.Err = nil
 
 	modules := runbase.Units{moduleA, moduleB, moduleC, moduleD, moduleE}
-	expected := configstack.RunningModules{
+	expected := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
@@ -471,7 +471,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 	testToRunningModules(t, modules, configstack.IgnoreOrder, expected)
 }
 
-func testToRunningModules(t *testing.T, modules runbase.Units, order configstack.DependencyOrder, expected configstack.RunningModules) {
+func testToRunningModules(t *testing.T, modules runbase.Units, order configstack.DependencyOrder, expected configstack.RunningUnits) {
 	t.Helper()
 
 	actual, err := configstack.ToRunningModules(modules, order, report.NewReport(), mockOptions)
@@ -543,7 +543,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 	}
 
 	ctrlE := configstack.NewDependencyController(moduleE)
-	ctrlE.Dependencies = configstack.RunningModules{
+	ctrlE.Dependencies = configstack.RunningUnits{
 		"b": ctrlB,
 		"d": ctrlD,
 	}
@@ -551,7 +551,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 	ctrlE.Runner.Status = runbase.Waiting
 	ctrlE.Runner.Err = nil
 
-	runningModules := configstack.RunningModules{
+	runningModules := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
@@ -559,7 +559,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		"e": ctrlE,
 	}
 
-	expected := configstack.RunningModules{
+	expected := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
@@ -616,13 +616,13 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 	ctrlC.Runner.Err = nil
 	ctrlC.Runner.Unit.FlagExcluded = true
 
-	runningModules := configstack.RunningModules{
+	runningModules := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
 	}
 
-	expected := configstack.RunningModules{
+	expected := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 	}
@@ -697,7 +697,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	}
 
 	ctrlE := configstack.NewDependencyController(moduleE)
-	ctrlE.Dependencies = configstack.RunningModules{
+	ctrlE.Dependencies = configstack.RunningUnits{
 		"b": ctrlB,
 		"d": ctrlD,
 	}
@@ -705,7 +705,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	ctrlE.Runner.Status = runbase.Waiting
 	ctrlE.Runner.Err = nil
 
-	runningModules := configstack.RunningModules{
+	runningModules := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
@@ -721,7 +721,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	_ctrlD.Runner.Status = runbase.Waiting
 	_ctrlD.Runner.Err = nil
 
-	expected := configstack.RunningModules{
+	expected := configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"d": _ctrlD,
