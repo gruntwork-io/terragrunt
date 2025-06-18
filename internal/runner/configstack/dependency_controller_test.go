@@ -474,7 +474,7 @@ func TestToRunningUnitsMultipleUnitsWithAndWithoutDependenciesIgnoreOrder(t *tes
 func testToRunningUnits(t *testing.T, units runbase.Units, order configstack.DependencyOrder, expected configstack.RunningUnits) {
 	t.Helper()
 
-	actual, err := configstack.ToRunningModules(units, order, report.NewReport(), mockOptions)
+	actual, err := configstack.ToRunningUnits(units, order, report.NewReport(), mockOptions)
 	if assert.NoError(t, err, "For units %v and order %v", units, order) {
 		assertDependencyControllerMapsEqual(t, expected, actual, true, "For units %v and order %v", units, order)
 	}

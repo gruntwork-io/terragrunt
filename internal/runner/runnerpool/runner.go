@@ -32,7 +32,7 @@ type Runner struct {
 	Stack *runbase.Stack
 }
 
-// NewRunnerPoolStack creates a new stack from discovered modules.
+// NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...runbase.Option) (runbase.StackRunner, error) {
 	unitsMap := make(runbase.UnitsMap, len(discovered))
 
@@ -146,7 +146,7 @@ func (runner *Runner) Graph(l log.Logger, opts *options.TerragruntOptions) {
 }
 
 func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	// Here will be implemented runner pool logic to run the modules concurrently.
+	// Here will be implemented runner pool logic to run the units concurrently.
 	// Currently, implementation is in the sequential way.
 	stackCmd := opts.TerraformCommand
 
@@ -190,8 +190,8 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 
 	// Run each unit in the runner sequentially, convert each unit to a running unit, and run it.
 	for _, unit := range runner.Stack.Units {
-		moduleToRun := runbase.NewUnitRunner(unit)
-		if err := moduleToRun.Run(ctx, unit.TerragruntOptions, runner.Stack.Report); err != nil {
+		unitToRun := runbase.NewUnitRunner(unit)
+		if err := unitToRun.Run(ctx, unit.TerragruntOptions, runner.Stack.Report); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -204,12 +204,12 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 func (runner *Runner) ListStackDependentUnits() map[string][]string {
-	dependentModules := make(map[string][]string)
+	dependentUnits := make(map[string][]string)
 
-	for _, module := range runner.Stack.Units {
-		if len(module.Dependencies) != 0 {
-			for _, dep := range module.Dependencies {
-				dependentModules[dep.Path] = util.RemoveDuplicatesFromList(append(dependentModules[dep.Path], module.Path))
+	for _, unit := range runner.Stack.Units {
+		if len(unit.Dependencies) != 0 {
+			for _, dep := range unit.Dependencies {
+				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
 			}
 		}
 	}
@@ -217,14 +217,14 @@ func (runner *Runner) ListStackDependentUnits() map[string][]string {
 	for {
 		noUpdates := true
 
-		for module, dependents := range dependentModules {
+		for unit, dependents := range dependentUnits {
 			for _, dependent := range dependents {
-				initialSize := len(dependentModules[module])
-				list := util.RemoveDuplicatesFromList(append(dependentModules[module], dependentModules[dependent]...))
-				list = util.RemoveElementFromList(list, module)
-				dependentModules[module] = list
+				initialSize := len(dependentUnits[unit])
+				list := util.RemoveDuplicatesFromList(append(dependentUnits[unit], dependentUnits[dependent]...))
+				list = util.RemoveElementFromList(list, unit)
+				dependentUnits[unit] = list
 
-				if initialSize != len(dependentModules[module]) {
+				if initialSize != len(dependentUnits[unit]) {
 					noUpdates = false
 				}
 			}
@@ -235,35 +235,35 @@ func (runner *Runner) ListStackDependentUnits() map[string][]string {
 		}
 	}
 
-	return dependentModules
+	return dependentUnits
 }
 
-// FindUnitByPath finds a module by its path.
+// FindUnitByPath finds a unit by its path.
 func (runner *Runner) FindUnitByPath(path string) *runbase.Unit {
-	for _, module := range runner.Stack.Units {
-		if module.Path == path {
-			return module
+	for _, unit := range runner.Stack.Units {
+		if unit.Path == path {
+			return unit
 		}
 	}
 
 	return nil
 }
 
-// Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
+// Sync the TerraformCliArgs for each unit in the stack to match the provided terragruntOptions struct.
 func (runner *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
-	for _, module := range runner.Stack.Units {
-		module.TerragruntOptions.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
-		copy(module.TerragruntOptions.TerraformCliArgs, opts.TerraformCliArgs)
+	for _, unit := range runner.Stack.Units {
+		unit.TerragruntOptions.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
+		copy(unit.TerragruntOptions.TerraformCliArgs, opts.TerraformCliArgs)
 
-		planFile := module.PlanFile(l, opts)
+		planFile := unit.PlanFile(l, opts)
 		if planFile != "" {
-			l.Debugf("Using output file %s for unit %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Using output file %s for unit %s", planFile, unit.TerragruntOptions.TerragruntConfigPath)
 
-			if module.TerragruntOptions.TerraformCommand == "plan" {
+			if unit.TerragruntOptions.TerraformCommand == "plan" {
 				// for plan command add -out=<file> to the terraform cli args
-				module.TerragruntOptions.TerraformCliArgs = append(module.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
+				unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
 			} else {
-				module.TerragruntOptions.TerraformCliArgs = append(module.TerragruntOptions.TerraformCliArgs, planFile)
+				unit.TerragruntOptions.TerraformCliArgs = append(unit.TerragruntOptions.TerraformCliArgs, planFile)
 			}
 		}
 	}

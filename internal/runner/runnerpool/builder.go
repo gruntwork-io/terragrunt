@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Build discovers modules and builds a new stack runner.
+// Build stack runner using discovery and queueing mechanisms.
 func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...runbase.Option) (runbase.StackRunner, error) {
 	// discovery configurations
 	d := discovery.

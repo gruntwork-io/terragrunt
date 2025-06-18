@@ -66,21 +66,21 @@ func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestRunner()
-	runGraph, err := stack.GetModuleRunGraph(tf.CommandNameApply)
+	runGraph, err := stack.GetUnitRunGraph(tf.CommandNameApply)
 	require.NoError(t, err)
 
 	require.Equal(
 		t,
 		[]runbase.Units{
 			{
-				stack.Modules()[1],
+				stack.Units()[1],
 			},
 			{
-				stack.Modules()[3],
-				stack.Modules()[4],
+				stack.Units()[3],
+				stack.Units()[4],
 			},
 			{
-				stack.Modules()[5],
+				stack.Units()[5],
 			},
 		},
 		runGraph,
@@ -91,21 +91,21 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestRunner()
-	runGraph, err := stack.GetModuleRunGraph(tf.CommandNameDestroy)
+	runGraph, err := stack.GetUnitRunGraph(tf.CommandNameDestroy)
 	require.NoError(t, err)
 
 	require.Equal(
 		t,
 		[]runbase.Units{
 			{
-				stack.Modules()[5],
+				stack.Units()[5],
 			},
 			{
-				stack.Modules()[3],
-				stack.Modules()[4],
+				stack.Units()[3],
+				stack.Units()[4],
 			},
 			{
-				stack.Modules()[1],
+				stack.Units()[1],
 			},
 		},
 		runGraph,
