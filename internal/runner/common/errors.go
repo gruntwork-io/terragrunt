@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
-
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -76,7 +74,7 @@ func (err ProcessingModuleDependencyError) Unwrap() error {
 }
 
 type DependencyNotFoundWhileCrossLinkingError struct {
-	Module     *configstack.RunningModule
+	Module     *Unit
 	Dependency *Unit
 }
 

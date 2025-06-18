@@ -5,6 +5,10 @@ package common
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -21,6 +25,10 @@ type StackRunner interface {
 	GetStack() *Stack
 	Lock()
 	Unlock()
+
+	SetTerragruntConfig(config *config.TerragruntConfig)
+	SetParseOptions(parserOptions []hclparse.Option)
+	SetReport(report *report.Report)
 }
 
 // StackRunnerBuilder is the abstraction for building a StackRunner.

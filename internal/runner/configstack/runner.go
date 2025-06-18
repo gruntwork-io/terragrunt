@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -1115,4 +1117,19 @@ func flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.R
 	}
 
 	return modules
+}
+
+// SetTerragruntConfig sets the report for the stack.
+func (runner *Runner) SetTerragruntConfig(config *config.TerragruntConfig) {
+	runner.Stack.ChildTerragruntConfig = config
+}
+
+// SetParseOptions sets the report for the stack.
+func (runner *Runner) SetParseOptions(parserOptions []hclparse.Option) {
+	runner.Stack.ParserOptions = parserOptions
+}
+
+// SetReport sets the report for the stack.
+func (runner *Runner) SetReport(report *report.Report) {
+	runner.Stack.Report = report
 }
