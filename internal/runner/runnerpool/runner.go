@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
@@ -28,16 +28,16 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack *common.Stack
+	Stack *runbase.Stack
 }
 
 // NewRunnerPoolStack creates a new stack from discovered modules.
-func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
-	modulesMap := make(common.UnitsMap, len(discovered))
+func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...runbase.Option) (runbase.StackRunner, error) {
+	modulesMap := make(runbase.UnitsMap, len(discovered))
 
 	runner := &Runner{}
 
-	stack := common.Stack{
+	stack := runbase.Stack{
 		TerragruntOptions: terragruntOptions,
 	}
 
@@ -59,7 +59,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 			continue // skip on error
 		}
 
-		mod := &common.Unit{
+		mod := &runbase.Unit{
 			TerragruntOptions: modOpts,
 			Logger:            modLogger,
 			Path:              cfg.Path,
@@ -81,8 +81,8 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, err
 	}
 	// Reorder linkedUnits to match the order of canonicalTerragruntConfigPaths
-	orderedModules := make(common.Units, 0, len(canonicalTerragruntConfigPaths))
-	pathToModule := make(map[string]*common.Unit)
+	orderedModules := make(runbase.Units, 0, len(canonicalTerragruntConfigPaths))
+	pathToModule := make(map[string]*runbase.Unit)
 
 	for _, m := range linkedUnits {
 		pathToModule[config.GetDefaultConfigPath(m.Path)] = m
@@ -188,7 +188,7 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 	//Run each module in the runner sequentially, convert each module to a running module, and run it.
 	for _, module := range runner.Stack.Units {
 
-		moduleToRun := common.NewUnitRunner(module)
+		moduleToRun := runbase.NewUnitRunner(module)
 		if err := moduleToRun.Run(ctx, module.TerragruntOptions, runner.Stack.Report); err != nil {
 			errs = append(errs, err)
 		}
@@ -237,7 +237,7 @@ func (runner *Runner) ListStackDependentModules() map[string][]string {
 }
 
 // FindModuleByPath finds a module by its path.
-func (runner *Runner) FindModuleByPath(path string) *common.Unit {
+func (runner *Runner) FindModuleByPath(path string) *runbase.Unit {
 	for _, module := range runner.Stack.Units {
 		if module.Path == path {
 			return module
@@ -295,7 +295,7 @@ func (runner *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.
 }
 
 // WithOptions updates the stack with the provided options.
-func (runner *Runner) WithOptions(opts ...common.Option) *Runner {
+func (runner *Runner) WithOptions(opts ...runbase.Option) *Runner {
 	for _, opt := range opts {
 		opt(runner)
 	}
@@ -303,7 +303,7 @@ func (runner *Runner) WithOptions(opts ...common.Option) *Runner {
 	return runner
 }
 
-func (runner *Runner) GetStack() *common.Stack {
+func (runner *Runner) GetStack() *runbase.Stack {
 	return runner.Stack
 }
 

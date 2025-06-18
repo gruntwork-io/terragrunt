@@ -5,7 +5,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -29,16 +29,16 @@ type DependencyOrder int
 
 // DependencyController manages dependencies and dependency order, and contains a UnitRunner.
 type DependencyController struct {
-	Runner         *common.UnitRunner
+	Runner         *runbase.UnitRunner
 	DependencyDone chan *DependencyController
 	Dependencies   map[string]*DependencyController
 	NotifyWhenDone []*DependencyController
 }
 
 // Create a new NewDependencyController struct for the given module.
-func NewDependencyController(module *common.Unit) *DependencyController {
+func NewDependencyController(module *runbase.Unit) *DependencyController {
 	return &DependencyController{
-		Runner:         common.NewUnitRunner(module),
+		Runner:         runbase.NewUnitRunner(module),
 		DependencyDone: make(chan *DependencyController, channelSize),
 		Dependencies:   map[string]*DependencyController{},
 		NotifyWhenDone: []*DependencyController{},
@@ -116,7 +116,7 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 					}
 				}
 
-				return common.ProcessingModuleDependencyError{ctrl.Runner.Module, doneDependency.Runner.Module, doneDependency.Runner.Err}
+				return runbase.ProcessingModuleDependencyError{ctrl.Runner.Module, doneDependency.Runner.Module, doneDependency.Runner.Err}
 			}
 		} else {
 			ctrl.Runner.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path, len(ctrl.Dependencies))
@@ -177,7 +177,7 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 		}
 	}
 
-	ctrl.Runner.Status = common.Finished
+	ctrl.Runner.Status = runbase.Finished
 	ctrl.Runner.Err = moduleErr
 
 	for _, toNotify := range ctrl.NotifyWhenDone {
@@ -187,13 +187,13 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 
 type RunningModules map[string]*DependencyController
 
-func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []common.Units {
+func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []runbase.Units {
 	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
 	// the modules that have no dependencies and captures that as a run group.
-	groups := []common.Units{}
+	groups := []runbase.Units{}
 
 	for len(modules) > 0 && len(groups) < maxDepth {
-		currentIterationDeploy := common.Units{}
+		currentIterationDeploy := runbase.Units{}
 
 		// next tracks which modules are being deferred to a later run.
 		next := RunningModules{}
@@ -258,7 +258,7 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 		for _, dependency := range module.Runner.Module.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
 			if !hasDependency {
-				return modules, errors.New(common.DependencyNotFoundWhileCrossLinkingError{module.Runner.Module, dependency})
+				return modules, errors.New(runbase.DependencyNotFoundWhileCrossLinkingError{module.Runner.Module, dependency})
 			}
 
 			// TODO: Remove lint suppression

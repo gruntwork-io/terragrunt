@@ -1,4 +1,4 @@
-package common
+package runbase
 
 import (
 	"github.com/gruntwork-io/terragrunt/config"

@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -50,7 +50,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	stackOpts := []common.Option{}
+	stackOpts := []runbase.Option{}
 
 	if opts.Experiments.Evaluate(experiment.Report) {
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
@@ -67,7 +67,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			r.WithShowUnitLevelSummary()
 		}
 
-		stackOpts = append(stackOpts, common.WithReport(r))
+		stackOpts = append(stackOpts, runbase.WithReport(r))
 
 		if opts.ReportSchemaFile != "" {
 			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
@@ -90,7 +90,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	return RunAllOnStack(ctx, l, opts, stack)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner) error {
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner runbase.StackRunner) error {
 	l.Debugf("%s", runner.GetStack().String())
 
 	if err := runner.LogModuleDeployOrder(l, opts.TerraformCommand); err != nil {

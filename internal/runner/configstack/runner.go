@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/shell"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
@@ -36,18 +36,18 @@ import (
 const maxLevelsOfRecursion = 20
 const existingModulesCacheName = "existingModules"
 
-var existingModules = cache.NewCache[*common.UnitsMap](existingModulesCacheName)
+var existingModules = cache.NewCache[*runbase.UnitsMap](existingModulesCacheName)
 
 // Runner implements the Stack interface and represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or "spin down" in a single command
 // (formerly Stack)
 type Runner struct {
-	Stack *common.Stack
+	Stack *runbase.Stack
 }
 
 // NewRunner creates a new Runner.
-func NewRunner(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) *Runner {
+func NewRunner(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...runbase.Option) *Runner {
 	runner := &Runner{
-		Stack: &common.Stack{
+		Stack: &runbase.Stack{
 			TerragruntOptions: terragruntOptions,
 			ParserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 		},
@@ -57,7 +57,7 @@ func NewRunner(l log.Logger, terragruntOptions *options.TerragruntOptions, opts 
 }
 
 // WithOptions updates the stack with the provided options.
-func (runner *Runner) WithOptions(opts ...common.Option) *Runner {
+func (runner *Runner) WithOptions(opts ...runbase.Option) *Runner {
 	for _, opt := range opts {
 		opt(runner)
 	}
@@ -65,7 +65,7 @@ func (runner *Runner) WithOptions(opts ...common.Option) *Runner {
 	return runner
 }
 
-func (runner *Runner) GetStack() *common.Stack {
+func (runner *Runner) GetStack() *runbase.Stack {
 	return runner.Stack
 }
 
@@ -251,7 +251,7 @@ func (runner *Runner) toRunningModules(terraformCommand string) (RunningModules,
 // applied/destroyed. The return structure is a list of lists, where the nested list represents modules that can be
 // deployed concurrently, and the outer list indicates the order. This will only include those modules that do NOT have
 // the exclude flag set.
-func (runner *Runner) GetModuleRunGraph(terraformCommand string) ([]common.Units, error) {
+func (runner *Runner) GetModuleRunGraph(terraformCommand string) ([]runbase.Units, error) {
 	moduleRunGraph, err := runner.toRunningModules(terraformCommand)
 	if err != nil {
 		return nil, err
@@ -271,7 +271,7 @@ func (runner *Runner) createStackForTerragruntConfigPaths(ctx context.Context, l
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		if len(terragruntConfigPaths) == 0 {
-			return errors.New(common.ErrNoTerraformModulesFound)
+			return errors.New(runbase.ErrNoTerraformModulesFound)
 		}
 
 		modules, err := runner.ResolveTerraformModules(ctx, l, terragruntConfigPaths)
@@ -307,13 +307,13 @@ func (runner *Runner) createStackForTerragruntConfigPaths(ctx context.Context, l
 // ResolveTerraformModules goes through each of the given Terragrunt configuration files
 // and resolve the module that configuration file represents into a Unit struct.
 // Return the list of these Unit structs.
-func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger, terragruntConfigPaths []string) (common.Units, error) {
+func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger, terragruntConfigPaths []string) (runbase.Units, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
 	if err != nil {
 		return nil, err
 	}
 
-	var modulesMap common.UnitsMap
+	var modulesMap runbase.UnitsMap
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_modules", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
@@ -334,12 +334,12 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil, err
 	}
 
-	var externalDependencies common.UnitsMap
+	var externalDependencies runbase.UnitsMap
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_external_dependencies_for_modules", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
-		result, err := runner.resolveExternalDependenciesForModules(ctx, l, modulesMap, common.UnitsMap{}, 0)
+		result, err := runner.resolveExternalDependenciesForModules(ctx, l, modulesMap, runbase.UnitsMap{}, 0)
 		if err != nil {
 			return err
 		}
@@ -352,7 +352,7 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil, err
 	}
 
-	var crossLinkedModules common.Units
+	var crossLinkedModules runbase.Units
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
@@ -371,7 +371,7 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil, err
 	}
 
-	var withUnitsIncluded common.Units
+	var withUnitsIncluded runbase.Units
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_included_dirs", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
@@ -384,7 +384,7 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil, err
 	}
 
-	var withUnitsThatAreIncludedByOthers common.Units
+	var withUnitsThatAreIncludedByOthers runbase.Units
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_are_included", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
@@ -403,7 +403,7 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil, err
 	}
 
-	var withExcludedUnits common.Units
+	var withExcludedUnits runbase.Units
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
@@ -418,7 +418,7 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil, err
 	}
 
-	var withUnitsRead common.Units
+	var withUnitsRead runbase.Units
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_read", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
@@ -431,7 +431,7 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil, err
 	}
 
-	var withModulesExcluded common.Units
+	var withModulesExcluded runbase.Units
 
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_dirs", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
@@ -450,15 +450,15 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a Unit struct. Note that this method will NOT fill in the Dependencies field of the Unit
 // struct (see the crosslinkDependencies method for that). Return a map from module path to Unit struct.
-func (runner *Runner) resolveModules(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string, howTheseModulesWereFound string) (common.UnitsMap, error) {
-	modulesMap := common.UnitsMap{}
+func (runner *Runner) resolveModules(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string, howTheseModulesWereFound string) (runbase.UnitsMap, error) {
+	modulesMap := runbase.UnitsMap{}
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
 		if !util.FileExists(terragruntConfigPath) {
-			return nil, common.ProcessingModuleError{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
+			return nil, runbase.ProcessingModuleError{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
 		}
 
-		var module *common.Unit
+		var module *runbase.Unit
 
 		err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_terraform_module", map[string]any{
 			"config_path": terragruntConfigPath,
@@ -481,7 +481,7 @@ func (runner *Runner) resolveModules(ctx context.Context, l log.Logger, canonica
 		if module != nil {
 			modulesMap[module.Path] = module
 
-			var dependencies common.UnitsMap
+			var dependencies runbase.UnitsMap
 
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_dependencies_for_module", map[string]any{
 				"config_path": terragruntConfigPath,
@@ -511,7 +511,7 @@ func (runner *Runner) resolveModules(ctx context.Context, l log.Logger, canonica
 // Create a Unit struct for the Terraform module specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the Unit struct (see the
 // crosslinkDependencies method for that).
-func (runner *Runner) resolveTerraformModule(ctx context.Context, l log.Logger, terragruntConfigPath string, modulesMap common.UnitsMap, howThisModuleWasFound string) (*common.Unit, error) {
+func (runner *Runner) resolveTerraformModule(ctx context.Context, l log.Logger, terragruntConfigPath string, modulesMap runbase.UnitsMap, howThisModuleWasFound string) (*runbase.Unit, error) {
 	modulePath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
 	if err != nil {
 		return nil, err
@@ -546,7 +546,7 @@ func (runner *Runner) resolveTerraformModule(ctx context.Context, l log.Logger, 
 
 	if collections.ListContainsElement(opts.ExcludeDirs, modulePath) {
 		// module is excluded
-		return &common.Unit{Path: modulePath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
+		return &runbase.Unit{Path: modulePath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
 	parseCtx := config.NewParsingContext(ctx, l, opts).
@@ -581,7 +581,7 @@ func (runner *Runner) resolveTerraformModule(ctx context.Context, l log.Logger, 
 		includeConfig,
 	)
 	if err != nil {
-		return nil, errors.New(common.ProcessingModuleError{
+		return nil, errors.New(runbase.ProcessingModuleError{
 			UnderlyingError:       err,
 			HowThisModuleWasFound: howThisModuleWasFound,
 			ModulePath:            terragruntConfigPath,
@@ -627,15 +627,15 @@ func (runner *Runner) resolveTerraformModule(ctx context.Context, l log.Logger, 
 	}
 
 	//TODO: fix linking Stack: runner
-	return &common.Unit{Path: modulePath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return &runbase.Unit{Path: modulePath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
 // user is trying to run --all apply or run --all destroy. Note that this method will NOT fill in the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
-func (runner *Runner) resolveDependenciesForModule(ctx context.Context, l log.Logger, module *common.Unit, modulesMap common.UnitsMap, skipExternal bool) (common.UnitsMap, error) {
+func (runner *Runner) resolveDependenciesForModule(ctx context.Context, l log.Logger, module *runbase.Unit, modulesMap runbase.UnitsMap, skipExternal bool) (runbase.UnitsMap, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
-		return common.UnitsMap{}, nil
+		return runbase.UnitsMap{}, nil
 	}
 
 	key := fmt.Sprintf("%s-%s-%v-%v", module.Path, runner.Stack.TerragruntOptions.WorkingDir, skipExternal, runner.Stack.TerragruntOptions.TerraformCommand)
@@ -648,7 +648,7 @@ func (runner *Runner) resolveDependenciesForModule(ctx context.Context, l log.Lo
 	for _, dependency := range module.Config.Dependencies.Paths {
 		dependencyPath, err := util.CanonicalPath(dependency, module.Path)
 		if err != nil {
-			return common.UnitsMap{}, err
+			return runbase.UnitsMap{}, err
 		}
 
 		if skipExternal && !util.HasPathPrefix(dependencyPath, runner.Stack.TerragruntOptions.WorkingDir) {
@@ -680,13 +680,13 @@ func (runner *Runner) resolveDependenciesForModule(ctx context.Context, l log.Lo
 // environment the user is trying to run --all apply or run --all destroy. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
-func (runner *Runner) resolveExternalDependenciesForModules(ctx context.Context, l log.Logger, modulesMap, modulesAlreadyProcessed common.UnitsMap, recursionLevel int) (common.UnitsMap, error) {
-	allExternalDependencies := common.UnitsMap{}
+func (runner *Runner) resolveExternalDependenciesForModules(ctx context.Context, l log.Logger, modulesMap, modulesAlreadyProcessed runbase.UnitsMap, recursionLevel int) (runbase.UnitsMap, error) {
+	allExternalDependencies := runbase.UnitsMap{}
 	modulesToSkip := modulesMap.MergeMaps(modulesAlreadyProcessed)
 
 	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
 	if recursionLevel > maxLevelsOfRecursion {
-		return allExternalDependencies, errors.New(common.InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
+		return allExternalDependencies, errors.New(runbase.InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
 	}
 
 	sortedKeys := modulesMap.SortedKeys()
@@ -798,12 +798,12 @@ func (runner *Runner) ListStackDependentModules() map[string][]string {
 }
 
 // Modules returns the Terraform modules in the stack.
-func (runner *Runner) Modules() common.Units {
+func (runner *Runner) Modules() runbase.Units {
 	return runner.Stack.Units
 }
 
 // FindModuleByPath finds a module by its path.
-func (runner *Runner) FindModuleByPath(path string) *common.Unit {
+func (runner *Runner) FindModuleByPath(path string) *runbase.Unit {
 	for _, module := range runner.Stack.Units {
 		if module.Path == path {
 			return module
@@ -818,7 +818,7 @@ func (runner *Runner) FindModuleByPath(path string) *common.Unit {
 // Note that we skip the prompt for `run --all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
 // with the --queue-include-external or --queue-include-dir flags.
-func confirmShouldApplyExternalDependency(ctx context.Context, unit *common.Unit, l log.Logger, dependency *common.Unit, opts *options.TerragruntOptions) (bool, error) {
+func confirmShouldApplyExternalDependency(ctx context.Context, unit *runbase.Unit, l log.Logger, dependency *runbase.Unit, opts *options.TerragruntOptions) (bool, error) {
 	if opts.IncludeExternalDependencies {
 		l.Debugf("The --queue-include-external flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, unit.Path)
 		return true, nil
@@ -878,7 +878,7 @@ func (runner *Runner) RunModulesIgnoreOrder(ctx context.Context, opts *options.T
 // ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func ToRunningModules(units common.Units, dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningModules, error) {
+func ToRunningModules(units runbase.Units, dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningModules, error) {
 	runningModules := RunningModules{}
 	for _, module := range units {
 		runningModules[module.Path] = NewDependencyController(module)
@@ -896,7 +896,7 @@ func ToRunningModules(units common.Units, dependencyOrder DependencyOrder, r *re
 //
 // However, when anything that triggers ExcludeByDefault is set, the function will instead
 // selectively include only the units that are in the list specified via the IncludeDirs option.
-func flagIncludedDirs(opts *options.TerragruntOptions, modules common.Units) common.Units {
+func flagIncludedDirs(opts *options.TerragruntOptions, modules runbase.Units) runbase.Units {
 	if !opts.ExcludeByDefault {
 		return modules
 	}
@@ -925,7 +925,7 @@ func flagIncludedDirs(opts *options.TerragruntOptions, modules common.Units) com
 
 // flagUnitsThatAreIncluded iterates over a module slice and flags all modules that include at least one file in
 // the specified include list on the TerragruntOptions ModulesThatInclude attribute.
-func flagUnitsThatAreIncluded(opts *options.TerragruntOptions, modules common.Units) (common.Units, error) {
+func flagUnitsThatAreIncluded(opts *options.TerragruntOptions, modules runbase.Units) (runbase.Units, error) {
 	// The two flags ModulesThatInclude and UnitsReading should both be considered when determining which
 	// units to include in the run queue.
 	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
@@ -984,7 +984,7 @@ func flagUnitsThatAreIncluded(opts *options.TerragruntOptions, modules common.Un
 }
 
 // flagExcludedUnits iterates over a module slice and flags all modules that are excluded based on the exclude block.
-func flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, modules common.Units) common.Units {
+func flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, modules runbase.Units) runbase.Units {
 	for _, module := range modules {
 		excludeConfig := module.Config.Exclude
 
@@ -1015,7 +1015,7 @@ func flagExcludedUnits(l log.Logger, opts *options.TerragruntOptions, modules co
 
 // flagUnitsThatRead iterates over a module slice and flags all modules that read at least one file in the specified
 // file list in the TerragruntOptions UnitsReading attribute.
-func flagUnitsThatRead(opts *options.TerragruntOptions, modules common.Units) common.Units {
+func flagUnitsThatRead(opts *options.TerragruntOptions, modules runbase.Units) runbase.Units {
 	// If no UnitsThatRead is specified return the modules list instantly
 	if len(opts.UnitsReading) == 0 {
 		return modules
@@ -1038,7 +1038,7 @@ func flagUnitsThatRead(opts *options.TerragruntOptions, modules common.Units) co
 }
 
 // flagExcludedDirs iterates over a module slice and flags all entries as excluded listed in the queue-exclude-dir CLI flag.
-func flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.Report, modules common.Units) common.Units {
+func flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.Report, modules runbase.Units) runbase.Units {
 	// If we don't have any excludes, we don't need to do anything.
 	if len(opts.ExcludeDirs) == 0 {
 		return modules
