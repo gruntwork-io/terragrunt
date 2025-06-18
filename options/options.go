@@ -308,8 +308,8 @@ type TerragruntOptions struct {
 	ForceBackendMigrate bool
 	// SummaryDisable disables the summary output at the end of a run.
 	SummaryDisable bool
-	// SummaryPerUnit enables showing duration information for each unit in the summary.
-	SummaryPerUnit bool
+	// SummaryUnitDuration enables showing duration information for each unit in the summary.
+	SummaryUnitDuration bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -893,4 +893,4 @@ func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 }
 
 // ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
-var ErrRunTerragruntCommandNotSet = errors.New("the runTerragrunt option has not been set on this TerragruntOptions object")
+var ErrRunTerragruntCommandNotSet = errors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")

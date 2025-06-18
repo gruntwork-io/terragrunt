@@ -20,16 +20,16 @@ type sessionState int
 type button int
 
 const (
-	title = "List of Units"
+	title = "List of Modules"
 
 	titleForegroundColor = "#A8ACB1"
 	titleBackgroundColor = "#1D252F"
 )
 
 const (
-	ListState sessionState = iota
-	PagerState
-	ScaffoldState
+	listState sessionState = iota
+	pagerState
+	scaffoldState
 )
 
 const (
@@ -48,11 +48,11 @@ func (b button) String() string {
 	}[b]
 }
 
-type Model struct {
-	List                list.Model
+type model struct {
+	list                list.Model
 	logger              log.Logger
 	terragruntOptions   *options.TerragruntOptions
-	SVC                 catalog.CatalogService
+	svc                 catalog.CatalogService
 	selectedModule      *module.Module
 	delegateKeys        *delegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
@@ -61,13 +61,13 @@ type Model struct {
 	listKeys            list.KeyMap
 	viewport            viewport.Model
 	activeButton        button
-	State               sessionState
+	state               sessionState
 	height              int
 	width               int
 	ready               bool
 }
 
-func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) Model {
+func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model {
 	var (
 		modules      = svc.Modules()
 		items        = make([]list.Item, 0, len(modules))
@@ -103,21 +103,20 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 
 	bb := buttonbar.New(bs)
 
-	return Model{
-		List:              list,
+	return model{
+		list:              list,
 		listKeys:          listKeys,
 		delegateKeys:      delegateKeys,
 		viewport:          vp,
 		buttonBar:         bb,
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
-		SVC:               svc,
-		logger:            l,
+		svc:               svc,
 	}
 }
 
 // Init implements bubbletea.Model.Init
-func (m Model) Init() tea.Cmd {
+func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.buttonBar.Init(),
 	)
