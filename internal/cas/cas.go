@@ -161,6 +161,27 @@ func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *Clon
 }
 
 func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
+	// Get all blobs recursively in a single git ls-tree -r call at the root
+	allBlobsTree, err := c.git.LsTreeRecursive(ctx, hash, ".")
+	if err != nil {
+		return err
+	}
+
+	// Collect all blobs from recursive listing
+	var allBlobs []TreeEntry
+
+	for _, entry := range allBlobsTree.Entries() {
+		if entry.Type == "blob" {
+			allBlobs = append(allBlobs, entry)
+		}
+	}
+
+	// Store all blobs concurrently (single batch from recursive call)
+	if err := c.storeBlobs(ctx, allBlobs); err != nil {
+		return err
+	}
+
+	// Now store the tree structure (which won't need to handle blobs again)
 	if err := c.storeTree(ctx, l, hash, ""); err != nil {
 		return err
 	}
@@ -213,127 +234,34 @@ func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) 
 		return nil
 	}
 
+	// Get tree structure (no recursive blobs needed - they're already stored)
 	tree, err := c.git.LsTree(ctx, hash, ".")
 	if err != nil {
 		return err
 	}
 
-	// Optimistically assume half the entries are trees and half are blobs
-	var (
-		trees = make([]TreeEntry, 0, len(tree.Entries())/2) //nolint:mnd
-		blobs = make([]TreeEntry, 0, len(tree.Entries())/2) //nolint:mnd
-	)
+	// Only collect immediate tree entries (blobs are already handled at root)
+	var immediateTrees []TreeEntry
 
 	for _, entry := range tree.Entries() {
 		if prefix != "" {
 			entry.Path = filepath.Join(prefix, entry.Path)
 		}
 
-		switch entry.Type {
-		case "blob":
-			blobs = append(blobs, entry)
-		case "tree":
-			trees = append(trees, entry)
+		if entry.Type == "tree" {
+			immediateTrees = append(immediateTrees, entry)
 		}
 	}
 
-	ch := make(chan error, 2) //nolint:mnd
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		if err := c.storeBlobs(ctx, blobs); err != nil {
-			ch <- err
-
-			return
-		}
-
-		ch <- nil
-	}()
-
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		if err := c.storeTrees(ctx, l, trees, prefix); err != nil {
-			ch <- err
-
-			return
-		}
-
-		ch <- nil
-	}()
-
-	wg.Wait()
-
-	close(ch)
-
-	errs := []error{}
-
-	for err := range ch {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	content := NewContent(c.store)
-
-	if err := content.Ensure(l, hash, tree.Data()); err != nil {
+	// Store tree objects recursively
+	if err := c.storeTrees(ctx, l, immediateTrees, prefix); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-// storeBlobs concurrently stores blobs in the CAS
-func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
-	ch := make(chan error, len(entries))
-
-	var wg sync.WaitGroup
-
-	for _, entry := range entries {
-		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
-			continue
-		}
-
-		wg.Add(1)
-
-		go func(hash string) {
-			defer wg.Done()
-
-			if err := c.ensureBlob(ctx, hash); err != nil {
-				ch <- err
-
-				return
-			}
-
-			ch <- nil
-		}(entry.Hash)
-	}
-
-	wg.Wait()
-
-	close(ch)
-
-	errs := []error{}
-
-	for err := range ch {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+	// Store the current tree object
+	content := NewContent(c.store)
+	if err := content.Ensure(l, hash, tree.Data()); err != nil {
+		return err
 	}
 
 	return nil
@@ -356,6 +284,49 @@ func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry,
 			defer wg.Done()
 
 			if err := c.storeTree(ctx, l, hash, prefix); err != nil {
+				ch <- err
+				return
+			}
+
+			ch <- nil
+		}(entry.Hash)
+	}
+
+	wg.Wait()
+	close(ch)
+
+	var errs []error
+
+	for err := range ch {
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
+// storeBlobs concurrently stores blobs in the CAS
+func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
+	ch := make(chan error, len(entries))
+
+	var wg sync.WaitGroup
+
+	for _, entry := range entries {
+		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
+			continue
+		}
+
+		wg.Add(1)
+
+		go func(hash string) {
+			defer wg.Done()
+
+			if err := c.ensureBlob(ctx, hash); err != nil {
 				ch <- err
 
 				return
