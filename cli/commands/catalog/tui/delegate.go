@@ -1,9 +1,10 @@
 package tui
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/list"
+	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss/v2/compat"
 )
 
 const (
@@ -18,12 +19,12 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
 
 	d.Styles.SelectedTitle.
-		Foreground(lipgloss.AdaptiveColor{Dark: selectedTitleForegroundColorDark}).
-		BorderForeground(lipgloss.AdaptiveColor{Dark: selectedTitleBorderForegroundColorDark})
+		Foreground(compat.AdaptiveColor{Dark: lipgloss.Color(selectedTitleForegroundColorDark)}).
+		BorderForeground(compat.AdaptiveColor{Dark: lipgloss.Color(selectedTitleBorderForegroundColorDark)})
 
 	d.Styles.SelectedDesc = d.Styles.SelectedTitle.
-		Foreground(lipgloss.AdaptiveColor{Dark: selectedDescForegroundColorDark}).
-		BorderForeground(lipgloss.AdaptiveColor{Dark: selectedDescBorderForegroundColorDark})
+		Foreground(compat.AdaptiveColor{Dark: lipgloss.Color(selectedDescForegroundColorDark)}).
+		BorderForeground(compat.AdaptiveColor{Dark: lipgloss.Color(selectedDescBorderForegroundColorDark)})
 
 	help := []key.Binding{keys.choose, keys.scaffold}
 

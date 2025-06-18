@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
 var (
@@ -44,7 +44,7 @@ func (m Model) footerView() string {
 	var percent float64 = 100
 	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", m.viewport.ScrollPercent()*percent))
 
-	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info)))
+	line := strings.Repeat("─", max(0, m.viewport.Width()-lipgloss.Width(info)))
 	line = infoLineStyle.Render(line)
 
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)

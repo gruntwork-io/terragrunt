@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 )
 
 // SelectBtnMsg is a message that contains the index of the button to select.

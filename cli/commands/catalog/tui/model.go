@@ -1,10 +1,10 @@
 package tui
 
 import (
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/list"
+	"github.com/charmbracelet/bubbles/v2/viewport"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	lipgloss "github.com/charmbracelet/lipgloss/v2"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
@@ -93,7 +93,9 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 		Padding(0, 1)
 
 	// Setup the markdown viewer
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
+	vp.SetWidth(0)
+	vp.SetHeight(0)
 
 	// Setup the button bar
 	bs := make([]string, len(availableButtons))
