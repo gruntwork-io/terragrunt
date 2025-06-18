@@ -11,8 +11,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
-// BuildRunner builds a new Runner.
-func BuildRunner(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
+// Build builds a new Runner.
+func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
 	var terragruntConfigFiles []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_files_in_path", map[string]any{

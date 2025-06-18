@@ -10,8 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// BuildStack discovers modules and builds a new DefaultStack, returning it as a Stack interface.
-func BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.Stack, error) {
+// Build discovers modules and builds a new DefaultStack, returning it as a Stack interface.
+func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.Stack, error) {
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
