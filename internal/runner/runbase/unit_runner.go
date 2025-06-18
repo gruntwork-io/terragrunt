@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
-// UnitStatus represents the status of a module that we are
+// UnitStatus represents the status of a unit that we are
 // trying to apply or destroy as part of the run --all apply or run --all destroy command
 type UnitStatus int
 
@@ -23,7 +23,7 @@ const (
 	Finished
 )
 
-// UnitRunner handles the logic for running a single module.
+// UnitRunner handles the logic for running a single unit.
 type UnitRunner struct {
 	Err    error
 	Unit   *Unit

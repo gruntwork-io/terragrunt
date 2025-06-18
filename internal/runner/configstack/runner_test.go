@@ -47,17 +47,17 @@ func TestFindStackInSubfolders(t *testing.T) {
 	require.NoError(t, err)
 	stack := runner.GetStack()
 
-	var modulePaths = make([]string, 0, len(stack.Units))
+	var unitsPaths = make([]string, 0, len(stack.Units))
 
 	for _, unit := range stack.Units {
 		relPath := strings.Replace(unit.Path, tempFolder, "", 1)
 		relPath = filepath.ToSlash(util.JoinPath(relPath, config.DefaultTerragruntConfigPath))
 
-		modulePaths = append(modulePaths, relPath)
+		unitsPaths = append(unitsPaths, relPath)
 	}
 
 	for _, filePath := range filePaths {
-		filePathFound := util.ListContainsElement(modulePaths, filePath)
+		filePathFound := util.ListContainsElement(unitsPaths, filePath)
 		require.True(t, filePathFound, "The filePath %s was not found by Terragrunt.\n", filePath)
 	}
 }

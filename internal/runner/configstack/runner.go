@@ -35,9 +35,9 @@ import (
 )
 
 const maxLevelsOfRecursion = 20
-const existingModulesCacheName = "existingModules"
+const existingUnitsCacheName = "existingUnits"
 
-var existingModules = cache.NewCache[*runbase.UnitsMap](existingModulesCacheName)
+var existingUnits = cache.NewCache[*runbase.UnitsMap](existingUnitsCacheName)
 
 // Runner implements the Stack interface and represents a stack of Terraform units (i.e. folders with Terraform templates) that you can "spin up" or "spin down" in a single command
 // (formerly Stack)
@@ -641,7 +641,7 @@ func (runner *Runner) resolveDependenciesForUnit(ctx context.Context, l log.Logg
 	}
 
 	key := fmt.Sprintf("%s-%s-%v-%v", unit.Path, runner.Stack.TerragruntOptions.WorkingDir, skipExternal, runner.Stack.TerragruntOptions.TerraformCommand)
-	if value, ok := existingModules.Get(ctx, key); ok {
+	if value, ok := existingUnits.Get(ctx, key); ok {
 		return *value, nil
 	}
 
@@ -671,7 +671,7 @@ func (runner *Runner) resolveDependenciesForUnit(ctx context.Context, l log.Logg
 		return nil, err
 	}
 
-	existingModules.Put(ctx, key, &result)
+	existingUnits.Put(ctx, key, &result)
 
 	return result, nil
 }
