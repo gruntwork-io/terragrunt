@@ -287,6 +287,7 @@ func PartialParseConfigFile(ctx *ParsingContext, l log.Logger, configPath string
 		if os.IsNotExist(err) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
+
 		return nil, errors.New(err)
 	}
 
