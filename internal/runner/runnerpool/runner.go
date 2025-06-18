@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
@@ -27,21 +26,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// RunnerPoolStack implements the Stack interface for runner pool execution.
-type RunnerPoolStack struct {
-	report            *report.Report
-	terragruntOptions *options.TerragruntOptions
-	childConfig       *config.TerragruntConfig
-	modules           common.Units
-	parserOptions     []hclparse.Option
-	outputMu          sync.Mutex
+// Runner implements the Stack interface for runner pool execution.
+type Runner struct {
+	Stack *common.Stack
 }
 
 // NewRunnerPoolStack creates a new stack from discovered modules.
-func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs) (*RunnerPoolStack, error) {
+func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs) (*Runner, error) {
 	modulesMap := make(common.UnitsMap, len(discovered))
 
-	stack := &RunnerPoolStack{
+	stack := &Runner{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(l, terragruntOptions),
 	}
@@ -107,7 +101,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 	return stack, nil
 }
 
-func (stack *RunnerPoolStack) String() string {
+func (stack *Runner) String() string {
 	modules := []string{}
 	for _, module := range stack.modules {
 		modules = append(modules, "  => "+module.String())
@@ -116,7 +110,7 @@ func (stack *RunnerPoolStack) String() string {
 	return fmt.Sprintf("Stack at %s:\n%s", stack.terragruntOptions.WorkingDir, strings.Join(modules, "\n"))
 }
 
-func (stack *RunnerPoolStack) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
+func (stack *Runner) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
 	for _, module := range stack.modules {
 		outStr += fmt.Sprintf("Unit %s\n", module.Path)
@@ -127,7 +121,7 @@ func (stack *RunnerPoolStack) LogModuleDeployOrder(l log.Logger, terraformComman
 	return nil
 }
 
-func (stack *RunnerPoolStack) JSONModuleDeployOrder(terraformCommand string) (string, error) {
+func (stack *Runner) JSONModuleDeployOrder(terraformCommand string) (string, error) {
 	orderedModules := make([]string, 0, len(stack.modules))
 	for _, module := range stack.modules {
 		orderedModules = append(orderedModules, module.Path)
@@ -141,14 +135,14 @@ func (stack *RunnerPoolStack) JSONModuleDeployOrder(terraformCommand string) (st
 	return string(j), nil
 }
 
-func (stack *RunnerPoolStack) Graph(l log.Logger, opts *options.TerragruntOptions) {
+func (stack *Runner) Graph(l log.Logger, opts *options.TerragruntOptions) {
 	err := stack.modules.WriteDot(l, opts.Writer, opts)
 	if err != nil {
 		l.Warnf("Failed to graph dot: %v", err)
 	}
 }
 
-func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (stack *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	// Here will be implemented runner pool logic to run the modules concurrently.
 	// Currently, implementation is in the sequential way.
 	stackCmd := opts.TerraformCommand
@@ -206,7 +200,7 @@ func (stack *RunnerPoolStack) Run(ctx context.Context, l log.Logger, opts *optio
 	return nil
 }
 
-func (stack *RunnerPoolStack) GetModuleRunGraph(terraformCommand string) ([]configstack2.TerraformModules, error) {
+func (stack *Runner) GetModuleRunGraph(terraformCommand string) ([]configstack2.TerraformModules, error) {
 	groups := make([]configstack2.TerraformModules, 0, len(stack.modules))
 	for _, module := range stack.modules {
 		groups = append(groups, configstack2.TerraformModules{module})
@@ -215,7 +209,7 @@ func (stack *RunnerPoolStack) GetModuleRunGraph(terraformCommand string) ([]conf
 	return groups, nil
 }
 
-func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {
+func (stack *Runner) ListStackDependentModules() map[string][]string {
 	dependentModules := make(map[string][]string)
 
 	for _, module := range stack.modules {
@@ -250,7 +244,7 @@ func (stack *RunnerPoolStack) ListStackDependentModules() map[string][]string {
 	return dependentModules
 }
 
-func (stack *RunnerPoolStack) FindModuleByPath(path string) *configstack2.Unit {
+func (stack *Runner) FindModuleByPath(path string) *configstack2.Unit {
 	for _, module := range stack.modules {
 		if module.Path == path {
 			return module
@@ -261,7 +255,7 @@ func (stack *RunnerPoolStack) FindModuleByPath(path string) *configstack2.Unit {
 }
 
 // Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
-func (stack *RunnerPoolStack) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
+func (stack *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, module := range stack.modules {
 		module.TerragruntOptions.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
 		copy(module.TerragruntOptions.TerraformCliArgs, opts.TerraformCliArgs)
@@ -283,7 +277,7 @@ func (stack *RunnerPoolStack) syncTerraformCliArgs(l log.Logger, opts *options.T
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (stack *RunnerPoolStack) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
+func (stack *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 
@@ -307,42 +301,42 @@ func (stack *RunnerPoolStack) summarizePlanAllErrors(l log.Logger, errorStreams 
 	}
 }
 
-func (stack *RunnerPoolStack) SetReport(report *report.Report) {
+func (stack *Runner) SetReport(report *report.Report) {
 	stack.report = report
 }
 
-func (stack *RunnerPoolStack) GetReport() *report.Report {
+func (stack *Runner) GetReport() *report.Report {
 	return stack.report
 }
 
-func (stack *RunnerPoolStack) SetTerragruntConfig(config *config.TerragruntConfig) {
+func (stack *Runner) SetTerragruntConfig(config *config.TerragruntConfig) {
 	stack.childConfig = config
 }
 
-func (stack *RunnerPoolStack) GetTerragruntConfig() *config.TerragruntConfig {
+func (stack *Runner) GetTerragruntConfig() *config.TerragruntConfig {
 	return stack.childConfig
 }
 
-func (stack *RunnerPoolStack) SetParseOptions(parserOptions []hclparse.Option) {
+func (stack *Runner) SetParseOptions(parserOptions []hclparse.Option) {
 	stack.parserOptions = parserOptions
 }
 
-func (stack *RunnerPoolStack) GetParseOptions() []hclparse.Option {
+func (stack *Runner) GetParseOptions() []hclparse.Option {
 	return stack.parserOptions
 }
 
-func (stack *RunnerPoolStack) SetModules(modules config.Units) {
+func (stack *Runner) SetModules(modules config.Units) {
 	stack.modules = modules
 }
 
-func (stack *RunnerPoolStack) Lock() {
+func (stack *Runner) Lock() {
 	stack.outputMu.Lock()
 }
 
-func (stack *RunnerPoolStack) Unlock() {
+func (stack *Runner) Unlock() {
 	stack.outputMu.Unlock()
 }
 
-func (stack *RunnerPoolStack) Modules() config.Units {
+func (stack *Runner) Modules() config.Units {
 	return stack.modules
 }

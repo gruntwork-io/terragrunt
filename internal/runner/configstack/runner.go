@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
@@ -42,8 +41,7 @@ var existingModules = cache.NewCache[*common.UnitsMap](existingModulesCacheName)
 // Runner implements the Stack interface and represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or "spin down" in a single command
 // (formerly Stack)
 type Runner struct {
-	Stack     *common.Stack
-	lockMutex sync.Mutex
+	Stack *common.Stack
 }
 
 // NewRunner creates a new Runner.
@@ -814,16 +812,6 @@ func (runner *Runner) FindModuleByPath(path string) *common.Unit {
 	}
 
 	return nil
-}
-
-// Lock locks the stack for concurrency control.
-func (runner *Runner) Lock() {
-	runner.lockMutex.Lock()
-}
-
-// Unlock unlocks the stack for concurrency control.
-func (runner *Runner) Unlock() {
-	runner.lockMutex.Unlock()
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already

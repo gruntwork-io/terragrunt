@@ -23,9 +23,6 @@ type StackRunner interface {
 	Graph(l log.Logger, opts *options.TerragruntOptions)
 	ListStackDependentModules() map[string][]string
 	GetStack() *Stack
-	Lock()
-	Unlock()
-
 	SetTerragruntConfig(config *config.TerragruntConfig)
 	SetParseOptions(parserOptions []hclparse.Option)
 	SetReport(report *report.Report)
