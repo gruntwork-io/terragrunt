@@ -274,8 +274,15 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA},
+			Report: report.NewReport(),
+		},
+	}
+
+	err = runner.RunModules(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -297,8 +304,14 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.False(t, aRan)
 }
@@ -319,8 +332,14 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA}
-	err = modules.RunModulesReverseOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesReverseOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -331,7 +350,6 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	moduleA := &common.Unit{
-		Stack:             &configstack.DefaultStack{},
 		Path:              "a",
 		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
@@ -342,8 +360,14 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA}
-	err = modules.RunModulesIgnoreOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -365,8 +389,14 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -388,8 +418,14 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA}
-	err = modules.RunModulesReverseOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesReverseOrder(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -412,8 +448,14 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA}
-	err = modules.RunModulesIgnoreOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -453,8 +495,14 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -497,8 +545,15 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), 1)
+	opts.Parallelism = 1
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
+
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -541,8 +596,14 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModulesReverseOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesReverseOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -585,8 +646,14 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModulesIgnoreOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -630,8 +697,14 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, optsErr)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err := modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err := runner.RunModules(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -677,8 +750,14 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -721,8 +800,14 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -775,8 +860,14 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC, moduleD}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC, moduleD},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -820,8 +911,14 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModulesReverseOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesReverseOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -864,8 +961,14 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModulesIgnoreOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -911,8 +1014,14 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -962,8 +1071,15 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
+
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -1009,8 +1125,15 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModulesReverseOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesReverseOrder(t.Context(), opts)
+
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrA)
 
 	assert.False(t, aRan)
@@ -1054,8 +1177,15 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModulesIgnoreOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
+
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -1102,8 +1232,15 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
+
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -1147,8 +1284,15 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC}
-	err = modules.RunModulesIgnoreOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
+
 	assertMultiErrorContains(t, err, expectedErrA)
 
 	assert.True(t, aRan)
@@ -1218,8 +1362,15 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
+
 	require.NoError(t, err)
 
 	assert.True(t, aRan)
@@ -1306,8 +1457,15 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := common.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG}
-	err = modules.RunModules(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG},
+			Report: report.NewReport(),
+		},
+	}
+	err = runner.RunModules(t.Context(), opts)
+
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
 
 	assert.True(t, aRan)
@@ -1385,8 +1543,14 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, optsErr)
 
-	modules := common.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
-	err := modules.RunModulesReverseOrder(t.Context(), opts, report.NewReport(), options.DefaultParallelism)
+	opts.Parallelism = options.DefaultParallelism
+	runner := configstack.Runner{
+		Stack: &common.Stack{
+			Units:  common.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF},
+			Report: report.NewReport(),
+		},
+	}
+	err := runner.RunModulesReverseOrder(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrB, expectedErrA)
 
 	assert.False(t, aRan)
