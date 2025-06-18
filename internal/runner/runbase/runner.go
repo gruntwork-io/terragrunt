@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// StackRunner is the abstraction for a stack of Terraform modules.
+// StackRunner is the abstraction for running stack of units.
 type StackRunner interface {
 	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error
 	FindUnitByPath(path string) *Unit

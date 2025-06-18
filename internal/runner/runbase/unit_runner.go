@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
@@ -26,26 +25,22 @@ const (
 
 // UnitRunner handles the logic for running a single module.
 type UnitRunner struct {
-	Err          error
-	Unit         *Unit
-	Logger       log.Logger
-	Status       UnitStatus
-	FlagExcluded bool
+	Err    error
+	Unit   *Unit
+	Status UnitStatus
 }
 
 var outputMu sync.Mutex
 
 func NewUnitRunner(unit *Unit) *UnitRunner {
 	return &UnitRunner{
-		Unit:         unit,
-		Status:       Waiting,
-		Logger:       unit.Logger,
-		FlagExcluded: unit.FlagExcluded,
+		Unit:   unit,
+		Status: Waiting,
 	}
 }
 
 func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
-	runner.Logger.Debugf("Running %s", runner.Unit.Path)
+	runner.Unit.Logger.Debugf("Running %s", runner.Unit.Path)
 
 	opts.Writer = NewUnitWriter(opts.Writer)
 
@@ -66,7 +61,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		}
 	}
 
-	return opts.RunTerragrunt(ctx, runner.Logger, opts, r)
+	return opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
 }
 
 // Run a module right now by executing the runTerragrunt command of its TerragruntOptions field.
@@ -74,7 +69,7 @@ func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.Terragru
 	runner.Status = Running
 
 	if runner.Unit.AssumeAlreadyApplied {
-		runner.Logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path)
+		runner.Unit.Logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path)
 		return nil
 	} else {
 		if err := runner.runTerragrunt(ctx, runner.Unit.TerragruntOptions, r); err != nil {
@@ -82,8 +77,8 @@ func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.Terragru
 		}
 
 		// convert terragrunt output to json
-		if runner.Unit.OutputJSONFile(runner.Logger, runner.Unit.TerragruntOptions) != "" {
-			l, jsonOptions, err := runner.Unit.TerragruntOptions.CloneWithConfigPath(runner.Logger, runner.Unit.TerragruntOptions.TerragruntConfigPath)
+		if runner.Unit.OutputJSONFile(runner.Unit.Logger, runner.Unit.TerragruntOptions) != "" {
+			l, jsonOptions, err := runner.Unit.TerragruntOptions.CloneWithConfigPath(runner.Unit.Logger, runner.Unit.TerragruntOptions.TerragruntConfigPath)
 			if err != nil {
 				return err
 			}

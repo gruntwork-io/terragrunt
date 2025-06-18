@@ -614,7 +614,7 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 	ctrlC.NotifyWhenDone = []*configstack.DependencyController{}
 	ctrlC.Runner.Status = runbase.Waiting
 	ctrlC.Runner.Err = nil
-	ctrlC.Runner.FlagExcluded = true
+	ctrlC.Runner.Unit.FlagExcluded = true
 
 	runningModules := configstack.RunningModules{
 		"a": ctrlA,
@@ -674,7 +674,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	ctrlC.NotifyWhenDone = []*configstack.DependencyController{}
 	ctrlC.Runner.Status = runbase.Waiting
 	ctrlC.Runner.Err = nil
-	ctrlC.Runner.FlagExcluded = true
+	ctrlC.Runner.Unit.FlagExcluded = true
 
 	moduleD := &runbase.Unit{
 		Path:              "d",
