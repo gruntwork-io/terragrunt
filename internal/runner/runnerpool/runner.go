@@ -231,17 +231,6 @@ func (runner *Runner) ListStackDependentUnits() map[string][]string {
 	return dependentUnits
 }
 
-// FindUnitByPath finds a unit by its path.
-func (runner *Runner) FindUnitByPath(path string) *runbase.Unit {
-	for _, unit := range runner.Stack.Units {
-		if unit.Path == path {
-			return unit
-		}
-	}
-
-	return nil
-}
-
 // Sync the TerraformCliArgs for each unit in the stack to match the provided terragruntOptions struct.
 func (runner *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, unit := range runner.Stack.Units {

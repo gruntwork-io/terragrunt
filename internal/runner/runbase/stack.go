@@ -31,3 +31,14 @@ func (stack *Stack) String() string {
 
 	return fmt.Sprintf("Stack at %s:\n%s", stack.TerragruntOptions.WorkingDir, strings.Join(units, "\n"))
 }
+
+// FindUnitByPath finds a unit in the stack by its path
+func (stack *Stack) FindUnitByPath(path string) *Unit {
+	for _, unit := range stack.Units {
+		if unit.Path == path {
+			return unit
+		}
+	}
+
+	return nil
+}

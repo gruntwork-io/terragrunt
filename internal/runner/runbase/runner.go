@@ -16,7 +16,7 @@ import (
 // StackRunner is the abstraction for running stack of units.
 type StackRunner interface {
 	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error
-	FindUnitByPath(path string) *Unit
+
 	LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	JSONUnitDeployOrder(terraformCommand string) (string, error)
 	ListStackDependentUnits() map[string][]string

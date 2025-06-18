@@ -36,12 +36,12 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return err
 	}
 
-	srcModule := stack.FindUnitByPath(srcPath)
+	srcModule := stack.GetStack().FindUnitByPath(srcPath)
 	if srcModule == nil {
 		return errors.Errorf("src unit not found at %s", srcPath)
 	}
 
-	dstModule := stack.FindUnitByPath(dstPath)
+	dstModule := stack.GetStack().FindUnitByPath(dstPath)
 	if dstModule == nil {
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}

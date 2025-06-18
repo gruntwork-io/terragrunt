@@ -796,17 +796,6 @@ func (runner *Runner) Units() runbase.Units {
 	return runner.Stack.Units
 }
 
-// FindUnitByPath finds a unit by its path.
-func (runner *Runner) FindUnitByPath(path string) *runbase.Unit {
-	for _, unit := range runner.Stack.Units {
-		if unit.Path == path {
-			return unit
-		}
-	}
-
-	return nil
-}
-
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given unit is already
 // applied. If the user selects "yes", then Terragrunt will apply that unit as well.
 // Note that we skip the prompt for `run --all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
