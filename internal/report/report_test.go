@@ -1072,7 +1072,7 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 ❯❯ Run Summary  1 units  x
    ────────────────────────────
    Succeeded (1)
-      single-run         x
+      single-run ....... x
 `,
 		},
 		{
@@ -1096,9 +1096,9 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 ❯❯ Run Summary  3 units  x
    ────────────────────────────
    Succeeded (3)
-      long-run           x
-      medium-run         x
-      short-run          x
+      long-run ......... x
+      medium-run ....... x
+      short-run ........ x
 `,
 		},
 		{
@@ -1124,12 +1124,12 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 ❯❯ Run Summary  4 units  x
    ────────────────────────────
    Succeeded (2)
-      success-1          x
-      success-2          x
+      success-1 ........ x
+      success-2 ........ x
    Failed (1)
-      fail-run           x
+      fail-run ......... x
    Excluded (1)
-      excluded-run       x
+      excluded-run ..... x
 `,
 		},
 		{
@@ -1152,9 +1152,9 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 ❯❯ Run Summary  3 units  x
    ────────────────────────────
    Succeeded (3)
-      a                  x
-      b                  x
-      c                  x
+      a ................ x
+      b ................ x
+      c ................ x
 `,
 		},
 		{
@@ -1186,7 +1186,7 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			// t.Parallel()
 
 			r := report.NewReport().
 				WithDisableColor().
@@ -1201,17 +1201,14 @@ func TestWriteUnitLevelSummary(t *testing.T) {
 
 			// Replace the duration with x since we can't control the actual duration in tests
 			output := buf.String()
-			re := regexp.MustCompile(`Duration:(\s+).*`)
-			output = re.ReplaceAllString(output, "Duration:${1}x")
 
-			// Replace the duration in the header line (e.g., "3 units  8µs" -> "3 units  x")
-			// Updated to handle variable spacing for long unit names
-			re = regexp.MustCompile(`(\d+ units\s+)(\s*)(\d+[µnms]+|\d+[smh]|[^\s]+)`)
-			output = re.ReplaceAllString(output, "${1}${2}x")
+			// Replace the header duration with x
+			re := regexp.MustCompile(`❯❯ Run Summary  (\d+) units(\s+)(\d+.+)`)
+			output = re.ReplaceAllString(output, "❯❯ Run Summary  ${1} units${2}x")
 
-			// Replace the actual durations with x (for the new clean format without colons)
-			re = regexp.MustCompile(`([ ]{6})([^\s]+)(\s+)(\d+[µnms]+|\d+[smh])`)
-			output = re.ReplaceAllString(output, "${1}${2}${3}x")
+			// Replace all the unit level summaries
+			re = regexp.MustCompile(`([ ]{6})([^ ]+)( )([^ ]*)( )(\d+.+)`)
+			output = re.ReplaceAllString(output, "${1}${2}${3}${4}${5}x")
 
 			expected := strings.TrimSpace(tt.expected)
 			assert.Equal(t, expected, strings.TrimSpace(output))
