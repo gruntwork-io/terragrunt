@@ -141,7 +141,11 @@ func BenchmarkContent(b *testing.B) {
 func BenchmarkGitOperations(b *testing.B) {
 	// Setup a git repository for testing
 	repoDir := b.TempDir()
-	git := cas.NewGitRunner().WithWorkDir(repoDir)
+	git, err := cas.NewGitRunner()
+	if err != nil {
+		b.Fatal(err)
+	}
+	git = git.WithWorkDir(repoDir)
 
 	ctx := b.Context()
 
@@ -150,7 +154,12 @@ func BenchmarkGitOperations(b *testing.B) {
 	}
 
 	b.Run("ls-remote", func(b *testing.B) {
-		git := cas.NewGitRunner() // No workDir needed for ls-remote
+		git, err := cas.NewGitRunner()
+		if err != nil {
+			b.Fatal(err)
+		}
+		git = git.WithWorkDir(repoDir)
+
 		b.ResetTimer()
 		for b.Loop() {
 			_, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")

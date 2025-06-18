@@ -66,9 +66,14 @@ func New(opts Options) (*CAS, error) {
 
 	store := NewStore(opts.StorePath)
 
+	git, err := NewGitRunner()
+	if err != nil {
+		return nil, err
+	}
+
 	return &CAS{
 		store: store,
-		git:   NewGitRunner(),
+		git:   git,
 		opts:  opts,
 	}, nil
 }

@@ -18,20 +18,30 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
+	GitPath string
 	WorkDir string
 }
 
 // NewGitRunner creates a new GitRunner instance
-func NewGitRunner() *GitRunner {
-	return &GitRunner{}
+func NewGitRunner() (*GitRunner, error) {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return nil, &WrappedError{
+			Op:      "git",
+			Context: "git not found",
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return &GitRunner{GitPath: gitPath}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	// Create new instance instead of modifying existing one
-	return &GitRunner{
-		WorkDir: workDir,
-	}
+	copy := *g
+	copy.WorkDir = workDir
+
+	return &copy
 }
 
 // RequiresWorkDir returns an error if no working directory is set
@@ -266,5 +276,5 @@ func (g *GitRunner) SetWorkDir(dir string) {
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, "git", append([]string{name}, args...)...)
+	return exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
 }
