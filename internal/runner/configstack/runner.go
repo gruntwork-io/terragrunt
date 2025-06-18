@@ -881,7 +881,7 @@ func (runner *Runner) RunModulesIgnoreOrder(ctx context.Context, opts *options.T
 func ToRunningModules(units common.Units, dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningModules, error) {
 	runningModules := RunningModules{}
 	for _, module := range units {
-		runningModules[module.Path] = newRunningModule(module)
+		runningModules[module.Path] = NewDependencyController(module)
 	}
 
 	crossLinkedModules, err := runningModules.crossLinkDependencies(dependencyOrder)
