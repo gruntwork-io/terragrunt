@@ -224,7 +224,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -237,7 +237,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleA}
+	expected := runbase.Units{unitA}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -251,7 +251,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/json-module-a/"+config.DefaultTerragruntJSONConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/json-module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -264,7 +264,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/json-module-a/" + config.DefaultTerragruntJSONConfigPath}
-	expected := runbase.Units{moduleA}
+	expected := runbase.Units{unitA}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -278,7 +278,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -294,7 +294,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleB}
+	expected := runbase.Units{unitB}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -350,7 +350,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, childConfigPath)
-	moduleM := &runbase.Unit{
+	unitM := &runbase.Unit{
 		Path:         canonical(t, childDir),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -382,7 +382,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			},
 		},
 	}
-	expected := runbase.Units{moduleM}
+	expected := runbase.Units{unitM}
 
 	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
 	mockOptions.OriginalTerragruntConfigPath = childConfigPath
@@ -399,7 +399,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/json-module-b/module-b-child/"+config.DefaultTerragruntJSONConfigPath)
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/json-module-b/module-b-child"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -415,7 +415,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/json-module-b/module-b-child/" + config.DefaultTerragruntJSONConfigPath}
-	expected := runbase.Units{moduleB}
+	expected := runbase.Units{unitB}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -429,7 +429,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/hcl-module-b/module-b-child/"+config.DefaultTerragruntConfigPath)
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/hcl-module-b/module-b-child"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -445,7 +445,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/hcl-module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleB}
+	expected := runbase.Units{unitB}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -459,7 +459,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -472,9 +472,9 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -486,7 +486,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleA, moduleC}
+	expected := runbase.Units{unitA, unitC}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -500,7 +500,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -513,9 +513,9 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/json-module-c/"+config.DefaultTerragruntJSONConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/json-module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -527,7 +527,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/json-module-c/" + config.DefaultTerragruntJSONConfigPath}
-	expected := runbase.Units{moduleA, moduleC}
+	expected := runbase.Units{unitA, unitC}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -541,7 +541,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/json-module-a/"+config.DefaultTerragruntJSONConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/json-module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -554,9 +554,9 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/hcl-module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/hcl-module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../json-module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -568,7 +568,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/json-module-a/" + config.DefaultTerragruntJSONConfigPath, "../../../test/fixtures/modules/hcl-module-c/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleA, moduleC}
+	expected := runbase.Units{unitA, unitC}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -585,7 +585,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	l := logger.CreateLogger()
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies:      runbase.Units{},
 		TerragruntOptions: optsA,
@@ -593,9 +593,9 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	}
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -612,8 +612,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
-	moduleA.FlagExcluded = true
-	expected := runbase.Units{moduleA, moduleC}
+	unitA.FlagExcluded = true
+	expected := runbase.Units{unitA, unitC}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
@@ -629,7 +629,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
 
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies:      runbase.Units{},
 		TerragruntOptions: optsA,
@@ -638,9 +638,9 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
 
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -653,9 +653,9 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	lAbba, optsAbba := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath)
 
-	moduleAbba := &runbase.Unit{
+	unitAbba := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-abba"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -672,8 +672,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
-	moduleA.FlagExcluded = true
-	expected := runbase.Units{moduleA, moduleC, moduleAbba}
+	unitA.FlagExcluded = true
+	expected := runbase.Units{unitA, unitC, unitAbba}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
@@ -688,7 +688,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	l := logger.CreateLogger()
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies:      runbase.Units{},
 		TerragruntOptions: optsA,
@@ -696,9 +696,9 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	}
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -710,7 +710,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	}
 
 	lAbba, optsAbba := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-abba/"+config.DefaultTerragruntConfigPath)
-	moduleAbba := &runbase.Unit{
+	unitAbba := &runbase.Unit{
 		Path:              canonical(t, "../../../test/fixtures/modules/module-abba"),
 		Dependencies:      runbase.Units{},
 		TerragruntOptions: optsAbba,
@@ -722,9 +722,9 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	stack := configstack.NewRunner(l, opts)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	// construct the expected list
-	moduleA.FlagExcluded = true
-	moduleAbba.FlagExcluded = true
-	expected := runbase.Units{moduleA, moduleC, moduleAbba}
+	unitA.FlagExcluded = true
+	unitAbba.FlagExcluded = true
+	expected := runbase.Units{unitA, unitC, unitAbba}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
@@ -739,7 +739,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	l := logger.CreateLogger()
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -752,7 +752,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	}
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              canonical(t, "../../../test/fixtures/modules/module-c"),
 		TerragruntOptions: optsC,
 		Logger:            lC,
@@ -764,8 +764,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
-	moduleC.FlagExcluded = true
-	expected := runbase.Units{moduleA, moduleC}
+	unitC.FlagExcluded = true
+	expected := runbase.Units{unitA, unitC}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
@@ -780,7 +780,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	l := logger.CreateLogger()
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
 
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -794,9 +794,9 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
 
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -813,8 +813,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
-	moduleA.FlagExcluded = false
-	expected := runbase.Units{moduleA, moduleC}
+	unitA.FlagExcluded = false
+	expected := runbase.Units{unitA, unitC}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
@@ -831,7 +831,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
 
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -845,9 +845,9 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
 
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -864,8 +864,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
-	moduleC.FlagExcluded = true
-	expected := runbase.Units{moduleA, moduleC}
+	unitC.FlagExcluded = true
+	expected := runbase.Units{unitA, unitC}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
@@ -881,7 +881,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	l := logger.CreateLogger()
 
 	lA, optsA := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -894,9 +894,9 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	}
 
 	lC, optsC := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -908,7 +908,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	}
 
 	lF, optsF := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-f/"+config.DefaultTerragruntConfigPath)
-	moduleF := &runbase.Unit{
+	unitF := &runbase.Unit{
 		Path:                 canonical(t, "../../../test/fixtures/modules/module-f"),
 		Dependencies:         runbase.Units{},
 		TerragruntOptions:    optsF,
@@ -922,8 +922,8 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 
 	// construct the expected list
-	moduleF.FlagExcluded = true
-	expected := runbase.Units{moduleA, moduleC, moduleF}
+	unitF.FlagExcluded = true
+	expected := runbase.Units{unitA, unitC, unitF}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
@@ -935,7 +935,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
 
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -948,7 +948,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -964,9 +964,9 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -978,9 +978,9 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-d/"+config.DefaultTerragruntConfigPath)
-	moduleD := &runbase.Unit{
+	unitD := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-d"),
-		Dependencies: runbase.Units{moduleA, moduleB, moduleC},
+		Dependencies: runbase.Units{unitA, unitB, unitC},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a", "../module-b/module-b-child", "../module-c"}},
 			IsPartial:       true,
@@ -991,7 +991,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-d/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleA, moduleB, moduleC, moduleD}
+	expected := runbase.Units{unitA, unitB, unitC, unitD}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -1005,7 +1005,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -1018,7 +1018,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/json-module-b/module-b-child/"+config.DefaultTerragruntJSONConfigPath)
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/json-module-b/module-b-child"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -1034,9 +1034,9 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-c/"+config.DefaultTerragruntConfigPath)
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-c"),
-		Dependencies: runbase.Units{moduleA},
+		Dependencies: runbase.Units{unitA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -1048,9 +1048,9 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/json-module-d/"+config.DefaultTerragruntJSONConfigPath)
-	moduleD := &runbase.Unit{
+	unitD := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/json-module-d"),
-		Dependencies: runbase.Units{moduleA, moduleB, moduleC},
+		Dependencies: runbase.Units{unitA, unitB, unitC},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a", "../json-module-b/module-b-child", "../module-c"}},
 			IsPartial:       true,
@@ -1061,7 +1061,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/json-module-b/module-b-child/" + config.DefaultTerragruntJSONConfigPath, "../../../test/fixtures/modules/module-c/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/json-module-d/" + config.DefaultTerragruntJSONConfigPath}
-	expected := runbase.Units{moduleA, moduleB, moduleC, moduleD}
+	expected := runbase.Units{unitA, unitB, unitC, unitD}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -1075,7 +1075,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-a/"+config.DefaultTerragruntConfigPath)
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-a"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -1088,7 +1088,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -1104,9 +1104,9 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-e/module-e-child/"+config.DefaultTerragruntConfigPath)
-	moduleE := &runbase.Unit{
+	unitE := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-e/module-e-child"),
-		Dependencies: runbase.Units{moduleA, moduleB},
+		Dependencies: runbase.Units{unitA, unitB},
 		Config: config.TerragruntConfig{
 			Dependencies: &config.ModuleDependencies{Paths: []string{"../../module-a", "../../module-b/module-b-child"}},
 			Terraform:    &config.TerraformConfig{Source: ptr("test")},
@@ -1121,7 +1121,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-a/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-e/module-e-child/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleA, moduleB, moduleE}
+	expected := runbase.Units{unitA, unitB, unitE}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -1135,7 +1135,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-f/"+config.DefaultTerragruntConfigPath)
-	moduleF := &runbase.Unit{
+	unitF := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-f"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -1148,9 +1148,9 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-g/"+config.DefaultTerragruntConfigPath)
-	moduleG := &runbase.Unit{
+	unitG := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-g"),
-		Dependencies: runbase.Units{moduleF},
+		Dependencies: runbase.Units{unitF},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-f"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("test")},
@@ -1162,7 +1162,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-g/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleF, moduleG}
+	expected := runbase.Units{unitF, unitG}
 
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
@@ -1176,7 +1176,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	l := logger.CreateLogger()
 
 	l, opts := cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-h/"+config.DefaultTerragruntConfigPath)
-	moduleH := &runbase.Unit{
+	unitH := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-h"),
 		Dependencies: runbase.Units{},
 		Config: config.TerragruntConfig{
@@ -1189,9 +1189,9 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-i/"+config.DefaultTerragruntConfigPath)
-	moduleI := &runbase.Unit{
+	unitI := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-i"),
-		Dependencies: runbase.Units{moduleH},
+		Dependencies: runbase.Units{unitH},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-h"}},
 			IsPartial:       true,
@@ -1203,9 +1203,9 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-j/"+config.DefaultTerragruntConfigPath)
-	moduleJ := &runbase.Unit{
+	unitJ := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-j"),
-		Dependencies: runbase.Units{moduleI},
+		Dependencies: runbase.Units{unitI},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-i"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
@@ -1217,9 +1217,9 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	}
 
 	l, opts = cloneOptions(t, l, mockOptions, "../../../test/fixtures/modules/module-k/"+config.DefaultTerragruntConfigPath)
-	moduleK := &runbase.Unit{
+	unitK := &runbase.Unit{
 		Path:         canonical(t, "../../../test/fixtures/modules/module-k"),
-		Dependencies: runbase.Units{moduleH},
+		Dependencies: runbase.Units{unitH},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-h"}},
 			Terraform:       &config.TerraformConfig{Source: ptr("fire")},
@@ -1231,7 +1231,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	}
 
 	configPaths := []string{"../../../test/fixtures/modules/module-j/" + config.DefaultTerragruntConfigPath, "../../../test/fixtures/modules/module-k/" + config.DefaultTerragruntConfigPath}
-	expected := runbase.Units{moduleH, moduleI, moduleJ, moduleK}
+	expected := runbase.Units{unitH, unitI, unitJ, unitK}
 
 	stack := configstack.NewRunner(logger.CreateLogger(), mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
@@ -1279,12 +1279,12 @@ func TestBasicDependency(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	moduleC := &runbase.Unit{Path: "C", Dependencies: runbase.Units{}, Logger: l}
-	moduleB := &runbase.Unit{Path: "B", Dependencies: runbase.Units{moduleC}, Logger: l}
-	moduleA := &runbase.Unit{Path: "A", Dependencies: runbase.Units{moduleB}, Logger: l}
+	unitC := &runbase.Unit{Path: "C", Dependencies: runbase.Units{}, Logger: l}
+	unitB := &runbase.Unit{Path: "B", Dependencies: runbase.Units{unitC}, Logger: l}
+	unitA := &runbase.Unit{Path: "A", Dependencies: runbase.Units{unitB}, Logger: l}
 
 	stack := configstack.NewRunner(l, mockOptions)
-	stack.Stack.Units = runbase.Units{moduleA, moduleB, moduleC}
+	stack.Stack.Units = runbase.Units{unitA, unitB, unitC}
 
 	expected := map[string][]string{
 		"B": {"A"},
@@ -1303,14 +1303,14 @@ func TestNestedDependencies(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	moduleD := &runbase.Unit{Path: "D", Dependencies: runbase.Units{}, Logger: l}
-	moduleC := &runbase.Unit{Path: "C", Dependencies: runbase.Units{moduleD}, Logger: l}
-	moduleB := &runbase.Unit{Path: "B", Dependencies: runbase.Units{moduleC}, Logger: l}
-	moduleA := &runbase.Unit{Path: "A", Dependencies: runbase.Units{moduleB}, Logger: l}
+	unitD := &runbase.Unit{Path: "D", Dependencies: runbase.Units{}, Logger: l}
+	unitC := &runbase.Unit{Path: "C", Dependencies: runbase.Units{unitD}, Logger: l}
+	unitB := &runbase.Unit{Path: "B", Dependencies: runbase.Units{unitC}, Logger: l}
+	unitA := &runbase.Unit{Path: "A", Dependencies: runbase.Units{unitB}, Logger: l}
 
 	// Create a mock stack
 	stack := configstack.NewRunner(l, mockOptions)
-	stack.Stack.Units = runbase.Units{moduleA, moduleB, moduleC, moduleD}
+	stack.Stack.Units = runbase.Units{unitA, unitB, unitC, unitD}
 
 	// Expected result
 	expected := map[string][]string{
@@ -1333,16 +1333,16 @@ func TestCircularDependencies(t *testing.T) {
 	l := logger.CreateLogger()
 
 	// Mock modules with circular dependencies
-	moduleA := &runbase.Unit{Path: "A", Logger: l}
-	moduleB := &runbase.Unit{Path: "B", Logger: l}
-	moduleC := &runbase.Unit{Path: "C", Logger: l}
+	unitA := &runbase.Unit{Path: "A", Logger: l}
+	unitB := &runbase.Unit{Path: "B", Logger: l}
+	unitC := &runbase.Unit{Path: "C", Logger: l}
 
-	moduleA.Dependencies = runbase.Units{moduleB}
-	moduleB.Dependencies = runbase.Units{moduleC}
-	moduleC.Dependencies = runbase.Units{moduleA} // Circular dependency
+	unitA.Dependencies = runbase.Units{unitB}
+	unitB.Dependencies = runbase.Units{unitC}
+	unitC.Dependencies = runbase.Units{unitA} // Circular dependency
 
 	stack := configstack.NewRunner(l, mockOptions)
-	stack.Stack.Units = runbase.Units{moduleA, moduleB, moduleC}
+	stack.Stack.Units = runbase.Units{unitA, unitB, unitC}
 
 	expected := map[string][]string{
 		"A": {"C", "B"},

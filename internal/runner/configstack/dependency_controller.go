@@ -336,7 +336,7 @@ func (modules RunningUnits) RemoveFlagExcluded(r *report.Report, reportExperimen
 // Run the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (modules RunningUnits) runModules(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+func (modules RunningUnits) runUnits(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
 	var (
 		waitGroup sync.WaitGroup
 		semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel

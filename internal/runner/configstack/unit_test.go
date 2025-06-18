@@ -254,7 +254,7 @@ func TestRunModulesNoModules(t *testing.T) {
 		},
 	}
 
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
@@ -282,7 +282,7 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 		},
 	}
 
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -311,7 +311,7 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.False(t, aRan)
 }
@@ -339,7 +339,7 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesReverseOrder(t.Context(), opts)
+	err = runner.RunUnitsReverseOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -367,7 +367,7 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
+	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -396,7 +396,7 @@ func TestRunModulesOneModuleError(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -425,7 +425,7 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesReverseOrder(t.Context(), opts)
+	err = runner.RunUnitsReverseOrder(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -455,7 +455,7 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
+	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -502,7 +502,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -552,7 +552,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -603,7 +603,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesReverseOrder(t.Context(), opts)
+	err = runner.RunUnitsReverseOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -653,7 +653,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
+	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -704,7 +704,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err := runner.RunModules(t.Context(), opts)
+	err := runner.RunUnits(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -757,7 +757,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -807,7 +807,7 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -867,7 +867,7 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -918,7 +918,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesReverseOrder(t.Context(), opts)
+	err = runner.RunUnitsReverseOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -968,7 +968,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
+	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -1021,7 +1021,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -1078,7 +1078,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 
 	assertMultiErrorContains(t, err, expectedErrB)
 
@@ -1132,7 +1132,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesReverseOrder(t.Context(), opts)
+	err = runner.RunUnitsReverseOrder(t.Context(), opts)
 
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrA)
 
@@ -1184,7 +1184,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
+	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
 
 	assertMultiErrorContains(t, err, expectedErrB)
 
@@ -1239,7 +1239,7 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
@@ -1291,7 +1291,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModulesIgnoreOrder(t.Context(), opts)
+	err = runner.RunUnitsIgnoreOrder(t.Context(), opts)
 
 	assertMultiErrorContains(t, err, expectedErrA)
 
@@ -1369,7 +1369,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 
 	require.NoError(t, err)
 
@@ -1464,7 +1464,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 			Report: report.NewReport(),
 		},
 	}
-	err = runner.RunModules(t.Context(), opts)
+	err = runner.RunUnits(t.Context(), opts)
 
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
 
@@ -1550,7 +1550,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 			Report: report.NewReport(),
 		},
 	}
-	err := runner.RunModulesReverseOrder(t.Context(), opts)
+	err := runner.RunUnitsReverseOrder(t.Context(), opts)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrB, expectedErrA)
 
 	assert.False(t, aRan)

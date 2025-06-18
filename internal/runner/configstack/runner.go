@@ -183,11 +183,11 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 
 	switch {
 	case opts.IgnoreDependencyOrder:
-		return runner.RunModulesIgnoreOrder(ctx, opts)
+		return runner.RunUnitsIgnoreOrder(ctx, opts)
 	case stackCmd == tf.CommandNameDestroy:
-		return runner.RunModulesReverseOrder(ctx, opts)
+		return runner.RunUnitsReverseOrder(ctx, opts)
 	default:
-		return runner.RunModules(ctx, opts)
+		return runner.RunUnits(ctx, opts)
 	}
 }
 
@@ -842,44 +842,44 @@ func confirmShouldApplyExternalDependency(ctx context.Context, unit *runbase.Uni
 	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt apply the external dependency?", opts)
 }
 
-// RunModules runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
+// RunUnits runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (runner *Runner) RunModules(ctx context.Context, opts *options.TerragruntOptions) error {
+func (runner *Runner) RunUnits(ctx context.Context, opts *options.TerragruntOptions) error {
 	runningModules, err := ToRunningModules(runner.Stack.Units, NormalOrder, runner.Stack.Report, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, runner.Stack.Report, opts.Parallelism)
+	return runningModules.runUnits(ctx, opts, runner.Stack.Report, opts.Parallelism)
 }
 
-// RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
+// RunUnitsReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func (runner *Runner) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions) error {
+func (runner *Runner) RunUnitsReverseOrder(ctx context.Context, opts *options.TerragruntOptions) error {
 	runningModules, err := ToRunningModules(runner.Stack.Units, ReverseOrder, runner.Stack.Report, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, runner.Stack.Report, opts.Parallelism)
+	return runningModules.runUnits(ctx, opts, runner.Stack.Report, opts.Parallelism)
 }
 
-// RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
+// RunUnitsIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func (runner *Runner) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions) error {
+func (runner *Runner) RunUnitsIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions) error {
 	runningModules, err := ToRunningModules(runner.Stack.Units, IgnoreOrder, runner.Stack.Report, opts)
 	if err != nil {
 		return err
 	}
 
-	return runningModules.runModules(ctx, opts, runner.Stack.Report, opts.Parallelism)
+	return runningModules.runUnits(ctx, opts, runner.Stack.Report, opts.Parallelism)
 }
 
 // ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
-// this does NOT actually run the module. For that, see the RunModules method.
+// this does NOT actually run the module. For that, see the RunUnits method.
 func ToRunningModules(units runbase.Units, dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningUnits, error) {
 	runningModules := RunningUnits{}
 	for _, module := range units {
