@@ -35,9 +35,9 @@ type Units []*Unit
 
 type UnitsMap map[string]*Unit
 
-// String renders this module as a human-readable string
+// String renders this unit as a human-readable string
 func (unit *Unit) String() string {
-	dependencies := []string{}
+	var dependencies = make([]string, 0, len(unit.Dependencies))
 	for _, dependency := range unit.Dependencies {
 		dependencies = append(dependencies, dependency.Path)
 	}
@@ -253,7 +253,7 @@ func (units Units) CheckForCycles() error {
 	return nil
 }
 
-// Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of units
+// SortedKeys Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of units
 // in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
 func (unitsMap UnitsMap) SortedKeys() []string {
 	keys := []string{}

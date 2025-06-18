@@ -10,7 +10,7 @@ import (
 
 // UnitWriter represents a Writer with data buffering.
 // We should avoid outputting data directly to the output out,
-// since when modules run in parallel, the output data may be mixed with each other, thereby spoiling each other's results.
+// since when units run in parallel, the output data may be mixed with each other, thereby spoiling each other's results.
 type UnitWriter struct {
 	buffer *bytes.Buffer
 	out    io.Writer

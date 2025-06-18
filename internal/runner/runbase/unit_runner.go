@@ -64,7 +64,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	return opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
 }
 
-// Run a module right now by executing the runTerragrunt command of its TerragruntOptions field.
+// Run a unit right now by executing the runTerragrunt command of its TerragruntOptions field.
 func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 

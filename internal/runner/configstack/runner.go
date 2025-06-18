@@ -70,7 +70,7 @@ func (runner *Runner) GetStack() *runbase.Stack {
 	return runner.Stack
 }
 
-// LogModuleDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
+// LogUnitDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
 // happen. For plan and apply, the order will be bottom to top (dependencies first), while for destroy the order will be
 // in reverse.
 func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
@@ -95,7 +95,7 @@ func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) 
 	return nil
 }
 
-// JSONModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
+// JSONUnitDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
 // that the operations happen.
 func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := runner.GetModuleRunGraph(terraformCommand)
@@ -735,7 +735,7 @@ func (runner *Runner) resolveExternalDependenciesForModules(ctx context.Context,
 	return allExternalDependencies, nil
 }
 
-// ListStackDependentModules - build a map with each module and its dependent modules
+// ListStackDependentUnits - build a map with each module and its dependent modules
 func (runner *Runner) ListStackDependentUnits() map[string][]string {
 	// build map of dependent modules
 	// module path -> list of dependent modules
@@ -804,7 +804,7 @@ func (runner *Runner) Modules() runbase.Units {
 	return runner.Stack.Units
 }
 
-// FindModuleByPath finds a module by its path.
+// FindUnitByPath finds a module by its path.
 func (runner *Runner) FindUnitByPath(path string) *runbase.Unit {
 	for _, module := range runner.Stack.Units {
 		if module.Path == path {

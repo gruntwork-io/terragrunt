@@ -33,8 +33,8 @@ type Runner struct {
 }
 
 // NewRunnerPoolStack creates a new stack from discovered modules.
-func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...runbase.Option) (runbase.StackRunner, error) {
-	modulesMap := make(runbase.UnitsMap, len(discovered))
+func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...runbase.Option) (runbase.StackRunner, error) {
+	unitsMap := make(runbase.UnitsMap, len(discovered))
 
 	stack := runbase.Stack{
 		TerragruntOptions: terragruntOptions,
@@ -71,7 +71,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 
 		terragruntConfigPaths = append(terragruntConfigPaths, configPath)
 
-		modulesMap[cfg.Path] = mod
+		unitsMap[cfg.Path] = mod
 	}
 
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
@@ -79,44 +79,44 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, err
 	}
 
-	linkedUnits, err := modulesMap.CrossLinkDependencies(canonicalTerragruntConfigPaths)
+	linkedUnits, err := unitsMap.CrossLinkDependencies(canonicalTerragruntConfigPaths)
 	if err != nil {
 		return nil, err
 	}
 	// Reorder linkedUnits to match the order of canonicalTerragruntConfigPaths
-	orderedModules := make(runbase.Units, 0, len(canonicalTerragruntConfigPaths))
-	pathToModule := make(map[string]*runbase.Unit)
+	orderedUnits := make(runbase.Units, 0, len(canonicalTerragruntConfigPaths))
+	pathToUnit := make(map[string]*runbase.Unit)
 
 	for _, m := range linkedUnits {
-		pathToModule[config.GetDefaultConfigPath(m.Path)] = m
+		pathToUnit[config.GetDefaultConfigPath(m.Path)] = m
 	}
 
 	for _, configPath := range canonicalTerragruntConfigPaths {
-		if m, ok := pathToModule[configPath]; ok {
-			orderedModules = append(orderedModules, m)
+		if m, ok := pathToUnit[configPath]; ok {
+			orderedUnits = append(orderedUnits, m)
 		} else {
 			l.Warnf("Unit for config path %s not found in linked units", configPath)
 		}
 	}
 
-	stack.Units = orderedModules
+	stack.Units = orderedUnits
 
 	return runner.WithOptions(opts...), nil
 }
 
 func (runner *Runner) String() string {
-	modules := []string{}
-	for _, module := range runner.Stack.Units {
-		modules = append(modules, "  => "+module.String())
+	units := make([]string, len(runner.Stack.Units))
+	for i, unit := range runner.Stack.Units {
+		units[i] = "  => " + unit.String()
 	}
 
-	return fmt.Sprintf("Stack at %s:\n%s", runner.Stack.TerragruntOptions.WorkingDir, strings.Join(modules, "\n"))
+	return fmt.Sprintf("Stack at %s:\n%s", runner.Stack.TerragruntOptions.WorkingDir, strings.Join(units, "\n"))
 }
 
 func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", runner.Stack.TerragruntOptions.WorkingDir, terraformCommand)
-	for _, module := range runner.Stack.Units {
-		outStr += fmt.Sprintf("Unit %s\n", module.Path)
+	for _, unit := range runner.Stack.Units {
+		outStr += fmt.Sprintf("Unit %s\n", unit.Path)
 	}
 
 	l.Info(outStr)
@@ -125,12 +125,12 @@ func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) 
 }
 
 func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
-	orderedModules := make([]string, 0, len(runner.Stack.Units))
-	for _, module := range runner.Stack.Units {
-		orderedModules = append(orderedModules, module.Path)
+	orderedUnits := make([]string, 0, len(runner.Stack.Units))
+	for _, unit := range runner.Stack.Units {
+		orderedUnits = append(orderedUnits, unit.Path)
 	}
 
-	j, err := json.MarshalIndent(orderedModules, "", "  ")
+	j, err := json.MarshalIndent(orderedUnits, "", "  ")
 	if err != nil {
 		return "", err
 	}
@@ -151,8 +151,8 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 	stackCmd := opts.TerraformCommand
 
 	if opts.OutputFolder != "" {
-		for _, module := range runner.Stack.Units {
-			planFile := module.OutputFile(l, opts)
+		for _, unit := range runner.Stack.Units {
+			planFile := unit.OutputFile(l, opts)
 			planDir := filepath.Dir(planFile)
 
 			if err := os.MkdirAll(planDir, os.ModePerm); err != nil {
@@ -179,8 +179,8 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 	case tf.CommandNamePlan:
 		errorStreams := make([]bytes.Buffer, len(runner.Stack.Units))
 
-		for n, module := range runner.Stack.Units {
-			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+		for n, unit := range runner.Stack.Units {
+			unit.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], unit.TerragruntOptions.ErrWriter)
 		}
 
 		defer runner.summarizePlanAllErrors(l, errorStreams)
@@ -188,10 +188,10 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 
 	var errs []error
 
-	// Run each module in the runner sequentially, convert each module to a running module, and run it.
-	for _, module := range runner.Stack.Units {
-		moduleToRun := runbase.NewUnitRunner(module)
-		if err := moduleToRun.Run(ctx, module.TerragruntOptions, runner.Stack.Report); err != nil {
+	// Run each unit in the runner sequentially, convert each unit to a running unit, and run it.
+	for _, unit := range runner.Stack.Units {
+		moduleToRun := runbase.NewUnitRunner(unit)
+		if err := moduleToRun.Run(ctx, unit.TerragruntOptions, runner.Stack.Report); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -238,7 +238,7 @@ func (runner *Runner) ListStackDependentUnits() map[string][]string {
 	return dependentModules
 }
 
-// FindModuleByPath finds a module by its path.
+// FindUnitByPath finds a module by its path.
 func (runner *Runner) FindUnitByPath(path string) *runbase.Unit {
 	for _, module := range runner.Stack.Units {
 		if module.Path == path {

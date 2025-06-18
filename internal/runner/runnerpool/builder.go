@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Build discovers modules and builds a new DefaultStack, returning it as a Stack interface.
+// Build discovers modules and builds a new stack runner.
 func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...runbase.Option) (runbase.StackRunner, error) {
 	// discovery configurations
 	d := discovery.
@@ -34,7 +34,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		return nil, queueErr
 	}
 
-	runner, err := NewRunnerPoolStack(ctx, l, terragruntOptions, q.Configs(), opts...)
+	runner, err := NewRunnerPoolStack(l, terragruntOptions, q.Configs(), opts...)
 	if err != nil {
 		return nil, err
 	}
