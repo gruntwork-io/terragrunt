@@ -35,10 +35,12 @@ type Runner struct {
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...runbase.Option) (runbase.StackRunner, error) {
 	modulesMap := make(runbase.UnitsMap, len(discovered))
 
-	runner := &Runner{}
-
 	stack := runbase.Stack{
 		TerragruntOptions: terragruntOptions,
+	}
+
+	runner := &Runner{
+		Stack: &stack,
 	}
 
 	terragruntConfigPaths := make([]string, 0, len(discovered))
