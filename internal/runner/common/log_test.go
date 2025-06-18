@@ -13,10 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func ptr(str string) *string {
-	return &str
-}
-
 func TestLogReductionHook(t *testing.T) {
 	t.Parallel()
 	var hook = common.NewForceLogLevelHook(log.ErrorLevel)

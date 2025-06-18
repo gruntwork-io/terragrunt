@@ -222,3 +222,7 @@ func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ..
 		assert.True(t, found, "Couldn't find expected error %v", expectedErr)
 	}
 }
+
+func ptr(str string) *string {
+	return &str
+}
