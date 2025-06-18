@@ -27,6 +27,22 @@ func (s *CredentialsSource) ForHost(host svchost.Hostname) svcauth.HostCredentia
 	return nil
 }
 
+func (s *CredentialsSource) ForHostSuffix(host svchost.Hostname) svcauth.HostCredentials {
+	// The first order of precedence for credentials is a host-specific environment variable
+	if envCreds := hostSuffixCredentialsFromEnv(host); envCreds != nil {
+		return envCreds
+	}
+
+	// Then, any credentials block with the suffix present in the CLI config
+	for key, token := range s.configured {
+		if strings.HasSuffix(host.String(), key.String()) {
+			return svcauth.HostCredentialsToken(token)
+		}
+	}
+
+	return nil
+}
+
 // hostCredentialsFromEnv returns a token credential by searching for a hostname-specific environment variable. The host parameter is expected to be in the "comparison" form, for example, hostnames containing non-ASCII characters like "café.fr" should be expressed as "xn--caf-dma.fr". If the variable based on the hostname is not defined, nil is returned.
 //
 // Hyphen and period characters are allowed in environment variable names, but are not valid POSIX variable names. However, it's still possible to set variable names with these characters using utilities like env or docker. Variable names may have periods translated to underscores and hyphens translated to double underscores in the variable name. For the example "café.fr", you may use the variable names "TF_TOKEN_xn____caf__dma_fr", "TF_TOKEN_xn--caf-dma_fr", or "TF_TOKEN_xn--caf-dma.fr"
@@ -37,6 +53,15 @@ func hostCredentialsFromEnv(host svchost.Hostname) svcauth.HostCredentials {
 	}
 
 	return svcauth.HostCredentialsToken(token)
+}
+
+func hostSuffixCredentialsFromEnv(host svchost.Hostname) svcauth.HostCredentials {
+	for key, token := range collectCredentialsFromEnv() {
+		if strings.HasSuffix(host.String(), key.String()) {
+			return svcauth.HostCredentialsToken(token)
+		}
+	}
+	return nil
 }
 
 func collectCredentialsFromEnv() map[svchost.Hostname]string {
