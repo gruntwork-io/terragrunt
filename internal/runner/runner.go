@@ -36,7 +36,7 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 // 1. Find root git top level directory and build list of modules
 // 2. Iterate over includes from opts if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) TerraformModules {
+func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.Units {
 	var (
 		pathsToCheck      []string
 		matchedModulesMap = make(common.UnitsMap)
@@ -71,7 +71,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 		cfgOptions.NonInteractive = true
 
 		// build stack from config directory
-		stack, err := config.FindStackInSubfolders(ctx, l, cfgOptions, stack2.WithChildTerragruntConfig(terragruntConfig))
+		runner, err := FindStackInSubfolders(ctx, l, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
 		if err != nil {
 			// log error as debug since in some cases stack building may fail because parent files can be designed
 			// to work with relative paths from downstream modules
@@ -79,11 +79,13 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 			continue
 		}
 
-		depdendentModules := stack.ListStackDependentModules()
+		stack := runner.GetStack()
+
+		depdendentModules := runner.ListStackDependentModules()
 
 		deps, found := depdendentModules[opts.WorkingDir]
 		if found {
-			for _, module := range stack.Modules() {
+			for _, module := range stack.Units {
 				if slices.Contains(deps, module.Path) {
 					matchedModulesMap[module.Path] = module
 				}
@@ -92,7 +94,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 	}
 
 	// extract modules as list
-	var matchedModules = make(TerraformModules, 0, len(matchedModulesMap))
+	var matchedModules = make(common.Units, 0, len(matchedModulesMap))
 	for _, module := range matchedModulesMap {
 		matchedModules = append(matchedModules, module)
 	}

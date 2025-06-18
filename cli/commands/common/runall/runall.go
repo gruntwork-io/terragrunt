@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 
-	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -48,7 +50,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	stackOpts := []configstack.Option{}
+	stackOpts := []common.Option{}
 
 	if opts.Experiments.Evaluate(experiment.Report) {
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
@@ -65,7 +67,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			r.WithShowUnitLevelSummary()
 		}
 
-		stackOpts = append(stackOpts, configstack.WithReport(r))
+		stackOpts = append(stackOpts, common.WithReport(r))
 
 		if opts.ReportSchemaFile != "" {
 			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
@@ -80,7 +82,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, l, opts, stackOpts...)
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
 	if err != nil {
 		return err
 	}
@@ -88,10 +90,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	return RunAllOnStack(ctx, l, opts, stack)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, stack configstack.Stack) error {
-	l.Debugf("%s", stack.String())
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner) error {
+	l.Debugf("%s", runner.GetStack().String())
 
-	if err := stack.LogModuleDeployOrder(l, opts.TerraformCommand); err != nil {
+	if err := runner.LogModuleDeployOrder(l, opts.TerraformCommand); err != nil {
 		return err
 	}
 
@@ -99,11 +101,11 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 	switch opts.TerraformCommand {
 	case tf.CommandNameApply:
-		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?"
+		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the runner described above?"
 	case tf.CommandNameDestroy:
-		prompt = "WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!"
+		prompt = "WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the runner described above? There is no undo!"
 	case tf.CommandNameState:
-		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each folder of the stack described above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
+		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each folder of the runner described above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
 	}
 
 	if prompt != "" {
@@ -122,7 +124,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		err := stack.Run(ctx, l, opts)
+		err := runner.Run(ctx, l, opts)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen

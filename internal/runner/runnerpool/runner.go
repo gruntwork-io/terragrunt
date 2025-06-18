@@ -76,7 +76,7 @@ func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *op
 		return nil, err
 	}
 
-	linkedUnits, err := modulesMap.CrosslinkDependencies(canonicalTerragruntConfigPaths)
+	linkedUnits, err := modulesMap.CrossLinkDependencies(canonicalTerragruntConfigPaths)
 	if err != nil {
 		return nil, err
 	}
