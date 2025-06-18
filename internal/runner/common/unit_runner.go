@@ -44,7 +44,7 @@ func NewUnitRunner(module *Unit) *UnitRunner {
 	}
 }
 
-func (module *UnitRunner) RunTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
+func (module *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	module.Logger.Debugf("Running %s", module.Module.Path)
 
 	opts.Writer = NewModuleWriter(opts.Writer)
@@ -69,15 +69,15 @@ func (module *UnitRunner) RunTerragrunt(ctx context.Context, opts *options.Terra
 	return opts.RunTerragrunt(ctx, module.Logger, opts, r)
 }
 
-// Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
-func (runner *UnitRunner) RunNow(ctx context.Context, rootOptions *options.TerragruntOptions, r *report.Report) error {
+// Run a module right now by executing the runTerragrunt command of its TerragruntOptions field.
+func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 
 	if runner.Module.AssumeAlreadyApplied {
 		runner.Logger.Debugf("Assuming module %s has already been applied and skipping it", runner.Module.Path)
 		return nil
 	} else {
-		if err := runner.RunTerragrunt(ctx, runner.Module.TerragruntOptions, r); err != nil {
+		if err := runner.runTerragrunt(ctx, runner.Module.TerragruntOptions, r); err != nil {
 			return err
 		}
 

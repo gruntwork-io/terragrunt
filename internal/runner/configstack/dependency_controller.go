@@ -64,7 +64,7 @@ func (ctrl *DependencyController) runModuleWhenReady(ctx context.Context, opts *
 			"path":             ctrl.Runner.Module.Path,
 			"terraformCommand": ctrl.Runner.Module.TerragruntOptions.TerraformCommand,
 		}, func(ctx context.Context) error {
-			return ctrl.Runner.RunNow(ctx, opts, r)
+			return ctrl.Runner.Run(ctx, opts, r)
 		})
 	}
 
@@ -333,7 +333,7 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 	return finalModules, nil
 }
 
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// Run the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func (modules RunningModules) runModules(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {

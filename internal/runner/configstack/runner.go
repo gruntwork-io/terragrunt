@@ -840,7 +840,7 @@ func confirmShouldApplyExternalDependency(ctx context.Context, unit *common.Unit
 	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt apply the external dependency?", opts)
 }
 
-// RunModules runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// RunModules runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func (runner *Runner) RunModules(ctx context.Context, opts *options.TerragruntOptions) error {
@@ -852,7 +852,7 @@ func (runner *Runner) RunModules(ctx context.Context, opts *options.TerragruntOp
 	return runningModules.runModules(ctx, opts, runner.Stack.Report, opts.Parallelism)
 }
 
-// RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
 func (runner *Runner) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions) error {
@@ -864,7 +864,7 @@ func (runner *Runner) RunModulesReverseOrder(ctx context.Context, opts *options.
 	return runningModules.runModules(ctx, opts, runner.Stack.Report, opts.Parallelism)
 }
 
-// RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
 func (runner *Runner) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions) error {
 	runningModules, err := ToRunningModules(runner.Stack.Units, IgnoreOrder, runner.Stack.Report, opts)

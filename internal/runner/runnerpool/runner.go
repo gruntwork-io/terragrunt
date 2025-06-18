@@ -187,8 +187,9 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 
 	//Run each module in the runner sequentially, convert each module to a running module, and run it.
 	for _, module := range runner.Stack.Units {
-		moduleToRun := configstack.newRunningModule(module)
-		if err := moduleToRun.runNow(ctx, module.TerragruntOptions, runner.Stack.Report); err != nil {
+
+		moduleToRun := common.NewUnitRunner(module)
+		if err := moduleToRun.Run(ctx, module.TerragruntOptions, runner.Stack.Report); err != nil {
 			errs = append(errs, err)
 		}
 	}
