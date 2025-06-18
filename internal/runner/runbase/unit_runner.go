@@ -5,12 +5,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // UnitStatus represents the status of a unit that we are
@@ -30,7 +30,7 @@ type UnitRunner struct {
 	Status UnitStatus
 }
 
-var outputMu sync.Mutex
+var outputLocks = util.NewKeyLocks()
 
 func NewUnitRunner(unit *Unit) *UnitRunner {
 	return &UnitRunner{
@@ -45,8 +45,8 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	opts.Writer = NewUnitWriter(opts.Writer)
 
 	defer func() {
-		outputMu.Lock()
-		defer outputMu.Unlock()
+		outputLocks.Lock(runner.Unit.Path)
+		defer outputLocks.Unlock(runner.Unit.Path)
 		runner.Unit.FlushOutput() //nolint:errcheck
 	}()
 
