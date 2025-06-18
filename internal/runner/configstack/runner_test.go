@@ -49,8 +49,8 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	var modulePaths = make([]string, 0, len(stack.Units))
 
-	for _, module := range stack.Units {
-		relPath := strings.Replace(module.Path, tempFolder, "", 1)
+	for _, unit := range stack.Units {
+		relPath := strings.Replace(unit.Path, tempFolder, "", 1)
 		relPath = filepath.ToSlash(util.JoinPath(relPath, config.DefaultTerragruntConfigPath))
 
 		modulePaths = append(modulePaths, relPath)
@@ -215,7 +215,7 @@ func TestResolveTerraformModulesNoPaths(t *testing.T) {
 	stack := configstack.NewRunner(logger.CreateLogger(), mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
@@ -242,7 +242,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
@@ -269,7 +269,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T) {
@@ -299,7 +299,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
@@ -390,7 +390,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	stack := configstack.NewRunner(l, mockOptions, runbase.WithChildTerragruntConfig(childTerragruntConfig))
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testing.T) {
@@ -420,7 +420,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testing.T) {
@@ -450,7 +450,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
@@ -491,7 +491,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
@@ -532,7 +532,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
@@ -573,7 +573,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDependency(t *testing.T) {
@@ -616,7 +616,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	expected := runbase.Units{unitA, unitC}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDependencyAndConflictingNaming(t *testing.T) {
@@ -676,7 +676,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	expected := runbase.Units{unitA, unitC, unitAbba}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDependencyAndConflictingNamingAndGlob(t *testing.T) {
@@ -727,7 +727,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	expected := runbase.Units{unitA, unitC, unitAbba}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDependency(t *testing.T) {
@@ -768,7 +768,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	expected := runbase.Units{unitA, unitC}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDependency(t *testing.T) {
@@ -817,7 +817,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	expected := runbase.Units{unitA, unitC}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDependency(t *testing.T) {
@@ -868,7 +868,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 	expected := runbase.Units{unitA, unitC}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDependencyExcludeModuleWithNoDependency(t *testing.T) {
@@ -926,7 +926,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	expected := runbase.Units{unitA, unitC, unitF}
 
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
@@ -996,7 +996,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.T) {
@@ -1066,7 +1066,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *testing.T) {
@@ -1126,7 +1126,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testing.T) {
@@ -1167,7 +1167,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	stack := configstack.NewRunner(l, mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), l, configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t *testing.T) {
@@ -1236,7 +1236,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	stack := configstack.NewRunner(logger.CreateLogger(), mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
@@ -1271,7 +1271,7 @@ func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
 	stack := configstack.NewRunner(logger.CreateLogger(), mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
-	assertModuleListsEqual(t, expected, actualModules)
+	assertUnitListsEqual(t, expected, actualModules)
 }
 
 func TestBasicDependency(t *testing.T) {

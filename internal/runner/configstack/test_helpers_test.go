@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type TerraformModuleByPath runbase.Units
+type UnitByPath runbase.Units
 
-func (byPath TerraformModuleByPath) Len() int           { return len(byPath) }
-func (byPath TerraformModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
-func (byPath TerraformModuleByPath) Less(i, j int) bool { return byPath[i].Path < byPath[j].Path }
+func (byPath UnitByPath) Len() int           { return len(byPath) }
+func (byPath UnitByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
+func (byPath UnitByPath) Less(i, j int) bool { return byPath[i].Path < byPath[j].Path }
 
 type DependencyControllerByPath []*configstack.DependencyController
 
@@ -31,29 +31,29 @@ func (byPath DependencyControllerByPath) Less(i, j int) bool {
 	return byPath[i].Runner.Unit.Path < byPath[j].Runner.Unit.Path
 }
 
-// We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
+// We can't use assert.Equals on Unit or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertModuleListsEqual(t *testing.T, expectedModules runbase.Units, actualModules runbase.Units, messageAndArgs ...any) {
+func assertUnitListsEqual(t *testing.T, expectedUnits runbase.Units, actualUnits runbase.Units, messageAndArgs ...any) {
 	t.Helper()
 
-	if !assert.Len(t, actualModules, len(expectedModules), messageAndArgs...) {
-		t.Logf("%s != %s", expectedModules, actualModules)
+	if !assert.Len(t, actualUnits, len(expectedUnits), messageAndArgs...) {
+		t.Logf("%s != %s", expectedUnits, actualUnits)
 		return
 	}
 
-	sort.Sort(TerraformModuleByPath(expectedModules))
-	sort.Sort(TerraformModuleByPath(actualModules))
+	sort.Sort(UnitByPath(expectedUnits))
+	sort.Sort(UnitByPath(actualUnits))
 
-	for i := range expectedModules {
-		expected := expectedModules[i]
-		actual := actualModules[i]
-		assertModulesEqual(t, expected, actual, messageAndArgs...)
+	for i := range expectedUnits {
+		expected := expectedUnits[i]
+		actual := actualUnits[i]
+		assertUnitsEqual(t, expected, actual, messageAndArgs...)
 	}
 }
 
-// We can't use assert.Equals on TerraformModule because it contains some fields (e.g. TerragruntOptions) that cannot
+// We can't use assert.Equals on Unit because it contains some fields (e.g. TerragruntOptions) that cannot
 // be compared directly
-func assertModulesEqual(t *testing.T, expected *runbase.Unit, actual *runbase.Unit, messageAndArgs ...any) {
+func assertUnitsEqual(t *testing.T, expected *runbase.Unit, actual *runbase.Unit, messageAndArgs ...any) {
 	t.Helper()
 
 	if assert.NotNil(t, actual, messageAndArgs...) {
@@ -72,45 +72,45 @@ func assertModulesEqual(t *testing.T, expected *runbase.Unit, actual *runbase.Un
 		assert.Equal(t, expected.FlagExcluded, actual.FlagExcluded, messageAndArgs...)
 
 		assertOptionsEqual(t, *expected.TerragruntOptions, *actual.TerragruntOptions, messageAndArgs...)
-		assertModuleListsEqual(t, expected.Dependencies, actual.Dependencies, messageAndArgs...)
+		assertUnitListsEqual(t, expected.Dependencies, actual.Dependencies, messageAndArgs...)
 	}
 }
 
 // We can't use assert.Equals on Unit or any data structure that contains it (e.g. configstack.DependencyController) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertDependencyControllerMapsEqual(t *testing.T, expectedModules map[string]*configstack.DependencyController, actualModules map[string]*configstack.DependencyController, doDeepCheck bool, messageAndArgs ...any) {
+func assertDependencyControllerMapsEqual(t *testing.T, expectedUnits map[string]*configstack.DependencyController, actualUnits map[string]*configstack.DependencyController, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()
 
-	if !assert.Len(t, actualModules, len(expectedModules), messageAndArgs...) {
-		t.Logf("%v != %v", expectedModules, actualModules)
+	if !assert.Len(t, actualUnits, len(expectedUnits), messageAndArgs...) {
+		t.Logf("%v != %v", expectedUnits, actualUnits)
 		return
 	}
 
-	for expectedPath, expectedModule := range expectedModules {
-		actualModule, containsModule := actualModules[expectedPath]
-		if assert.True(t, containsModule, messageAndArgs...) {
-			assertDependencyControllersEqual(t, expectedModule, actualModule, doDeepCheck, messageAndArgs...)
+	for expectedPath, expectedUnit := range expectedUnits {
+		actualUnit, containsUnit := actualUnits[expectedPath]
+		if assert.True(t, containsUnit, messageAndArgs...) {
+			assertDependencyControllersEqual(t, expectedUnit, actualUnit, doDeepCheck, messageAndArgs...)
 		}
 	}
 }
 
 // We can't use assert.Equals on Unit or any data structure that contains it (e.g. configstack.DependencyController) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertDependencyControllerListsEqual(t *testing.T, expectedModules []*configstack.DependencyController, actualModules []*configstack.DependencyController, doDeepCheck bool, messageAndArgs ...any) {
+func assertDependencyControllerListsEqual(t *testing.T, expectedUnits []*configstack.DependencyController, actualUnits []*configstack.DependencyController, doDeepCheck bool, messageAndArgs ...any) {
 	t.Helper()
 
-	if !assert.Len(t, actualModules, len(expectedModules), messageAndArgs...) {
-		t.Logf("%v != %v", expectedModules, actualModules)
+	if !assert.Len(t, actualUnits, len(expectedUnits), messageAndArgs...) {
+		t.Logf("%v != %v", expectedUnits, actualUnits)
 		return
 	}
 
 	// Build a map from path to actual controller for fast lookup
 	actualByPath := map[string]*configstack.DependencyController{}
-	for _, actual := range actualModules {
+	for _, actual := range actualUnits {
 		actualByPath[actual.Runner.Unit.Path] = actual
 	}
 
-	for _, expected := range expectedModules {
+	for _, expected := range expectedUnits {
 		actual, ok := actualByPath[expected.Runner.Unit.Path]
 		if assert.True(t, ok, messageAndArgs...) {
 			assertDependencyControllersEqual(t, expected, actual, doDeepCheck, messageAndArgs...)
@@ -126,7 +126,7 @@ func assertDependencyControllersEqual(t *testing.T, expected *configstack.Depend
 	if assert.NotNil(t, actual, messageAndArgs...) {
 		assert.Equal(t, expected.Runner.Status, actual.Runner.Status, messageAndArgs...)
 
-		assertModulesEqual(t, expected.Runner.Unit, actual.Runner.Unit, messageAndArgs...)
+		assertUnitsEqual(t, expected.Runner.Unit, actual.Runner.Unit, messageAndArgs...)
 		assertErrorsEqual(t, expected.Runner.Err, actual.Runner.Err, messageAndArgs...)
 
 		// This ensures we don't end up in a circular loop, since there is a (intentional) circular dependency

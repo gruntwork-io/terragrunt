@@ -261,7 +261,7 @@ func (runner *Runner) GetModuleRunGraph(terraformCommand string) ([]runbase.Unit
 
 	// Set maxDepth for the graph so that we don't get stuck in an infinite loop.
 	const maxDepth = 1000
-	groups := moduleRunGraph.toTerraformModuleGroups(maxDepth)
+	groups := moduleRunGraph.toTerraformUnitGroups(maxDepth)
 
 	return groups, nil
 }

@@ -24,7 +24,7 @@ const (
 	IgnoreOrder
 )
 
-// DependencyOrder controls in what order dependencies should be enforced between modules.
+// DependencyOrder controls in what order dependencies should be enforced between units.
 type DependencyOrder int
 
 // DependencyController manages dependencies and dependency order, and contains a UnitRunner.
@@ -35,19 +35,19 @@ type DependencyController struct {
 	NotifyWhenDone []*DependencyController
 }
 
-// NewDependencyController Create a new dependency controller for the given module.
-func NewDependencyController(module *runbase.Unit) *DependencyController {
+// NewDependencyController Create a new dependency controller for the given unit.
+func NewDependencyController(unit *runbase.Unit) *DependencyController {
 	return &DependencyController{
-		Runner:         runbase.NewUnitRunner(module),
+		Runner:         runbase.NewUnitRunner(unit),
 		DependencyDone: make(chan *DependencyController, channelSize),
 		Dependencies:   map[string]*DependencyController{},
 		NotifyWhenDone: []*DependencyController{},
 	}
 }
 
-// Run a module once all of its dependencies have finished executing.
-func (ctrl *DependencyController) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, semaphore chan struct{}) {
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "wait_for_module_ready", map[string]any{
+// Run a unit once all of its dependencies have finished executing.
+func (ctrl *DependencyController) runUnitWhenReady(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, semaphore chan struct{}) {
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "wait_for_unit_ready", map[string]any{
 		"path":             ctrl.Runner.Unit.Path,
 		"terraformCommand": ctrl.Runner.Unit.TerragruntOptions.TerraformCommand,
 	}, func(_ context.Context) error {
@@ -60,7 +60,7 @@ func (ctrl *DependencyController) runModuleWhenReady(ctx context.Context, opts *
 	}()
 
 	if err == nil {
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_module", map[string]any{
+		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_unit", map[string]any{
 			"path":             ctrl.Runner.Unit.Path,
 			"terraformCommand": ctrl.Runner.Unit.TerragruntOptions.TerraformCommand,
 		}, func(ctx context.Context) error {
@@ -68,11 +68,11 @@ func (ctrl *DependencyController) runModuleWhenReady(ctx context.Context, opts *
 		})
 	}
 
-	ctrl.moduleFinished(err, r, opts.Experiments.Evaluate(experiment.Report))
+	ctrl.unitFinished(err, r, opts.Experiments.Evaluate(experiment.Report))
 }
 
-// Wait for all of this module's dependencies to finish executing. Return an error if any of those dependencies complete
-// with an error. Return immediately if this module has no dependencies.
+// Wait for all of this unit's dependencies to finish executing. Return an error if any of those dependencies complete
+// with an error. Return immediately if this unit has no dependencies.
 func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOptions, r *report.Report) error {
 	ctrl.Runner.Unit.Logger.Debugf("Unit %s must wait for %d dependencies to finish", ctrl.Runner.Unit.Path, len(ctrl.Dependencies))
 
@@ -82,9 +82,9 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 
 		if doneDependency.Runner.Err != nil {
 			if ctrl.Runner.Unit.TerragruntOptions.IgnoreDependencyErrors {
-				ctrl.Runner.Unit.Logger.Errorf("Dependency %s of module %s just finished with an error. Unit %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
+				ctrl.Runner.Unit.Logger.Errorf("Dependency %s of unit %s just finished with an error. Unit %s will have to return an error too. However, because of --queue-ignore-errors, unit %s will run anyway.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
 			} else {
-				ctrl.Runner.Unit.Logger.Errorf("Dependency %s of module %s just finished with an error. Unit %s will have to return an error too.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
+				ctrl.Runner.Unit.Logger.Errorf("Dependency %s of unit %s just finished with an error. Unit %s will have to return an error too.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
 
 				if opts.Experiments.Evaluate(experiment.Report) {
 					run, err := r.GetRun(ctrl.Runner.Unit.Path)
@@ -119,21 +119,21 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 				return runbase.ProcessingUnitDependencyError{Unit: ctrl.Runner.Unit, Dependency: doneDependency.Runner.Unit, Err: doneDependency.Runner.Err}
 			}
 		} else {
-			ctrl.Runner.Unit.Logger.Debugf("Dependency %s of module %s just finished successfully. Unit %s must wait on %d more dependencies.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, len(ctrl.Dependencies))
+			ctrl.Runner.Unit.Logger.Debugf("Dependency %s of unit %s just finished successfully. Unit %s must wait on %d more dependencies.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, len(ctrl.Dependencies))
 		}
 	}
 
 	return nil
 }
 
-// Record that a module has finished executing and notify all of this module's dependencies
-func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Report, reportExperiment bool) {
-	if moduleErr == nil {
+// Record that a unit has finished executing and notify all of this unit's dependencies
+func (ctrl *DependencyController) unitFinished(unitErr error, r *report.Report, reportExperiment bool) {
+	if unitErr == nil {
 		ctrl.Runner.Unit.Logger.Debugf("Unit %s has finished successfully!", ctrl.Runner.Unit.Path)
 
 		if reportExperiment {
 			if err := r.EndRun(ctrl.Runner.Unit.Path); err != nil {
-				ctrl.Runner.Unit.Logger.Errorf("Error ending run for module %s: %v", ctrl.Runner.Unit.Path, err)
+				ctrl.Runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 			}
 		}
 	} else {
@@ -144,7 +144,7 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 				ctrl.Runner.Unit.Path,
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
-				report.WithCauseRunError(moduleErr.Error()),
+				report.WithCauseRunError(unitErr.Error()),
 			); err != nil {
 				// If we can't find the run, then it never started,
 				// So we should start it and then end it as a failed run.
@@ -166,7 +166,7 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 						run.Path,
 						report.WithResult(report.ResultFailed),
 						report.WithReason(report.ReasonRunError),
-						report.WithCauseRunError(moduleErr.Error()),
+						report.WithCauseRunError(unitErr.Error()),
 					); err != nil {
 						ctrl.Runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 					}
@@ -178,7 +178,7 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 	}
 
 	ctrl.Runner.Status = runbase.Finished
-	ctrl.Runner.Err = moduleErr
+	ctrl.Runner.Err = unitErr
 
 	for _, toNotify := range ctrl.NotifyWhenDone {
 		toNotify.DependencyDone <- ctrl
@@ -187,43 +187,43 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 
 type RunningUnits map[string]*DependencyController
 
-func (modules RunningUnits) toTerraformModuleGroups(maxDepth int) []runbase.Units {
+func (units RunningUnits) toTerraformUnitGroups(maxDepth int) []runbase.Units {
 	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
-	// the modules that have no dependencies and captures that as a run group.
+	// the units that have no dependencies and captures that as a run group.
 	groups := []runbase.Units{}
 
-	for len(modules) > 0 && len(groups) < maxDepth {
+	for len(units) > 0 && len(groups) < maxDepth {
 		currentIterationDeploy := runbase.Units{}
 
-		// next tracks which modules are being deferred to a later run.
+		// next tracks which units are being deferred to a later run.
 		next := RunningUnits{}
-		// removeDep tracks which modules are run in the current iteration so that they need to be removed in the
+		// removeDep tracks which units are run in the current iteration so that they need to be removed in the
 		// dependency list for the next iteration. This is separately tracked from currentIterationDeploy for
 		// convenience: this tracks the map key of the Dependencies attribute.
 		var removeDep []string
 
-		// Iterate the modules, looking for those that have no dependencies and select them for "running". In the
+		// Iterate the units, looking for those that have no dependencies and select them for "running". In the
 		// process, track those that still need to run in a separate map for further processing.
-		for path, module := range modules {
+		for path, unit := range units {
 			// Anything that is already applied is culled from the graph when running, so we ignore them here as well.
 			switch {
-			case module.Runner.Unit.AssumeAlreadyApplied:
+			case unit.Runner.Unit.AssumeAlreadyApplied:
 				removeDep = append(removeDep, path)
-			case len(module.Dependencies) == 0:
-				currentIterationDeploy = append(currentIterationDeploy, module.Runner.Unit)
+			case len(unit.Dependencies) == 0:
+				currentIterationDeploy = append(currentIterationDeploy, unit.Runner.Unit)
 				removeDep = append(removeDep, path)
 			default:
-				next[path] = module
+				next[path] = unit
 			}
 		}
 
-		// Go through the remaining module and remove the dependencies that were selected to run in this current
+		// Go through the remaining units and remove the dependencies that were selected to run in this current
 		// iteration.
-		for _, module := range next {
+		for _, unit := range next {
 			for _, path := range removeDep {
-				_, hasDep := module.Dependencies[path]
+				_, hasDep := unit.Dependencies[path]
 				if hasDep {
-					delete(module.Dependencies, path)
+					delete(unit.Dependencies, path)
 				}
 			}
 		}
@@ -237,7 +237,7 @@ func (modules RunningUnits) toTerraformModuleGroups(maxDepth int) []runbase.Unit
 		)
 
 		// Finally, update the trackers so that the next iteration runs.
-		modules = next
+		units = next
 
 		if len(currentIterationDeploy) > 0 {
 			groups = append(groups, currentIterationDeploy)
@@ -247,64 +247,64 @@ func (modules RunningUnits) toTerraformModuleGroups(maxDepth int) []runbase.Unit
 	return groups
 }
 
-// Loop through the map of runningModules and for each module M:
+// Loop through the map of runningUnits and for each unit U:
 //
-//   - If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
-//     modules that depend on M into the NotifyWhenDone field.
+//   - If dependencyOrder is NormalOrder, plug in all the units U depends on into the Dependencies field and all the
+//     units that depend on U into the NotifyWhenDone field.
 //   - If dependencyOrder is ReverseOrder, do the reverse.
 //   - If dependencyOrder is IgnoreOrder, do nothing.
-func (modules RunningUnits) crossLinkDependencies(dependencyOrder DependencyOrder) (RunningUnits, error) {
-	for _, module := range modules {
-		for _, dependency := range module.Runner.Unit.Dependencies {
-			runningDependency, hasDependency := modules[dependency.Path]
+func (units RunningUnits) crossLinkDependencies(dependencyOrder DependencyOrder) (RunningUnits, error) {
+	for _, unit := range units {
+		for _, dependency := range unit.Runner.Unit.Dependencies {
+			runningDependency, hasDependency := units[dependency.Path]
 			if !hasDependency {
-				return modules, errors.New(runbase.DependencyNotFoundWhileCrossLinkingError{Unit: module.Runner.Unit, Dependency: dependency})
+				return units, errors.New(runbase.DependencyNotFoundWhileCrossLinkingError{Unit: unit.Runner.Unit, Dependency: dependency})
 			}
 
 			// TODO: Remove lint suppression
 			switch dependencyOrder { //nolint:exhaustive
 			case NormalOrder:
-				module.Dependencies[runningDependency.Runner.Unit.Path] = runningDependency
-				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
+				unit.Dependencies[runningDependency.Runner.Unit.Path] = runningDependency
+				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, unit)
 			case IgnoreOrder:
 				// Nothing
 			default:
-				runningDependency.Dependencies[module.Runner.Unit.Path] = module
-				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)
+				runningDependency.Dependencies[unit.Runner.Unit.Path] = unit
+				unit.NotifyWhenDone = append(unit.NotifyWhenDone, runningDependency)
 			}
 		}
 	}
 
-	return modules, nil
+	return units, nil
 }
 
-// RemoveFlagExcluded returns a cleaned-up map that only contains modules and
+// RemoveFlagExcluded returns a cleaned-up map that only contains units and
 // dependencies that should not be excluded
-func (modules RunningUnits) RemoveFlagExcluded(r *report.Report, reportExperiment bool) (RunningUnits, error) {
-	var finalModules = make(map[string]*DependencyController)
+func (units RunningUnits) RemoveFlagExcluded(r *report.Report, reportExperiment bool) (RunningUnits, error) {
+	var finalUnits = make(map[string]*DependencyController)
 
 	var errs []error
 
-	for key, module := range modules {
-		// Only add modules that should not be excluded
-		if !module.Runner.Unit.FlagExcluded {
-			finalModules[key] = &DependencyController{
-				Runner:         module.Runner,
-				DependencyDone: module.DependencyDone,
+	for key, unit := range units {
+		// Only add units that should not be excluded
+		if !unit.Runner.Unit.FlagExcluded {
+			finalUnits[key] = &DependencyController{
+				Runner:         unit.Runner,
+				DependencyDone: unit.DependencyDone,
 				Dependencies:   make(map[string]*DependencyController),
-				NotifyWhenDone: module.NotifyWhenDone,
+				NotifyWhenDone: unit.NotifyWhenDone,
 			}
 
 			// Only add dependencies that should not be excluded
-			for path, dependency := range module.Dependencies {
+			for path, dependency := range unit.Dependencies {
 				if !dependency.Runner.Unit.FlagExcluded {
-					finalModules[key].Dependencies[path] = dependency
+					finalUnits[key].Dependencies[path] = dependency
 				}
 			}
 		} else if reportExperiment {
-			run, err := r.GetRun(module.Runner.Unit.Path)
+			run, err := r.GetRun(unit.Runner.Unit.Path)
 			if errors.Is(err, report.ErrRunNotFound) {
-				run, err = report.NewRun(module.Runner.Unit.Path)
+				run, err = report.NewRun(unit.Runner.Unit.Path)
 				if err != nil {
 					errs = append(errs, err)
 					continue
@@ -327,44 +327,44 @@ func (modules RunningUnits) RemoveFlagExcluded(r *report.Report, reportExperimen
 	}
 
 	if len(errs) > 0 {
-		return finalModules, errors.Join(errs...)
+		return finalUnits, errors.Join(errs...)
 	}
 
-	return finalModules, nil
+	return finalUnits, nil
 }
 
-// Run the given map of module path to runningModule. To "run" a module, execute the runTerragrunt command in its
-// TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
+// Run the given map of unit path to runningUnit. To "run" a unit, execute the runTerragrunt command in its
+// TerragruntOptions object. The units will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (modules RunningUnits) runUnits(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
+func (units RunningUnits) runUnits(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
 	var (
 		waitGroup sync.WaitGroup
 		semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
 	)
 
-	for _, module := range modules {
+	for _, unit := range units {
 		waitGroup.Add(1)
 
-		go func(module *DependencyController) {
+		go func(unit *DependencyController) {
 			defer waitGroup.Done()
 
-			module.runModuleWhenReady(ctx, opts, r, semaphore)
-		}(module)
+			unit.runUnitWhenReady(ctx, opts, r, semaphore)
+		}(unit)
 	}
 
 	waitGroup.Wait()
 
-	return modules.collectErrors()
+	return units.collectErrors()
 }
 
-// Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
+// Collect the errors from the given units and return a single error object to represent them, or nil if no errors
 // occurred
-func (modules RunningUnits) collectErrors() error {
+func (units RunningUnits) collectErrors() error {
 	var errs *errors.MultiError
 
-	for _, module := range modules {
-		if module.Runner.Err != nil {
-			errs = errs.Append(module.Runner.Err)
+	for _, unit := range units {
+		if unit.Runner.Err != nil {
+			errs = errs.Append(unit.Runner.Err)
 		}
 	}
 

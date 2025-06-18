@@ -33,11 +33,11 @@ func TestGraph(t *testing.T) {
 	g := &runbase.Unit{Path: "g", Dependencies: []*runbase.Unit{e}, Logger: l}
 	h := &runbase.Unit{Path: "h", Dependencies: []*runbase.Unit{g, f, c}, Logger: l}
 
-	modules := runbase.Units{a, b, c, d, e, f, g, h}
+	units := runbase.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
-	modules.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
+	units.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
 	expected := strings.TrimSpace(`
 digraph {
 	"a" ;
@@ -81,11 +81,11 @@ func TestGraphTrimPrefix(t *testing.T) {
 	g := &runbase.Unit{Path: "/config/alpha/g", Dependencies: []*runbase.Unit{e}, Logger: l}
 	h := &runbase.Unit{Path: "/config/alpha/beta/h", Dependencies: []*runbase.Unit{g, f, c}, Logger: l}
 
-	modules := runbase.Units{a, b, c, d, e, f, g, h}
+	units := runbase.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsWithConfigPath("/config/terragrunt.hcl")
-	modules.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
+	units.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
 	expected := strings.TrimSpace(`
 digraph {
 	"a" ;
@@ -126,11 +126,11 @@ func TestGraphFlagExcluded(t *testing.T) {
 	g := &runbase.Unit{Path: "g", Dependencies: []*runbase.Unit{e}, Logger: l}
 	h := &runbase.Unit{Path: "h", Dependencies: []*runbase.Unit{g, f, c}, Logger: l}
 
-	modules := runbase.Units{a, b, c, d, e, f, g, h}
+	units := runbase.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
-	modules.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
+	units.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
 	expected := strings.TrimSpace(`
 digraph {
 	"a" [color=red];
@@ -164,7 +164,7 @@ func TestCheckForCycles(t *testing.T) {
 	l := logger.CreateLogger()
 
 	////////////////////////////////////
-	// These modules have no dependencies
+	// These units have no dependencies
 	////////////////////////////////////
 	a := &runbase.Unit{Path: "a", Logger: l}
 	b := &runbase.Unit{Path: "b", Logger: l}
@@ -172,7 +172,7 @@ func TestCheckForCycles(t *testing.T) {
 	d := &runbase.Unit{Path: "d", Logger: l}
 
 	////////////////////////////////////
-	// These modules have dependencies, but no cycles
+	// These units have dependencies, but no cycles
 	////////////////////////////////////
 
 	// e -> a
@@ -192,7 +192,7 @@ func TestCheckForCycles(t *testing.T) {
 	h := &runbase.Unit{Path: "h", Dependencies: []*runbase.Unit{g, f, c}, Logger: l}
 
 	////////////////////////////////////
-	// These modules have dependencies and cycles
+	// These units have dependencies and cycles
 	////////////////////////////////////
 
 	// i -> i
@@ -205,14 +205,14 @@ func TestCheckForCycles(t *testing.T) {
 	j.Dependencies = append(j.Dependencies, k)
 
 	// l -> m -> n -> o -> l
-	moduleL := &runbase.Unit{Path: "l", Dependencies: []*runbase.Unit{}, Logger: l}
-	o := &runbase.Unit{Path: "o", Dependencies: []*runbase.Unit{moduleL}, Logger: l}
+	unitL := &runbase.Unit{Path: "l", Dependencies: []*runbase.Unit{}, Logger: l}
+	o := &runbase.Unit{Path: "o", Dependencies: []*runbase.Unit{unitL}, Logger: l}
 	n := &runbase.Unit{Path: "n", Dependencies: []*runbase.Unit{o}, Logger: l}
 	m := &runbase.Unit{Path: "m", Dependencies: []*runbase.Unit{n}, Logger: l}
-	moduleL.Dependencies = append(moduleL.Dependencies, m)
+	unitL.Dependencies = append(unitL.Dependencies, m)
 
 	testCases := []struct {
-		modules  runbase.Units
+		units    runbase.Units
 		expected runbase.DependencyCycleError
 	}{
 		{[]*runbase.Unit{}, nil},
@@ -224,23 +224,23 @@ func TestCheckForCycles(t *testing.T) {
 		{runbase.Units{a, b, c, e, f, g, h}, nil},
 		{[]*runbase.Unit{i}, runbase.DependencyCycleError([]string{"i", "i"})},
 		{[]*runbase.Unit{j, k}, runbase.DependencyCycleError([]string{"j", "k", "j"})},
-		{[]*runbase.Unit{moduleL, o, n, m}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
-		{[]*runbase.Unit{a, moduleL, b, o, n, f, m, h}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*runbase.Unit{unitL, o, n, m}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*runbase.Unit{a, unitL, b, o, n, f, m, h}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
 	}
 
 	for _, tc := range testCases {
-		actual := tc.modules.CheckForCycles()
+		actual := tc.units.CheckForCycles()
 		if tc.expected == nil {
 			require.NoError(t, actual)
-		} else if assert.Error(t, actual, "For modules %v", tc.modules) {
+		} else if assert.Error(t, actual, "For units %v", tc.units) {
 			var actualErr runbase.DependencyCycleError
 			errors.As(actual, &actualErr)
-			assert.Equal(t, []string(tc.expected), []string(actualErr), "For modules %v", tc.modules)
+			assert.Equal(t, []string(tc.expected), []string(actualErr), "For units %v", tc.units)
 		}
 	}
 }
 
-func TestRunModulesNoModules(t *testing.T) {
+func TestRunUnitsNoUnits(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("")
@@ -258,12 +258,12 @@ func TestRunModulesNoModules(t *testing.T) {
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
-func TestRunModulesOneModuleSuccess(t *testing.T) {
+func TestRunUnitsOneUnitSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -277,7 +277,7 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA},
+			Units:  runbase.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -287,12 +287,12 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	assert.True(t, aRan)
 }
 
-func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
+func TestRunUnitsOneUnitAssumeAlreadyRan(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:                 "a",
 		Dependencies:         runbase.Units{},
 		Config:               config.TerragruntConfig{},
@@ -307,7 +307,7 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA},
+			Units:  runbase.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -316,12 +316,12 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	assert.False(t, aRan)
 }
 
-func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
+func TestRunUnitsReverseOrderOneUnitSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -335,7 +335,7 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA},
+			Units:  runbase.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -344,12 +344,12 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	assert.True(t, aRan)
 }
 
-func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
+func TestRunUnitsIgnoreOrderOneUnitSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -363,7 +363,7 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA},
+			Units:  runbase.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -372,13 +372,13 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	assert.True(t, aRan)
 }
 
-func TestRunModulesOneModuleError(t *testing.T) {
+func TestRunUnitsOneUnitError(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 	aRan := false
-	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &runbase.Unit{
+	expectedErrA := errors.New("Expected error for unit a")
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -392,7 +392,7 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA},
+			Units:  runbase.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -401,13 +401,13 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	assert.True(t, aRan)
 }
 
-func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
+func TestRunUnitsReverseOrderOneUnitError(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 	aRan := false
-	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &runbase.Unit{
+	expectedErrA := errors.New("Expected error for unit a")
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -421,7 +421,7 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA},
+			Units:  runbase.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -430,14 +430,14 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	assert.True(t, aRan)
 }
 
-func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
+func TestRunUnitsIgnoreOrderOneUnitError(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &runbase.Unit{
+	expectedErrA := errors.New("Expected error for unit a")
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -451,7 +451,7 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA},
+			Units:  runbase.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -460,13 +460,13 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	assert.True(t, aRan)
 }
 
-func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
+func TestRunUnitsMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -475,7 +475,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -484,7 +484,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -498,7 +498,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -510,13 +510,13 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	assert.True(t, cRan)
 }
 
-func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.T) {
+func TestRunUnitsMultipleUnitsNoDependenciesSuccessNoParallelism(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -525,7 +525,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -534,7 +534,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -548,7 +548,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	opts.Parallelism = 1
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -561,13 +561,13 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	assert.True(t, cRan)
 }
 
-func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T) {
+func TestRunUnitsReverseOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -576,7 +576,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -585,7 +585,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -599,7 +599,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -611,13 +611,13 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	assert.True(t, cRan)
 }
 
-func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T) {
+func TestRunUnitsIgnoreOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -626,7 +626,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -635,7 +635,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -649,7 +649,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -661,13 +661,13 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	assert.True(t, cRan)
 }
 
-func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
+func TestRunUnitsMultipleUnitsNoDependenciesOneFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -676,8 +676,8 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &runbase.Unit{
+	expectedErrB := errors.New("Expected error for unit b")
+	unitB := &runbase.Unit{
 		Path:              "b",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -686,7 +686,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -700,7 +700,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -712,14 +712,14 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	assert.True(t, cRan)
 }
 
-func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
+func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &runbase.Unit{
+	expectedErrA := errors.New("Expected error for unit a")
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -728,8 +728,8 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &runbase.Unit{
+	expectedErrB := errors.New("Expected error for unit b")
+	unitB := &runbase.Unit{
 		Path:              "b",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -738,8 +738,8 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	}
 
 	cRan := false
-	expectedErrC := errors.New("Expected error for module c")
-	moduleC := &runbase.Unit{
+	expectedErrC := errors.New("Expected error for unit c")
+	unitC := &runbase.Unit{
 		Path:              "c",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -753,7 +753,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -765,13 +765,13 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	assert.True(t, cRan)
 }
 
-func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
+func TestRunUnitsMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -780,18 +780,18 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -803,7 +803,7 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -815,13 +815,13 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	assert.True(t, cRan)
 }
 
-func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t *testing.T) {
+func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -830,18 +830,18 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:                 "c",
-		Dependencies:         runbase.Units{moduleB},
+		Dependencies:         runbase.Units{unitB},
 		Config:               config.TerragruntConfig{},
 		Logger:               l,
 		TerragruntOptions:    optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -849,9 +849,9 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	}
 
 	dRan := false
-	moduleD := &runbase.Unit{
+	unitD := &runbase.Unit{
 		Path:              "d",
-		Dependencies:      runbase.Units{moduleC},
+		Dependencies:      runbase.Units{unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
@@ -863,7 +863,7 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC, moduleD},
+			Units:  runbase.Units{unitA, unitB, unitC, unitD},
 			Report: report.NewReport(),
 		},
 	}
@@ -876,13 +876,13 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	assert.True(t, dRan)
 }
 
-func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing.T) {
+func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -891,18 +891,18 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -914,7 +914,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -926,13 +926,13 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	assert.True(t, cRan)
 }
 
-func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.T) {
+func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -941,18 +941,18 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -964,7 +964,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -976,13 +976,13 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	assert.True(t, cRan)
 }
 
-func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
+func TestRunUnitsMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -991,25 +991,25 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &runbase.Unit{
+	expectedErrB := errors.New("Expected error for unit b")
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrC := runbase.ProcessingUnitDependencyError{Unit: moduleC, Dependency: moduleB, Err: expectedErrB}
+	expectedErrC := runbase.ProcessingUnitDependencyError{Unit: unitC, Dependency: unitB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1017,7 +1017,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1029,7 +1029,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	assert.False(t, cRan)
 }
 
-func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErrors(t *testing.T) {
+func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
@@ -1037,7 +1037,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	aRan := false
 	terragruntOptionsA := optionsWithMockTerragruntCommand(t, "a", nil, &aRan)
 	terragruntOptionsA.IgnoreDependencyErrors = true
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1046,12 +1046,12 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	}
 
 	bRan := false
-	expectedErrB := errors.New("Expected error for module b")
+	expectedErrB := errors.New("Expected error for unit b")
 	terragruntOptionsB := optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan)
 	terragruntOptionsB.IgnoreDependencyErrors = true
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: terragruntOptionsB,
@@ -1060,9 +1060,9 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	cRan := false
 	terragruntOptionsC := optionsWithMockTerragruntCommand(t, "c", nil, &cRan)
 	terragruntOptionsC.IgnoreDependencyErrors = true
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: terragruntOptionsC,
@@ -1074,7 +1074,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1087,13 +1087,13 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	assert.True(t, cRan)
 }
 
-func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *testing.T) {
+func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1102,25 +1102,25 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	}
 
 	bRan := false
-	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &runbase.Unit{
+	expectedErrB := errors.New("Expected error for unit b")
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrA := runbase.ProcessingUnitDependencyError{Unit: moduleA, Dependency: moduleB, Err: expectedErrB}
+	expectedErrA := runbase.ProcessingUnitDependencyError{Unit: unitA, Dependency: unitB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1128,7 +1128,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1141,13 +1141,13 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	assert.True(t, cRan)
 }
 
-func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testing.T) {
+func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1156,19 +1156,19 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	}
 
 	bRan := false
-	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &runbase.Unit{
+	expectedErrB := errors.New("Expected error for unit b")
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -1180,7 +1180,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1193,14 +1193,14 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	assert.True(t, cRan)
 }
 
-func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T) {
+func TestRunUnitsMultipleUnitsWithDependenciesMultipleFailures(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &runbase.Unit{
+	expectedErrA := errors.New("Expected error for unit a")
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1209,25 +1209,25 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrB := runbase.ProcessingUnitDependencyError{Unit: moduleB, Dependency: moduleA, Err: expectedErrA}
-	expectedErrC := runbase.ProcessingUnitDependencyError{Unit: moduleC, Dependency: moduleB, Err: expectedErrB}
+	expectedErrB := runbase.ProcessingUnitDependencyError{Unit: unitB, Dependency: unitA, Err: expectedErrA}
+	expectedErrC := runbase.ProcessingUnitDependencyError{Unit: unitC, Dependency: unitB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1235,7 +1235,7 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1248,14 +1248,14 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	assert.False(t, cRan)
 }
 
-func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t *testing.T) {
+func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesMultipleFailures(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &runbase.Unit{
+	expectedErrA := errors.New("Expected error for unit a")
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1264,18 +1264,18 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -1287,7 +1287,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC},
+			Units:  runbase.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1300,13 +1300,13 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	assert.True(t, cRan)
 }
 
-func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testing.T) {
+func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1315,34 +1315,34 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &runbase.Unit{
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
 	dRan := false
-	moduleD := &runbase.Unit{
+	unitD := &runbase.Unit{
 		Path:              "d",
-		Dependencies:      runbase.Units{moduleA, moduleB, moduleC},
+		Dependencies:      runbase.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
 	}
 
 	eRan := false
-	moduleE := &runbase.Unit{
+	unitE := &runbase.Unit{
 		Path:              "e",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1351,9 +1351,9 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	}
 
 	fRan := false
-	moduleF := &runbase.Unit{
+	unitF := &runbase.Unit{
 		Path:              "f",
-		Dependencies:      runbase.Units{moduleE, moduleD},
+		Dependencies:      runbase.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
@@ -1365,7 +1365,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF},
+			Units:  runbase.Units{unitA, unitB, unitC, unitD, unitE, unitF},
 			Report: report.NewReport(),
 		},
 	}
@@ -1381,13 +1381,13 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	assert.True(t, fRan)
 }
 
-func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *testing.T) {
+func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "large-graph-a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1396,35 +1396,35 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "large-graph-b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-b", nil, &bRan),
 	}
 
 	cRan := false
-	expectedErrC := errors.New("Expected error for module large-graph-c")
-	moduleC := &runbase.Unit{
+	expectedErrC := errors.New("Expected error for unit large-graph-c")
+	unitC := &runbase.Unit{
 		Path:              "large-graph-c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-c", expectedErrC, &cRan),
 	}
 
 	dRan := false
-	moduleD := &runbase.Unit{
+	unitD := &runbase.Unit{
 		Path:              "large-graph-d",
-		Dependencies:      runbase.Units{moduleA, moduleB, moduleC},
+		Dependencies:      runbase.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-d", nil, &dRan),
 	}
 
 	eRan := false
-	moduleE := &runbase.Unit{
+	unitE := &runbase.Unit{
 		Path:                 "large-graph-e",
 		Dependencies:         runbase.Units{},
 		Config:               config.TerragruntConfig{},
@@ -1434,25 +1434,25 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	}
 
 	fRan := false
-	moduleF := &runbase.Unit{
+	unitF := &runbase.Unit{
 		Path:              "large-graph-f",
-		Dependencies:      runbase.Units{moduleE, moduleD},
+		Dependencies:      runbase.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-f", nil, &fRan),
 	}
 
 	gRan := false
-	moduleG := &runbase.Unit{
+	unitG := &runbase.Unit{
 		Path:              "large-graph-g",
-		Dependencies:      runbase.Units{moduleE},
+		Dependencies:      runbase.Units{unitE},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-g", nil, &gRan),
 	}
 
-	expectedErrD := runbase.ProcessingUnitDependencyError{Unit: moduleD, Dependency: moduleC, Err: expectedErrC}
-	expectedErrF := runbase.ProcessingUnitDependencyError{Unit: moduleF, Dependency: moduleD, Err: expectedErrD}
+	expectedErrD := runbase.ProcessingUnitDependencyError{Unit: unitD, Dependency: unitC, Err: expectedErrC}
+	expectedErrF := runbase.ProcessingUnitDependencyError{Unit: unitF, Dependency: unitD, Err: expectedErrD}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -1460,7 +1460,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG},
+			Units:  runbase.Units{unitA, unitB, unitC, unitD, unitE, unitF, unitG},
 			Report: report.NewReport(),
 		},
 	}
@@ -1477,13 +1477,13 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	assert.True(t, gRan)
 }
 
-func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialFailure(t *testing.T) {
+func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
 
 	aRan := false
-	moduleA := &runbase.Unit{
+	unitA := &runbase.Unit{
 		Path:              "a",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1492,35 +1492,35 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	}
 
 	bRan := false
-	moduleB := &runbase.Unit{
+	unitB := &runbase.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{moduleA},
+		Dependencies:      runbase.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	expectedErrC := errors.New("Expected error for module c")
-	moduleC := &runbase.Unit{
+	expectedErrC := errors.New("Expected error for unit c")
+	unitC := &runbase.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{moduleB},
+		Dependencies:      runbase.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", expectedErrC, &cRan),
 	}
 
 	dRan := false
-	moduleD := &runbase.Unit{
+	unitD := &runbase.Unit{
 		Path:              "d",
-		Dependencies:      runbase.Units{moduleA, moduleB, moduleC},
+		Dependencies:      runbase.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
 	}
 
 	eRan := false
-	moduleE := &runbase.Unit{
+	unitE := &runbase.Unit{
 		Path:              "e",
 		Dependencies:      runbase.Units{},
 		Config:            config.TerragruntConfig{},
@@ -1529,16 +1529,16 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	}
 
 	fRan := false
-	moduleF := &runbase.Unit{
+	unitF := &runbase.Unit{
 		Path:              "f",
-		Dependencies:      runbase.Units{moduleE, moduleD},
+		Dependencies:      runbase.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
 	}
 
-	expectedErrB := runbase.ProcessingUnitDependencyError{Unit: moduleB, Dependency: moduleC, Err: expectedErrC}
-	expectedErrA := runbase.ProcessingUnitDependencyError{Unit: moduleA, Dependency: moduleB, Err: expectedErrB}
+	expectedErrB := runbase.ProcessingUnitDependencyError{Unit: unitB, Dependency: unitC, Err: expectedErrC}
+	expectedErrA := runbase.ProcessingUnitDependencyError{Unit: unitA, Dependency: unitB, Err: expectedErrB}
 
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, optsErr)
@@ -1546,7 +1546,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
 		Stack: &runbase.Stack{
-			Units:  runbase.Units{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF},
+			Units:  runbase.Units{unitA, unitB, unitC, unitD, unitE, unitF},
 			Report: report.NewReport(),
 		},
 	}
