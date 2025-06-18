@@ -29,8 +29,9 @@ type Summary struct {
 // These are undocumented temporary environment variables that are used
 // to play with the summary, so that we can experiment with it.
 const (
-	envTmpUndocumentedReportPadder       = "TMP_UNDOCUMENTED_REPORT_PADDER"
-	envTmpUndocumentedReportUnitColorize = "TMP_UNDOCUMENTED_REPORT_UNIT_COLORIZE"
+	envTmpUndocumentedReportPadder                  = "TMP_UNDOCUMENTED_REPORT_PADDER"
+	envTmpUndocumentedReportUnitColorize            = "TMP_UNDOCUMENTED_REPORT_UNIT_COLORIZE"
+	envTmpUndocumentedColorizeDefaultSummaryPadding = "TMP_UNDOCUMENTED_COLORIZE_DEFAULT_SUMMARY_PADDING"
 )
 
 // Summarize returns a summary of the report.
@@ -39,7 +40,7 @@ func (r *Report) Summarize() *Summary {
 		workingDir:           r.workingDir,
 		shouldColor:          r.shouldColor,
 		showUnitLevelSummary: r.showUnitLevelSummary,
-		padder:               " ",
+		padder:               ".",
 		runs:                 r.Runs,
 	}
 
@@ -131,8 +132,12 @@ func (s *Summary) Write(w io.Writer) error {
 		return s.writeUnitLevelSummary(w, colorizer)
 	}
 
-	header := fmt.Sprintf("%s  %d units  %s", runSummaryHeader, s.TotalUnits(), s.TotalDurationString(colorizer))
-	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(header)); err != nil {
+	header := fmt.Sprintf("%s  %s  %s",
+		colorizer.headingTitleColorizer(runSummaryHeader),
+		colorizer.headingUnitColorizer(fmt.Sprintf("%d units", s.TotalUnits())),
+		s.TotalDurationString(colorizer),
+	)
+	if err := s.writeSummaryHeader(w, header); err != nil {
 		return err
 	}
 
@@ -142,25 +147,45 @@ func (s *Summary) Write(w io.Writer) error {
 	}
 
 	if s.UnitsSucceeded > 0 {
-		if err := s.writeSummaryEntry(w, colorizer.successColorizer(successLabel), colorizer.successUnitColorizer(strconv.Itoa(s.UnitsSucceeded))); err != nil {
+		if err := s.writeSummaryEntry(
+			w,
+			colorizer.successColorizer(successLabel),
+			colorizer.successUnitColorizer(strconv.Itoa(s.UnitsSucceeded)),
+			colorizer,
+		); err != nil {
 			return err
 		}
 	}
 
 	if s.UnitsFailed > 0 {
-		if err := s.writeSummaryEntry(w, colorizer.failureColorizer(failureLabel), colorizer.failureUnitColorizer(strconv.Itoa(s.UnitsFailed))); err != nil {
+		if err := s.writeSummaryEntry(
+			w,
+			colorizer.failureColorizer(failureLabel),
+			colorizer.failureUnitColorizer(strconv.Itoa(s.UnitsFailed)),
+			colorizer,
+		); err != nil {
 			return err
 		}
 	}
 
 	if s.EarlyExits > 0 {
-		if err := s.writeSummaryEntry(w, colorizer.exitColorizer(earlyExitLabel), colorizer.exitUnitColorizer(strconv.Itoa(s.EarlyExits))); err != nil {
+		if err := s.writeSummaryEntry(
+			w,
+			colorizer.exitColorizer(earlyExitLabel),
+			colorizer.exitUnitColorizer(strconv.Itoa(s.EarlyExits)),
+			colorizer,
+		); err != nil {
 			return err
 		}
 	}
 
 	if s.Excluded > 0 {
-		if err := s.writeSummaryEntry(w, colorizer.excludeColorizer(excludeLabel), colorizer.excludeUnitColorizer(strconv.Itoa(s.Excluded))); err != nil {
+		if err := s.writeSummaryEntry(
+			w,
+			colorizer.excludeColorizer(excludeLabel),
+			colorizer.excludeUnitColorizer(strconv.Itoa(s.Excluded)),
+			colorizer,
+		); err != nil {
 			return err
 		}
 	}
@@ -178,7 +203,6 @@ const (
 	failureLabel               = "Failed"
 	earlyExitLabel             = "Early Exits"
 	excludeLabel               = "Excluded"
-	separator                  = "  "
 	separatorLineLength        = 28
 	durationAlignmentOffset    = 4
 	headerUnitCountSpacing     = 2
@@ -196,8 +220,8 @@ func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
 	return nil
 }
 
-func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) error {
-	_, err := fmt.Fprintf(w, "%s%s%s%s%s\n", prefix, label, separator, s.padding(label), value)
+func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string, colorizer *Colorizer) error {
+	_, err := fmt.Fprintf(w, "%s%s%s%s\n", prefix, label, s.padding(label, colorizer), value)
 	if err != nil {
 		return err
 	}
@@ -225,8 +249,14 @@ func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error
 		headerPadding = maxUnitNameLength - defaultUnitNameLength + headerPaddingAdjustment
 	}
 
-	header := fmt.Sprintf("%s  %d units%s  %s", runSummaryHeader, s.TotalUnits(), strings.Repeat(" ", headerPadding), s.TotalDurationString(colorizer))
-	if err := s.writeSummaryHeader(w, colorizer.headingColorizer(header)); err != nil {
+	header := fmt.Sprintf(
+		"%s  %s%s  %s",
+		runSummaryHeader,
+		colorizer.headingUnitColorizer(fmt.Sprintf("%d units", s.TotalUnits())),
+		strings.Repeat(" ", headerPadding),
+		s.TotalDurationString(colorizer),
+	)
+	if err := s.writeSummaryHeader(w, colorizer.headingTitleColorizer(header)); err != nil {
 		return err
 	}
 
@@ -325,7 +355,7 @@ func (s *Summary) writeUnitDuration(w io.Writer, run *Run, colorizer *Colorizer,
 		name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
 	}
 
-	padding := s.unitDurationPadding(name)
+	padding := s.unitDurationPadding(name, colorizer)
 
 	_, err := fmt.Fprintf(
 		w, "%s%s%s%s\n",
@@ -341,11 +371,11 @@ func (s *Summary) writeUnitDuration(w io.Writer, run *Run, colorizer *Colorizer,
 	return nil
 }
 
-func (s *Summary) padding(label string) string {
+func (s *Summary) padding(label string, colorizer *Colorizer) string {
 	headerUnitCountVisualPosition := s.visualLength(runSummaryHeader) + headerUnitCountSpacing
 
 	currentLabelLength := s.visualLength(label)
-	currentPosition := len(prefix) + currentLabelLength + len(separator)
+	currentPosition := len(prefix) + currentLabelLength
 
 	paddingNeeded := headerUnitCountVisualPosition - currentPosition
 
@@ -355,7 +385,19 @@ func (s *Summary) padding(label string) string {
 		paddingNeeded = 0
 	}
 
-	return strings.Repeat(s.padder, paddingNeeded)
+	padding := strings.Repeat(s.padder, paddingNeeded)
+
+	if len(padding) < 2 {
+		return "  "
+	}
+
+	padding = " " + padding[1:len(padding)-1] + " "
+
+	if os.Getenv(envTmpUndocumentedColorizeDefaultSummaryPadding) == "true" {
+		return colorizer.paddingColorizer(padding)
+	}
+
+	return strings.ReplaceAll(padding, s.padder, " ")
 }
 
 // ansiRegex is used to remove ANSI escape codes from strings.
@@ -370,7 +412,7 @@ func (s *Summary) visualLength(text string) int {
 }
 
 // unitDurationPadding calculates padding for unit names to align durations with header
-func (s *Summary) unitDurationPadding(name string) string {
+func (s *Summary) unitDurationPadding(name string, colorizer *Colorizer) string {
 	maxUnitNameLength := 0
 
 	for _, run := range s.runs {
@@ -401,5 +443,13 @@ func (s *Summary) unitDurationPadding(name string) string {
 		paddingNeeded = 1
 	}
 
-	return strings.Repeat(s.padder, paddingNeeded)
+	padding := strings.Repeat(s.padder, paddingNeeded)
+
+	if len(padding) < 2 {
+		return "  "
+	}
+
+	padding = " " + padding[1:len(padding)-1] + " "
+
+	return colorizer.paddingColorizer(padding)
 }
