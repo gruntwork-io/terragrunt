@@ -120,7 +120,10 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
 		// Get the commit hash
-		git := cas.NewGitRunner().WithWorkDir(filepath.Join(tempDir, "repo"))
+		git, err := cas.NewGitRunner()
+		require.NoError(t, err)
+
+		git = git.WithWorkDir(filepath.Join(tempDir, "repo"))
 		results, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
