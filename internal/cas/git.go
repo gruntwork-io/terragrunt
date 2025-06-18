@@ -10,6 +10,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing"
+	"github.com/go-git/go-git/v6/plumbing/filemode"
 )
 
 const (
@@ -183,11 +187,111 @@ func GetRepoName(repo string) string {
 }
 
 // LsTree runs git ls-tree and returns the parsed tree
+// Uses go-git library for better performance, with fallback to command execution
 func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (*Tree, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return nil, err
 	}
 
+	// Try go-git implementation first for better performance
+	tree, err := g.lstreeWithGoGit(reference, path)
+	if err == nil {
+		return tree, nil
+	}
+
+	// Fallback to external git command if go-git fails
+	return g.lstreeWithCommand(ctx, reference, path)
+}
+
+// lstreeWithGoGit uses the go-git library to read tree objects directly
+func (g *GitRunner) lstreeWithGoGit(reference, path string) (*Tree, error) {
+	// Open the repository
+	repo, err := git.PlainOpen(g.WorkDir)
+	if err != nil {
+		return nil, &WrappedError{
+			Op:      "git_open_repo",
+			Context: g.WorkDir,
+			Err:     err,
+		}
+	}
+
+	// Resolve the reference to a hash
+	hash, err := repo.ResolveRevision(plumbing.Revision(reference))
+	if err != nil {
+		return nil, &WrappedError{
+			Op:      "git_resolve_revision",
+			Context: reference,
+			Err:     err,
+		}
+	}
+
+	// Get the commit object
+	commit, err := repo.CommitObject(*hash)
+	if err != nil {
+		return nil, &WrappedError{
+			Op:      "git_commit_object",
+			Context: hash.String(),
+			Err:     err,
+		}
+	}
+
+	// Get the tree from the commit
+	tree, err := commit.Tree()
+	if err != nil {
+		return nil, &WrappedError{
+			Op:      "git_commit_tree",
+			Context: hash.String(),
+			Err:     err,
+		}
+	}
+
+	// Convert go-git tree entries to our TreeEntry format
+	entries := make([]TreeEntry, 0, len(tree.Entries))
+
+	var treeOutput strings.Builder
+
+	for _, entry := range tree.Entries {
+		// Build the entry in the same format as git ls-tree output
+		mode := entry.Mode.String()
+		// Convert 7-digit mode to 6-digit format to match git ls-tree output
+		if len(mode) == 7 && mode[0] == '0' {
+			mode = mode[1:]
+		}
+
+		entryType := "blob"
+		if entry.Mode == filemode.Dir {
+			entryType = "tree"
+		}
+
+		treeEntry := TreeEntry{
+			Mode: mode,
+			Type: entryType,
+			Hash: entry.Hash.String(),
+			Path: entry.Name,
+		}
+
+		entries = append(entries, treeEntry)
+
+		// Build output string for compatibility with ParseTree
+		treeOutput.WriteString(mode)
+		treeOutput.WriteString(" ")
+		treeOutput.WriteString(entryType)
+		treeOutput.WriteString(" ")
+		treeOutput.WriteString(entry.Hash.String())
+		treeOutput.WriteString("\t")
+		treeOutput.WriteString(entry.Name)
+		treeOutput.WriteString("\n")
+	}
+
+	return &Tree{
+		entries: entries,
+		path:    path,
+		data:    []byte(treeOutput.String()),
+	}, nil
+}
+
+// lstreeWithCommand uses the original external git command as fallback
+func (g *GitRunner) lstreeWithCommand(ctx context.Context, reference, path string) (*Tree, error) {
 	cmd := g.prepareCommand(ctx, "ls-tree", reference)
 	cmd.Dir = g.WorkDir
 
