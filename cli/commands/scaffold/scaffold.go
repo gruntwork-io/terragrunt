@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -236,31 +237,47 @@ func generateDefaultTemplate(boilerplateDir string) (string, error) {
 	return boilerplateDir, nil
 }
 
-// downloadTemplate - parse URL and download files
+// downloadTemplate - parse URL, download files, and handle subfolders
 func downloadTemplate(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, templateURL string, tempDir string) (string, error) {
 	parsedTemplateURL, err := tf.ToSourceURL(templateURL, tempDir)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
-	parsedTemplateURL, err = rewriteTemplateURL(ctx, l, opts, parsedTemplateURL)
+	// Split the processed URL to get the base URL and subfolder
+	baseURL, subFolder, err := tf.SplitSourceURL(l, parsedTemplateURL)
 	if err != nil {
 		return "", errors.New(err)
 	}
-	// regenerate template url with all changes
-	templateURL = parsedTemplateURL.String()
 
-	// prepare temporary directory for template
+	// Go-getter expects a pathspec or . for file paths
+	if baseURL.Scheme == "" || baseURL.Scheme == "file" {
+		baseURL.Path += "//."
+	}
+
+	baseURL, err = rewriteTemplateURL(ctx, l, opts, baseURL)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
 	templateDir, err := os.MkdirTemp("", "template")
 	if err != nil {
 		return "", errors.New(err)
 	}
 
-	// downloading templateURL
-	l.Infof("Using template from %s", templateURL)
-
-	if _, err := getter.GetAny(ctx, templateDir, templateURL); err != nil {
+	l.Infof("Downloading template from %s into %s", baseURL.String(), templateDir)
+	// Downloading baseURL to support boilerplate dependencies and partials. Go-getter discards all but specified folder if one is provided.
+	if _, err := getter.GetAny(ctx, templateDir, baseURL.String()); err != nil {
 		return "", errors.New(err)
+	}
+
+	// Add subfolder to templateDir if provided, as scaffold needs path to boilerplate.yml file
+	if subFolder != "" {
+		templateDir = filepath.Join(templateDir, subFolder)
+		// Verify that subfolder exists
+		if _, err := os.Stat(templateDir); os.IsNotExist(err) {
+			return "", errors.Errorf("subfolder \"//%s\" not found in downloaded template from %s", subFolder, templateURL)
+		}
 	}
 
 	return templateDir, nil
