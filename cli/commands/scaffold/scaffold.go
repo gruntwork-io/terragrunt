@@ -252,7 +252,7 @@ func downloadTemplate(ctx context.Context, l log.Logger, opts *options.Terragrun
 
 	// Go-getter expects a pathspec or . for file paths
 	if baseURL.Scheme == "" || baseURL.Scheme == "file" {
-		baseURL.Path += "//."
+		baseURL.Path = filepath.ToSlash(strings.TrimSuffix(baseURL.Path, "/")) + "//."
 	}
 
 	baseURL, err = rewriteTemplateURL(ctx, l, opts, baseURL)
@@ -260,7 +260,7 @@ func downloadTemplate(ctx context.Context, l log.Logger, opts *options.Terragrun
 		return "", errors.New(err)
 	}
 
-	templateDir, err := os.MkdirTemp("", "template")
+	templateDir, err := os.MkdirTemp(tempDir, "template")
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -273,6 +273,7 @@ func downloadTemplate(ctx context.Context, l log.Logger, opts *options.Terragrun
 
 	// Add subfolder to templateDir if provided, as scaffold needs path to boilerplate.yml file
 	if subFolder != "" {
+		subFolder = strings.TrimPrefix(subFolder, "/")
 		templateDir = filepath.Join(templateDir, subFolder)
 		// Verify that subfolder exists
 		if _, err := os.Stat(templateDir); os.IsNotExist(err) {
@@ -315,7 +316,7 @@ func prepareBoilerplateFiles(ctx context.Context, l log.Logger, opts *options.Te
 
 			boilerplateDir = tempTemplateDir
 		} else {
-			defaultTempDir, err := os.MkdirTemp("", "boilerplate")
+			defaultTempDir, err := os.MkdirTemp(tempDir, "boilerplate")
 			if err != nil {
 				return "", errors.New(err)
 			}
