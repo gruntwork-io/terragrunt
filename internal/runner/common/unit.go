@@ -8,6 +8,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -18,10 +21,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
+// Stack represents a stack of units that you can "spin up" or "spin down"
+type Stack struct {
+	Report            *report.Report
+	TerragruntOptions *options.TerragruntOptions
+	ChildConfig       *config.TerragruntConfig
+	Modules           Units
+	parserOptions     []hclparse.Option
+}
+
 // Unit represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type Unit struct {
-	Stack                Stack
 	TerragruntOptions    *options.TerragruntOptions
 	Logger               log.Logger
 	Path                 string
@@ -49,10 +60,10 @@ func (module *Unit) String() string {
 }
 
 // FlushOutput flushes buffer data to the output writer.
-func (module *Unit) FlushOutput() error {
+func (module *Unit) FlushOutput(runner StackRunner) error {
 	if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
-		module.Stack.Lock()
-		defer module.Stack.Unlock()
+		runner.Lock()
+		defer runner.Unlock()
 
 		return writer.Flush()
 	}
@@ -113,7 +124,7 @@ func (module *Unit) findModuleInPath(targetDirs []string) bool {
 }
 
 // Get the list of modules this module depends on
-func (module *Unit) getDependenciesForModule(modulesMap UnitsMap, terragruntConfigPaths []string) (TerraformModules, error) {
+func (module *Unit) getDependenciesForModule(modulesMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
 	dependencies := Units{}
 
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
@@ -150,18 +161,18 @@ func (module *Unit) getDependenciesForModule(modulesMap UnitsMap, terragruntConf
 
 // Merge the given external dependencies into the given map of modules if those dependencies aren't already in the
 // modules map
-func (modulesMap UnitsMap) mergeMaps(externalDependencies UnitsMap) UnitsMap {
+func (unitsMap UnitsMap) mergeMaps(externalDependencies UnitsMap) UnitsMap {
 	out := UnitsMap{}
 
 	maps.Copy(out, externalDependencies)
 
-	maps.Copy(out, modulesMap)
+	maps.Copy(out, unitsMap)
 
 	return out
 }
 
-func (modulesMap UnitsMap) FindByPath(path string) *Unit {
-	for _, module := range modulesMap {
+func (unitsMap UnitsMap) FindByPath(path string) *Unit {
+	for _, module := range unitsMap {
 		if module.Path == path {
 			return module
 		}

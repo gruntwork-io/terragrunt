@@ -13,8 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// Stack is the abstraction for a stack of Terraform modules.
-type Stack interface {
+// StackRunner is the abstraction for a stack of Terraform modules.
+type StackRunner interface {
 	String() string
 	LogModuleDeployOrder(l log.Logger, terraformCommand string) error
 	JSONModuleDeployOrder(terraformCommand string) (string, error)
@@ -34,7 +34,7 @@ type Stack interface {
 	Unlock()
 }
 
-// StackBuilder is the abstraction for building a Stack.
-type StackBuilder interface {
-	BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error)
+// StackRunnerBuilder is the abstraction for building a StackRunner.
+type StackRunnerBuilder interface {
+	Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error)
 }
