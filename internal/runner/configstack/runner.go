@@ -46,7 +46,6 @@ type Runner struct {
 
 // NewRunner creates a new Runner.
 func NewRunner(l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) *Runner {
-
 	runner := &Runner{
 		Stack: &common.Stack{
 			TerragruntOptions: terragruntOptions,

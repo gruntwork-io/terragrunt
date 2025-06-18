@@ -11,7 +11,7 @@ import (
 )
 
 // Build discovers modules and builds a new DefaultStack, returning it as a Stack interface.
-func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.Stack, error) {
+func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).
@@ -33,5 +33,10 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		return nil, queueErr
 	}
 
-	return NewRunnerPoolStack(ctx, l, terragruntOptions, q.Configs())
+	runner, err := NewRunnerPoolStack(ctx, l, terragruntOptions, q.Configs(), opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return runner, nil
 }
