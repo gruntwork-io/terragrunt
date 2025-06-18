@@ -1226,8 +1226,8 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrB := runbase.ProcessingModuleDependencyError{moduleB, moduleA, expectedErrA}
-	expectedErrC := runbase.ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
+	expectedErrB := runbase.ProcessingModuleDependencyError{Module: moduleB, Dependency: moduleA, Err: expectedErrA}
+	expectedErrC := runbase.ProcessingModuleDependencyError{Module: moduleC, Dependency: moduleB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)

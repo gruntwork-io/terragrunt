@@ -44,19 +44,19 @@ func NewUnitRunner(module *Unit) *UnitRunner {
 	}
 }
 
-func (module *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
-	module.Logger.Debugf("Running %s", module.Module.Path)
+func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
+	runner.Logger.Debugf("Running %s", runner.Module.Path)
 
 	opts.Writer = NewModuleWriter(opts.Writer)
 
 	defer func() {
 		outputMu.Lock()
 		defer outputMu.Unlock()
-		module.Module.FlushOutput() //nolint:errcheck
+		runner.Module.FlushOutput() //nolint:errcheck
 	}()
 
 	if opts.Experiments.Evaluate(experiment.Report) {
-		run, err := report.NewRun(module.Module.Path)
+		run, err := report.NewRun(runner.Module.Path)
 		if err != nil {
 			return err
 		}
@@ -66,7 +66,7 @@ func (module *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 		}
 	}
 
-	return opts.RunTerragrunt(ctx, module.Logger, opts, r)
+	return opts.RunTerragrunt(ctx, runner.Logger, opts, r)
 }
 
 // Run a module right now by executing the runTerragrunt command of its TerragruntOptions field.

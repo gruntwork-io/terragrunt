@@ -203,6 +203,7 @@ func (runner *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.
 		}
 
 		unit := runner.Stack.Units[i]
+
 		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 			var dependenciesMsg string
 			if len(unit.Dependencies) > 0 {

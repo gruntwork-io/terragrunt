@@ -116,7 +116,7 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 					}
 				}
 
-				return runbase.ProcessingModuleDependencyError{ctrl.Runner.Module, doneDependency.Runner.Module, doneDependency.Runner.Err}
+				return runbase.ProcessingModuleDependencyError{Module: ctrl.Runner.Module, Dependency: doneDependency.Runner.Module, Err: doneDependency.Runner.Err}
 			}
 		} else {
 			ctrl.Runner.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path, len(ctrl.Dependencies))
@@ -258,7 +258,7 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 		for _, dependency := range module.Runner.Module.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
 			if !hasDependency {
-				return modules, errors.New(runbase.DependencyNotFoundWhileCrossLinkingError{module.Runner.Module, dependency})
+				return modules, errors.New(runbase.DependencyNotFoundWhileCrossLinkingError{Module: module.Runner.Module, Dependency: dependency})
 			}
 
 			// TODO: Remove lint suppression

@@ -187,9 +187,8 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 
 	var errs []error
 
-	//Run each module in the runner sequentially, convert each module to a running module, and run it.
+	// Run each module in the runner sequentially, convert each module to a running module, and run it.
 	for _, module := range runner.Stack.Units {
-
 		moduleToRun := runbase.NewUnitRunner(module)
 		if err := moduleToRun.Run(ctx, module.TerragruntOptions, runner.Stack.Report); err != nil {
 			errs = append(errs, err)

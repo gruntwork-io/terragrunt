@@ -310,7 +310,7 @@ func checkForCyclesUsingDepthFirstSearch(module *Unit, visitedPaths *[]string, c
 
 // String renders this stack as a human-readable string
 func (stack *Stack) String() string {
-	var modules []string
+	modules := make([]string, len(stack.Units))
 	for _, module := range stack.Units {
 		modules = append(modules, "  => "+module.String())
 	}
