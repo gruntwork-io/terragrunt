@@ -9,9 +9,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -227,7 +227,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -254,7 +254,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 		Path:         canonical(t, "../test/fixtures/modules/json-module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -281,7 +281,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 		Path:         canonical(t, "../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			Terraform: &config.TerraformConfig{Source: common.ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixtures/modules/module-b/root.hcl")},
@@ -353,7 +353,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		Path:         canonical(t, childDir),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			Terraform: &config.TerraformConfig{Source: common.ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixtures/modules/module-m/root.hcl")},
@@ -402,7 +402,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 		Path:         canonical(t, "../test/fixtures/modules/json-module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			Terraform: &config.TerraformConfig{Source: common.ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixtures/modules/json-module-b/root.hcl")},
@@ -432,7 +432,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 		Path:         canonical(t, "../test/fixtures/modules/hcl-module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			Terraform: &config.TerraformConfig{Source: common.ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixtures/modules/hcl-module-b/root.hcl.json")},
@@ -462,7 +462,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -476,7 +476,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -503,7 +503,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -517,7 +517,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -544,7 +544,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 		Path:         canonical(t, "../test/fixtures/modules/json-module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -558,7 +558,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../json-module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -597,7 +597,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -642,7 +642,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -657,7 +657,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -700,7 +700,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -742,7 +742,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -783,7 +783,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -798,7 +798,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -834,7 +834,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -849,7 +849,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -884,7 +884,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -898,7 +898,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -938,7 +938,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -951,7 +951,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 		Path:         canonical(t, "../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			Terraform: &config.TerraformConfig{Source: common.ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixtures/modules/module-b/root.hcl")},
@@ -968,7 +968,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -1008,7 +1008,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -1021,7 +1021,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 		Path:         canonical(t, "../test/fixtures/modules/json-module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			Terraform: &config.TerraformConfig{Source: common.ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixtures/modules/json-module-b/root.hcl")},
@@ -1038,7 +1038,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 		Dependencies: configstack.TerraformModules{moduleA},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -1078,7 +1078,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 		Path:         canonical(t, "../test/fixtures/modules/module-a"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -1091,7 +1091,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 		Path:         canonical(t, "../test/fixtures/modules/module-b/module-b-child"),
 		Dependencies: configstack.TerraformModules{},
 		Config: config.TerragruntConfig{
-			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			Terraform: &config.TerraformConfig{Source: common.ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixtures/modules/module-b/root.hcl")},
@@ -1108,7 +1108,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 		Dependencies: configstack.TerraformModules{moduleA, moduleB},
 		Config: config.TerragruntConfig{
 			Dependencies: &config.ModuleDependencies{Paths: []string{"../../module-a", "../../module-b/module-b-child"}},
-			Terraform:    &config.TerraformConfig{Source: ptr("test")},
+			Terraform:    &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:    true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
 				"": {Path: canonical(t, "../test/fixtures/modules/module-e/root.hcl")},
@@ -1152,7 +1152,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 		Dependencies: configstack.TerraformModules{moduleF},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-f"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("test")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -1207,7 +1207,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 		Dependencies: configstack.TerraformModules{moduleI},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-i"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("temp")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -1221,7 +1221,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 		Dependencies: configstack.TerraformModules{moduleH},
 		Config: config.TerragruntConfig{
 			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-h"}},
-			Terraform:       &config.TerraformConfig{Source: ptr("fire")},
+			Terraform:       &config.TerraformConfig{Source: common.ptr("fire")},
 			IsPartial:       true,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
