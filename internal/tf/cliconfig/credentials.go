@@ -35,7 +35,7 @@ func (s *CredentialsSource) ForHostSuffix(host svchost.Hostname) svcauth.HostCre
 
 	// Then, any credentials block with the suffix present in the CLI config
 	for key, token := range s.configured {
-		if strings.HasSuffix(host.String(), key.String()) {
+		if strings.HasSuffix(host.String(), "."+key.String()) {
 			return svcauth.HostCredentialsToken(token)
 		}
 	}
@@ -57,7 +57,7 @@ func hostCredentialsFromEnv(host svchost.Hostname) svcauth.HostCredentials {
 
 func hostSuffixCredentialsFromEnv(host svchost.Hostname) svcauth.HostCredentials {
 	for key, token := range collectCredentialsFromEnv() {
-		if strings.HasSuffix(host.String(), key.String()) {
+		if strings.HasSuffix(host.String(), "."+key.String()) {
 			return svcauth.HostCredentialsToken(token)
 		}
 	}
