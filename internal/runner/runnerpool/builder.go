@@ -10,18 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// RunnerPoolStackBuilder implements StackBuilder for RunnerPoolStack
-// It uses the discovery package to find modules and build the stack.
-type RunnerPoolStackBuilder struct {
-}
-
-// NewRunnerPoolStackBuilder creates a new builder with the given discovery instance.
-func NewRunnerPoolStackBuilder() *RunnerPoolStackBuilder {
-	return &RunnerPoolStackBuilder{}
-}
-
 // BuildStack discovers modules and builds a new DefaultStack, returning it as a Stack interface.
-func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.Stack, error) {
+func BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.Stack, error) {
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).

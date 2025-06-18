@@ -61,11 +61,8 @@ func (module *Unit) String() string {
 }
 
 // FlushOutput flushes buffer data to the output writer.
-func (module *Unit) FlushOutput(runner StackRunner) error {
+func (module *Unit) FlushOutput() error {
 	if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
-		runner.Lock()
-		defer runner.Unlock()
-
 		return writer.Flush()
 	}
 

@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type TerraformModuleByPath configstack.TerraformModules
+type TerraformModuleByPath common.Units
 
 func (byPath TerraformModuleByPath) Len() int           { return len(byPath) }
 func (byPath TerraformModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
@@ -31,9 +31,9 @@ func (byPath RunningModuleByPath) Less(i, j int) bool {
 	return byPath[i].Module.Path < byPath[j].Module.Path
 }
 
-// We can't use assert.Equals on Unit or any data structure that contains it because it contains some
+// We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformModules, actualModules configstack.TerraformModules, messageAndArgs ...any) {
+func assertModuleListsEqual(t *testing.T, expectedModules common.Units, actualModules common.Units, messageAndArgs ...any) {
 	t.Helper()
 
 	if !assert.Len(t, actualModules, len(expectedModules), messageAndArgs...) {
@@ -51,7 +51,7 @@ func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformM
 	}
 }
 
-// We can't use assert.Equals on Unit because it contains some fields (e.g. TerragruntOptions) that cannot
+// We can't use assert.Equals on TerraformModule because it contains some fields (e.g. TerragruntOptions) that cannot
 // be compared directly
 func assertModulesEqual(t *testing.T, expected *common.Unit, actual *common.Unit, messageAndArgs ...any) {
 	t.Helper()
@@ -142,9 +142,9 @@ func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArg
 
 	actual = errors.Unwrap(actual)
 
-	var unrecognizedDependencyError configstack.UnrecognizedDependencyError
+	var unrecognizedDependencyError common.UnrecognizedDependencyError
 	if ok := errors.As(expected, &unrecognizedDependencyError); ok {
-		var actualUnrecognized configstack.UnrecognizedDependencyError
+		var actualUnrecognized common.UnrecognizedDependencyError
 		ok = errors.As(actual, &actualUnrecognized)
 		if assert.True(t, ok, messageAndArgs...) {
 			assert.Equal(t, unrecognizedDependencyError, actualUnrecognized, messageAndArgs...)

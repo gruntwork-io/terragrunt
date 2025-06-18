@@ -148,12 +148,18 @@ func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions
 	return nil
 }
 
+var outputMu sync.Mutex
+
 func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
 	module.Logger.Debugf("Running %s", module.Module.Path)
 
 	opts.Writer = common.NewModuleWriter(opts.Writer)
 
-	defer module.Module.FlushOutput() //nolint:errcheck
+	defer func() {
+		outputMu.Lock()
+		defer outputMu.Unlock()
+		module.Module.FlushOutput() //nolint:errcheck
+	}()
 
 	if opts.Experiments.Evaluate(experiment.Report) {
 		run, err := report.NewRun(module.Module.Path)
@@ -348,7 +354,7 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 		for _, dependency := range module.Module.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
 			if !hasDependency {
-				return modules, errors.New(common.DependencyNotFoundWhileCrossLinkingError{module, dependency})
+				return modules, errors.New(common.DependencyNotFoundWhileCrossLinkingError{module.Module, dependency})
 			}
 
 			// TODO: Remove lint suppression
