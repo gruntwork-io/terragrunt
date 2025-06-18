@@ -205,11 +205,11 @@ func TestCheckForCycles(t *testing.T) {
 	j.Dependencies = append(j.Dependencies, k)
 
 	// l -> m -> n -> o -> l
-	unitL := &runbase.Unit{Path: "l", Dependencies: []*runbase.Unit{}, Logger: l}
-	o := &runbase.Unit{Path: "o", Dependencies: []*runbase.Unit{unitL}, Logger: l}
+	unitNameL := &runbase.Unit{Path: "l", Dependencies: []*runbase.Unit{}, Logger: l}
+	o := &runbase.Unit{Path: "o", Dependencies: []*runbase.Unit{unitNameL}, Logger: l}
 	n := &runbase.Unit{Path: "n", Dependencies: []*runbase.Unit{o}, Logger: l}
 	m := &runbase.Unit{Path: "m", Dependencies: []*runbase.Unit{n}, Logger: l}
-	unitL.Dependencies = append(unitL.Dependencies, m)
+	unitNameL.Dependencies = append(unitNameL.Dependencies, m)
 
 	testCases := []struct {
 		units    runbase.Units
@@ -224,8 +224,8 @@ func TestCheckForCycles(t *testing.T) {
 		{runbase.Units{a, b, c, e, f, g, h}, nil},
 		{[]*runbase.Unit{i}, runbase.DependencyCycleError([]string{"i", "i"})},
 		{[]*runbase.Unit{j, k}, runbase.DependencyCycleError([]string{"j", "k", "j"})},
-		{[]*runbase.Unit{unitL, o, n, m}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
-		{[]*runbase.Unit{a, unitL, b, o, n, f, m, h}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*runbase.Unit{unitNameL, o, n, m}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*runbase.Unit{a, unitNameL, b, o, n, f, m, h}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
 	}
 
 	for _, tc := range testCases {
