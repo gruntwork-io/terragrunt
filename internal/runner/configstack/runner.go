@@ -124,14 +124,6 @@ func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, erro
 	return string(j), nil
 }
 
-// Graph creates a graphviz representation of the units
-func (runner *Runner) Graph(l log.Logger, opts *options.TerragruntOptions) {
-	err := runner.Stack.Units.WriteDot(l, opts.Writer, opts)
-	if err != nil {
-		l.Warnf("Failed to graph dot: %v", err)
-	}
-}
-
 func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	stackCmd := opts.TerraformCommand
 

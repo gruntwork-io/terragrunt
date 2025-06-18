@@ -39,7 +39,9 @@ func Run(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error 
 		return err
 	}
 
-	stack.Graph(l, opts)
+	if err := stack.GetStack().Units.WriteDot(l, opts.Writer, opts); err != nil {
+		l.Warnf("Failed to graph dot: %v", err)
+	}
 
 	return nil
 }

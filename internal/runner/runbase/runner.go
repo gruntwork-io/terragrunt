@@ -19,7 +19,6 @@ type StackRunner interface {
 	FindUnitByPath(path string) *Unit
 	LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	JSONUnitDeployOrder(terraformCommand string) (string, error)
-	Graph(l log.Logger, opts *options.TerragruntOptions)
 	ListStackDependentUnits() map[string][]string
 	GetStack() *Stack
 	SetTerragruntConfig(config *config.TerragruntConfig)

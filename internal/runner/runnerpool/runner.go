@@ -138,13 +138,6 @@ func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, erro
 	return string(j), nil
 }
 
-func (runner *Runner) Graph(l log.Logger, opts *options.TerragruntOptions) {
-	err := runner.Stack.Units.WriteDot(l, opts.Writer, opts)
-	if err != nil {
-		l.Warnf("Failed to graph dot: %v", err)
-	}
-}
-
 func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	// Here will be implemented runner pool logic to run the units concurrently.
 	// Currently, implementation is in the sequential way.
