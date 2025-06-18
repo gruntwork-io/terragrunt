@@ -2,24 +2,17 @@ package configstack
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"path/filepath"
 	"sort"
-	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"slices"
-
-	"maps"
-
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -55,174 +48,11 @@ func confirmShouldApplyExternalDependency(ctx context.Context, u *config.Unit, l
 	return shell.PromptUserForYesNo(ctx, l, "Should Terragrunt apply the external dependency?", opts)
 }
 
-// Get the list of modules this module depends on
-func (module *Unit) getDependenciesForModule(modulesMap TerraformModulesMap, terragruntConfigPaths []string) (TerraformModules, error) {
-	dependencies := TerraformModules{}
-
-	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
-		return dependencies, nil
-	}
-
-	for _, dependencyPath := range module.Config.Dependencies.Paths {
-		dependencyModulePath, err := util.CanonicalPath(dependencyPath, module.Path)
-		if err != nil {
-			// TODO: Remove lint suppression
-			return dependencies, nil //nolint:nilerr
-		}
-
-		if files.FileExists(dependencyModulePath) && !files.IsDir(dependencyModulePath) {
-			dependencyModulePath = filepath.Dir(dependencyModulePath)
-		}
-
-		dependencyModule, foundModule := modulesMap[dependencyModulePath]
-		if !foundModule {
-			err := UnrecognizedDependencyError{
-				ModulePath:            module.Path,
-				DependencyPath:        dependencyPath,
-				TerragruntConfigPaths: terragruntConfigPaths,
-			}
-
-			return dependencies, errors.New(err)
-		}
-
-		dependencies = append(dependencies, dependencyModule)
-	}
-
-	return dependencies, nil
-}
-
-// FindWhereWorkingDirIsIncluded - find where working directory is included, flow:
-// 1. Find root git top level directory and build list of modules
-// 2. Iterate over includes from opts if git top level directory detection failed
-// 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) TerraformModules {
-	var (
-		pathsToCheck      []string
-		matchedModulesMap = make(TerraformModulesMap)
-	)
-
-	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir); err == nil {
-		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
-	} else {
-		// detection failed, trying to use include directories as source for stacks
-		uniquePaths := make(map[string]bool)
-		for _, includePath := range terragruntConfig.ProcessedIncludes {
-			uniquePaths[filepath.Dir(includePath.Path)] = true
-		}
-
-		for path := range uniquePaths {
-			pathsToCheck = append(pathsToCheck, path)
-		}
-	}
-
-	for _, dir := range pathsToCheck { // iterate over detected paths, build stacks and filter modules by working dir
-		dir += filepath.FromSlash("/")
-
-		cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
-		if err != nil {
-			l.Debugf("Failed to build terragrunt options from %s %v", dir, err)
-			continue
-		}
-
-		cfgOptions.Env = opts.Env
-		cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-		cfgOptions.TerraformCommand = opts.TerraformCommand
-		cfgOptions.NonInteractive = true
-
-		// build stack from config directory
-		stack, err := config.FindStackInSubfolders(ctx, l, cfgOptions, stack2.WithChildTerragruntConfig(terragruntConfig))
-		if err != nil {
-			// log error as debug since in some cases stack building may fail because parent files can be designed
-			// to work with relative paths from downstream modules
-			l.Debugf("Failed to build module stack %v", err)
-			continue
-		}
-
-		depdendentModules := stack.ListStackDependentModules()
-
-		deps, found := depdendentModules[opts.WorkingDir]
-		if found {
-			for _, module := range stack.Modules() {
-				if slices.Contains(deps, module.Path) {
-					matchedModulesMap[module.Path] = module
-				}
-			}
-		}
-	}
-
-	// extract modules as list
-	var matchedModules = make(TerraformModules, 0, len(matchedModulesMap))
-	for _, module := range matchedModulesMap {
-		matchedModules = append(matchedModules, module)
-	}
-
-	return matchedModules
-}
-
-func (modules TerraformModules) FindByPath(path string) *Unit {
-	for _, module := range modules {
-		if module.Path == path {
-			return module
-		}
-	}
-
-	return nil
-}
-
-// WriteDot is used to emit a GraphViz compatible definition
-// for a directed graph. It can be used to dump a .dot file.
-// This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
-// adding some styling to modules that are excluded from the execution in *-all commands
-func (modules TerraformModules) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntOptions) error {
-	if _, err := w.Write([]byte("digraph {\n")); err != nil {
-		return errors.New(err)
-	}
-	defer func(w io.Writer, p []byte) {
-		_, err := w.Write(p)
-		if err != nil {
-			l.Warnf("Failed to close graphviz output: %v", err)
-		}
-	}(w, []byte("}\n"))
-
-	// all paths are relative to the TerragruntConfigPath
-	prefix := filepath.Dir(opts.TerragruntConfigPath) + "/"
-
-	for _, source := range modules {
-		// apply a different coloring for excluded nodes
-		style := ""
-		if source.FlagExcluded {
-			style = "[color=red]"
-		}
-
-		nodeLine := fmt.Sprintf("\t\"%s\" %s;\n",
-			strings.TrimPrefix(source.Path, prefix), style)
-
-		_, err := w.Write([]byte(nodeLine))
-		if err != nil {
-			return errors.New(err)
-		}
-
-		for _, target := range source.Dependencies {
-			line := fmt.Sprintf("\t\"%s\" -> \"%s\";\n",
-				strings.TrimPrefix(source.Path, prefix),
-				strings.TrimPrefix(target.Path, prefix),
-			)
-
-			_, err := w.Write([]byte(line))
-			if err != nil {
-				return errors.New(err)
-			}
-		}
-	}
-
-	return nil
-}
-
 // RunModules runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(NormalOrder, r, opts)
+func RunModules(ctx context.Context, opts *options.TerragruntOptions, units common.Units, r *report.Report, parallelism int) error {
+	runningModules, err := ToRunningModules(units, NormalOrder, r, opts)
 	if err != nil {
 		return err
 	}
@@ -233,8 +63,8 @@ func (modules TerraformModules) RunModules(ctx context.Context, opts *options.Te
 // RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(ReverseOrder, r, opts)
+func RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, units common.Units, r *report.Report, parallelism int) error {
+	runningModules, err := ToRunningModules(units, ReverseOrder, r, opts)
 	if err != nil {
 		return err
 	}
@@ -244,8 +74,8 @@ func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts
 
 // RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
-	runningModules, err := modules.ToRunningModules(IgnoreOrder, r, opts)
+func RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, units common.Units, r *report.Report, parallelism int) error {
+	runningModules, err := ToRunningModules(units, IgnoreOrder, r, opts)
 	if err != nil {
 		return err
 	}
@@ -256,9 +86,9 @@ func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts 
 // ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningModules, error) {
+func ToRunningModules(units common.Units, dependencyOrder DependencyOrder, r *report.Report, opts *options.TerragruntOptions) (RunningModules, error) {
 	runningModules := RunningModules{}
-	for _, module := range modules {
+	for _, module := range units {
 		runningModules[module.Path] = newRunningModule(module)
 	}
 
@@ -268,21 +98,6 @@ func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder
 	}
 
 	return crossLinkedModules.RemoveFlagExcluded(r, opts.Experiments.Evaluate(experiment.Report))
-}
-
-// CheckForCycles checks for dependency cycles in the given list of modules and return an error if one is found.
-func (modules TerraformModules) CheckForCycles() error {
-	visitedPaths := []string{}
-	currentTraversalPaths := []string{}
-
-	for _, module := range modules {
-		err := checkForCyclesUsingDepthFirstSearch(module, &visitedPaths, &currentTraversalPaths)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // flagIncludedDirs includes all units by default.
@@ -499,19 +314,7 @@ func (modules TerraformModules) flagExcludedDirs(l log.Logger, opts *options.Ter
 	return modules
 }
 
-var existingModules = cache.NewCache[*TerraformModulesMap](existingModulesCacheName)
-
-// Merge the given external dependencies into the given map of modules if those dependencies aren't already in the
-// modules map
-func (modulesMap TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap) TerraformModulesMap {
-	out := TerraformModulesMap{}
-
-	maps.Copy(out, externalDependencies)
-
-	maps.Copy(out, modulesMap)
-
-	return out
-}
+var existingModules = cache.NewCache[*common.UnitsMap](existingModulesCacheName)
 
 // Go through each module in the given map and cross-link its dependencies to the other modules in that same map. If
 // a dependency is referenced that is not in the given map, return an error.

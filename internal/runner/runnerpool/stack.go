@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -30,14 +32,14 @@ type RunnerPoolStack struct {
 	report            *report.Report
 	terragruntOptions *options.TerragruntOptions
 	childConfig       *config.TerragruntConfig
-	modules           config.Units
+	modules           common.Units
 	parserOptions     []hclparse.Option
 	outputMu          sync.Mutex
 }
 
 // NewRunnerPoolStack creates a new stack from discovered modules.
 func NewRunnerPoolStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs) (*RunnerPoolStack, error) {
-	modulesMap := make(config.UnitsMap, len(discovered))
+	modulesMap := make(common.UnitsMap, len(discovered))
 
 	stack := &RunnerPoolStack{
 		terragruntOptions: terragruntOptions,

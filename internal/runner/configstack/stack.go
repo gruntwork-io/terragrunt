@@ -150,7 +150,7 @@ func (stack *DefaultStack) Run(ctx context.Context, l log.Logger, opts *options.
 	// prepare folder for output hierarchy if output folder is set
 	if opts.OutputFolder != "" {
 		for _, module := range stack.modules {
-			planFile := module.outputFile(l, opts)
+			planFile := module.OutputFile(l, opts)
 
 			planDir := filepath.Dir(planFile)
 			if err := os.MkdirAll(planDir, os.ModePerm); err != nil {
@@ -195,11 +195,11 @@ func (stack *DefaultStack) Run(ctx context.Context, l log.Logger, opts *options.
 
 	switch {
 	case opts.IgnoreDependencyOrder:
-		return stack.modules.RunModulesIgnoreOrder(ctx, opts, stack.report, opts.Parallelism)
+		return RunModulesIgnoreOrder(ctx, opts, stack.modules, stack.report, opts.Parallelism)
 	case stackCmd == tf.CommandNameDestroy:
-		return stack.modules.RunModulesReverseOrder(ctx, opts, stack.report, opts.Parallelism)
+		return RunModulesReverseOrder(ctx, opts, stack.modules, stack.report, opts.Parallelism)
 	default:
-		return stack.modules.RunModules(ctx, opts, stack.report, opts.Parallelism)
+		return RunModules(ctx, opts, stack.modules, stack.report, opts.Parallelism)
 	}
 }
 
@@ -283,7 +283,7 @@ func (stack *DefaultStack) createStackForTerragruntConfigPaths(ctx context.Conte
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		if len(terragruntConfigPaths) == 0 {
-			return errors.New(ErrNoTerraformModulesFound)
+			return errors.New(common.ErrNoTerraformModulesFound)
 		}
 
 		modules, err := stack.ResolveTerraformModules(ctx, l, terragruntConfigPaths)
@@ -468,7 +468,7 @@ func (stack *DefaultStack) resolveModules(ctx context.Context, l log.Logger, can
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
 		if !util.FileExists(terragruntConfigPath) {
-			return nil, ProcessingModuleError{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
+			return nil, common.ProcessingModuleError{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
 		}
 
 		var module *Unit
@@ -594,7 +594,7 @@ func (stack *DefaultStack) resolveTerraformModule(ctx context.Context, l log.Log
 		includeConfig,
 	)
 	if err != nil {
-		return nil, errors.New(ProcessingModuleError{
+		return nil, errors.New(common.ProcessingModuleError{
 			UnderlyingError:       err,
 			HowThisModuleWasFound: howThisModuleWasFound,
 			ModulePath:            terragruntConfigPath,
@@ -692,13 +692,13 @@ func (stack *DefaultStack) resolveDependenciesForModule(ctx context.Context, l l
 // environment the user is trying to run --all apply or run --all destroy. Therefore, this method also confirms whether the user wants
 // to actually apply those dependencies or just assume they are already applied. Note that this method will NOT fill in
 // the Dependencies field of the Unit struct (see the crosslinkDependencies method for that).
-func (stack *DefaultStack) resolveExternalDependenciesForModules(ctx context.Context, l log.Logger, modulesMap, modulesAlreadyProcessed TerraformModulesMap, recursionLevel int) (TerraformModulesMap, error) {
-	allExternalDependencies := TerraformModulesMap{}
+func (stack *DefaultStack) resolveExternalDependenciesForModules(ctx context.Context, l log.Logger, modulesMap, modulesAlreadyProcessed common.UnitsMap, recursionLevel int) (TerraformModulesMap, error) {
+	allExternalDependencies := common.UnitsMap{}
 	modulesToSkip := modulesMap.mergeMaps(modulesAlreadyProcessed)
 
 	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
 	if recursionLevel > maxLevelsOfRecursion {
-		return allExternalDependencies, errors.New(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
+		return allExternalDependencies, errors.New(common.InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
 	}
 
 	sortedKeys := modulesMap.getSortedKeys()
@@ -722,7 +722,7 @@ func (stack *DefaultStack) resolveExternalDependenciesForModules(ctx context.Con
 
 			shouldApply := false
 			if !stack.terragruntOptions.IgnoreExternalDependencies {
-				shouldApply, err = module.confirmShouldApplyExternalDependency(ctx, l, externalDependency, moduleOpts)
+				shouldApply, err = confirmShouldApplyExternalDependency(ctx, module, l, externalDependency, moduleOpts)
 				if err != nil {
 					return externalDependencies, err
 				}
@@ -807,36 +807,6 @@ func (stack *DefaultStack) ListStackDependentModules() map[string][]string {
 	}
 
 	return dependentModules
-}
-
-// Check for cycles using a depth-first-search as described here:
-// https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
-//
-// Note that this method uses two lists, visitedPaths, and currentTraversalPaths, to track what nodes have already been
-// seen. We need to use lists to maintain ordering so we can show the proper order of paths in a cycle. Of course, a
-// list doesn't perform well with repeated contains() and remove() checks, so ideally we'd use an ordered Map (e.g.
-// Java's LinkedHashMap), but since Go doesn't have such a data structure built-in, and our lists are going to be very
-// small (at most, a few dozen paths), there is no point in worrying about performance.
-func checkForCyclesUsingDepthFirstSearch(module *Unit, visitedPaths *[]string, currentTraversalPaths *[]string) error {
-	if util.ListContainsElement(*visitedPaths, module.Path) {
-		return nil
-	}
-
-	if util.ListContainsElement(*currentTraversalPaths, module.Path) {
-		return errors.New(DependencyCycleError(append(*currentTraversalPaths, module.Path)))
-	}
-
-	*currentTraversalPaths = append(*currentTraversalPaths, module.Path)
-	for _, dependency := range module.Dependencies {
-		if err := checkForCyclesUsingDepthFirstSearch(dependency, visitedPaths, currentTraversalPaths); err != nil {
-			return err
-		}
-	}
-
-	*visitedPaths = append(*visitedPaths, module.Path)
-	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
-
-	return nil
 }
 
 // Modules returns the Terraform modules in the stack.

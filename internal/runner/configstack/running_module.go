@@ -138,7 +138,7 @@ func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions
 					}
 				}
 
-				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
+				return common.ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {
 			module.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, len(module.Dependencies))
@@ -193,7 +193,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			jsonOptions.JSONLogFormat = false
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = tf.CommandNameShow
-			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.planFile(l, rootOptions)}
+			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.PlanFile(l, rootOptions)}
 
 			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
 				return err
@@ -348,7 +348,7 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 		for _, dependency := range module.Module.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
 			if !hasDependency {
-				return modules, errors.New(DependencyNotFoundWhileCrossLinkingError{module, dependency})
+				return modules, errors.New(common.DependencyNotFoundWhileCrossLinkingError{module, dependency})
 			}
 
 			// TODO: Remove lint suppression

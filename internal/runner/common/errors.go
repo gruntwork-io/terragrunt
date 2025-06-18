@@ -1,9 +1,11 @@
-package configstack
+package common
 
 import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -53,8 +55,8 @@ func (err DependencyCycleError) Error() string {
 }
 
 type ProcessingModuleDependencyError struct {
-	Module     *config.Unit
-	Dependency *config.Unit
+	Module     *Unit
+	Dependency *Unit
 	Err        error
 }
 
@@ -75,10 +77,10 @@ func (err ProcessingModuleDependencyError) Unwrap() error {
 }
 
 type DependencyNotFoundWhileCrossLinkingError struct {
-	Module     *RunningModule
+	Module     *configstack.RunningModule
 	Dependency *config.Unit
 }
 
 func (err DependencyNotFoundWhileCrossLinkingError) Error() string {
-	return fmt.Sprintf("Module %v specifies a dependency on module %v, but could not find that module while cross-linking dependencies. This is most likely a bug in Terragrunt. Please report it.", err.Module, err.Dependency)
+	return fmt.Sprintf("Unit %v specifies a dependency on unit %v, but could not find that module while cross-linking dependencies. This is most likely a bug in Terragrunt. Please report it.", err.Module, err.Dependency)
 }
