@@ -36,21 +36,21 @@ type Units []*Unit
 type UnitsMap map[string]*Unit
 
 // String renders this module as a human-readable string
-func (module *Unit) String() string {
+func (unit *Unit) String() string {
 	dependencies := []string{}
-	for _, dependency := range module.Dependencies {
+	for _, dependency := range unit.Dependencies {
 		dependencies = append(dependencies, dependency.Path)
 	}
 
 	return fmt.Sprintf(
 		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		module.Path, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
+		unit.Path, unit.FlagExcluded, unit.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
 	)
 }
 
 // FlushOutput flushes buffer data to the output writer.
-func (module *Unit) FlushOutput() error {
-	if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
+func (unit *Unit) FlushOutput() error {
+	if writer, ok := unit.TerragruntOptions.Writer.(*UnitWriter); ok {
 		return writer.Flush()
 	}
 
@@ -58,16 +58,16 @@ func (module *Unit) FlushOutput() error {
 }
 
 // PlanFile - return plan file location, if output folder is set
-func (module *Unit) PlanFile(l log.Logger, opts *options.TerragruntOptions) string {
+func (unit *Unit) PlanFile(l log.Logger, opts *options.TerragruntOptions) string {
 	var planFile string
 
 	// set plan file location if output folder is set
-	planFile = module.OutputFile(l, opts)
+	planFile = unit.OutputFile(l, opts)
 
-	planCommand := module.TerragruntOptions.TerraformCommand == tf.CommandNamePlan || module.TerragruntOptions.TerraformCommand == tf.CommandNameShow
+	planCommand := unit.TerragruntOptions.TerraformCommand == tf.CommandNamePlan || unit.TerragruntOptions.TerraformCommand == tf.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified PlanFile, save plan in working dir
-	if planCommand && planFile == "" && module.TerragruntOptions.JSONOutputFolder != "" {
+	if planCommand && planFile == "" && unit.TerragruntOptions.JSONOutputFolder != "" {
 		planFile = tf.TerraformPlanFile
 	}
 
@@ -75,21 +75,21 @@ func (module *Unit) PlanFile(l log.Logger, opts *options.TerragruntOptions) stri
 }
 
 // OutputFile - return plan file location, if output folder is set
-func (module *Unit) OutputFile(l log.Logger, opts *options.TerragruntOptions) string {
-	return module.getPlanFilePath(l, opts, opts.OutputFolder, tf.TerraformPlanFile)
+func (unit *Unit) OutputFile(l log.Logger, opts *options.TerragruntOptions) string {
+	return unit.getPlanFilePath(l, opts, opts.OutputFolder, tf.TerraformPlanFile)
 }
 
 // OutputJSONFile - return plan JSON file location, if JSON output folder is set
-func (module *Unit) OutputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
-	return module.getPlanFilePath(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+func (unit *Unit) OutputJSONFile(l log.Logger, opts *options.TerragruntOptions) string {
+	return unit.getPlanFilePath(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 
-func (module *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
+func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}
 
-	path, _ := filepath.Rel(opts.WorkingDir, module.Path)
+	path, _ := filepath.Rel(opts.WorkingDir, unit.Path)
 	dir := filepath.Join(outputFolder, path)
 
 	if !filepath.IsAbs(dir) {
@@ -104,34 +104,34 @@ func (module *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOption
 	return filepath.Join(dir, fileName)
 }
 
-// FindModuleInPath returns true if a module is located under one of the target directories
-func (module *Unit) FindModuleInPath(targetDirs []string) bool {
-	return slices.Contains(targetDirs, module.Path)
+// FindUnitInPath returns true if a unit is located under one of the target directories
+func (unit *Unit) FindUnitInPath(targetDirs []string) bool {
+	return slices.Contains(targetDirs, unit.Path)
 }
 
-// Get the list of modules this module depends on
-func (module *Unit) getDependenciesForModule(modulesMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
+// Get the list of units this unit depends on
+func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
 	dependencies := Units{}
 
-	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
+	if unit.Config.Dependencies == nil || len(unit.Config.Dependencies.Paths) == 0 {
 		return dependencies, nil
 	}
 
-	for _, dependencyPath := range module.Config.Dependencies.Paths {
-		dependencyModulePath, err := util.CanonicalPath(dependencyPath, module.Path)
+	for _, dependencyPath := range unit.Config.Dependencies.Paths {
+		dependencyUnitPath, err := util.CanonicalPath(dependencyPath, unit.Path)
 		if err != nil {
 			// TODO: Remove lint suppression
 			return dependencies, nil //nolint:nilerr
 		}
 
-		if files.FileExists(dependencyModulePath) && !files.IsDir(dependencyModulePath) {
-			dependencyModulePath = filepath.Dir(dependencyModulePath)
+		if files.FileExists(dependencyUnitPath) && !files.IsDir(dependencyUnitPath) {
+			dependencyUnitPath = filepath.Dir(dependencyUnitPath)
 		}
 
-		dependencyModule, foundModule := modulesMap[dependencyModulePath]
-		if !foundModule {
+		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
+		if !foundUnit {
 			err := UnrecognizedDependencyError{
-				UnitPath:              module.Path,
+				UnitPath:              unit.Path,
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
@@ -139,14 +139,14 @@ func (module *Unit) getDependenciesForModule(modulesMap UnitsMap, terragruntConf
 			return dependencies, errors.New(err)
 		}
 
-		dependencies = append(dependencies, dependencyModule)
+		dependencies = append(dependencies, dependencyUnit)
 	}
 
 	return dependencies, nil
 }
 
-// Merge the given external dependencies into the given map of modules if those dependencies aren't already in the
-// modules map
+// MergeMaps the given external dependencies into the given map of units if those dependencies aren't already in the
+// units map
 func (unitsMap UnitsMap) MergeMaps(externalDependencies UnitsMap) UnitsMap {
 	out := UnitsMap{}
 
@@ -158,41 +158,41 @@ func (unitsMap UnitsMap) MergeMaps(externalDependencies UnitsMap) UnitsMap {
 }
 
 func (unitsMap UnitsMap) FindByPath(path string) *Unit {
-	for _, module := range unitsMap {
-		if module.Path == path {
-			return module
+	for _, unit := range unitsMap {
+		if unit.Path == path {
+			return unit
 		}
 	}
 
 	return nil
 }
 
-// Go through each module in the given map and cross-link its dependencies to the other modules in that same map. If
+// CrossLinkDependencies Go through each unit in the given map and cross-link its dependencies to the other units in that same map. If
 // a dependency is referenced that is not in the given map, return an error.
-func (modulesMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []string) (Units, error) {
-	modules := Units{}
+func (unitsMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []string) (Units, error) {
+	units := Units{}
 
-	keys := modulesMap.SortedKeys()
+	keys := unitsMap.SortedKeys()
 
 	for _, key := range keys {
-		module := modulesMap[key]
+		unit := unitsMap[key]
 
-		dependencies, err := module.getDependenciesForModule(modulesMap, canonicalTerragruntConfigPaths)
+		dependencies, err := unit.getDependenciesForUnit(unitsMap, canonicalTerragruntConfigPaths)
 		if err != nil {
-			return modules, err
+			return units, err
 		}
 
-		module.Dependencies = dependencies
-		modules = append(modules, module)
+		unit.Dependencies = dependencies
+		units = append(units, unit)
 	}
 
-	return modules, nil
+	return units, nil
 }
 
 // WriteDot is used to emit a GraphViz compatible definition
 // for a directed graph. It can be used to dump a .dot file.
 // This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
-// adding some styling to modules that are excluded from the execution in *-all commands
+// adding some styling to units that are excluded from the execution in *-all commands
 func (units Units) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntOptions) error {
 	if _, err := w.Write([]byte("digraph {\n")); err != nil {
 		return errors.New(err)
@@ -238,13 +238,13 @@ func (units Units) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntO
 	return nil
 }
 
-// CheckForCycles checks for dependency cycles in the given list of modules and return an error if one is found.
+// CheckForCycles checks for dependency cycles in the given list of units and return an error if one is found.
 func (units Units) CheckForCycles() error {
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{}
 
-	for _, module := range units {
-		err := checkForCyclesUsingDepthFirstSearch(module, &visitedPaths, &currentTraversalPaths)
+	for _, unit := range units {
+		err := checkForCyclesUsingDepthFirstSearch(unit, &visitedPaths, &currentTraversalPaths)
 		if err != nil {
 			return err
 		}
@@ -253,7 +253,7 @@ func (units Units) CheckForCycles() error {
 	return nil
 }
 
-// Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of modules
+// Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of units
 // in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
 func (unitsMap UnitsMap) SortedKeys() []string {
 	keys := []string{}
@@ -274,24 +274,24 @@ func (unitsMap UnitsMap) SortedKeys() []string {
 // list doesn't perform well with repeated contains() and remove() checks, so ideally we'd use an ordered Map (e.g.
 // Java's LinkedHashMap), but since Go doesn't have such a data structure built-in, and our lists are going to be very
 // small (at most, a few dozen paths), there is no point in worrying about performance.
-func checkForCyclesUsingDepthFirstSearch(module *Unit, visitedPaths *[]string, currentTraversalPaths *[]string) error {
-	if util.ListContainsElement(*visitedPaths, module.Path) {
+func checkForCyclesUsingDepthFirstSearch(unit *Unit, visitedPaths *[]string, currentTraversalPaths *[]string) error {
+	if util.ListContainsElement(*visitedPaths, unit.Path) {
 		return nil
 	}
 
-	if util.ListContainsElement(*currentTraversalPaths, module.Path) {
-		return errors.New(DependencyCycleError(append(*currentTraversalPaths, module.Path)))
+	if util.ListContainsElement(*currentTraversalPaths, unit.Path) {
+		return errors.New(DependencyCycleError(append(*currentTraversalPaths, unit.Path)))
 	}
 
-	*currentTraversalPaths = append(*currentTraversalPaths, module.Path)
-	for _, dependency := range module.Dependencies {
+	*currentTraversalPaths = append(*currentTraversalPaths, unit.Path)
+	for _, dependency := range unit.Dependencies {
 		if err := checkForCyclesUsingDepthFirstSearch(dependency, visitedPaths, currentTraversalPaths); err != nil {
 			return err
 		}
 	}
 
-	*visitedPaths = append(*visitedPaths, module.Path)
-	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
+	*visitedPaths = append(*visitedPaths, unit.Path)
+	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, unit.Path)
 
 	return nil
 }

@@ -22,12 +22,12 @@ type Stack struct {
 
 // String renders this stack as a human-readable string
 func (stack *Stack) String() string {
-	modules := make([]string, 0, len(stack.Units))
-	for _, module := range stack.Units {
-		modules = append(modules, "  => "+module.String())
+	units := make([]string, 0, len(stack.Units))
+	for _, unit := range stack.Units {
+		units = append(units, "  => "+unit.String())
 	}
 
-	sort.Strings(modules)
+	sort.Strings(units)
 
-	return fmt.Sprintf("Stack at %s:\n%s", stack.TerragruntOptions.WorkingDir, strings.Join(modules, "\n"))
+	return fmt.Sprintf("Stack at %s:\n%s", stack.TerragruntOptions.WorkingDir, strings.Join(units, "\n"))
 }

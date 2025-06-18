@@ -1,3 +1,4 @@
+// Package runnerpool provides a runner implementation based on a pool pattern for executing multiple units concurrently.
 package runnerpool
 
 import (
@@ -112,7 +113,7 @@ func (runner *Runner) String() string {
 	return fmt.Sprintf("Stack at %s:\n%s", runner.Stack.TerragruntOptions.WorkingDir, strings.Join(modules, "\n"))
 }
 
-func (runner *Runner) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
+func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", runner.Stack.TerragruntOptions.WorkingDir, terraformCommand)
 	for _, module := range runner.Stack.Units {
 		outStr += fmt.Sprintf("Unit %s\n", module.Path)
@@ -123,7 +124,7 @@ func (runner *Runner) LogModuleDeployOrder(l log.Logger, terraformCommand string
 	return nil
 }
 
-func (runner *Runner) JSONModuleDeployOrder(terraformCommand string) (string, error) {
+func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
 	orderedModules := make([]string, 0, len(runner.Stack.Units))
 	for _, module := range runner.Stack.Units {
 		orderedModules = append(orderedModules, module.Path)
@@ -202,7 +203,7 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 	return nil
 }
 
-func (runner *Runner) ListStackDependentModules() map[string][]string {
+func (runner *Runner) ListStackDependentUnits() map[string][]string {
 	dependentModules := make(map[string][]string)
 
 	for _, module := range runner.Stack.Units {
@@ -238,7 +239,7 @@ func (runner *Runner) ListStackDependentModules() map[string][]string {
 }
 
 // FindModuleByPath finds a module by its path.
-func (runner *Runner) FindModuleByPath(path string) *runbase.Unit {
+func (runner *Runner) FindUnitByPath(path string) *runbase.Unit {
 	for _, module := range runner.Stack.Units {
 		if module.Path == path {
 			return module

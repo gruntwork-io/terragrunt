@@ -14,12 +14,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
-// ModuleStatus represents the status of a module that we are
+// UnitStatus represents the status of a module that we are
 // trying to apply or destroy as part of the run --all apply or run --all destroy command
-type ModuleStatus int
+type UnitStatus int
 
 const (
-	Waiting ModuleStatus = iota
+	Waiting UnitStatus = iota
 	Running
 	Finished
 )
@@ -27,36 +27,36 @@ const (
 // UnitRunner handles the logic for running a single module.
 type UnitRunner struct {
 	Err          error
-	Module       *Unit
+	Unit         *Unit
 	Logger       log.Logger
-	Status       ModuleStatus
+	Status       UnitStatus
 	FlagExcluded bool
 }
 
 var outputMu sync.Mutex
 
-func NewUnitRunner(module *Unit) *UnitRunner {
+func NewUnitRunner(unit *Unit) *UnitRunner {
 	return &UnitRunner{
-		Module:       module,
+		Unit:         unit,
 		Status:       Waiting,
-		Logger:       module.Logger,
-		FlagExcluded: module.FlagExcluded,
+		Logger:       unit.Logger,
+		FlagExcluded: unit.FlagExcluded,
 	}
 }
 
 func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
-	runner.Logger.Debugf("Running %s", runner.Module.Path)
+	runner.Logger.Debugf("Running %s", runner.Unit.Path)
 
-	opts.Writer = NewModuleWriter(opts.Writer)
+	opts.Writer = NewUnitWriter(opts.Writer)
 
 	defer func() {
 		outputMu.Lock()
 		defer outputMu.Unlock()
-		runner.Module.FlushOutput() //nolint:errcheck
+		runner.Unit.FlushOutput() //nolint:errcheck
 	}()
 
 	if opts.Experiments.Evaluate(experiment.Report) {
-		run, err := report.NewRun(runner.Module.Path)
+		run, err := report.NewRun(runner.Unit.Path)
 		if err != nil {
 			return err
 		}
@@ -73,17 +73,17 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.TerragruntOptions, r *report.Report) error {
 	runner.Status = Running
 
-	if runner.Module.AssumeAlreadyApplied {
-		runner.Logger.Debugf("Assuming module %s has already been applied and skipping it", runner.Module.Path)
+	if runner.Unit.AssumeAlreadyApplied {
+		runner.Logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path)
 		return nil
 	} else {
-		if err := runner.runTerragrunt(ctx, runner.Module.TerragruntOptions, r); err != nil {
+		if err := runner.runTerragrunt(ctx, runner.Unit.TerragruntOptions, r); err != nil {
 			return err
 		}
 
 		// convert terragrunt output to json
-		if runner.Module.OutputJSONFile(runner.Logger, runner.Module.TerragruntOptions) != "" {
-			l, jsonOptions, err := runner.Module.TerragruntOptions.CloneWithConfigPath(runner.Logger, runner.Module.TerragruntOptions.TerragruntConfigPath)
+		if runner.Unit.OutputJSONFile(runner.Logger, runner.Unit.TerragruntOptions) != "" {
+			l, jsonOptions, err := runner.Unit.TerragruntOptions.CloneWithConfigPath(runner.Logger, runner.Unit.TerragruntOptions.TerragruntConfigPath)
 			if err != nil {
 				return err
 			}
@@ -93,14 +93,14 @@ func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.Terragru
 			jsonOptions.JSONLogFormat = false
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = tf.CommandNameShow
-			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Module.PlanFile(l, rootOptions)}
+			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(l, rootOptions)}
 
 			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
 				return err
 			}
 
 			// save the json output to the file plan file
-			outputFile := runner.Module.OutputJSONFile(l, rootOptions)
+			outputFile := runner.Unit.OutputJSONFile(l, rootOptions)
 			jsonDir := filepath.Dir(outputFile)
 
 			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {

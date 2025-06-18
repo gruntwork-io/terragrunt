@@ -1291,7 +1291,7 @@ func TestBasicDependency(t *testing.T) {
 		"C": {"B", "A"},
 	}
 
-	result := stack.ListStackDependentModules()
+	result := stack.ListStackDependentUnits()
 
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Expected %v, got %v", expected, result)
@@ -1320,7 +1320,7 @@ func TestNestedDependencies(t *testing.T) {
 	}
 
 	// Run the function
-	result := stack.ListStackDependentModules()
+	result := stack.ListStackDependentUnits()
 
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Expected %v, got %v", expected, result)
@@ -1351,7 +1351,7 @@ func TestCircularDependencies(t *testing.T) {
 	}
 
 	// Run the function
-	result := stack.ListStackDependentModules()
+	result := stack.ListStackDependentUnits()
 
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Expected %v, got %v", expected, result)

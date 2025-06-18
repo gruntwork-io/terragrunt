@@ -1,5 +1,4 @@
-// Defines the Stack and StackBuilder interfaces for managing and building stacks of units in Terragrunt.
-// Provides abstractions for stack operations, module orchestration, and configuration handling.
+// Package runbase provide base components for implementing runners.
 package runbase
 
 import (
@@ -17,18 +16,13 @@ import (
 // StackRunner is the abstraction for a stack of Terraform modules.
 type StackRunner interface {
 	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error
-	FindModuleByPath(path string) *Unit
-	LogModuleDeployOrder(l log.Logger, terraformCommand string) error
-	JSONModuleDeployOrder(terraformCommand string) (string, error)
+	FindUnitByPath(path string) *Unit
+	LogUnitDeployOrder(l log.Logger, terraformCommand string) error
+	JSONUnitDeployOrder(terraformCommand string) (string, error)
 	Graph(l log.Logger, opts *options.TerragruntOptions)
-	ListStackDependentModules() map[string][]string
+	ListStackDependentUnits() map[string][]string
 	GetStack() *Stack
 	SetTerragruntConfig(config *config.TerragruntConfig)
 	SetParseOptions(parserOptions []hclparse.Option)
 	SetReport(report *report.Report)
-}
-
-// StackRunnerBuilder is the abstraction for building a StackRunner.
-type StackRunnerBuilder interface {
-	Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error)
 }

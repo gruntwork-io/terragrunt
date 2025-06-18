@@ -81,7 +81,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 
 		stack := runner.GetStack()
 
-		depdendentModules := runner.ListStackDependentModules()
+		depdendentModules := runner.ListStackDependentUnits()
 
 		deps, found := depdendentModules[opts.WorkingDir]
 		if found {

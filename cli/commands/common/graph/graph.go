@@ -86,7 +86,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	dependentModules := stack.ListStackDependentModules()
+	dependentModules := stack.ListStackDependentUnits()
 
 	workDir := opts.WorkingDir
 	modulesToInclude := dependentModules[workDir]

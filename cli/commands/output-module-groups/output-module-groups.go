@@ -16,7 +16,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	js, err := stack.JSONModuleDeployOrder(opts.TerraformCommand)
+	js, err := stack.JSONUnitDeployOrder(opts.TerraformCommand)
 	if err != nil {
 		return err
 	}

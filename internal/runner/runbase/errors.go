@@ -48,7 +48,7 @@ var ErrNoUnitsFound = errors.New("could not find any subfolders with Terragrunt 
 type DependencyCycleError []string
 
 func (err DependencyCycleError) Error() string {
-	return "Found a dependency cycle between modules: " + strings.Join([]string(err), " -> ")
+	return "Found a dependency cycle between units: " + strings.Join([]string(err), " -> ")
 }
 
 type ProcessingUnitDependencyError struct {
@@ -58,7 +58,7 @@ type ProcessingUnitDependencyError struct {
 }
 
 func (err ProcessingUnitDependencyError) Error() string {
-	return fmt.Sprintf("Cannot process module %s because one of its dependencies, %s, finished with an error: %s", err.Unit, err.Dependency, err.Err)
+	return fmt.Sprintf("Cannot process unit %s because one of its dependencies, %s, finished with an error: %s", err.Unit, err.Dependency, err.Err)
 }
 
 func (err ProcessingUnitDependencyError) ExitStatus() (int, error) {
@@ -74,10 +74,10 @@ func (err ProcessingUnitDependencyError) Unwrap() error {
 }
 
 type DependencyNotFoundWhileCrossLinkingError struct {
-	Module     *Unit
+	Unit       *Unit
 	Dependency *Unit
 }
 
 func (err DependencyNotFoundWhileCrossLinkingError) Error() string {
-	return fmt.Sprintf("Unit %v specifies a dependency on unit %v, but could not find that module while cross-linking dependencies. This is most likely a bug in Terragrunt. Please report it.", err.Module, err.Dependency)
+	return fmt.Sprintf("Unit %v specifies a dependency on unit %v, but could not find that unit while cross-linking dependencies. This is most likely a bug in Terragrunt. Please report it.", err.Unit, err.Dependency)
 }

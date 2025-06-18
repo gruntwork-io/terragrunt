@@ -28,7 +28,7 @@ type DependencyControllerByPath []*configstack.DependencyController
 func (byPath DependencyControllerByPath) Len() int      { return len(byPath) }
 func (byPath DependencyControllerByPath) Swap(i, j int) { byPath[i], byPath[j] = byPath[j], byPath[i] }
 func (byPath DependencyControllerByPath) Less(i, j int) bool {
-	return byPath[i].Runner.Module.Path < byPath[j].Runner.Module.Path
+	return byPath[i].Runner.Unit.Path < byPath[j].Runner.Unit.Path
 }
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
@@ -107,11 +107,11 @@ func assertDependencyControllerListsEqual(t *testing.T, expectedModules []*confi
 	// Build a map from path to actual controller for fast lookup
 	actualByPath := map[string]*configstack.DependencyController{}
 	for _, actual := range actualModules {
-		actualByPath[actual.Runner.Module.Path] = actual
+		actualByPath[actual.Runner.Unit.Path] = actual
 	}
 
 	for _, expected := range expectedModules {
-		actual, ok := actualByPath[expected.Runner.Module.Path]
+		actual, ok := actualByPath[expected.Runner.Unit.Path]
 		if assert.True(t, ok, messageAndArgs...) {
 			assertDependencyControllersEqual(t, expected, actual, doDeepCheck, messageAndArgs...)
 		}
@@ -126,7 +126,7 @@ func assertDependencyControllersEqual(t *testing.T, expected *configstack.Depend
 	if assert.NotNil(t, actual, messageAndArgs...) {
 		assert.Equal(t, expected.Runner.Status, actual.Runner.Status, messageAndArgs...)
 
-		assertModulesEqual(t, expected.Runner.Module, actual.Runner.Module, messageAndArgs...)
+		assertModulesEqual(t, expected.Runner.Unit, actual.Runner.Unit, messageAndArgs...)
 		assertErrorsEqual(t, expected.Runner.Err, actual.Runner.Err, messageAndArgs...)
 
 		// This ensures we don't end up in a circular loop, since there is a (intentional) circular dependency

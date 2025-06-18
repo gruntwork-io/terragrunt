@@ -48,8 +48,8 @@ func NewDependencyController(module *runbase.Unit) *DependencyController {
 // Run a module once all of its dependencies have finished executing.
 func (ctrl *DependencyController) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, semaphore chan struct{}) {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "wait_for_module_ready", map[string]any{
-		"path":             ctrl.Runner.Module.Path,
-		"terraformCommand": ctrl.Runner.Module.TerragruntOptions.TerraformCommand,
+		"path":             ctrl.Runner.Unit.Path,
+		"terraformCommand": ctrl.Runner.Unit.TerragruntOptions.TerraformCommand,
 	}, func(_ context.Context) error {
 		return ctrl.waitForDependencies(opts, r)
 	})
@@ -61,8 +61,8 @@ func (ctrl *DependencyController) runModuleWhenReady(ctx context.Context, opts *
 
 	if err == nil {
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_module", map[string]any{
-			"path":             ctrl.Runner.Module.Path,
-			"terraformCommand": ctrl.Runner.Module.TerragruntOptions.TerraformCommand,
+			"path":             ctrl.Runner.Unit.Path,
+			"terraformCommand": ctrl.Runner.Unit.TerragruntOptions.TerraformCommand,
 		}, func(ctx context.Context) error {
 			return ctrl.Runner.Run(ctx, opts, r)
 		})
@@ -74,34 +74,34 @@ func (ctrl *DependencyController) runModuleWhenReady(ctx context.Context, opts *
 // Wait for all of this module's dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this module has no dependencies.
 func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOptions, r *report.Report) error {
-	ctrl.Runner.Logger.Debugf("Unit %s must wait for %d dependencies to finish", ctrl.Runner.Module.Path, len(ctrl.Dependencies))
+	ctrl.Runner.Logger.Debugf("Unit %s must wait for %d dependencies to finish", ctrl.Runner.Unit.Path, len(ctrl.Dependencies))
 
 	for len(ctrl.Dependencies) > 0 {
 		doneDependency := <-ctrl.DependencyDone
-		delete(ctrl.Dependencies, doneDependency.Runner.Module.Path)
+		delete(ctrl.Dependencies, doneDependency.Runner.Unit.Path)
 
 		if doneDependency.Runner.Err != nil {
-			if ctrl.Runner.Module.TerragruntOptions.IgnoreDependencyErrors {
-				ctrl.Runner.Logger.Errorf("Dependency %s of module %s just finished with an error. Unit %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path)
+			if ctrl.Runner.Unit.TerragruntOptions.IgnoreDependencyErrors {
+				ctrl.Runner.Logger.Errorf("Dependency %s of module %s just finished with an error. Unit %s will have to return an error too. However, because of --queue-ignore-errors, module %s will run anyway.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
 			} else {
-				ctrl.Runner.Logger.Errorf("Dependency %s of module %s just finished with an error. Unit %s will have to return an error too.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path)
+				ctrl.Runner.Logger.Errorf("Dependency %s of module %s just finished with an error. Unit %s will have to return an error too.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
 
 				if opts.Experiments.Evaluate(experiment.Report) {
-					run, err := r.GetRun(ctrl.Runner.Module.Path)
+					run, err := r.GetRun(ctrl.Runner.Unit.Path)
 					if err != nil {
 						if errors.Is(err, report.ErrRunNotFound) {
-							run, err = report.NewRun(ctrl.Runner.Module.Path)
+							run, err = report.NewRun(ctrl.Runner.Unit.Path)
 							if err != nil {
-								ctrl.Runner.Logger.Errorf("Error creating run for unit %s: %v", ctrl.Runner.Module.Path, err)
+								ctrl.Runner.Logger.Errorf("Error creating run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 								return err
 							}
 
 							if err := r.AddRun(run); err != nil {
-								ctrl.Runner.Logger.Errorf("Error adding run for unit %s: %v", ctrl.Runner.Module.Path, err)
+								ctrl.Runner.Logger.Errorf("Error adding run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 								return err
 							}
 						} else {
-							ctrl.Runner.Logger.Errorf("Error getting run for unit %s: %v", ctrl.Runner.Module.Path, err)
+							ctrl.Runner.Logger.Errorf("Error getting run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 							return err
 						}
 					}
@@ -110,16 +110,16 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 						run.Path,
 						report.WithResult(report.ResultEarlyExit),
 						report.WithReason(report.ReasonAncestorError),
-						report.WithCauseAncestorExit(doneDependency.Runner.Module.Path),
+						report.WithCauseAncestorExit(doneDependency.Runner.Unit.Path),
 					); err != nil {
-						ctrl.Runner.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Module.Path, err)
+						ctrl.Runner.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 					}
 				}
 
-				return runbase.ProcessingUnitDependencyError{Unit: ctrl.Runner.Module, Dependency: doneDependency.Runner.Module, Err: doneDependency.Runner.Err}
+				return runbase.ProcessingUnitDependencyError{Unit: ctrl.Runner.Unit, Dependency: doneDependency.Runner.Unit, Err: doneDependency.Runner.Err}
 			}
 		} else {
-			ctrl.Runner.Logger.Debugf("Dependency %s of module %s just finished successfully. Unit %s must wait on %d more dependencies.", doneDependency.Runner.Module.Path, ctrl.Runner.Module.Path, ctrl.Runner.Module.Path, len(ctrl.Dependencies))
+			ctrl.Runner.Logger.Debugf("Dependency %s of module %s just finished successfully. Unit %s must wait on %d more dependencies.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, len(ctrl.Dependencies))
 		}
 	}
 
@@ -129,19 +129,19 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 // Record that a module has finished executing and notify all of this module's dependencies
 func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Report, reportExperiment bool) {
 	if moduleErr == nil {
-		ctrl.Runner.Logger.Debugf("Unit %s has finished successfully!", ctrl.Runner.Module.Path)
+		ctrl.Runner.Logger.Debugf("Unit %s has finished successfully!", ctrl.Runner.Unit.Path)
 
 		if reportExperiment {
-			if err := r.EndRun(ctrl.Runner.Module.Path); err != nil {
-				ctrl.Runner.Logger.Errorf("Error ending run for module %s: %v", ctrl.Runner.Module.Path, err)
+			if err := r.EndRun(ctrl.Runner.Unit.Path); err != nil {
+				ctrl.Runner.Logger.Errorf("Error ending run for module %s: %v", ctrl.Runner.Unit.Path, err)
 			}
 		}
 	} else {
-		ctrl.Runner.Logger.Errorf("Unit %s has finished with an error", ctrl.Runner.Module.Path)
+		ctrl.Runner.Logger.Errorf("Unit %s has finished with an error", ctrl.Runner.Unit.Path)
 
 		if reportExperiment {
 			if err := r.EndRun(
-				ctrl.Runner.Module.Path,
+				ctrl.Runner.Unit.Path,
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
 				report.WithCauseRunError(moduleErr.Error()),
@@ -151,14 +151,14 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 				//
 				// Early exit runs should already be ended at this point.
 				if errors.Is(err, report.ErrRunNotFound) {
-					run, err := report.NewRun(ctrl.Runner.Module.Path)
+					run, err := report.NewRun(ctrl.Runner.Unit.Path)
 					if err != nil {
-						ctrl.Runner.Logger.Errorf("Error creating run for unit %s: %v", ctrl.Runner.Module.Path, err)
+						ctrl.Runner.Logger.Errorf("Error creating run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 						return
 					}
 
 					if err := r.AddRun(run); err != nil {
-						ctrl.Runner.Logger.Errorf("Error adding run for unit %s: %v", ctrl.Runner.Module.Path, err)
+						ctrl.Runner.Logger.Errorf("Error adding run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 						return
 					}
 
@@ -168,10 +168,10 @@ func (ctrl *DependencyController) moduleFinished(moduleErr error, r *report.Repo
 						report.WithReason(report.ReasonRunError),
 						report.WithCauseRunError(moduleErr.Error()),
 					); err != nil {
-						ctrl.Runner.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Module.Path, err)
+						ctrl.Runner.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 					}
 				} else {
-					ctrl.Runner.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Module.Path, err)
+					ctrl.Runner.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 				}
 			}
 		}
@@ -207,10 +207,10 @@ func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []runbase.Un
 		for path, module := range modules {
 			// Anything that is already applied is culled from the graph when running, so we ignore them here as well.
 			switch {
-			case module.Runner.Module.AssumeAlreadyApplied:
+			case module.Runner.Unit.AssumeAlreadyApplied:
 				removeDep = append(removeDep, path)
 			case len(module.Dependencies) == 0:
-				currentIterationDeploy = append(currentIterationDeploy, module.Runner.Module)
+				currentIterationDeploy = append(currentIterationDeploy, module.Runner.Unit)
 				removeDep = append(removeDep, path)
 			default:
 				next[path] = module
@@ -255,21 +255,21 @@ func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []runbase.Un
 //   - If dependencyOrder is IgnoreOrder, do nothing.
 func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOrder) (RunningModules, error) {
 	for _, module := range modules {
-		for _, dependency := range module.Runner.Module.Dependencies {
+		for _, dependency := range module.Runner.Unit.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
 			if !hasDependency {
-				return modules, errors.New(runbase.DependencyNotFoundWhileCrossLinkingError{Module: module.Runner.Module, Dependency: dependency})
+				return modules, errors.New(runbase.DependencyNotFoundWhileCrossLinkingError{Unit: module.Runner.Unit, Dependency: dependency})
 			}
 
 			// TODO: Remove lint suppression
 			switch dependencyOrder { //nolint:exhaustive
 			case NormalOrder:
-				module.Dependencies[runningDependency.Runner.Module.Path] = runningDependency
+				module.Dependencies[runningDependency.Runner.Unit.Path] = runningDependency
 				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
 			case IgnoreOrder:
 				// Nothing
 			default:
-				runningDependency.Dependencies[module.Runner.Module.Path] = module
+				runningDependency.Dependencies[module.Runner.Unit.Path] = module
 				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)
 			}
 		}
@@ -302,9 +302,9 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 				}
 			}
 		} else if reportExperiment {
-			run, err := r.GetRun(module.Runner.Module.Path)
+			run, err := r.GetRun(module.Runner.Unit.Path)
 			if errors.Is(err, report.ErrRunNotFound) {
-				run, err = report.NewRun(module.Runner.Module.Path)
+				run, err = report.NewRun(module.Runner.Unit.Path)
 				if err != nil {
 					errs = append(errs, err)
 					continue

@@ -73,7 +73,7 @@ func (runner *Runner) GetStack() *runbase.Stack {
 // LogModuleDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
 // happen. For plan and apply, the order will be bottom to top (dependencies first), while for destroy the order will be
 // in reverse.
-func (runner *Runner) LogModuleDeployOrder(l log.Logger, terraformCommand string) error {
+func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner at %s will be processed in the following order for command %s:\n", runner.Stack.TerragruntOptions.WorkingDir, terraformCommand)
 
 	runGraph, err := runner.GetModuleRunGraph(terraformCommand)
@@ -97,7 +97,7 @@ func (runner *Runner) LogModuleDeployOrder(l log.Logger, terraformCommand string
 
 // JSONModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
 // that the operations happen.
-func (runner *Runner) JSONModuleDeployOrder(terraformCommand string) (string, error) {
+func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := runner.GetModuleRunGraph(terraformCommand)
 	if err != nil {
 		return "", errors.New(err)
@@ -736,7 +736,7 @@ func (runner *Runner) resolveExternalDependenciesForModules(ctx context.Context,
 }
 
 // ListStackDependentModules - build a map with each module and its dependent modules
-func (runner *Runner) ListStackDependentModules() map[string][]string {
+func (runner *Runner) ListStackDependentUnits() map[string][]string {
 	// build map of dependent modules
 	// module path -> list of dependent modules
 	var dependentModules = make(map[string][]string)
@@ -805,7 +805,7 @@ func (runner *Runner) Modules() runbase.Units {
 }
 
 // FindModuleByPath finds a module by its path.
-func (runner *Runner) FindModuleByPath(path string) *runbase.Unit {
+func (runner *Runner) FindUnitByPath(path string) *runbase.Unit {
 	for _, module := range runner.Stack.Units {
 		if module.Path == path {
 			return module
@@ -904,7 +904,7 @@ func flagIncludedDirs(opts *options.TerragruntOptions, modules runbase.Units) ru
 	}
 
 	for _, module := range modules {
-		if module.FindModuleInPath(opts.IncludeDirs) {
+		if module.FindUnitInPath(opts.IncludeDirs) {
 			module.FlagExcluded = false
 		} else {
 			module.FlagExcluded = true
@@ -1047,7 +1047,7 @@ func flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.R
 	}
 
 	for _, module := range modules {
-		if module.FindModuleInPath(opts.ExcludeDirs) {
+		if module.FindUnitInPath(opts.ExcludeDirs) {
 			// Mark module itself as excluded
 			module.FlagExcluded = true
 
@@ -1084,7 +1084,7 @@ func flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.R
 
 		// Mark all affected dependencies as excluded
 		for _, dependency := range module.Dependencies {
-			if dependency.FindModuleInPath(opts.ExcludeDirs) {
+			if dependency.FindUnitInPath(opts.ExcludeDirs) {
 				dependency.FlagExcluded = true
 
 				if opts.Experiments.Evaluate(experiment.Report) {
