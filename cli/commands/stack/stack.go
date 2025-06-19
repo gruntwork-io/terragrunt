@@ -56,6 +56,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
+	if _, err := os.Stat(opts.WorkingDir); os.IsNotExist(err) {
+		return errors.Errorf("Stack directory does not exist or is not accessible: %s", opts.WorkingDir)
+	}
 
 	return runall.Run(ctx, l, opts)
 }

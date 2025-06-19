@@ -1016,7 +1016,7 @@ func TestStacksNoStackCommandFail(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "stack directory does not exist")
+	assert.Contains(t, err.Error(), "Stack directory does not exist or is not accessible")
 }
 
 func TestStacksGeneratePrintWarning(t *testing.T) {
