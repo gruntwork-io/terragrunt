@@ -59,7 +59,7 @@ func GetAzureStorageTestConfig(t *testing.T) *AzureStorageTestConfig {
 	}
 
 	if location == "" {
-		location = "europewest" // Default location if not specified
+		location = "westeurope" // Default location if not specified
 	}
 
 	return &AzureStorageTestConfig{
