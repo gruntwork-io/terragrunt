@@ -16,7 +16,7 @@ Terragrunt scaffolding can generate files for you automatically using [boilerpla
 Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures a OpenTofu/Terraform module for deployment:
 
 ```bash
-terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--no-include-root] [--root-file-name] [--disable-dependency-prompt]
+terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--no-include-root] [--root-file-name] [--no-dependency-prompt]
 ```
 
 Description:
@@ -105,7 +105,7 @@ Optional variables which can be passed to `scaffold` command:
 
 - `--no-include-root` - Disable inclusion of the root module in the generated `terragrunt.hcl` file (equivalent to using `--var=EnableRootInclude=false`, and will be overridden if the corresponding `var` value is set).
 - `--root-file-name` - Set the name of the root configuration file to include in the generated `terragrunt.hcl` file (equivalent to using `--var=RootFileName=<name>`, and will be overridden if the corresponding `var` value is set).
-- `--disable-dependency-prompt` - Disable dependency confirmation, but keep the interactive mode enabled (skip asking for confirmation about including dependencies defined in the boilerplate template).
+- `--no-dependency-prompt` - Disable dependency confirmation, but keep the interactive mode enabled (skip asking for confirmation about including dependencies defined in the boilerplate template).
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
