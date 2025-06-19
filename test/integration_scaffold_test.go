@@ -14,15 +14,11 @@ import (
 )
 
 const (
-	testScaffoldModuleURL                 = "https://github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
-	testScaffoldModuleGit                 = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
-	testScaffoldModuleShort               = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs"
-	testScaffoldTemplateModule            = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template"
-	testScaffoldExternalTemplateModule    = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template"
-	testScaffoldLocalModulePath           = "fixtures/scaffold/scaffold-module"
-	testScaffoldWithRootHCL               = "fixtures/scaffold/root-hcl"
-	testScaffold3rdPartyModulePath        = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
-	testScaffoldWithCustomDefaultTemplate = "fixtures/scaffold/custom-default-template"
+	testScaffoldModuleURL          = "https://github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
+	testScaffoldModuleShort        = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs"
+	testScaffoldLocalModulePath    = "fixtures/scaffold/scaffold-module"
+	testScaffoldWithRootHCL        = "fixtures/scaffold/root-hcl"
+	testScaffold3rdPartyModulePath = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
 )
 
 func TestScaffoldModule(t *testing.T) {
