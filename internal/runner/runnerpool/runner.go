@@ -104,13 +104,71 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 	return runner.WithOptions(opts...), nil
 }
 
-func (runner *Runner) String() string {
-	units := make([]string, len(runner.Stack.Units))
-	for i, unit := range runner.Stack.Units {
-		units[i] = "  => " + unit.String()
+func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	//------------------------------------------------------------------
+	// 0. Pre-existing CLI / plan-file logic (unchanged)
+	//------------------------------------------------------------------
+	stackCmd := opts.TerraformCommand
+
+	if opts.OutputFolder != "" {
+		for _, u := range r.Stack.Units {
+			planFile := u.OutputFile(l, opts)
+			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
+				return err
+			}
+		}
+	}
+	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
+		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
+		r.syncTerraformCliArgs(l, opts)
+	}
+	switch stackCmd {
+	case tf.CommandNameApply, tf.CommandNameDestroy:
+		if opts.RunAllAutoApprove {
+			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+		}
+		r.syncTerraformCliArgs(l, opts)
+	case tf.CommandNameShow:
+		r.syncTerraformCliArgs(l, opts)
+	case tf.CommandNamePlan:
+		errStreams := make([]bytes.Buffer, len(r.Stack.Units))
+		for i, u := range r.Stack.Units {
+			u.TerragruntOptions.ErrWriter = io.MultiWriter(&errStreams[i], u.TerragruntOptions.ErrWriter)
+		}
+		defer r.summarizePlanAllErrors(l, errStreams)
 	}
 
-	return fmt.Sprintf("Stack at %s:\n%s", runner.Stack.TerragruntOptions.WorkingDir, strings.Join(units, "\n"))
+	//------------------------------------------------------------------
+	// 1. Build the per-task runner function
+	//------------------------------------------------------------------
+	runTask := func(ctx context.Context, t *Task) Result {
+		unitRunner := runbase.NewUnitRunner(t.Unit)
+
+		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, r.Stack.Report)
+
+		res := Result{TaskID: t.ID()}
+		if err != nil {
+			res.Err = err
+			res.ExitCode = 1
+		}
+		return res
+	}
+
+	maxConc := opts.Parallelism
+	pool := New(r.Stack.Units, runTask, maxConc, false)
+
+	results := pool.Run(ctx)
+
+	var errs []error
+	for _, r := range results {
+		if r.Err != nil {
+			errs = append(errs, r.Err)
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
@@ -136,63 +194,6 @@ func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, erro
 	}
 
 	return string(j), nil
-}
-func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	// Here will be implemented runner pool logic to run the units concurrently.
-	// Currently, implementation is in the sequential way.
-	stackCmd := opts.TerraformCommand
-
-	if opts.OutputFolder != "" {
-		for _, unit := range runner.Stack.Units {
-			planFile := unit.OutputFile(l, opts)
-			planDir := filepath.Dir(planFile)
-
-			if err := os.MkdirAll(planDir, os.ModePerm); err != nil {
-				return err
-			}
-		}
-	}
-
-	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
-		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
-		runner.syncTerraformCliArgs(l, opts)
-	}
-
-	// configure CLI args to apply on the runner level
-	switch stackCmd {
-	case tf.CommandNameApply, tf.CommandNameDestroy:
-		if opts.RunAllAutoApprove {
-			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
-		}
-
-		runner.syncTerraformCliArgs(l, opts)
-	case tf.CommandNameShow:
-		runner.syncTerraformCliArgs(l, opts)
-	case tf.CommandNamePlan:
-		errorStreams := make([]bytes.Buffer, len(runner.Stack.Units))
-
-		for n, unit := range runner.Stack.Units {
-			unit.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], unit.TerragruntOptions.ErrWriter)
-		}
-
-		defer runner.summarizePlanAllErrors(l, errorStreams)
-	}
-
-	var errs []error
-
-	// Run each unit in the runner sequentially, convert each unit to a running unit, and run it.
-	for _, unit := range runner.Stack.Units {
-		unitToRun := runbase.NewUnitRunner(unit)
-		if err := unitToRun.Run(ctx, unit.TerragruntOptions, runner.Stack.Report); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
 }
 
 func (runner *Runner) ListStackDependentUnits() map[string][]string {

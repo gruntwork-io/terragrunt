@@ -10,12 +10,12 @@ import (
 // RunnerPool executes Tasks using a bounded worker pool governed by the queue.
 type RunnerPool struct {
 	q           *queue
-	runner      Runner
+	runner      TaskRunner
 	concurrency int
 }
 
 // New constructs a RunnerPool.
-func New(units []*runbase.Unit, r Runner, maxConc int, failFast bool) *RunnerPool {
+func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *RunnerPool {
 	if maxConc <= 0 {
 		maxConc = 1
 	}
