@@ -204,7 +204,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		DisableShell:            true,
 		DisableHooks:            true,
 		NonInteractive:          opts.NonInteractive,
-		DisableDependencyPrompt: opts.DisableDependencyPrompt,
+		DisableDependencyPrompt: opts.NoDependencyPrompt,
 		TemplateFolder:          boilerplateDir,
 	}
 

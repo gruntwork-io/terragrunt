@@ -18,12 +18,12 @@ import (
 const (
 	CommandName = "scaffold"
 
-	RootFileNameFlagName    = "root-file-name"
-	NoIncludeRootFlagName   = "no-include-root"
-	OutputFolderFlagName    = "output-folder"
-	VarFlagName             = "var"
-	VarFileFlagName         = "var-file"
-	DisableDependencyPrompt = "disable-dependency-prompt"
+	RootFileNameFlagName  = "root-file-name"
+	NoIncludeRootFlagName = "no-include-root"
+	OutputFolderFlagName  = "output-folder"
+	VarFlagName           = "var"
+	VarFileFlagName       = "var-file"
+	NoDependencyPrompt    = "no-dependency-prompt"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
@@ -82,9 +82,9 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 		}),
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        DisableDependencyPrompt,
-			EnvVars:     tgPrefix.EnvVars(DisableDependencyPrompt),
-			Destination: &opts.DisableDependencyPrompt,
+			Name:        NoDependencyPrompt,
+			EnvVars:     tgPrefix.EnvVars(NoDependencyPrompt),
+			Destination: &opts.NoDependencyPrompt,
 			Usage:       "Do not prompt for confirmation to include dependencies.",
 		}),
 	}
