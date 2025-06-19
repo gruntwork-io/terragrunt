@@ -39,6 +39,8 @@ func BenchmarkCASInit(b *testing.B) {
 			// Clean up cache between iterations to force re-download
 			helpers.RunTerragruntCommand(b, "terragrunt", "init", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
 		}
+
+		b.StopTimer()
 	})
 
 	b.Run("remote init with CAS", func(b *testing.B) {
@@ -51,6 +53,8 @@ func BenchmarkCASInit(b *testing.B) {
 		for b.Loop() {
 			helpers.RunTerragruntCommand(b, "terragrunt", "init", "--experiment", "cas", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
 		}
+
+		b.StopTimer()
 	})
 }
 
@@ -115,7 +119,7 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 
 				}
 
-				b.ReportMetric(float64(b.Elapsed().Seconds()), "init_s/op")
+				b.StopTimer()
 			})
 		}
 	}
