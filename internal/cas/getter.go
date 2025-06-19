@@ -61,8 +61,8 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 	// We need to switch to a valid Git URL to clone the repository
 	// Like this:
 	// git@github.com:gruntwork-io/terragrunt.git
-	if strings.HasPrefix(urlStr, "ssh://") {
-		urlStr = strings.TrimPrefix(urlStr, "ssh://")
+	if after, ok := strings.CutPrefix(urlStr, "ssh://"); ok {
+		urlStr = after
 		// Replace the first slash with a colon
 		urlStr = strings.Replace(urlStr, "/", ":", 1)
 	}
