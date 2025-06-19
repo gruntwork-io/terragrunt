@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 
@@ -138,118 +137,9 @@ func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, erro
 
 	return string(j), nil
 }
-
-// runUnitsWithDependenciesInParallel runs units in parallel, only starting a unit when all its dependencies are done.
-// Output is not buffered; units write directly to their configured output streams.
-func runUnitsWithDependenciesInParallel(ctx context.Context, units []*runbase.Unit, report *report.Report) error {
-	type unitState int
-	const (
-		pending unitState = iota
-		running
-		done
-		errored
-	)
-
-	unitStates := make(map[string]unitState, len(units))
-	for _, unit := range units {
-		unitStates[unit.Path] = pending
-	}
-
-	var (
-		mu      sync.Mutex
-		errList []error
-	)
-
-	var wg sync.WaitGroup
-
-	allDone := func() bool {
-		for _, state := range unitStates {
-			if state != done && state != errored {
-				return false
-			}
-		}
-		return true
-	}
-
-	getReadyUnits := func() []*runbase.Unit {
-		ready := []*runbase.Unit{}
-		for _, unit := range units {
-			mu.Lock()
-			if unitStates[unit.Path] != pending {
-				mu.Unlock()
-				continue
-			}
-			depsDone := true
-			for _, dep := range unit.Dependencies {
-				if unitStates[dep.Path] != done {
-					depsDone = false
-					break
-				}
-			}
-			mu.Unlock()
-			if depsDone {
-				ready = append(ready, unit)
-			}
-		}
-		return ready
-	}
-
-	for {
-		if allDone() {
-			break
-		}
-
-		readyUnits := getReadyUnits()
-		if len(readyUnits) == 0 {
-			// Deadlock: some units can't be run due to failed dependencies or circular deps
-			mu.Lock()
-			var stuckUnits []string
-			for _, unit := range units {
-				if unitStates[unit.Path] == pending {
-					stuckUnits = append(stuckUnits, unit.Path)
-				}
-			}
-			mu.Unlock()
-			if len(stuckUnits) > 0 {
-				return fmt.Errorf("Could not run all units due to unresolved dependencies or errors. Stuck units: %v", stuckUnits)
-			}
-			break
-		}
-
-		// Mark all ready units as running before starting any goroutine to avoid double-start
-		mu.Lock()
-		for _, unit := range readyUnits {
-			unitStates[unit.Path] = running
-		}
-		mu.Unlock()
-
-		wg.Add(len(readyUnits))
-		for _, unit := range readyUnits {
-			go func(unit *runbase.Unit) {
-				defer wg.Done()
-				unitToRun := runbase.NewUnitRunner(unit)
-				err := unitToRun.Run(ctx, unit.TerragruntOptions, report)
-				mu.Lock()
-				if err != nil {
-					unitStates[unit.Path] = errored
-					errList = append(errList, fmt.Errorf("unit %s: %w", unit.Path, err))
-				} else {
-					unitStates[unit.Path] = done
-				}
-				mu.Unlock()
-			}(unit)
-		}
-		wg.Wait()
-	}
-
-	if len(errList) > 0 {
-		return errors.Join(errList...)
-	}
-
-	return nil
-}
-
 func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// Here will be implemented runner pool logic to run the units concurrently.
+	// Currently, implementation is in the sequential way.
 	stackCmd := opts.TerraformCommand
 
 	if opts.OutputFolder != "" {
@@ -268,23 +158,41 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 		runner.syncTerraformCliArgs(l, opts)
 	}
 
+	// configure CLI args to apply on the runner level
 	switch stackCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		if opts.RunAllAutoApprove {
 			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
 		}
+
 		runner.syncTerraformCliArgs(l, opts)
 	case tf.CommandNameShow:
 		runner.syncTerraformCliArgs(l, opts)
 	case tf.CommandNamePlan:
 		errorStreams := make([]bytes.Buffer, len(runner.Stack.Units))
+
 		for n, unit := range runner.Stack.Units {
 			unit.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], unit.TerragruntOptions.ErrWriter)
 		}
+
 		defer runner.summarizePlanAllErrors(l, errorStreams)
 	}
 
-	return runUnitsWithDependenciesInParallel(ctx, runner.Stack.Units, runner.Stack.Report)
+	var errs []error
+
+	// Run each unit in the runner sequentially, convert each unit to a running unit, and run it.
+	for _, unit := range runner.Stack.Units {
+		unitToRun := runbase.NewUnitRunner(unit)
+		if err := unitToRun.Run(ctx, unit.TerragruntOptions, runner.Stack.Report); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func (runner *Runner) ListStackDependentUnits() map[string][]string {
