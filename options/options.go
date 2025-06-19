@@ -329,8 +329,8 @@ type TerragruntOptions struct {
 	FailFast bool
 	// SummaryUnitDuration enables showing duration information for each unit in the summary.
 	SummaryUnitDuration bool
-	// DisableDependencyPrompt disables prompt for confirmation to include dependencies when using scaffolding.
-	DisableDependencyPrompt bool
+	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
+	NoDependencyPrompt bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -439,7 +439,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		NoStackGenerate:            false,
 		VersionManagerFileName:     defaultVersionManagerFileName,
 		NoAutoProviderCacheDir:     false,
-		DisableDependencyPrompt:    false,
+		NoDependencyPrompt:         false,
 	}
 }
 
