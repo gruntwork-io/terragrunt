@@ -387,7 +387,9 @@ func (s *Summary) padding(label string, colorizer *Colorizer) string {
 
 	padding := strings.Repeat(s.padder, paddingNeeded)
 
-	if len(padding) < 2 {
+	whitespaceLen := 2
+
+	if len(padding) < whitespaceLen {
 		return "  "
 	}
 
@@ -437,15 +439,13 @@ func (s *Summary) unitDurationPadding(name string, colorizer *Colorizer) string 
 	unitPrefix := strings.Repeat(prefix, unitPrefixMultiplier)
 	currentPosition := len(unitPrefix) + len(name)
 
-	paddingNeeded := headerDurationColumn - currentPosition - durationAlignmentOffset
-
-	if paddingNeeded < 1 {
-		paddingNeeded = 1
-	}
+	paddingNeeded := max(1, headerDurationColumn-currentPosition-durationAlignmentOffset)
 
 	padding := strings.Repeat(s.padder, paddingNeeded)
 
-	if len(padding) < 2 {
+	whitespaceLen := 2
+
+	if len(padding) < whitespaceLen {
 		return "  "
 	}
 
