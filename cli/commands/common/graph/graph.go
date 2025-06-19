@@ -6,6 +6,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -44,7 +47,39 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	rootOptions.WorkingDir = rootDir
 
-	stack, err := configstack.FindStackInSubfolders(ctx, l, rootOptions)
+	stackOpts := []configstack.Option{}
+
+	if opts.Experiments.Evaluate(experiment.Report) {
+		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
+
+		if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+			r.WithDisableColor()
+		}
+
+		if opts.ReportFormat != "" {
+			r.WithFormat(opts.ReportFormat)
+		}
+
+		if opts.SummaryPerUnit {
+			r.WithShowUnitLevelSummary()
+		}
+
+		stackOpts = append(stackOpts, configstack.WithReport(r))
+
+		if opts.ReportSchemaFile != "" {
+			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		}
+
+		if opts.ReportFile != "" {
+			defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		}
+
+		if !opts.SummaryDisable {
+			defer r.WriteSummary(opts.Writer) //nolint:errcheck
+		}
+	}
+
+	stack, err := configstack.FindStackInSubfolders(ctx, l, rootOptions, stackOpts...)
 	if err != nil {
 		return err
 	}
@@ -57,7 +92,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	modulesToInclude = append(modulesToInclude, workDir)
 
 	// include from stack only elements from modulesToInclude
-	for _, module := range stack.Modules {
+	for _, module := range stack.Modules() {
 		module.FlagExcluded = true
 		if util.ListContainsElement(modulesToInclude, module.Path) {
 			module.FlagExcluded = false

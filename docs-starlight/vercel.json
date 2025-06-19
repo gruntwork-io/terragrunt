@@ -1,4 +1,0 @@
-{
-    "installCommand": "bun i && curl -fsSL https://d2lang.com/install.sh | sh -s --",
-    "buildCommand": "bun run build"
-}

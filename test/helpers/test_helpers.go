@@ -18,7 +18,7 @@ func ValidateHookTraceParent(t *testing.T, hook, str string) {
 
 	traceparentLine := ""
 
-	for _, line := range strings.Split(str, "\n") {
+	for line := range strings.SplitSeq(str, "\n") {
 		if strings.HasPrefix(line, hook+" {\"traceparent\": \"") {
 			traceparentLine = line
 			break

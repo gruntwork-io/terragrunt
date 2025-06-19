@@ -263,8 +263,8 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 
 	hiddenPath := ""
 
-	parts := strings.Split(path, string(os.PathSeparator))
-	for _, part := range parts {
+	parts := strings.SplitSeq(path, string(os.PathSeparator))
+	for part := range parts {
 		hiddenPath = filepath.Join(hiddenPath, part)
 
 		if strings.HasPrefix(part, ".") {
@@ -511,7 +511,7 @@ func (d *DependencyDiscovery) DiscoverDependencies(ctx context.Context, l log.Lo
 		depPaths = append(depPaths, depPath)
 	}
 
-	if dCfg.Dependencies != nil {
+	if dCfg.Parsed.Dependencies != nil {
 		for _, dependency := range dCfg.Parsed.Dependencies.Paths {
 			if !filepath.IsAbs(dependency) {
 				dependency = filepath.Join(dCfg.Path, dependency)

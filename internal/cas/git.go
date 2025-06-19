@@ -18,20 +18,30 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
+	GitPath string
 	WorkDir string
 }
 
 // NewGitRunner creates a new GitRunner instance
-func NewGitRunner() *GitRunner {
-	return &GitRunner{}
+func NewGitRunner() (*GitRunner, error) {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return nil, &WrappedError{
+			Op:      "git",
+			Context: "git not found",
+			Err:     ErrCommandSpawn,
+		}
+	}
+
+	return &GitRunner{GitPath: gitPath}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
-	// Create new instance instead of modifying existing one
-	return &GitRunner{
-		WorkDir: workDir,
-	}
+	copy := *g
+	copy.WorkDir = workDir
+
+	return &copy
 }
 
 // RequiresWorkDir returns an error if no working directory is set
@@ -78,9 +88,9 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 
 	var results []LsRemoteResult
 
-	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	lines := strings.SplitSeq(strings.TrimSpace(stdout.String()), "\n")
 
-	for _, line := range lines {
+	for line := range lines {
 		if line == "" {
 			continue
 		}
@@ -206,6 +216,32 @@ func (g *GitRunner) LsTree(ctx context.Context, reference, path string) (*Tree, 
 	return ParseTree(stdout.String(), path)
 }
 
+// LsTreeRecursive runs git ls-tree -r and returns all blobs recursively
+// This eliminates the need for multiple separate ls-tree calls on subtrees
+func (g *GitRunner) LsTreeRecursive(ctx context.Context, reference, path string) (*Tree, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return nil, err
+	}
+
+	// Use recursive ls-tree to get all blobs in a single command
+	cmd := g.prepareCommand(ctx, "ls-tree", "-r", reference)
+	cmd.Dir = g.WorkDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, &WrappedError{
+			Op:      "git_ls_tree_recursive",
+			Context: stderr.String(),
+			Err:     ErrReadTree,
+		}
+	}
+
+	return ParseTree(stdout.String(), path)
+}
+
 // CatFile writes the contents of a git object
 // to a given writer.
 func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) error {
@@ -240,5 +276,5 @@ func (g *GitRunner) SetWorkDir(dir string) {
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, "git", append([]string{name}, args...)...)
+	return exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
 }

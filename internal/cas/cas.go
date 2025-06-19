@@ -66,9 +66,14 @@ func New(opts Options) (*CAS, error) {
 
 	store := NewStore(opts.StorePath)
 
+	git, err := NewGitRunner()
+	if err != nil {
+		return nil, err
+	}
+
 	return &CAS{
 		store: store,
-		git:   NewGitRunner(),
+		git:   git,
 		opts:  opts,
 	}, nil
 }
@@ -76,7 +81,7 @@ func New(opts Options) (*CAS, error) {
 // Clone performs the clone operation
 //
 // TODO: Make options optional
-func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts *CloneOptions, url string) error {
+func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url string) error {
 	c.cloneStart = time.Now()
 
 	targetDir := c.prepareTargetDirectory(opts.Dir, url)
@@ -89,7 +94,7 @@ func (c *CAS) Clone(ctx context.Context, l *log.Logger, opts *CloneOptions, url 
 
 	defer func() {
 		if cleanupErr := cleanup(); cleanupErr != nil {
-			(*l).Warnf("cleanup error: %v", cleanupErr)
+			l.Warnf("cleanup error: %v", cleanupErr)
 		}
 	}()
 
@@ -152,7 +157,7 @@ func (c *CAS) resolveReference(ctx context.Context, url, branch string) (string,
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, opts *CloneOptions, url string, hash string) error {
+func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *CloneOptions, url string, hash string) error {
 	if err := c.git.Clone(ctx, url, true, 1, opts.Branch); err != nil {
 		return err
 	}
@@ -160,7 +165,28 @@ func (c *CAS) cloneAndStoreContent(ctx context.Context, l *log.Logger, opts *Clo
 	return c.storeRootTree(ctx, l, hash, opts)
 }
 
-func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opts *CloneOptions) error {
+func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
+	// Get all blobs recursively in a single git ls-tree -r call at the root
+	allBlobsTree, err := c.git.LsTreeRecursive(ctx, hash, ".")
+	if err != nil {
+		return err
+	}
+
+	// Collect all blobs from recursive listing
+	var allBlobs []TreeEntry
+
+	for _, entry := range allBlobsTree.Entries() {
+		if entry.Type == "blob" {
+			allBlobs = append(allBlobs, entry)
+		}
+	}
+
+	// Store all blobs concurrently (single batch from recursive call)
+	if err := c.storeBlobs(ctx, allBlobs); err != nil {
+		return err
+	}
+
+	// Now store the tree structure (which won't need to handle blobs again)
 	if err := c.storeTree(ctx, l, hash, ""); err != nil {
 		return err
 	}
@@ -208,72 +234,73 @@ func (c *CAS) storeRootTree(ctx context.Context, l *log.Logger, hash string, opt
 	return content.Store(l, hash, data)
 }
 
-func (c *CAS) storeTree(ctx context.Context, l *log.Logger, hash, prefix string) error {
+func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) error {
 	if !c.store.NeedsWrite(hash, c.cloneStart) {
 		return nil
 	}
 
+	// Get tree structure (no recursive blobs needed - they're already stored)
 	tree, err := c.git.LsTree(ctx, hash, ".")
 	if err != nil {
 		return err
 	}
 
-	// Optimistically assume half the entries are trees and half are blobs
-	var (
-		trees = make([]TreeEntry, 0, len(tree.Entries())/2) //nolint:mnd
-		blobs = make([]TreeEntry, 0, len(tree.Entries())/2) //nolint:mnd
-	)
+	// Only collect immediate tree entries (blobs are already handled at root)
+	var immediateTrees []TreeEntry
 
 	for _, entry := range tree.Entries() {
 		if prefix != "" {
 			entry.Path = filepath.Join(prefix, entry.Path)
 		}
 
-		switch entry.Type {
-		case "blob":
-			blobs = append(blobs, entry)
-		case "tree":
-			trees = append(trees, entry)
+		if entry.Type == "tree" {
+			immediateTrees = append(immediateTrees, entry)
 		}
 	}
 
-	ch := make(chan error, 2) //nolint:mnd
+	// Store tree objects recursively
+	if err := c.storeTrees(ctx, l, immediateTrees, prefix); err != nil {
+		return err
+	}
+
+	// Store the current tree object
+	content := NewContent(c.store)
+	if err := content.Ensure(l, hash, tree.Data()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// storeTrees concurrently stores trees in the CAS
+func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry, prefix string) error {
+	ch := make(chan error, len(entries))
 
 	var wg sync.WaitGroup
 
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		if err := c.storeBlobs(ctx, blobs); err != nil {
-			ch <- err
-
-			return
+	for _, entry := range entries {
+		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
+			continue
 		}
 
-		ch <- nil
-	}()
+		wg.Add(1)
 
-	wg.Add(1)
+		go func(hash string) {
+			defer wg.Done()
 
-	go func() {
-		defer wg.Done()
+			if err := c.storeTree(ctx, l, hash, prefix); err != nil {
+				ch <- err
+				return
+			}
 
-		if err := c.storeTrees(ctx, l, trees, prefix); err != nil {
-			ch <- err
-
-			return
-		}
-
-		ch <- nil
-	}()
+			ch <- nil
+		}(entry.Hash)
+	}
 
 	wg.Wait()
-
 	close(ch)
 
-	errs := []error{}
+	var errs []error
 
 	for err := range ch {
 		if err != nil {
@@ -283,12 +310,6 @@ func (c *CAS) storeTree(ctx context.Context, l *log.Logger, hash, prefix string)
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
-	}
-
-	content := NewContent(c.store)
-
-	if err := content.Ensure(l, hash, tree.Data()); err != nil {
-		return err
 	}
 
 	return nil
@@ -311,51 +332,6 @@ func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
 			defer wg.Done()
 
 			if err := c.ensureBlob(ctx, hash); err != nil {
-				ch <- err
-
-				return
-			}
-
-			ch <- nil
-		}(entry.Hash)
-	}
-
-	wg.Wait()
-
-	close(ch)
-
-	errs := []error{}
-
-	for err := range ch {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
-}
-
-// storeTrees concurrently stores trees in the CAS
-func (c *CAS) storeTrees(ctx context.Context, l *log.Logger, entries []TreeEntry, prefix string) error {
-	ch := make(chan error, len(entries))
-
-	var wg sync.WaitGroup
-
-	for _, entry := range entries {
-		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
-			continue
-		}
-
-		wg.Add(1)
-
-		go func(hash string) {
-			defer wg.Done()
-
-			if err := c.storeTree(ctx, l, hash, prefix); err != nil {
 				ch <- err
 
 				return

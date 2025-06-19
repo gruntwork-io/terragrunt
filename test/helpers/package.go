@@ -807,8 +807,8 @@ func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	t.Helper()
 	t.Logf("[%s] Full contents of %s:", t.Name(), label)
 
-	lines := strings.Split(out.String(), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(out.String(), "\n")
+	for line := range lines {
 		t.Logf("[%s] %s", t.Name(), line)
 	}
 }

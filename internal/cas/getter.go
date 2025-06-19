@@ -16,12 +16,12 @@ var _ getter.Getter = &CASGetter{}
 // CASGetter is a go-getter Getter implementation.
 type CASGetter struct {
 	CAS       *CAS
-	Logger    *log.Logger
+	Logger    log.Logger
 	Opts      *CloneOptions
 	Detectors []getter.Detector
 }
 
-func NewCASGetter(l *log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
+func NewCASGetter(l log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
 	return &CASGetter{
 		Detectors: []getter.Detector{
 			new(getter.GitHubDetector),
@@ -61,8 +61,8 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 	// We need to switch to a valid Git URL to clone the repository
 	// Like this:
 	// git@github.com:gruntwork-io/terragrunt.git
-	if strings.HasPrefix(urlStr, "ssh://") {
-		urlStr = strings.TrimPrefix(urlStr, "ssh://")
+	if after, ok := strings.CutPrefix(urlStr, "ssh://"); ok {
+		urlStr = after
 		// Replace the first slash with a colon
 		urlStr = strings.Replace(urlStr, "/", ":", 1)
 	}

@@ -32,7 +32,7 @@ terraform {
 	helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
 
 	b.Run("1 units", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			helpers.Init(b, tmpDir)
 		}
 	})
@@ -59,7 +59,7 @@ terraform {
 	helpers.GenerateNUnits(b, tmpDir, 2, includeRootConfig, emptyMainTf)
 
 	b.Run("2 units", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			helpers.Init(b, tmpDir)
 		}
 	})
@@ -86,7 +86,7 @@ terraform {
 	helpers.GenerateNUnits(b, tmpDir, 1000, includeRootConfig, emptyMainTf)
 
 	b.Run("1000 units", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			helpers.Init(b, tmpDir)
 		}
 	})
@@ -115,7 +115,7 @@ terraform {
 	helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
 
 	b.Run("1 units", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 
 			helpers.Plan(b, tmpDir)
 		}
@@ -143,7 +143,7 @@ func BenchmarkTwoEmptyTerragruntPlans(b *testing.B) {
 	helpers.GenerateNUnits(b, tmpDir, 2, includeRootConfig, emptyMainTf)
 
 	b.Run("2 units", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			helpers.Plan(b, tmpDir)
 		}
 	})
@@ -169,7 +169,7 @@ func BenchmarkManyEmptyTerragruntPlans(b *testing.B) {
 	helpers.GenerateNUnits(b, tmpDir, 1000, includeRootConfig, emptyMainTf)
 
 	b.Run("1000 units", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			helpers.Plan(b, tmpDir)
 		}
 	})

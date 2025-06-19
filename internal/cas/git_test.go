@@ -12,7 +12,8 @@ import (
 
 func TestGitRunner_LsRemote(t *testing.T) {
 	t.Parallel()
-	runner := cas.NewGitRunner()
+	runner, err := cas.NewGitRunner()
+	require.NoError(t, err)
 
 	ctx := t.Context()
 
@@ -52,8 +53,10 @@ func TestGitRunner_Clone(t *testing.T) {
 	t.Run("shallow clone", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
-		runner := cas.NewGitRunner().WithWorkDir(cloneDir)
-		err := runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+		runner = runner.WithWorkDir(cloneDir)
+		err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.NoError(t, err)
 
 		// Verify it's a git repository
@@ -63,8 +66,9 @@ func TestGitRunner_Clone(t *testing.T) {
 
 	t.Run("clone without workdir fails", func(t *testing.T) {
 		t.Parallel()
-		runner := cas.NewGitRunner()
-		err := runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+		err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -74,8 +78,10 @@ func TestGitRunner_Clone(t *testing.T) {
 	t.Run("invalid repository", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
-		runner := cas.NewGitRunner().WithWorkDir(cloneDir)
-		err := runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt-fake.git", false, 1, "")
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+		runner = runner.WithWorkDir(cloneDir)
+		err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt-fake.git", false, 1, "")
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -85,7 +91,8 @@ func TestGitRunner_Clone(t *testing.T) {
 
 func TestCreateTempDir(t *testing.T) {
 	t.Parallel()
-	git := cas.NewGitRunner()
+	git, err := cas.NewGitRunner()
+	require.NoError(t, err)
 	dir, cleanup, err := git.CreateTempDir()
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -142,10 +149,12 @@ func TestGitRunner_LsTree(t *testing.T) {
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
-		runner := cas.NewGitRunner().WithWorkDir(cloneDir)
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+		runner = runner.WithWorkDir(cloneDir)
 
 		// First clone a repository
-		err := runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
+		err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.NoError(t, err)
 
 		// Then try to ls-tree HEAD
@@ -169,8 +178,10 @@ func TestGitRunner_LsTree(t *testing.T) {
 
 	t.Run("ls-tree without workdir fails", func(t *testing.T) {
 		t.Parallel()
-		runner := cas.NewGitRunner()
-		_, err := runner.LsTree(ctx, "HEAD", ".")
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+
+		_, err = runner.LsTree(ctx, "HEAD", ".")
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -180,10 +191,12 @@ func TestGitRunner_LsTree(t *testing.T) {
 	t.Run("invalid reference", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := t.TempDir()
-		runner := cas.NewGitRunner().WithWorkDir(cloneDir)
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+		runner = runner.WithWorkDir(cloneDir)
 
 		// First clone a repository
-		err := runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
+		err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.NoError(t, err)
 
 		// Try to ls-tree an invalid reference
@@ -196,10 +209,12 @@ func TestGitRunner_LsTree(t *testing.T) {
 
 	t.Run("invalid repository", func(t *testing.T) {
 		t.Parallel()
-		runner := cas.NewGitRunner().WithWorkDir(t.TempDir())
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+		runner = runner.WithWorkDir(t.TempDir())
 
 		// Try to ls-tree in an empty directory
-		_, err := runner.LsTree(ctx, "HEAD", ".")
+		_, err = runner.LsTree(ctx, "HEAD", ".")
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
@@ -212,15 +227,18 @@ func TestGitRunner_RequiresWorkDir(t *testing.T) {
 
 	t.Run("with workdir", func(t *testing.T) {
 		t.Parallel()
-		runner := cas.NewGitRunner().WithWorkDir(t.TempDir())
-		err := runner.RequiresWorkDir()
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+		runner = runner.WithWorkDir(t.TempDir())
+		err = runner.RequiresWorkDir()
 		assert.NoError(t, err)
 	})
 
 	t.Run("without workdir", func(t *testing.T) {
 		t.Parallel()
-		runner := cas.NewGitRunner()
-		err := runner.RequiresWorkDir()
+		runner, err := cas.NewGitRunner()
+		require.NoError(t, err)
+		err = runner.RequiresWorkDir()
 		require.Error(t, err)
 		var wrappedErr *cas.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)

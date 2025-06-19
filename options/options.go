@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -105,7 +106,7 @@ type TerragruntOptions struct {
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
 	AwsProviderPatchOverrides map[string]string
 	// A command that can be used to run Terragrunt with the given options.
-	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error
+	RunTerragrunt func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// ReadFiles is a map of files to the Units that read them using HCL functions in the unit.
@@ -116,13 +117,16 @@ type TerragruntOptions struct {
 	SourceMap map[string]string
 	// Environment variables at runtime
 	Env map[string]string
+	// IAM Role options that should be used when authenticating to AWS.
+	IAMRoleOptions IAMRoleOptions
+	// IAM Role options set from command line.
+	OriginalIAMRoleOptions IAMRoleOptions
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 	// Current Terraform command being executed by Terragrunt
 	TerraformCommand string
 	// StackOutputFormat format how the stack output is rendered.
-	StackOutputFormat string
-	// Path to the Terragrunt stack config file.
+	StackOutputFormat         string
 	TerragruntStackConfigPath string
 	// Location of the original Terragrunt config file.
 	OriginalTerragruntConfigPath string
@@ -168,12 +172,12 @@ type TerragruntOptions struct {
 	ScaffoldOutputFolder string
 	// Root directory for graph command.
 	GraphRoot string
-	// StackAction represents the stack action being performed (e.g., "generate").
-	StackAction string
-	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
-	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
+	// Path to the report file.
+	ReportFile string
+	// Report format.
+	ReportFormat report.Format
+	// Path to the report schema file.
+	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
 	TerraformCliArgs cli.Args
 	// Unix-style glob of directories to include when running *-all commands
@@ -270,7 +274,7 @@ type TerragruntOptions struct {
 	RunAllAutoApprove bool
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
-	// HCLValidateStrict is a strict mode for HCL validation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.
+	// HCLValidateStrict is a strict mode for HCL validation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.",
 	HCLValidateStrict bool
 	// HCLValidateInputs checks if the terragrunt configured inputs align with the terraform defined variables.
 	HCLValidateInputs bool
@@ -302,6 +306,10 @@ type TerragruntOptions struct {
 	ForceBackendDelete bool
 	// ForceBackendMigrate forces the backend to be migrated, even if the bucket is not versioned.
 	ForceBackendMigrate bool
+	// SummaryDisable disables the summary output at the end of a run.
+	SummaryDisable bool
+	// SummaryPerUnit enables showing duration information for each unit in the summary.
+	SummaryPerUnit bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -395,7 +403,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
 		JSONDisableDependentModules:    false,
-		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions) error {
+		RunTerragrunt: func(ctx context.Context, l log.Logger, opts *TerragruntOptions, r *report.Report) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
@@ -686,7 +694,7 @@ type ErrorsPattern struct {
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
-func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.Logger, operation func() error) error {
+func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.Logger, r *report.Report, operation func() error) error {
 	if opts.Errors == nil {
 		return operation()
 	}
@@ -719,6 +727,22 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				}
 			}
 
+			if opts.Experiments.Evaluate(experiment.Report) {
+				run, err := r.GetRun(opts.WorkingDir)
+				if err != nil {
+					return err
+				}
+
+				if err := r.EndRun(
+					run.Path,
+					report.WithResult(report.ResultSucceeded),
+					report.WithReason(report.ReasonErrorIgnored),
+					report.WithCauseIgnoreBlock(action.IgnoreBlockName),
+				); err != nil {
+					return err
+				}
+			}
+
 			return nil
 		}
 
@@ -730,6 +754,23 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, l log.L
 				action.RetryAttempts,
 				action.RetrySleepSecs,
 			)
+
+			if opts.Experiments.Evaluate(experiment.Report) {
+				// Assume the retry will succeed.
+				run, err := r.GetRun(opts.WorkingDir)
+				if err != nil {
+					return err
+				}
+
+				if err := r.EndRun(
+					run.Path,
+					report.WithResult(report.ResultSucceeded),
+					report.WithReason(report.ReasonRetrySucceeded),
+					report.WithCauseRetryBlock(action.RetryBlockName),
+				); err != nil {
+					return err
+				}
+			}
 
 			// Sleep before retry
 			select {
@@ -770,13 +811,15 @@ func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[str
 
 // ErrorAction represents the action to take when an error occurs
 type ErrorAction struct {
-	IgnoreSignals  map[string]any
-	IgnoreMessage  string
-	RetryMessage   string
-	RetryAttempts  int
-	RetrySleepSecs int
-	ShouldIgnore   bool
-	ShouldRetry    bool
+	IgnoreSignals   map[string]any
+	IgnoreBlockName string
+	RetryBlockName  string
+	IgnoreMessage   string
+	RetryMessage    string
+	RetryAttempts   int
+	RetrySleepSecs  int
+	ShouldIgnore    bool
+	ShouldRetry     bool
 }
 
 // ProcessError evaluates an error against the configuration and returns the appropriate action
@@ -794,6 +837,7 @@ func (c *ErrorsConfig) ProcessError(l log.Logger, err error, currentAttempt int)
 	for _, ignoreBlock := range c.Ignore {
 		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
 		if isIgnorable {
+			action.IgnoreBlockName = ignoreBlock.Name
 			action.ShouldIgnore = true
 			action.IgnoreMessage = ignoreBlock.Message
 			action.IgnoreSignals = make(map[string]any)
