@@ -310,6 +310,8 @@ type TerragruntOptions struct {
 	SummaryDisable bool
 	// SummaryPerUnit enables showing duration information for each unit in the summary.
 	SummaryPerUnit bool
+	// StackAction represents the stack action being performed (e.g., "generate").
+	StackAction string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
