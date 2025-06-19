@@ -292,9 +292,15 @@ Check out the [terragrunt-infrastructure-modules-example](https://github.com/gru
 
 ## Azure-specific remote state settings
 
-For the `azurerm` backend, Terragrunt will automatically create the following resources if they don't exist:
+For the `azurerm` backend, Terragrunt will automatically create and manage the following resources if they don't exist:
 
-- **Azure Storage Container**: If you are using the [Azure Storage backend](https://learn.microsoft.com/en-us/azure/developer/terraform/store-state-in-azure-storage?tabs=azure-cli) for remote state storage and the container you specify in `remote_state.config` doesn't exist, Terragrunt will create it automatically.
+- **Azure Storage Account**: If you enable storage account bootstrap with `create_storage_account_if_not_exists = true`, Terragrunt will create the storage account if it doesn't exist, with secure defaults including:
+  - [Blob versioning](https://learn.microsoft.com/en-us/azure/storage/blobs/versioning-overview) enabled
+  - [Server-side encryption](https://learn.microsoft.com/en-us/azure/storage/common/storage-service-encryption) using Azure Storage encryption
+  - Public access blocked by default
+  - Appropriate RBAC permissions assigned
+
+- **Azure Storage Container**: If the container specified in `container_name` doesn't exist, Terragrunt will create it automatically with appropriate access controls.
 
 Here's an example of using the `remote_state` block to configure the Azure Storage backend:
 
@@ -306,43 +312,257 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
+    # Required settings
     storage_account_name = "mystorageaccount"
     container_name      = "terraform-state"
     key                = "${path_relative_to_include()}/terraform.tfstate"
-    use_azuread_auth   = true   # Use Azure AD authentication (recommended)
+    
+    # Storage account bootstrap settings (optional)
+    create_storage_account_if_not_exists = true
+    subscription_id     = "00000000-0000-0000-0000-000000000000"  # Required if creating storage account
+    resource_group_name = "my-terraform-state-rg"
+    location           = "eastus"
+    
+    # Storage account configuration (optional)
+    enable_versioning   = true        # Default: true
+    account_kind        = "StorageV2" # Default: StorageV2
+    account_tier        = "Standard"  # Default: Standard
+    replication_type    = "LRS"       # Default: LRS
+    access_tier         = "Hot"       # Default: Hot
+    
+    # Tags for the storage account (optional)
+    storage_account_tags = {
+      Environment = "Production"
+      ManagedBy   = "Terragrunt"
+    }
   }
 }
 ```
 
-### Azure Authentication Methods
+### Azure Authentication
 
-The Azure backend supports multiple authentication methods:
+Azure AD authentication is now the **only** supported authentication method in Terragrunt for Azure Storage backend. This aligns with security best practices and provides better access control and auditing capabilities.
 
-1. **Azure AD Authentication** (recommended) - Set `use_azuread_auth = true`
-2. **Storage Account Key** - Provide via `access_key`
-3. **SAS Token** - Provide via `sas_token`
+The Azure Default Credential Chain is used, which tries multiple authentication methods in the following order:
+
+1. Environment Variables (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`)
+2. Managed Identity (when running in Azure)
+3. Azure CLI credentials (when signed in with `az login`)
+4. Visual Studio Code credentials (when signed in to Azure extension)
+
+You can also explicitly configure authentication using:
+
+```hcl
+config = {
+  use_azuread_auth = true    # Optional, defaults to true
+  subscription_id  = "..."   # Required for storage account creation
+  tenant_id       = "..."    # Optional
+  client_id       = "..."    # Optional
+  client_secret   = "..."    # Optional
+  use_msi         = true     # Optional, for Managed Identity
+}
+```
 
 ### Important Notes
 
-1. **Versioning**: In Azure Storage, blob versioning is a storage account level setting and cannot be configured at the container level.
-2. **Server-Side Encryption**: Azure Storage automatically encrypts all data at rest.
-3. **Authentication**: Azure AD authentication is recommended over access keys or SAS tokens for better security.
-4. **Locking**: Azure Blob lease is used for state locking, no additional resources needed.
+1. **Azure AD Only**: Storage account key and connection string authentication methods are no longer supported
+2. **Versioning**: Blob versioning is managed at the storage account level and enabled by default during bootstrap
+3. **Server-Side Encryption**: Azure Storage automatically encrypts all data at rest
+4. **Access Control**: RBAC permissions are automatically assigned during bootstrap
+5. **Locking**: Azure Blob lease is used for state locking, no additional resources needed
+6. **Legacy Support**: If you see warnings about `ARM_ACCESS_KEY` or `AZURE_STORAGE_KEY` environment variables, update to Azure AD authentication
 
-### Error Messages
+### Error Messages and Troubleshooting
 
 Common error messages and their resolutions:
 
 | Error Message | Resolution |
 |--------------|------------|
+| `subscription_id is required for storage account creation` | Add `subscription_id` to config when using `create_storage_account_if_not_exists = true` |
+| `location is required for storage account creation` | Add `location` to config when using `create_storage_account_if_not_exists = true` |
 | `container name is required` | Specify a valid container name in config |
-| `authentication failed` | Check Azure credentials and permissions |
+| `authentication failed` | Check Azure AD credentials and permissions |
+| `no valid authentication method found` | Configure Azure AD authentication method |
 | `error checking container existence` | Verify network connectivity and access |
 | `blob not found` | Verify state file path and container name |
+| `ARM_ACCESS_KEY is no longer supported` | Switch to Azure AD authentication |
+| `AZURE_STORAGE_KEY is no longer supported` | Switch to Azure AD authentication |
 
 ### Best Practices
 
-1. Use Azure AD authentication by setting `use_azuread_auth = true`
-2. Enable blob versioning at the storage account level
-3. Use separate containers for different environments
-4. Use descriptive paths in the `key` parameter
+1. **Authentication**
+   - Use Azure AD authentication (now the default)
+   - Use managed identities in Azure environments
+   - Rotate service principal credentials regularly if used
+
+2. **Storage Configuration**
+   - Enable blob versioning at the storage account level (enabled by default during bootstrap)
+   - Use ZRS or GRS replication for production environments
+   - Consider using the Cool access tier for cost optimization
+
+3. **Access Control**
+   - Use separate containers for different environments
+   - Apply resource locks to prevent accidental deletion
+   - Use Azure Private Endpoints for secure network access
+   - Enable Azure Defender for Storage
+
+4. **Organization**
+   - Use descriptive paths in the `key` parameter
+   - Apply meaningful tags to storage accounts
+   - Use consistent naming conventions
+
+5. **Monitoring**
+   - Enable Azure Monitor diagnostics
+   - Set up alerts for unauthorized access attempts
+   - Configure Activity Log alerts for critical operations
+
+6. **Backup and Recovery**
+   - Enable soft delete for blobs
+   - Configure periodic backup policies
+   - Test recovery procedures regularly
+
+### Storage Account Bootstrap Process
+
+When `create_storage_account_if_not_exists = true` is set, Terragrunt follows this process:
+
+1. **Authentication Check**: Verifies Azure AD authentication is configured
+2. **Subscription Access**: Validates access to the specified subscription
+3. **Resource Group**: Uses the specified resource group or creates one with the pattern `{storage_account_name}-rg`
+4. **Storage Account Creation**: If the storage account doesn't exist:
+   - Creates it with the specified configuration
+   - Enables versioning by default
+   - Assigns RBAC permissions
+   - Applies specified tags
+5. **Container Management**: Creates the state container if it doesn't exist
+
+Example configuration with storage account bootstrap:
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    # Required settings
+    storage_account_name = "mystorageaccount"
+    container_name      = "terraform-state"
+    key                = "${path_relative_to_include()}/terraform.tfstate"
+    subscription_id    = "00000000-0000-0000-0000-000000000000"
+    
+    # Storage account bootstrap parameters
+    create_storage_account_if_not_exists = true
+    resource_group_name = "my-terraform-rg"
+    location            = "eastus"
+    enable_versioning   = true
+    allow_blob_public_access = false
+    
+    # Optional storage account configuration
+    account_kind        = "StorageV2"  # Optional: StorageV2 (default), BlobStorage, BlockBlobStorage, FileStorage
+    replication_type    = "LRS"        # Optional: LRS (default), GRS, RAGRS, ZRS, GZRS, RAGZRS
+    access_tier         = "Hot"        # Optional: Hot (default), Cool, Premium
+    storage_account_tags = {           # Optional: Tags to apply to the storage account
+      Environment = "Production"
+      Owner = "Terragrunt"
+    }
+  }
+}
+```
+
+#### Storage Account Bootstrap Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `create_storage_account_if_not_exists` | Whether to check if the storage account exists and create it if needed | `false` |
+| `resource_group_name` | Resource group for the storage account | Same as storage account name with `-rg` suffix |
+| `location` | Azure region where the storage account should be created | `eastus` |
+| `enable_versioning` | Whether blob versioning should be enabled on the storage account | `true` |
+| `allow_blob_public_access` | Whether the storage account should allow public blob access | `false` |
+| `account_kind` | Storage account kind | `StorageV2` |
+| `account_tier` | Storage account performance tier | `Standard` |
+| `access_tier` | Access tier for the storage account | `Hot` |
+| `replication_type` | Data replication type | `LRS` |
+| `storage_account_tags` | Tags to apply to the storage account | `{ created-by = "terragrunt" }` |
+
+#### Storage Account Bootstrap Requirements
+
+For storage account bootstrap to work:
+
+1. You must provide a valid `subscription_id` where you have permissions to create resources
+2. Your authentication method must have permissions to create/modify storage accounts
+3. The specified resource group must exist, or you must have permissions to create resource groups
+
+If the storage account already exists, Terragrunt will check its configuration and update certain settings like versioning if they don't match what's specified in your configuration.
+
+#### Managing Existing Storage Accounts
+
+If you've already created your storage account manually but want Terragrunt to ensure it has proper settings:
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  # ... other configuration ...
+  config = {
+    # ... standard backend configuration ...
+    
+    # Check and update existing storage account if necessary
+    create_storage_account_if_not_exists = true
+    enable_versioning = true
+    allow_blob_public_access = false
+    skip_storage_account_update = false  # By default, Terragrunt will update existing accounts
+  }
+}
+```
+
+To disable updating existing storage accounts, set `skip_storage_account_update = true`.
+
+#### Azure Authentication
+
+Starting from version X.X.X, Azure AD authentication is the only supported authentication method for Azure remote state backend. Storage account key authentication is no longer supported.
+
+To use Azure AD authentication:
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  # ... other configuration ...
+  config = {
+    # Required - defaults to true even if not specified
+    use_azuread_auth = true  
+    
+    # Storage account configuration
+    storage_account_name = "mystorageaccount"
+    container_name = "terraform-state"
+    key = "${path_relative_to_include()}/terraform.tfstate"
+    
+    # Optional - needed for certain Azure AD permission scenarios
+    subscription_id = "00000000-0000-0000-0000-000000000000"
+    tenant_id = "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+Azure AD authentication uses the [Azure Default Credential Chain](https://learn.microsoft.com/en-us/dotnet/api/azure.identity.defaultazurecredential), which tries multiple authentication methods in the following order:
+
+1. **Environment variables** (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)
+2. **Managed Identity** (when running in Azure)
+3. **Azure CLI credentials** (when signed in with `az login`)
+4. **Visual Studio Code credentials** (when signed in to Azure extension)
+
+For additional authentication options, you can use:
+
+| Option | Description | 
+|--------|-------------|
+| `use_msi` | Use Managed Service Identity for authentication when running in Azure | 
+| `client_id` | Service principal client ID for Azure AD auth | 
+| `client_secret` | Service principal client secret for Azure AD auth |
+| `tenant_id` | Azure AD tenant ID |
+| `subscription_id` | Azure subscription ID (required for storage account bootstrap) |
+| `sas_token` | SAS token for read/write access to storage account (not recommended for production) |
+
+Deprecated authentication options that are no longer supported:
+
+- `storage_account_key` - Removed in favor of Azure AD authentication
+- `connection_string` - Removed in favor of Azure AD authentication
+- Environment variables ARM_ACCESS_KEY and AZURE_STORAGE_KEY
