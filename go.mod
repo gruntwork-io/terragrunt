@@ -1,6 +1,6 @@
 module github.com/gruntwork-io/terragrunt
 
-go 1.24
+go 1.24.4
 
 require (
 	cloud.google.com/go/storage v1.55.0
