@@ -10,21 +10,23 @@ import (
 
 // Colorizer is a colorizer for the run summary output.
 type Colorizer struct {
-	headingColorizer     func(string) string
-	successColorizer     func(string) string
-	failureColorizer     func(string) string
-	exitColorizer        func(string) string
-	excludeColorizer     func(string) string
-	successUnitColorizer func(string) string
-	failureUnitColorizer func(string) string
-	exitUnitColorizer    func(string) string
-	excludeUnitColorizer func(string) string
-	nanosecondColorizer  func(string) string
-	microsecondColorizer func(string) string
-	millisecondColorizer func(string) string
-	secondColorizer      func(string) string
-	minuteColorizer      func(string) string
-	defaultColorizer     func(string) string
+	headingTitleColorizer func(string) string
+	headingUnitColorizer  func(string) string
+	successColorizer      func(string) string
+	failureColorizer      func(string) string
+	exitColorizer         func(string) string
+	excludeColorizer      func(string) string
+	successUnitColorizer  func(string) string
+	failureUnitColorizer  func(string) string
+	exitUnitColorizer     func(string) string
+	excludeUnitColorizer  func(string) string
+	nanosecondColorizer   func(string) string
+	microsecondColorizer  func(string) string
+	millisecondColorizer  func(string) string
+	secondColorizer       func(string) string
+	minuteColorizer       func(string) string
+	defaultColorizer      func(string) string
+	paddingColorizer      func(string) string
 }
 
 // NewColorizer creates a new Colorizer.
@@ -34,21 +36,23 @@ func NewColorizer(shouldColor bool) *Colorizer {
 
 	if !shouldColor {
 		return &Colorizer{
-			headingColorizer:     func(s string) string { return s },
-			successColorizer:     func(s string) string { return s },
-			failureColorizer:     func(s string) string { return s },
-			exitColorizer:        func(s string) string { return s },
-			excludeColorizer:     func(s string) string { return s },
-			successUnitColorizer: func(s string) string { return s },
-			failureUnitColorizer: func(s string) string { return s },
-			exitUnitColorizer:    func(s string) string { return s },
-			excludeUnitColorizer: func(s string) string { return s },
-			nanosecondColorizer:  func(s string) string { return s },
-			microsecondColorizer: func(s string) string { return s },
-			millisecondColorizer: func(s string) string { return s },
-			secondColorizer:      func(s string) string { return s },
-			minuteColorizer:      func(s string) string { return s },
-			defaultColorizer:     func(s string) string { return s },
+			headingTitleColorizer: func(s string) string { return s },
+			headingUnitColorizer:  func(s string) string { return s },
+			successColorizer:      func(s string) string { return s },
+			failureColorizer:      func(s string) string { return s },
+			exitColorizer:         func(s string) string { return s },
+			excludeColorizer:      func(s string) string { return s },
+			successUnitColorizer:  func(s string) string { return s },
+			failureUnitColorizer:  func(s string) string { return s },
+			exitUnitColorizer:     func(s string) string { return s },
+			excludeUnitColorizer:  func(s string) string { return s },
+			nanosecondColorizer:   func(s string) string { return s },
+			microsecondColorizer:  func(s string) string { return s },
+			millisecondColorizer:  func(s string) string { return s },
+			secondColorizer:       func(s string) string { return s },
+			minuteColorizer:       func(s string) string { return s },
+			defaultColorizer:      func(s string) string { return s },
+			paddingColorizer:      func(s string) string { return s },
 		}
 	}
 
@@ -67,21 +71,23 @@ func NewColorizer(shouldColor bool) *Colorizer {
 	}
 
 	return &Colorizer{
-		headingColorizer:     ansi.ColorFunc("yellow+bh"),
-		successColorizer:     ansi.ColorFunc("green+bh"),
-		failureColorizer:     ansi.ColorFunc("red+bh"),
-		exitColorizer:        ansi.ColorFunc("yellow+bh"),
-		excludeColorizer:     ansi.ColorFunc("blue+bh"),
-		successUnitColorizer: successUnitColorizer,
-		failureUnitColorizer: failureUnitColorizer,
-		exitUnitColorizer:    exitUnitColorizer,
-		excludeUnitColorizer: excludeUnitColorizer,
-		nanosecondColorizer:  ansi.ColorFunc("cyan+bh"),
-		microsecondColorizer: ansi.ColorFunc("cyan+bh"),
-		millisecondColorizer: ansi.ColorFunc("cyan+bh"),
-		secondColorizer:      ansi.ColorFunc("green+bh"),
-		minuteColorizer:      ansi.ColorFunc("yellow+bh"),
-		defaultColorizer:     ansi.ColorFunc("white+bh"),
+		headingTitleColorizer: ansi.ColorFunc("yellow+bh"),
+		headingUnitColorizer:  ansi.ColorFunc("white+bh"),
+		successColorizer:      ansi.ColorFunc("green+bh"),
+		failureColorizer:      ansi.ColorFunc("red+bh"),
+		exitColorizer:         ansi.ColorFunc("yellow+bh"),
+		excludeColorizer:      ansi.ColorFunc("blue+bh"),
+		successUnitColorizer:  successUnitColorizer,
+		failureUnitColorizer:  failureUnitColorizer,
+		exitUnitColorizer:     exitUnitColorizer,
+		excludeUnitColorizer:  excludeUnitColorizer,
+		nanosecondColorizer:   ansi.ColorFunc("cyan+bh"),
+		microsecondColorizer:  ansi.ColorFunc("cyan+bh"),
+		millisecondColorizer:  ansi.ColorFunc("cyan+bh"),
+		secondColorizer:       ansi.ColorFunc("green+bh"),
+		minuteColorizer:       ansi.ColorFunc("yellow+bh"),
+		defaultColorizer:      ansi.ColorFunc("white+bh"),
+		paddingColorizer:      ansi.ColorFunc("gray"),
 	}
 }
 

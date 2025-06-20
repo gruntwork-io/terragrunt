@@ -1,0 +1,6 @@
+# boilerplate config
+
+dependencies:
+  - name: test-dependency
+    template-url: ../dependency
+    output-folder: dependency/

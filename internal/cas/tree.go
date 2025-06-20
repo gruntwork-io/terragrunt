@@ -6,14 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 const (
 	minTreePartsLength = 4
-	maxConcurrentLinks = 4
 )
 
 // TreeEntry represents a single entry in a git tree
@@ -101,96 +97,41 @@ func ParseTree(output, path string) (*Tree, error) {
 
 // LinkTree writes the tree to a target directory
 func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	var (
-		errMu sync.Mutex
-		errs  []error
-	)
-
-	var wg sync.WaitGroup
-
-	semaphore := make(chan struct{}, maxConcurrentLinks)
+	content := NewContent(store)
 
 	for _, entry := range t.entries {
-		wg.Add(1)
+		// Check for cancellation
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 
-		go func(entry TreeEntry) {
-			defer wg.Done()
+		entryPath := filepath.Join(targetDir, entry.Path)
+		if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
+			return wrapError("mkdir_all", entryPath, err)
+		}
 
-			select {
-			case <-ctx.Done():
-				return
-			default:
+		switch entry.Type {
+		case "blob":
+			if err := content.Link(entry.Hash, entryPath); err != nil {
+				return wrapError("link_blob", entryPath, err)
+			}
+		case "tree":
+			treeData, err := content.Read(entry.Hash)
+			if err != nil {
+				return wrapError("read_tree", entry.Hash, err)
 			}
 
-			select {
-			case semaphore <- struct{}{}:
-				defer func() { <-semaphore }()
-			case <-ctx.Done():
-				return
+			subTree, err := ParseTree(string(treeData), entryPath)
+			if err != nil {
+				return wrapError("parse_tree", entry.Hash, err)
 			}
 
-			entryPath := filepath.Join(targetDir, entry.Path)
-			if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
-				errMu.Lock()
-				errs = append(errs, wrapError("mkdir_all", entryPath, err))
-				errMu.Unlock()
-				cancel()
-
-				return
+			if err := subTree.LinkTree(ctx, store, entryPath); err != nil {
+				return wrapError("link_subtree", entryPath, err)
 			}
-
-			content := NewContent(store)
-
-			switch entry.Type {
-			case "blob":
-				if err := content.Link(entry.Hash, entryPath); err != nil {
-					errMu.Lock()
-					errs = append(errs, wrapError("link_blob", entryPath, err))
-					errMu.Unlock()
-					cancel()
-
-					return
-				}
-			case "tree":
-				treeData, err := content.Read(entry.Hash)
-				if err != nil {
-					errMu.Lock()
-					errs = append(errs, wrapError("read_tree", entry.Hash, err))
-					errMu.Unlock()
-					cancel()
-
-					return
-				}
-
-				subTree, err := ParseTree(string(treeData), entryPath)
-				if err != nil {
-					errMu.Lock()
-					errs = append(errs, wrapError("parse_tree", entry.Hash, err))
-					errMu.Unlock()
-					cancel()
-
-					return
-				}
-
-				if err := subTree.LinkTree(ctx, store, entryPath); err != nil {
-					errMu.Lock()
-					errs = append(errs, wrapError("link_subtree", entryPath, err))
-					errMu.Unlock()
-					cancel()
-
-					return
-				}
-			}
-		}(entry)
-	}
-
-	wg.Wait()
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+		}
 	}
 
 	return nil

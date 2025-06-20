@@ -88,11 +88,7 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		run.mu.RLock()
 		defer run.mu.RUnlock()
 
-		name := run.Path
-
-		if r.workingDir != "" {
-			name = strings.TrimPrefix(name, r.workingDir+string(os.PathSeparator))
-		}
+		name := nameOfPath(run.Path, r.workingDir)
 
 		started := run.Started.Format(time.RFC3339)
 		ended := run.Ended.Format(time.RFC3339)
@@ -139,10 +135,7 @@ func (r *Report) WriteJSON(w io.Writer) error {
 		run.mu.RLock()
 		defer run.mu.RUnlock()
 
-		name := run.Path
-		if r.workingDir != "" {
-			name = strings.TrimPrefix(name, r.workingDir+string(os.PathSeparator))
-		}
+		name := nameOfPath(run.Path, r.workingDir)
 
 		jsonRun := JSONRun{
 			Name:    name,
@@ -231,4 +224,33 @@ func (r *Report) WriteSchema(w io.Writer) error {
 	_, err = w.Write(jsonBytes)
 
 	return err
+}
+
+// nameOfPath returns a name for a path given a working directory.
+//
+// The logic for determining the name of a given path is:
+//
+//   - If the path is the same as the working directory, return the base name of the path.
+//     This is usually only relevant when performing a `run --all` in a unit directory.
+//
+//   - If the path is not a subdirectory of the working directory, return the path as is.
+//
+//   - Otherwise, return the path relative to the working directory, with any leading slashes removed.
+func nameOfPath(path string, workingDir string) string {
+	// If the path is the same as the working directory,
+	// return the base name of the path.
+	if path == workingDir {
+		return filepath.Base(path)
+	}
+
+	// If the path is not a subdirectory of the working directory,
+	// return the path as is.
+	if !strings.HasPrefix(path, workingDir) {
+		return path
+	}
+
+	path = strings.TrimPrefix(path, workingDir)
+	path = strings.TrimPrefix(path, string(os.PathSeparator))
+
+	return path
 }

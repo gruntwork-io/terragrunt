@@ -22,6 +22,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testScaffoldModuleGit                 = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
+	testScaffoldTemplateModule            = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template"
+	testScaffoldExternalTemplateModule    = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template/template"
+	testScaffoldWithCustomDefaultTemplate = "fixtures/scaffold/custom-default-template"
+)
+
 func TestSSHScaffoldWithCustomDefaultTemplate(t *testing.T) {
 	t.Parallel()
 
@@ -52,6 +59,7 @@ func TestSSHScaffoldModuleExternalTemplate(t *testing.T) {
 	assert.Contains(t, stderr, "Scaffolding completed")
 	// check that exists file from external template
 	assert.FileExists(t, tmpEnvPath+"/external-template.txt")
+	assert.FileExists(t, tmpEnvPath+"/dependency/dependency.txt")
 }
 
 func TestSSHScaffoldModuleDifferentRevisionAndSSH(t *testing.T) {
@@ -69,7 +77,6 @@ func TestSSHScaffoldModuleSSH(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := t.TempDir()
-
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldModuleGit))
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Scaffolding completed")

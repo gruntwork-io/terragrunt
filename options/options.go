@@ -117,6 +117,8 @@ type TerragruntOptions struct {
 	SourceMap map[string]string
 	// Environment variables at runtime
 	Env map[string]string
+	// StackAction is the action that should be performed on the stack.
+	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
 	IAMRoleOptions IAMRoleOptions
 	// IAM Role options set from command line.
