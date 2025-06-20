@@ -106,12 +106,12 @@ func TestEnsureRun(t *testing.T) {
 	tmp := t.TempDir()
 
 	tests := []struct {
+		expectedErrIs error
+		setupFunc     func(*report.Report) *report.Run
 		name          string
 		runName       string
 		existingRun   bool
 		expectError   bool
-		expectedErrIs error
-		setupFunc     func(*report.Report) *report.Run
 	}{
 		{
 			name:        "creates new run when run does not exist",
@@ -157,7 +157,7 @@ func TestEnsureRun(t *testing.T) {
 				require.Error(t, err)
 				assert.Nil(t, run)
 				if tt.expectedErrIs != nil {
-					assert.ErrorIs(t, err, tt.expectedErrIs)
+					require.ErrorIs(t, err, tt.expectedErrIs)
 				}
 			} else {
 				require.NoError(t, err)

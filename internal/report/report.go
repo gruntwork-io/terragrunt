@@ -172,7 +172,7 @@ func (r *Report) GetRun(path string) (*Run, error) {
 func (r *Report) EnsureRun(path string) (*Run, error) {
 	run, err := r.GetRun(path)
 	if err == nil {
-		return run, err
+		return run, nil
 	}
 
 	if !errors.Is(err, ErrRunNotFound) {
@@ -188,7 +188,7 @@ func (r *Report) EnsureRun(path string) (*Run, error) {
 		return run, err
 	}
 
-	return run, err
+	return run, nil
 }
 
 // EndRun ends a run and adds it to the report.
