@@ -47,7 +47,46 @@ const (
 	testFixtureStackSelfInclude                = "fixtures/stacks/self-include"
 	testFixtureStackNestedOutputs              = "fixtures/stacks/nested-outputs"
 	testFixtureStackNoValidation               = "fixtures/stacks/no-validation"
+	testFixtureStackValueBlockRemove           = "fixtures/stacks/value-block-remove"
 )
+
+func TestStacksValueBlockRemove(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackValueBlockRemove)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValueBlockRemove)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackValueBlockRemove, "env", "dev")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	errRenameFile := os.Rename(util.JoinPath(rootPath, "terragrunt.stack.hcl-post"), util.JoinPath(rootPath, "terragrunt.stack.hcl"))
+	require.NoError(t, errRenameFile)
+
+	// Let's rerun the `stack generate` command to make sure that we no longer have the old values block.
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	_, errValuesFileShouldNotExist := os.Stat(util.JoinPath(rootPath, ".terragrunt-stack", "demo-replay", "terragrunt.values.hcl"))
+	assert.True(t, os.IsNotExist(errValuesFileShouldNotExist))
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
+
+func TestStacksNoValueBlockWithDefaultValuesFile(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackValueBlockRemove)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValueBlockRemove)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackValueBlockRemove, "env", "qa")
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --working-dir "+rootPath)
+
+	_, errValuesFileShouldNotExist := os.Stat(util.JoinPath(rootPath, ".terragrunt-stack", "demo-replay", "terragrunt.values.hcl"))
+	assert.False(t, os.IsNotExist(errValuesFileShouldNotExist))
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
 
 func TestStacksGenerateBasic(t *testing.T) {
 	t.Parallel()

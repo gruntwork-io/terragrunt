@@ -1,0 +1,4 @@
+unit "echo" {
+  source = "../../units/echo"
+  path   = "demo-replay"
+}
