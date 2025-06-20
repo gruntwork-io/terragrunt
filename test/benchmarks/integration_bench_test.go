@@ -31,6 +31,9 @@ terraform {
 	// Create 1 units
 	helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
 
+	// Do an initial init to avoid noise from the first iteration being slower
+	helpers.Init(b, tmpDir)
+
 	b.Run("1 units", func(b *testing.B) {
 		for b.Loop() {
 			helpers.Init(b, tmpDir)
@@ -58,6 +61,9 @@ terraform {
 
 	helpers.GenerateNUnits(b, tmpDir, 2, includeRootConfig, emptyMainTf)
 
+	// Do an initial init to avoid noise from the first iteration being slower
+	helpers.Init(b, tmpDir)
+
 	b.Run("2 units", func(b *testing.B) {
 		for b.Loop() {
 			helpers.Init(b, tmpDir)
@@ -84,6 +90,9 @@ terraform {
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
 	helpers.GenerateNUnits(b, tmpDir, 1000, includeRootConfig, emptyMainTf)
+
+	// Do an initial init to avoid noise from the first iteration being slower
+	helpers.Init(b, tmpDir)
 
 	b.Run("1000 units", func(b *testing.B) {
 		for b.Loop() {
@@ -114,6 +123,8 @@ terraform {
 	// Create 1 units
 	helpers.GenerateNUnits(b, tmpDir, 1, includeRootConfig, emptyMainTf)
 
+	helpers.Init(b, tmpDir)
+
 	b.Run("1 units", func(b *testing.B) {
 		for b.Loop() {
 
@@ -142,6 +153,8 @@ func BenchmarkTwoEmptyTerragruntPlans(b *testing.B) {
 
 	helpers.GenerateNUnits(b, tmpDir, 2, includeRootConfig, emptyMainTf)
 
+	helpers.Init(b, tmpDir)
+
 	b.Run("2 units", func(b *testing.B) {
 		for b.Loop() {
 			helpers.Plan(b, tmpDir)
@@ -167,6 +180,8 @@ func BenchmarkManyEmptyTerragruntPlans(b *testing.B) {
 	require.NoError(b, os.WriteFile(rootTerragruntConfigPath, []byte(emptyRootConfig), helpers.DefaultFilePermissions))
 
 	helpers.GenerateNUnits(b, tmpDir, 1000, includeRootConfig, emptyMainTf)
+
+	helpers.Init(b, tmpDir)
 
 	b.Run("1000 units", func(b *testing.B) {
 		for b.Loop() {

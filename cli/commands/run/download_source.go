@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-getter"
+	getterv2 "github.com/hashicorp/go-getter/v2"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -283,6 +285,41 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 		canonicalSourceURL,
 		src.DownloadDir)
 
+	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
+	if allowCAS {
+		l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
+
+		c, err := cas.New(cas.Options{})
+		if err != nil {
+			l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
+		} else {
+			cloneOpts := cas.CloneOptions{
+				Dir:              src.DownloadDir,
+				IncludedGitFiles: []string{"HEAD", "config"},
+			}
+
+			casGetter := cas.NewCASGetter(l, c, &cloneOpts)
+
+			// Use go-getter v2 Client to properly process the Request
+			client := getterv2.Client{
+				Getters: []getterv2.Getter{casGetter},
+			}
+
+			req := &getterv2.Request{
+				Src: src.CanonicalSourceURL.String(),
+				Dst: src.DownloadDir,
+			}
+
+			if _, casErr := client.Get(ctx, req); casErr == nil {
+				l.Debugf("Successfully downloaded source using CAS: %s", canonicalSourceURL)
+				return nil
+			} else {
+				l.Warnf("CAS download failed: %v. Falling back to standard getter.", casErr)
+			}
+		}
+	}
+
+	// Fallback to standard go-getter
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
 		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg))
 	})

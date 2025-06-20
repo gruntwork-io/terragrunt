@@ -137,6 +137,11 @@ jobs:
             target: ./...
             tags: parse
             run: '^TestParse'
+          - name: CAS
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/cas.sh
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
