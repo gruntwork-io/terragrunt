@@ -1,3 +1,7 @@
+feature "dep" {
+  default = "/tmp/external"
+}
+
 dependencies {
-  paths = ["/tmp/external-46521694"]
+  paths = [feature.dep.value]
 }
