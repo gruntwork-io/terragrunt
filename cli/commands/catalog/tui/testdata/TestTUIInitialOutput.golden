@@ -1,38 +1,38 @@
-[?25l[?2004h   List of Modules                                                                                         [K
-                                                                                                           [K
-  2 items                                                                                                  [K
-                                                                                                           [K
-│ AWS VPC Module                                                                                           [K
-│ This module creates a VPC in AWS with all the necessary components.                                      [K
-                                                                                                           [K
-  AWS EKS Module                                                                                           [K
-  This module creates an EKS cluster in AWS.                                                               [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-                                                                                                           [K
-  k/↑/ctrl+p move up • j/↓/ctrl+n move down • enter/ctrl-j choose • S Scaffold • / search • q quit • ? more[K[120D[2K[?2004l[?25h[?1002l[?1003l[?1006l
+[?2004h[>4;1m[?4m[>1u[?u[?25l  [48;2;29;37;47m [38;2;168;172;177mList of Modules[39m [m
+
+  [38;2;119;119;119m2 items[m
+
+[38;2;173;88;180m│[m [38;2;238;111;248mAWS VPC Module[m
+[38;2;99;197;218m│[m [38;2;89;120;142mThis module creates a VPC in AWS with all the necessary components.[m
+
+  [38;2;221;221;221mAWS EKS Module[m
+  [38;2;119;119;119mThis module creates an EKS cluster in AWS.[m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  [38;2;98;98;98mk/↑/ctrl+p[m [38;2;74;74;74mmove up[38;2;60;60;60m • [38;2;98;98;98mj/↓/ctrl+n[m [38;2;74;74;74mmove down[38;2;60;60;60m • [38;2;98;98;98menter/ctrl-j[m [38;2;74;74;74mchoose[38;2;60;60;60m • [38;2;98;98;98mS[m [38;2;74;74;74mScaffold[38;2;60;60;60m • [38;2;98;98;98m/[m [38;2;74;74;74msearch[38;2;60;60;60m • [38;2;98;98;98mq[m [38;2;74;74;74mquit[38;2;60;60;60m • [38;2;98;98;98m?[m [38;2;74;74;74mmore[m[?25h[?2004l

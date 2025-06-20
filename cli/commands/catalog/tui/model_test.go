@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/exp/teatest"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/x/exp/teatest/v2"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -125,9 +125,9 @@ func TestTUIFinalModel(t *testing.T) {
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
 
 	// Send 'q' to quit the application immediately
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("q"),
+	tm.Send(tea.KeyPressMsg{
+		Text: "q",
+		Code: 'q',
 	})
 
 	fm := tm.FinalModel(t)
@@ -155,9 +155,9 @@ func TestTUIInitialOutput(t *testing.T) {
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
 
 	// Send 'q' to quit immediately for consistent output
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("q"),
+	tm.Send(tea.KeyPressMsg{
+		Text: "q",
+		Code: 'q',
 	})
 
 	// Test that we get the expected output
@@ -186,8 +186,8 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Press Enter to select the first module (assuming it's pre-selected)
-	tm.Send(tea.KeyMsg{
-		Type: tea.KeyEnter,
+	tm.Send(tea.KeyPressMsg{
+		Code: tea.KeyEnter,
 	})
 
 	// Wait for the pager view to appear
@@ -198,9 +198,9 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
 
 	// Send 'q' to go back to list
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("q"),
+	tm.Send(tea.KeyPressMsg{
+		Text: "q",
+		Code: 'q',
 	})
 
 	// Wait for return to list view
@@ -209,9 +209,9 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Finally quit the application
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("q"),
+	tm.Send(tea.KeyPressMsg{
+		Text: "q",
+		Code: 'q',
 	})
 
 	tm.WaitFinished(t, teatest.WithFinalTimeout(time.Second*2))
@@ -236,9 +236,9 @@ func TestTUIModuleFiltering(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Activate filtering with '/'
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("/"),
+	tm.Send(tea.KeyPressMsg{
+		Text: "/",
+		Code: '/',
 	})
 
 	// Type filter text
@@ -252,8 +252,8 @@ func TestTUIModuleFiltering(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
 
 	// Press Escape to exit filtering
-	tm.Send(tea.KeyMsg{
-		Type: tea.KeyEsc,
+	tm.Send(tea.KeyPressMsg{
+		Code: tea.KeyEsc,
 	})
 
 	// Wait for return to normal list view
@@ -264,9 +264,9 @@ func TestTUIModuleFiltering(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Quit the application
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("q"),
+	tm.Send(tea.KeyPressMsg{
+		Text: "q",
+		Code: 'q',
 	})
 
 	tm.WaitFinished(t, teatest.WithFinalTimeout(time.Second*2))
@@ -299,9 +299,9 @@ func TestTUIWindowResize(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Quit
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("q"),
+	tm.Send(tea.KeyPressMsg{
+		Text: "q",
+		Code: 'q',
 	})
 
 	tm.WaitFinished(t, teatest.WithFinalTimeout(time.Second*2))
@@ -343,9 +343,9 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
 
 	// Press 'S' to scaffold the first module
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("S"),
+	tm.Send(tea.KeyPressMsg{
+		Text: "S",
+		Code: 'S',
 	})
 
 	// Wait for scaffold to complete - the application should quit after scaffolding
