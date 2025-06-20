@@ -1,123 +1,102 @@
 package runnerpool
 
 import (
-	"sync"
-
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+	"sync"
 )
 
-// queue keeps DAG state; NO goroutines here.
-type queue struct {
-	entries  []*entry
-	byID     map[string]*entry
-	failFast bool
+// dagQueue holds all entries and updates their states safely.
+type dagQueue struct {
 	mu       sync.Mutex
+	entries  map[string]*entry // key = TaskID
+	failFast bool
 }
 
-func buildQueue(units []*runbase.Unit, failFast bool) *queue {
-	q := &queue{byID: map[string]*entry{}, failFast: failFast}
-
-	// 1. Wrap each runbase.Unit as Task → entry
+func buildQueue(units []*runbase.Unit, failFast bool) *dagQueue {
+	q := &dagQueue{entries: make(map[string]*entry), failFast: failFast}
+	// first pass: create entries
 	for _, u := range units {
-		t := &Task{Unit: u}
-		e := &entry{task: t, status: StatusPending}
-		q.entries = append(q.entries, e)
-		q.byID[t.ID()] = e
+		e := &entry{task: &Task{Unit: u}, state: statusPending}
+		q.entries[e.task.ID()] = e
 	}
-
-	// 2. Wire dependencies
+	// second pass: wire dependencies
 	for _, e := range q.entries {
-		for _, depID := range e.task.Parents() {
-			if p, ok := q.byID[depID]; ok {
-				e.blockedBy = append(e.blockedBy, p)
+		for _, pid := range e.task.Parents() {
+			if parent, ok := q.entries[pid]; ok {
+				e.blockedBy = append(e.blockedBy, parent)
 			}
 		}
-		if len(e.blockedBy) > 0 {
-			e.status = StatusBlocked
-		}
-	}
-	// 3. Roots become ready
-	for _, e := range q.entries {
-		if e.status == StatusPending {
-			e.status = StatusReady
+		if len(e.blockedBy) == 0 {
+			e.state = statusReady
+		} else {
+			e.state = statusBlocked
 		}
 	}
 	return q
 }
 
-// getReady returns up to n ready entries (non‑blocking).
-func (q *queue) getReady(n int) []*entry {
+func (q *dagQueue) getReady(n int) []*entry {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	var out []*entry
 	for _, e := range q.entries {
-		if e.status == StatusReady {
+		if len(out) == n {
+			break
+		}
+		if e.state == statusReady {
+			e.state = statusRunning
 			out = append(out, e)
-			if len(out) == n {
-				break
-			}
 		}
 	}
 	return out
 }
 
-func (q *queue) markRunning(e *entry) {
+func (q *dagQueue) markDone(e *entry, res Result) {
 	q.mu.Lock()
-	e.status = StatusRunning
-	q.mu.Unlock()
-}
+	defer q.mu.Unlock()
 
-func (q *queue) done(e *entry, res Result) {
-	q.mu.Lock()
-	e.result = res
-	if res.ExitCode == 0 && res.Err == nil {
-		e.status = StatusSucceeded
+	if res.Err != nil || res.ExitCode != 0 {
+		e.state = statusFailed
 	} else {
-		e.status = StatusFailed
+		e.state = statusSucceeded
 	}
+	e.result = res
 
-	// Global fail‑fast toggles all remaining entries
-	if q.failFast && e.status == StatusFailed {
-		for _, other := range q.entries {
-			switch other.status {
-			case StatusPending, StatusReady, StatusBlocked:
-				other.status = StatusFailFast
-			}
-		}
-		q.mu.Unlock()
-		return
-	}
-
-	// Unblock children / mark ancestor failures
+	// propagate
 	for _, child := range q.entries {
-		if child.status != StatusBlocked {
-			continue
-		}
-		ready := true
-		for _, p := range child.blockedBy {
-			if p.status != StatusSucceeded {
-				ready = false
-				if p.status == StatusFailed || p.status == StatusAncestorFailed || p.status == StatusFailFast {
-					child.status = StatusAncestorFailed
+		if child.state == statusBlocked {
+			allDone := true
+			for _, p := range child.blockedBy {
+				if p.state != statusSucceeded {
+					allDone = false
+					if p.state == statusFailed || p.state == statusAncestorFailed {
+						child.state = statusAncestorFailed
+						break
+					}
 				}
-				break
+			}
+			if allDone {
+				child.state = statusReady
 			}
 		}
-		if ready {
-			child.status = StatusReady
-		}
 	}
-	q.mu.Unlock()
 }
 
-func (q *queue) empty() bool {
+func (q *dagQueue) empty() bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for _, e := range q.entries {
-		switch e.status {
-		case StatusPending, StatusBlocked, StatusReady, StatusRunning:
+		if e.state == statusPending || e.state == statusBlocked || e.state == statusReady || e.state == statusRunning {
 			return false
 		}
 	}
 	return true
+}
+
+func (q *dagQueue) results() []Result {
+	out := make([]Result, 0, len(q.entries))
+	for _, e := range q.entries {
+		out = append(out, e.result)
+	}
+	return out
 }

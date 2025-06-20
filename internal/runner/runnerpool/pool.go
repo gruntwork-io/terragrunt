@@ -2,19 +2,17 @@ package runnerpool
 
 import (
 	"context"
-	"sync"
-
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 )
 
-// RunnerPool executes Tasks using a bounded worker pool governed by the queue.
+// RunnerPool executes tasks concurrently with dependency awareness.
 type RunnerPool struct {
-	q           *queue
+	q           *dagQueue
 	runner      TaskRunner
 	concurrency int
+	failFast    bool
 }
 
-// New constructs a RunnerPool.
 func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *RunnerPool {
 	if maxConc <= 0 {
 		maxConc = 1
@@ -23,50 +21,52 @@ func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *Runne
 		q:           buildQueue(units, failFast),
 		runner:      r,
 		concurrency: maxConc,
+		failFast:    failFast,
 	}
 }
 
-// Run blocks until all runnable tasks complete and returns their Results.
+// Run blocks until all runnable tasks finish and returns their results.
 func (p *RunnerPool) Run(ctx context.Context) []Result {
 	sem := make(chan struct{}, p.concurrency)
-	done := make(chan Result)
-	var wg sync.WaitGroup
+	done := make(chan *entry)
 
-	for {
-		ready := p.q.getReady(cap(sem) - len(sem))
-		for _, e := range ready {
-			p.q.markRunning(e)
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(ent *entry) {
-				defer wg.Done()
-				res := p.runner(ctx, ent.task)
-				done <- res
-				p.q.done(ent, res)
-				<-sem
-			}(e)
-		}
-
-		// Drain completions quickly (non‑blocking).
-	drain:
-		for {
-			select {
-			case <-done:
-			default:
-				break drain
+	// fan‑in goroutine collects completions
+	go func() {
+		for e := range done {
+			p.q.markDone(e, e.result)
+			if p.failFast && e.state == statusFailed {
+				// fast‑fail: mark remaining as skipped
+				for _, ent := range p.q.entries {
+					if ent.state == statusPending || ent.state == statusBlocked || ent.state == statusReady {
+						ent.state = statusFailFast
+					}
+				}
 			}
 		}
+	}()
 
+	for {
 		if p.q.empty() {
 			break
 		}
+		ready := p.q.getReady(cap(sem) - len(sem))
+		for _, e := range ready {
+			sem <- struct{}{}
+			go func(ent *entry) {
+				res := p.runner(ctx, ent.task)
+				ent.result = res
+				done <- ent
+				<-sem
+			}(e)
+		}
+		// allow context cancellation
+		select {
+		case <-ctx.Done():
+			break
+		default:
+		}
 	}
 
-	wg.Wait()
-
-	var results []Result
-	for _, e := range p.q.entries {
-		results = append(results, e.result)
-	}
-	return results
+	close(done)
+	return p.q.results()
 }

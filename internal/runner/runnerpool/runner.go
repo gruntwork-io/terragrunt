@@ -105,9 +105,6 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 }
 
 func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	//------------------------------------------------------------------
-	// 0. Pre-existing CLI / plan-file logic (unchanged)
-	//------------------------------------------------------------------
 	stackCmd := opts.TerraformCommand
 
 	if opts.OutputFolder != "" {
