@@ -133,7 +133,34 @@ func (ctrl *DependencyController) unitFinished(unitErr error, r *report.Report, 
 
 		if reportExperiment {
 			if err := r.EndRun(ctrl.Runner.Unit.Path); err != nil {
-				ctrl.Runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
+				// If the run is not found in the report, it likely means this module was an external dependency
+				// that was excluded from the queue (e.g., with --queue-exclude-external).
+				if !errors.Is(err, report.ErrRunNotFound) {
+					ctrl.Runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
+
+					return
+				}
+
+				if ctrl.Runner.Unit.AssumeAlreadyApplied {
+					run, err := report.NewRun(ctrl.Runner.Unit.Path)
+					if err != nil {
+						ctrl.Runner.Unit.Logger.Errorf("Error creating run for unit %s: %v", ctrl.Runner.Unit.Path, err)
+						return
+					}
+
+					if err := r.AddRun(run); err != nil {
+						ctrl.Runner.Unit.Logger.Errorf("Error adding run for unit %s: %v", ctrl.Runner.Unit.Path, err)
+						return
+					}
+
+					if err := r.EndRun(
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeExternal),
+					); err != nil {
+						ctrl.Runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
+					}
+				}
 			}
 		}
 	} else {
