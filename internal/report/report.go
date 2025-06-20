@@ -166,6 +166,31 @@ func (r *Report) GetRun(path string) (*Run, error) {
 	return nil, fmt.Errorf("%w: %s", ErrRunNotFound, path)
 }
 
+// EnsureRun tries to get a run from the report.
+// If the run does not exist, it creates a new run and adds it to the report, then returns the run.
+// This is useful when a run is being ended that might not have been started due to exclusion, etc.
+func (r *Report) EnsureRun(path string) (*Run, error) {
+	run, err := r.GetRun(path)
+	if err == nil {
+		return run, err
+	}
+
+	if !errors.Is(err, ErrRunNotFound) {
+		return run, err
+	}
+
+	run, err = NewRun(path)
+	if err != nil {
+		return run, err
+	}
+
+	if err = r.AddRun(run); err != nil {
+		return run, err
+	}
+
+	return run, err
+}
+
 // EndRun ends a run and adds it to the report.
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.

@@ -100,6 +100,90 @@ func TestGetRun(t *testing.T) {
 	}
 }
 
+func TestEnsureRun(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		name          string
+		runName       string
+		existingRun   bool
+		expectError   bool
+		expectedErrIs error
+		setupFunc     func(*report.Report) *report.Run
+	}{
+		{
+			name:        "creates new run when run does not exist",
+			runName:     filepath.Join(tmp, "new-run"),
+			existingRun: false,
+			expectError: false,
+		},
+		{
+			name:        "returns existing run when it exists",
+			runName:     filepath.Join(tmp, "existing-run"),
+			existingRun: true,
+			expectError: false,
+			setupFunc: func(r *report.Report) *report.Run {
+				run := newRun(t, filepath.Join(tmp, "existing-run"))
+				err := r.AddRun(run)
+				require.NoError(t, err)
+				return run
+			},
+		},
+		{
+			name:          "returns error for invalid path",
+			runName:       "relative-path",
+			existingRun:   false,
+			expectError:   true,
+			expectedErrIs: report.ErrPathMustBeAbsolute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := report.NewReport()
+			var existingRun *report.Run
+
+			if tt.setupFunc != nil {
+				existingRun = tt.setupFunc(r)
+			}
+
+			run, err := r.EnsureRun(tt.runName)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, run)
+				if tt.expectedErrIs != nil {
+					assert.ErrorIs(t, err, tt.expectedErrIs)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, run)
+				assert.Equal(t, tt.runName, run.Path)
+				assert.False(t, run.Started.IsZero())
+
+				if tt.existingRun {
+					// Should return the same instance as the existing run
+					assert.Equal(t, existingRun.Started, run.Started)
+				}
+
+				// Verify the run was added to the report
+				retrievedRun, err := r.GetRun(tt.runName)
+				require.NoError(t, err)
+				assert.Equal(t, run, retrievedRun)
+
+				// Verify that calling EnsureRun again returns the same run
+				secondRun, err := r.EnsureRun(tt.runName)
+				require.NoError(t, err)
+				assert.Equal(t, run, secondRun)
+			}
+		})
+	}
+}
+
 func TestEndRun(t *testing.T) {
 	t.Parallel()
 
