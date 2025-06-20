@@ -47,6 +47,7 @@ const (
 	testFixtureStackSelfInclude                = "fixtures/stacks/self-include"
 	testFixtureStackNestedOutputs              = "fixtures/stacks/nested-outputs"
 	testFixtureStackNoValidation               = "fixtures/stacks/no-validation"
+	testFixtureStackTerragruntDir              = "fixtures/stacks/terragrunt-dir"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -1295,4 +1296,21 @@ func validateStackDir(t *testing.T, path string) {
 	}
 
 	assert.True(t, hasSubdirectories, "The .terragrunt-stack directory should contain at least one subdirectory")
+}
+
+func TestStackTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackTerragruntDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTerragruntDir)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackTerragruntDir)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --no-stack-validate --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	out, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --all --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Contains(t, out, `terragrunt_dir = "./tennant_1"`)
 }
