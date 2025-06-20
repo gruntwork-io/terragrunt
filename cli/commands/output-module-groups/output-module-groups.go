@@ -4,18 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(ctx, l, opts)
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
-	js, err := stack.JSONModuleDeployOrder(opts.TerraformCommand)
+	js, err := stack.JSONUnitDeployOrder(opts.TerraformCommand)
 	if err != nil {
 		return err
 	}

@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
@@ -28,7 +30,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -379,7 +380,7 @@ func runTerragruntWithConfig(
 
 // confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
 func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) bool {
-	modules := configstack.FindWhereWorkingDirIsIncluded(ctx, l, opts, cfg)
+	modules := runner.FindWhereWorkingDirIsIncluded(ctx, l, opts, cfg)
 	if len(modules) != 0 {
 		if _, err := opts.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
 			l.Error(err)
