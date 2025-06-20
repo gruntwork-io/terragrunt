@@ -312,6 +312,10 @@ type TerragruntOptions struct {
 	SummaryDisable bool
 	// SummaryPerUnit enables showing duration information for each unit in the summary.
 	SummaryPerUnit bool
+	// SummaryUnitDuration enables showing duration information for each unit in the summary.
+	SummaryUnitDuration bool
+	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
+	NoDependencyPrompt bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -418,6 +422,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Telemetry:                  new(telemetry.Options),
 		NoStackValidate:            false,
 		NoStackGenerate:            false,
+		NoDependencyPrompt:         false,
 	}
 }
 
