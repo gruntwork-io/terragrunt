@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -460,6 +461,78 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
       second-exclude .... x`
 
 	assert.Equal(t, strings.TrimSpace(expectedOutput), strings.TrimSpace(stdoutStr))
+}
+
+func TestReportWithExternalDependenciesExcluded(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureExternalDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExternalDependency)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
+
+	dep := t.TempDir()
+
+	f, err := os.Create(filepath.Join(dep, "terragrunt.hcl"))
+	require.NoError(t, err)
+	f.Close()
+
+	f, err = os.Create(filepath.Join(dep, "main.tf"))
+	require.NoError(t, err)
+	f.Close()
+
+	reportDir := t.TempDir()
+	reportFile := filepath.Join(reportDir, "report.json")
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all plan --queue-exclude-external --experiment report --feature dep=%s --working-dir %s --report-file %s",
+			dep,
+			rootPath,
+			reportFile,
+		),
+	)
+
+	// The command should succeed without "run not found in report" errors
+	require.NoError(t, err)
+
+	// Verify that no "run not found in report" errors appear in stderr
+	assert.NotContains(t, stderr, "run not found in report")
+	assert.Contains(t, stdout, "Run Summary")
+
+	// Verify that the report file exists
+	assert.FileExists(t, reportFile)
+
+	// Read the report file
+	reportContent, err := os.ReadFile(reportFile)
+	require.NoError(t, err)
+
+	// Verify that the report file contains the expected content
+	var report []map[string]interface{}
+	err = json.Unmarshal(reportContent, &report)
+	require.NoError(t, err)
+
+	// Verify that the report file contains the expected content
+	assert.Len(t, report, 2)
+
+	expected := []struct {
+		name   string
+		result string
+		reason string
+	}{
+		// The first run is always going to be the external dependency,
+		// as it has an instant runtime.
+		{name: dep, result: "excluded", reason: "--queue-exclude-external"},
+		{name: "external-dependency", result: "succeeded"},
+	}
+
+	for i, r := range report {
+		assert.Equal(t, expected[i].name, r["Name"])
+		assert.Equal(t, expected[i].result, r["Result"])
+		if expected[i].reason != "" {
+			assert.Equal(t, expected[i].reason, r["Reason"])
+		}
+	}
 }
 
 // lineType represents the type of line we're processing
