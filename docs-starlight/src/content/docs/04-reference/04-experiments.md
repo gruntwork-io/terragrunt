@@ -138,9 +138,9 @@ To transition the `report` feature to a stable release, the following must be ad
 - [x] Add support for generating reports (in CSV format by default).
 - [x] Add support for displaying summaries of runs.
 - [x] Add ability to disable summary display.
-- [ ] Add support for generating reports in JSON format.
-- [ ] Add comprehensive integration tests for the `report` experiment.
-- [ ] Finalize the design of run summaries and reports.
+- [x] Add support for generating reports in JSON format.
+- [x] Add comprehensive integration tests for the `report` experiment.
+- [x] Finalize the design of run summaries and reports.
 
 ### `runner-pool`
 
