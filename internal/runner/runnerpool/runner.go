@@ -104,11 +104,11 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 	return runner.WithOptions(opts...), nil
 }
 
-func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	stackCmd := opts.TerraformCommand
 
 	if opts.OutputFolder != "" {
-		for _, u := range r.Stack.Units {
+		for _, u := range runner.Stack.Units {
 			planFile := u.OutputFile(l, opts)
 			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
 				return err
@@ -117,31 +117,29 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
 		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
-		r.syncTerraformCliArgs(l, opts)
+		runner.syncTerraformCliArgs(l, opts)
 	}
 	switch stackCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		if opts.RunAllAutoApprove {
 			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
 		}
-		r.syncTerraformCliArgs(l, opts)
+		runner.syncTerraformCliArgs(l, opts)
 	case tf.CommandNameShow:
-		r.syncTerraformCliArgs(l, opts)
+		runner.syncTerraformCliArgs(l, opts)
 	case tf.CommandNamePlan:
-		errStreams := make([]bytes.Buffer, len(r.Stack.Units))
-		for i, u := range r.Stack.Units {
+		errStreams := make([]bytes.Buffer, len(runner.Stack.Units))
+		for i, u := range runner.Stack.Units {
 			u.TerragruntOptions.ErrWriter = io.MultiWriter(&errStreams[i], u.TerragruntOptions.ErrWriter)
 		}
-		defer r.summarizePlanAllErrors(l, errStreams)
+		defer runner.summarizePlanAllErrors(l, errStreams)
 	}
 
-	//------------------------------------------------------------------
-	// 1. Build the per-task runner function
-	//------------------------------------------------------------------
+	// task function to run each unit
 	runTask := func(ctx context.Context, t *Task) Result {
 		unitRunner := runbase.NewUnitRunner(t.Unit)
 
-		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, r.Stack.Report)
+		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, runner.Stack.Report)
 
 		res := Result{TaskID: t.ID()}
 		if err != nil {
@@ -152,7 +150,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	maxConc := opts.Parallelism
-	pool := New(r.Stack.Units, runTask, maxConc, false)
+	pool := New(runner.Stack.Units, runTask, maxConc, false)
 
 	results := pool.Run(ctx)
 

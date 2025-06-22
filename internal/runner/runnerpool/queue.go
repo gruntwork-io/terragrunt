@@ -1,8 +1,9 @@
 package runnerpool
 
 import (
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 )
 
 // dagQueue holds all entries and updates their states safely.
