@@ -3,22 +3,20 @@ package cas
 import (
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
+
+	"github.com/gofrs/flock"
 )
 
-// Store manages the store directory and locks to prevent concurrent writes
+// Store manages the store directory and filesystem locks to prevent concurrent writes
 type Store struct {
-	locks   map[string]*sync.Mutex
-	path    string
-	mapLock sync.Mutex
+	path string
 }
 
 // NewStore creates a new Store instance.
 func NewStore(path string) *Store {
 	return &Store{
-		path:  path,
-		locks: make(map[string]*sync.Mutex),
+		path: path,
 	}
 }
 
@@ -57,4 +55,47 @@ func (s *Store) writeInProgress(path string, cloneStart time.Time) bool {
 	modifiedTime := stat.ModTime()
 
 	return modifiedTime.After(cloneStart)
+}
+
+// AcquireLock acquires a filesystem lock for the given hash
+// Returns the flock instance that should be unlocked when done
+func (s *Store) AcquireLock(hash string) (*flock.Flock, error) {
+	partitionDir := filepath.Join(s.path, hash[:2])
+	lockPath := filepath.Join(partitionDir, hash+".lock")
+
+	// Ensure the partition directory exists
+	if err := os.MkdirAll(partitionDir, 0755); err != nil {
+		return nil, err
+	}
+
+	lock := flock.New(lockPath)
+	if err := lock.Lock(); err != nil {
+		return nil, err
+	}
+
+	return lock, nil
+}
+
+// TryAcquireLock attempts to acquire a filesystem lock for the given hash without blocking
+// Returns the flock instance and true if successful, nil and false if the lock is already held
+func (s *Store) TryAcquireLock(hash string) (*flock.Flock, bool, error) {
+	partitionDir := filepath.Join(s.path, hash[:2])
+	lockPath := filepath.Join(partitionDir, hash+".lock")
+
+	// Ensure the partition directory exists
+	if err := os.MkdirAll(partitionDir, 0755); err != nil {
+		return nil, false, err
+	}
+
+	lock := flock.New(lockPath)
+	acquired, err := lock.TryLock()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !acquired {
+		return nil, false, nil
+	}
+
+	return lock, true, nil
 }

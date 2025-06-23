@@ -365,16 +365,15 @@ func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
 // we want to take advantage of the ability to write to the
 // entry using `git cat-file`.
 func (c *CAS) ensureBlob(ctx context.Context, hash string) (err error) {
-	c.store.mapLock.Lock()
-
-	if _, ok := c.store.locks[hash]; !ok {
-		c.store.locks[hash] = &sync.Mutex{}
+	lock, err := c.store.AcquireLock(hash)
+	if err != nil {
+		return err
 	}
-
-	c.store.locks[hash].Lock()
-	defer c.store.locks[hash].Unlock()
-
-	c.store.mapLock.Unlock()
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			err = errors.Join(err, unlockErr)
+		}
+	}()
 
 	if !c.store.NeedsWrite(hash, c.cloneStart) {
 		return nil

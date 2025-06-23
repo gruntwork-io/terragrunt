@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -106,16 +105,15 @@ func (c *Content) ensureTargetDirectory(targetPath string) error {
 // Store stores a single content item. This is typically used for trees,
 // As blobs are written directly from git cat-file stdout.
 func (c *Content) Store(l log.Logger, hash string, data []byte) error {
-	c.store.mapLock.Lock()
-
-	if _, ok := c.store.locks[hash]; !ok {
-		c.store.locks[hash] = &sync.Mutex{}
+	lock, err := c.store.AcquireLock(hash)
+	if err != nil {
+		return wrapError("acquire_lock", hash, err)
 	}
-
-	c.store.locks[hash].Lock()
-	defer c.store.locks[hash].Unlock()
-
-	c.store.mapLock.Unlock()
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
+		}
+	}()
 
 	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
@@ -222,16 +220,15 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 		return nil
 	}
 
-	c.store.mapLock.Lock()
-
-	if _, ok := c.store.locks[hash]; !ok {
-		c.store.locks[hash] = &sync.Mutex{}
+	lock, err := c.store.AcquireLock(hash)
+	if err != nil {
+		return wrapError("acquire_lock", hash, err)
 	}
-
-	c.store.locks[hash].Lock()
-	defer c.store.locks[hash].Unlock()
-
-	c.store.mapLock.Unlock()
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
+		}
+	}()
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
