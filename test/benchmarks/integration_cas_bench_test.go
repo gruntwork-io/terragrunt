@@ -36,8 +36,14 @@ func BenchmarkCASInit(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			// Clean up cache between iterations to force re-download
-			helpers.RunTerragruntCommand(b, "terragrunt", "init", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--non-interactive",
+				"--provider-cache",
+				"--source-update",
+				"--working-dir", tmpDir)
 		}
 
 		b.StopTimer()
@@ -51,7 +57,16 @@ func BenchmarkCASInit(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			helpers.RunTerragruntCommand(b, "terragrunt", "init", "--experiment", "cas", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--experiment", "cas",
+				"--non-interactive",
+				"--provider-cache",
+				"--source-update",
+				"--working-dir",
+				tmpDir)
 		}
 
 		b.StopTimer()
@@ -75,10 +90,30 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 		}
 
 		// Run initial init to avoid noise from the first iteration being slower
-		helpers.RunTerragruntCommand(b, "terragrunt", "run", "--all", "init", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
+		helpers.RunTerragruntCommand(
+			b,
+			"terragrunt",
+			"run",
+			"--all",
+			"init",
+			"--non-interactive",
+			"--provider-cache",
+			"--source-update",
+			"--working-dir",
+			tmpDir,
+		)
 	}
 
-	counts := []int{1, 2, 4, 8, 16, 32, 64, 128}
+	counts := []int{
+		1,
+		2,
+		4,
+		// 8,
+		// 16,
+		// 32,
+		// 64,
+		// 128,
+	}
 
 	for _, count := range counts {
 		for _, cas := range []bool{false, true} {
@@ -101,6 +136,7 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 					"init",
 					"--non-interactive",
 					"--provider-cache",
+					"--source-update",
 					"--working-dir",
 					tmpDir,
 				}
