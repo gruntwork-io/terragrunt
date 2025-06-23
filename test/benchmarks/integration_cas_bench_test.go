@@ -108,11 +108,11 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 		1,
 		2,
 		4,
-		// 8,
-		// 16,
-		// 32,
-		// 64,
-		// 128,
+		8,
+		16,
+		32,
+		64,
+		128,
 	}
 
 	for _, count := range counts {
