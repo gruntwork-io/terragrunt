@@ -13,177 +13,176 @@ import (
 
 // TestConvertAzureError tests the conversion of Azure errors to AzureResponseError
 func TestConvertAzureError(t *testing.T) {
-t.Parallel()
+	t.Parallel()
 
-// Test with non-Azure error
-regularErr := errors.New("regular error")
-azureErr := azurehelper.ConvertAzureError(regularErr)
-assert.Nil(t, azureErr)
+	// Test with non-Azure error
+	regularErr := errors.New("regular error")
+	azureErr := azurehelper.ConvertAzureError(regularErr)
+	assert.Nil(t, azureErr)
 
-// Test with nil error
-nilErr := azurehelper.ConvertAzureError(nil)
-assert.Nil(t, nilErr)
+	// Test with nil error
+	nilErr := azurehelper.ConvertAzureError(nil)
+	assert.Nil(t, nilErr)
 
-// Test with a mock error that has similar structure to Azure errors
-// Since we can't directly create an azcore.ResponseError, we're testing the behavior indirectly
-mockErr := &MockResponseError{
-StatusCode: 403,
-ErrorCode:  "AuthorizationFailed",
-Message:    "Authorization failed for the request",
-}
-// This won't actually convert since it's not a real Azure error, but it tests the code path
-convertedErr := azurehelper.ConvertAzureError(mockErr)
-assert.Nil(t, convertedErr)
+	// Test with a mock error that has similar structure to Azure errors
+	// Since we can't directly create an azcore.ResponseError, we're testing the behavior indirectly
+	mockErr := &MockResponseError{
+		StatusCode: 403,
+		ErrorCode:  "AuthorizationFailed",
+		Message:    "Authorization failed for the request",
+	}
+	// This won't actually convert since it's not a real Azure error, but it tests the code path
+	convertedErr := azurehelper.ConvertAzureError(mockErr)
+	assert.Nil(t, convertedErr)
 }
 
 // TestAzureResponseError tests the Error method of AzureResponseError
 func TestAzureResponseError(t *testing.T) {
-t.Parallel()
+	t.Parallel()
 
-testCases := []struct {
-name        string
-statusCode  int
-errorCode   string
-message     string
-expectedMsg string
-}{
-{
-name:        "Not Found Error",
-statusCode:  404,
-errorCode:   "ResourceNotFound",
-message:     "The specified resource was not found.",
-expectedMsg: "Azure API error (StatusCode=404, ErrorCode=ResourceNotFound): The specified resource was not found.",
-},
-{
-name:        "Authorization Error",
-statusCode:  403,
-errorCode:   "AuthorizationFailed",
-message:     "The client lacks sufficient authorization.",
-expectedMsg: "Azure API error (StatusCode=403, ErrorCode=AuthorizationFailed): The client lacks sufficient authorization.",
-},
-{
-name:        "Server Error",
-statusCode:  500,
-errorCode:   "InternalServerError",
-message:     "An internal server error occurred.",
-expectedMsg: "Azure API error (StatusCode=500, ErrorCode=InternalServerError): An internal server error occurred.",
-},
-{
-name:        "Empty Error Details",
-statusCode:  0,
-errorCode:   "",
-message:     "",
-expectedMsg: "Azure API error (StatusCode=0, ErrorCode=): ",
-},
-}
+	testCases := []struct {
+		name        string
+		statusCode  int
+		errorCode   string
+		message     string
+		expectedMsg string
+	}{
+		{
+			name:        "Not Found Error",
+			statusCode:  404,
+			errorCode:   "ResourceNotFound",
+			message:     "The specified resource was not found.",
+			expectedMsg: "Azure API error (StatusCode=404, ErrorCode=ResourceNotFound): The specified resource was not found.",
+		},
+		{
+			name:        "Authorization Error",
+			statusCode:  403,
+			errorCode:   "AuthorizationFailed",
+			message:     "The client lacks sufficient authorization.",
+			expectedMsg: "Azure API error (StatusCode=403, ErrorCode=AuthorizationFailed): The client lacks sufficient authorization.",
+		},
+		{
+			name:        "Server Error",
+			statusCode:  500,
+			errorCode:   "InternalServerError",
+			message:     "An internal server error occurred.",
+			expectedMsg: "Azure API error (StatusCode=500, ErrorCode=InternalServerError): An internal server error occurred.",
+		},
+		{
+			name:        "Empty Error Details",
+			statusCode:  0,
+			errorCode:   "",
+			message:     "",
+			expectedMsg: "Azure API error (StatusCode=0, ErrorCode=): ",
+		},
+	}
 
-for _, tc := range testCases {
-tc := tc // Capture range variable
-t.Run(tc.name, func(t *testing.T) {
-t.Parallel()
-azureErr := &azurehelper.AzureResponseError{
-StatusCode: tc.statusCode,
-ErrorCode:  tc.errorCode,
-Message:    tc.message,
-}
-assert.Equal(t, tc.expectedMsg, azureErr.Error())
-})
-}
+	for _, tc := range testCases {
+		tc := tc // Capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			azureErr := &azurehelper.AzureResponseError{
+				StatusCode: tc.statusCode,
+				ErrorCode:  tc.errorCode,
+				Message:    tc.message,
+			}
+			assert.Equal(t, tc.expectedMsg, azureErr.Error())
+		})
+	}
 }
 
 // TestGetObjectInputValidation tests the validation of GetObjectInput
 func TestGetObjectInputValidation(t *testing.T) {
-t.Parallel()
+	t.Parallel()
 
-// Define test cases
-testCases := []struct {
-name          string
-input         *azurehelper.GetObjectInput
-expectedError string
-}{
-{
-name: "Valid Input",
-input: &azurehelper.GetObjectInput{
-Bucket: stringPtr("container-name"),
-Key:    stringPtr("blob-key"),
-},
-expectedError: "",
-},
-{
-name: "Missing Bucket",
-input: &azurehelper.GetObjectInput{
-Key: stringPtr("blob-key"),
-},
-expectedError: "container name is required",
-},
-{
-name: "Empty Bucket",
-input: &azurehelper.GetObjectInput{
-Bucket: stringPtr(""),
-Key:    stringPtr("blob-key"),
-},
-expectedError: "container name is required",
-},
-{
-name: "Missing Key",
-input: &azurehelper.GetObjectInput{
-Bucket: stringPtr("container-name"),
-},
-expectedError: "blob key is required",
-},
-{
-name: "Empty Key",
-input: &azurehelper.GetObjectInput{
-Bucket: stringPtr("container-name"),
-Key:    stringPtr(""),
-},
-expectedError: "blob key is required",
-},
-{
-name:          "Nil Input",
-input:         nil,
-expectedError: "input cannot be nil",
-},
-}
+	// Define test cases
+	testCases := []struct {
+		name          string
+		input         *azurehelper.GetObjectInput
+		expectedError string
+	}{
+		{
+			name: "Valid Input",
+			input: &azurehelper.GetObjectInput{
+				Bucket: stringPtr("container-name"),
+				Key:    stringPtr("blob-key"),
+			},
+			expectedError: "",
+		},
+		{
+			name: "Missing Bucket",
+			input: &azurehelper.GetObjectInput{
+				Key: stringPtr("blob-key"),
+			},
+			expectedError: "container name is required",
+		},
+		{
+			name: "Empty Bucket",
+			input: &azurehelper.GetObjectInput{
+				Bucket: stringPtr(""),
+				Key:    stringPtr("blob-key"),
+			},
+			expectedError: "container name is required",
+		},
+		{
+			name: "Missing Key",
+			input: &azurehelper.GetObjectInput{
+				Bucket: stringPtr("container-name"),
+			},
+			expectedError: "blob key is required",
+		},
+		{
+			name: "Empty Key",
+			input: &azurehelper.GetObjectInput{
+				Bucket: stringPtr("container-name"),
+				Key:    stringPtr(""),
+			},
+			expectedError: "blob key is required",
+		},
+		{
+			name:          "Nil Input",
+			input:         nil,
+			expectedError: "input cannot be nil",
+		},
+	}
 
-// Create a validation test
-// Run test cases
-for _, tc := range testCases {
-tc := tc // Capture range variable
-t.Run(tc.name, func(t *testing.T) {
-t.Parallel()
+	// Create a validation test
+	// Run test cases
+	for _, tc := range testCases {
+		tc := tc // Capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-// We can't actually call GetObject since it requires a real client
-// but we can verify the validation logic separately
-var err error
-if tc.input == nil {
-err = errors.New("input cannot be nil")
-} else if tc.input.Bucket == nil || *tc.input.Bucket == "" {
-err = errors.New("container name is required")
-} else if tc.input.Key == nil || *tc.input.Key == "" {
-err = errors.New("blob key is required")
-}
+			// We can't actually call GetObject since it requires a real client
+			// but we can verify the validation logic separately
+			var err error
+			if tc.input == nil {
+				err = errors.New("input cannot be nil")
+			} else if tc.input.Bucket == nil || *tc.input.Bucket == "" {
+				err = errors.New("container name is required")
+			} else if tc.input.Key == nil || *tc.input.Key == "" {
+				err = errors.New("blob key is required")
+			}
 
-if tc.expectedError == "" {
-assert.NoError(t, err)
-} else {
-assert.Error(t, err)
-assert.Contains(t, err.Error(), tc.expectedError)
-}
-})
-}
+			if tc.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+			}
+		})
+	}
 }
 
 // Helper function to create a string pointer
 
-
 // Mock Azure Response Error for testing
 type MockResponseError struct {
-StatusCode int
-ErrorCode  string
-Message    string
+	StatusCode int
+	ErrorCode  string
+	Message    string
 }
 
 func (e *MockResponseError) Error() string {
-return fmt.Sprintf("Status: %d, Code: %s, Message: %s", e.StatusCode, e.ErrorCode, e.Message)
+	return fmt.Sprintf("Status: %d, Code: %s, Message: %s", e.StatusCode, e.ErrorCode, e.Message)
 }

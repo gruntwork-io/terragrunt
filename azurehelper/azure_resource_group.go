@@ -12,18 +12,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// ResourceGroupClient wraps Azure's armresources client to provide a simpler interface
+// ResourceGroupClient wraps Azure's armresources client to provide a simpler interface.
 type ResourceGroupClient struct {
 	client         *armresources.ResourceGroupsClient
 	subscriptionID string
 }
 
-// ResourceGroupConfig represents the configuration for an Azure Resource Group
+// ResourceGroupConfig represents the configuration for an Azure Resource Group.
 type ResourceGroupConfig struct {
-	SubscriptionID    string
-	ResourceGroupName string
+	// Put map field first (larger alignment requirements)
+	Tags map[string]string
+
+	// Then string fields in alphabetical order
 	Location          string
-	Tags              map[string]string
+	ResourceGroupName string
+	SubscriptionID    string
 }
 
 // CreateResourceGroupClient creates a new ResourceGroup client
@@ -39,7 +42,7 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 			subscriptionID = envSubscriptionID
 			l.Infof("Using subscription ID from environment: %s", subscriptionID)
 		} else {
-			return nil, fmt.Errorf("subscription_id is required either in configuration or as an environment variable")
+			return nil, errors.New("subscription_id is required either in configuration or as an environment variable")
 		}
 	}
 
@@ -108,9 +111,14 @@ func (c *ResourceGroupClient) DeleteResourceGroup(ctx context.Context, l log.Log
 	// Check if it exists before deleting
 	_, err := c.client.Get(ctx, resourceGroupName, nil)
 	if err != nil {
-		// Resource group doesn't exist, nothing to delete
-		l.Infof("Resource group %s doesn't exist, nothing to delete", resourceGroupName)
-		return nil
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == 404 {
+			// Resource group doesn't exist, nothing to delete
+			l.Infof("Resource group %s doesn't exist, nothing to delete", resourceGroupName)
+			return nil
+		}
+		// Return any other error
+		return fmt.Errorf("error checking resource group existence: %w", err)
 	}
 
 	// Start the delete operation

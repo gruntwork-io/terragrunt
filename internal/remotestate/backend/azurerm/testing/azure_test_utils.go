@@ -2,7 +2,6 @@
 package testing
 
 import (
-	"context"
 	"os"
 	"strings"
 	"testing"
@@ -23,11 +22,15 @@ const (
 
 // AzureTestConfig contains Azure storage test configuration
 type AzureTestConfig struct {
+	// Group string fields together
 	StorageAccountName string
 	ContainerName      string
 	Location           string
-	UseAzureAD         bool
 	AccessKey          string
+	// Put bool field at the end
+	UseAzureAD bool
+	// Add padding to optimize struct size
+	_ [3]byte // padding to align to 8-byte boundary
 }
 
 // CheckAzureTestCredentials checks if the required Azure test credentials are available
@@ -103,7 +106,7 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := log.Default()
 
 	// Create configuration based on authentication method
@@ -117,7 +120,7 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig) {
 		azureConfig["access_key"] = config.AccessKey
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(logger, opts, azureConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, azureConfig)
 	require.NoError(t, err)
 
 	// Check if container exists
@@ -155,7 +158,7 @@ func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := log.Default()
 
 	// Create configuration based on authentication method
@@ -169,7 +172,7 @@ func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 		azureConfig["access_key"] = config.AccessKey
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(logger, opts, azureConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, azureConfig)
 	require.NoError(t, err)
 
 	// Check if container exists with retries

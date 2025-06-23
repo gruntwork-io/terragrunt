@@ -40,13 +40,20 @@ func RegisterBackends(opts *options.TerragruntOptions) {
 
 // RemoteState is the configuration for Terraform remote state.
 type RemoteState struct {
-	BackendConfig                 backend.Config  `mapstructure:"config"`
-	Generate                      *ConfigGenerate `mapstructure:"generate"`
-	Encryption                    map[string]any  `mapstructure:"encryption"`
-	BackendName                   string          `mapstructure:"backend"`
-	DisableInit                   bool            `mapstructure:"disable_init"`
-	DisableDependencyOptimization bool            `mapstructure:"disable_dependency_optimization"`
-	backend                       backend.Backend
+	// Put map first
+	Encryption map[string]any `mapstructure:"encryption"`
+	// Put pointers together
+	Generate *ConfigGenerate `mapstructure:"generate"`
+	backend  backend.Backend
+	// Struct after pointers
+	BackendConfig backend.Config `mapstructure:"config"`
+	// String field
+	BackendName string `mapstructure:"backend"`
+	// Bool fields at the end
+	DisableInit                   bool `mapstructure:"disable_init"`
+	DisableDependencyOptimization bool `mapstructure:"disable_dependency_optimization"`
+	// Add padding to optimize struct size
+	_ [6]byte // padding to align to 8-byte boundary
 }
 
 // New creates a new `RemoteState` instance.
@@ -114,7 +121,7 @@ func (b *experimentalAzureBackend) Migrate(ctx context.Context, l log.Logger, sr
 }
 
 func azureBackendExperimentError() error {
-	return fmt.Errorf("Azure backend is an experimental feature. Enable it with --experiment azure-backend flag or TG_EXPERIMENT=azure-backend environment variable")
+	return errors.New("Azure backend is an experimental feature. Enable it with --experiment azure-backend flag or TG_EXPERIMENT=azure-backend environment variable")
 }
 
 // IsVersionControlEnabled checks if versioning is enabled for the remote state.

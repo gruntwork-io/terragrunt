@@ -12,18 +12,21 @@ import (
 
 // StorageAccountBootstrapConfig represents the configuration for Azure Storage account bootstrapping
 type StorageAccountBootstrapConfig struct {
-	Location                 string            `mapstructure:"location"`
-	ResourceGroupName        string            `mapstructure:"resource_group_name"`
-	EnableVersioning         bool              `mapstructure:"enable_versioning"`
-	AllowBlobPublicAccess    bool              `mapstructure:"allow_blob_public_access"`
-	EnableHierarchicalNS     bool              `mapstructure:"enable_hierarchical_namespace"`
-	AccountKind              string            `mapstructure:"account_kind"`
-	AccountTier              string            `mapstructure:"account_tier"`
-	AccessTier               string            `mapstructure:"access_tier"`
-	ReplicationType          string            `mapstructure:"replication_type"`
-	CreateStorageAccountIfNotExists bool       `mapstructure:"create_storage_account_if_not_exists"`
-	SkipStorageAccountUpdate bool              `mapstructure:"skip_storage_account_update"`
-	StorageAccountTags       map[string]string `mapstructure:"storage_account_tags"`
+	// Maps first (larger alignment requirements)
+	StorageAccountTags map[string]string `mapstructure:"storage_account_tags"`
+	// Then string fields
+	Location          string `mapstructure:"location"`
+	ResourceGroupName string `mapstructure:"resource_group_name"`
+	AccountKind       string `mapstructure:"account_kind"`
+	AccountTier       string `mapstructure:"account_tier"`
+	AccessTier        string `mapstructure:"access_tier"`
+	ReplicationType   string `mapstructure:"replication_type"`
+	// Group boolean fields together at the end
+	EnableVersioning                bool `mapstructure:"enable_versioning"`
+	AllowBlobPublicAccess           bool `mapstructure:"allow_blob_public_access"`
+	EnableHierarchicalNS            bool `mapstructure:"enable_hierarchical_namespace"`
+	CreateStorageAccountIfNotExists bool `mapstructure:"create_storage_account_if_not_exists"`
+	SkipStorageAccountUpdate        bool `mapstructure:"skip_storage_account_update"`
 }
 
 // RemoteStateConfigAzurerm represents the configuration for Azure Storage backend.
@@ -51,10 +54,12 @@ type RemoteStateConfigAzurerm struct {
 
 // ExtendedRemoteStateConfigAzurerm provides extended configuration for the Azure RM backend.
 type ExtendedRemoteStateConfigAzurerm struct {
-	RemoteStateConfigAzurerm RemoteStateConfigAzurerm   `mapstructure:",squash"`                    // large struct - align after pointer
-	DisableBlobPublicAccess  bool                       `mapstructure:"disable_blob_public_access"` // 1 byte at end
-	StorageAccountConfig     StorageAccountBootstrapConfig `mapstructure:",squash"`                // storage account bootstrap config
-	_                        struct{}                   // padding for optimal alignment
+	// Put larger structs first
+	StorageAccountConfig     StorageAccountBootstrapConfig `mapstructure:",squash"` // storage account bootstrap config
+	RemoteStateConfigAzurerm RemoteStateConfigAzurerm      `mapstructure:",squash"` // large struct
+	// Put smaller fields at the end
+	DisableBlobPublicAccess bool     `mapstructure:"disable_blob_public_access"` // 1 byte at end
+	_                       struct{} // padding for optimal alignment
 }
 
 // Config represents the configuration for Azure Storage backend.
@@ -78,12 +83,12 @@ func (cfg Config) FilterOutTerragruntKeys() map[string]interface{} {
 // ParseExtendedAzureConfig parses the config into an ExtendedRemoteStateConfigAzurerm.
 func (cfg Config) ParseExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm, error) {
 	var extConfig ExtendedRemoteStateConfigAzurerm
-	
+
 	// Set default values before decoding
 	extConfig.StorageAccountConfig.CreateStorageAccountIfNotExists = false
 	extConfig.StorageAccountConfig.EnableVersioning = true
 	extConfig.StorageAccountConfig.AllowBlobPublicAccess = false // Default to secure option
-	
+
 	// Check if use_msi is explicitly set before defaulting to Azure AD auth
 	useMsi, hasMsi := cfg["use_msi"]
 	if !hasMsi || useMsi != true {
@@ -146,20 +151,20 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 
 	if hasServicePrincipal {
 		// Check if all required fields are present for service principal auth
-		if cfg.RemoteStateConfigAzurerm.ClientID != "" && 
-		   cfg.RemoteStateConfigAzurerm.ClientSecret != "" &&
-		   cfg.RemoteStateConfigAzurerm.TenantID != "" {
-			
+		if cfg.RemoteStateConfigAzurerm.ClientID != "" &&
+			cfg.RemoteStateConfigAzurerm.ClientSecret != "" &&
+			cfg.RemoteStateConfigAzurerm.TenantID != "" {
+
 			// If service principal seems to be the intended auth method
 			authCount++
-			
+
 			// Validate required fields for service principal auth
 			if cfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-				return fmt.Errorf("subscription_id is required when using service principal authentication")
+				return errors.New("subscription_id is required when using service principal authentication")
 			}
-		} else if cfg.RemoteStateConfigAzurerm.ClientID != "" || 
-		          cfg.RemoteStateConfigAzurerm.ClientSecret != "" ||
-		          cfg.RemoteStateConfigAzurerm.TenantID != "" {
+		} else if cfg.RemoteStateConfigAzurerm.ClientID != "" ||
+			cfg.RemoteStateConfigAzurerm.ClientSecret != "" ||
+			cfg.RemoteStateConfigAzurerm.TenantID != "" {
 			// If only some service principal fields are provided, it's incomplete
 			missing := []string{}
 
@@ -206,7 +211,7 @@ var terragruntOnlyConfigs = []string{
 	"create_storage_account_if_not_exists",
 	"skip_storage_account_update",
 	"resource_group_name", // Resource group is only used during bootstrap
-	
+
 	// Storage account creation parameters (used only during bootstrap)
 	"location",
 	"account_kind",

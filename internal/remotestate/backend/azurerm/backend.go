@@ -16,6 +16,7 @@ import (
 
 // BackendName is the name of the Azure backend
 const BackendName = "azurerm"
+
 var _ backend.Backend = new(Backend)
 
 // Backend implements the backend interface for the Azure backend.
@@ -34,17 +35,17 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	if err != nil {
 		return err
 	}
-	
+
 	// Check upfront if storage account creation is requested and validate required fields
 	if createIfNotExists, ok := backendConfig["create_storage_account_if_not_exists"].(bool); ok && createIfNotExists {
 		subscriptionID, hasSubscription := backendConfig["subscription_id"].(string)
 		if !hasSubscription || subscriptionID == "" {
-			return fmt.Errorf("subscription_id is required for storage account creation")
+			return errors.New("subscription_id is required for storage account creation")
 		}
-		
-		location, hasLocation := backendConfig["location"].(string) 
+
+		location, hasLocation := backendConfig["location"].(string)
 		if !hasLocation || location == "" {
-			return fmt.Errorf("location is required for storage account creation")
+			return errors.New("location is required for storage account creation")
 		}
 	}
 
@@ -55,7 +56,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		backendConfig["use_azuread_auth"] = true
 		l.Info("Azure AD authentication is now the default and required authentication method")
 	}
-	
+
 	hasAzureAD := azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth
 	hasMSI := azureCfg.RemoteStateConfigAzurerm.UseMsi
 	hasServicePrincipal := azureCfg.RemoteStateConfigAzurerm.ClientID != "" && azureCfg.RemoteStateConfigAzurerm.ClientSecret != "" &&
@@ -109,7 +110,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		return nil
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(l, opts, backendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
 		return err
 	}
@@ -118,13 +119,13 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	if azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
 		// Validate required fields before attempting any Azure operations
 		if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-			return fmt.Errorf("subscription_id is required for storage account creation")
+			return errors.New("subscription_id is required for storage account creation")
 		}
-		
+
 		if azureCfg.StorageAccountConfig.Location == "" {
-			return fmt.Errorf("location is required for storage account creation")
+			return errors.New("location is required for storage account creation")
 		}
-		
+
 		err = backend.bootstrapStorageAccount(ctx, l, opts, azureCfg, backendConfig)
 		if err != nil {
 			return fmt.Errorf("error bootstrapping storage account: %w", err)
@@ -154,7 +155,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		return false, nil
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(l, opts, backendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
 		return false, err
 	}
@@ -172,12 +173,12 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 	if existsErr != nil {
 		// Try to convert to Azure error
 		azureErr := azurehelper.ConvertAzureError(existsErr)
-		
+
 		// If the storage account doesn't exist, we need bootstrap
 		if azureErr != nil && (azureErr.StatusCode == 404 || azureErr.ErrorCode == "StorageAccountNotFound") {
 			return true, nil
 		}
-		
+
 		return false, existsErr
 	}
 
@@ -206,7 +207,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		return nil
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(l, opts, backendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
 		return err
 	}
@@ -232,7 +233,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 		return nil
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(l, opts, backendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
 		return err
 	}
@@ -257,12 +258,12 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		return err
 	}
 
-	srcClient, err := azurehelper.CreateBlobServiceClient(l, opts, srcBackendConfig)
+	srcClient, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, srcBackendConfig)
 	if err != nil {
 		return fmt.Errorf("error creating source blob client: %w", err)
 	}
 
-	dstClient, err := azurehelper.CreateBlobServiceClient(l, opts, dstBackendConfig)
+	dstClient, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, dstBackendConfig)
 	if err != nil {
 		return fmt.Errorf("error creating destination blob client: %w", err)
 	}
@@ -327,11 +328,11 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 	)
 
 	if resourceGroupName == "" {
-		return fmt.Errorf("resource_group_name is required to delete a storage account")
+		return errors.New("resource_group_name is required to delete a storage account")
 	}
 
 	if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-		return fmt.Errorf("subscription_id is required to delete a storage account")
+		return errors.New("subscription_id is required to delete a storage account")
 	}
 
 	// Check if we're in non-interactive mode
@@ -344,8 +345,8 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 	yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
 		return err
-	} 
-	
+	}
+
 	if !yes {
 		return nil
 	}
@@ -359,7 +360,7 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 	}
 
 	// Create storage account client
-	client, err := azurehelper.CreateStorageAccountClient(ctx, l, opts, storageAccountConfig)
+	client, err := azurehelper.CreateStorageAccountClient(ctx, l, storageAccountConfig)
 	if err != nil {
 		return err
 	}
@@ -377,11 +378,11 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 
 	// Validate that required fields are set for storage account operations
 	if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-		return fmt.Errorf("subscription_id is required for storage account creation")
+		return errors.New("subscription_id is required for storage account creation")
 	}
-	
+
 	if azureCfg.StorageAccountConfig.Location == "" {
-		return fmt.Errorf("location is required for storage account creation")
+		return errors.New("location is required for storage account creation")
 	}
 
 	// For now, we'll check if the package is available
@@ -401,16 +402,16 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 
 	// Check if the storage account exists using the data plane client (blob service)
 	// This is a workaround until we properly implement the storage account client
-	blobClient, err := azurehelper.CreateBlobServiceClient(l, opts, storageAccountConfig)
+	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, storageAccountConfig)
 	if err != nil {
 		return fmt.Errorf("error creating blob service client: %w", err)
 	}
 	// Create a storage account client
-	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, l, opts, storageAccountConfig)
+	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, l, storageAccountConfig)
 	if err != nil {
 		return fmt.Errorf("error creating storage account client: %w", err)
 	}
-	
+
 	// Convert configuration to the expected format for the storage account client
 	saConfig := azurehelper.StorageAccountConfig{
 		SubscriptionID:        subscriptionID,
@@ -418,7 +419,7 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 		StorageAccountName:    azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 		Location:              azureCfg.StorageAccountConfig.Location,
 		EnableHierarchicalNS:  azureCfg.StorageAccountConfig.EnableHierarchicalNS,
-		EnableVersioning:      azureCfg.StorageAccountConfig.EnableVersioning, 
+		EnableVersioning:      azureCfg.StorageAccountConfig.EnableVersioning,
 		AllowBlobPublicAccess: azureCfg.StorageAccountConfig.AllowBlobPublicAccess,
 		AccountKind:           azureCfg.StorageAccountConfig.AccountKind,
 		AccountTier:           azureCfg.StorageAccountConfig.AccountTier,
@@ -426,18 +427,18 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 		ReplicationType:       azureCfg.StorageAccountConfig.ReplicationType,
 		Tags:                  azureCfg.StorageAccountConfig.StorageAccountTags,
 	}
-	
+
 	// If no tags provided, set default
 	if len(saConfig.Tags) == 0 {
 		saConfig.Tags = map[string]string{"created-by": "terragrunt"}
 	}
-	
+
 	// Create resource group and storage account if needed
 	err = storageClient.CreateStorageAccountIfNecessary(ctx, l, saConfig)
 	if err != nil {
 		return fmt.Errorf("error creating storage account: %w", err)
 	}
-	
+
 	// Ensure the current user has Storage Blob Data Owner role
 	// This is important for both new and existing storage accounts
 	err = storageClient.AssignStorageBlobDataOwnerRole(ctx, l)
@@ -445,21 +446,21 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 		l.Warnf("Failed to assign Storage Blob Data Owner role: %v", err)
 		// Don't fail the entire process if role assignment fails
 	}
-	
+
 	l.Infof("Storage account %s exists and is accessible", azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
-	
+
 	// For safety, try the blob client operation to confirm access
 	exists, err := blobClient.ContainerExists(ctx, "_terragrunt_bootstrap_test")
 	if err != nil {
 		// Try to convert to Azure error
 		azureErr := azurehelper.ConvertAzureError(err)
-		
+
 		// Check if it's an authentication error
 		if azureErr != nil && (azureErr.StatusCode == 401 || azureErr.StatusCode == 403) {
 			l.Warn("Authentication failed when checking storage account. Make sure you have proper permissions")
 			return fmt.Errorf("authentication failed when checking storage account: %w", err)
 		}
-		
+
 		// For other errors, let's assume account is accessible
 		l.Infof("Storage account %s appears to be accessible", azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 		return nil

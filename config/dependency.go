@@ -1102,7 +1102,7 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.T
 
 	l.Debugf("Attempting to fetch outputs directly from Azure Storage account %s, container %s, blob %s", storageAccount, containerName, key)
 
-	client, err := azurehelper.CreateBlobServiceClient(l, opts, remoteState.BackendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, remoteState.BackendConfig)
 	if err != nil {
 		return nil, err
 	}

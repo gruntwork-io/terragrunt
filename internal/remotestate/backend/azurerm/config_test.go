@@ -1,7 +1,7 @@
 package azurerm_test
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -229,9 +229,9 @@ func TestConfigValidation(t *testing.T) {
 
 			err := tc.config.Validate()
 			if tc.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -307,15 +307,15 @@ func TestAzurermTFInitArgs(t *testing.T) {
 			"tenant_id":            "00000000-0000-0000-0000-000000000000",
 			"resource_group_name":  "my-resource-group", // Will be filtered out
 			"environment":          "public",
-			
+
 			// Terragrunt-specific options that should be filtered out
 			"create_storage_account_if_not_exists": true,
-			"enable_versioning":                   true,
-			"location":                            "eastus",
-			"allow_blob_public_access":            false,
-			"account_kind":                        "StorageV2",
-			"account_tier":                        "Standard",
-			"replication_type":                    "LRS",
+			"enable_versioning":                    true,
+			"location":                             "eastus",
+			"allow_blob_public_access":             false,
+			"account_kind":                         "StorageV2",
+			"account_tier":                         "Standard",
+			"replication_type":                     "LRS",
 			"storage_account_tags": map[string]any{
 				"Environment": "Dev",
 				"Owner":       "Terragrunt",
@@ -350,16 +350,16 @@ func TestFilterOutTerragruntKeysAzure(t *testing.T) {
 
 	// Create a config with a mix of standard and Terragrunt-specific options
 	config := azurerm.Config{
-		"storage_account_name":              "mystorageaccount",
-		"container_name":                    "terraform-state",
-		"key":                               "terraform.tfstate",
-		"use_azuread_auth":                  true,
-		"subscription_id":                   "00000000-0000-0000-0000-000000000000",
-		"tenant_id":                         "00000000-0000-0000-0000-000000000000",
+		"storage_account_name":                 "mystorageaccount",
+		"container_name":                       "terraform-state",
+		"key":                                  "terraform.tfstate",
+		"use_azuread_auth":                     true,
+		"subscription_id":                      "00000000-0000-0000-0000-000000000000",
+		"tenant_id":                            "00000000-0000-0000-0000-000000000000",
 		"create_storage_account_if_not_exists": true,
-		"enable_versioning":                 true,
-		"location":                          "eastus",
-		"resource_group_name":               "my-resource-group",
+		"enable_versioning":                    true,
+		"location":                             "eastus",
+		"resource_group_name":                  "my-resource-group",
 	}
 
 	// Filter out Terragrunt-specific keys
@@ -370,7 +370,7 @@ func TestFilterOutTerragruntKeysAzure(t *testing.T) {
 	assert.Contains(t, filtered, "container_name")
 	assert.Contains(t, filtered, "key")
 	assert.Contains(t, filtered, "use_azuread_auth")
-	assert.Contains(t, filtered, "subscription_id") 
+	assert.Contains(t, filtered, "subscription_id")
 	assert.Contains(t, filtered, "tenant_id")
 
 	// Verify that Terragrunt-specific options are filtered out
@@ -386,18 +386,18 @@ func TestParseExtendedAzureConfigValidation(t *testing.T) {
 
 	// Create a config with both basic and extended options
 	config := azurerm.Config{
-		"storage_account_name": "mystorageaccount",
-		"container_name":       "terraform-state",
-		"key":                  "terraform.tfstate",
-		"use_azuread_auth":     true,
+		"storage_account_name":                 "mystorageaccount",
+		"container_name":                       "terraform-state",
+		"key":                                  "terraform.tfstate",
+		"use_azuread_auth":                     true,
 		"create_storage_account_if_not_exists": true,
-		"enable_versioning":    true,
-		"location":             "eastus",
+		"enable_versioning":                    true,
+		"location":                             "eastus",
 	}
 
 	// Parse the config
 	parsed, err := config.ParseExtendedAzureConfig()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify basic options
 	assert.Equal(t, "mystorageaccount", parsed.RemoteStateConfigAzurerm.StorageAccountName)
@@ -416,18 +416,21 @@ func TestBackendConfigValidation(t *testing.T) {
 	t.Parallel()
 
 	// Generate a unique suffix for storage account names to avoid conflicts
-	timestampStr := fmt.Sprintf("%d", time.Now().UnixNano())
+	timestampStr := strconv.FormatInt(time.Now().UnixNano(), 10)
 	uniqueSuffix := timestampStr[len(timestampStr)-10:] // Last 10 digits of timestamp
 
 	// Create a unique storage account name for tests
 	// Azure storage account names must be between 3-24 characters, lowercase letters and numbers only
-	uniqueStorageAcct := fmt.Sprintf("tgtest%s", uniqueSuffix[:8]) // Keep within 24 char limit
+	uniqueStorageAcct := "tgtest" + uniqueSuffix[:8] // Keep within 24 char limit
 
 	testCases := []struct {
-		name        string
-		config      backend.Config
+		// Map first (larger alignment requirements)
+		config backend.Config
+		// String fields
+		name     string
+		errorMsg string
+		// Boolean field last
 		expectError bool
-		errorMsg    string
 	}{
 		{
 			name: "valid-config",
@@ -537,12 +540,12 @@ func TestBackendConfigValidation(t *testing.T) {
 			azureCfg, err := azurerm.Config(tc.config).ExtendedAzureConfig()
 
 			if tc.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if tc.errorMsg != "" {
 					assert.Contains(t, err.Error(), tc.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				// Additional validation that the config was parsed properly
 				if err == nil {
 					assert.NotEmpty(t, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)

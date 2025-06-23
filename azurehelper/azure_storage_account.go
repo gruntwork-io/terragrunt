@@ -18,20 +18,25 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+)
+
+const (
+	// Storage Blob Data Owner role definition ID
+	storageBlobDataOwnerRoleID = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
 )
 
 // StorageAccountClient wraps Azure's armstorage client to provide a simpler interface
 type StorageAccountClient struct {
-	client                 *armstorage.AccountsClient
-	blobClient             *armstorage.BlobServicesClient
-	roleAssignmentClient   *armauthorization.RoleAssignmentsClient
-	subscriptionID         string
-	resourceGroupName      string
-	storageAccountName     string
-	location               string
-	config                 map[string]interface{}
+	client               *armstorage.AccountsClient
+	blobClient           *armstorage.BlobServicesClient
+	roleAssignmentClient *armauthorization.RoleAssignmentsClient
+	subscriptionID       string
+	resourceGroupName    string
+	storageAccountName   string
+	location             string
+	config               map[string]interface{}
+
 	defaultAccountKind     string
 	defaultAccountTier     string
 	defaultAccountSKU      string
@@ -41,20 +46,25 @@ type StorageAccountClient struct {
 // StorageAccountConfig represents the configuration for an Azure Storage Account.
 // It contains all the necessary parameters to create or update a storage account.
 type StorageAccountConfig struct {
-	SubscriptionID         string            // Azure subscription ID where the storage account exists or will be created
-	ResourceGroupName      string            // Name of the resource group containing the storage account
-	StorageAccountName     string            // Name of the storage account
-	Location              string            // Azure region where the storage account exists or will be created
-	EnableHierarchicalNS  bool              // Whether to enable hierarchical namespace (required for Azure Data Lake Storage Gen2)
-	EnableVersioning      bool              // Whether to enable blob versioning
-	AllowBlobPublicAccess bool              // Whether to allow public access to blobs (not recommended for production)
-	AccountKind           string            // Kind of storage account (e.g., StorageV2, BlobStorage)
-	AccessTier             string
-	Tags                   map[string]string
-	AccountTier            string
-	AccountSKU             string
-	ReplicationType        string
-	KeyEncryptionKeySource string // Source of encryption key (e.g., "Microsoft.KeyVault")
+	// Put map field first (larger alignment requirements)
+	Tags map[string]string
+
+	// String fields in alphabetical order
+	AccessTier         string // Storage tier (Hot/Cool)
+	AccountKind        string // Kind of storage account (e.g., StorageV2, BlobStorage)
+	AccountSKU         string // SKU name for the storage account
+	AccountTier        string // Performance tier (Standard/Premium)
+	KeyEncryptionKey   string // Source of encryption key (e.g., "Microsoft.KeyVault")
+	Location           string // Azure region where the storage account exists/will be created
+	ReplicationType    string // Type of replication (LRS/GRS/etc)
+	ResourceGroupName  string // Name of the resource group containing the storage account
+	StorageAccountName string // Name of the storage account
+	SubscriptionID     string // Azure subscription ID where the storage account exists
+
+	// Boolean fields at the end
+	AllowBlobPublicAccess bool // Whether to allow public access to blobs (not recommended)
+	EnableHierarchicalNS  bool // Whether to enable hierarchical namespace (for ADLS Gen2)
+	EnableVersioning      bool // Whether to enable blob versioning
 }
 
 // DefaultStorageAccountConfig returns the default configuration for a storage account
@@ -72,7 +82,7 @@ func DefaultStorageAccountConfig() StorageAccountConfig {
 }
 
 // CreateStorageAccountClient creates a new StorageAccount client
-func CreateStorageAccountClient(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config map[string]interface{}) (*StorageAccountClient, error) {
+func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[string]interface{}) (*StorageAccountClient, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
@@ -102,13 +112,14 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, opts *options
 
 	// Use environment subscription ID if not provided in config
 	if subscriptionID == "" && envSubscriptionID != "" {
-		l.Infof("Using subscription ID from environment: %s", envSubscriptionID)
 		subscriptionID = envSubscriptionID
+
+		l.Infof("Using subscription ID from environment: %s", envSubscriptionID)
 	}
 
 	// Still need a subscription ID at this point
 	if subscriptionID == "" {
-		return nil, fmt.Errorf("subscription_id is required either:\n" +
+		return nil, errors.New("subscription_id is required either:\n" +
 			"  1. In the configuration as 'subscription_id'\n" +
 			"  2. As an environment variable (AZURE_SUBSCRIPTION_ID or ARM_SUBSCRIPTION_ID)\n" +
 			"Please provide at least one of these values to continue")
@@ -133,6 +144,7 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, opts *options
 			APIVersion: "2018-09-01-preview",
 		},
 	}
+
 	roleAssignmentClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("error creating role assignments client: %w", err)
@@ -164,7 +176,7 @@ func (c *StorageAccountClient) StorageAccountExists(ctx context.Context) (bool, 
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) {
-			if respErr.StatusCode == 404 {
+			if respErr.StatusCode == httpStatusNotFound {
 				return false, nil, nil
 			}
 
@@ -257,7 +269,7 @@ func (c *StorageAccountClient) CreateStorageAccountIfNecessary(ctx context.Conte
 	if location == "" {
 		location = c.location
 		if location == "" {
-			location = "eastus" // Default location
+			location = defaultLocation // Default location
 			l.Warnf("No location specified, using default location: %s", location)
 		}
 	}
@@ -284,10 +296,10 @@ func (c *StorageAccountClient) CreateStorageAccountIfNecessary(ctx context.Conte
 
 // createStorageAccount creates a new storage account
 func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.Logger, config StorageAccountConfig) error {
-	l.Infof("Creating Azure Storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
-
 	// Default to Standard_LRS replication if not specified
 	sku := armstorage.SKUNameStandardLRS
+
+	l.Infof("Creating Azure Storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
 
 	// Map replication type if specified
 	if config.ReplicationType != "" {
@@ -342,9 +354,9 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 		accessTierStr = "Hot"
 	}
 
-	l.Infof("Using access tier: %s", accessTierStr)
-
 	// Convert tags map to pointer map
+
+	l.Infof("Using access tier: %s", accessTierStr)
 	tags := make(map[string]*string, len(config.Tags))
 	if len(config.Tags) > 0 {
 		for k, v := range config.Tags {
@@ -362,7 +374,7 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 	if location == "" {
 		location = c.location
 		if location == "" {
-			location = "eastus" // Default location
+			location = defaultLocation // Default location
 			l.Warnf("No location specified, using default location: %s", location)
 		}
 	}
@@ -464,6 +476,7 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 	}
 
 	// If any properties need updating, update the storage account
+
 	if needsUpdate {
 		// Note: The actual structure depends on the SDK version
 		// This is a simplified version that should work with most SDK versions
@@ -492,7 +505,7 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 	if err != nil {
 		// If 404, it's already deleted
 		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.StatusCode == 404 {
+		if errors.As(err, &respErr) && respErr.StatusCode == httpStatusNotFound {
 			l.Infof("Storage account %s does not exist or is already deleted", c.storageAccountName)
 			return nil
 		}
@@ -511,9 +524,9 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 
 // EnsureResourceGroup creates a resource group if it doesn't exist
 func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Logger, location string) error {
-	l.Infof("Ensuring resource group %s exists in %s", c.resourceGroupName, location)
-
 	// Create a resource group client
+
+	l.Infof("Ensuring resource group %s exists in %s", c.resourceGroupName, location)
 	resourceGroupClient, err := CreateResourceGroupClient(ctx, l, c.subscriptionID)
 	if err != nil {
 		return fmt.Errorf("error creating resource group client: %w", err)
@@ -552,7 +565,7 @@ func (c *StorageAccountClient) getCurrentUserObjectID(ctx context.Context) (stri
 	}
 
 	// If all else fails, return an error
-	return "", fmt.Errorf("could not determine current user object ID. Please set AZURE_CLIENT_OBJECT_ID or ARM_CLIENT_OBJECT_ID environment variable with your user/service principal object ID. Graph API error: %v", err)
+	return "", fmt.Errorf("could not determine current user object ID. Please set AZURE_CLIENT_OBJECT_ID or ARM_CLIENT_OBJECT_ID environment variable with your user/service principal object ID. Graph API error: %w", err)
 }
 
 // getUserObjectIDFromGraphAPI gets the current user's object ID from Microsoft Graph API
@@ -573,7 +586,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 
 	// Create HTTP client
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: defaultHTTPClientTimeout,
 	}
 
 	// Create request for Microsoft Graph API to get current user
@@ -591,10 +604,14 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 	if err != nil {
 		return "", fmt.Errorf("error sending request to Microsoft Graph API: %w", err)
 	}
-	defer resp.Body.Close()
+	// Simply handle the error properly by ignoring it in defer
+	// This is sufficient to satisfy the errcheck linter
+	defer func() {
+		_ = resp.Body.Close() // explicitly ignoring the error
+	}()
 
 	// Check response status code
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != httpStatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("error from Microsoft Graph API: %s - %s", resp.Status, string(bodyBytes))
 	}
@@ -610,7 +627,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 
 	// Check if ID is empty
 	if graphResponse.ID == "" {
-		return "", errors.New("Microsoft Graph API returned empty ID")
+		return "", errors.New("microsoft graph API returned empty ID")
 	}
 
 	return graphResponse.ID, nil
@@ -618,9 +635,6 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 
 // AssignStorageBlobDataOwnerRole assigns the Storage Blob Data Owner role to the current user
 func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Context, l log.Logger) error {
-	// Storage Blob Data Owner role definition ID
-	const storageBlobDataOwnerRoleID = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
-
 	// Get current user object ID
 	userObjectID, err := c.getCurrentUserObjectID(ctx)
 	if err != nil {
@@ -676,7 +690,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 	if err != nil {
 		// Check if the role assignment already exists
 		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.StatusCode == 409 {
+		if errors.As(err, &respErr) && respErr.StatusCode == httpStatusConflict {
 			if isServicePrincipal {
 				l.Infof("Storage Blob Data Owner role already assigned to service principal %s", userObjectID)
 			} else {
@@ -686,7 +700,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 		}
 
 		// Check for permission issues
-		if errors.As(err, &respErr) && (respErr.StatusCode == 403 || respErr.StatusCode == 401) {
+		if errors.As(err, &respErr) && (respErr.StatusCode == httpStatusForbidden || respErr.StatusCode == httpStatusUnauthorized) {
 			l.Warnf("Permission denied when assigning Storage Blob Data Owner role. Principal %s doesn't have sufficient permissions.", userObjectID)
 			l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <principal-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
 			return nil // Don't fail the entire process
@@ -733,11 +747,11 @@ func generateUUID() string {
 	// This is a simplified implementation that generates a sufficiently random ID
 	// It's not a perfect UUID implementation but works well for our use case
 	timeNow := time.Now().UnixNano()
-	randomPart1 := fmt.Sprintf("%08x", timeNow&0xFFFFFFFF)
-	randomPart2 := fmt.Sprintf("%04x", (timeNow>>32)&0xFFFF)
-	randomPart3 := fmt.Sprintf("%04x", (timeNow>>48)&0xFFFF)
-	randomPart4 := fmt.Sprintf("%04x", time.Now().Unix()&0xFFFF)
-	randomPart5 := fmt.Sprintf("%012x", time.Now().UnixMicro()&0xFFFFFFFFFFFF)
+	randomPart1 := fmt.Sprintf("%08x", timeNow&uuidTimeMask32)
+	randomPart2 := fmt.Sprintf("%04x", (timeNow>>32)&uuidTimeMask16)
+	randomPart3 := fmt.Sprintf("%04x", (timeNow>>48)&uuidTimeMask16)
+	randomPart4 := fmt.Sprintf("%04x", time.Now().Unix()&uuidTimeMask16)
+	randomPart5 := fmt.Sprintf("%012x", time.Now().UnixMicro()&uuidTimeMask48)
 
 	return fmt.Sprintf("%s-%s-%s-%s-%s", randomPart1, randomPart2, randomPart3, randomPart4, randomPart5)
 }

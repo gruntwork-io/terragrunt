@@ -84,7 +84,7 @@ func CleanupAzureContainer(t *testing.T, config *AzureStorageTestConfig) {
 	logger := log.Default()
 
 	// Create storage client using Azure AD authentication
-	client, err := azurehelper.CreateBlobServiceClient(logger, opts, map[string]interface{}{
+	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, map[string]interface{}{
 		"storage_account_name": config.StorageAccountName,
 		"use_azuread_auth":     true,
 	})

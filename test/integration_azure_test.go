@@ -27,7 +27,7 @@ import (
 func init() {
 	// Enable the Azure backend experiment through environment variable
 	os.Setenv("TG_EXPERIMENT", "azure-backend")
-	
+
 	// Also manually register the Azure backend for tests
 	// This ensures the backend is registered regardless of when the environment variable is processed
 	testOpts := options.NewTerragruntOptions()
@@ -85,12 +85,13 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				require.NoError(t, err)
 
 				client, err := azurehelper.CreateBlobServiceClient(
+					context.Background(),
 					logger.CreateLogger(),
 					opts,
 					map[string]interface{}{
 						"storage_account_name": azureCfg.StorageAccountName,
 						"container_name":       containerName,
-						"use_azuread_auth":    true,
+						"use_azuread_auth":     true,
 					},
 				)
 				require.NoError(t, err)
@@ -246,7 +247,7 @@ func CheckAzureTestCredentials(t *testing.T) (storageAccount string) {
 
 	// Log that we're using Azure AD authentication
 	t.Logf("Using Azure AD authentication for tests")
-	
+
 	return storageAccount
 }
 
@@ -265,12 +266,12 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test: Failed to get Azure credentials: %v", err)
 	}
-	
+
 	// Skip test if no subscription ID is available
 	if subscriptionID == "" {
 		t.Skip("Skipping test: No subscription ID found in environment variables")
 	}
-	
+
 	t.Logf("Using subscription ID: %s", subscriptionID)
 
 	location := os.Getenv("AZURE_LOCATION")
@@ -294,7 +295,7 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	// Setup cleanup to ensure resources are deleted even if the test fails
 	storageAccountCreated := false
 	containerCreated := false
-	
+
 	// Defer cleanup of all resources
 	defer func() {
 		// Create a cleanup client
@@ -304,17 +305,17 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 			"subscription_id":      subscriptionID,
 			"use_azuread_auth":     true,
 		}
-		
+
 		if containerCreated {
-			cleanupClient, err := azurehelper.CreateBlobServiceClient(logger, opts, cleanupConfig)
+			cleanupClient, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, cleanupConfig)
 			if err == nil {
 				logger.Infof("Cleaning up container %s", containerName)
 				_ = cleanupClient.DeleteContainer(ctx, logger, containerName)
 			}
 		}
-		
+
 		if storageAccountCreated {
-			cleanupClient, err := azurehelper.CreateStorageAccountClient(ctx, logger, opts, cleanupConfig)
+			cleanupClient, err := azurehelper.CreateStorageAccountClient(ctx, logger, cleanupConfig)
 			if err == nil {
 				logger.Infof("Cleaning up storage account %s", storageAccountName)
 				_ = cleanupClient.DeleteStorageAccount(ctx, logger)
@@ -334,7 +335,7 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	t.Logf("Creating storage account %s in resource group %s", storageAccountName, resourceGroupName)
 
 	// Create storage account client
-	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, logger, opts, storageAccountConfig)
+	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, logger, storageAccountConfig)
 	require.NoError(t, err)
 	require.NotNil(t, storageClient)
 
@@ -375,7 +376,7 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 		"use_azuread_auth":     true,
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(logger, opts, config)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, config)
 	require.NoError(t, err)
 
 	// Create container
@@ -412,8 +413,11 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	t.Run("InvalidContainerName", func(t *testing.T) {
 		t.Parallel()
 
+		// Create a context for Azure operations
+		ctx := context.Background()
+
 		invalidContainerName := "UPPERCASE_CONTAINER"
-		invalidClient, err := azurehelper.CreateBlobServiceClient(logger, opts, map[string]interface{}{
+		invalidClient, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, map[string]interface{}{
 			"storage_account_name": storageAccountName,
 			"container_name":       invalidContainerName,
 			"key":                  "test/terraform.tfstate",
@@ -422,7 +426,7 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should fail with invalid container name
-		err = invalidClient.CreateContainerIfNecessary(context.Background(), logger	, invalidContainerName)
+		err = invalidClient.CreateContainerIfNecessary(context.Background(), logger, invalidContainerName)
 		assert.Error(t, err, "Creating container with invalid name should fail")
 		assert.Contains(t, err.Error(), "invalid", "Error should mention invalid container name")
 	})
@@ -442,6 +446,9 @@ func TestStorageAccountBootstrap(t *testing.T) {
 	t.Run("StorageAccountBootstrap_NonExistentAccount", func(t *testing.T) {
 		t.Parallel()
 
+		// Create a context for Azure operations
+		ctx := context.Background()
+
 		// Use a non-existent account name
 		nonExistentName := "tgnon" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8]
 
@@ -454,7 +461,7 @@ func TestStorageAccountBootstrap(t *testing.T) {
 		}
 
 		// When we try to create a blob service client, it should fail since the account doesn't exist
-		_, err := azurehelper.CreateBlobServiceClient(logger, opts, config)
+		_, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, config)
 		assert.Error(t, err, "Expected error when storage account doesn't exist")
 		assert.Contains(t, err.Error(), "no such host", "Error should indicate operation failed")
 	})
@@ -462,6 +469,9 @@ func TestStorageAccountBootstrap(t *testing.T) {
 	// Test with existing storage account
 	t.Run("StorageAccountBootstrap_ExistingAccount", func(t *testing.T) {
 		t.Parallel()
+
+		// Create a context for Azure operations
+		ctx := context.Background()
 
 		// We'll use the provided test storage account which should already exist
 		config := map[string]interface{}{
@@ -474,7 +484,7 @@ func TestStorageAccountBootstrap(t *testing.T) {
 		config["use_azuread_auth"] = true
 
 		// Should succeed since the account should exist
-		client, err := azurehelper.CreateBlobServiceClient(logger, opts, config)
+		client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, config)
 		require.NoError(t, err)
 
 		// Create container for test
@@ -512,7 +522,7 @@ func TestBlobOperations(t *testing.T) {
 	}
 
 	logger := logger.CreateLogger()
-	client, err := azurehelper.CreateBlobServiceClient(logger, opts, config)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, config)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 
@@ -524,7 +534,6 @@ func TestBlobOperations(t *testing.T) {
 	exists, err := client.ContainerExists(ctx, containerName)
 	require.NoError(t, err)
 	assert.True(t, exists)
-
 
 	// Test blob operations
 	input := &azurehelper.GetObjectInput{
@@ -565,12 +574,12 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping storage account creation test: Failed to get Azure credentials: %v", err)
 	}
-	
+
 	// Skip test if no subscription ID is available
 	if subscriptionID == "" {
 		t.Skip("Skipping storage account creation test: No subscription ID found in environment variables")
 	}
-	
+
 	t.Logf("Using subscription ID: %s", subscriptionID)
 
 	location := os.Getenv("AZURE_LOCATION")
@@ -629,7 +638,7 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 	t.Logf("Creating storage account %s in resource group %s", storageAccountName, resourceGroupName)
 
 	// Create storage account client
-	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, logger, opts, storageAccountConfig)
+	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, logger, storageAccountConfig)
 	require.NoError(t, err)
 	require.NotNil(t, storageClient)
 
@@ -654,19 +663,19 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 	storageAccountCreated := false
 	containerCreated := false
 	blobCreated := false
-	
+
 	// Create blob service client configuration - declare it early for later use
 	blobConfig := map[string]interface{}{
 		"storage_account_name": storageAccountName,
 		"container_name":       containerName,
 		"use_azuread_auth":     true,
 	}
-	
+
 	// We'll create the blob client after the storage account is created to avoid premature validation
-	
+
 	// Define blob client and cleanup variables
 	var blobClient *azurehelper.BlobServiceClient
-	
+
 	// Defer cleanup of all resources
 	defer func() {
 		if blobCreated && blobClient != nil {
@@ -674,19 +683,19 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 			// Ignore errors during cleanup
 			_ = blobClient.DeleteBlobIfNecessary(ctx, logger, containerName, blobName)
 		}
-		
+
 		if containerCreated && blobClient != nil {
 			t.Logf("Cleanup: Deleting container %s", containerName)
 			// Ignore errors during cleanup
 			_ = blobClient.DeleteContainer(ctx, logger, containerName)
 		}
-		
+
 		if storageAccountCreated {
 			t.Logf("Cleanup: Deleting storage account %s", storageAccountName)
 			// Ignore errors during cleanup
 			_ = storageClient.DeleteStorageAccount(ctx, logger)
 		}
-		
+
 		t.Log("Cleanup completed")
 	}()
 
@@ -704,12 +713,12 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 	t.Logf("Storage account %s created successfully", storageAccountName)
 
 	// Now create the blob client after the storage account exists
-	blobClient, err = azurehelper.CreateBlobServiceClient(logger, opts, blobConfig)
+	blobClient, err = azurehelper.CreateBlobServiceClient(ctx, logger, opts, blobConfig)
 	require.NoError(t, err)
 	require.NotNil(t, blobClient)
-	
+
 	// Now test blob operations with the created storage account
-	
+
 	// Create container
 	err = blobClient.CreateContainerIfNecessary(ctx, logger, containerName)
 	require.NoError(t, err)
@@ -726,7 +735,7 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 		"timestamp":  time.Now().Unix(),
 		"created_by": "terragrunt-integration-test",
 	}
-	
+
 	contentBytes, err := json.Marshal(testContent)
 	require.NoError(t, err)
 

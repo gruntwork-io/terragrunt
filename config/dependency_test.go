@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -185,8 +186,8 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 
 	// Get Azure test config
 	storageAccount := os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
-	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-	containerName := fmt.Sprintf("terragrunt-test-container-%s", strings.ToLower(uniqueID))
+	uniqueID := strconv.FormatInt(time.Now().UnixNano(), 10)
+	containerName := "terragrunt-test-container-" + strings.ToLower(uniqueID)
 	blobName := "terraform.tfstate"
 
 	// Create a logger for testing
@@ -203,28 +204,29 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 		"key":                  blobName,
 		"use_azuread_auth":     true,
 	}
-	
+
 	remoteStateConfig := &remotestate.Config{
 		BackendName:   "azurerm",
 		BackendConfig: backendConfig,
 	}
-	
+
 	remoteState := remotestate.New(remoteStateConfig)
 
-	// Create Azure client
-	client, err := azurehelper.CreateBlobServiceClient(testLogger, terragruntOptions, backendConfig)
+	// Create Azure client - use t.Context() instead of context.Background()
+	ctx := t.Context()
+	client, err := azurehelper.CreateBlobServiceClient(ctx, testLogger, terragruntOptions, backendConfig)
 	require.NoError(t, err)
 
 	// Setup - Create container and upload state file
-	err = client.CreateContainerIfNecessary(context.Background(), testLogger, containerName)
+	err = client.CreateContainerIfNecessary(ctx, testLogger, containerName)
 	require.NoError(t, err)
 
 	defer func() {
-		err = client.DeleteContainer(context.Background(), testLogger, containerName)
+		err = client.DeleteContainer(ctx, testLogger, containerName)
 		require.NoError(t, err)
 	}()
 
-	err = client.UploadBlob(context.Background(), testLogger, containerName, blobName, []byte(stateOutputs))
+	err = client.UploadBlob(ctx, testLogger, containerName, blobName, []byte(stateOutputs))
 	require.NoError(t, err)
 
 	// Test direct state access
@@ -235,20 +237,20 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 	var stateFileObj map[string]interface{}
 	err = json.Unmarshal(jsonBytes, &stateFileObj)
 	require.NoError(t, err)
-	
+
 	stateOutputsMap, outputsOk := stateFileObj["outputs"].(map[string]interface{})
 	require.True(t, outputsOk, "outputs section not found in state file")
 
 	// Verify the output value
 	testOutputIface, testOutputOk := stateOutputsMap["test_output"]
 	require.True(t, testOutputOk, "test_output not found in state file")
-	
+
 	testOutputMap, testOutputMapOk := testOutputIface.(map[string]interface{})
 	require.True(t, testOutputMapOk, "test_output is not a map")
-	
+
 	valueIface, valueOk := testOutputMap["value"]
 	require.True(t, valueOk, "value not found in test_output")
-	
+
 	valueStr, valueStrOk := valueIface.(string)
 	require.True(t, valueStrOk, "value is not a string")
 	assert.Equal(t, "azure_test_value", valueStr)
@@ -257,8 +259,9 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 // getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
 // This is the test version of the function from config/dependency.go
 func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+	ctx := context.Background()
 	// Create Azure blob client from the configuration
-	client, err := azurehelper.CreateBlobServiceClient(l, opts, remoteState.BackendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, remoteState.BackendConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -284,12 +287,12 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.T
 		Bucket: bucketPtr,
 		Key:    keyPtr,
 	}
-	
+
 	output, err := client.GetObject(context.Background(), input)
 	if err != nil {
 		return nil, fmt.Errorf("error reading terraform state blob %s from container %s: %w", key, containerName, err)
 	}
-	
+
 	defer output.Body.Close()
 	data, err := io.ReadAll(output.Body)
 	if err != nil {
