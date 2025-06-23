@@ -6,7 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 )
 
-// Task wraps a runbase.Unit so we can attach execution-time helpers while
+// Task wraps a runbase.Unit so we can attach execution‑time helpers while
 // leaving the underlying model untouched.
 type Task struct {
 	Unit *runbase.Unit
@@ -15,8 +15,8 @@ type Task struct {
 // ID returns a stable identifier (we use the absolute path to the module).
 func (t *Task) ID() string { return t.Unit.Path }
 
-// Parents returns the IDs (paths) of upstream units that this unit depends on.
-// It converts each dependency struct to its path string.
+// Parents returns the IDs (absolute paths) of upstream units that this task
+// depends on. It translates each dependency struct into its Path string.
 func (t *Task) Parents() []string {
 	parents := make([]string, 0, len(t.Unit.Dependencies))
 	for _, dep := range t.Unit.Dependencies {
