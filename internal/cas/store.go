@@ -3,7 +3,6 @@ package cas
 import (
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/gofrs/flock"
 )
@@ -38,23 +37,6 @@ func (s *Store) hasContent(path string) bool {
 	_, err := os.Stat(path)
 
 	return err == nil
-}
-
-// writeInProgress checks if a write is in progress for a given hash
-func (s *Store) writeInProgress(path string, cloneStart time.Time) bool {
-	path += ".tmp"
-
-	stat, err := os.Stat(path)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-
-	// To avoid deadlocks, assume that a write is in progress
-	// only if the file exists and was modified
-	// after the start of cloning.
-	modifiedTime := stat.ModTime()
-
-	return modifiedTime.After(cloneStart)
 }
 
 // AcquireLock acquires a filesystem lock for the given hash

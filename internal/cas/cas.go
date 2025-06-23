@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -272,89 +271,31 @@ func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) 
 	return nil
 }
 
-// storeTrees concurrently stores trees in the CAS
+// storeTrees stores trees in the CAS
 func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry, prefix string) error {
-	ch := make(chan error, len(entries))
-
-	var wg sync.WaitGroup
-
 	for _, entry := range entries {
 		if !c.store.NeedsWrite(entry.Hash) {
 			continue
 		}
 
-		wg.Add(1)
-
-		go func(hash string) {
-			defer wg.Done()
-
-			if err := c.storeTree(ctx, l, hash, prefix); err != nil {
-				ch <- err
-				return
-			}
-
-			ch <- nil
-		}(entry.Hash)
-	}
-
-	wg.Wait()
-	close(ch)
-
-	var errs []error
-
-	for err := range ch {
-		if err != nil {
-			errs = append(errs, err)
+		if err := c.storeTree(ctx, l, entry.Hash, prefix); err != nil {
+			return err
 		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
 	}
 
 	return nil
 }
 
-// storeBlobs concurrently stores blobs in the CAS
+// storeBlobs stores blobs in the CAS
 func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
-	ch := make(chan error, len(entries))
-
-	var wg sync.WaitGroup
-
 	for _, entry := range entries {
 		if !c.store.NeedsWrite(entry.Hash) {
 			continue
 		}
 
-		wg.Add(1)
-
-		go func(hash string) {
-			defer wg.Done()
-
-			if err := c.ensureBlob(ctx, hash); err != nil {
-				ch <- err
-
-				return
-			}
-
-			ch <- nil
-		}(entry.Hash)
-	}
-
-	wg.Wait()
-
-	close(ch)
-
-	errs := []error{}
-
-	for err := range ch {
-		if err != nil {
-			errs = append(errs, err)
+		if err := c.ensureBlob(ctx, entry.Hash); err != nil {
+			return err
 		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
 	}
 
 	return nil
