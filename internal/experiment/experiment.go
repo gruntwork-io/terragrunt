@@ -27,6 +27,8 @@ const (
 	Report = "report"
 	// RunnerPool is the experiment that allows using a pool of runners for parallel execution.
 	RunnerPool = "runner-pool"
+	// AzureBackend is the experiment that enables the Azure backend for remote state storage.
+	AzureBackend = "azure-backend"
 )
 
 const (
@@ -62,6 +64,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: RunnerPool,
+		},
+		{
+			Name: AzureBackend,
 		},
 	}
 }

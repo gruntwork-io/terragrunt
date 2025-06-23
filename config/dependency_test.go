@@ -1,11 +1,20 @@
 package config_test
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
@@ -149,4 +158,143 @@ dependency "vpc" {
 	decoded := config.TerragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 	assert.Len(t, decoded.Dependencies, 2)
+}
+
+func TestDirectStateAccessAzurerm(t *testing.T) {
+	t.Parallel()
+
+	// Skip test if we're not running on Azure environment
+	if os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT") == "" {
+		t.Skip("Skipping Azure test as TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT is not set")
+	}
+
+	// Create a mock state file with known outputs
+	stateOutputs := `{
+        "version": 4,
+        "terraform_version": "1.3.7",
+        "serial": 1,
+        "lineage": "12345678-1234-1234-1234-123456789012",
+        "outputs": {
+            "test_output": {
+                "value": "azure_test_value",
+                "type": "string"
+            }
+        },
+        "resources": []
+    }`
+
+	// Get Azure test config
+	storageAccount := os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
+	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+	containerName := fmt.Sprintf("terragrunt-test-container-%s", strings.ToLower(uniqueID))
+	blobName := "terraform.tfstate"
+
+	// Create a logger for testing
+	testLogger := logger.CreateLogger()
+
+	// Create options
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	// Setup remote state config
+	backendConfig := map[string]interface{}{
+		"storage_account_name": storageAccount,
+		"container_name":       containerName,
+		"key":                  blobName,
+		"use_azuread_auth":     true,
+	}
+	
+	remoteStateConfig := &remotestate.Config{
+		BackendName:   "azurerm",
+		BackendConfig: backendConfig,
+	}
+	
+	remoteState := remotestate.New(remoteStateConfig)
+
+	// Create Azure client
+	client, err := azurehelper.CreateBlobServiceClient(testLogger, terragruntOptions, backendConfig)
+	require.NoError(t, err)
+
+	// Setup - Create container and upload state file
+	err = client.CreateContainerIfNecessary(context.Background(), testLogger, containerName)
+	require.NoError(t, err)
+
+	defer func() {
+		err = client.DeleteContainer(context.Background(), testLogger, containerName)
+		require.NoError(t, err)
+	}()
+
+	err = client.UploadBlob(context.Background(), testLogger, containerName, blobName, []byte(stateOutputs))
+	require.NoError(t, err)
+
+	// Test direct state access
+	jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(testLogger, terragruntOptions, remoteState)
+	require.NoError(t, err)
+
+	// Parse and verify outputs
+	var stateFileObj map[string]interface{}
+	err = json.Unmarshal(jsonBytes, &stateFileObj)
+	require.NoError(t, err)
+	
+	stateOutputsMap, outputsOk := stateFileObj["outputs"].(map[string]interface{})
+	require.True(t, outputsOk, "outputs section not found in state file")
+
+	// Verify the output value
+	testOutputIface, testOutputOk := stateOutputsMap["test_output"]
+	require.True(t, testOutputOk, "test_output not found in state file")
+	
+	testOutputMap, testOutputMapOk := testOutputIface.(map[string]interface{})
+	require.True(t, testOutputMapOk, "test_output is not a map")
+	
+	valueIface, valueOk := testOutputMap["value"]
+	require.True(t, valueOk, "value not found in test_output")
+	
+	valueStr, valueStrOk := valueIface.(string)
+	require.True(t, valueStrOk, "value is not a string")
+	assert.Equal(t, "azure_test_value", valueStr)
+}
+
+// getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
+// This is the test version of the function from config/dependency.go
+func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+	// Create Azure blob client from the configuration
+	client, err := azurehelper.CreateBlobServiceClient(l, opts, remoteState.BackendConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract required configuration values
+	containerName := remoteState.BackendConfig["container_name"].(string)
+	key := remoteState.BackendConfig["key"].(string)
+
+	// Check if container exists
+	exists, err := client.ContainerExists(context.Background(), containerName)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, fmt.Errorf("Azure container %s does not exist", containerName)
+	}
+
+	// Get the state file blob content
+	bucket := containerName
+	keyPtr := &key
+	bucketPtr := &bucket
+	input := &azurehelper.GetObjectInput{
+		Bucket: bucketPtr,
+		Key:    keyPtr,
+	}
+	
+	output, err := client.GetObject(context.Background(), input)
+	if err != nil {
+		return nil, fmt.Errorf("error reading terraform state blob %s from container %s: %w", key, containerName, err)
+	}
+	
+	defer output.Body.Close()
+	data, err := io.ReadAll(output.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	return data, nil
 }

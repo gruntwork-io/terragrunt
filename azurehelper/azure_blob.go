@@ -32,11 +32,15 @@ type GetObjectOutput struct {
 	Body io.ReadCloser
 }
 
-// AzureResponseError represents an Azure API error response
+// AzureResponseError represents an Azure API error response with detailed information.
+// It contains the following fields:
+//   - StatusCode: HTTP status code from the Azure API response
+//   - ErrorCode: Azure-specific error code that identifies the error type
+//   - Message: Human-readable error message describing what went wrong
 type AzureResponseError struct {
-	StatusCode int
-	ErrorCode  string
-	Message    string
+	StatusCode int    // HTTP status code from the Azure API response
+	ErrorCode  string // Azure-specific error code
+	Message    string // Human-readable error message
 }
 
 // ConvertAzureError converts an azcore.ResponseError to AzureResponseError

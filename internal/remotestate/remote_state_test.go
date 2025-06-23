@@ -4,9 +4,26 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 )
+
+// setupOptionsWithExperiment creates TerragruntOptions with specified experiment enabled
+func setupOptionsWithExperiment(experimentName string) *options.TerragruntOptions {
+	opts := options.NewTerragruntOptions()
+	opts.Experiments.EnableExperiment(experimentName)
+	return opts
+}
+
+// setupWithAzureBackendExperiment enables Azure backend experiment and registers backends
+// This is needed for tests that expect the Azure backend to be available
+func setupWithAzureBackendExperiment() *options.TerragruntOptions {
+	opts := setupOptionsWithExperiment(experiment.AzureBackend)
+	remotestate.RegisterBackends(opts)
+	return opts
+}
 
 /**
  * Test for s3, also tests that the terragrunt-specific options are not passed on to terraform
@@ -128,6 +145,9 @@ func TestGetTFInitArgsNoBackendConfigs(t *testing.T) {
 func TestGetTFInitArgsForAzureRM(t *testing.T) {
 	t.Parallel()
 
+	// Set up options with Azure backend experiment enabled
+	setupWithAzureBackendExperiment()
+
 	cfg := &remotestate.Config{
 		BackendName: "azurerm",
 		BackendConfig: map[string]any{
@@ -163,6 +183,9 @@ func TestGetTFInitArgsForAzureRM(t *testing.T) {
 func TestGetTFInitArgsForAzureRMWithExistingAccount(t *testing.T) {
 	t.Parallel()
 
+	// Set up options with Azure backend experiment enabled
+	setupWithAzureBackendExperiment()
+
 	cfg := &remotestate.Config{
 		BackendName: "azurerm",
 		BackendConfig: map[string]any{
@@ -184,6 +207,9 @@ func TestGetTFInitArgsForAzureRMWithExistingAccount(t *testing.T) {
 
 func TestGetTFInitArgsForAzureRMWithFullBootstrap(t *testing.T) {
 	t.Parallel()
+
+	// Set up options with Azure backend experiment enabled
+	setupWithAzureBackendExperiment()
 
 	cfg := &remotestate.Config{
 		BackendName: "azurerm",

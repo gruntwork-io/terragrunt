@@ -38,16 +38,17 @@ type StorageAccountClient struct {
 	defaultReplicationType string
 }
 
-// StorageAccountConfig represents the configuration for a storage account
+// StorageAccountConfig represents the configuration for an Azure Storage Account.
+// It contains all the necessary parameters to create or update a storage account.
 type StorageAccountConfig struct {
-	SubscriptionID         string
-	ResourceGroupName      string
-	StorageAccountName     string
-	Location               string
-	EnableHierarchicalNS   bool
-	EnableVersioning       bool
-	AllowBlobPublicAccess  bool
-	AccountKind            string
+	SubscriptionID         string            // Azure subscription ID where the storage account exists or will be created
+	ResourceGroupName      string            // Name of the resource group containing the storage account
+	StorageAccountName     string            // Name of the storage account
+	Location              string            // Azure region where the storage account exists or will be created
+	EnableHierarchicalNS  bool              // Whether to enable hierarchical namespace (required for Azure Data Lake Storage Gen2)
+	EnableVersioning      bool              // Whether to enable blob versioning
+	AllowBlobPublicAccess bool              // Whether to allow public access to blobs (not recommended for production)
+	AccountKind           string            // Kind of storage account (e.g., StorageV2, BlobStorage)
 	AccessTier             string
 	Tags                   map[string]string
 	AccountTier            string

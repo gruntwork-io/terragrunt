@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
@@ -13,6 +14,29 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// setupOptionsWithExperiment creates TerragruntOptions with specified experiment enabled
+func setupOptionsWithExperiment(experimentName string) *options.TerragruntOptions {
+	opts := options.NewTerragruntOptions()
+	opts.Experiments.EnableExperiment(experimentName)
+	return opts
+}
+
+// setupWithAzureBackendExperiment enables Azure backend experiment and registers backends
+// This is needed for tests that expect the Azure backend to be available
+func setupWithAzureBackendExperiment() *options.TerragruntOptions {
+	opts := setupOptionsWithExperiment(experiment.AzureBackend)
+	remotestate.RegisterBackends(opts)
+	return opts
+}
+
+// Helper function to assert that the expected arguments are contained in actualArgs
+func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {
+	t.Helper()
+
+	expected := strings.Split(expectedArgs, " ")
+	assert.ElementsMatch(t, actualArgs, expected, "elements differ")
+}
 
 func TestFilterOutTerragruntKeys(t *testing.T) {
 	t.Parallel()
@@ -268,6 +292,9 @@ func TestCacheKey(t *testing.T) {
 func TestAzurermTFInitArgs(t *testing.T) {
 	t.Parallel()
 
+	// Set up options with Azure backend experiment enabled
+	setupWithAzureBackendExperiment()
+
 	cfg := &remotestate.Config{
 		BackendName: "azurerm",
 		BackendConfig: map[string]any{
@@ -384,14 +411,7 @@ func TestParseExtendedAzureConfigValidation(t *testing.T) {
 	assert.Equal(t, "eastus", parsed.StorageAccountConfig.Location)
 }
 
-// Helper function to assert terraform init args equality regardless of order
-func assertTerraformInitArgsEqual(t *testing.T, actual []string, expected string) {
-	t.Helper()
-
-	// Split the expected string into individual arguments
-	expectedArgs := strings.Split(expected, " ")
-	assert.ElementsMatch(t, expectedArgs, actual)
-}
+// TestBackendConfigValidation tests the validation of backend configuration
 func TestBackendConfigValidation(t *testing.T) {
 	t.Parallel()
 
