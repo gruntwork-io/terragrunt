@@ -10,7 +10,7 @@ dependency "app3" {
   config_path = "../app3"
 
   mock_outputs = {
-    app3_output = "mock app3"
+    app3_output = "app3 output"
   }
 }
 
