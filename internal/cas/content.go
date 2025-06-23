@@ -213,6 +213,114 @@ func (c *Content) Ensure(l log.Logger, hash string, data []byte) error {
 	return c.Store(l, hash, data)
 }
 
+// EnsureWithWait ensures that a content item exists in the store, with optimization
+// to wait for concurrent writes instead of doing redundant work
+func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
+	needsWrite, lock, err := c.store.EnsureWithWait(hash)
+	if err != nil {
+		return wrapError("ensure_with_wait", hash, err)
+	}
+
+	// If content already exists or was written by another process, we're done
+	if !needsWrite {
+		return nil
+	}
+
+	// We have the lock and need to write the content
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
+		}
+	}()
+
+	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
+	}
+
+	// Ensure partition directory exists
+	partitionDir := c.getPartition(hash)
+	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+	}
+
+	path := c.getPath(hash)
+	tempPath := path + ".tmp"
+
+	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
+	if err != nil {
+		return wrapError("create_temp_file", tempPath, err)
+	}
+
+	buf := bufio.NewWriter(f)
+
+	if _, err := buf.Write(data); err != nil {
+		f.Close()
+
+		if err := os.Remove(tempPath); err != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
+		return wrapError("write_to_store", tempPath, err)
+	}
+
+	if err := buf.Flush(); err != nil {
+		f.Close()
+
+		if err := os.Remove(tempPath); err != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
+		return wrapError("flush_buffer", tempPath, err)
+	}
+
+	if err := f.Close(); err != nil {
+		if err := os.Remove(tempPath); err != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
+		return wrapError("close_file", tempPath, err)
+	}
+
+	// Set read-only permissions on the temporary file
+	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
+		if err := os.Remove(tempPath); err != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
+		return wrapError("chmod_temp_file", tempPath, err)
+	}
+
+	// For Windows, handle readonly attributes specifically
+	if runtime.GOOS == "windows" {
+		// Check if a destination file exists and is read-only
+		if _, err := os.Stat(path); err == nil {
+			// File exists, make it writable before rename operation
+			if err := os.Chmod(path, RegularFilePerms); err != nil {
+				l.Warnf("failed to make destination file writable %s: %v", path, err)
+			}
+		}
+	}
+
+	// Atomic rename
+	if err := os.Rename(tempPath, path); err != nil {
+		if err := os.Remove(tempPath); err != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		}
+
+		return wrapError("finalize_store", path, err)
+	}
+
+	// For Windows, we need to set the permissions again after rename
+	if runtime.GOOS == "windows" {
+		// Ensure the file has read-only permissions after rename
+		if err := os.Chmod(path, StoredFilePerms); err != nil {
+			return wrapError("chmod_final_file", path, err)
+		}
+	}
+
+	return nil
+}
+
 // EnsureCopy ensures that a content item exists in the store by copying from a file
 func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 	path := c.getPath(hash)

@@ -106,7 +106,7 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 		return err
 	}
 
-	if c.store.NeedsWrite(hash, c.cloneStart) {
+	if c.store.NeedsWrite(hash) {
 		if err := c.cloneAndStoreContent(ctx, l, opts, url, hash); err != nil {
 			return err
 		}
@@ -235,7 +235,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 }
 
 func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) error {
-	if !c.store.NeedsWrite(hash, c.cloneStart) {
+	if !c.store.NeedsWrite(hash) {
 		return nil
 	}
 
@@ -265,7 +265,7 @@ func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) 
 
 	// Store the current tree object
 	content := NewContent(c.store)
-	if err := content.Ensure(l, hash, tree.Data()); err != nil {
+	if err := content.EnsureWithWait(l, hash, tree.Data()); err != nil {
 		return err
 	}
 
@@ -279,7 +279,7 @@ func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry,
 	var wg sync.WaitGroup
 
 	for _, entry := range entries {
-		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
+		if !c.store.NeedsWrite(entry.Hash) {
 			continue
 		}
 
@@ -322,7 +322,7 @@ func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
 	var wg sync.WaitGroup
 
 	for _, entry := range entries {
-		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
+		if !c.store.NeedsWrite(entry.Hash) {
 			continue
 		}
 
@@ -365,19 +365,22 @@ func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
 // we want to take advantage of the ability to write to the
 // entry using `git cat-file`.
 func (c *CAS) ensureBlob(ctx context.Context, hash string) (err error) {
-	lock, err := c.store.AcquireLock(hash)
+	needsWrite, lock, err := c.store.EnsureWithWait(hash)
 	if err != nil {
 		return err
 	}
+
+	// If content already exists or was written by another process, we're done
+	if !needsWrite {
+		return nil
+	}
+
+	// We have the lock and need to write the content
 	defer func() {
 		if unlockErr := lock.Unlock(); unlockErr != nil {
 			err = errors.Join(err, unlockErr)
 		}
 	}()
-
-	if !c.store.NeedsWrite(hash, c.cloneStart) {
-		return nil
-	}
 
 	content := NewContent(c.store)
 
