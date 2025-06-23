@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -44,10 +43,9 @@ type CloneOptions struct {
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
-	cloneStart time.Time
-	store      *Store
-	git        *GitRunner
-	opts       Options
+	store *Store
+	git   *GitRunner
+	opts  Options
 }
 
 // New creates a new CAS instance with the given options
@@ -81,8 +79,6 @@ func New(opts Options) (*CAS, error) {
 //
 // TODO: Make options optional
 func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url string) error {
-	c.cloneStart = time.Now()
-
 	targetDir := c.prepareTargetDirectory(opts.Dir, url)
 
 	// Create a temporary directory for git operations
