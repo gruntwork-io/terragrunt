@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 const (
@@ -97,42 +99,46 @@ func ParseTree(output, path string) (*Tree, error) {
 
 // LinkTree writes the tree to a target directory
 func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) error {
-	content := NewContent(store)
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_link_tree", map[string]any{
+		"target_dir": targetDir,
+	}, func(childCtx context.Context) error {
+		content := NewContent(store)
 
-	for _, entry := range t.entries {
-		// Check for cancellation
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+		for _, entry := range t.entries {
+			// Check for cancellation
+			select {
+			case <-childCtx.Done():
+				return childCtx.Err()
+			default:
+			}
+
+			entryPath := filepath.Join(targetDir, entry.Path)
+			if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
+				return wrapError("mkdir_all", entryPath, err)
+			}
+
+			switch entry.Type {
+			case "blob":
+				if err := content.Link(childCtx, entry.Hash, entryPath); err != nil {
+					return wrapError("link_blob", entryPath, err)
+				}
+			case "tree":
+				treeData, err := content.Read(entry.Hash)
+				if err != nil {
+					return wrapError("read_tree", entry.Hash, err)
+				}
+
+				subTree, err := ParseTree(string(treeData), entryPath)
+				if err != nil {
+					return wrapError("parse_tree", entry.Hash, err)
+				}
+
+				if err := subTree.LinkTree(childCtx, store, entryPath); err != nil {
+					return wrapError("link_subtree", entryPath, err)
+				}
+			}
 		}
 
-		entryPath := filepath.Join(targetDir, entry.Path)
-		if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
-			return wrapError("mkdir_all", entryPath, err)
-		}
-
-		switch entry.Type {
-		case "blob":
-			if err := content.Link(entry.Hash, entryPath); err != nil {
-				return wrapError("link_blob", entryPath, err)
-			}
-		case "tree":
-			treeData, err := content.Read(entry.Hash)
-			if err != nil {
-				return wrapError("read_tree", entry.Hash, err)
-			}
-
-			subTree, err := ParseTree(string(treeData), entryPath)
-			if err != nil {
-				return wrapError("parse_tree", entry.Hash, err)
-			}
-
-			if err := subTree.LinkTree(ctx, store, entryPath); err != nil {
-				return wrapError("link_subtree", entryPath, err)
-			}
-		}
-	}
-
-	return nil
+		return nil
+	})
 }
