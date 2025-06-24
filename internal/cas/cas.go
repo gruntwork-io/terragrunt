@@ -84,29 +84,29 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 		"url":    url,
 		"branch": opts.Branch,
 	}, func(childCtx context.Context) error {
-		targetDir := c.prepareTargetDirectory(opts.Dir, url)
-
-		// Create a temporary directory for git operations
-		tempDir, cleanup, err := c.git.CreateTempDir()
-		if err != nil {
-			return err
-		}
-
-		defer func() {
-			if cleanupErr := cleanup(); cleanupErr != nil {
-				l.Warnf("cleanup error: %v", cleanupErr)
-			}
-		}()
-
-		// Set the working directory for git operations
-		c.git.SetWorkDir(tempDir)
-
 		hash, err := c.resolveReference(childCtx, url, opts.Branch)
 		if err != nil {
 			return err
 		}
 
+		targetDir := c.prepareTargetDirectory(opts.Dir, url)
+
 		if c.store.NeedsWrite(hash) {
+			// Create a temporary directory for git operations
+			tempDir, cleanup, err := c.git.CreateTempDir()
+			if err != nil {
+				return err
+			}
+
+			defer func() {
+				if cleanupErr := cleanup(); cleanupErr != nil {
+					l.Warnf("cleanup error: %v", cleanupErr)
+				}
+			}()
+
+			// Set the working directory for git operations
+			c.git.SetWorkDir(tempDir)
+
 			if err := c.cloneAndStoreContent(childCtx, l, opts, url, hash); err != nil {
 				return err
 			}
@@ -164,27 +164,12 @@ func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *Clon
 
 func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
 	// Get all blobs recursively in a single git ls-tree -r call at the root
-	allBlobsTree, err := c.git.LsTreeRecursive(ctx, hash, ".")
+	tree, err := c.git.LsTreeRecursive(ctx, hash, ".")
 	if err != nil {
 		return err
 	}
 
-	// Collect all blobs from recursive listing
-	var allBlobs []TreeEntry
-
-	for _, entry := range allBlobsTree.Entries() {
-		if entry.Type == "blob" {
-			allBlobs = append(allBlobs, entry)
-		}
-	}
-
-	// Store all blobs concurrently (single batch from recursive call)
-	if err := c.storeBlobs(ctx, allBlobs); err != nil {
-		return err
-	}
-
-	// Now store the tree structure (which won't need to handle blobs again)
-	if err := c.storeTree(ctx, l, hash, ""); err != nil {
+	if err = c.storeTreeRecursive(ctx, l, hash, "", tree); err != nil {
 		return err
 	}
 
@@ -261,6 +246,25 @@ func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) 
 	}
 
 	// Store the current tree object
+	content := NewContent(c.store)
+	if err := content.EnsureWithWait(l, hash, tree.Data()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// storeTreeRecursive stores a tree fetched from git ls-tree -r
+func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash, prefix string, tree *Tree) error {
+	if !c.store.NeedsWrite(hash) {
+		return nil
+	}
+
+	if err := c.storeBlobs(ctx, tree.Entries()); err != nil {
+		return err
+	}
+
+	// Store the tree object itself
 	content := NewContent(c.store)
 	if err := content.EnsureWithWait(l, hash, tree.Data()); err != nil {
 		return err
