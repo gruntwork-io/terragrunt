@@ -71,6 +71,7 @@ The following experiments are available:
 - [cas](#cas)
 - [report](#report)
 - [runner-pool](#runner-pool)
+- [native-provider-cache](#native-provider-cache)
 
 ### `symlinks`
 
@@ -144,7 +145,7 @@ To transition the `report` feature to a stable release, the following must be ad
 
 ### `runner-pool`
 
-Proposes replacing Terragrunt’s group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
+Proposes replacing Terragrunt's group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
 This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.
 
 #### `runner-pool` - What it does
@@ -167,6 +168,47 @@ To transition the `runner-pool` feature to a stable release, the following must 
 - [ ] Add support for fail fast behavior in the runner pool.
 - [ ] Improve the UI to queue to apply.
 - [ ] Add OpenTelemetry support to the runner pool.
+
+### `native-provider-cache`
+
+Enable native OpenTofu provider caching by setting `TF_PLUGIN_CACHE_DIR` instead of using Terragrunt's internal provider cache server.
+
+#### `native-provider-cache` - What it does
+
+When enabled, this experiment configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable, instead of using Terragrunt's provider cache server. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
+
+**Requirements:**
+- OpenTofu version > 1.10 is required
+- Only works when using OpenTofu (not Terraform)
+- If the requirements are not met, the experiment silently does nothing
+
+**Usage:**
+
+```bash
+terragrunt run --all apply --experiment native-provider-cache --provider-cache-dir /path/to/cache
+```
+
+Or with environment variables:
+
+```bash
+TG_EXPERIMENT='native-provider-cache' \
+TG_PROVIDER_CACHE_DIR=/path/to/cache \
+terragrunt run --all apply
+```
+
+#### `native-provider-cache` - How to provide feedback
+
+Please provide feedback through [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) with the `experiment: native-provider-cache` label.
+
+#### `native-provider-cache` - Criteria for stabilization
+
+To transition the `native-provider-cache` feature to a stable release, the following must be addressed:
+
+- [ ] Comprehensive testing with various OpenTofu versions and configurations
+- [ ] Performance comparison with the existing provider cache server approach
+- [ ] Validation of behavior with concurrent `run --all` operations
+- [ ] Documentation and examples of best practices for usage
+- [ ] Community feedback on real-world usage and any edge cases discovered
 
 ## Completed Experiments
 

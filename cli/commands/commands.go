@@ -8,38 +8,39 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
-	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
-	"github.com/gruntwork-io/terragrunt/cli/commands/find"
-	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
-	"github.com/gruntwork-io/terragrunt/cli/commands/info"
-	"github.com/gruntwork-io/terragrunt/cli/commands/list"
-	"github.com/gruntwork-io/terragrunt/cli/commands/render"
-	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
 
-	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
-	versionCmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
-
-	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
+	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/providercache"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-version"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
+	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
+	"github.com/gruntwork-io/terragrunt/cli/commands/dag"
 	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
+	"github.com/gruntwork-io/terragrunt/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hcl"
+	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
+	"github.com/gruntwork-io/terragrunt/cli/commands/info"
+	"github.com/gruntwork-io/terragrunt/cli/commands/list"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
+	"github.com/gruntwork-io/terragrunt/cli/commands/render"
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
+	versionCmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
-	"github.com/gruntwork-io/terragrunt/internal/providercache"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	hashicorpversion "github.com/hashicorp/go-version"
 )
 
@@ -150,6 +151,14 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
+	// Handle native provider cache experiment
+	if opts.Experiments.Evaluate(experiment.NativeProviderCache) {
+		if err := setupNativeProviderCache(ctx, l, opts); err != nil {
+			l.Debugf("Native provider cache setup failed: %v", err)
+			// Continue silently as specified in requirements
+		}
+	}
+
 	// Run provider cache server
 	if opts.ProviderCache {
 		server, err := providercache.InitServer(l, opts)
@@ -182,6 +191,79 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 	})
 
 	return errGroup.Wait()
+}
+
+// setupNativeProviderCache configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
+// Only works with OpenTofu version > 1.10. Returns error if conditions aren't met.
+func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// Set TF_PLUGIN_CACHE_DIR environment variable
+	if opts.Env[tf.EnvNameTFPluginCacheDir] != "" {
+		l.Debugf(
+			"TF_PLUGIN_CACHE_DIR already set to %s, skipping native provider cache",
+			opts.Env[tf.EnvNameTFPluginCacheDir],
+		)
+
+		return nil
+	}
+
+	var err error
+
+	l, err = runCmd.PopulateTerraformVersion(ctx, l, opts)
+	if err != nil {
+		return err
+	}
+
+	// Check if OpenTofu is being used
+	if opts.TerraformImplementation != options.OpenTofuImpl {
+		return fmt.Errorf("native provider cache requires OpenTofu, but detected %s", opts.TerraformImplementation)
+	}
+
+	// Check OpenTofu version > 1.10
+	if opts.TerraformVersion == nil {
+		return fmt.Errorf("cannot determine OpenTofu version")
+	}
+
+	requiredVersion, err := version.NewVersion("1.10.0")
+	if err != nil {
+		return fmt.Errorf("failed to parse required version: %w", err)
+	}
+
+	if opts.TerraformVersion.LessThan(requiredVersion) {
+		return fmt.Errorf("native provider cache requires OpenTofu version >= 1.10, but found %s", opts.TerraformVersion)
+	}
+
+	// Set up the provider cache directory
+	providerCacheDir := opts.ProviderCacheDir
+	if providerCacheDir == "" {
+		cacheDir, err := util.GetCacheDir()
+		if err != nil {
+			return fmt.Errorf("failed to get cache directory: %w", err)
+		}
+		providerCacheDir = filepath.Join(cacheDir, "providers")
+	}
+
+	// Make sure the cache directory is absolute
+	if !filepath.IsAbs(providerCacheDir) {
+		absPath, err := filepath.Abs(providerCacheDir)
+		if err != nil {
+			return fmt.Errorf("failed to get absolute path for provider cache directory: %w", err)
+		}
+		providerCacheDir = absPath
+	}
+
+	// Create the cache directory if it doesn't exist
+	if err := os.MkdirAll(providerCacheDir, 0755); err != nil {
+		return fmt.Errorf("failed to create provider cache directory: %w", err)
+	}
+
+	// Initialize environment variables map if it's nil
+	if opts.Env == nil {
+		opts.Env = make(map[string]string)
+	}
+	opts.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
+
+	l.Debugf("Native provider cache enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
+	return nil
 }
 
 // mostly preparing terragrunt options
