@@ -54,6 +54,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	if !azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth {
 		azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth = true
 		backendConfig["use_azuread_auth"] = true
+
 		l.Info("Azure AD authentication is now the default and required authentication method")
 	}
 
@@ -85,11 +86,13 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 		// Legacy/Deprecated environment variables - show deprecation warning
 		if envKey := os.Getenv("ARM_ACCESS_KEY"); envKey != "" {
+			hasEnvCreds = true
+
 			l.Warn("ARM_ACCESS_KEY is no longer supported. Please switch to Azure AD authentication.")
-			hasEnvCreds = true
 		} else if envKey := os.Getenv("AZURE_STORAGE_KEY"); envKey != "" {
-			l.Warn("AZURE_STORAGE_KEY is no longer supported. Please switch to Azure AD authentication.")
 			hasEnvCreds = true
+
+			l.Warn("AZURE_STORAGE_KEY is no longer supported. Please switch to Azure AD authentication.")
 		}
 	}
 
@@ -126,7 +129,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			return errors.New("location is required for storage account creation")
 		}
 
-		err = backend.bootstrapStorageAccount(ctx, l, opts, azureCfg, backendConfig)
+		err = backend.bootstrapStorageAccount(ctx, l, opts, azureCfg)
 		if err != nil {
 			return fmt.Errorf("error bootstrapping storage account: %w", err)
 		}
@@ -342,6 +345,7 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 
 	// Ask for confirmation
 	prompt := fmt.Sprintf("Azure Storage Account %s will be completely deleted. All containers and blobs will be permanently deleted. Do you want to continue?", storageAccountName)
+
 	yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
 		return err
@@ -367,11 +371,12 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 
 	// Delete the storage account
 	l.Infof("Deleting Azure Storage Account %s...", storageAccountName)
+
 	return client.DeleteStorageAccount(ctx, l)
 }
 
 // bootstrapStorageAccount handles creating or checking a storage account
-func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, azureCfg *ExtendedRemoteStateConfigAzurerm, backendConfig backend.Config) error {
+func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
 	// Import the armstorage package conditionally
 	// We need to add the armstorage package to go.mod
 	// go get github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage
@@ -444,8 +449,8 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 	err = storageClient.AssignStorageBlobDataOwnerRole(ctx, l)
 	if err != nil {
 		l.Warnf("Failed to assign Storage Blob Data Owner role: %v", err)
-		// Don't fail the entire process if role assignment fails
 	}
+	// Don't fail the entire process if role assignment fails
 
 	l.Infof("Storage account %s exists and is accessible", azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 
@@ -463,6 +468,7 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 
 		// For other errors, let's assume account is accessible
 		l.Infof("Storage account %s appears to be accessible", azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+
 		return nil
 	}
 

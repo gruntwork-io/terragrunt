@@ -218,19 +218,17 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 	return backendConfigArgs
 }
 
-// GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
 func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOptions) error {
 	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
-	return remote.generateBackendConfig(l, opts, backendConfig)
-}
+	// Convert RemoteState to Config and delegate
+	config := &Config{
+		BackendName: remote.BackendName,
+		Generate:    remote.Generate,
+		Encryption:  remote.Encryption,
+	}
 
-// generateBackendConfig generates the backend configuration code with the provided config.
-func (remote *RemoteState) generateBackendConfig(l log.Logger, opts *options.TerragruntOptions, backendConfig map[string]any) error {
-	// Implementation for generating backend configuration
-	// This is a placeholder - you need to implement the actual functionality
-	l.Debugf("Generating backend config for %s backend", remote.BackendName)
-	return nil
+	return config.GenerateOpenTofuCode(l, opts, backendConfig)
 }
 
 func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {

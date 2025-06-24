@@ -80,6 +80,7 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 
 	// Convert tags to Azure SDK format
 	azureTags := make(map[string]*string)
+
 	for k, v := range tags {
 		value := v // Create a new variable to avoid capturing the loop variable
 		azureTags[k] = to.Ptr(value)
@@ -101,6 +102,7 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 	}
 
 	l.Infof("Successfully created resource group %s", resourceGroupName)
+
 	return nil
 }
 
@@ -134,6 +136,7 @@ func (c *ResourceGroupClient) DeleteResourceGroup(ctx context.Context, l log.Log
 	}
 
 	l.Infof("Successfully deleted resource group %s", resourceGroupName)
+
 	return nil
 }
 
@@ -155,6 +158,7 @@ func (c *ResourceGroupClient) ResourceGroupExists(ctx context.Context, resourceG
 		if isNotFoundError(err) {
 			return false, nil
 		}
+
 		return false, fmt.Errorf("error checking if resource group exists: %w", err)
 	}
 
@@ -165,8 +169,9 @@ func (c *ResourceGroupClient) ResourceGroupExists(ctx context.Context, resourceG
 func isNotFoundError(err error) bool {
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {
-		return respErr.StatusCode == 404
+		return respErr.StatusCode == httpStatusNotFound
 	}
+
 	return false
 }
 

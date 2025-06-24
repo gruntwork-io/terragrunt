@@ -81,6 +81,7 @@ func GetAzureTestConfig(t *testing.T) *AzureTestConfig {
 		if len(containerName) > AzureStorageContainerMaxLength {
 			containerName = containerName[:AzureStorageContainerMaxLength]
 		}
+
 		if len(containerName) < AzureStorageContainerMinLength {
 			containerName = "tgz"
 		}
@@ -96,6 +97,7 @@ func GetAzureTestConfig(t *testing.T) *AzureTestConfig {
 }
 
 // CleanupAzureContainer deletes an Azure storage container with retries
+// nolint:mnd
 func CleanupAzureContainer(t *testing.T, config *AzureTestConfig) {
 	t.Helper()
 
@@ -130,14 +132,18 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig) {
 	if exists {
 		// Delete container with retries
 		maxRetries := 3
+
 		var deleteErr error
+
 		for i := 0; i < maxRetries; i++ {
 			deleteErr = client.DeleteContainer(ctx, logger, config.ContainerName)
 			if deleteErr == nil {
 				break
 			}
+
 			time.Sleep(2 * time.Second)
 		}
+
 		require.NoError(t, deleteErr, "Failed to delete container "+config.ContainerName)
 
 		// Verify container is deleted
@@ -148,6 +154,7 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig) {
 }
 
 // AssertContainerExists checks if an Azure storage container exists
+// nolint:mnd
 func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 	t.Helper()
 
@@ -177,15 +184,20 @@ func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 
 	// Check if container exists with retries
 	maxRetries := 3
+
 	var exists bool
+
 	var checkErr error
+
 	for i := 0; i < maxRetries; i++ {
 		exists, checkErr = client.ContainerExists(ctx, config.ContainerName)
 		if checkErr == nil {
 			break
 		}
+
 		time.Sleep(2 * time.Second)
 	}
+
 	require.NoError(t, checkErr)
 	require.True(t, exists, "Container should exist")
 }

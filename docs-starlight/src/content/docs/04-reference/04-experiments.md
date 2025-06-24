@@ -182,7 +182,7 @@ The backend supports configuration options for:
 - Storage account details (name, resource group)
 - Container configuration
 - Key/blob path for state files
-- Access control via SAS tokens or Azure credential providers
+- Access control via Azure AD authentication, Managed Identity, or Service Principal
 - Optional creation of storage accounts and containers if they don't exist
 
 #### `azure-backend` - How to provide feedback

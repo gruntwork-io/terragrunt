@@ -154,7 +154,6 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 		if cfg.RemoteStateConfigAzurerm.ClientID != "" &&
 			cfg.RemoteStateConfigAzurerm.ClientSecret != "" &&
 			cfg.RemoteStateConfigAzurerm.TenantID != "" {
-
 			// If service principal seems to be the intended auth method
 			authCount++
 

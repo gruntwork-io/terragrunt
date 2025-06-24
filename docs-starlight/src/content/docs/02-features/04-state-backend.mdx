@@ -176,15 +176,10 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
      - Most secure option with full audit trail and access control
      - Supports conditional access and MFA policies
   
-  2. SAS token via `sas_token`
-     - Good for limited-time access
-     - Can be scoped to specific permissions
-     - Must be regenerated when expired
-  
-  3. Storage account key via `storage_account_key`
-     - Provides full access to the storage account
-     - Should only be used when Azure AD authentication is not possible
-     - Recommended to rotate keys regularly
+  2. Managed Service Identity (for Azure environments)
+     - Automatic authentication when running in Azure
+     - No credentials needed in configuration
+     - Secure and managed by Azure platform
 
   Best practices:
   - Enable [Azure Storage logging and metrics](https://learn.microsoft.com/en-us/azure/storage/common/storage-analytics-logging) for audit and operations tracking
@@ -246,13 +241,13 @@ remote_state {
 
     # Authentication Methods (choose one):
     
-    # 1. Azure AD Authentication (recommended)
+    # 1. Azure AD Authentication (recommended - default)
     use_azuread_auth   = true    # Optional, defaults to true if no other auth method specified
     # Supports Managed Identity, Service Principal, and az cli credentials automatically
     
-    # 2. SAS Token Authentication
-    # sas_token         = "your-sas-token"
-    # use_azuread_auth  = false
+    # 2. Managed Service Identity (for Azure environments)
+    # use_msi          = true
+    # use_azuread_auth = false
     
     # 3. Storage Account Key Authentication (least recommended)
     # storage_account_key = "your-storage-account-key"
@@ -365,12 +360,12 @@ config = {
 
 ### Important Notes
 
-1. **Azure AD Only**: Storage account key and connection string authentication methods are no longer supported
+1. **Azure AD Only**: SAS token and storage account key authentication methods are no longer supported
 2. **Versioning**: Blob versioning is managed at the storage account level and enabled by default during bootstrap
 3. **Server-Side Encryption**: Azure Storage automatically encrypts all data at rest
 4. **Access Control**: RBAC permissions are automatically assigned during bootstrap
 5. **Locking**: Azure Blob lease is used for state locking, no additional resources needed
-6. **Legacy Support**: If you see warnings about `ARM_ACCESS_KEY` or `AZURE_STORAGE_KEY` environment variables, update to Azure AD authentication
+6. **Legacy Support**: If you see warnings about `ARM_ACCESS_KEY`, `AZURE_STORAGE_KEY`, or `sas_token` configuration, update to Azure AD authentication
 
 ### Error Messages and Troubleshooting
 
@@ -387,6 +382,7 @@ Common error messages and their resolutions:
 | `blob not found` | Verify state file path and container name |
 | `ARM_ACCESS_KEY is no longer supported` | Switch to Azure AD authentication |
 | `AZURE_STORAGE_KEY is no longer supported` | Switch to Azure AD authentication |
+| `SAS token authentication is no longer supported` | Switch to Azure AD authentication, MSI, or service principal |
 
 ### Best Practices
 
@@ -519,7 +515,7 @@ To disable updating existing storage accounts, set `skip_storage_account_update 
 
 #### Azure Authentication
 
-Starting from version X.X.X, Azure AD authentication is the only supported authentication method for Azure remote state backend. Storage account key authentication is no longer supported.
+Azure AD authentication is the only supported authentication method for Azure remote state backend. Storage account key and SAS token authentication are no longer supported.
 
 To use Azure AD authentication:
 
@@ -559,10 +555,10 @@ For additional authentication options, you can use:
 | `client_secret` | Service principal client secret for Azure AD auth |
 | `tenant_id` | Azure AD tenant ID |
 | `subscription_id` | Azure subscription ID (required for storage account bootstrap) |
-| `sas_token` | SAS token for read/write access to storage account (not recommended for production) |
 
-Deprecated authentication options that are no longer supported:
+**Deprecated authentication options that are no longer supported:**
 
-- `storage_account_key` - Removed in favor of Azure AD authentication
+- `sas_token` - Removed in favor of Azure AD authentication
+- `storage_account_key` - Removed in favor of Azure AD authentication  
 - `connection_string` - Removed in favor of Azure AD authentication
-- Environment variables ARM_ACCESS_KEY and AZURE_STORAGE_KEY
+- Environment variables `ARM_ACCESS_KEY` and `AZURE_STORAGE_KEY`

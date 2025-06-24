@@ -140,6 +140,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 			return nil, fmt.Errorf("storage account %s does not exist or is not accessible: %w",
 				storageAccountName, err)
 		}
+
 		return nil, fmt.Errorf("error creating blob client with default credential: %w", err)
 	}
 
@@ -148,6 +149,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 	testContainerName := "terragrunt-connectivity-test"
 	testContainer := client.ServiceClient().NewContainerClient(testContainerName)
 	_, err = testContainer.GetProperties(ctx, nil)
+
 	if err != nil {
 		var respErr *azcore.ResponseError
 
@@ -165,7 +167,6 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "no such host") ||
 				strings.Contains(errMsg, "dial tcp") || strings.Contains(errMsg, "not found") {
-
 				return nil, fmt.Errorf("storage account %s does not exist or is not accessible: %w",
 					storageAccountName, err)
 			}

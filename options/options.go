@@ -31,6 +31,26 @@ import (
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
+// Hook is a function that's called when TerragruntOptions are finalized
+// This allows packages to hook into options initialization to register functionality
+type Hook func(opts *TerragruntOptions)
+
+// Collection of hooks to call when options are finalized
+var optionsHooks []Hook
+
+// RegisterHook registers a function to be called when TerragruntOptions are finalized
+// This is typically used by packages that need to set up functionality based on options
+func RegisterHook(hook Hook) {
+	optionsHooks = append(optionsHooks, hook)
+}
+
+// runHooks executes all registered hooks with the provided options
+func runHooks(opts *TerragruntOptions) {
+	for _, hook := range optionsHooks {
+		hook(opts)
+	}
+}
+
 const ContextKey ctxKey = iota
 
 const (
@@ -366,7 +386,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 }
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
-	return &TerragruntOptions{
+	opts := &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
 		OriginalTerraformCommand:       "",
@@ -417,6 +437,11 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		NoStackValidate:            false,
 		NoStackGenerate:            false,
 	}
+
+	// Run any registered options hooks
+	runHooks(opts)
+
+	return opts
 }
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
@@ -798,7 +823,7 @@ func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[str
 		return err
 	}
 
-	const ownerPerms = 0644
+	const ownerPerms = 0o644
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 

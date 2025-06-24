@@ -16,10 +16,10 @@ const (
 
 	// Default timeout values
 	defaultHTTPClientTimeout = 10 * time.Second
-	defaultLocation          = "eastus" // Default Azure region
+	defaultLocation          = "westeurope" // Default Azure region
 
 	// Azure API versions
-	defaultRoleAssignmentAPIVersion = "2018-09-01-preview"
+	defaultRoleAssignmentAPIVersion = "2022-04-01"
 
 	// UUID generation constants
 	uuidTimeMask32 = 0xFFFFFFFF     // Mask for first 32 bits of timestamp

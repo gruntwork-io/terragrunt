@@ -97,6 +97,7 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 	resourceGroupName, _ := config["resource_group_name"].(string)
 	if resourceGroupName == "" {
 		l.Warn("No resource_group_name specified in config, using storage account name as resource group")
+
 		resourceGroupName = storageAccountName + "-rg"
 	}
 
@@ -141,7 +142,7 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 	// Azure requires at least API version 2018-01-01-preview for roles with data actions
 	clientOptions := &arm.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
-			APIVersion: "2018-09-01-preview",
+			APIVersion: defaultRoleAssignmentAPIVersion, // Use the latest API version for role assignments
 		},
 	}
 
@@ -229,10 +230,12 @@ func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Contex
 		l.Warnf("Could not enable versioning via SDK: %s", err)
 		l.Warn("To enable versioning, you may need to use Azure Portal or Azure CLI")
 		// Don't return the error as this is optional functionality
+
 		return nil
 	}
 
 	l.Info("Successfully enabled versioning on storage account")
+
 	return nil
 }
 
@@ -255,10 +258,12 @@ func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Conte
 		l.Warnf("Could not disable versioning via SDK: %s", err)
 		l.Warn("To disable versioning, you may need to use Azure Portal or Azure CLI")
 		// Don't return the error as this is optional functionality
+
 		return nil
 	}
 
 	l.Info("Successfully disabled versioning on storage account")
+
 	return nil
 }
 
@@ -323,6 +328,7 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 
 	// Map account kind if specified
 	kind := armstorage.KindStorageV2
+
 	if config.AccountKind != "" {
 		switch config.AccountKind {
 		case "StorageV2":
@@ -355,9 +361,10 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 	}
 
 	// Convert tags map to pointer map
-
 	l.Infof("Using access tier: %s", accessTierStr)
+
 	tags := make(map[string]*string, len(config.Tags))
+
 	if len(config.Tags) > 0 {
 		for k, v := range config.Tags {
 			value := v // Create a new variable to avoid capturing the loop variable
@@ -393,6 +400,7 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 
 	// Set properties for the storage account
 	var accessTier *armstorage.AccessTier
+
 	switch accessTierStr {
 	case "Hot":
 		accessTier = to.Ptr(armstorage.AccessTierHot)
@@ -431,7 +439,6 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 	err = c.AssignStorageBlobDataOwnerRole(ctx, l)
 	if err != nil {
 		l.Warnf("Failed to assign Storage Blob Data Owner role: %v", err)
-		// Don't fail the entire process if role assignment fails
 	}
 
 	// If versioning is enabled, enable it on the storage account
@@ -446,6 +453,8 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 }
 
 // updateStorageAccountIfNeeded updates a storage account if settings don't match
+// TODO: Add logic to check other properties like access tier, replication type, etc and update them if needed
+// nolint:unparam
 func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context, l log.Logger, config StorageAccountConfig, account *armstorage.Account) error {
 	// Check if versioning is enabled as expected
 	isVersioningEnabled, err := c.GetStorageAccountVersioning(ctx)
@@ -456,43 +465,43 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 	// Only update versioning if it doesn't match expected state
 	if config.EnableVersioning && !isVersioningEnabled {
 		l.Infof("Enabling versioning on existing storage account %s", c.storageAccountName)
+
 		if err := c.EnableStorageAccountVersioning(ctx, l); err != nil {
 			return err
 		}
 	} else if !config.EnableVersioning && isVersioningEnabled {
 		l.Infof("Disabling versioning on existing storage account %s", c.storageAccountName)
+
 		if err := c.DisableStorageAccountVersioning(ctx, l); err != nil {
 			return err
 		}
 	}
 
 	// Check if we need to update the storage account properties
-	var needsUpdate bool
+	// var needsUpdate bool
 
 	// Check blob public access
-	if account.Properties.AllowBlobPublicAccess != nil && *account.Properties.AllowBlobPublicAccess != config.AllowBlobPublicAccess {
-		needsUpdate = true
-		l.Infof("Updating AllowBlobPublicAccess from %t to %t on storage account %s", *account.Properties.AllowBlobPublicAccess, config.AllowBlobPublicAccess, c.storageAccountName)
-	}
+	// if account.Properties.AllowBlobPublicAccess != nil && *account.Properties.AllowBlobPublicAccess != config.AllowBlobPublicAccess {
+	//	needsUpdate = true
+	//
+	//	l.Infof("Updating AllowBlobPublicAccess from %t to %t on storage account %s", *account.Properties.AllowBlobPublicAccess, config.AllowBlobPublicAccess, c.storageAccountName)
+	// }
 
 	// If any properties need updating, update the storage account
-
-	if needsUpdate {
-		// Note: The actual structure depends on the SDK version
-		// This is a simplified version that should work with most SDK versions
-		// In production code, you would set the appropriate properties based on your SDK version
-
-		// For now, we'll skip the update to avoid compilation errors
-		l.Infof("Would update storage account %s, but skipping due to SDK compatibility", c.storageAccountName)
-
-		// Uncomment in production code:
-		// updateParameters := armstorage.AccountUpdateParameters{}
-		// _, err := c.client.Update(ctx, c.resourceGroupName, c.storageAccountName, updateParameters, nil)
-		// if err != nil {
-		//    return fmt.Errorf("error updating storage account: %w", err)
-		// }
-	}
-
+	// TODO: add the logic to check other properties like access tier, replication type, etc.
+	// if needsUpdate {
+	// Note: The actual structure depends on the SDK version
+	// This is a simplified version that should work with most SDK versions
+	// In production code, you would set the appropriate properties based on your SDK version
+	//  For now, we'll skip the update to avoid compilation errors
+	// l.Infof("Would update storage account %s, but skipping due to SDK compatibility", c.storageAccountName)
+	// Uncomment in production code:
+	// updateParameters := armstorage.AccountUpdateParameters{}
+	// _, err := c.client.Update(ctx, c.resourceGroupName, c.storageAccountName, updateParameters, nil)
+	// if err != nil {
+	//    return fmt.Errorf("error updating storage account: %w", err)
+	// }
+	// }
 	return nil
 }
 
@@ -509,6 +518,7 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 			l.Infof("Storage account %s does not exist or is already deleted", c.storageAccountName)
 			return nil
 		}
+
 		return fmt.Errorf("error checking storage account: %w", err)
 	}
 
@@ -519,15 +529,15 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 	}
 
 	l.Infof("Successfully deleted storage account %s", c.storageAccountName)
+
 	return nil
 }
 
 // EnsureResourceGroup creates a resource group if it doesn't exist
 func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Logger, location string) error {
-	// Create a resource group client
-
 	l.Infof("Ensuring resource group %s exists in %s", c.resourceGroupName, location)
 	resourceGroupClient, err := CreateResourceGroupClient(ctx, l, c.subscriptionID)
+
 	if err != nil {
 		return fmt.Errorf("error creating resource group client: %w", err)
 	}
@@ -640,6 +650,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 	if err != nil {
 		l.Warnf("Could not get current user object ID: %v. Skipping role assignment.", err)
 		l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <your-user-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
+
 		return nil // Don't fail the entire process
 	}
 
@@ -647,6 +658,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 	isServicePrincipal := false
 	if os.Getenv("AZURE_CLIENT_ID") != "" || os.Getenv("ARM_CLIENT_ID") != "" {
 		isServicePrincipal = true
+
 		l.Infof("Detected service principal authentication. Assigning role to service principal with object ID: %s", userObjectID)
 	} else {
 		l.Infof("Assigning Storage Blob Data Owner role to user with object ID: %s", userObjectID)
@@ -696,6 +708,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 			} else {
 				l.Infof("Storage Blob Data Owner role already assigned to user %s", userObjectID)
 			}
+
 			return nil
 		}
 
@@ -703,6 +716,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 		if errors.As(err, &respErr) && (respErr.StatusCode == httpStatusForbidden || respErr.StatusCode == httpStatusUnauthorized) {
 			l.Warnf("Permission denied when assigning Storage Blob Data Owner role. Principal %s doesn't have sufficient permissions.", userObjectID)
 			l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <principal-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
+
 			return nil // Don't fail the entire process
 		}
 
@@ -720,15 +734,19 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 
 			l.Infof("Retrying with alternative role assignment ID format: %s", roleAssignmentID)
 			_, retryErr := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
+
 			if retryErr == nil {
 				l.Info("Successfully created role assignment with alternative ID format")
+
 				return nil
 			}
 
 			l.Warnf("Retry also failed. Consider creating the role assignment manually: az role assignment create --role 'Storage Blob Data Owner' --assignee %s --scope %s",
 				userObjectID, storageAccountResourceID)
+
 			return nil // Don't fail the entire process
 		}
+
 		return fmt.Errorf("error creating role assignment: %w", err)
 	}
 
@@ -742,6 +760,8 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 }
 
 // generateUUID generates a random UUID for role assignments
+//
+//nolint:mnd // UUID formatting requires specific hex format constants
 func generateUUID() string {
 	// Generate a random UUID based on current time and other random data
 	// This is a simplified implementation that generates a sufficiently random ID
@@ -761,15 +781,18 @@ func generateUUID() string {
 func GetAzureCredentials(ctx context.Context, l log.Logger) (*azidentity.DefaultAzureCredential, string, error) {
 	// Check for common Azure environment variables
 	var envVarsFound []string
+
 	var subscriptionID string
 
 	// First check for Azure CLI environment variables (these take precedence)
 	if envVal := os.Getenv("AZURE_SUBSCRIPTION_ID"); envVal != "" {
 		subscriptionID = envVal // AZURE_* takes precedence
+
 		envVarsFound = append(envVarsFound, "AZURE_SUBSCRIPTION_ID")
 	} else if envVal := os.Getenv("ARM_SUBSCRIPTION_ID"); envVal != "" {
 		// Only use ARM_SUBSCRIPTION_ID if AZURE_SUBSCRIPTION_ID is not set
 		subscriptionID = envVal
+
 		envVarsFound = append(envVarsFound, "ARM_SUBSCRIPTION_ID")
 	}
 
