@@ -106,7 +106,8 @@ func TestContent_Link(t *testing.T) {
 
 		// Then create a link to it
 		targetDir := t.TempDir()
-		targetPath := filepath.Join(targetDir, "subdir", "test.txt")
+		targetPath := filepath.Join(targetDir, "test.txt")
+
 		err = content.Link(t.Context(), testHash, targetPath)
 		require.NoError(t, err)
 
