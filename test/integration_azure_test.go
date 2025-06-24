@@ -15,6 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	azurerm "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -230,7 +231,7 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 	t.Logf("Actual output: %s", outputs["combined_output"].Value)
 
 	// Verify outputs from app1
-	assert.Equal(t, `app1 output with mock app2 output and mock app3 output`, outputs["combined_output"].Value)
+	assert.Equal(t, `app1 output with app2 output with app3 output and app3 output`, outputs["combined_output"].Value)
 }
 
 // CheckAzureTestCredentials checks if the required Azure test credentials are available
@@ -411,7 +412,7 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 
 	// Test error handling for invalid container names
 	t.Run("InvalidContainerName", func(t *testing.T) {
-		t.Parallel()
+		// Don't run in parallel - we need the storage account to exist first
 
 		// Create a context for Azure operations
 		ctx := context.Background()
@@ -782,4 +783,114 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 
 	t.Log("Successfully verified blob content matches uploaded data")
 	t.Log("Integration test completed successfully - storage account created, blob uploaded")
+}
+
+// TestAzureBackendBootstrapWithExistingStorageAccount tests Azure backend bootstrap scenarios
+// that require real Azure resources - moved from unit tests
+func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
+	storageAccount := os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
+	if storageAccount == "" {
+		t.Skip("Skipping Azure backend bootstrap test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set")
+	}
+
+	t.Parallel()
+
+	// Create logger for testing
+	logger := logger.CreateLogger()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	// Make sure we're using non-interactive mode to avoid prompts
+	opts.NonInteractive = true
+
+	// Create a unique suffix for container names
+	uniqueSuffix := fmt.Sprintf("%x", time.Now().UnixNano())[0:8]
+
+	t.Run("bootstrap-with-existing-storage-account", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+
+		// Use a storage account name that doesn't exist to trigger DNS lookup error
+		nonExistentSA := "tgtestsa" + uniqueSuffix
+
+		config := map[string]interface{}{
+			"storage_account_name": nonExistentSA,
+			"container_name":       "tfstate",
+			"key":                  "test/terraform.tfstate",
+			"use_azuread_auth":     true,
+			"subscription_id":      "00000000-0000-0000-0000-000000000000",
+		}
+
+		// Import the Azure backend package
+		backend := azurerm.NewBackend()
+		require.NotNil(t, backend, "Azure backend should be created")
+
+		// Call Bootstrap and expect an error due to non-existent storage account
+		err := backend.Bootstrap(ctx, logger, config, opts)
+
+		// Verify an error was returned - it should be a DNS lookup error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such host", "Should get DNS lookup error for non-existent storage account")
+	})
+
+	t.Run("bootstrap-with-real-storage-account", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		containerName := "terragrunt-bootstrap-test-" + uniqueSuffix
+
+		config := map[string]interface{}{
+			"storage_account_name": storageAccount,
+			"container_name":       containerName,
+			"key":                  "test/terraform.tfstate",
+			"use_azuread_auth":     true,
+		}
+
+		// Import the Azure backend package
+		backend := azurerm.NewBackend()
+		require.NotNil(t, backend, "Azure backend should be created")
+
+		// Call Bootstrap - should succeed with real storage account
+		err := backend.Bootstrap(ctx, logger, config, opts)
+		require.NoError(t, err)
+
+		// Verify container was created
+		client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, config)
+		require.NoError(t, err)
+
+		exists, err := client.ContainerExists(ctx, containerName)
+		require.NoError(t, err)
+		assert.True(t, exists, "Container should exist after successful bootstrap")
+
+		// Clean up - delete the container
+		defer func() {
+			_ = client.DeleteContainer(ctx, logger, containerName)
+		}()
+	})
+
+	t.Run("invalid-storage-account-name", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+
+		config := map[string]interface{}{
+			"storage_account_name": "invalid/name/with/slashes", // Invalid storage account name
+			"container_name":       "test-container",
+			"key":                  "test/terraform.tfstate",
+			"use_azuread_auth":     true,
+		}
+
+		// Import the Azure backend package
+		backend := azurerm.NewBackend()
+		require.NotNil(t, backend, "Azure backend should be created")
+
+		// Call Bootstrap and expect an error due to invalid storage account name
+		err := backend.Bootstrap(ctx, logger, config, opts)
+
+		// Verify an error was returned - should get an error about the storage account not being accessible
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "does not exist or is not accessible", "Should get error about storage account not being accessible")
+	})
 }

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -18,6 +20,49 @@ import (
 const BackendName = "azurerm"
 
 var _ backend.Backend = new(Backend)
+
+// ValidateContainerName validates that the container name follows Azure naming conventions.
+// Container names must:
+// - Be between 3 and 63 characters long
+// - Start with a letter or number, and can contain only letters, numbers, and hyphens
+// - Every hyphen must be immediately preceded and followed by a letter or number
+// - All letters must be lowercase
+func ValidateContainerName(containerName string) error {
+	if containerName == "" {
+		return errors.New("missing required Azure remote state configuration container_name")
+	}
+
+	if len(containerName) < 3 || len(containerName) > 63 {
+		return errors.New("container name must be between 3 and 63 characters")
+	}
+
+	// Check for uppercase letters
+	if containerName != strings.ToLower(containerName) {
+		return errors.New("container name can only contain lowercase letters, numbers, and hyphens")
+	}
+
+	// Check that it starts and ends with alphanumeric
+	if !regexp.MustCompile(`^[a-z0-9].*[a-z0-9]$`).MatchString(containerName) && len(containerName) > 1 {
+		return errors.New("container name must start and end with a letter or number")
+	}
+
+	// For single character names, just check it's alphanumeric
+	if len(containerName) == 1 && !regexp.MustCompile(`^[a-z0-9]$`).MatchString(containerName) {
+		return errors.New("container name must start and end with a letter or number")
+	}
+
+	// Check that it only contains valid characters (lowercase letters, numbers, hyphens)
+	if !regexp.MustCompile(`^[a-z0-9-]+$`).MatchString(containerName) {
+		return errors.New("container name can only contain lowercase letters, numbers, and hyphens")
+	}
+
+	// Check that hyphens are not consecutive and not at start/end (already covered above, but being explicit)
+	if strings.Contains(containerName, "--") {
+		return errors.New("container name cannot contain consecutive hyphens")
+	}
+
+	return nil
+}
 
 // Backend implements the backend interface for the Azure backend.
 type Backend struct {
@@ -33,6 +78,11 @@ func NewBackend() *Backend {
 func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
+		return err
+	}
+
+	// Validate container name before any Azure operations
+	if err := ValidateContainerName(azureCfg.RemoteStateConfigAzurerm.ContainerName); err != nil {
 		return err
 	}
 
@@ -380,7 +430,6 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 	// Import the armstorage package conditionally
 	// We need to add the armstorage package to go.mod
 	// go get github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage
-
 	// Validate that required fields are set for storage account operations
 	if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
 		return errors.New("subscription_id is required for storage account creation")

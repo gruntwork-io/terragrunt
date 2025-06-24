@@ -10,7 +10,7 @@ type MissingRequiredAzureRemoteStateConfig string
 // Error returns a string indicating that the Azure remote state configuration is missing a required parameter.
 // The returned error message will include the name of the missing configuration parameter.
 func (configName MissingRequiredAzureRemoteStateConfig) Error() string {
-	return "Missing required Azure remote state configuration " + string(configName)
+	return "missing required Azure remote state configuration " + string(configName)
 }
 
 // MaxRetriesWaitingForContainerExceeded represents an error when the maximum number of retries is exceeded

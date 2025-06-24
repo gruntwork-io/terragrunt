@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -213,18 +214,6 @@ func TestAzureBackendBootstrapScenarios(t *testing.T) {
 		// Boolean field last
 		expectError bool
 	}{
-		{
-			name: "bootstrap-with-existing-storage-account",
-			config: backend.Config{
-				"storage_account_name": "tgtestsa" + uniqueSuffix,
-				"container_name":       "tfstate",
-				"key":                  "test/terraform.tfstate",
-				"use_azuread_auth":     true,
-				"subscription_id":      "00000000-0000-0000-0000-000000000000",
-			},
-			expectError: true,           // Will fail because storage account doesn't exist
-			errorMsg:    "no such host", // DNS lookup error since the storage account doesn't exist
-		},
 		{
 			name: "bootstrap-with-storage-account-creation",
 			config: backend.Config{
@@ -481,16 +470,6 @@ func TestBlobServiceClientCreationError(t *testing.T) {
 		expectedErrMsg string // Expected error message substring
 	}{
 		{
-			name: "invalid-storage-account-name",
-			config: backend.Config{
-				"storage_account_name": "invalid/name/with/slashes", // Invalid storage account name
-				"container_name":       "test-container",
-				"key":                  "test/terraform.tfstate",
-				"use_azuread_auth":     true,
-			},
-			expectedErrMsg: "does not exist or is not accessible", // Actual error message from Azure API
-		},
-		{
 			name: "empty-storage-account-name",
 			config: backend.Config{
 				"storage_account_name": "", // Empty storage account name
@@ -498,7 +477,7 @@ func TestBlobServiceClientCreationError(t *testing.T) {
 				"key":                  "test/terraform.tfstate",
 				"use_azuread_auth":     true,
 			},
-			expectedErrMsg: "Missing required Azure remote state configuration storage_account_name",
+			expectedErrMsg: "missing required Azure remote state configuration storage_account_name",
 		},
 		{
 			name: "unsupported-auth-method",
@@ -563,7 +542,7 @@ func TestContainerCreationError(t *testing.T) {
 				"key":                  "test/terraform.tfstate",
 				"use_azuread_auth":     true,
 			},
-			expectedErrMsg: "Missing required Azure remote state configuration container_name",
+			expectedErrMsg: "missing required Azure remote state configuration container_name",
 		},
 		{
 			name: "container-name-too-short",
@@ -783,6 +762,98 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 					assert.True(t, ok, "Tag %s not found", k)
 					assert.Equal(t, v, actualValue, "Tag %s value mismatch", k)
 				}
+			}
+		})
+	}
+}
+
+// TestContainerNameValidation tests the container name validation function without Azure operations
+func TestContainerNameValidation(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		containerName  string
+		expectedErrMsg string
+		expectError    bool
+	}{
+		{
+			name:          "valid-container-name",
+			containerName: "valid-container-name",
+			expectError:   false,
+		},
+		{
+			name:          "valid-short-name",
+			containerName: "abc",
+			expectError:   false,
+		},
+		{
+			name:          "valid-with-numbers",
+			containerName: "container123",
+			expectError:   false,
+		},
+		{
+			name:           "empty-container-name",
+			containerName:  "",
+			expectError:    true,
+			expectedErrMsg: "missing required Azure remote state configuration container_name",
+		},
+		{
+			name:           "container-name-too-short",
+			containerName:  "ab",
+			expectError:    true,
+			expectedErrMsg: "container name must be between 3 and 63 characters",
+		},
+		{
+			name:           "container-name-too-long",
+			containerName:  strings.Repeat("a", 64),
+			expectError:    true,
+			expectedErrMsg: "container name must be between 3 and 63 characters",
+		},
+		{
+			name:           "invalid-uppercase",
+			containerName:  "Invalid-Container-Name",
+			expectError:    true,
+			expectedErrMsg: "container name can only contain lowercase letters, numbers, and hyphens",
+		},
+		{
+			name:           "invalid-special-chars",
+			containerName:  "container_name",
+			expectError:    true,
+			expectedErrMsg: "container name can only contain lowercase letters, numbers, and hyphens",
+		},
+		{
+			name:           "invalid-starts-with-hyphen",
+			containerName:  "-container",
+			expectError:    true,
+			expectedErrMsg: "container name must start and end with a letter or number",
+		},
+		{
+			name:           "invalid-ends-with-hyphen",
+			containerName:  "container-",
+			expectError:    true,
+			expectedErrMsg: "container name must start and end with a letter or number",
+		},
+		{
+			name:           "invalid-consecutive-hyphens",
+			containerName:  "container--name",
+			expectError:    true,
+			expectedErrMsg: "container name cannot contain consecutive hyphens",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := azurerm.ValidateContainerName(tc.containerName)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

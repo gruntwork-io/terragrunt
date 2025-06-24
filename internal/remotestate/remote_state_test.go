@@ -18,10 +18,10 @@ import (
 
 // MockBackend implements the Backend interface for testing
 type MockBackend struct {
-	name               string
 	getTFInitArgsFunc  func(config backend.Config) map[string]any
 	bootstrapFunc      func(ctx context.Context, l log.Logger, config backend.Config, opts *options.TerragruntOptions) error
 	needsBootstrapFunc func(ctx context.Context, l log.Logger, config backend.Config, opts *options.TerragruntOptions) (bool, error)
+	name               string
 }
 
 func (m *MockBackend) Name() string {
@@ -723,11 +723,12 @@ func TestGenerateOpenTofuCodeWithBackendFiltering(t *testing.T) {
 			if len(parts) == 2 {
 				key, value := parts[0], parts[1]
 				// Try to parse boolean values
-				if value == "true" {
+				switch value {
+				case "true":
 					configMap[key] = true
-				} else if value == "false" {
+				case "false":
 					configMap[key] = false
-				} else {
+				default:
 					configMap[key] = value
 				}
 			}
