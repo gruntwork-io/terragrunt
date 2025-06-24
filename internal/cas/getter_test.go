@@ -45,10 +45,10 @@ func TestCASGetterDetect(t *testing.T) {
 	os.WriteFile(filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644)
 
 	tests := []struct {
+		expectedErr error
 		name        string
 		src         string
 		pwd         string
-		expectedErr error
 	}{
 		{
 			name: "GitHub repository",
@@ -70,8 +70,7 @@ func TestCASGetterDetect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// FIXME: Get rid of this.
-			// t.Parallel()
+			t.Parallel()
 
 			req := &getter.Request{
 				Src: tt.src,

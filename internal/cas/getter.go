@@ -116,6 +116,7 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 			}
 
 			req.Src = src
+
 			return ok, nil
 		}
 	}

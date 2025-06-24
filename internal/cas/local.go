@@ -38,6 +38,7 @@ func (c *CAS) StoreLocalDirectory(ctx context.Context, l log.Logger, sourceDir, 
 // hashDirectory creates a synthetic hash and tree structure for a local directory
 func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
 	var treeData []byte
+
 	var allHashes []string
 
 	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
@@ -80,10 +81,7 @@ func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
 
 	// Create a synthetic hash for the entire directory based on all file hashes
 	// This ensures the same directory contents always get the same hash
-	dirHash, err := hashString(strings.Join(allHashes, ""))
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to create directory hash: %w", err)
-	}
+	dirHash := hashString(strings.Join(allHashes, ""))
 
 	return dirHash, treeData, nil
 }
@@ -121,8 +119,9 @@ func (c *CAS) storeLocalContent(l log.Logger, sourceDir, dirHash string, treeDat
 	})
 }
 
-func hashString(s string) (string, error) {
+func hashString(s string) string {
 	h := sha1.New()
 	h.Write([]byte(s))
-	return hex.EncodeToString(h.Sum(nil)), nil
+
+	return hex.EncodeToString(h.Sum(nil))
 }
