@@ -2,6 +2,7 @@ package cas_test
 
 import (
 	"net/url"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -38,35 +39,51 @@ func TestCASGetterDetect(t *testing.T) {
 
 	g := cas.NewCASGetter(nil, nil, &cas.CloneOptions{})
 
+	tmp := t.TempDir()
+
+	os.MkdirAll(filepath.Join(tmp, "fake-module"), 0755)
+	os.WriteFile(filepath.Join(tmp, "fake-module", "main.tf"), []byte(""), 0644)
+
 	tests := []struct {
-		name     string
-		src      string
-		pwd      string
-		expected bool
+		name        string
+		src         string
+		pwd         string
+		expectedErr error
 	}{
 		{
-			name:     "GitHub repository",
-			src:      "github.com/gruntwork-io/terragrunt",
-			expected: true,
+			name: "GitHub repository",
+			src:  "github.com/gruntwork-io/terragrunt",
+			pwd:  tmp,
 		},
 		{
-			name:     "Invalid URL",
-			src:      "not-a-valid-url",
-			expected: false,
+			name:        "Invalid URL",
+			src:         "not-a-valid-url",
+			pwd:         tmp,
+			expectedErr: cas.ErrDirectoryNotFound,
+		},
+		{
+			name: "Local directory",
+			src:  "./fake-module",
+			pwd:  tmp,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			// FIXME: Get rid of this.
+			// t.Parallel()
 
 			req := &getter.Request{
 				Src: tt.src,
 				Pwd: tt.pwd,
 			}
 			ok, err := g.Detect(req)
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, ok)
+			if tt.expectedErr != nil {
+				require.ErrorIs(t, err, tt.expectedErr)
+			} else {
+				require.NoError(t, err)
+				assert.True(t, ok)
+			}
 		})
 	}
 }
@@ -124,4 +141,58 @@ func TestCASGetterGet(t *testing.T) {
 			assert.Equal(t, tmpDir, res.Dst)
 		})
 	}
+}
+
+func TestCASGetterLocalDir(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	storePath := filepath.Join(tmp, "store")
+
+	c, err := cas.New(cas.Options{
+		StorePath: storePath,
+	})
+	require.NoError(t, err)
+
+	opts := &cas.CloneOptions{
+		Branch: "main",
+	}
+
+	l := logger.CreateLogger()
+
+	g := cas.NewCASGetter(l, c, opts)
+
+	fakeModule := filepath.Join(tmp, "fake-module")
+	os.MkdirAll(fakeModule, 0755)
+
+	fakeModuleSubdir := filepath.Join(fakeModule, "subdir")
+	os.MkdirAll(fakeModuleSubdir, 0755)
+
+	os.WriteFile(filepath.Join(fakeModule, "main.tf"), []byte(""), 0644)
+	os.WriteFile(filepath.Join(fakeModuleSubdir, "subfile.tf"), []byte(""), 0644)
+
+	fakeDest := filepath.Join(tmp, "fake-dest")
+
+	req := &getter.Request{
+		Src: fakeModule,
+		Dst: fakeDest,
+		Pwd: tmp,
+	}
+
+	ok, err := g.Detect(req)
+	require.NoError(t, err)
+	assert.True(t, ok)
+
+	assert.True(t, req.Copy)
+
+	err = g.Get(t.Context(), req)
+	require.NoError(t, err)
+
+	stat, err := os.Stat(filepath.Join(fakeDest, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0644), stat.Mode())
+
+	stat, err = os.Stat(filepath.Join(fakeDest, "subdir", "subfile.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0644), stat.Mode())
 }

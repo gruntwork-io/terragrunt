@@ -112,9 +112,9 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 
 		if c.store.NeedsWrite(hash) {
 			// Create a temporary directory for git operations
-			tempDir, cleanup, err := c.git.CreateTempDir()
-			if err != nil {
-				return err
+			tempDir, cleanup, createTempDirErr := c.git.CreateTempDir()
+			if createTempDirErr != nil {
+				return createTempDirErr
 			}
 
 			defer func() {
@@ -126,8 +126,8 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 			// Set the working directory for git operations
 			c.git.SetWorkDir(tempDir)
 
-			if err := c.cloneAndStoreContent(childCtx, l, opts, url, hash); err != nil {
-				return err
+			if cloneAndStoreErr := c.cloneAndStoreContent(childCtx, l, opts, url, hash); cloneAndStoreErr != nil {
+				return cloneAndStoreErr
 			}
 		}
 
@@ -215,20 +215,20 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 
 		workDirPath := filepath.Join(c.git.WorkDir, file)
 
-		hash, err := hashFile(workDirPath)
+		includedHash, err := hashFile(workDirPath)
 		if err != nil {
 			return err
 		}
 
-		content := NewContent(c.store)
+		includedContent := NewContent(c.store)
 
-		if err := content.EnsureCopy(l, hash, workDirPath); err != nil {
+		if err := includedContent.EnsureCopy(l, includedHash, workDirPath); err != nil {
 			return err
 		}
 
 		path := filepath.Join(".git", file)
 
-		data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), hash, path)...)
+		data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
 	}
 
 	// Overwrite the root tree with the new data
