@@ -107,23 +107,10 @@ func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
 
 				if opts.Experiments.Evaluate(experiment.Report) {
-					run, err := r.GetRun(module.Module.Path)
+					run, err := r.EnsureRun(module.Module.Path)
 					if err != nil {
-						if errors.Is(err, report.ErrRunNotFound) {
-							run, err = report.NewRun(module.Module.Path)
-							if err != nil {
-								module.Logger.Errorf("Error creating run for unit %s: %v", module.Module.Path, err)
-								return err
-							}
-
-							if err := r.AddRun(run); err != nil {
-								module.Logger.Errorf("Error adding run for unit %s: %v", module.Module.Path, err)
-								return err
-							}
-						} else {
-							module.Logger.Errorf("Error getting run for unit %s: %v", module.Module.Path, err)
-							return err
-						}
+						module.Logger.Errorf("Error ensuring run for unit %s: %v", module.Module.Path, err)
+						return err
 					}
 
 					if err := r.EndRun(
@@ -416,18 +403,10 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 				}
 			}
 		} else if reportExperiment {
-			run, err := r.GetRun(module.Module.Path)
-			if errors.Is(err, report.ErrRunNotFound) {
-				run, err = report.NewRun(module.Module.Path)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-
-				if err := r.AddRun(run); err != nil {
-					errs = append(errs, err)
-					continue
-				}
+			run, err := r.EnsureRun(module.Module.Path)
+			if err != nil {
+				errs = append(errs, err)
+				continue
 			}
 
 			if err := r.EndRun(
