@@ -110,27 +110,29 @@ func DownloadTerraformSourceIfNecessary(
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return errors.New(err)
 		}
-	}
-
-	alreadyLatest, err := AlreadyHaveLatestCode(l, terraformSource, opts)
-	if err != nil {
-		return err
-	}
-
-	if alreadyLatest {
-		if err := ValidateWorkingDir(terraformSource); err != nil {
+	} else {
+		alreadyLatest, err := AlreadyHaveLatestCode(l, terraformSource, opts)
+		if err != nil {
 			return err
 		}
 
-		l.Debugf("%s files in %s are up to date. Will not download again.", opts.TerraformImplementation, terraformSource.WorkingDir)
+		if alreadyLatest {
+			if err := ValidateWorkingDir(terraformSource); err != nil {
+				return err
+			}
 
-		return nil
+			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TerraformImplementation, terraformSource.WorkingDir)
+
+			return nil
+		}
 	}
 
 	var previousVersion = ""
 	// read previous source version
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if util.FileExists(terraformSource.VersionFile) {
+		var err error
+
 		previousVersion, err = readVersionFile(terraformSource)
 		if err != nil {
 			return err
