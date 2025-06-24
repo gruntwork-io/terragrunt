@@ -112,23 +112,19 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 			}
 		}
 
-		return telemetry.TelemeterFromContext(childCtx).Collect(childCtx, "cas_restore_content", map[string]any{
-			"hash": hash,
-		}, func(grandChildCtx context.Context) error {
-			content := NewContent(c.store)
+		content := NewContent(c.store)
 
-			treeData, err := content.Read(hash)
-			if err != nil {
-				return err
-			}
+		treeData, err := content.Read(hash)
+		if err != nil {
+			return err
+		}
 
-			tree, err := ParseTree(string(treeData), targetDir)
-			if err != nil {
-				return err
-			}
+		tree, err := ParseTree(string(treeData), targetDir)
+		if err != nil {
+			return err
+		}
 
-			return tree.LinkTree(grandChildCtx, c.store, targetDir)
-		})
+		return tree.LinkTree(childCtx, c.store, targetDir)
 	})
 }
 
