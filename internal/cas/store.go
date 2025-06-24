@@ -3,9 +3,32 @@ package cas
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gofrs/flock"
 )
+
+// RepositoryLock represents a repository-level lock with concurrency control
+type RepositoryLock struct {
+	lock     *flock.Flock
+	slotFile string
+	slotNum  int
+}
+
+// Unlock releases the repository lock
+func (r *RepositoryLock) Unlock() error {
+	// Clean up the slot file
+	if r.slotFile != "" {
+		os.Remove(r.slotFile)
+	}
+
+	// Release the flock
+	if r.lock != nil {
+		return r.lock.Unlock()
+	}
+
+	return nil
+}
 
 // Store manages the store directory and filesystem locks to prevent concurrent writes
 type Store struct {
@@ -37,6 +60,40 @@ func (s *Store) hasContent(path string) bool {
 	_, err := os.Stat(path)
 
 	return err == nil
+}
+
+// TryAcquireRepoLock attempts to acquire a repository-level lock with concurrency control
+// This implements a counting semaphore using filesystem locks
+func (s *Store) TryAcquireRepoLock(repoKey string, maxConcurrent int) (*RepositoryLock, bool, error) {
+	repoLockDir := filepath.Join(s.path, "repo-locks", repoKey)
+
+	// Ensure the repository lock directory exists
+	if err := os.MkdirAll(repoLockDir, 0755); err != nil {
+		return nil, false, err
+	}
+
+	// Try to acquire a slot (counting semaphore)
+	for slot := 0; slot < maxConcurrent; slot++ {
+		slotFile := filepath.Join(repoLockDir, "slot-"+strconv.Itoa(slot)+".lock")
+		lock := flock.New(slotFile)
+
+		acquired, err := lock.TryLock()
+		if err != nil {
+			return nil, false, err
+		}
+
+		if acquired {
+			repoLock := &RepositoryLock{
+				lock:     lock,
+				slotFile: slotFile,
+				slotNum:  slot,
+			}
+			return repoLock, true, nil
+		}
+	}
+
+	// All slots are busy
+	return nil, false, nil
 }
 
 // AcquireLock acquires a filesystem lock for the given hash

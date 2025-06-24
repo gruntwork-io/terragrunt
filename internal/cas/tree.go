@@ -5,7 +5,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 )
 
 const (
@@ -98,12 +100,19 @@ func ParseTree(output, path string) (*Tree, error) {
 // LinkTree writes the tree to a target directory
 func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) error {
 	content := NewContent(store)
+	maxWorkers := max(1, runtime.NumCPU()/4)
+	sem := make(chan struct{}, maxWorkers)
+	var wg sync.WaitGroup
+	errChan := make(chan error, 1)
 
+	// Process entries concurrently
 	for _, entry := range t.entries {
-		// Check for cancellation
+		// Check for cancellation or errors
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case err := <-errChan:
+			return err
 		default:
 		}
 
@@ -112,27 +121,57 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 			return wrapError("mkdir_all", entryPath, err)
 		}
 
-		switch entry.Type {
-		case "blob":
-			if err := content.Link(ctx, entry.Hash, entryPath); err != nil {
-				return wrapError("link_blob", entryPath, err)
-			}
-		case "tree":
-			treeData, err := content.Read(entry.Hash)
-			if err != nil {
-				return wrapError("read_tree", entry.Hash, err)
+		wg.Add(1)
+		go func(entry TreeEntry, path string) {
+			defer wg.Done()
+			sem <- struct{}{}        // Acquire semaphore
+			defer func() { <-sem }() // Release semaphore
+
+			var err error
+			switch entry.Type {
+			case "blob":
+				err = content.Link(ctx, entry.Hash, path)
+				if err != nil {
+					err = wrapError("link_blob", path, err)
+				}
+			case "tree":
+				var treeData []byte
+				treeData, err = content.Read(entry.Hash)
+				if err != nil {
+					err = wrapError("read_tree", entry.Hash, err)
+					break
+				}
+
+				var subTree *Tree
+				subTree, err = ParseTree(string(treeData), path)
+				if err != nil {
+					err = wrapError("parse_tree", entry.Hash, err)
+					break
+				}
+
+				err = subTree.LinkTree(ctx, store, path)
+				if err != nil {
+					err = wrapError("link_subtree", path, err)
+				}
 			}
 
-			subTree, err := ParseTree(string(treeData), entryPath)
 			if err != nil {
-				return wrapError("parse_tree", entry.Hash, err)
+				select {
+				case errChan <- err:
+				default:
+				}
 			}
-
-			if err := subTree.LinkTree(ctx, store, entryPath); err != nil {
-				return wrapError("link_subtree", entryPath, err)
-			}
-		}
+		}(entry, entryPath)
 	}
 
-	return nil
+	// Wait for all workers to complete
+	wg.Wait()
+
+	// Check for any errors that occurred
+	select {
+	case err := <-errChan:
+		return err
+	default:
+		return nil
+	}
 }
