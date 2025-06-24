@@ -2,11 +2,14 @@ package runnerpool
 
 import (
 	"context"
+	"runtime"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 )
 
-// RunnerPool executes tasks concurrently with dependency awareness.
+// RunnerPool drives a bounded worker pool that executes tasks respecting
+// dependency ordering held in a dagQueue.
 type RunnerPool struct {
 	q           *dagQueue
 	runner      TaskRunner
@@ -14,9 +17,10 @@ type RunnerPool struct {
 	failFast    bool
 }
 
+// New constructs a RunnerPool. If maxConc <= 0 it defaults to runtime.NumCPU().
 func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *RunnerPool {
 	if maxConc <= 0 {
-		maxConc = 1
+		maxConc = runtime.NumCPU()
 	}
 	return &RunnerPool{
 		q:           buildQueue(units, failFast),
@@ -26,48 +30,50 @@ func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *Runne
 	}
 }
 
-// Run blocks until all runnable tasks finish and returns their results.
+// Run executes all tasks and returns a slice of Result once the DAG is fully
+// processed. It blocks until every runnable task has finished.
 func (p *RunnerPool) Run(ctx context.Context) []Result {
-	sem := make(chan struct{}, p.concurrency)
-	done := make(chan *entry)
-
-	// fan‑in goroutine collects completions
-	go func() {
-		for e := range done {
-			p.q.markDone(e, e.result)
-			if p.failFast && e.state == statusFailed {
-				// fast‑fail: mark remaining as skipped
-				for _, ent := range p.q.entries {
-					if ent.state == statusPending || ent.state == statusBlocked || ent.state == statusReady {
-						ent.state = statusFailFast
-					}
-				}
-			}
-		}
-	}()
+	sem := make(chan struct{}, p.concurrency) // acts as worker slots
+	wg := sync.WaitGroup{}
 
 	for {
-		if p.q.empty() {
-			break
-		}
-		ready := p.q.getReady(cap(sem) - len(sem))
-		for _, e := range ready {
-			sem <- struct{}{}
-			go func(ent *entry) {
-				res := p.runner(ctx, ent.task)
-				ent.result = res
-				done <- ent
-				<-sem
-			}(e)
-		}
-		// allow context cancellation
+		// Drain ctx cancelation early.
 		select {
 		case <-ctx.Done():
-			break
+			wg.Wait()
+			return p.q.results()
 		default:
+		}
+
+		// fetch ready tasks respecting remaining slots
+		ready := p.q.getReady(p.concurrency - len(sem))
+		if len(ready) == 0 {
+			// no ready entries; if queue empty we're done, else wait for a task to finish
+			if p.q.empty() {
+				break
+			}
+			// tiny sleep or continue after wg.Wait?
+			select {
+			case <-ctx.Done():
+				wg.Wait()
+				return p.q.results()
+			default:
+			}
+			continue
+		}
+
+		for _, e := range ready {
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(ent *entry) {
+				defer func() { <-sem; wg.Done() }()
+				res := p.runner(ctx, ent.task)
+				p.q.markDone(ent, res)
+			}(e)
 		}
 	}
 
-	close(done)
+	// wait for running goroutines
+	wg.Wait()
 	return p.q.results()
 }

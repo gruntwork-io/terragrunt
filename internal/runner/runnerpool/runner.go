@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
@@ -104,42 +105,52 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 	return runner.WithOptions(opts...), nil
 }
 
-func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	stackCmd := opts.TerraformCommand
+// Run executes the stack according to TerragruntOptions and returns the first
+// error (or a joined error) once execution is finished.
+func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	terraformCmd := opts.TerraformCommand
 
+	//------------------------------------------------------------------
+	// 1. Pre‑flight flag mangling (same behaviour as legacy configstack)
+	//------------------------------------------------------------------
 	if opts.OutputFolder != "" {
-		for _, u := range runner.Stack.Units {
+		for _, u := range r.Stack.Units {
 			planFile := u.OutputFile(l, opts)
 			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
 				return err
 			}
 		}
 	}
-	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
+
+	if util.ListContainsElement(config.TerraformCommandsNeedInput, terraformCmd) {
 		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-input=false", 1)
-		runner.syncTerraformCliArgs(l, opts)
+		r.syncTerraformCliArgs(l, opts)
 	}
-	switch stackCmd {
+
+	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		if opts.RunAllAutoApprove {
 			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
 		}
-		runner.syncTerraformCliArgs(l, opts)
+		r.syncTerraformCliArgs(l, opts)
+
 	case tf.CommandNameShow:
-		runner.syncTerraformCliArgs(l, opts)
+		r.syncTerraformCliArgs(l, opts)
+
 	case tf.CommandNamePlan:
-		errStreams := make([]bytes.Buffer, len(runner.Stack.Units))
-		for i, u := range runner.Stack.Units {
-			u.TerragruntOptions.ErrWriter = io.MultiWriter(&errStreams[i], u.TerragruntOptions.ErrWriter)
+		errs := make([]bytes.Buffer, len(r.Stack.Units))
+		for i, u := range r.Stack.Units {
+			u.TerragruntOptions.ErrWriter = io.MultiWriter(&errs[i], u.TerragruntOptions.ErrWriter)
 		}
-		defer runner.summarizePlanAllErrors(l, errStreams)
+		defer r.summarizePlanAllErrors(l, errs)
 	}
 
-	// task function to run each unit
-	runTask := func(ctx context.Context, t *Task) Result {
+	//------------------------------------------------------------------
+	// 2. Glue runnerpool.TaskRunner around each runbase.Unit
+	//------------------------------------------------------------------
+	taskRun := func(ctx context.Context, t *Task) Result {
 		unitRunner := runbase.NewUnitRunner(t.Unit)
-
-		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, runner.Stack.Report)
+		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, r.Stack.Report)
 
 		res := Result{TaskID: t.ID()}
 		if err != nil {
@@ -149,26 +160,40 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 		return res
 	}
 
+	//------------------------------------------------------------------
+	// 3. Instantiate the pool with CLI‑provided parallelism / fail‑fast
+	//------------------------------------------------------------------
 	maxConc := opts.Parallelism
-	pool := New(runner.Stack.Units, runTask, maxConc, false)
+	if maxConc <= 0 {
+		maxConc = runtime.NumCPU()
+	}
 
+	failFast := false
+	pool := New(r.Stack.Units, taskRun, maxConc, failFast)
+
+	//------------------------------------------------------------------
+	// 4. Execute the pool and gather results
+	//------------------------------------------------------------------
 	results := pool.Run(ctx)
 
-	var errs []error
-	for _, r := range results {
-		if r.Err != nil {
-			errs = append(errs, r.Err)
+	//------------------------------------------------------------------
+	// 5. Reduce results into a single error (preserve old behaviour)
+	//------------------------------------------------------------------
+	var allErrs []error
+	for _, res := range results {
+		if res.Err != nil {
+			allErrs = append(allErrs, res.Err)
 		}
 	}
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+	if len(allErrs) > 0 {
+		return errors.Join(allErrs...)
 	}
 	return nil
 }
 
-func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
-	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", runner.Stack.TerragruntOptions.WorkingDir, terraformCommand)
-	for _, unit := range runner.Stack.Units {
+func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
+	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
+	for _, unit := range r.Stack.Units {
 		outStr += fmt.Sprintf("Unit %s\n", unit.Path)
 	}
 
@@ -177,9 +202,9 @@ func (runner *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) 
 	return nil
 }
 
-func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
-	orderedUnits := make([]string, 0, len(runner.Stack.Units))
-	for _, unit := range runner.Stack.Units {
+func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
+	orderedUnits := make([]string, 0, len(r.Stack.Units))
+	for _, unit := range r.Stack.Units {
 		orderedUnits = append(orderedUnits, unit.Path)
 	}
 
@@ -191,10 +216,10 @@ func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, erro
 	return string(j), nil
 }
 
-func (runner *Runner) ListStackDependentUnits() map[string][]string {
+func (r *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
-	for _, unit := range runner.Stack.Units {
+	for _, unit := range r.Stack.Units {
 		if len(unit.Dependencies) != 0 {
 			for _, dep := range unit.Dependencies {
 				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
@@ -227,8 +252,8 @@ func (runner *Runner) ListStackDependentUnits() map[string][]string {
 }
 
 // Sync the TerraformCliArgs for each unit in the stack to match the provided terragruntOptions struct.
-func (runner *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
-	for _, unit := range runner.Stack.Units {
+func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
+	for _, unit := range r.Stack.Units {
 		unit.TerragruntOptions.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
 		copy(unit.TerragruntOptions.TerraformCliArgs, opts.TerraformCliArgs)
 
@@ -249,7 +274,7 @@ func (runner *Runner) syncTerraformCliArgs(l log.Logger, opts *options.Terragrun
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
 // remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
 // has never been applied on the dependency.
-func (runner *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
+func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 
@@ -260,13 +285,13 @@ func (runner *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.
 
 		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 			var dependenciesMsg string
-			if len(runner.Stack.Units[i].Dependencies) > 0 {
-				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", runner.Stack.Units[i].Config.Dependencies.Paths)
+			if len(r.Stack.Units[i].Dependencies) > 0 {
+				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", r.Stack.Units[i].Config.Dependencies.Paths)
 			}
 
 			l.Infof("%v%v refers to remote state "+
 				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
-				runner.Stack.Units[i].Path,
+				r.Stack.Units[i].Path,
 				dependenciesMsg,
 			)
 		}
@@ -274,29 +299,29 @@ func (runner *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.
 }
 
 // WithOptions updates the stack with the provided options.
-func (runner *Runner) WithOptions(opts ...runbase.Option) *Runner {
+func (r *Runner) WithOptions(opts ...runbase.Option) *Runner {
 	for _, opt := range opts {
-		opt(runner)
+		opt(r)
 	}
 
-	return runner
+	return r
 }
 
-func (runner *Runner) GetStack() *runbase.Stack {
-	return runner.Stack
+func (r *Runner) GetStack() *runbase.Stack {
+	return r.Stack
 }
 
 // SetTerragruntConfig sets the report for the stack.
-func (runner *Runner) SetTerragruntConfig(config *config.TerragruntConfig) {
-	runner.Stack.ChildTerragruntConfig = config
+func (r *Runner) SetTerragruntConfig(config *config.TerragruntConfig) {
+	r.Stack.ChildTerragruntConfig = config
 }
 
 // SetParseOptions sets the report for the stack.
-func (runner *Runner) SetParseOptions(parserOptions []hclparse.Option) {
-	runner.Stack.ParserOptions = parserOptions
+func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
+	r.Stack.ParserOptions = parserOptions
 }
 
 // SetReport sets the report for the stack.
-func (runner *Runner) SetReport(report *report.Report) {
-	runner.Stack.Report = report
+func (r *Runner) SetReport(report *report.Report) {
+	r.Stack.Report = report
 }

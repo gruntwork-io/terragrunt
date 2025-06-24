@@ -22,8 +22,9 @@ func buildQueue(units []*runbase.Unit, failFast bool) *dagQueue {
 
 	// 1. Create entries (all start as pending)
 	for _, u := range units {
-		e := &entry{task: &Task{Unit: u}, state: statusPending}
+		e := &entry{task: &Task{Unit: u}, state: StatusPending}
 		q.entries[e.task.ID()] = e
+		q.ordered = append(q.ordered, e)
 	}
 
 	// 2. Wire parent/child edges and set starting state.
@@ -36,9 +37,9 @@ func buildQueue(units []*runbase.Unit, failFast bool) *dagQueue {
 		}
 		e.remainingDeps = len(e.blockedBy)
 		if e.remainingDeps == 0 {
-			e.state = statusReady
+			e.state = StatusReady
 		} else {
-			e.state = statusBlocked
+			e.state = StatusBlocked
 		}
 	}
 	return q
@@ -51,12 +52,12 @@ func (q *dagQueue) getReady(max int) []*entry {
 	defer q.mu.Unlock()
 
 	var out []*entry
-	for _, e := range q.entries {
+	for _, e := range q.ordered {
 		if len(out) >= max {
 			break
 		}
-		if e.state == statusReady {
-			e.state = statusRunning
+		if e.state == StatusReady {
+			e.state = StatusRunning
 			out = append(out, e)
 		}
 	}
@@ -69,17 +70,17 @@ func (q *dagQueue) markDone(e *entry, res Result) {
 	defer q.mu.Unlock()
 
 	if res.Err != nil || res.ExitCode != 0 {
-		e.state = statusFailed
+		e.state = StatusFailed
 	} else {
-		e.state = statusSucceeded
+		e.state = StatusSucceeded
 	}
 	e.result = res
 
 	for _, child := range e.dependents {
-		if child.state == statusBlocked {
+		if child.state == StatusBlocked {
 			child.remainingDeps--
 			if child.remainingDeps == 0 {
-				child.state = statusReady
+				child.state = StatusReady
 			}
 		}
 	}
@@ -92,7 +93,7 @@ func (q *dagQueue) empty() bool {
 
 	for _, e := range q.entries {
 		switch e.state {
-		case statusPending, statusBlocked, statusReady, statusRunning:
+		case StatusPending, StatusBlocked, StatusReady, StatusRunning:
 			return false
 		}
 	}
