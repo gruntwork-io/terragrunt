@@ -155,172 +155,148 @@ func (c *CAS) resolveReference(ctx context.Context, url, branch string) (string,
 }
 
 func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *CloneOptions, url string, hash string) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_clone_and_store_content", map[string]any{
-		"url":    url,
-		"branch": opts.Branch,
-		"hash":   hash,
-	}, func(childCtx context.Context) error {
-		if err := c.git.Clone(childCtx, url, true, 1, opts.Branch); err != nil {
-			return err
-		}
+	if err := c.git.Clone(ctx, url, true, 1, opts.Branch); err != nil {
+		return err
+	}
 
-		return c.storeRootTree(childCtx, l, hash, opts)
-	})
+	return c.storeRootTree(ctx, l, hash, opts)
 }
 
 func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_store_root_tree", map[string]any{
-		"hash": hash,
-	}, func(childCtx context.Context) error {
-		// Get all blobs recursively in a single git ls-tree -r call at the root
-		allBlobsTree, err := c.git.LsTreeRecursive(childCtx, hash, ".")
+	// Get all blobs recursively in a single git ls-tree -r call at the root
+	allBlobsTree, err := c.git.LsTreeRecursive(ctx, hash, ".")
+	if err != nil {
+		return err
+	}
+
+	// Collect all blobs from recursive listing
+	var allBlobs []TreeEntry
+
+	for _, entry := range allBlobsTree.Entries() {
+		if entry.Type == "blob" {
+			allBlobs = append(allBlobs, entry)
+		}
+	}
+
+	// Store all blobs concurrently (single batch from recursive call)
+	if err := c.storeBlobs(ctx, allBlobs); err != nil {
+		return err
+	}
+
+	// Now store the tree structure (which won't need to handle blobs again)
+	if err := c.storeTree(ctx, l, hash, ""); err != nil {
+		return err
+	}
+
+	if len(opts.IncludedGitFiles) == 0 {
+		return nil
+	}
+
+	content := NewContent(c.store)
+
+	data, err := content.Read(hash)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range opts.IncludedGitFiles {
+		stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
 		if err != nil {
 			return err
 		}
 
-		// Collect all blobs from recursive listing
-		var allBlobs []TreeEntry
-
-		for _, entry := range allBlobsTree.Entries() {
-			if entry.Type == "blob" {
-				allBlobs = append(allBlobs, entry)
-			}
+		if stat.IsDir() {
+			continue
 		}
 
-		// Store all blobs concurrently (single batch from recursive call)
-		if err := c.storeBlobs(childCtx, allBlobs); err != nil {
+		workDirPath := filepath.Join(c.git.WorkDir, file)
+
+		hash, err := hashFile(workDirPath)
+		if err != nil {
 			return err
-		}
-
-		// Now store the tree structure (which won't need to handle blobs again)
-		if err := c.storeTree(childCtx, l, hash, ""); err != nil {
-			return err
-		}
-
-		if len(opts.IncludedGitFiles) == 0 {
-			return nil
 		}
 
 		content := NewContent(c.store)
 
-		data, err := content.Read(hash)
-		if err != nil {
+		if err := content.EnsureCopy(l, hash, workDirPath); err != nil {
 			return err
 		}
 
-		for _, file := range opts.IncludedGitFiles {
-			stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
-			if err != nil {
-				return err
-			}
+		path := filepath.Join(".git", file)
 
-			if stat.IsDir() {
-				continue
-			}
+		data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), hash, path)...)
+	}
 
-			workDirPath := filepath.Join(c.git.WorkDir, file)
-
-			hash, err := hashFile(workDirPath)
-			if err != nil {
-				return err
-			}
-
-			content := NewContent(c.store)
-
-			if err := content.EnsureCopy(l, hash, workDirPath); err != nil {
-				return err
-			}
-
-			path := filepath.Join(".git", file)
-
-			data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), hash, path)...)
-		}
-
-		// Overwrite the root tree with the new data
-		return content.Store(l, hash, data)
-	})
+	// Overwrite the root tree with the new data
+	return content.Store(l, hash, data)
 }
 
 func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_store_tree", map[string]any{
-		"hash":   hash,
-		"prefix": prefix,
-	}, func(childCtx context.Context) error {
-		if !c.store.NeedsWrite(hash) {
-			return nil
-		}
-
-		// Get tree structure (no recursive blobs needed - they're already stored)
-		tree, err := c.git.LsTree(childCtx, hash, ".")
-		if err != nil {
-			return err
-		}
-
-		// Only collect immediate tree entries (blobs are already handled at root)
-		var immediateTrees []TreeEntry
-
-		for _, entry := range tree.Entries() {
-			if prefix != "" {
-				entry.Path = filepath.Join(prefix, entry.Path)
-			}
-
-			if entry.Type == "tree" {
-				immediateTrees = append(immediateTrees, entry)
-			}
-		}
-
-		// Store tree objects recursively
-		if err := c.storeTrees(childCtx, l, immediateTrees, prefix); err != nil {
-			return err
-		}
-
-		// Store the current tree object
-		content := NewContent(c.store)
-		if err := content.EnsureWithWait(l, hash, tree.Data()); err != nil {
-			return err
-		}
-
+	if !c.store.NeedsWrite(hash) {
 		return nil
-	})
+	}
+
+	// Get tree structure (no recursive blobs needed - they're already stored)
+	tree, err := c.git.LsTree(ctx, hash, ".")
+	if err != nil {
+		return err
+	}
+
+	// Only collect immediate tree entries (blobs are already handled at root)
+	var immediateTrees []TreeEntry
+
+	for _, entry := range tree.Entries() {
+		if prefix != "" {
+			entry.Path = filepath.Join(prefix, entry.Path)
+		}
+
+		if entry.Type == "tree" {
+			immediateTrees = append(immediateTrees, entry)
+		}
+	}
+
+	// Store tree objects recursively
+	if err := c.storeTrees(ctx, l, immediateTrees, prefix); err != nil {
+		return err
+	}
+
+	// Store the current tree object
+	content := NewContent(c.store)
+	if err := content.EnsureWithWait(l, hash, tree.Data()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // storeTrees stores trees in the CAS
 func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry, prefix string) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_store_trees", map[string]any{
-		"tree_count": len(entries),
-		"prefix":     prefix,
-	}, func(childCtx context.Context) error {
-		for _, entry := range entries {
-			if !c.store.NeedsWrite(entry.Hash) {
-				continue
-			}
-
-			if err := c.storeTree(childCtx, l, entry.Hash, prefix); err != nil {
-				return err
-			}
+	for _, entry := range entries {
+		if !c.store.NeedsWrite(entry.Hash) {
+			continue
 		}
 
-		return nil
-	})
+		if err := c.storeTree(ctx, l, entry.Hash, prefix); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // storeBlobs stores blobs in the CAS
 func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_store_blobs", map[string]any{
-		"blob_count": len(entries),
-	}, func(childCtx context.Context) error {
-		for _, entry := range entries {
-			if !c.store.NeedsWrite(entry.Hash) {
-				continue
-			}
-
-			if err := c.ensureBlob(childCtx, entry.Hash); err != nil {
-				return err
-			}
+	for _, entry := range entries {
+		if !c.store.NeedsWrite(entry.Hash) {
+			continue
 		}
 
-		return nil
-	})
+		if err := c.ensureBlob(ctx, entry.Hash); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // ensureBlob ensures that a blob exists in the CAS.
@@ -328,69 +304,65 @@ func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
 // we want to take advantage of the ability to write to the
 // entry using `git cat-file`.
 func (c *CAS) ensureBlob(ctx context.Context, hash string) error {
-	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_ensure_blob", map[string]any{
-		"hash": hash,
-	}, func(childCtx context.Context) error {
-		needsWrite, lock, err := c.store.EnsureWithWait(hash)
-		if err != nil {
-			return err
-		}
+	needsWrite, lock, err := c.store.EnsureWithWait(hash)
+	if err != nil {
+		return err
+	}
 
-		// If content already exists or was written by another process, we're done
-		if !needsWrite {
-			return nil
-		}
-
-		// We have the lock and need to write the content
-		defer func() {
-			if unlockErr := lock.Unlock(); unlockErr != nil {
-				err = errors.Join(err, unlockErr)
-			}
-		}()
-
-		content := NewContent(c.store)
-
-		tmpHandle, err := content.GetTmpHandle(hash)
-		if err != nil {
-			return err
-		}
-
-		tmpPath := tmpHandle.Name()
-
-		// We want to make sure we remove the temporary file
-		// if we encounter an error
-		defer func() {
-			if _, osStatErr := os.Stat(tmpPath); osStatErr == nil {
-				err = errors.Join(err, os.Remove(tmpPath))
-			}
-		}()
-
-		err = c.git.CatFile(childCtx, hash, tmpHandle)
-		if err != nil {
-			return err
-		}
-
-		// For Windows, ensure data is synchronized to disk
-		if runtime.GOOS == "windows" {
-			if err = tmpHandle.Sync(); err != nil {
-				return err
-			}
-		}
-
-		if err = tmpHandle.Close(); err != nil {
-			return err
-		}
-
-		if err = os.Rename(tmpPath, content.getPath(hash)); err != nil {
-			return err
-		}
-
-		if err = os.Chmod(content.getPath(hash), StoredFilePerms); err != nil {
-			return err
-		}
-
+	// If content already exists or was written by another process, we're done
+	if !needsWrite {
 		return nil
-	})
+	}
+
+	// We have the lock and need to write the content
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			err = errors.Join(err, unlockErr)
+		}
+	}()
+
+	content := NewContent(c.store)
+
+	tmpHandle, err := content.GetTmpHandle(hash)
+	if err != nil {
+		return err
+	}
+
+	tmpPath := tmpHandle.Name()
+
+	// We want to make sure we remove the temporary file
+	// if we encounter an error
+	defer func() {
+		if _, osStatErr := os.Stat(tmpPath); osStatErr == nil {
+			err = errors.Join(err, os.Remove(tmpPath))
+		}
+	}()
+
+	err = c.git.CatFile(ctx, hash, tmpHandle)
+	if err != nil {
+		return err
+	}
+
+	// For Windows, ensure data is synchronized to disk
+	if runtime.GOOS == "windows" {
+		if err = tmpHandle.Sync(); err != nil {
+			return err
+		}
+	}
+
+	if err = tmpHandle.Close(); err != nil {
+		return err
+	}
+
+	if err = os.Rename(tmpPath, content.getPath(hash)); err != nil {
+		return err
+	}
+
+	if err = os.Chmod(content.getPath(hash), StoredFilePerms); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func hashFile(path string) (string, error) {

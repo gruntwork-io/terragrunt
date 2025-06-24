@@ -107,7 +107,7 @@ func TestContent_Link(t *testing.T) {
 		// Then create a link to it
 		targetDir := t.TempDir()
 		targetPath := filepath.Join(targetDir, "subdir", "test.txt")
-		err = content.Link(t.Context(), testHash, targetPath)
+		err = content.Link(testHash, targetPath)
 		require.NoError(t, err)
 
 		// Verify link was created and contains correct content
@@ -143,7 +143,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to create link
-		err = content.Link(t.Context(), testHash, targetPath)
+		err = content.Link(testHash, targetPath)
 		require.NoError(t, err)
 
 		// Verify original content remains

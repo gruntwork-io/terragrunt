@@ -119,7 +119,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 
 			switch entry.Type {
 			case "blob":
-				if err := content.Link(childCtx, entry.Hash, entryPath); err != nil {
+				if err := content.Link(entry.Hash, entryPath); err != nil {
 					return wrapError("link_blob", entryPath, err)
 				}
 			case "tree":
