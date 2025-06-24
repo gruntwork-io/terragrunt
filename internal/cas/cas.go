@@ -81,6 +81,11 @@ func New(opts Options) (*CAS, error) {
 //
 // TODO: Make options optional
 func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url string) error {
+	// Ensure the store path exists
+	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+		return fmt.Errorf("failed to create store path: %w", err)
+	}
+
 	// Acquire global clone lock to ensure only one clone at a time
 	globalLock := flock.New(filepath.Join(c.store.Path(), "clone.lock"))
 
