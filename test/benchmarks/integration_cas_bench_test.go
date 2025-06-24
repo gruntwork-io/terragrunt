@@ -25,7 +25,16 @@ func BenchmarkCASInit(b *testing.B) {
 		require.NoError(b, os.WriteFile(remoteTerragruntConfigPath, originalConfig, helpers.DefaultFilePermissions))
 
 		// Run initial init to avoid noise from the first iteration being slower
-		helpers.RunTerragruntCommand(b, "terragrunt", "init", "--non-interactive", "--provider-cache", "--working-dir", tmpDir)
+		helpers.RunTerragruntCommand(
+			b,
+			"terragrunt",
+			"init",
+			"--experiment", "cas",
+			"--non-interactive",
+			"--provider-cache",
+			"--working-dir",
+			tmpDir,
+		)
 	}
 
 	b.Run("remote init without CAS", func(b *testing.B) {
