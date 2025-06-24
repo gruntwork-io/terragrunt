@@ -9,7 +9,8 @@ order: 408
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
-    - /docs/features/lock-file-handling/
+  - /docs/features/lock-file-handling/
+  - /docs/reference/lock-file-handling/
 slug: lock-file-handling
 ---
 

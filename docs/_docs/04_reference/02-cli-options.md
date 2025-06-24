@@ -9,6 +9,10 @@ tags: ["CLI"]
 order: 402
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+  - /docs/reference/cli/
+  - /docs/reference/cli/commands/run
+  - /docs/reference/cli/commands/stack/generate
 slug: cli-options
 ---
 
