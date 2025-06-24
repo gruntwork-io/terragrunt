@@ -2,6 +2,7 @@ package cas
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"strings"
@@ -101,8 +102,13 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		if ok {
 			// The final detector is always the FileDetector.
 			if i == len(g.Detectors)-1 {
-				if _, statErr := os.Stat(src); statErr != nil {
-					return false, ErrDirectoryNotFound
+				info, statErr := os.Stat(src)
+				if statErr != nil {
+					return false, fmt.Errorf("%w: %s", ErrDirectoryNotFound, src)
+				}
+
+				if !info.IsDir() {
+					return false, fmt.Errorf("%w: %s", ErrNotADirectory, src)
 				}
 
 				// We use this as a simple way to indicate that we're working with a local directory.
@@ -117,4 +123,7 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 	return false, nil
 }
 
-var ErrDirectoryNotFound = errors.New("directory not found")
+var (
+	ErrDirectoryNotFound = errors.New("directory not found")
+	ErrNotADirectory     = errors.New("not a directory")
+)
