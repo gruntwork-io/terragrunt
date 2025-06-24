@@ -149,13 +149,16 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 		}
 	}
 
-	maxWorkers := max(1, runtime.NumCPU()/4)
+	scalingFactor := 2
+	maxWorkers := max(1, runtime.NumCPU()/scalingFactor)
 	workChan := make(chan workItem, len(workItems))
 	errChan := make(chan error, 1)
+
 	var wg sync.WaitGroup
 
 	for i := 0; i < maxWorkers; i++ {
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
 
@@ -169,6 +172,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 				}
 
 				var err error
+
 				switch work.itemType {
 				case "link":
 					err = content.Link(ctx, work.entry.Hash, work.path)
@@ -177,6 +181,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					}
 				case "subtree":
 					var treeData []byte
+
 					treeData, err = content.Read(work.entry.Hash)
 					if err != nil {
 						err = wrapError("read_tree", work.entry.Hash, err)
@@ -184,6 +189,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					}
 
 					var subTree *Tree
+
 					subTree, err = ParseTree(string(treeData), work.path)
 					if err != nil {
 						err = wrapError("parse_tree", work.entry.Hash, err)
@@ -201,6 +207,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					case errChan <- err:
 					default:
 					}
+
 					return
 				}
 			}
@@ -218,6 +225,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 		case workChan <- work:
 		}
 	}
+
 	close(workChan)
 
 	wg.Wait()

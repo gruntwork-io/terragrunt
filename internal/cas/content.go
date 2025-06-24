@@ -24,6 +24,8 @@ const (
 	StoredFilePerms = os.FileMode(0444)
 	// RegularFilePerms represents standard file permissions (rw-r--r--)
 	RegularFilePerms = os.FileMode(0644)
+	// WindowsOS is the name of the Windows operating system
+	WindowsOS = "windows"
 )
 
 // NewContent creates a new Content instance
@@ -83,19 +85,6 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 	})
 }
 
-func (c *Content) ensureTargetDirectory(targetPath string) error {
-	targetDir := filepath.Dir(targetPath)
-	if err := os.MkdirAll(targetDir, DefaultDirPerms); err != nil {
-		return &WrappedError{
-			Op:   "create_target_dir",
-			Path: targetDir,
-			Err:  ErrCreateDir,
-		}
-	}
-
-	return nil
-}
-
 // Store stores a single content item. This is typically used for trees,
 // As blobs are written directly from git cat-file stdout.
 func (c *Content) Store(l log.Logger, hash string, data []byte) error {
@@ -103,19 +92,20 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	if err != nil {
 		return wrapError("acquire_lock", hash, err)
 	}
+
 	defer func() {
 		if unlockErr := lock.Unlock(); unlockErr != nil {
 			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
 		}
 	}()
 
-	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+	if err = os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
-	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
@@ -132,8 +122,8 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	if _, err := buf.Write(data); err != nil {
 		f.Close()
 
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("write_to_store", tempPath, err)
@@ -142,16 +132,16 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	if err := buf.Flush(); err != nil {
 		f.Close()
 
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("flush_buffer", tempPath, err)
 	}
 
 	if err := f.Close(); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("close_file", tempPath, err)
@@ -159,15 +149,15 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 
 	// Set read-only permissions on the temporary file
 	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("chmod_temp_file", tempPath, err)
 	}
 
 	// For Windows, handle readonly attributes specifically
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == WindowsOS {
 		// Check if a destination file exists and is read-only
 		if _, err := os.Stat(path); err == nil {
 			// File exists, make it writable before rename operation
@@ -179,15 +169,15 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("finalize_store", path, err)
 	}
 
 	// For Windows, we need to set the permissions again after rename
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == WindowsOS {
 		// Ensure the file has read-only permissions after rename
 		if err := os.Chmod(path, StoredFilePerms); err != nil {
 			return wrapError("chmod_final_file", path, err)
@@ -227,13 +217,13 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 		}
 	}()
 
-	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+	if err = os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
-	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
@@ -250,8 +240,8 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 	if _, err := buf.Write(data); err != nil {
 		f.Close()
 
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("write_to_store", tempPath, err)
@@ -260,16 +250,16 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 	if err := buf.Flush(); err != nil {
 		f.Close()
 
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("flush_buffer", tempPath, err)
 	}
 
 	if err := f.Close(); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("close_file", tempPath, err)
@@ -277,15 +267,15 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 
 	// Set read-only permissions on the temporary file
 	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("chmod_temp_file", tempPath, err)
 	}
 
 	// For Windows, handle readonly attributes specifically
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == WindowsOS {
 		// Check if a destination file exists and is read-only
 		if _, err := os.Stat(path); err == nil {
 			// File exists, make it writable before rename operation
@@ -297,15 +287,15 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("finalize_store", path, err)
 	}
 
 	// For Windows, we need to set the permissions again after rename
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == WindowsOS {
 		// Ensure the file has read-only permissions after rename
 		if err := os.Chmod(path, StoredFilePerms); err != nil {
 			return wrapError("chmod_final_file", path, err)
@@ -326,6 +316,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 	if err != nil {
 		return wrapError("acquire_lock", hash, err)
 	}
+
 	defer func() {
 		if unlockErr := lock.Unlock(); unlockErr != nil {
 			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
@@ -334,7 +325,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
-	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 

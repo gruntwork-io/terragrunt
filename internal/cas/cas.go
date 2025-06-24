@@ -183,7 +183,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 		return err
 	}
 
-	if err = c.storeTreeRecursive(ctx, l, hash, "", tree); err != nil {
+	if err = c.storeTreeRecursive(ctx, l, hash, tree); err != nil {
 		return err
 	}
 
@@ -230,46 +230,8 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 	return content.Store(l, hash, data)
 }
 
-func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) error {
-	if !c.store.NeedsWrite(hash) {
-		return nil
-	}
-
-	// Get tree structure (no recursive blobs needed - they're already stored)
-	tree, err := c.git.LsTree(ctx, hash, ".")
-	if err != nil {
-		return err
-	}
-
-	// Only collect immediate tree entries (blobs are already handled at root)
-	var immediateTrees []TreeEntry
-
-	for _, entry := range tree.Entries() {
-		if prefix != "" {
-			entry.Path = filepath.Join(prefix, entry.Path)
-		}
-
-		if entry.Type == "tree" {
-			immediateTrees = append(immediateTrees, entry)
-		}
-	}
-
-	// Store tree objects recursively
-	if err := c.storeTrees(ctx, l, immediateTrees, prefix); err != nil {
-		return err
-	}
-
-	// Store the current tree object
-	content := NewContent(c.store)
-	if err := content.EnsureWithWait(l, hash, tree.Data()); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // storeTreeRecursive stores a tree fetched from git ls-tree -r
-func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash, prefix string, tree *Tree) error {
+func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string, tree *Tree) error {
 	if !c.store.NeedsWrite(hash) {
 		return nil
 	}
@@ -282,21 +244,6 @@ func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash, prefix
 	content := NewContent(c.store)
 	if err := content.EnsureWithWait(l, hash, tree.Data()); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// storeTrees stores trees in the CAS
-func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry, prefix string) error {
-	for _, entry := range entries {
-		if !c.store.NeedsWrite(entry.Hash) {
-			continue
-		}
-
-		if err := c.storeTree(ctx, l, entry.Hash, prefix); err != nil {
-			return err
-		}
 	}
 
 	return nil

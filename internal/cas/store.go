@@ -46,7 +46,7 @@ func (s *Store) AcquireLock(hash string) (*flock.Flock, error) {
 	lockPath := filepath.Join(partitionDir, hash+".lock")
 
 	// Ensure the partition directory exists
-	if err := os.MkdirAll(partitionDir, 0755); err != nil {
+	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, err
 	}
 
@@ -65,11 +65,12 @@ func (s *Store) TryAcquireLock(hash string) (*flock.Flock, bool, error) {
 	lockPath := filepath.Join(partitionDir, hash+".lock")
 
 	// Ensure the partition directory exists
-	if err := os.MkdirAll(partitionDir, 0755); err != nil {
+	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, false, err
 	}
 
 	lock := flock.New(lockPath)
+
 	acquired, err := lock.TryLock()
 	if err != nil {
 		return nil, false, err
@@ -110,7 +111,10 @@ func (s *Store) EnsureWithWait(hash string) (needsWrite bool, lock *flock.Flock,
 		// (another process might have completed while we were trying)
 		if !s.NeedsWrite(hash) {
 			// Content appeared while we were acquiring lock, no write needed
-			flockLock.Unlock()
+			if err = flockLock.Unlock(); err != nil {
+				return false, nil, err
+			}
+
 			return false, nil, nil
 		}
 		// We have the lock and content doesn't exist, caller should write
@@ -126,7 +130,10 @@ func (s *Store) EnsureWithWait(hash string) (needsWrite bool, lock *flock.Flock,
 	// Now we have the lock, check if the other process wrote the content
 	if !s.NeedsWrite(hash) {
 		// Content was written by the other process, no write needed
-		waitLock.Unlock()
+		if err := waitLock.Unlock(); err != nil {
+			return false, nil, err
+		}
+
 		return false, nil, nil
 	}
 

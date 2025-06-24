@@ -73,7 +73,7 @@ func TestStore_AcquireLock(t *testing.T) {
 
 	// Test successful lock acquisition
 	lock, err := store.AcquireLock(testHash)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, lock)
 
 	// Verify lock file exists
@@ -82,7 +82,7 @@ func TestStore_AcquireLock(t *testing.T) {
 
 	// Clean up
 	err = lock.Unlock()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestStore_TryAcquireLock(t *testing.T) {
@@ -93,23 +93,23 @@ func TestStore_TryAcquireLock(t *testing.T) {
 
 	// Test successful lock acquisition
 	lock1, acquired, err := store.TryAcquireLock(testHash)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, acquired)
 	assert.NotNil(t, lock1)
 
 	// Test lock contention - should fail to acquire
 	lock2, acquired, err := store.TryAcquireLock(testHash)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, acquired)
 	assert.Nil(t, lock2)
 
 	// Clean up first lock
 	err = lock1.Unlock()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Now should be able to acquire again
 	lock3, acquired, err := store.TryAcquireLock(testHash)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, acquired)
 	assert.NotNil(t, lock3)
 
@@ -181,7 +181,7 @@ func TestStore_EnsureWithWait(t *testing.T) {
 
 		// EnsureWithWait should return false (no write needed)
 		needsWrite, lock, err := store.EnsureWithWait(testHash)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.False(t, needsWrite)
 		assert.Nil(t, lock)
 	})
@@ -193,7 +193,7 @@ func TestStore_EnsureWithWait(t *testing.T) {
 
 		// EnsureWithWait should return true (write needed) and provide lock
 		needsWrite, lock, err := store.EnsureWithWait(testHashNew)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, needsWrite)
 		assert.NotNil(t, lock)
 
@@ -268,7 +268,7 @@ func TestStore_EnsureWithWait(t *testing.T) {
 		partitionDir := filepath.Join(store.Path(), testHashConcurrent[:2])
 		contentPath := filepath.Join(partitionDir, testHashConcurrent)
 		content, err := os.ReadFile(contentPath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []byte("written by process 1"), content)
 	})
 }
