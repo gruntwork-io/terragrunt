@@ -8,17 +8,14 @@ package cas
 import (
 	"context"
 	"crypto/sha1"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
-	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -29,22 +26,6 @@ type Options struct {
 	// StorePath specifies a custom path for the content store
 	// If empty, uses $HOME/.cache/terragrunt/cas/store
 	StorePath string
-
-	// MaxConcurrentClones limits concurrent clones per repository
-	// If 0, defaults to runtime.NumCPU() * 2, max 16
-	MaxConcurrentClones int
-
-	// RetryMaxAttempts sets maximum retry attempts for clone coordination
-	// If 0, defaults to 5
-	RetryMaxAttempts int
-
-	// RetryBaseDelay sets the base delay for exponential backoff
-	// If 0, defaults to 100ms
-	RetryBaseDelay time.Duration
-
-	// RetryMaxDelay sets the maximum delay for exponential backoff
-	// If 0, defaults to 5 seconds
-	RetryMaxDelay time.Duration
 }
 
 // CloneOptions configures the behavior of a specific clone operation
@@ -82,23 +63,6 @@ func New(opts Options) (*CAS, error) {
 		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
 	}
 
-	// Set default concurrency control values.
-	//
-	// These might be configurable by users in the future, but
-	// for now, defaults will be the only way they're set.
-	if opts.MaxConcurrentClones == 0 {
-		opts.MaxConcurrentClones = 1
-	}
-	if opts.RetryMaxAttempts == 0 {
-		opts.RetryMaxAttempts = 30
-	}
-	if opts.RetryBaseDelay == 0 {
-		opts.RetryBaseDelay = 100 * time.Millisecond
-	}
-	if opts.RetryMaxDelay == 0 {
-		opts.RetryMaxDelay = 5 * time.Second
-	}
-
 	store := NewStore(opts.StorePath)
 
 	git, err := NewGitRunner()
@@ -113,10 +77,23 @@ func New(opts Options) (*CAS, error) {
 	}, nil
 }
 
-// Clone performs the clone operation with repository-level concurrency control
+// Clone performs the clone operation
 //
 // TODO: Make options optional
 func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url string) error {
+	// Acquire global clone lock to ensure only one clone at a time
+	globalLock := flock.New(filepath.Join(c.store.Path(), "clone.lock"))
+
+	if err := globalLock.Lock(); err != nil {
+		return fmt.Errorf("failed to acquire global clone lock: %w", err)
+	}
+
+	defer func() {
+		if unlockErr := globalLock.Unlock(); unlockErr != nil {
+			l.Warnf("failed to release global clone lock: %v", unlockErr)
+		}
+	}()
+
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_clone", map[string]any{
 		"url":    url,
 		"branch": opts.Branch,
@@ -129,19 +106,6 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 		targetDir := c.prepareTargetDirectory(opts.Dir, url)
 
 		if c.store.NeedsWrite(hash) {
-			// Acquire repository-level lock to limit concurrent clones
-			repoLock, err := c.acquireRepoLock(childCtx, l, url, opts.Branch)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				if unlockErr := repoLock.Unlock(); unlockErr != nil {
-					l.Warnf("failed to release repository lock: %v", unlockErr)
-				}
-			}()
-
-			l.Debugf("Repository lock acquired for %s (slot %d)", url, repoLock.slotNum)
-
 			// Create a temporary directory for git operations
 			tempDir, cleanup, err := c.git.CreateTempDir()
 			if err != nil {
@@ -434,73 +398,4 @@ func hashFile(path string) (string, error) {
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// getRepoLockKey generates a consistent lock key for a repository URL
-func (c *CAS) getRepoLockKey(url, branch string) string {
-	// Normalize the URL to handle different formats of the same repo
-	normalizedURL := strings.ToLower(strings.TrimSuffix(url, ".git"))
-
-	// Create a hash of the URL + branch for consistent locking
-	h := sha256.New()
-	h.Write([]byte(normalizedURL + ":" + branch))
-	return hex.EncodeToString(h.Sum(nil))[:16] // Use first 16 chars for shorter filenames
-}
-
-// acquireRepoLock tries to acquire a repository-level lock with retry and exponential backoff
-func (c *CAS) acquireRepoLock(ctx context.Context, l log.Logger, url, branch string) (*RepositoryLock, error) {
-	lockKey := c.getRepoLockKey(url, branch)
-
-	for attempt := 0; attempt < c.opts.RetryMaxAttempts; attempt++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		lock, acquired, err := c.store.TryAcquireRepoLock(lockKey, c.opts.MaxConcurrentClones)
-		if err != nil {
-			return nil, err
-		}
-
-		if acquired {
-			l.Debugf("Acquired repository lock for %s (attempt %d)", url, attempt+1)
-			return lock, nil
-		}
-
-		// Lock not acquired, wait with exponential backoff
-		if attempt < c.opts.RetryMaxAttempts-1 {
-			delay := c.calculateBackoffDelay(attempt)
-			l.Debugf("Repository lock busy for %s, retrying in %v (attempt %d/%d)",
-				url, delay, attempt+1, c.opts.RetryMaxAttempts)
-
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(delay):
-				continue
-			}
-		}
-	}
-
-	return nil, &WrappedError{
-		Op:      "acquire_repo_lock",
-		Context: fmt.Sprintf("failed to acquire repository lock after %d attempts", c.opts.RetryMaxAttempts),
-		Err:     ErrLockTimeout,
-	}
-}
-
-// calculateBackoffDelay calculates exponential backoff delay with jitter
-func (c *CAS) calculateBackoffDelay(attempt int) time.Duration {
-	// Calculate exponential backoff: base * 2^attempt
-	delay := c.opts.RetryBaseDelay * time.Duration(1<<uint(attempt))
-
-	// Cap at maximum delay
-	if delay > c.opts.RetryMaxDelay {
-		delay = c.opts.RetryMaxDelay
-	}
-
-	// Add jitter (±25% of the delay)
-	jitter := time.Duration(rand.Int63n(int64(delay / 2)))
-	return delay + jitter
 }

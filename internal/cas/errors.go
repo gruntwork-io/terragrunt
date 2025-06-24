@@ -56,7 +56,6 @@ var (
 	ErrNoMatchingReference = errors.New("no matching reference")
 	ErrReadTree            = errors.New("failed to read tree")
 	ErrNoWorkDir           = errors.New("working directory not set")
-	ErrLockTimeout         = errors.New("lock acquisition timeout")
 )
 
 func wrapError(op, path string, err error) error {

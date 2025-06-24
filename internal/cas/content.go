@@ -39,30 +39,18 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 		"hash": hash,
 		"path": targetPath,
 	}, func(childCtx context.Context) error {
-		if err := c.ensureTargetDirectory(targetPath); err != nil {
-			return err
-		}
-
 		sourcePath := c.getPath(hash)
 
-		// Check if target exists
-		if _, err := os.Stat(targetPath); err == nil {
-			// File exists, skip creating link
-			return nil
-		} else if !os.IsNotExist(err) {
-			// Some other error occurred
-			return &WrappedError{
-				Op:   "stat_target",
-				Path: targetPath,
-				Err:  err,
-			}
-		}
-
-		// Create hard link
+		// Try to create hard link directly (most efficient path)
 		if err := os.Link(sourcePath, targetPath); err != nil {
-			// If hard link fails, try to copy the file
-			data, readErr := os.ReadFile(sourcePath)
+			// Check if it's because target already exists
+			if os.IsExist(err) {
+				// File already exists, which is fine
+				return nil
+			}
 
+			// If hard link fails for other reasons, try to copy the file
+			data, readErr := os.ReadFile(sourcePath)
 			if readErr != nil {
 				return &WrappedError{
 					Op:   "read_source",
@@ -73,7 +61,6 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 
 			// Write to temporary file first
 			tempPath := targetPath + ".tmp"
-
 			if err := os.WriteFile(tempPath, data, RegularFilePerms); err != nil {
 				return &WrappedError{
 					Op:   "write_target",
@@ -82,7 +69,7 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 				}
 			}
 
-			// Rename to a final path
+			// Atomic rename to final path
 			if err := os.Rename(tempPath, targetPath); err != nil {
 				return &WrappedError{
 					Op:   "rename_target",

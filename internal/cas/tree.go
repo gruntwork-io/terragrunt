@@ -100,74 +100,128 @@ func ParseTree(output, path string) (*Tree, error) {
 // LinkTree writes the tree to a target directory
 func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) error {
 	content := NewContent(store)
-	maxWorkers := max(1, runtime.NumCPU()/4)
-	sem := make(chan struct{}, maxWorkers)
-	var wg sync.WaitGroup
-	errChan := make(chan error, 1)
 
-	// Process entries concurrently
-	for _, entry := range t.entries {
-		// Check for cancellation or errors
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-errChan:
-			return err
-		default:
-		}
+	dirsToCreate := make(map[string]struct{}, len(t.entries))
 
-		entryPath := filepath.Join(targetDir, entry.Path)
-		if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
-			return wrapError("mkdir_all", entryPath, err)
-		}
-
-		wg.Add(1)
-		go func(entry TreeEntry, path string) {
-			defer wg.Done()
-			sem <- struct{}{}        // Acquire semaphore
-			defer func() { <-sem }() // Release semaphore
-
-			var err error
-			switch entry.Type {
-			case "blob":
-				err = content.Link(ctx, entry.Hash, path)
-				if err != nil {
-					err = wrapError("link_blob", path, err)
-				}
-			case "tree":
-				var treeData []byte
-				treeData, err = content.Read(entry.Hash)
-				if err != nil {
-					err = wrapError("read_tree", entry.Hash, err)
-					break
-				}
-
-				var subTree *Tree
-				subTree, err = ParseTree(string(treeData), path)
-				if err != nil {
-					err = wrapError("parse_tree", entry.Hash, err)
-					break
-				}
-
-				err = subTree.LinkTree(ctx, store, path)
-				if err != nil {
-					err = wrapError("link_subtree", path, err)
-				}
-			}
-
-			if err != nil {
-				select {
-				case errChan <- err:
-				default:
-				}
-			}
-		}(entry, entryPath)
+	type workItem struct {
+		itemType string
+		entry    TreeEntry
+		path     string
+		dirPath  string
 	}
 
-	// Wait for all workers to complete
+	workItems := make([]workItem, 0, len(t.entries))
+
+	for _, entry := range t.entries {
+		entryPath := filepath.Join(targetDir, entry.Path)
+		dirPath := filepath.Dir(entryPath)
+
+		dirsToCreate[dirPath] = struct{}{}
+
+		// If the parent directory is in dirsToCreate,
+		// we can remove it, since it will be created
+		// when creating the subtree anyways.
+		parentDirPath := filepath.Dir(dirPath)
+		delete(dirsToCreate, parentDirPath)
+
+		// Create work items based on entry type
+		switch entry.Type {
+		case "blob":
+			workItems = append(workItems, workItem{
+				itemType: "link",
+				entry:    entry,
+				path:     entryPath,
+				dirPath:  dirPath,
+			})
+		case "tree":
+			workItems = append(workItems, workItem{
+				itemType: "subtree",
+				entry:    entry,
+				path:     entryPath,
+				dirPath:  dirPath,
+			})
+		}
+	}
+
+	for dirPath := range dirsToCreate {
+		if err := os.MkdirAll(dirPath, DefaultDirPerms); err != nil {
+			return wrapError("mkdir_all", dirPath, err)
+		}
+	}
+
+	maxWorkers := max(1, runtime.NumCPU()/4)
+	workChan := make(chan workItem, len(workItems))
+	errChan := make(chan error, 1)
+	var wg sync.WaitGroup
+
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for work := range workChan {
+				select {
+				case <-ctx.Done():
+					return
+				case <-errChan:
+					return
+				default:
+				}
+
+				var err error
+				switch work.itemType {
+				case "link":
+					err = content.Link(ctx, work.entry.Hash, work.path)
+					if err != nil {
+						err = wrapError("link_blob", work.path, err)
+					}
+				case "subtree":
+					var treeData []byte
+					treeData, err = content.Read(work.entry.Hash)
+					if err != nil {
+						err = wrapError("read_tree", work.entry.Hash, err)
+						break
+					}
+
+					var subTree *Tree
+					subTree, err = ParseTree(string(treeData), work.path)
+					if err != nil {
+						err = wrapError("parse_tree", work.entry.Hash, err)
+						break
+					}
+
+					err = subTree.LinkTree(ctx, store, work.path)
+					if err != nil {
+						err = wrapError("link_subtree", work.path, err)
+					}
+				}
+
+				if err != nil {
+					select {
+					case errChan <- err:
+					default:
+					}
+					return
+				}
+			}
+		}()
+	}
+
+	for _, work := range workItems {
+		select {
+		case <-ctx.Done():
+			close(workChan)
+			return ctx.Err()
+		case err := <-errChan:
+			close(workChan)
+			return err
+		case workChan <- work:
+		}
+	}
+	close(workChan)
+
 	wg.Wait()
 
-	// Check for any errors that occurred
 	select {
 	case err := <-errChan:
 		return err
