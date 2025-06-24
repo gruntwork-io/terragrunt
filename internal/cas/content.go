@@ -2,12 +2,14 @@ package cas
 
 import (
 	"bufio"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Content manages git object storage and linking
@@ -32,61 +34,66 @@ func NewContent(store *Store) *Content {
 }
 
 // Link creates a hard link from the store to the target path
-func (c *Content) Link(hash, targetPath string) error {
-	if err := c.ensureTargetDirectory(targetPath); err != nil {
-		return err
-	}
+func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_link", map[string]any{
+		"hash": hash,
+		"path": targetPath,
+	}, func(childCtx context.Context) error {
+		if err := c.ensureTargetDirectory(targetPath); err != nil {
+			return err
+		}
 
-	sourcePath := c.getPath(hash)
+		sourcePath := c.getPath(hash)
 
-	// Check if target exists
-	if _, err := os.Stat(targetPath); err == nil {
-		// File exists, skip creating link
+		// Check if target exists
+		if _, err := os.Stat(targetPath); err == nil {
+			// File exists, skip creating link
+			return nil
+		} else if !os.IsNotExist(err) {
+			// Some other error occurred
+			return &WrappedError{
+				Op:   "stat_target",
+				Path: targetPath,
+				Err:  err,
+			}
+		}
+
+		// Create hard link
+		if err := os.Link(sourcePath, targetPath); err != nil {
+			// If hard link fails, try to copy the file
+			data, readErr := os.ReadFile(sourcePath)
+
+			if readErr != nil {
+				return &WrappedError{
+					Op:   "read_source",
+					Path: sourcePath,
+					Err:  ErrReadFile,
+				}
+			}
+
+			// Write to temporary file first
+			tempPath := targetPath + ".tmp"
+
+			if err := os.WriteFile(tempPath, data, RegularFilePerms); err != nil {
+				return &WrappedError{
+					Op:   "write_target",
+					Path: tempPath,
+					Err:  err,
+				}
+			}
+
+			// Rename to a final path
+			if err := os.Rename(tempPath, targetPath); err != nil {
+				return &WrappedError{
+					Op:   "rename_target",
+					Path: tempPath,
+					Err:  err,
+				}
+			}
+		}
+
 		return nil
-	} else if !os.IsNotExist(err) {
-		// Some other error occurred
-		return &WrappedError{
-			Op:   "stat_target",
-			Path: targetPath,
-			Err:  err,
-		}
-	}
-
-	// Create hard link
-	if err := os.Link(sourcePath, targetPath); err != nil {
-		// If hard link fails, try to copy the file
-		data, readErr := os.ReadFile(sourcePath)
-
-		if readErr != nil {
-			return &WrappedError{
-				Op:   "read_source",
-				Path: sourcePath,
-				Err:  ErrReadFile,
-			}
-		}
-
-		// Write to temporary file first
-		tempPath := targetPath + ".tmp"
-
-		if err := os.WriteFile(tempPath, data, RegularFilePerms); err != nil {
-			return &WrappedError{
-				Op:   "write_target",
-				Path: tempPath,
-				Err:  err,
-			}
-		}
-
-		// Rename to a final path
-		if err := os.Rename(tempPath, targetPath); err != nil {
-			return &WrappedError{
-				Op:   "rename_target",
-				Path: tempPath,
-				Err:  err,
-			}
-		}
-	}
-
-	return nil
+	})
 }
 
 func (c *Content) ensureTargetDirectory(targetPath string) error {
