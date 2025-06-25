@@ -182,7 +182,7 @@ func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
 		if arg.EnvVars != nil {
 			// extract env_vars
 			for name, value := range *arg.EnvVars {
-				if after, ok :=strings.CutPrefix(name, tfVarPrefix); ok  {
+				if after, ok := strings.CutPrefix(name, tfVarPrefix); ok {
 					varName := after
 
 					varValue, err := util.AsTerraformEnvVarJSONValue(value)
@@ -199,13 +199,13 @@ func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
 		if arg.Arguments != nil {
 			// extract variables and var files from arguments
 			for _, value := range *arg.Arguments {
-				if after, ok :=strings.CutPrefix(value, argVarPrefix); ok  {
+				if after, ok := strings.CutPrefix(value, argVarPrefix); ok {
 					varName := after
 					newVar := fmt.Sprintf("--var='%s'", varName)
 					variables = append(variables, newVar)
 				}
 
-				if after, ok :=strings.CutPrefix(value, argVarFilePrefix); ok  {
+				if after, ok := strings.CutPrefix(value, argVarFilePrefix); ok {
 					varName := after
 					newVar := "--var-file=" + varName
 					variables = append(variables, newVar)

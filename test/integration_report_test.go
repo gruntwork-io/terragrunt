@@ -134,7 +134,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		 // capture range variable
+		// capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
