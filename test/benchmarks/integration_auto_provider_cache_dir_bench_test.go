@@ -13,7 +13,7 @@ import (
 // BenchmarkAutoProviderCacheDirInit benchmarks Terragrunt init with and without auto provider cache dir enabled
 func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 	setup := func(tmpDir string) {
-		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "unit")
+		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "heavy", "unit")
 		terragruntConfigPath := filepath.Join(tmpDir, "terragrunt.hcl")
 		mainTfPath := filepath.Join(tmpDir, "main.tf")
 
@@ -83,7 +83,7 @@ func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 // comparing no caching, provider cache server, and auto provider cache dir experiment.
 func BenchmarkProviderCachingComparison(b *testing.B) {
 	setup := func(tmpDir string, count int) {
-		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "unit")
+		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "heavy", "unit")
 		originalTerragruntConfig, err := os.ReadFile(filepath.Join(fixtureSource, "terragrunt.hcl"))
 		require.NoError(b, err)
 		originalMainTf, err := os.ReadFile(filepath.Join(fixtureSource, "main.tf"))
@@ -119,9 +119,6 @@ func BenchmarkProviderCachingComparison(b *testing.B) {
 		4,
 		8,
 		16,
-		32,
-		64,
-		128,
 	}
 
 	cacheTypes := []struct {

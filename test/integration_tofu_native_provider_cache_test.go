@@ -22,7 +22,7 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
-	unitPath := util.JoinPath(testPath, "unit")
+	unitPath := util.JoinPath(testPath, "basic", "unit")
 
 	cmd := "terragrunt init --log-level debug --experiment auto-provider-cache-dir --non-interactive --working-dir " + unitPath
 
@@ -39,7 +39,7 @@ func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
-	unitPath := util.JoinPath(testPath, "unit")
+	unitPath := util.JoinPath(testPath, "basic", "unit")
 
 	// clone the unit dir 9 times
 	for i := range 9 {
@@ -61,7 +61,7 @@ func TestAutoProviderCacheDirDisabled(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
-	unitPath := util.JoinPath(testPath, "unit")
+	unitPath := util.JoinPath(testPath, "basic", "unit")
 
 	cmd := "terragrunt init --log-level debug --experiment auto-provider-cache-dir --no-auto-provider-cache-dir --non-interactive --working-dir " + unitPath
 
