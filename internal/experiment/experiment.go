@@ -27,9 +27,11 @@ const (
 	Report = "report"
 	// RunnerPool is the experiment that allows using a pool of runners for parallel execution.
 	RunnerPool = "runner-pool"
-	// NativeProviderCache is the experiment that enables native provider caching by setting TF_PLUGIN_CACHE_DIR
-	// instead of using the internal provider cache server. Only works with OpenTofu version > 1.10.
-	NativeProviderCache = "native-provider-cache"
+	// AutoProviderCacheDir is the experiment that automatically enables central
+	// provider caching by setting TF_PLUGIN_CACHE_DIR.
+	//
+	// Only works with OpenTofu version >= 1.10.
+	AutoProviderCacheDir = "auto-provider-cache-dir"
 )
 
 const (
@@ -67,7 +69,7 @@ func NewExperiments() Experiments {
 			Name: RunnerPool,
 		},
 		{
-			Name: NativeProviderCache,
+			Name: AutoProviderCacheDir,
 		},
 	}
 }

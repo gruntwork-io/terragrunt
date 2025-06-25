@@ -71,7 +71,7 @@ The following experiments are available:
 - [cas](#cas)
 - [report](#report)
 - [runner-pool](#runner-pool)
-- [native-provider-cache](#native-provider-cache)
+- [auto-provider-cache-dir](#auto-provider-cache-dir)
 
 ### symlinks
 
@@ -169,46 +169,47 @@ To transition the `runner-pool` feature to a stable release, the following must 
 - [ ] Improve the UI to queue to apply.
 - [ ] Add OpenTelemetry support to the runner pool.
 
-### `native-provider-cache`
+### `auto-provider-cache-dir`
 
 Enable native OpenTofu provider caching by setting `TF_PLUGIN_CACHE_DIR` instead of using Terragrunt's internal provider cache server.
 
-#### `native-provider-cache` - What it does
+#### `auto-provider-cache-dir` - What it does
 
-When enabled, this experiment configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable, instead of using Terragrunt's provider cache server. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
+When enabled, this experiment automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
 
 **Requirements:**
-- OpenTofu version > 1.10 is required
+
+- OpenTofu version >= 1.10 is required
 - Only works when using OpenTofu (not Terraform)
 - If the requirements are not met, the experiment silently does nothing
 
 **Usage:**
 
 ```bash
-terragrunt run --all apply --experiment native-provider-cache --provider-cache-dir /path/to/cache
+terragrunt run --all apply --experiment auto-provider-cache-dir
 ```
 
 Or with environment variables:
 
 ```bash
-TG_EXPERIMENT='native-provider-cache' \
-TG_PROVIDER_CACHE_DIR=/path/to/cache \
+TG_EXPERIMENT='auto-provider-cache-dir' \
 terragrunt run --all apply
 ```
 
-#### `native-provider-cache` - How to provide feedback
+#### `auto-provider-cache-dir` - How to provide feedback
 
-Please provide feedback through [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) with the `experiment: native-provider-cache` label.
+Please provide feedback through [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) with the `experiment: auto-provider-cache-dir` label.
 
-#### `native-provider-cache` - Criteria for stabilization
+#### `auto-provider-cache-dir` - Criteria for stabilization
 
-To transition the `native-provider-cache` feature to a stable release, the following must be addressed:
+To transition the `auto-provider-cache-dir` feature to a stable release, the following must be addressed:
 
-- [ ] Comprehensive testing with various OpenTofu versions and configurations
-- [ ] Performance comparison with the existing provider cache server approach
-- [ ] Validation of behavior with concurrent `run --all` operations
-- [ ] Documentation and examples of best practices for usage
-- [ ] Community feedback on real-world usage and any edge cases discovered
+- [ ] Comprehensive testing to confirm the safety of concurrent runs using the same provider cache directory.
+- [ ] Performance comparison with the existing provider cache server approach.
+- [ ] Documentation and examples of best practices for usage.
+- [ ] Community feedback on real-world usage and any edge cases discovered.
+
+Note that the current plan for stabilization is to have the feature be enabled by default, and to allow users to opt-out if they need to, or use the provider cache server if they want to do something more advanced, like store their provider cache in a different filesystem.
 
 ## Completed Experiments
 

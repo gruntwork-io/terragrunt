@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// BenchmarkNativeProviderCacheInit benchmarks Terragrunt init with and without native provider cache enabled
-func BenchmarkNativeProviderCacheInit(b *testing.B) {
+// BenchmarkAutoProviderCacheDirInit benchmarks Terragrunt init with and without auto provider cache dir enabled
+func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 	setup := func(tmpDir string) {
-		fixtureSource := filepath.Join("..", "fixtures", "native-provider-cache", "unit")
+		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "unit")
 		terragruntConfigPath := filepath.Join(tmpDir, "terragrunt.hcl")
 		mainTfPath := filepath.Join(tmpDir, "main.tf")
 
@@ -36,7 +36,7 @@ func BenchmarkNativeProviderCacheInit(b *testing.B) {
 		)
 	}
 
-	b.Run("init without native provider cache", func(b *testing.B) {
+	b.Run("init without auto provider cache dir", func(b *testing.B) {
 		tmpDir := b.TempDir()
 
 		setup(tmpDir)
@@ -56,7 +56,7 @@ func BenchmarkNativeProviderCacheInit(b *testing.B) {
 		b.StopTimer()
 	})
 
-	b.Run("init with native provider cache", func(b *testing.B) {
+	b.Run("init with auto provider cache dir", func(b *testing.B) {
 		tmpDir := b.TempDir()
 
 		setup(tmpDir)
@@ -68,7 +68,7 @@ func BenchmarkNativeProviderCacheInit(b *testing.B) {
 				b,
 				"terragrunt",
 				"init",
-				"--experiment", "native-provider-cache",
+				"--experiment", "auto-provider-cache-dir",
 				"--source-update",
 				"--non-interactive",
 				"--working-dir",
@@ -79,11 +79,11 @@ func BenchmarkNativeProviderCacheInit(b *testing.B) {
 	})
 }
 
-// BenchmarkNativeProviderCacheWithManyUnits benchmarks Terragrunt init with many units
-// with and without native provider cache enabled.
-func BenchmarkNativeProviderCacheWithManyUnits(b *testing.B) {
+// BenchmarkAutoProviderCacheDirWithManyUnits benchmarks Terragrunt init with many units
+// with and without auto provider cache dir enabled.
+func BenchmarkAutoProviderCacheDirWithManyUnits(b *testing.B) {
 	setup := func(tmpDir string, count int) {
-		fixtureSource := filepath.Join("..", "fixtures", "native-provider-cache", "unit")
+		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "unit")
 		originalTerragruntConfig, err := os.ReadFile(filepath.Join(fixtureSource, "terragrunt.hcl"))
 		require.NoError(b, err)
 		originalMainTf, err := os.ReadFile(filepath.Join(fixtureSource, "main.tf"))
@@ -123,12 +123,12 @@ func BenchmarkNativeProviderCacheWithManyUnits(b *testing.B) {
 	}
 
 	for _, count := range counts {
-		for _, nativeProviderCache := range []bool{false, true} {
+		for _, autoProviderCacheDir := range []bool{false, true} {
 			name := strconv.Itoa(count) + " units " + (func() string {
-				if nativeProviderCache {
-					return "with native provider cache"
+				if autoProviderCacheDir {
+					return "with auto provider cache dir"
 				}
-				return "without native provider cache"
+				return "without auto provider cache dir"
 			})()
 
 			b.Run(name, func(b *testing.B) {
@@ -147,8 +147,8 @@ func BenchmarkNativeProviderCacheWithManyUnits(b *testing.B) {
 					tmpDir,
 				}
 
-				if nativeProviderCache {
-					args = append(args, "--experiment", "native-provider-cache")
+				if autoProviderCacheDir {
+					args = append(args, "--experiment", "auto-provider-cache-dir")
 				}
 
 				b.ResetTimer()
@@ -166,11 +166,11 @@ func BenchmarkNativeProviderCacheWithManyUnits(b *testing.B) {
 	}
 }
 
-// BenchmarkNativeProviderCacheVsServer benchmarks Terragrunt init with many units
-// comparing the native provider cache experiment vs the provider cache server.
-func BenchmarkNativeProviderCacheVsServer(b *testing.B) {
+// BenchmarkAutoProviderCacheDirVsServer benchmarks Terragrunt init with many units
+// comparing the auto provider cache dir experiment vs the provider cache server.
+func BenchmarkAutoProviderCacheDirVsServer(b *testing.B) {
 	setup := func(tmpDir string, count int) {
-		fixtureSource := filepath.Join("..", "fixtures", "native-provider-cache", "unit")
+		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "unit")
 		originalTerragruntConfig, err := os.ReadFile(filepath.Join(fixtureSource, "terragrunt.hcl"))
 		require.NoError(b, err)
 		originalMainTf, err := os.ReadFile(filepath.Join(fixtureSource, "main.tf"))
@@ -218,8 +218,8 @@ func BenchmarkNativeProviderCacheVsServer(b *testing.B) {
 			args: []string{"--provider-cache"},
 		},
 		{
-			name: "with native provider cache",
-			args: []string{"--experiment", "native-provider-cache"},
+			name: "with auto provider cache dir",
+			args: []string{"--experiment", "auto-provider-cache-dir"},
 		},
 	}
 

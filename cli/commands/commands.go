@@ -150,11 +150,10 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
-	// Handle native provider cache experiment
-	if opts.Experiments.Evaluate(experiment.NativeProviderCache) {
-		if err := setupNativeProviderCache(ctx, l, opts); err != nil {
-			l.Debugf("Native provider cache setup failed: %v", err)
-			// Continue silently as specified in requirements
+	// Handle auto provider cache dir experiment
+	if opts.Experiments.Evaluate(experiment.AutoProviderCacheDir) {
+		if err := setupAutoProviderCacheDir(ctx, l, opts); err != nil {
+			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}
 	}
 
@@ -192,13 +191,14 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 	return errGroup.Wait()
 }
 
-// setupNativeProviderCache configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
-// Only works with OpenTofu version > 1.10. Returns error if conditions aren't met.
-func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+// setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
+//
+// Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
+func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	// Set TF_PLUGIN_CACHE_DIR environment variable
 	if opts.Env[tf.EnvNameTFPluginCacheDir] != "" {
 		l.Debugf(
-			"TF_PLUGIN_CACHE_DIR already set to %s, skipping native provider cache",
+			"TF_PLUGIN_CACHE_DIR already set to %s, skipping auto provider cache dir",
 			opts.Env[tf.EnvNameTFPluginCacheDir],
 		)
 
@@ -214,7 +214,7 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 
 	// Check if OpenTofu is being used
 	if opts.TerraformImplementation != options.OpenTofuImpl {
-		return fmt.Errorf("native provider cache requires OpenTofu, but detected %s", opts.TerraformImplementation)
+		return fmt.Errorf("auto provider cache dir requires OpenTofu, but detected %s", opts.TerraformImplementation)
 	}
 
 	// Check OpenTofu version > 1.10
@@ -228,7 +228,7 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 	}
 
 	if opts.TerraformVersion.LessThan(requiredVersion) {
-		return fmt.Errorf("native provider cache requires OpenTofu version >= 1.10, but found %s", opts.TerraformVersion)
+		return fmt.Errorf("auto provider cache dir requires OpenTofu version >= 1.10, but found %s", opts.TerraformVersion)
 	}
 
 	// Set up the provider cache directory
@@ -266,7 +266,7 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 
 	opts.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
 
-	l.Debugf("Native provider cache enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
+	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
 
 	return nil
 }
