@@ -1,1 +1,261 @@
 package test_test
+
+import (
+	"os"
+	"path/filepath"
+	"strconv"
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/test/benchmarks/helpers"
+	"github.com/stretchr/testify/require"
+)
+
+// BenchmarkNativeProviderCacheInit benchmarks Terragrunt init with and without native provider cache enabled
+func BenchmarkNativeProviderCacheInit(b *testing.B) {
+	setup := func(tmpDir string) {
+		fixtureSource := filepath.Join("..", "fixtures", "native-provider-cache", "unit")
+		terragruntConfigPath := filepath.Join(tmpDir, "terragrunt.hcl")
+		mainTfPath := filepath.Join(tmpDir, "main.tf")
+
+		originalTerragruntConfig, err := os.ReadFile(filepath.Join(fixtureSource, "terragrunt.hcl"))
+		require.NoError(b, err)
+
+		originalMainTf, err := os.ReadFile(filepath.Join(fixtureSource, "main.tf"))
+		require.NoError(b, err)
+
+		require.NoError(b, os.WriteFile(terragruntConfigPath, originalTerragruntConfig, helpers.DefaultFilePermissions))
+		require.NoError(b, os.WriteFile(mainTfPath, originalMainTf, helpers.DefaultFilePermissions))
+
+		helpers.RunTerragruntCommand(
+			b,
+			"terragrunt",
+			"init",
+			"--non-interactive",
+			"--working-dir",
+			tmpDir,
+		)
+	}
+
+	b.Run("init without native provider cache", func(b *testing.B) {
+		tmpDir := b.TempDir()
+
+		setup(tmpDir)
+
+		b.ResetTimer()
+
+		for b.Loop() {
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--source-update",
+				"--non-interactive",
+				"--working-dir", tmpDir)
+		}
+
+		b.StopTimer()
+	})
+
+	b.Run("init with native provider cache", func(b *testing.B) {
+		tmpDir := b.TempDir()
+
+		setup(tmpDir)
+
+		b.ResetTimer()
+
+		for b.Loop() {
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--experiment", "native-provider-cache",
+				"--source-update",
+				"--non-interactive",
+				"--working-dir",
+				tmpDir)
+		}
+
+		b.StopTimer()
+	})
+}
+
+// BenchmarkNativeProviderCacheWithManyUnits benchmarks Terragrunt init with many units
+// with and without native provider cache enabled.
+func BenchmarkNativeProviderCacheWithManyUnits(b *testing.B) {
+	setup := func(tmpDir string, count int) {
+		fixtureSource := filepath.Join("..", "fixtures", "native-provider-cache", "unit")
+		originalTerragruntConfig, err := os.ReadFile(filepath.Join(fixtureSource, "terragrunt.hcl"))
+		require.NoError(b, err)
+		originalMainTf, err := os.ReadFile(filepath.Join(fixtureSource, "main.tf"))
+		require.NoError(b, err)
+
+		// Generate units with the provider configuration
+		for i := range count {
+			unitDir := filepath.Join(tmpDir, "unit-"+strconv.Itoa(i))
+			require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
+
+			unitTerragruntConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
+			unitMainTfPath := filepath.Join(unitDir, "main.tf")
+			require.NoError(b, os.WriteFile(unitTerragruntConfigPath, originalTerragruntConfig, helpers.DefaultFilePermissions))
+			require.NoError(b, os.WriteFile(unitMainTfPath, originalMainTf, helpers.DefaultFilePermissions))
+		}
+
+		// Run initial init to avoid noise from the first iteration being slower
+		helpers.RunTerragruntCommand(
+			b,
+			"terragrunt",
+			"run",
+			"--all",
+			"init",
+			"--non-interactive",
+			"--working-dir",
+			tmpDir,
+		)
+	}
+
+	counts := []int{
+		1,
+		2,
+		4,
+		8,
+		16,
+		32,
+	}
+
+	for _, count := range counts {
+		for _, nativeProviderCache := range []bool{false, true} {
+			name := strconv.Itoa(count) + " units " + (func() string {
+				if nativeProviderCache {
+					return "with native provider cache"
+				}
+				return "without native provider cache"
+			})()
+
+			b.Run(name, func(b *testing.B) {
+				tmpDir := b.TempDir()
+
+				setup(tmpDir, count)
+
+				args := []string{
+					"terragrunt",
+					"run",
+					"--all",
+					"init",
+					"--source-update",
+					"--non-interactive",
+					"--working-dir",
+					tmpDir,
+				}
+
+				if nativeProviderCache {
+					args = append(args, "--experiment", "native-provider-cache")
+				}
+
+				b.ResetTimer()
+
+				for b.Loop() {
+					helpers.RunTerragruntCommand(
+						b,
+						args...,
+					)
+				}
+
+				b.StopTimer()
+			})
+		}
+	}
+}
+
+// BenchmarkNativeProviderCacheVsServer benchmarks Terragrunt init with many units
+// comparing the native provider cache experiment vs the provider cache server.
+func BenchmarkNativeProviderCacheVsServer(b *testing.B) {
+	setup := func(tmpDir string, count int) {
+		fixtureSource := filepath.Join("..", "fixtures", "native-provider-cache", "unit")
+		originalTerragruntConfig, err := os.ReadFile(filepath.Join(fixtureSource, "terragrunt.hcl"))
+		require.NoError(b, err)
+		originalMainTf, err := os.ReadFile(filepath.Join(fixtureSource, "main.tf"))
+		require.NoError(b, err)
+
+		// Generate units with the provider configuration
+		for i := range count {
+			unitDir := filepath.Join(tmpDir, "unit-"+strconv.Itoa(i))
+			require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
+
+			unitTerragruntConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
+			unitMainTfPath := filepath.Join(unitDir, "main.tf")
+			require.NoError(b, os.WriteFile(unitTerragruntConfigPath, originalTerragruntConfig, helpers.DefaultFilePermissions))
+			require.NoError(b, os.WriteFile(unitMainTfPath, originalMainTf, helpers.DefaultFilePermissions))
+		}
+
+		// Run initial init to avoid noise from the first iteration being slower
+		helpers.RunTerragruntCommand(
+			b,
+			"terragrunt",
+			"run",
+			"--all",
+			"init",
+			"--non-interactive",
+			"--working-dir",
+			tmpDir,
+		)
+	}
+
+	counts := []int{
+		1,
+		2,
+		4,
+		8,
+		16,
+		32,
+	}
+
+	cacheTypes := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "with provider cache server",
+			args: []string{"--provider-cache"},
+		},
+		{
+			name: "with native provider cache",
+			args: []string{"--experiment", "native-provider-cache"},
+		},
+	}
+
+	for _, count := range counts {
+		for _, cacheType := range cacheTypes {
+			name := strconv.Itoa(count) + " units " + cacheType.name
+
+			b.Run(name, func(b *testing.B) {
+				tmpDir := b.TempDir()
+
+				setup(tmpDir, count)
+
+				args := []string{
+					"terragrunt",
+					"run",
+					"--all",
+					"init",
+					"--source-update",
+					"--non-interactive",
+					"--working-dir",
+					tmpDir,
+				}
+
+				args = append(args, cacheType.args...)
+
+				b.ResetTimer()
+
+				for b.Loop() {
+					helpers.RunTerragruntCommand(
+						b,
+						args...,
+					)
+				}
+
+				b.StopTimer()
+			})
+		}
+	}
+}
