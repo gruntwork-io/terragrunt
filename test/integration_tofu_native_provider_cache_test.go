@@ -46,7 +46,7 @@ func TestNativeProviderCacheExperimentRunAll(t *testing.T) {
 		helpers.CopyDir(t, unitPath, util.JoinPath(testPath, "unit-"+strconv.Itoa(i)))
 	}
 
-	cmd := "terragrunt run --all init --experiment native-provider-cache --non-interactive --working-dir " + testPath
+	cmd := "terragrunt run --all init --log-level debug --experiment native-provider-cache --non-interactive --working-dir " + testPath
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)

@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
@@ -235,10 +234,11 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 	// Set up the provider cache directory
 	providerCacheDir := opts.ProviderCacheDir
 	if providerCacheDir == "" {
-		providerCacheDir, err = cliconfig.UserProviderDir()
+		cacheDir, err := util.GetCacheDir()
 		if err != nil {
-			return fmt.Errorf("failed to get user provider directory: %w", err)
+			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
+		providerCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
 	// Make sure the cache directory is absolute
