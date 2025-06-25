@@ -348,7 +348,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 				require.NoError(t, err)
 
 				// Verify it's valid JSON
-				var schema map[string]interface{}
+				var schema map[string]any
 				err = json.Unmarshal(schemaContent, &schema)
 				require.NoError(t, err)
 
@@ -358,11 +358,11 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 				assert.Equal(t, "Terragrunt Run Report Schema", schema["title"])
 
 				// Verify items schema
-				items, ok := schema["items"].(map[string]interface{})
+				items, ok := schema["items"].(map[string]any)
 				require.True(t, ok)
 
 				// Verify required fields
-				required, ok := items["required"].([]interface{})
+				required, ok := items["required"].([]any)
 				require.True(t, ok)
 				assert.Contains(t, required, "Name")
 				assert.Contains(t, required, "Started")
@@ -370,14 +370,14 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 				assert.Contains(t, required, "Result")
 
 				// Verify properties
-				properties, ok := items["properties"].(map[string]interface{})
+				properties, ok := items["properties"].(map[string]any)
 				require.True(t, ok)
 
 				// Verify field types
-				assert.Equal(t, "string", properties["Name"].(map[string]interface{})["type"])
-				assert.Equal(t, "string", properties["Result"].(map[string]interface{})["type"])
-				assert.Equal(t, "string", properties["Started"].(map[string]interface{})["type"])
-				assert.Equal(t, "string", properties["Ended"].(map[string]interface{})["type"])
+				assert.Equal(t, "string", properties["Name"].(map[string]any)["type"])
+				assert.Equal(t, "string", properties["Result"].(map[string]any)["type"])
+				assert.Equal(t, "string", properties["Started"].(map[string]any)["type"])
+				assert.Equal(t, "string", properties["Ended"].(map[string]any)["type"])
 			}
 		})
 	}
@@ -508,7 +508,7 @@ func TestReportWithExternalDependenciesExcluded(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the report file contains the expected content
-	var report []map[string]interface{}
+	var report []map[string]any
 	err = json.Unmarshal(reportContent, &report)
 	require.NoError(t, err)
 

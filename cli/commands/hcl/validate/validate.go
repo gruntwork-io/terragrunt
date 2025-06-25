@@ -276,8 +276,8 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 	)
 
 	for envName := range envVars {
-		if strings.HasPrefix(envName, tfVarPrefix) {
-			inputName := strings.TrimPrefix(envName, tfVarPrefix)
+		if after, ok :=strings.CutPrefix(envName, tfVarPrefix); ok  {
+			inputName := after
 			out = append(out, inputName)
 		}
 	}
@@ -450,8 +450,8 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 			vars = append(vars, splitArg[1])
 		}
 
-		if strings.HasPrefix(shlexedArg, "-var-file=") {
-			varFiles = append(varFiles, strings.TrimPrefix(shlexedArg, "-var-file="))
+		if after, ok :=strings.CutPrefix(shlexedArg, "-var-file="); ok  {
+			varFiles = append(varFiles, after)
 		}
 	}
 
