@@ -3,13 +3,11 @@
 package azurehelper_test
 
 import (
-	"errors"
-	"fmt"
-	"os"
 	"regexp"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -130,8 +128,8 @@ func TestResourceGroupNameValidation(t *testing.T) {
 	testCases := []struct {
 		name      string
 		rgName    string
-		isValid   bool
 		errorText string
+		isValid   bool
 	}{
 		{
 			name:      "Valid resource group name",
@@ -211,8 +209,8 @@ func TestResourceGroupClientCreation(t *testing.T) {
 		name                string
 		subscriptionID      string
 		envSubscriptionID   string
-		expectedError       bool
 		expectedErrorPrefix string
+		expectedError       bool
 	}{
 		{
 			name:                "With valid subscription ID",
@@ -249,30 +247,20 @@ func TestResourceGroupClientCreation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Store original environment variables
-			originalSubscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
-			originalARMSubscriptionID := os.Getenv("ARM_SUBSCRIPTION_ID")
-
-			// Restore environment variables after test
-			defer func() {
-				os.Setenv("AZURE_SUBSCRIPTION_ID", originalSubscriptionID)
-				os.Setenv("ARM_SUBSCRIPTION_ID", originalARMSubscriptionID)
-			}()
-
-			// Set environment variables for this test
-			os.Unsetenv("AZURE_SUBSCRIPTION_ID")
-			os.Unsetenv("ARM_SUBSCRIPTION_ID")
+			// Clear environment variables for this test
+			t.Setenv("AZURE_SUBSCRIPTION_ID", "")
+			t.Setenv("ARM_SUBSCRIPTION_ID", "")
 
 			if tc.envSubscriptionID != "" {
-				os.Setenv("AZURE_SUBSCRIPTION_ID", tc.envSubscriptionID)
+				t.Setenv("AZURE_SUBSCRIPTION_ID", tc.envSubscriptionID)
 			}
 
 			// Simulate validation without creating an actual client
 			var err error
 			if tc.subscriptionID == "" && tc.envSubscriptionID == "" {
-				err = fmt.Errorf("subscription_id is required either in configuration or as an environment variable")
+				err = errors.Errorf("subscription_id is required either in configuration or as an environment variable")
 			} else if tc.subscriptionID != "" && !isValidSubscriptionID(tc.subscriptionID) {
-				err = fmt.Errorf("invalid subscription ID format: %s", tc.subscriptionID)
+				err = errors.Errorf("invalid subscription ID format: %s", tc.subscriptionID)
 			}
 
 			if tc.expectedError {
@@ -367,9 +355,9 @@ func TestResourceGroupTagManagement(t *testing.T) {
 
 	testCases := []struct {
 		name               string
+		description        string
 		inputTags          map[string]string
 		expectedOutputTags map[string]string
-		description        string
 	}{
 		{
 			name:      "Nil tags",
@@ -465,8 +453,8 @@ func TestResourceGroupLocation(t *testing.T) {
 	testCases := []struct {
 		name      string
 		location  string
-		isValid   bool
 		errorText string
+		isValid   bool
 	}{
 		{
 			name:     "Common location",

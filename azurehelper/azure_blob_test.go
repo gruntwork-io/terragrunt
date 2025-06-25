@@ -41,11 +41,13 @@ func TestAzureResponseError(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		// String fields first (8-byte alignment)
 		name        string
-		statusCode  int
 		errorCode   string
 		message     string
 		expectedMsg string
+		// Then int fields (4-byte alignment)
+		statusCode int
 	}{
 		{
 			name:        "Not Found Error",
@@ -156,11 +158,12 @@ func TestGetObjectInputValidation(t *testing.T) {
 			// We can't actually call GetObject since it requires a real client
 			// but we can verify the validation logic separately
 			var err error
-			if tc.input == nil {
+			switch {
+			case tc.input == nil:
 				err = errors.New("input cannot be nil")
-			} else if tc.input.Bucket == nil || *tc.input.Bucket == "" {
+			case tc.input.Bucket == nil || *tc.input.Bucket == "":
 				err = errors.New("container name is required")
-			} else if tc.input.Key == nil || *tc.input.Key == "" {
+			case tc.input.Key == nil || *tc.input.Key == "":
 				err = errors.New("blob key is required")
 			}
 
@@ -178,9 +181,11 @@ func TestGetObjectInputValidation(t *testing.T) {
 
 // Mock Azure Response Error for testing
 type MockResponseError struct {
+	// String fields first (8-byte alignment)
+	ErrorCode string
+	Message   string
+	// Then int fields (4-byte alignment)
 	StatusCode int
-	ErrorCode  string
-	Message    string
 }
 
 func (e *MockResponseError) Error() string {

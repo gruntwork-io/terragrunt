@@ -3,7 +3,6 @@
 package azurehelper_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -18,42 +17,22 @@ import (
 func TestAzureEnvironmentVariables(t *testing.T) {
 	t.Parallel()
 
-	// Store original environment variables
-	originalClientID := os.Getenv("AZURE_CLIENT_ID")
-	originalClientSecret := os.Getenv("AZURE_CLIENT_SECRET")
-	originalTenantID := os.Getenv("AZURE_TENANT_ID")
-	originalSubscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
-
-	// Also test ARM_ prefixed variables which are sometimes used
-	originalARMClientID := os.Getenv("ARM_CLIENT_ID")
-	originalARMSubscriptionID := os.Getenv("ARM_SUBSCRIPTION_ID")
-
-	// Restore environment variables after the test
-	defer func() {
-		os.Setenv("AZURE_CLIENT_ID", originalClientID)
-		os.Setenv("AZURE_CLIENT_SECRET", originalClientSecret)
-		os.Setenv("AZURE_TENANT_ID", originalTenantID)
-		os.Setenv("AZURE_SUBSCRIPTION_ID", originalSubscriptionID)
-		os.Setenv("ARM_CLIENT_ID", originalARMClientID)
-		os.Setenv("ARM_SUBSCRIPTION_ID", originalARMSubscriptionID)
-	}()
-
-	// Test with environment variables set
-	os.Setenv("AZURE_CLIENT_ID", "test-client-id")
-	os.Setenv("AZURE_CLIENT_SECRET", "test-client-secret")
-	os.Setenv("AZURE_TENANT_ID", "test-tenant-id")
-	os.Setenv("AZURE_SUBSCRIPTION_ID", "test-subscription-id")
+	t.Setenv("AZURE_CLIENT_ID", "test-client-id")
+	t.Setenv("AZURE_CLIENT_SECRET", "test-client-secret")
+	t.Setenv("AZURE_TENANT_ID", "test-tenant-id")
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "test-subscription-id")
 
 	assert.Equal(t, "test-client-id", os.Getenv("AZURE_CLIENT_ID"))
 	assert.Equal(t, "test-client-secret", os.Getenv("AZURE_CLIENT_SECRET"))
 	assert.Equal(t, "test-tenant-id", os.Getenv("AZURE_TENANT_ID"))
 	assert.Equal(t, "test-subscription-id", os.Getenv("AZURE_SUBSCRIPTION_ID"))
+	assert.Empty(t, os.Getenv("ARM_CLIENT_ID"))
+	assert.Empty(t, os.Getenv("ARM_SUBSCRIPTION_ID"))
 
-	// Now test ARM_ prefix variables
-	os.Unsetenv("AZURE_CLIENT_ID")
-	os.Unsetenv("AZURE_SUBSCRIPTION_ID")
-	os.Setenv("ARM_CLIENT_ID", "arm-client-id")
-	os.Setenv("ARM_SUBSCRIPTION_ID", "arm-subscription-id")
+	t.Setenv("AZURE_CLIENT_ID", "")
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "")
+	t.Setenv("ARM_CLIENT_ID", "arm-client-id")
+	t.Setenv("ARM_SUBSCRIPTION_ID", "arm-subscription-id")
 
 	assert.Equal(t, "", os.Getenv("AZURE_CLIENT_ID"))
 	assert.Equal(t, "", os.Getenv("AZURE_SUBSCRIPTION_ID"))
@@ -61,11 +40,8 @@ func TestAzureEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "arm-subscription-id", os.Getenv("ARM_SUBSCRIPTION_ID"))
 }
 
-// TestAzureCredentialPriority tests the priority of different credential sources
 func TestAzureCredentialPriority(t *testing.T) {
 	t.Parallel()
-
-	// This test simulates the credential priority checking without actually making Azure API calls
 
 	testCases := []struct {
 		name                   string
@@ -114,30 +90,15 @@ func TestAzureCredentialPriority(t *testing.T) {
 		},
 	}
 
-	// Save original environment
-	originalAzureClientID := os.Getenv("AZURE_CLIENT_ID")
-	originalAzureSubscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
-	originalARMClientID := os.Getenv("ARM_CLIENT_ID")
-	originalARMSubscriptionID := os.Getenv("ARM_SUBSCRIPTION_ID")
-
-	// Restore environment variables after the test
-	defer func() {
-		os.Setenv("AZURE_CLIENT_ID", originalAzureClientID)
-		os.Setenv("AZURE_SUBSCRIPTION_ID", originalAzureSubscriptionID)
-		os.Setenv("ARM_CLIENT_ID", originalARMClientID)
-		os.Setenv("ARM_SUBSCRIPTION_ID", originalARMSubscriptionID)
-	}()
-
 	for _, tc := range testCases {
-		tc := tc // capture range variable
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			// Set environment for this test case
-			os.Setenv("AZURE_CLIENT_ID", tc.azureClientID)
-			os.Setenv("AZURE_SUBSCRIPTION_ID", tc.azureSubscriptionID)
-			os.Setenv("ARM_CLIENT_ID", tc.armClientID)
-			os.Setenv("ARM_SUBSCRIPTION_ID", tc.armSubscriptionID)
+			t.Parallel()
+			t.Setenv("AZURE_CLIENT_ID", tc.azureClientID)
+			t.Setenv("AZURE_SUBSCRIPTION_ID", tc.azureSubscriptionID)
+			t.Setenv("ARM_CLIENT_ID", tc.armClientID)
+			t.Setenv("ARM_SUBSCRIPTION_ID", tc.armSubscriptionID)
 
-			// Simple credential resolver function that mimics what the real code would do
 			resolveClientID := func() string {
 				if clientID := os.Getenv("AZURE_CLIENT_ID"); clientID != "" {
 					return clientID
@@ -147,7 +108,6 @@ func TestAzureCredentialPriority(t *testing.T) {
 				}
 				return ""
 			}
-
 			resolveSubscriptionID := func() string {
 				if subID := os.Getenv("AZURE_SUBSCRIPTION_ID"); subID != "" {
 					return subID
@@ -157,39 +117,14 @@ func TestAzureCredentialPriority(t *testing.T) {
 				}
 				return ""
 			}
-
-			// Check if the resolution works as expected
 			assert.Equal(t, tc.expectedClientID, resolveClientID())
 			assert.Equal(t, tc.expectedSubscriptionID, resolveSubscriptionID())
 		})
 	}
 }
 
-// TestGetAzureCredentialsPriority tests the priority of different environment variables for credentials
 func TestGetAzureCredentialsPriority(t *testing.T) {
 	t.Parallel()
-
-	// Store original environment variables
-	originalAzureSubscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
-	originalAzureTenantID := os.Getenv("AZURE_TENANT_ID")
-	originalAzureClientID := os.Getenv("AZURE_CLIENT_ID")
-	originalAzureClientSecret := os.Getenv("AZURE_CLIENT_SECRET")
-	originalARMSubscriptionID := os.Getenv("ARM_SUBSCRIPTION_ID")
-	originalARMTenantID := os.Getenv("ARM_TENANT_ID")
-	originalARMClientID := os.Getenv("ARM_CLIENT_ID")
-	originalARMClientSecret := os.Getenv("ARM_CLIENT_SECRET")
-
-	// Restore environment variables after the test
-	defer func() {
-		os.Setenv("AZURE_SUBSCRIPTION_ID", originalAzureSubscriptionID)
-		os.Setenv("AZURE_TENANT_ID", originalAzureTenantID)
-		os.Setenv("AZURE_CLIENT_ID", originalAzureClientID)
-		os.Setenv("AZURE_CLIENT_SECRET", originalAzureClientSecret)
-		os.Setenv("ARM_SUBSCRIPTION_ID", originalARMSubscriptionID)
-		os.Setenv("ARM_TENANT_ID", originalARMTenantID)
-		os.Setenv("ARM_CLIENT_ID", originalARMClientID)
-		os.Setenv("ARM_CLIENT_SECRET", originalARMClientSecret)
-	}()
 
 	testCases := []struct {
 		name                   string
@@ -272,88 +207,41 @@ func TestGetAzureCredentialsPriority(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Clear all environment variables first
-			os.Unsetenv("AZURE_SUBSCRIPTION_ID")
-			os.Unsetenv("AZURE_TENANT_ID")
-			os.Unsetenv("AZURE_CLIENT_ID")
-			os.Unsetenv("AZURE_CLIENT_SECRET")
-			os.Unsetenv("ARM_SUBSCRIPTION_ID")
-			os.Unsetenv("ARM_TENANT_ID")
-			os.Unsetenv("ARM_CLIENT_ID")
-			os.Unsetenv("ARM_CLIENT_SECRET")
-
-			// Set test-specific environment variables
 			if tc.azureSubscriptionID != "" {
-				os.Setenv("AZURE_SUBSCRIPTION_ID", tc.azureSubscriptionID)
+				t.Setenv("AZURE_SUBSCRIPTION_ID", tc.azureSubscriptionID)
 			}
 			if tc.azureTenantID != "" {
-				os.Setenv("AZURE_TENANT_ID", tc.azureTenantID)
+				t.Setenv("AZURE_TENANT_ID", tc.azureTenantID)
 			}
 			if tc.azureClientID != "" {
-				os.Setenv("AZURE_CLIENT_ID", tc.azureClientID)
+				t.Setenv("AZURE_CLIENT_ID", tc.azureClientID)
 			}
 			if tc.azureClientSecret != "" {
-				os.Setenv("AZURE_CLIENT_SECRET", tc.azureClientSecret)
+				t.Setenv("AZURE_CLIENT_SECRET", tc.azureClientSecret)
 			}
 			if tc.armSubscriptionID != "" {
-				os.Setenv("ARM_SUBSCRIPTION_ID", tc.armSubscriptionID)
+				t.Setenv("ARM_SUBSCRIPTION_ID", tc.armSubscriptionID)
 			}
 			if tc.armTenantID != "" {
-				os.Setenv("ARM_TENANT_ID", tc.armTenantID)
+				t.Setenv("ARM_TENANT_ID", tc.armTenantID)
 			}
 			if tc.armClientID != "" {
-				os.Setenv("ARM_CLIENT_ID", tc.armClientID)
+				t.Setenv("ARM_CLIENT_ID", tc.armClientID)
 			}
 			if tc.armClientSecret != "" {
-				os.Setenv("ARM_CLIENT_SECRET", tc.armClientSecret)
+				t.Setenv("ARM_CLIENT_SECRET", tc.armClientSecret)
 			}
-
-			// Call the function to test
-			// Note: We can't fully test DefaultAzureCredential creation without Azure access
-			// But we can verify the subscription ID logic
-			_, subscriptionID, _ := azurehelper.GetAzureCredentials(context.Background(), createMockLogger())
+			_, subscriptionID, _ := azurehelper.GetAzureCredentials(t.Context(), createMockLogger())
 			assert.Equal(t, tc.expectedSubscriptionID, subscriptionID)
 		})
 	}
 }
 
-// TestAzureCredentialEnvironmentVariables tests various environment variable combinations
 func TestAzureCredentialEnvironmentVariables(t *testing.T) {
-	// Don't run in parallel since we're modifying environment variables
-
-	// Store original environment variables
-	envVars := []string{
-		"AZURE_SUBSCRIPTION_ID",
-		"AZURE_TENANT_ID",
-		"AZURE_CLIENT_ID",
-		"AZURE_CLIENT_SECRET",
-		"AZURE_MANAGED_IDENTITY_CLIENT_ID",
-		"ARM_SUBSCRIPTION_ID",
-		"ARM_TENANT_ID",
-		"ARM_CLIENT_ID",
-		"ARM_CLIENT_SECRET",
-	}
-
-	originalValues := make(map[string]string)
-	for _, env := range envVars {
-		originalValues[env] = os.Getenv(env)
-	}
-
-	// Restore environment variables after the test
-	defer func() {
-		for env, val := range originalValues {
-			os.Setenv(env, val)
-		}
-	}()
-
-	// Clear all environment variables first
-	for _, env := range envVars {
-		os.Unsetenv(env)
-	}
+	t.Parallel()
 
 	testCases := []struct {
 		name                   string
@@ -426,72 +314,28 @@ func TestAzureCredentialEnvironmentVariables(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			// Don't run these tests in parallel since they modify environment variables
-
-			// Clear all environment variables first
-			for _, env := range envVars {
-				if err := os.Unsetenv(env); err != nil {
-					t.Fatalf("Failed to unset environment variable %s: %v", env, err)
-				}
-			}
-
-			// Set up environment variables for this test case
+			t.Parallel()
 			for key, val := range tc.setupEnvVars {
-				if err := os.Setenv(key, val); err != nil {
-					t.Fatalf("Failed to set environment variable %s: %v", key, err)
-				}
+				t.Setenv(key, val)
 			}
-
-			// Get all environment variables used by GetAzureCredentials
-			var detectedVars []string
-			for _, env := range envVars {
-				if val := os.Getenv(env); val != "" {
-					detectedVars = append(detectedVars, env+"="+val)
-				}
-			}
-
-			// We can't actually call GetAzureCredentials in unit tests without credentials,
-			// so we'll validate the environment variables and expected behavior
-
-			// Check if AZURE_SUBSCRIPTION_ID is set
 			azureSubID := os.Getenv("AZURE_SUBSCRIPTION_ID")
-			// Check if ARM_SUBSCRIPTION_ID is set
 			armSubID := os.Getenv("ARM_SUBSCRIPTION_ID")
-
-			// Determine expected subscription ID based on environment variable priority
 			var expectedSubID string
 			if azureSubID != "" {
 				expectedSubID = azureSubID
 			} else if armSubID != "" {
 				expectedSubID = armSubID
 			}
-
 			assert.Equal(t, tc.expectedSubscriptionID, expectedSubID)
 		})
 	}
 }
 
-// TestAzureSafeConfiguration tests that sensitive credentials are handled safely
 func TestAzureSafeConfiguration(t *testing.T) {
 	t.Parallel()
 
-	// Store original environment variables
-	originalClientID := os.Getenv("AZURE_CLIENT_ID")
-	originalClientSecret := os.Getenv("AZURE_CLIENT_SECRET")
-
-	// Restore environment variables after the test
-	defer func() {
-		os.Setenv("AZURE_CLIENT_ID", originalClientID)
-		os.Setenv("AZURE_CLIENT_SECRET", originalClientSecret)
-	}()
-
-	// Set test environment variables
-	os.Setenv("AZURE_CLIENT_ID", "test-client-id")
-	os.Setenv("AZURE_CLIENT_SECRET", "very-secret-value-should-not-be-logged")
-
-	// Test cases for safe logging
 	testCases := []struct {
 		name              string
 		envVars           map[string]string
@@ -518,18 +362,15 @@ func TestAzureSafeConfiguration(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			// Set up any test environment variables
+			t.Parallel()
 			for k, v := range tc.envVars {
-				os.Setenv(k, v)
+				t.Setenv(k, v)
 			}
 
-			// Create a buffer to capture log output
 			var logBuffer strings.Builder
 
-			// Simulate safe logging - in a real implementation, we'd use the actual logging function
-			// but for testing, we'll just simulate it
 			var logOutput string
 			for k := range tc.envVars {
 				value := os.Getenv(k)

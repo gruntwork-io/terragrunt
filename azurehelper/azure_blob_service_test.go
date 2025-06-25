@@ -19,10 +19,13 @@ func TestCreateBlobServiceClientConfig(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name          string
-		config        map[string]interface{}
+		// Map field first (largest alignment)
+		config map[string]interface{}
+		// Then string fields
+		name         string
+		errorMessage string
+		// Then bool field (smallest)
 		expectedError bool
-		errorMessage  string
 	}{
 		{
 			name:          "Nil config",
@@ -101,11 +104,15 @@ func TestGetObjectErrorHandling(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		// Function pointer first (largest alignment)
+		setup func() error
+		// Pointer types next
+		input *azurehelper.GetObjectInput
+		// String fields next
 		name          string
-		input         *azurehelper.GetObjectInput
-		setup         func() error
-		expectedError bool
 		errorContains string
+		// Bool field last (smallest)
+		expectedError bool
 	}{
 		{
 			name: "Invalid container name",
@@ -153,17 +160,18 @@ func TestGetObjectErrorHandling(t *testing.T) {
 			// Implement validation logic only
 			var err error
 
-			if tc.input == nil {
+			switch {
+			case tc.input == nil:
 				err = errors.New("input cannot be nil")
-			} else if tc.input.Bucket == nil || *tc.input.Bucket == "" {
+			case tc.input.Bucket == nil || *tc.input.Bucket == "":
 				err = errors.New("container name is required")
-			} else if strings.Contains(*tc.input.Bucket, "/") {
+			case strings.Contains(*tc.input.Bucket, "/"):
 				err = errors.New("invalid container name")
-			} else if tc.input.Key == nil || *tc.input.Key == "" {
+			case tc.input.Key == nil || *tc.input.Key == "":
 				err = errors.New("blob key is required")
-			} else if *tc.input.Bucket == "nonexistentcontainer" {
+			case *tc.input.Bucket == "nonexistentcontainer":
 				err = errors.New("container not found")
-			} else if *tc.input.Key == "nonexistent.txt" {
+			case *tc.input.Key == "nonexistent.txt":
 				err = errors.New("blob not found")
 			}
 
@@ -256,15 +264,16 @@ func TestBlobOperationErrorCases(t *testing.T) {
 
 			// Validate the input without creating an actual client
 			var err error
-			if tc.input == nil {
+			switch {
+			case tc.input == nil:
 				err = errors.New("input cannot be nil")
-			} else if tc.input.Bucket == nil || *tc.input.Bucket == "" {
+			case tc.input.Bucket == nil || *tc.input.Bucket == "":
 				err = errors.New("container name is required")
-			} else if len(*tc.input.Bucket) < 3 || len(*tc.input.Bucket) > 63 {
+			case len(*tc.input.Bucket) < 3 || len(*tc.input.Bucket) > 63:
 				err = errors.New("container name length invalid")
-			} else if strings.Contains(*tc.input.Bucket, " ") {
+			case strings.Contains(*tc.input.Bucket, " "):
 				err = errors.New("container name contains invalid characters")
-			} else if tc.input.Key == nil || *tc.input.Key == "" {
+			case tc.input.Key == nil || *tc.input.Key == "":
 				err = errors.New("blob key is required")
 			}
 

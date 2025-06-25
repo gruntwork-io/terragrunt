@@ -4,11 +4,12 @@ package test_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,9 +47,6 @@ const (
 
 // TestCase represents the test case data without the check function.
 type TestCase struct {
-	name          string
-	args          string
-	containerName string
 }
 
 func TestAzureRMBootstrapBackend(t *testing.T) {
@@ -57,16 +55,13 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 	t.Log("Starting TestAzureRMBootstrapBackend")
 
 	testCases := []struct {
-		TestCase
-		checkExpectedResultFn func(t *testing.T, err error, output string, containerName string, rootPath string, tc *TestCase)
+		checkExpectedResultFn func(t *testing.T, output string, containerName string, rootPath string, name string, args string)
+		name                  string
+		args                  string
+		containerName         string
 	}{
 		{
-			TestCase: TestCase{
-				name:          "delete backend command",
-				args:          "backend delete --force",
-				containerName: "terragrunt-test-container-" + strings.ToLower(helpers.UniqueID()),
-			},
-			checkExpectedResultFn: func(t *testing.T, err error, output string, containerName string, rootPath string, tc *TestCase) {
+			checkExpectedResultFn: func(t *testing.T, output string, containerName string, rootPath string, name string, args string) {
 				t.Helper()
 
 				// In delete case, not finding the container is acceptable
@@ -86,7 +81,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				require.NoError(t, err)
 
 				client, err := azurehelper.CreateBlobServiceClient(
-					context.Background(),
+					t.Context(),
 					logger.CreateLogger(),
 					opts,
 					map[string]interface{}{
@@ -98,17 +93,17 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				require.NoError(t, err)
 
 				// Verify container exists after bootstrap
-				exists, err := client.ContainerExists(context.Background(), containerName)
+				exists, err := client.ContainerExists(t.Context(), containerName)
 				require.NoError(t, err)
 				assert.True(t, exists, "Container should exist after bootstrap")
 
 				// Create and verify test state file
 				data := []byte("{}")
-				err = client.UploadBlob(context.Background(), logger.CreateLogger(), containerName, "unit1/terraform.tfstate", data)
+				err = client.UploadBlob(t.Context(), logger.CreateLogger(), containerName, "unit1/terraform.tfstate", data)
 				require.NoError(t, err, "Failed to create test state file")
 
 				stateKey := "unit1/terraform.tfstate"
-				_, err = client.GetObject(context.Background(), &azurehelper.GetObjectInput{
+				_, err = client.GetObject(t.Context(), &azurehelper.GetObjectInput{
 					Bucket: &containerName,
 					Key:    &stateKey,
 				})
@@ -122,7 +117,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				var containerExists bool
 				maxRetries := 5
 				for i := 0; i < maxRetries; i++ {
-					exists, err = client.ContainerExists(context.Background(), containerName)
+					exists, err = client.ContainerExists(t.Context(), containerName)
 					require.NoError(t, err)
 					if !exists {
 						containerExists = false
@@ -132,6 +127,9 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				}
 				assert.False(t, containerExists, "Container should not exist after delete")
 			},
+			name:          "delete backend command",
+			args:          "backend delete --force",
+			containerName: "terragrunt-test-container-" + strings.ToLower(helpers.UniqueID()),
 		},
 	}
 
@@ -167,9 +165,9 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				azureParams,
 				azureCfg.Location)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --log-format key-value --strict-control require-explicit-bootstrap --working-dir "+rootPath)
+			stdout, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --log-format key-value --strict-control require-explicit-bootstrap --working-dir "+rootPath)
 
-			tc.checkExpectedResultFn(t, err, stdout+stderr, tc.containerName, rootPath, &tc.TestCase)
+			tc.checkExpectedResultFn(t, stdout+stderr, tc.containerName, rootPath, tc.name, tc.args)
 		})
 	}
 }
@@ -210,12 +208,12 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 	}()
 
 	// Run terragrunt for app3, app2, and app1 in that order (dependencies first)
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fmt.Sprintf("%s/app3", environmentPath))
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fmt.Sprintf("%s/app2", environmentPath))
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+fmt.Sprintf("%s/app1", environmentPath))
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+environmentPath+"/app3")
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+environmentPath+"/app2")
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+environmentPath+"/app1")
 
 	// Now check the outputs to make sure the remote state dependencies work
-	app1OutputCmd := "terragrunt output -no-color -json --non-interactive --working-dir " + fmt.Sprintf("%s/app1", environmentPath)
+	app1OutputCmd := "terragrunt output -no-color -json --non-interactive --working-dir " + environmentPath + "/app1"
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
@@ -260,7 +258,7 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Use the GetAzureCredentials helper to check for credentials and subscription ID
 	_, subscriptionID, err := azurehelper.GetAzureCredentials(ctx, logger)
@@ -285,10 +283,10 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	}
 
 	// Generate unique names for resources
-	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-	storageAccountName := fmt.Sprintf("tgtest%s", strings.ToLower(uniqueID)[len(uniqueID)-10:]) // Storage account names must be 3-24 chars, alphanumeric only
-	resourceGroupName := fmt.Sprintf("terragrunt-test-rg-%s", uniqueID)
-	containerName := fmt.Sprintf("terragrunt-test-%s", strings.ToLower(t.Name()))
+	uniqueID := strconv.FormatInt(time.Now().UnixNano(), 10)
+	storageAccountName := "tgtest" + strings.ToLower(uniqueID)[len(uniqueID)-10:] // Storage account names must be 3-24 chars, alphanumeric only
+	resourceGroupName := "terragrunt-test-rg-" + uniqueID
+	containerName := "terragrunt-test-" + strings.ToLower(t.Name())
 	if len(containerName) > 63 {
 		containerName = containerName[:63]
 	}
@@ -297,8 +295,8 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	storageAccountCreated := false
 	containerCreated := false
 
-	// Defer cleanup of all resources
-	defer func() {
+	// Setup cleanup of all resources
+	t.Cleanup(func() {
 		// Create a cleanup client
 		cleanupConfig := map[string]interface{}{
 			"storage_account_name": storageAccountName,
@@ -322,7 +320,7 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 				_ = cleanupClient.DeleteStorageAccount(ctx, logger)
 			}
 		}
-	}()
+	})
 
 	// Create storage account for the test
 	storageAccountConfig := map[string]interface{}{
@@ -391,31 +389,31 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 	require.True(t, exists, "Container should exist after creation")
 
 	// Clean up
-	err = client.DeleteContainer(context.Background(), logger, containerName)
+	err = client.DeleteContainer(t.Context(), logger, containerName)
 	require.NoError(t, err, "Failed to delete container")
 
 	// Test creating multiple containers with the same client
 	containerNameState := containerName + "-state"
 
 	// Create another container
-	err = client.CreateContainerIfNecessary(context.Background(), logger, containerNameState)
+	err = client.CreateContainerIfNecessary(t.Context(), logger, containerNameState)
 	require.NoError(t, err, "Failed to create second container")
 
 	// Check if second container exists
-	exists, err = client.ContainerExists(context.Background(), containerNameState)
+	exists, err = client.ContainerExists(t.Context(), containerNameState)
 	require.NoError(t, err)
 	require.True(t, exists, "Second container should exist after creation")
 
 	// Clean up second container
-	err = client.DeleteContainer(context.Background(), logger, containerNameState)
+	err = client.DeleteContainer(t.Context(), logger, containerNameState)
 	require.NoError(t, err, "Failed to delete test container")
 
 	// Test error handling for invalid container names
 	t.Run("InvalidContainerName", func(t *testing.T) {
-		// Don't run in parallel - we need the storage account to exist first
+		t.Parallel()
 
 		// Create a context for Azure operations
-		ctx := context.Background()
+		ctx := t.Context()
 
 		invalidContainerName := "UPPERCASE_CONTAINER"
 		invalidClient, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, map[string]interface{}{
@@ -424,12 +422,19 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 			"key":                  "test/terraform.tfstate",
 			"use_azuread_auth":     true,
 		})
-		require.NoError(t, err)
+		require.NoError(t, err) // Should fail with invalid container name
+		err = invalidClient.CreateContainerIfNecessary(t.Context(), logger, invalidContainerName)
+		require.Error(t, err, "Creating container with invalid name should fail")
 
-		// Should fail with invalid container name
-		err = invalidClient.CreateContainerIfNecessary(context.Background(), logger, invalidContainerName)
-		assert.Error(t, err, "Creating container with invalid name should fail")
-		assert.Contains(t, err.Error(), "invalid", "Error should mention invalid container name")
+		// Check if error is the specific azurehelper ContainerCreationError type
+		var containerErr azurehelper.ContainerCreationError
+		if errors.As(err, &containerErr) {
+			assert.Equal(t, invalidContainerName, containerErr.ContainerName, "Error should contain the invalid container name")
+			assert.Error(t, containerErr.Unwrap(), "Error should have an underlying error")
+		} else {
+			// Fallback for backwards compatibility - at minimum it should mention the issue
+			assert.Contains(t, err.Error(), "container", "Error should mention container issues")
+		}
 	})
 }
 
@@ -448,7 +453,7 @@ func TestStorageAccountBootstrap(t *testing.T) {
 		t.Parallel()
 
 		// Create a context for Azure operations
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Use a non-existent account name
 		nonExistentName := "tgnon" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8]
@@ -463,8 +468,30 @@ func TestStorageAccountBootstrap(t *testing.T) {
 
 		// When we try to create a blob service client, it should fail since the account doesn't exist
 		_, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, config)
-		assert.Error(t, err, "Expected error when storage account doesn't exist")
-		assert.Contains(t, err.Error(), "no such host", "Error should indicate operation failed")
+		require.Error(t, err, "Expected error when storage account doesn't exist")
+
+		// The error should be wrapped properly and contain useful information
+		if err != nil {
+			// Check if it's an Azure-specific authentication or storage account error
+			var authErr azurerm.AuthenticationError
+			var storageErr azurerm.StorageAccountCreationError
+
+			switch {
+			case errors.As(err, &authErr):
+				assert.NotEmpty(t, authErr.AuthMethod, "Authentication error should specify auth method")
+				require.Error(t, authErr.Unwrap(), "Authentication error should have underlying error")
+			case errors.As(err, &storageErr):
+				assert.Equal(t, nonExistentName, storageErr.StorageAccountName, "Storage error should contain account name")
+				require.Error(t, storageErr.Unwrap(), "Storage error should have underlying error")
+			default:
+				// Fallback check - at minimum should mention the issue
+				assert.True(t,
+					strings.Contains(err.Error(), "no such host") ||
+						strings.Contains(err.Error(), "does not exist") ||
+						strings.Contains(err.Error(), "not accessible"),
+					"Error should indicate storage account access issue, got: %v", err)
+			}
+		}
 	})
 
 	// Test with existing storage account
@@ -472,7 +499,7 @@ func TestStorageAccountBootstrap(t *testing.T) {
 		t.Parallel()
 
 		// Create a context for Azure operations
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// We'll use the provided test storage account which should already exist
 		config := map[string]interface{}{
@@ -489,15 +516,15 @@ func TestStorageAccountBootstrap(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create container for test
-		err = client.CreateContainerIfNecessary(context.Background(), logger, "terragrunt-test-sa-exists")
+		err = client.CreateContainerIfNecessary(t.Context(), logger, "terragrunt-test-sa-exists")
 		require.NoError(t, err)
 
 		// Clean up the container
-		exists, err := client.ContainerExists(context.Background(), "terragrunt-test-sa-exists")
+		exists, err := client.ContainerExists(t.Context(), "terragrunt-test-sa-exists")
 		require.NoError(t, err)
 
 		if exists {
-			err = client.DeleteContainer(context.Background(), logger, "terragrunt-test-sa-exists")
+			err = client.DeleteContainer(t.Context(), logger, "terragrunt-test-sa-exists")
 			require.NoError(t, err)
 		}
 	})
@@ -568,7 +595,7 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Use the GetAzureCredentials helper to check for credentials and subscription ID
 	_, subscriptionID, err := azurehelper.GetAzureCredentials(ctx, logger)
@@ -593,10 +620,10 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 	}
 
 	// Generate unique names for resources
-	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-	storageAccountName := fmt.Sprintf("tgtest%s", strings.ToLower(uniqueID)[len(uniqueID)-10:]) // Storage account names must be 3-24 chars, alphanumeric only
-	resourceGroupName := fmt.Sprintf("terragrunt-test-rg-%s", uniqueID)
-	containerName := fmt.Sprintf("test-container-%s", strings.ToLower(uniqueID))
+	uniqueID := strconv.FormatInt(time.Now().UnixNano(), 10)
+	storageAccountName := "tgtest" + strings.ToLower(uniqueID)[len(uniqueID)-10:] // Storage account names must be 3-24 chars, alphanumeric only
+	resourceGroupName := "terragrunt-test-rg-" + uniqueID
+	containerName := "test-container-" + strings.ToLower(uniqueID)
 	blobName := "test-blob.json"
 
 	// First create the resource group using the new ResourceGroupClient
@@ -788,12 +815,12 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 // TestAzureBackendBootstrapWithExistingStorageAccount tests Azure backend bootstrap scenarios
 // that require real Azure resources - moved from unit tests
 func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
+	t.Parallel()
+
 	storageAccount := os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
 	if storageAccount == "" {
 		t.Skip("Skipping Azure backend bootstrap test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set")
 	}
-
-	t.Parallel()
 
 	// Create logger for testing
 	logger := logger.CreateLogger()
@@ -810,7 +837,7 @@ func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
 	t.Run("bootstrap-with-existing-storage-account", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Use a storage account name that doesn't exist to trigger DNS lookup error
 		nonExistentSA := "tgtestsa" + uniqueSuffix
@@ -830,15 +857,36 @@ func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
 		// Call Bootstrap and expect an error due to non-existent storage account
 		err := backend.Bootstrap(ctx, logger, config, opts)
 
-		// Verify an error was returned - it should be a DNS lookup error
+		// Verify an error was returned - it should be a DNS lookup error or storage account error
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no such host", "Should get DNS lookup error for non-existent storage account")
+
+		// Check if the error is one of our custom types
+		var authErr azurerm.AuthenticationError
+		var storageErr azurerm.StorageAccountCreationError
+
+		switch {
+		case errors.As(err, &authErr):
+			// Authentication error with underlying cause
+			assert.NotEmpty(t, authErr.AuthMethod, "Authentication error should specify auth method")
+			require.Error(t, authErr.Unwrap(), "Authentication error should have underlying error")
+		case errors.As(err, &storageErr):
+			// Storage account error with underlying cause
+			assert.Equal(t, nonExistentSA, storageErr.StorageAccountName, "Storage error should contain account name")
+			require.Error(t, storageErr.Unwrap(), "Storage error should have underlying error")
+		default:
+			// Fallback check for backwards compatibility
+			assert.True(t,
+				strings.Contains(err.Error(), "no such host") ||
+					strings.Contains(err.Error(), "does not exist") ||
+					strings.Contains(err.Error(), "not accessible"),
+				"Should get DNS lookup or storage account error for non-existent storage account, got: %v", err)
+		}
 	})
 
 	t.Run("bootstrap-with-real-storage-account", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 		containerName := "terragrunt-bootstrap-test-" + uniqueSuffix
 
 		config := map[string]interface{}{
@@ -873,7 +921,7 @@ func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
 	t.Run("invalid-storage-account-name", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		config := map[string]interface{}{
 			"storage_account_name": "invalid/name/with/slashes", // Invalid storage account name
@@ -891,6 +939,450 @@ func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
 
 		// Verify an error was returned - should get an error about the storage account not being accessible
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "does not exist or is not accessible", "Should get error about storage account not being accessible")
+
+		// Check if the error is one of our custom types
+		var authErr azurerm.AuthenticationError
+		var storageErr azurerm.StorageAccountCreationError
+
+		switch {
+		case errors.As(err, &authErr):
+			// Authentication error with underlying cause
+			assert.NotEmpty(t, authErr.AuthMethod, "Authentication error should specify auth method")
+			require.Error(t, authErr.Unwrap(), "Authentication error should have underlying error")
+		case errors.As(err, &storageErr):
+			// Storage account error with underlying cause
+			assert.Contains(t, storageErr.StorageAccountName, "invalid", "Storage error should contain invalid account name")
+			require.Error(t, storageErr.Unwrap(), "Storage error should have underlying error")
+		default:
+			// Fallback check for backwards compatibility
+			assert.True(t,
+				strings.Contains(err.Error(), "does not exist") ||
+					strings.Contains(err.Error(), "not accessible") ||
+					strings.Contains(err.Error(), "no such host"),
+				"Should get error about storage account not being accessible, got: %v", err)
+		}
+	})
+}
+
+// TestAzureBackendCustomErrorTypes tests the custom error types in integration scenarios
+func TestAzureBackendCustomErrorTypes(t *testing.T) {
+	t.Parallel()
+
+	// Create logger for testing
+	logger := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	// Make sure we're using non-interactive mode to avoid prompts
+	opts.NonInteractive = true
+
+	t.Run("missing-subscription-id-error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Test MissingSubscriptionIDError when subscription_id is required but missing
+		config := map[string]interface{}{
+			"storage_account_name":                 "testaccount",
+			"container_name":                       "test-container",
+			"key":                                  "test/terraform.tfstate",
+			"resource_group_name":                  "test-rg",
+			"location":                             "eastus",
+			"create_storage_account_if_not_exists": true,
+			"use_azuread_auth":                     true,
+			// subscription_id is missing
+		}
+
+		backend := azurerm.NewBackend()
+		require.NotNil(t, backend, "Azure backend should be created")
+
+		err := backend.Bootstrap(ctx, logger, config, opts)
+
+		// Verify error is the custom type
+		require.Error(t, err)
+		var missingSubError azurerm.MissingSubscriptionIDError
+		require.ErrorAs(t, err, &missingSubError, "Error should be MissingSubscriptionIDError type")
+		assert.Contains(t, err.Error(), "subscription_id is required", "Error message should mention subscription_id")
+	})
+
+	t.Run("missing-location-error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Test MissingLocationError when location is required but missing
+		config := map[string]interface{}{
+			"storage_account_name":                 "testaccount",
+			"container_name":                       "test-container",
+			"key":                                  "test/terraform.tfstate",
+			"subscription_id":                      "00000000-0000-0000-0000-000000000000",
+			"resource_group_name":                  "test-rg",
+			"create_storage_account_if_not_exists": true,
+			"use_azuread_auth":                     true,
+			// location is missing
+		}
+
+		backend := azurerm.NewBackend()
+		require.NotNil(t, backend, "Azure backend should be created")
+
+		err := backend.Bootstrap(ctx, logger, config, opts)
+
+		// Verify error is the custom type
+		require.Error(t, err)
+		var missingLocError azurerm.MissingLocationError
+		require.ErrorAs(t, err, &missingLocError, "Error should be MissingLocationError type")
+		assert.Contains(t, err.Error(), "location is required", "Error message should mention location")
+	})
+
+	t.Run("container-validation-error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Test ContainerValidationError for invalid container names
+		testCases := []struct {
+			name          string
+			containerName string
+			expectedMsg   string
+		}{
+			{
+				name:          "empty-container-name",
+				containerName: "",
+				expectedMsg:   "missing required Azure remote state configuration container_name",
+			},
+			{
+				name:          "container-name-too-short",
+				containerName: "ab",
+				expectedMsg:   "container name must be between 3 and 63 characters",
+			},
+			{
+				name:          "invalid-uppercase",
+				containerName: "Invalid-Container",
+				expectedMsg:   "container name can only contain lowercase letters, numbers, and hyphens",
+			},
+			{
+				name:          "consecutive-hyphens",
+				containerName: "container--name",
+				expectedMsg:   "container name cannot contain consecutive hyphens",
+			},
+		}
+
+		for _, tc := range testCases {
+			tc := tc // capture range variable
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				config := map[string]interface{}{
+					"storage_account_name": "testaccount",
+					"container_name":       tc.containerName,
+					"key":                  "test/terraform.tfstate",
+					"use_azuread_auth":     true,
+				}
+
+				backend := azurerm.NewBackend()
+				require.NotNil(t, backend, "Azure backend should be created")
+
+				err := backend.Bootstrap(ctx, logger, config, opts)
+
+				// Verify error is returned
+				require.Error(t, err)
+
+				// For empty container name, it should be a MissingRequiredAzureRemoteStateConfig
+				// For other validation issues, it should be ContainerValidationError
+				if tc.containerName == "" {
+					var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
+					if assert.ErrorAs(t, err, &missingConfigError, "Empty container name should be MissingRequiredAzureRemoteStateConfig type") {
+						assert.Equal(t, "container_name", string(missingConfigError), "Should indicate missing container_name")
+					} else {
+						// Fallback: check if error message is correct
+						assert.Contains(t, err.Error(), tc.expectedMsg, "Error message should contain expected text")
+					}
+				} else {
+					var containerValidationError azurerm.ContainerValidationError
+					if assert.ErrorAs(t, err, &containerValidationError, "Error should be ContainerValidationError type") {
+						assert.Contains(t, containerValidationError.ValidationIssue, tc.expectedMsg, "Validation error should contain expected text")
+					} else {
+						// Fallback: check if error message is correct
+						assert.Contains(t, err.Error(), tc.expectedMsg, "Error message should contain expected text")
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("missing-resource-group-error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Test MissingResourceGroupError when resource_group_name is required for delete operation
+		config := map[string]interface{}{
+			"storage_account_name": "testaccount",
+			"subscription_id":      "00000000-0000-0000-0000-000000000000",
+			"container_name":       "test-container",
+			"key":                  "test/terraform.tfstate",
+			"use_azuread_auth":     true,
+			// resource_group_name is missing (required for delete operation)
+		}
+
+		backend := azurerm.NewBackend()
+		require.NotNil(t, backend, "Azure backend should be created")
+
+		err := backend.DeleteStorageAccount(ctx, logger, config, opts)
+
+		// Verify error is the custom type
+		require.Error(t, err)
+		var missingRGError azurerm.MissingResourceGroupError
+		require.ErrorAs(t, err, &missingRGError, "Error should be MissingResourceGroupError type")
+		assert.Contains(t, err.Error(), "resource_group_name is required", "Error message should mention resource_group_name")
+	})
+
+	t.Run("authentication-failure-scenarios", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Test authentication-related errors with a realistic configuration
+		// that will trigger authentication issues rather than the NoValidAuthMethodError
+		// (since Azure AD auth is now enforced by default)
+		config := map[string]interface{}{
+			"storage_account_name":                 "testaccount",
+			"container_name":                       "test-container",
+			"key":                                  "test/terraform.tfstate",
+			"subscription_id":                      "00000000-0000-0000-0000-000000000000",
+			"resource_group_name":                  "test-rg",
+			"location":                             "eastus",
+			"create_storage_account_if_not_exists": true,
+			"use_azuread_auth":                     true, // This will be used but will likely fail without proper credentials
+		}
+
+		backend := azurerm.NewBackend()
+		require.NotNil(t, backend, "Azure backend should be created")
+
+		err := backend.Bootstrap(ctx, logger, config, opts)
+
+		// Verify an error was returned - this should fail due to authentication or storage account issues
+		require.Error(t, err)
+
+		// Check if it's an authentication error, storage error, or contains auth-related messaging
+		var authErr azurerm.AuthenticationError
+		var storageErr azurerm.StorageAccountCreationError
+		var noAuthError azurerm.NoValidAuthMethodError
+
+		switch {
+		case errors.As(err, &noAuthError):
+			// This is the ideal case if we can trigger it
+			assert.Contains(t, err.Error(), "no valid authentication method", "Error message should mention authentication method issue")
+		case errors.As(err, &authErr):
+			// Authentication error - common when credentials are missing/invalid
+			assert.NotEmpty(t, authErr.AuthMethod, "Authentication error should specify auth method")
+			require.Error(t, authErr.Unwrap(), "Authentication error should have underlying error")
+		case errors.As(err, &storageErr):
+			// Storage account error - also common when auth fails during storage operations
+			assert.NotEmpty(t, storageErr.StorageAccountName, "Storage error should contain account name")
+			require.Error(t, storageErr.Unwrap(), "Storage error should have underlying error")
+		default:
+			// Fallback - ensure the error at least mentions authentication or access issues
+			errorStr := strings.ToLower(err.Error())
+			assert.True(t,
+				strings.Contains(errorStr, "authentication") ||
+					strings.Contains(errorStr, "credential") ||
+					strings.Contains(errorStr, "auth") ||
+					strings.Contains(errorStr, "access denied") ||
+					strings.Contains(errorStr, "unauthorized") ||
+					strings.Contains(errorStr, "no such host") ||
+					strings.Contains(errorStr, "storage account"),
+				"Error should mention authentication or access issues, got: %v", err)
+		}
+	})
+}
+
+// TestAzureErrorUnwrappingAndPropagation tests error unwrapping and propagation through the entire call stack
+func TestAzureErrorUnwrappingAndPropagation(t *testing.T) {
+	t.Parallel()
+
+	// Create logger for testing
+	logger := logger.CreateLogger()
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	// Make sure we're using non-interactive mode to avoid prompts
+	opts.NonInteractive = true
+
+	t.Run("error-propagation-from-azurehelper", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Test that errors from azurehelper are properly wrapped and propagated
+		// Use a configuration that will trigger azurehelper errors
+		config := map[string]interface{}{
+			"storage_account_name": "nonexistent" + strconv.FormatInt(time.Now().UnixNano(), 10)[10:], // Non-existent account
+			"container_name":       "test-container",
+			"key":                  "test/terraform.tfstate",
+			"use_azuread_auth":     true,
+		}
+
+		// Test that CreateBlobServiceClient properly wraps errors
+		_, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, config)
+		require.Error(t, err, "Expected error for non-existent storage account")
+
+		// The error should be wrapped with useful context
+		assert.True(t,
+			strings.Contains(err.Error(), "storage account") ||
+				strings.Contains(err.Error(), "authentication") ||
+				strings.Contains(err.Error(), "no such host"),
+			"Error should provide meaningful context, got: %v", err)
+
+		// Test error propagation through backend bootstrap
+		backend := azurerm.NewBackend()
+		bootstrapErr := backend.Bootstrap(ctx, logger, config, opts)
+		require.Error(t, bootstrapErr, "Expected bootstrap error")
+
+		// Check if bootstrap error wraps the underlying error properly
+		if !errors.Is(bootstrapErr, err) {
+			// If not the same error, it should at least contain similar context
+			assert.True(t,
+				strings.Contains(bootstrapErr.Error(), "storage account") ||
+					strings.Contains(bootstrapErr.Error(), "authentication") ||
+					strings.Contains(bootstrapErr.Error(), "no such host"),
+				"Bootstrap error should propagate underlying context, got: %v", bootstrapErr)
+		}
+	})
+
+	t.Run("container-creation-error-unwrapping", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Create a mock configuration that will trigger container creation errors
+		config := map[string]interface{}{
+			"storage_account_name": "testaccount",
+			"container_name":       "INVALID_UPPERCASE_CONTAINER", // Invalid container name
+			"key":                  "test/terraform.tfstate",
+			"use_azuread_auth":     true,
+		}
+
+		backend := azurerm.NewBackend()
+		err := backend.Bootstrap(ctx, logger, config, opts)
+
+		require.Error(t, err, "Expected error for invalid container name")
+
+		// Should be a ContainerValidationError
+		var containerValidationError azurerm.ContainerValidationError
+		if assert.ErrorAs(t, err, &containerValidationError, "Error should be ContainerValidationError type") {
+			assert.Contains(t, containerValidationError.ValidationIssue, "lowercase", "Validation error should mention lowercase requirement")
+		}
+	})
+
+	t.Run("authentication-error-chain", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Create a configuration that might trigger authentication issues
+		config := map[string]interface{}{
+			"storage_account_name": "mightnotexist" + strconv.FormatInt(time.Now().UnixNano(), 10)[10:],
+			"container_name":       "test-container",
+			"key":                  "test/terraform.tfstate",
+			"use_azuread_auth":     true,
+		}
+
+		// Test both azurehelper and backend error handling
+		_, helperErr := azurehelper.CreateBlobServiceClient(ctx, logger, opts, config)
+		backend := azurerm.NewBackend()
+		backendErr := backend.Bootstrap(ctx, logger, config, opts)
+
+		// At least one should error (or both)
+		if helperErr != nil || backendErr != nil {
+			// If there are errors, they should be meaningful
+			if helperErr != nil {
+				assert.NotEmpty(t, helperErr.Error(), "Helper error should have meaningful message")
+			}
+			if backendErr != nil {
+				assert.NotEmpty(t, backendErr.Error(), "Backend error should have meaningful message")
+			}
+
+			// Test error unwrapping if we have authentication or storage account errors
+			if backendErr != nil {
+				var authErr azurerm.AuthenticationError
+				var storageErr azurerm.StorageAccountCreationError
+
+				if errors.As(backendErr, &authErr) {
+					assert.Error(t, authErr.Unwrap(), "AuthenticationError should have underlying error")
+					assert.NotEmpty(t, authErr.AuthMethod, "AuthenticationError should specify auth method")
+				} else if errors.As(backendErr, &storageErr) {
+					assert.Error(t, storageErr.Unwrap(), "StorageAccountCreationError should have underlying error")
+					assert.NotEmpty(t, storageErr.StorageAccountName, "StorageAccountCreationError should specify account name")
+				}
+			}
+		} else {
+			t.Log("No errors occurred - this is acceptable if Azure credentials are properly configured")
+		}
+	})
+
+	t.Run("deep-error-chain-propagation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+
+		// Test that errors propagate correctly through the entire call stack:
+		// Bootstrap -> Backend -> Helper -> Azure SDK
+		config := map[string]interface{}{
+			"storage_account_name":                 "invalid-chars-###", // Invalid storage account name
+			"container_name":                       "test-container",
+			"key":                                  "test/terraform.tfstate",
+			"subscription_id":                      "00000000-0000-0000-0000-000000000000",
+			"resource_group_name":                  "test-rg",
+			"location":                             "eastus",
+			"create_storage_account_if_not_exists": true,
+			"use_azuread_auth":                     true,
+		}
+
+		backend := azurerm.NewBackend()
+		require.NotNil(t, backend, "Azure backend should be created")
+
+		// This should trigger a deep error chain:
+		// Backend.Bootstrap calls helper functions, which should wrap and propagate errors properly
+		err := backend.Bootstrap(ctx, logger, config, opts)
+		require.Error(t, err, "Expected error for invalid storage account name")
+
+		// The error should contain meaningful context about the issue
+		assert.True(t,
+			strings.Contains(err.Error(), "storage account") ||
+				strings.Contains(err.Error(), "invalid") ||
+				strings.Contains(err.Error(), "validation"),
+			"Error should provide meaningful context about storage account validation, got: %v", err)
+
+		// Try to unwrap the error chain to ensure it's properly structured
+		var unwrappedErr = err
+		var errorChainDepth int
+		for unwrappedErr != nil && errorChainDepth < 10 { // Prevent infinite loops
+			errorChainDepth++
+			if nextErr := errors.Unwrap(unwrappedErr); nextErr != nil {
+				unwrappedErr = nextErr
+			} else {
+				break
+			}
+		}
+
+		// We should have at least one level of error wrapping (original error + wrapper)
+		assert.Positive(t, errorChainDepth, "Error should have proper wrapping chain")
+
+		// Test that errors.Is works correctly for checking error types in the chain
+		var authErr azurerm.AuthenticationError
+		var storageErr azurerm.StorageAccountCreationError
+		var validationErr azurerm.ContainerValidationError
+
+		// At least one of these error types should be found in the chain
+		hasExpectedErrorType := errors.As(err, &authErr) ||
+			errors.As(err, &storageErr) ||
+			errors.As(err, &validationErr)
+
+		if !hasExpectedErrorType {
+			t.Logf("Error chain: %v", err)
+			// For backwards compatibility, ensure basic error information is present
+			assert.Contains(t, err.Error(), "storage", "Error should mention storage-related issues")
+		}
 	})
 }

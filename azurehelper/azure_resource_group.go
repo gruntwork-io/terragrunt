@@ -3,12 +3,12 @@ package azurehelper
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -42,7 +42,7 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 			subscriptionID = envSubscriptionID
 			l.Infof("Using subscription ID from environment: %s", subscriptionID)
 		} else {
-			return nil, errors.New("subscription_id is required either in configuration or as an environment variable")
+			return nil, errors.Errorf("subscription_id is required either in configuration or as an environment variable")
 		}
 	}
 
@@ -178,15 +178,15 @@ func isNotFoundError(err error) bool {
 // Validate checks if all required fields are set
 func (cfg ResourceGroupConfig) Validate() error {
 	if cfg.SubscriptionID == "" {
-		return errors.New("subscription_id is required")
+		return errors.Errorf("subscription_id is required")
 	}
 
 	if cfg.ResourceGroupName == "" {
-		return errors.New("resource_group_name is required")
+		return errors.Errorf("resource_group_name is required")
 	}
 
 	if cfg.Location == "" {
-		return errors.New("location is required")
+		return errors.Errorf("location is required")
 	}
 
 	return nil

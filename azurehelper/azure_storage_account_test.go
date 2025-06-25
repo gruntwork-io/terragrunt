@@ -3,13 +3,13 @@
 package azurehelper_test
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,8 +19,8 @@ func TestStorageAccountConfigValidation(t *testing.T) {
 	testCases := []struct {
 		name           string
 		config         azurehelper.StorageAccountConfig
-		isValid        bool
 		expectedErrMsg string
+		isValid        bool
 	}{
 		{
 			name: "Valid config",
@@ -217,8 +217,8 @@ func TestStorageAccountNameValidation(t *testing.T) {
 	testCases := []struct {
 		name      string
 		saName    string
-		isValid   bool
 		errorText string
+		isValid   bool
 	}{
 		{
 			name:      "Valid storage account name",
@@ -284,13 +284,14 @@ func TestStorageAccountNameValidation(t *testing.T) {
 			// Implement a basic validation function similar to what Azure might use
 			// This doesn't call the actual Azure helper but mimics what validation logic would do
 			var err error
-			if tc.saName == "" {
+			switch {
+			case tc.saName == "":
 				err = errors.New("name cannot be empty")
-			} else if len(tc.saName) < 3 || len(tc.saName) > 24 {
+			case len(tc.saName) < 3 || len(tc.saName) > 24:
 				err = errors.New("name must be between 3 and 24 characters")
-			} else if tc.saName != strings.ToLower(tc.saName) {
+			case tc.saName != strings.ToLower(tc.saName):
 				err = errors.New("name must be lowercase")
-			} else if !regexp.MustCompile("^[a-z][a-z0-9]*$").MatchString(tc.saName) {
+			case !regexp.MustCompile("^[a-z][a-z0-9]*$").MatchString(tc.saName):
 				if !regexp.MustCompile("^[a-z]").MatchString(tc.saName) {
 					err = errors.New("name must start with a letter")
 				} else {
@@ -318,9 +319,9 @@ func TestGetStorageAccountSKUValidation(t *testing.T) {
 		tier             string
 		replication      string
 		expectedSKU      string
+		invalidSKUReason string
 		isDefault        bool
 		isValidSKU       bool
-		invalidSKUReason string
 	}{
 		{
 			name:        "Standard LRS",
@@ -343,8 +344,8 @@ func TestGetStorageAccountSKUValidation(t *testing.T) {
 			tier:        "Standard",
 			replication: "RAGRS",
 			expectedSKU: "Standard_RAGRS",
-			isDefault:   false,
-			isValidSKU:  true,
+		 isDefault:   false,
+		 isValidSKU:  true,
 		},
 		{
 			name:        "Standard ZRS",
@@ -352,7 +353,7 @@ func TestGetStorageAccountSKUValidation(t *testing.T) {
 			replication: "ZRS",
 			expectedSKU: "Standard_ZRS",
 			isDefault:   false,
-			isValidSKU:  true,
+		 isValidSKU:  true,
 		},
 		{
 			name:        "Premium LRS",
@@ -360,7 +361,7 @@ func TestGetStorageAccountSKUValidation(t *testing.T) {
 			replication: "LRS",
 			expectedSKU: "Premium_LRS",
 			isDefault:   false,
-			isValidSKU:  true,
+		 isValidSKU:  true,
 		},
 		{
 			name:        "Premium ZRS",
@@ -368,7 +369,7 @@ func TestGetStorageAccountSKUValidation(t *testing.T) {
 			replication: "ZRS",
 			expectedSKU: "Premium_ZRS",
 			isDefault:   false,
-			isValidSKU:  true,
+		 isValidSKU:  true,
 		},
 		{
 			name:        "Default values",
@@ -485,12 +486,12 @@ func TestStorageAccountAdvancedFeatures(t *testing.T) {
 
 	testCases := []struct {
 		name                          string
+		expectedBlobServiceProperties string
 		enableHierarchicalNS          bool
 		enableVersioning              bool
 		allowBlobPublicAccess         bool
 		isPublicNetworkAccessOK       bool
 		isContainerDeleteRetentionOK  bool
-		expectedBlobServiceProperties string
 	}{
 		{
 			name:                          "Default configuration",
@@ -597,10 +598,10 @@ func TestStorageAccountEncryptionSettings(t *testing.T) {
 
 	testCases := []struct {
 		name                 string
+		description          string
 		config               azurehelper.StorageAccountConfig
 		keysToEncrypt        []string
 		expectedEncryptionOK bool
-		description          string
 	}{
 		{
 			name: "Default encryption settings",
@@ -674,11 +675,11 @@ func TestStorageAccountNetworkRules(t *testing.T) {
 	testCases := []struct {
 		name                string
 		defaultAction       string
+		errorMessage        string
 		ipRules             []string
 		virtualNetworkRules []string
 		bypassServices      []string
 		expectedError       bool
-		errorMessage        string
 	}{
 		{
 			name:                "Default network rules",
@@ -743,7 +744,7 @@ func TestStorageAccountNetworkRules(t *testing.T) {
 
 			// Validate network rules in the context of a storage account config
 			if tc.defaultAction != "" && tc.defaultAction != "Allow" && tc.defaultAction != "Deny" {
-				err = fmt.Errorf("invalid default action: %s", tc.defaultAction)
+				err = errors.Errorf("invalid default action: %s", tc.defaultAction)
 			}
 
 			// Validate IP rules
@@ -751,7 +752,7 @@ func TestStorageAccountNetworkRules(t *testing.T) {
 				for _, ipRule := range tc.ipRules {
 					// Simple check for IP/CIDR format, a real implementation would be more thorough
 					if !strings.Contains(ipRule, ".") && !strings.Contains(ipRule, "/") {
-						err = fmt.Errorf("invalid IP rule: %s", ipRule)
+						err = errors.Errorf("invalid IP rule: %s", ipRule)
 						break
 					}
 				}
@@ -768,7 +769,7 @@ func TestStorageAccountNetworkRules(t *testing.T) {
 
 				for _, service := range tc.bypassServices {
 					if !validBypassServices[service] {
-						err = fmt.Errorf("invalid bypass service: %s", service)
+						err = errors.Errorf("invalid bypass service: %s", service)
 						break
 					}
 				}
@@ -793,8 +794,8 @@ func TestStorageAccountURLParsing(t *testing.T) {
 	testCases := []struct {
 		name        string
 		inputURL    string
-		isValid     bool
 		expectedErr string
+		isValid     bool
 	}{
 		{
 			name:        "Valid blob URL",
@@ -841,12 +842,13 @@ func TestStorageAccountURLParsing(t *testing.T) {
 
 			// Validate URL
 			var err error
-			if tc.inputURL == "" {
-				err = fmt.Errorf("URL cannot be empty")
-			} else if !strings.Contains(tc.inputURL, ".") {
-				err = fmt.Errorf("invalid URL format")
-			} else if !strings.HasPrefix(tc.inputURL, "http://") && !strings.HasPrefix(tc.inputURL, "https://") {
-				err = fmt.Errorf("URL must start with http:// or https://")
+			switch {
+			case tc.inputURL == "":
+				err = errors.Errorf("URL cannot be empty")
+			case !strings.Contains(tc.inputURL, "."):
+				err = errors.Errorf("invalid URL format")
+			case !strings.HasPrefix(tc.inputURL, "http://") && !strings.HasPrefix(tc.inputURL, "https://"):
+				err = errors.Errorf("URL must start with http:// or https://")
 			}
 
 			if tc.isValid {
@@ -868,9 +870,9 @@ func TestStorageAccountConnectionStrings(t *testing.T) {
 	testCases := []struct {
 		name             string
 		connectionString string
-		isValid          bool
 		expectedAccount  string
 		expectedErr      string
+		isValid          bool
 	}{
 		{
 			name:             "Valid connection string",
@@ -926,7 +928,7 @@ func TestStorageAccountConnectionStrings(t *testing.T) {
 			var err error
 
 			if tc.connectionString == "" {
-				err = fmt.Errorf("connection string cannot be empty")
+				err = errors.Errorf("connection string cannot be empty")
 			} else {
 				// Basic parsing of connection string key-value pairs
 				parts := strings.Split(tc.connectionString, ";")
@@ -961,12 +963,12 @@ func TestStorageAccountConnectionStrings(t *testing.T) {
 				_, hasAccountName := props["AccountName"]
 				_, hasBlobEndpoint := props["BlobEndpoint"]
 				if !hasAccountName && !hasBlobEndpoint {
-					err = fmt.Errorf("connection string missing AccountName")
+					err = errors.Errorf("connection string missing AccountName")
 				} else {
 					_, hasAccountKey := props["AccountKey"]
 					_, hasSAS := props["SharedAccessSignature"]
 					if !hasAccountKey && !hasSAS {
-						err = fmt.Errorf("connection string missing AccountKey")
+						err = errors.Errorf("connection string missing AccountKey")
 					}
 				}
 			}
