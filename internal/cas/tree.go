@@ -183,6 +183,7 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 					return wrapError("link_subtree", work.path, err)
 				}
 			}
+
 			return nil
 		})
 	}

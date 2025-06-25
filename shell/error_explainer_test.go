@@ -40,7 +40,6 @@ func TestExplainError(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 
 		t.Run(tt.errorOutput, func(t *testing.T) {
 			t.Parallel()

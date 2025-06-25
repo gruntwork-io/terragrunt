@@ -134,7 +134,7 @@ func TestTerragruntReportExperimentSaveToFile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
+		 // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -323,7 +323,7 @@ func TestTerragruntReportExperimentSaveToFileWithFormat(t *testing.T) {
 				assert.True(t, strings.HasPrefix(string(content), "Name,Started,Ended,Result,Reason,Cause"))
 			case "json":
 				// For JSON, verify it's valid JSON and has the expected structure
-				var jsonContent []map[string]interface{}
+				var jsonContent []map[string]any
 				err := json.Unmarshal(content, &jsonContent)
 
 				require.NoError(t, err)
