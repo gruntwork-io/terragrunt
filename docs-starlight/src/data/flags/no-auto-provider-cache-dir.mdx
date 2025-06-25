@@ -1,0 +1,17 @@
+---
+name: no-auto-provider-cache-dir
+description: Disable the auto-provider-cache-dir feature even when the experiment is enabled.
+type: bool
+env:
+  - TG_NO_AUTO_PROVIDER_CACHE_DIR
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+When enabled, Terragrunt will disable the `auto-provider-cache-dir` feature even when the [auto-provider-cache-dir experiment](/docs/reference/experiments#auto-provider-cache-dir) is enabled. This flag allows you to selectively opt-out of the automatic provider caching behavior without having to disable the entire experiment.
+
+This is useful when you want to maintain control over provider caching in specific environments or scenarios while still having the experiment enabled globally.
+
+<Aside type="note">
+This flag is particularly useful when the auto-provider-cache-dir experiment becomes stabilized and enabled by default, allowing you to disable it for specific runs where manual provider cache control is needed.
+</Aside>

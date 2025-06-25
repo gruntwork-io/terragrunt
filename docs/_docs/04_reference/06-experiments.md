@@ -196,6 +196,16 @@ TG_EXPERIMENT='auto-provider-cache-dir' \
 terragrunt run --all apply
 ```
 
+**Disabling the feature:**
+
+Even when the experiment is enabled, you can still disable the auto-provider-cache-dir feature for specific runs using the `--no-auto-provider-cache-dir` flag:
+
+```bash
+terragrunt run --all apply --experiment auto-provider-cache-dir --no-auto-provider-cache-dir
+```
+
+This will be most important post-stabilization, when the feature is enabled by default.
+
 #### `auto-provider-cache-dir` - How to provide feedback
 
 Please provide feedback through [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) with the `experiment: auto-provider-cache-dir` label.
