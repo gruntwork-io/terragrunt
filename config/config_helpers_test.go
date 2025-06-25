@@ -202,7 +202,6 @@ func TestRunCommand(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		tc := tc
 
 		t.Run(tc.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
 			t.Parallel()
@@ -315,7 +314,6 @@ func TestFindInParentFolders(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -385,7 +383,6 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 	for _, tc := range testCases {
 		// The following is necessary to make sure tc's values don't
 		// get updated due to concurrency within the scope of t.Run(..) below
-		tc := tc
 
 		t.Run(fmt.Sprintf("%s--%s", tc.str, tc.terragruntOptions.TerragruntConfigPath), func(t *testing.T) {
 			t.Parallel()
@@ -485,7 +482,6 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 	for _, tc := range testCases {
 		// The following is necessary to make sure tc's values don't
 		// get updated due to concurrency within the scope of t.Run(..) below
-		tc := tc
 		t.Run(tc.str, func(t *testing.T) {
 			t.Parallel()
 
@@ -535,7 +531,6 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 	for _, tc := range testCases {
 		// The following is necessary to make sure tc's values don't
 		// get updated due to concurrency within the scope of t.Run(..) below
-		tc := tc
 
 		t.Run(tc.str, func(t *testing.T) {
 			t.Parallel()
@@ -796,7 +791,6 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()

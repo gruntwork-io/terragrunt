@@ -674,7 +674,7 @@ func TestWriteJSON(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse both expected and actual JSON to compare them
-			var expectedJSON, actualJSON []map[string]interface{}
+			var expectedJSON, actualJSON []map[string]any
 			err = json.Unmarshal([]byte(tt.expected), &expectedJSON)
 			require.NoError(t, err)
 			err = json.Unmarshal(actualBytes, &actualJSON)
@@ -795,7 +795,7 @@ func TestWriteSchema(t *testing.T) {
 	assert.JSONEq(t, ExpectedSchema, buf.String())
 
 	// Parse the schema
-	var schema map[string]interface{}
+	var schema map[string]any
 	err = json.Unmarshal(buf.Bytes(), &schema)
 	require.NoError(t, err)
 
@@ -805,15 +805,15 @@ func TestWriteSchema(t *testing.T) {
 	assert.Equal(t, "Terragrunt Run Report Schema", schema["title"])
 
 	// Verify the items schema
-	items, ok := schema["items"].(map[string]interface{})
+	items, ok := schema["items"].(map[string]any)
 	require.True(t, ok)
 
 	// Verify the properties
-	properties, ok := items["properties"].(map[string]interface{})
+	properties, ok := items["properties"].(map[string]any)
 	require.True(t, ok)
 
 	// Verify required fields
-	required, ok := items["required"].([]interface{})
+	required, ok := items["required"].([]any)
 	require.True(t, ok)
 	assert.Contains(t, required, "Name")
 	assert.Contains(t, required, "Started")
@@ -821,17 +821,17 @@ func TestWriteSchema(t *testing.T) {
 	assert.Contains(t, required, "Result")
 
 	// Verify field types
-	assert.Equal(t, "string", properties["Name"].(map[string]interface{})["type"])
-	assert.Equal(t, "string", properties["Result"].(map[string]interface{})["type"])
-	assert.Equal(t, "string", properties["Started"].(map[string]interface{})["type"])
-	assert.Equal(t, "string", properties["Ended"].(map[string]interface{})["type"])
+	assert.Equal(t, "string", properties["Name"].(map[string]any)["type"])
+	assert.Equal(t, "string", properties["Result"].(map[string]any)["type"])
+	assert.Equal(t, "string", properties["Started"].(map[string]any)["type"])
+	assert.Equal(t, "string", properties["Ended"].(map[string]any)["type"])
 
 	// Verify optional fields
-	reason, ok := properties["Reason"].(map[string]interface{})
+	reason, ok := properties["Reason"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "string", reason["type"])
 
-	cause, ok := properties["Cause"].(map[string]interface{})
+	cause, ok := properties["Cause"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "string", cause["type"])
 }

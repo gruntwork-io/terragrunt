@@ -68,7 +68,6 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 
 	// Submit tasks, half of which return an error
 	for i := range 10 {
-		i := i
 		wp.Submit(func() error {
 			if i%2 == 0 {
 				return errors.New("mock error")
