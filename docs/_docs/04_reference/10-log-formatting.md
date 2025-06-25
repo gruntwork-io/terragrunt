@@ -9,7 +9,8 @@ order: 410
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
-    - /docs/features/custom-log-format/
+  - /docs/features/custom-log-format/
+  - /docs/features/log-formatting/
 slug: log-formatting
 ---
 

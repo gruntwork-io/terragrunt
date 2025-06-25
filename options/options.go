@@ -117,6 +117,8 @@ type TerragruntOptions struct {
 	SourceMap map[string]string
 	// Environment variables at runtime
 	Env map[string]string
+	// StackAction is the action that should be performed on the stack.
+	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
 	IAMRoleOptions IAMRoleOptions
 	// IAM Role options set from command line.
@@ -308,8 +310,8 @@ type TerragruntOptions struct {
 	ForceBackendMigrate bool
 	// SummaryDisable disables the summary output at the end of a run.
 	SummaryDisable bool
-	// SummaryUnitDuration enables showing duration information for each unit in the summary.
-	SummaryUnitDuration bool
+	// SummaryPerUnit enables showing duration information for each unit in the summary.
+	SummaryPerUnit bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests

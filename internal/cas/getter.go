@@ -2,7 +2,9 @@ package cas
 
 import (
 	"context"
+	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -28,6 +30,9 @@ func NewCASGetter(l log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
 			new(getter.GitDetector),
 			new(getter.BitBucketDetector),
 			new(getter.GitLabDetector),
+			// This always has to be the last detector,
+			// as we check for the last detector in Detect().
+			new(getter.FileDetector),
 		},
 		CAS:    cas,
 		Logger: l,
@@ -36,6 +41,11 @@ func NewCASGetter(l log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
 }
 
 func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
+	if req.Copy {
+		// Handle local directory by persisting to CAS and linking
+		return g.CAS.StoreLocalDirectory(ctx, g.Logger, req.Src, req.Dst)
+	}
+
 	ref := ""
 
 	url := req.URL()
@@ -61,8 +71,8 @@ func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 	// We need to switch to a valid Git URL to clone the repository
 	// Like this:
 	// git@github.com:gruntwork-io/terragrunt.git
-	if strings.HasPrefix(urlStr, "ssh://") {
-		urlStr = strings.TrimPrefix(urlStr, "ssh://")
+	if after, ok := strings.CutPrefix(urlStr, "ssh://"); ok {
+		urlStr = after
 		// Replace the first slash with a colon
 		urlStr = strings.Replace(urlStr, "/", ":", 1)
 	}
@@ -83,17 +93,38 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		return true, nil
 	}
 
-	for _, detector := range g.Detectors {
+	for i, detector := range g.Detectors {
 		src, ok, err := detector.Detect(req.Src, req.Pwd)
 		if err != nil {
 			return ok, err
 		}
 
 		if ok {
+			// The final detector is always the FileDetector.
+			if i == len(g.Detectors)-1 {
+				info, statErr := os.Stat(src)
+				if statErr != nil {
+					return false, fmt.Errorf("%w: %s", ErrDirectoryNotFound, src)
+				}
+
+				if !info.IsDir() {
+					return false, fmt.Errorf("%w: %s", ErrNotADirectory, src)
+				}
+
+				// We use this as a simple way to indicate that we're working with a local directory.
+				req.Copy = true
+			}
+
 			req.Src = src
+
 			return ok, nil
 		}
 	}
 
 	return false, nil
 }
+
+var (
+	ErrDirectoryNotFound = errors.New("directory not found")
+	ErrNotADirectory     = errors.New("not a directory")
+)

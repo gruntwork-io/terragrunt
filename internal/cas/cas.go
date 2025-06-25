@@ -14,11 +14,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
-	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Options configures the behavior of CAS
@@ -45,10 +45,9 @@ type CloneOptions struct {
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
-	cloneStart time.Time
-	store      *Store
-	git        *GitRunner
-	opts       Options
+	store *Store
+	git   *GitRunner
+	opts  Options
 }
 
 // New creates a new CAS instance with the given options
@@ -66,9 +65,14 @@ func New(opts Options) (*CAS, error) {
 
 	store := NewStore(opts.StorePath)
 
+	git, err := NewGitRunner()
+	if err != nil {
+		return nil, err
+	}
+
 	return &CAS{
 		store: store,
-		git:   NewGitRunner(),
+		git:   git,
 		opts:  opts,
 	}, nil
 }
@@ -77,53 +81,70 @@ func New(opts Options) (*CAS, error) {
 //
 // TODO: Make options optional
 func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url string) error {
-	c.cloneStart = time.Now()
+	// Ensure the store path exists
+	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+		return fmt.Errorf("failed to create store path: %w", err)
+	}
 
-	targetDir := c.prepareTargetDirectory(opts.Dir, url)
+	// Acquire global clone lock to ensure only one clone at a time
+	globalLock := flock.New(filepath.Join(c.store.Path(), "clone.lock"))
 
-	// Create a temporary directory for git operations
-	tempDir, cleanup, err := c.git.CreateTempDir()
-	if err != nil {
-		return err
+	if err := globalLock.Lock(); err != nil {
+		return fmt.Errorf("failed to acquire global clone lock: %w", err)
 	}
 
 	defer func() {
-		if cleanupErr := cleanup(); cleanupErr != nil {
-			l.Warnf("cleanup error: %v", cleanupErr)
+		if unlockErr := globalLock.Unlock(); unlockErr != nil {
+			l.Warnf("failed to release global clone lock: %v", unlockErr)
 		}
 	}()
 
-	// Set the working directory for git operations
-	c.git.SetWorkDir(tempDir)
-
-	hash, err := c.resolveReference(ctx, url, opts.Branch)
-	if err != nil {
-		return err
-	}
-
-	if c.store.NeedsWrite(hash, c.cloneStart) {
-		if err := c.cloneAndStoreContent(ctx, l, opts, url, hash); err != nil {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_clone", map[string]any{
+		"url":    url,
+		"branch": opts.Branch,
+	}, func(childCtx context.Context) error {
+		hash, err := c.resolveReference(childCtx, url, opts.Branch)
+		if err != nil {
 			return err
 		}
-	}
 
-	content := NewContent(c.store)
+		targetDir := c.prepareTargetDirectory(opts.Dir, url)
 
-	treeData, err := content.Read(hash)
-	if err != nil {
-		return err
-	}
+		if c.store.NeedsWrite(hash) {
+			// Create a temporary directory for git operations
+			tempDir, cleanup, createTempDirErr := c.git.CreateTempDir()
+			if createTempDirErr != nil {
+				return createTempDirErr
+			}
 
-	tree, err := ParseTree(string(treeData), targetDir)
-	if err != nil {
-		return err
-	}
+			defer func() {
+				if cleanupErr := cleanup(); cleanupErr != nil {
+					l.Warnf("cleanup error: %v", cleanupErr)
+				}
+			}()
 
-	if err := tree.LinkTree(ctx, c.store, targetDir); err != nil {
-		return err
-	}
+			// Set the working directory for git operations
+			c.git.SetWorkDir(tempDir)
 
-	return nil
+			if cloneAndStoreErr := c.cloneAndStoreContent(childCtx, l, opts, url, hash); cloneAndStoreErr != nil {
+				return cloneAndStoreErr
+			}
+		}
+
+		content := NewContent(c.store)
+
+		treeData, err := content.Read(hash)
+		if err != nil {
+			return err
+		}
+
+		tree, err := ParseTree(string(treeData), targetDir)
+		if err != nil {
+			return err
+		}
+
+		return tree.LinkTree(childCtx, c.store, targetDir)
+	})
 }
 
 func (c *CAS) prepareTargetDirectory(dir, url string) string {
@@ -161,7 +182,13 @@ func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *Clon
 }
 
 func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
-	if err := c.storeTree(ctx, l, hash, ""); err != nil {
+	// Get all blobs recursively in a single git ls-tree -r call at the root
+	tree, err := c.git.LsTreeRecursive(ctx, hash, ".")
+	if err != nil {
+		return err
+	}
+
+	if err = c.storeTreeRecursive(ctx, l, hash, tree); err != nil {
 		return err
 	}
 
@@ -188,197 +215,55 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 
 		workDirPath := filepath.Join(c.git.WorkDir, file)
 
-		hash, err := hashFile(workDirPath)
+		includedHash, err := hashFile(workDirPath)
 		if err != nil {
 			return err
 		}
 
-		content := NewContent(c.store)
+		includedContent := NewContent(c.store)
 
-		if err := content.EnsureCopy(l, hash, workDirPath); err != nil {
+		if err := includedContent.EnsureCopy(l, includedHash, workDirPath); err != nil {
 			return err
 		}
 
 		path := filepath.Join(".git", file)
 
-		data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), hash, path)...)
+		data = append(data, fmt.Appendf(nil, "%06o blob %s\t%s\n", stat.Mode().Perm(), includedHash, path)...)
 	}
 
 	// Overwrite the root tree with the new data
 	return content.Store(l, hash, data)
 }
 
-func (c *CAS) storeTree(ctx context.Context, l log.Logger, hash, prefix string) error {
-	if !c.store.NeedsWrite(hash, c.cloneStart) {
+// storeTreeRecursive stores a tree fetched from git ls-tree -r
+func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string, tree *Tree) error {
+	if !c.store.NeedsWrite(hash) {
 		return nil
 	}
 
-	tree, err := c.git.LsTree(ctx, hash, ".")
-	if err != nil {
+	if err := c.storeBlobs(ctx, tree.Entries()); err != nil {
 		return err
 	}
 
-	// Optimistically assume half the entries are trees and half are blobs
-	var (
-		trees = make([]TreeEntry, 0, len(tree.Entries())/2) //nolint:mnd
-		blobs = make([]TreeEntry, 0, len(tree.Entries())/2) //nolint:mnd
-	)
-
-	for _, entry := range tree.Entries() {
-		if prefix != "" {
-			entry.Path = filepath.Join(prefix, entry.Path)
-		}
-
-		switch entry.Type {
-		case "blob":
-			blobs = append(blobs, entry)
-		case "tree":
-			trees = append(trees, entry)
-		}
-	}
-
-	ch := make(chan error, 2) //nolint:mnd
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		if err := c.storeBlobs(ctx, blobs); err != nil {
-			ch <- err
-
-			return
-		}
-
-		ch <- nil
-	}()
-
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		if err := c.storeTrees(ctx, l, trees, prefix); err != nil {
-			ch <- err
-
-			return
-		}
-
-		ch <- nil
-	}()
-
-	wg.Wait()
-
-	close(ch)
-
-	errs := []error{}
-
-	for err := range ch {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
+	// Store the tree object itself
 	content := NewContent(c.store)
-
-	if err := content.Ensure(l, hash, tree.Data()); err != nil {
+	if err := content.EnsureWithWait(l, hash, tree.Data()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// storeBlobs concurrently stores blobs in the CAS
+// storeBlobs stores blobs in the CAS
 func (c *CAS) storeBlobs(ctx context.Context, entries []TreeEntry) error {
-	ch := make(chan error, len(entries))
-
-	var wg sync.WaitGroup
-
 	for _, entry := range entries {
-		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
+		if !c.store.NeedsWrite(entry.Hash) {
 			continue
 		}
 
-		wg.Add(1)
-
-		go func(hash string) {
-			defer wg.Done()
-
-			if err := c.ensureBlob(ctx, hash); err != nil {
-				ch <- err
-
-				return
-			}
-
-			ch <- nil
-		}(entry.Hash)
-	}
-
-	wg.Wait()
-
-	close(ch)
-
-	errs := []error{}
-
-	for err := range ch {
-		if err != nil {
-			errs = append(errs, err)
+		if err := c.ensureBlob(ctx, entry.Hash); err != nil {
+			return err
 		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
-}
-
-// storeTrees concurrently stores trees in the CAS
-func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry, prefix string) error {
-	ch := make(chan error, len(entries))
-
-	var wg sync.WaitGroup
-
-	for _, entry := range entries {
-		if !c.store.NeedsWrite(entry.Hash, c.cloneStart) {
-			continue
-		}
-
-		wg.Add(1)
-
-		go func(hash string) {
-			defer wg.Done()
-
-			if err := c.storeTree(ctx, l, hash, prefix); err != nil {
-				ch <- err
-
-				return
-			}
-
-			ch <- nil
-		}(entry.Hash)
-	}
-
-	wg.Wait()
-
-	close(ch)
-
-	errs := []error{}
-
-	for err := range ch {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
 	}
 
 	return nil
@@ -388,21 +273,23 @@ func (c *CAS) storeTrees(ctx context.Context, l log.Logger, entries []TreeEntry,
 // It doesn't use the standard content.Store method because
 // we want to take advantage of the ability to write to the
 // entry using `git cat-file`.
-func (c *CAS) ensureBlob(ctx context.Context, hash string) (err error) {
-	c.store.mapLock.Lock()
-
-	if _, ok := c.store.locks[hash]; !ok {
-		c.store.locks[hash] = &sync.Mutex{}
+func (c *CAS) ensureBlob(ctx context.Context, hash string) error {
+	needsWrite, lock, err := c.store.EnsureWithWait(hash)
+	if err != nil {
+		return err
 	}
 
-	c.store.locks[hash].Lock()
-	defer c.store.locks[hash].Unlock()
-
-	c.store.mapLock.Unlock()
-
-	if !c.store.NeedsWrite(hash, c.cloneStart) {
+	// If content already exists or was written by another process, we're done
+	if !needsWrite {
 		return nil
 	}
+
+	// We have the lock and need to write the content
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			err = errors.Join(err, unlockErr)
+		}
+	}()
 
 	content := NewContent(c.store)
 

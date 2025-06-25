@@ -100,6 +100,90 @@ func TestGetRun(t *testing.T) {
 	}
 }
 
+func TestEnsureRun(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		expectedErrIs error
+		setupFunc     func(*report.Report) *report.Run
+		name          string
+		runName       string
+		existingRun   bool
+		expectError   bool
+	}{
+		{
+			name:        "creates new run when run does not exist",
+			runName:     filepath.Join(tmp, "new-run"),
+			existingRun: false,
+			expectError: false,
+		},
+		{
+			name:        "returns existing run when it exists",
+			runName:     filepath.Join(tmp, "existing-run"),
+			existingRun: true,
+			expectError: false,
+			setupFunc: func(r *report.Report) *report.Run {
+				run := newRun(t, filepath.Join(tmp, "existing-run"))
+				err := r.AddRun(run)
+				require.NoError(t, err)
+				return run
+			},
+		},
+		{
+			name:          "returns error for invalid path",
+			runName:       "relative-path",
+			existingRun:   false,
+			expectError:   true,
+			expectedErrIs: report.ErrPathMustBeAbsolute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := report.NewReport()
+			var existingRun *report.Run
+
+			if tt.setupFunc != nil {
+				existingRun = tt.setupFunc(r)
+			}
+
+			run, err := r.EnsureRun(tt.runName)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, run)
+				if tt.expectedErrIs != nil {
+					require.ErrorIs(t, err, tt.expectedErrIs)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, run)
+				assert.Equal(t, tt.runName, run.Path)
+				assert.False(t, run.Started.IsZero())
+
+				if tt.existingRun {
+					// Should return the same instance as the existing run
+					assert.Equal(t, existingRun.Started, run.Started)
+				}
+
+				// Verify the run was added to the report
+				retrievedRun, err := r.GetRun(tt.runName)
+				require.NoError(t, err)
+				assert.Equal(t, run, retrievedRun)
+
+				// Verify that calling EnsureRun again returns the same run
+				secondRun, err := r.EnsureRun(tt.runName)
+				require.NoError(t, err)
+				assert.Equal(t, run, secondRun)
+			}
+		})
+	}
+}
+
 func TestEndRun(t *testing.T) {
 	t.Parallel()
 
@@ -799,10 +883,9 @@ func TestWriteSummary(t *testing.T) {
 				r.EndRun(run.Path)
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:   x
-   Units:      1
-   Succeeded:  1
+❯❯ Run Summary  1 units  x
+   ────────────────────────────
+   Succeeded    1
 `,
 		},
 		{
@@ -845,13 +928,12 @@ func TestWriteSummary(t *testing.T) {
 				r.EndRun(secondEarlyExitRun.Path, report.WithResult(report.ResultEarlyExit))
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:     x
-   Units:        8
-   Succeeded:    2
-   Failed:       2
-   Early Exits:  2
-   Excluded:     2
+❯❯ Run Summary  8 units  x
+   ────────────────────────────
+   Succeeded    2
+   Failed       2
+   Early Exits  2
+   Excluded     2
 `,
 		},
 	}
@@ -869,9 +951,10 @@ func TestWriteSummary(t *testing.T) {
 
 			output := buf.String()
 
-			// Replace the duration with x
-			re := regexp.MustCompile(`Duration:(\s+).*`)
-			output = re.ReplaceAllString(output, "Duration:${1}x")
+			// Replace the duration in the header with x
+			// Pattern matches: "❯❯ Run Summary  8 units  42µs" -> "❯❯ Run Summary  8 units  x"
+			re := regexp.MustCompile(`(❯❯ Run Summary\s+\d+\s+units\s+)[^\n]+`)
+			output = re.ReplaceAllString(output, "${1}x")
 
 			expected := strings.TrimSpace(tt.expected)
 			assert.Equal(t, expected, strings.TrimSpace(output))
@@ -1042,7 +1125,7 @@ func TestSchemaIsValid(t *testing.T) {
 	assert.Equal(t, "ignore-block", *ignored.Cause)
 }
 
-func TestWriteUnitsTiming(t *testing.T) {
+func TestWriteUnitLevelSummary(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
@@ -1058,9 +1141,8 @@ func TestWriteUnitsTiming(t *testing.T) {
 				// No runs added
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:  x
-   Units:     0
+❯❯ Run Summary  0 units  x
+   ────────────────────────────
 `,
 		},
 		{
@@ -1071,11 +1153,10 @@ func TestWriteUnitsTiming(t *testing.T) {
 				r.EndRun(run.Path)
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:   x
-      single-run:  x
-   Units:      1
-   Succeeded:  1
+❯❯ Run Summary  1 units  x
+   ────────────────────────────
+   Succeeded (1)
+      single-run ....... x
 `,
 		},
 		{
@@ -1096,13 +1177,93 @@ func TestWriteUnitsTiming(t *testing.T) {
 				r.EndRun(longRun.Path)
 			},
 			expected: `
-❯❯ Run Summary
-   Duration:   x
-      long-run:    x
-      medium-run:  x
-      short-run:   x
-   Units:      3
-   Succeeded:  3
+❯❯ Run Summary  3 units  x
+   ────────────────────────────
+   Succeeded (3)
+      long-run ......... x
+      medium-run ....... x
+      short-run ........ x
+`,
+		},
+		{
+			name: "mixed results grouped by category",
+			setup: func(r *report.Report) {
+				// Add runs with different results
+				successRun1 := newRun(t, filepath.Join(tmp, "success-1"))
+				successRun2 := newRun(t, filepath.Join(tmp, "success-2"))
+				failRun := newRun(t, filepath.Join(tmp, "fail-run"))
+				excludedRun := newRun(t, filepath.Join(tmp, "excluded-run"))
+
+				r.AddRun(successRun1)
+				r.AddRun(successRun2)
+				r.AddRun(failRun)
+				r.AddRun(excludedRun)
+
+				r.EndRun(successRun1.Path)
+				r.EndRun(successRun2.Path)
+				r.EndRun(failRun.Path, report.WithResult(report.ResultFailed))
+				r.EndRun(excludedRun.Path, report.WithResult(report.ResultExcluded))
+			},
+			expected: `
+❯❯ Run Summary  4 units  x
+   ────────────────────────────
+   Succeeded (2)
+      success-1 ........ x
+      success-2 ........ x
+   Failed (1)
+      fail-run ......... x
+   Excluded (1)
+      excluded-run ..... x
+`,
+		},
+		{
+			name: "very short unit names",
+			setup: func(r *report.Report) {
+				// Add runs with very short names
+				a := newRun(t, filepath.Join(tmp, "a"))
+				b := newRun(t, filepath.Join(tmp, "b"))
+				c := newRun(t, filepath.Join(tmp, "c"))
+
+				r.AddRun(a)
+				r.AddRun(b)
+				r.AddRun(c)
+
+				r.EndRun(a.Path)
+				r.EndRun(b.Path)
+				r.EndRun(c.Path)
+			},
+			expected: `
+❯❯ Run Summary  3 units  x
+   ────────────────────────────
+   Succeeded (3)
+      a ................ x
+      b ................ x
+      c ................ x
+`,
+		},
+		{
+			name: "very long unit names",
+			setup: func(r *report.Report) {
+				// Add runs with very long names
+				longName1 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-1"))
+				longName2 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-2"))
+				longName3 := newRun(t, filepath.Join(tmp, "this-is-a-very-long-name-3"))
+
+				r.AddRun(longName1)
+				r.AddRun(longName2)
+				r.AddRun(longName3)
+
+				r.EndRun(longName1.Path)
+				r.EndRun(longName2.Path)
+				r.EndRun(longName3.Path)
+			},
+			expected: `
+❯❯ Run Summary  3 units           x
+   ───────────────────────────────────
+   Succeeded (3)
+      this-is-a-very-long-name-1  x
+      this-is-a-very-long-name-2  x
+      this-is-a-very-long-name-3  x
 `,
 		},
 	}
@@ -1113,7 +1274,7 @@ func TestWriteUnitsTiming(t *testing.T) {
 
 			r := report.NewReport().
 				WithDisableColor().
-				WithShowUnitTiming().
+				WithShowUnitLevelSummary().
 				WithWorkingDir(tmp)
 
 			tt.setup(r)
@@ -1124,12 +1285,14 @@ func TestWriteUnitsTiming(t *testing.T) {
 
 			// Replace the duration with x since we can't control the actual duration in tests
 			output := buf.String()
-			re := regexp.MustCompile(`Duration:(\s+).*`)
-			output = re.ReplaceAllString(output, "Duration:${1}x")
 
-			// Replace the actual durations with x
-			re = regexp.MustCompile(`([ ]{6})([^\s]+:)(\s+)(.*)`)
-			output = re.ReplaceAllString(output, "${1}${2}${3}x")
+			// Replace the header duration with x
+			re := regexp.MustCompile(`❯❯ Run Summary  (\d+) units(\s+)(\d+.+)`)
+			output = re.ReplaceAllString(output, "❯❯ Run Summary  ${1} units${2}x")
+
+			// Replace all the unit level summaries
+			re = regexp.MustCompile(`([ ]{6})([^ ]+)( )([^ ]*)( )(\d+.+)`)
+			output = re.ReplaceAllString(output, "${1}${2}${3}${4}${5}x")
 
 			expected := strings.TrimSpace(tt.expected)
 			assert.Equal(t, expected, strings.TrimSpace(output))

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -39,24 +40,35 @@ func TestTerragruntReportExperiment(t *testing.T) {
 	// Verify the report output contains expected information
 	stdoutStr := stdout.String()
 
-	// Replace the duration line with a fixed duration
-	re := regexp.MustCompile(`Duration:(\s+)(.*)`)
-	stdoutStr = re.ReplaceAllString(stdoutStr, "Duration:${1}x")
+	// Replace the timing information with fixed values
+	re := regexp.MustCompile(`❯❯ Run Summary\s+\d+\s+units\s+\S+`)
+	stdoutStr = re.ReplaceAllString(stdoutStr, "❯❯ Run Summary  13 units  x")
 
 	// Trim stdout to only the run summary.
-	// We do this by only returning the last 8 lines (seven lines of the summary, footer gap).
-	// We add one extra to avoid an off-by-one in slice math.
+	// Find the summary section
 	lines := strings.Split(stdoutStr, "\n")
-	stdoutStr = strings.Join(lines[len(lines)-9:], "\n")
+
+	// Find the "Run Summary" line
+	summaryStartIdx := -1
+	for i, line := range lines {
+		if strings.Contains(line, "Run Summary") {
+			summaryStartIdx = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, summaryStartIdx, "Could not find 'Run Summary' line")
+
+	// Extract the summary section
+	summaryLines := lines[summaryStartIdx:]
+	stdoutStr = strings.Join(summaryLines, "\n")
 
 	assert.Equal(t, strings.TrimSpace(`
-❯❯ Run Summary
-   Duration:     x
-   Units:        13
-   Succeeded:    4
-   Failed:       3
-   Early Exits:  4
-   Excluded:     2
+❯❯ Run Summary  13 units  x
+   ────────────────────────────
+   Succeeded    4
+   Failed       3
+   Early Exits  4
+   Excluded     2
 `), strings.TrimSpace(stdoutStr))
 }
 
@@ -382,19 +394,19 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 	// Run terragrunt with report experiment enabled and unit timing enabled
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-unit-duration", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --experiment report --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
 	require.NoError(t, err)
 
 	// Verify the report output contains expected information
 	stdoutStr := stdout.String()
 
-	// Replace the duration lines with fixed durations
-	re := regexp.MustCompile(`Duration:(\s+)(.*)`)
-	stdoutStr = re.ReplaceAllString(stdoutStr, "Duration:${1}x")
+	// Replace the timing information with fixed values
+	re := regexp.MustCompile(`❯❯ Run Summary\s+\d+\s+units\s+\S+`)
+	stdoutStr = re.ReplaceAllString(stdoutStr, "❯❯ Run Summary  13 units  x")
 
-	// Replace unit timing durations with x
-	re = regexp.MustCompile(`([ ]{6})([^\s]+:)(\s+)(.*)`)
-	stdoutStr = re.ReplaceAllString(stdoutStr, "${1}${2}${3}x")
+	// Replace unit timing durations with x (including minutes, seconds, milliseconds, microseconds, nanoseconds)
+	re = regexp.MustCompile(`(?m)\d+(\.\d+)?(m|s|ms|µs|μs|ns)$`)
+	stdoutStr = re.ReplaceAllString(stdoutStr, "x")
 
 	// Find and extract the run summary section
 	lines := strings.Split(stdoutStr, "\n")
@@ -418,65 +430,180 @@ func TestTerragruntReportExperimentWithUnitTiming(t *testing.T) {
 		}
 	}
 
-	// Extract unit duration lines (lines that start with 6 spaces and contain a colon)
-	var unitLogLines []string
-	var otherLines []string
+	// Extract the summary section
+	summaryLines := lines[summaryStartIdx : summaryEndIdx+1]
+	stdoutStr = strings.Join(summaryLines, "\n")
 
-	for i := summaryStartIdx; i <= summaryEndIdx; i++ {
-		line := lines[i]
-		// Check if this is a unit duration line (6 spaces + unit name + colon)
-		if strings.HasPrefix(line, "      ") && strings.Contains(line, ":") && !strings.Contains(line, "Duration:") {
-			unitLogLines = append(unitLogLines, line)
-		} else {
-			otherLines = append(otherLines, line)
+	// Sort lines within each category to make the test deterministic
+	// We're not testing the sorting functionality here, just the per-unit timing display
+	stdoutStr = sortLinesWithinCategories(stdoutStr)
+
+	// The expected format has units grouped by status with timing (sorted alphabetically within categories)
+	expectedOutput := `
+❯❯ Run Summary  13 units  x
+   ────────────────────────────
+   Succeeded (4)
+      error-ignore ...... x
+      first-success ..... x
+      retry-success ..... x
+      second-success .... x
+   Failed (3)
+      chain-a ........... x
+      first-failure ..... x
+      second-failure .... x
+   Early Exits (4)
+      chain-b ........... x
+      chain-c ........... x
+      first-early-exit .. x
+      second-early-exit . x
+   Excluded (2)
+      first-exclude ..... x
+      second-exclude .... x`
+
+	assert.Equal(t, strings.TrimSpace(expectedOutput), strings.TrimSpace(stdoutStr))
+}
+
+func TestReportWithExternalDependenciesExcluded(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureExternalDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExternalDependency)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
+
+	dep := t.TempDir()
+
+	f, err := os.Create(filepath.Join(dep, "terragrunt.hcl"))
+	require.NoError(t, err)
+	f.Close()
+
+	f, err = os.Create(filepath.Join(dep, "main.tf"))
+	require.NoError(t, err)
+	f.Close()
+
+	reportDir := t.TempDir()
+	reportFile := filepath.Join(reportDir, "report.json")
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all plan --queue-exclude-external --experiment report --feature dep=%s --working-dir %s --report-file %s",
+			dep,
+			rootPath,
+			reportFile,
+		),
+	)
+
+	// The command should succeed without "run not found in report" errors
+	require.NoError(t, err)
+
+	// Verify that no "run not found in report" errors appear in stderr
+	assert.NotContains(t, stderr, "run not found in report")
+	assert.Contains(t, stdout, "Run Summary")
+
+	// Verify that the report file exists
+	assert.FileExists(t, reportFile)
+
+	// Read the report file
+	reportContent, err := os.ReadFile(reportFile)
+	require.NoError(t, err)
+
+	// Verify that the report file contains the expected content
+	var report []map[string]interface{}
+	err = json.Unmarshal(reportContent, &report)
+	require.NoError(t, err)
+
+	// Verify that the report file contains the expected content
+	assert.Len(t, report, 2)
+
+	expected := []struct {
+		name   string
+		result string
+		reason string
+	}{
+		// The first run is always going to be the external dependency,
+		// as it has an instant runtime.
+		{name: dep, result: "excluded", reason: "--queue-exclude-external"},
+		{name: "external-dependency", result: "succeeded"},
+	}
+
+	for i, r := range report {
+		assert.Equal(t, expected[i].name, r["Name"])
+		assert.Equal(t, expected[i].result, r["Result"])
+		if expected[i].reason != "" {
+			assert.Equal(t, expected[i].reason, r["Reason"])
+		}
+	}
+}
+
+// lineType represents the type of line we're processing
+type lineType int
+
+const (
+	categoryHeaderLine lineType = iota
+	unitLine
+	otherLine
+)
+
+// getLineType determines what type of line we're dealing with
+func getLineType(line string, inCategory bool) lineType {
+	trimmed := strings.TrimSpace(line)
+
+	// Check if this is a category header line (ends with a count in parentheses)
+	if strings.Contains(line, "(") && strings.Contains(line, ")") &&
+		(strings.Contains(line, "Succeeded") || strings.Contains(line, "Failed") ||
+			strings.Contains(line, "Early Exits") || strings.Contains(line, "Excluded")) {
+		return categoryHeaderLine
+	}
+
+	// Check if this is a unit line within a category
+	if inCategory && strings.HasPrefix(line, "      ") && trimmed != "" {
+		return unitLine
+	}
+
+	return otherLine
+}
+
+// sortLinesWithinCategories sorts the unit lines within each category alphabetically
+// to make the test deterministic regardless of actual execution timing
+func sortLinesWithinCategories(input string) string {
+	lines := strings.Split(input, "\n")
+	var result []string
+	var currentCategoryLines []string
+	inCategory := false
+
+	for _, line := range lines {
+		switch getLineType(line, inCategory) {
+		case categoryHeaderLine:
+			// If we were in a category, sort and add those lines first
+			if inCategory && len(currentCategoryLines) > 0 {
+				sort.Strings(currentCategoryLines)
+				result = append(result, currentCategoryLines...)
+				currentCategoryLines = nil
+			}
+			// Add the category header
+			result = append(result, line)
+			inCategory = true
+		case unitLine:
+			// This is a unit line within a category
+			currentCategoryLines = append(currentCategoryLines, line)
+		case otherLine:
+			// If we were in a category, sort and add those lines first
+			if inCategory && len(currentCategoryLines) > 0 {
+				sort.Strings(currentCategoryLines)
+				result = append(result, currentCategoryLines...)
+				currentCategoryLines = nil
+				inCategory = false
+			}
+			// Add non-category lines as-is
+			result = append(result, line)
 		}
 	}
 
-	// Sort the duration lines alphabetically so that they show up consistently
-	sort.Slice(unitLogLines, func(i, j int) bool {
-		// Extract the unit name from the line
-		unitNameI := strings.TrimSpace(re.ReplaceAllString(unitLogLines[i], "${2}"))
-		unitNameJ := strings.TrimSpace(re.ReplaceAllString(unitLogLines[j], "${2}"))
-
-		// Compare the unit names
-		return unitNameI < unitNameJ
-	})
-
-	// Reconstruct the summary with sorted unit lines
-	// Insert sorted unit lines after the "Duration:" line
-	finalLines := make([]string, 0, len(otherLines)+len(unitLogLines))
-
-	unitInserted := false
-	for _, line := range otherLines {
-		finalLines = append(finalLines, line)
-		if strings.Contains(line, "Duration:") && !unitInserted {
-			finalLines = append(finalLines, unitLogLines...)
-			unitInserted = true
-		}
+	// Handle any remaining category lines
+	if inCategory && len(currentCategoryLines) > 0 {
+		sort.Strings(currentCategoryLines)
+		result = append(result, currentCategoryLines...)
 	}
 
-	stdoutStr = strings.Join(finalLines, "\n")
-
-	assert.Equal(t, strings.TrimSpace(`
-❯❯ Run Summary
-   Duration:     x
-      chain-a:            x
-      chain-b:            x
-      chain-c:            x
-      error-ignore:       x
-      first-early-exit:   x
-      first-exclude:      x
-      first-failure:      x
-      first-success:      x
-      retry-success:      x
-      second-early-exit:  x
-      second-exclude:     x
-      second-failure:     x
-      second-success:     x
-   Units:        13
-   Succeeded:    4
-   Failed:       3
-   Early Exits:  4
-   Excluded:     2
-`), strings.TrimSpace(stdoutStr))
+	return strings.Join(result, "\n")
 }

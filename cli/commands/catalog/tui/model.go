@@ -27,9 +27,9 @@ const (
 )
 
 const (
-	listState sessionState = iota
-	pagerState
-	scaffoldState
+	ListState sessionState = iota
+	PagerState
+	ScaffoldState
 )
 
 const (
@@ -48,11 +48,11 @@ func (b button) String() string {
 	}[b]
 }
 
-type model struct {
-	list                list.Model
+type Model struct {
+	List                list.Model
 	logger              log.Logger
 	terragruntOptions   *options.TerragruntOptions
-	svc                 catalog.CatalogService
+	SVC                 catalog.CatalogService
 	selectedModule      *module.Module
 	delegateKeys        *delegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
@@ -61,13 +61,13 @@ type model struct {
 	listKeys            list.KeyMap
 	viewport            viewport.Model
 	activeButton        button
-	state               sessionState
+	State               sessionState
 	height              int
 	width               int
 	ready               bool
 }
 
-func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model {
+func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) Model {
 	var (
 		modules      = svc.Modules()
 		items        = make([]list.Item, 0, len(modules))
@@ -103,20 +103,21 @@ func newModel(opts *options.TerragruntOptions, svc catalog.CatalogService) model
 
 	bb := buttonbar.New(bs)
 
-	return model{
-		list:              list,
+	return Model{
+		List:              list,
 		listKeys:          listKeys,
 		delegateKeys:      delegateKeys,
 		viewport:          vp,
 		buttonBar:         bb,
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
-		svc:               svc,
+		SVC:               svc,
+		logger:            l,
 	}
 }
 
 // Init implements bubbletea.Model.Init
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.buttonBar.Init(),
 	)

@@ -60,7 +60,215 @@ func TestStore_NeedsWrite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, store.NeedsWrite(tt.hash, time.Now()))
+			assert.Equal(t, tt.want, store.NeedsWrite(tt.hash))
 		})
 	}
+}
+
+func TestStore_AcquireLock(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+	store := cas.NewStore(tempDir)
+	testHash := "abcdef1234567890abcdef1234567890abcdef12"
+
+	// Test successful lock acquisition
+	lock, err := store.AcquireLock(testHash)
+	require.NoError(t, err)
+	assert.NotNil(t, lock)
+
+	// Verify lock file exists
+	lockPath := filepath.Join(tempDir, testHash[:2], testHash+".lock")
+	assert.FileExists(t, lockPath)
+
+	// Clean up
+	err = lock.Unlock()
+	require.NoError(t, err)
+}
+
+func TestStore_TryAcquireLock(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+	store := cas.NewStore(tempDir)
+	testHash := "abcdef1234567890abcdef1234567890abcdef12"
+
+	// Test successful lock acquisition
+	lock1, acquired, err := store.TryAcquireLock(testHash)
+	require.NoError(t, err)
+	assert.True(t, acquired)
+	assert.NotNil(t, lock1)
+
+	// Test lock contention - should fail to acquire
+	lock2, acquired, err := store.TryAcquireLock(testHash)
+	require.NoError(t, err)
+	assert.False(t, acquired)
+	assert.Nil(t, lock2)
+
+	// Clean up first lock
+	err = lock1.Unlock()
+	require.NoError(t, err)
+
+	// Now should be able to acquire again
+	lock3, acquired, err := store.TryAcquireLock(testHash)
+	require.NoError(t, err)
+	assert.True(t, acquired)
+	assert.NotNil(t, lock3)
+
+	// Clean up
+	err = lock3.Unlock()
+	assert.NoError(t, err)
+}
+
+func TestStore_LockConcurrency(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+	store := cas.NewStore(tempDir)
+	testHash := "abcdef1234567890abcdef1234567890abcdef12"
+
+	// Test that multiple goroutines can't acquire the same lock
+	done := make(chan bool, 2)
+	acquired := make(chan bool, 2)
+
+	// First goroutine acquires lock and holds it briefly
+	go func() {
+		lock, err := store.AcquireLock(testHash)
+		assert.NoError(t, err)
+		acquired <- true
+		time.Sleep(100 * time.Millisecond) // Hold lock briefly
+		err = lock.Unlock()
+		assert.NoError(t, err)
+		done <- true
+	}()
+
+	// Second goroutine tries to acquire the same lock
+	go func() {
+		<-acquired // Wait for first goroutine to acquire lock
+
+		// Should block until first lock is released
+		start := time.Now()
+		lock, err := store.AcquireLock(testHash)
+		elapsed := time.Since(start)
+
+		assert.NoError(t, err)
+		assert.Greater(t, elapsed, 50*time.Millisecond, "Second lock should have been blocked")
+
+		err = lock.Unlock()
+		assert.NoError(t, err)
+		done <- true
+	}()
+
+	// Wait for both goroutines to complete
+	<-done
+	<-done
+}
+
+func TestStore_EnsureWithWait(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+	store := cas.NewStore(tempDir)
+	testHash := "abcdef1234567890abcdef1234567890abcdef12"
+
+	t.Run("content already exists", func(t *testing.T) {
+		t.Parallel()
+
+		// Create the content manually
+		partitionDir := filepath.Join(tempDir, testHash[:2])
+		err := os.MkdirAll(partitionDir, 0755)
+		require.NoError(t, err)
+
+		contentPath := filepath.Join(partitionDir, testHash)
+		err = os.WriteFile(contentPath, []byte("existing content"), 0644)
+		require.NoError(t, err)
+
+		// EnsureWithWait should return false (no write needed)
+		needsWrite, lock, err := store.EnsureWithWait(testHash)
+		require.NoError(t, err)
+		assert.False(t, needsWrite)
+		assert.Nil(t, lock)
+	})
+
+	t.Run("content doesn't exist, no contention", func(t *testing.T) {
+		t.Parallel()
+
+		testHashNew := "fedcba0987654321fedcba0987654321fedcba09"
+
+		// EnsureWithWait should return true (write needed) and provide lock
+		needsWrite, lock, err := store.EnsureWithWait(testHashNew)
+		require.NoError(t, err)
+		assert.True(t, needsWrite)
+		assert.NotNil(t, lock)
+
+		// Clean up
+		err = lock.Unlock()
+		assert.NoError(t, err)
+	})
+
+	t.Run("concurrent writes - wait optimization", func(t *testing.T) {
+		t.Parallel()
+
+		store := cas.NewStore(t.TempDir())
+		testHashConcurrent := "1234567890abcdef1234567890abcdef12345678"
+
+		// Channel to coordinate the test
+		process1Started := make(chan struct{})
+		process1CanContinue := make(chan struct{})
+		process2Done := make(chan bool)
+
+		// Simulate process 1: acquires lock and holds it
+		go func() {
+			needsWrite, lock, err := store.EnsureWithWait(testHashConcurrent)
+			assert.NoError(t, err)
+			assert.True(t, needsWrite)
+			assert.NotNil(t, lock)
+
+			// Signal that process 1 has the lock
+			close(process1Started)
+
+			// Wait for signal to continue
+			<-process1CanContinue
+
+			// Write the content
+			partitionDir := filepath.Join(store.Path(), testHashConcurrent[:2])
+			err = os.MkdirAll(partitionDir, 0755)
+			assert.NoError(t, err)
+
+			contentPath := filepath.Join(partitionDir, testHashConcurrent)
+			err = os.WriteFile(contentPath, []byte("written by process 1"), 0644)
+			assert.NoError(t, err)
+
+			// Release the lock
+			err = lock.Unlock()
+			assert.NoError(t, err)
+		}()
+
+		// Wait for process 1 to acquire the lock
+		<-process1Started
+
+		// Simulate process 2: should wait and then find content exists
+		go func() {
+			defer close(process2Done)
+
+			needsWrite, lock, err := store.EnsureWithWait(testHashConcurrent)
+			assert.NoError(t, err)
+
+			// Process 2 should not need to write (process 1 wrote it)
+			assert.False(t, needsWrite)
+			assert.Nil(t, lock)
+
+			process2Done <- true
+		}()
+
+		// Let process 1 complete its work
+		close(process1CanContinue)
+
+		// Wait for process 2 to complete
+		result := <-process2Done
+		assert.True(t, result)
+
+		// Verify content exists
+		partitionDir := filepath.Join(store.Path(), testHashConcurrent[:2])
+		contentPath := filepath.Join(partitionDir, testHashConcurrent)
+		content, err := os.ReadFile(contentPath)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("written by process 1"), content)
+	})
 }

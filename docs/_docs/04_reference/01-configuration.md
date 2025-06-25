@@ -8,12 +8,15 @@ tags: ["config", "formatting"]
 order: 401
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+  - /docs/getting-started/configuration/
+  - /docs/etting-started/configuration/
 slug: configuration
 ---
 
 Terragrunt unit configuration is defined in `terragrunt.hcl` files. These files use the same HCL syntax as OpenTofu/Terraform itself.
 
-Here’s an example:
+Here's an example:
 
 ``` hcl
 include "root" {
@@ -66,7 +69,7 @@ Currently terragrunt parses the config in the following order:
 
 8. A merge operation between the config referenced by `include` and the current config.
 
-Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly, you cannot use blocks that are parsed later earlier in the process (e.g you can’t reference `dependency` in `locals`, `include`, or `dependencies` blocks).
+Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly, you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `dependency` in `locals`, `include`, or `dependencies` blocks).
 
 Note that the parsing order is slightly different when using the `-all` flavors of the command. In the `-all` flavors of the command, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
 
@@ -82,7 +85,7 @@ Note that the parsing order is slightly different when using the `-all` flavors 
 
 The results of this pass are then used to build the dependency graph of the units in the stack. Once the graph is constructed, Terragrunt will loop through the units and run the specified command. It will then revert to the single configuration parsing order specified above for each unit as it runs the command.
 
-This allows Terragrunt to avoid resolving `dependency` on units that haven’t been applied yet when doing a clean deployment from scratch with `run --all apply`.
+This allows Terragrunt to avoid resolving `dependency` on units that haven't been applied yet when doing a clean deployment from scratch with `run --all apply`.
 
 ## Stacks
 
@@ -133,7 +136,7 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
 You can set `--diff` option. `terragrunt hclfmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. The `diff` utility must be present in your `PATH`.
 
-Additionally, there’s a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return the exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
+Additionally, there's a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return the exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
 
 You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hclfmt --exclude-dir=qa/services`.
 

@@ -6,13 +6,12 @@ env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
     MODULE_CI_VERSION: v0.57.0
-    OPENTOFU_VERSION: "1.9.0"
     TERRAFORM_VERSION: "1.11.3"
     TFLINT_VERSION: "0.47.0"
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.24.3-tf1.5-tg58.8-pck1.8-ci58.2
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.24.4-tf1.5-tg58.8-pck1.8-ci58.2
 
 version: 2.1
 jobs:
@@ -36,7 +35,7 @@ jobs:
       - attach_workspace:
           at: .
       - go/install:
-          version: "1.24.3"
+          version: "1.24.4"
       - run:
           name: Install sign-binary-helpers
           command: |
@@ -73,7 +72,7 @@ jobs:
       - attach_workspace:
           at: .
       - go/install:
-          version: "1.24.3"
+          version: "1.24.4"
       - run:
           name: Install sign-binary-helpers
           command: |
