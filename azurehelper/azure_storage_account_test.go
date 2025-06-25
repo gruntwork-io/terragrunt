@@ -635,7 +635,7 @@ func TestStorageAccountEncryptionSettings(t *testing.T) {
 				Location:           "eastus",
 				// In a real implementation, this could be customer-managed keys
 				// For this test, we just simulate the property name
-				KeyEncryptionKeySource: "Microsoft.KeyVault",
+				KeyEncryptionKey: "Microsoft.KeyVault",
 			},
 			keysToEncrypt:        []string{"blob"},
 			expectedEncryptionOK: true,

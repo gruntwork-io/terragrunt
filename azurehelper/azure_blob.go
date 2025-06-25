@@ -128,7 +128,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 
 	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("error getting default azure credential: %w", err)
+		return nil, errors.New(fmt.Sprintf("error getting default azure credential: %v", err))
 	}
 
 	client, err := azblob.NewClient(url, cred, nil)
@@ -137,11 +137,11 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		if strings.Contains(err.Error(), "not exist") ||
 			strings.Contains(err.Error(), "no such host") ||
 			strings.Contains(err.Error(), "dial tcp") {
-			return nil, fmt.Errorf("storage account %s does not exist or is not accessible: %w",
-				storageAccountName, err)
+			return nil, errors.New(fmt.Sprintf("storage account %s does not exist or is not accessible: %v",
+				storageAccountName, err))
 		}
 
-		return nil, fmt.Errorf("error creating blob client with default credential: %w", err)
+		return nil, errors.New(fmt.Sprintf("error creating blob client with default credential: %v", err))
 	}
 
 	// Check if we can access the service endpoint to verify the storage account exists and is accessible
@@ -156,23 +156,45 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		switch {
 		case errors.As(err, &respErr) && respErr.ErrorCode == "ContainerNotFound":
 			// This is actually good - it means we reached the storage account but the container doesn't exist
-			l.Infof("Successfully verified storage account %s exists", storageAccountName)
-		case errors.As(err, &respErr) && (respErr.StatusCode == http.StatusNotFound):
-			return nil, fmt.Errorf("storage account %s does not exist", storageAccountName)
-		case errors.As(err, &respErr) && (respErr.StatusCode == http.StatusForbidden || respErr.StatusCode == http.StatusUnauthorized):
-			return nil, fmt.Errorf("authentication failed for storage account %s: %w",
-				storageAccountName, err)
+			l.Infof("Successfully verified storage account %s exists and is accessible", storageAccountName)
+		case errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound:
+			// 404 can mean either the storage account doesn't exist or the container doesn't exist
+			// Check the error code to differentiate
+			if respErr.ErrorCode == "StorageAccountNotFound" || respErr.ErrorCode == "AccountNotFound" {
+				return nil, errors.New(fmt.Sprintf("storage account %s does not exist (HTTP %d: %s)",
+					storageAccountName, respErr.StatusCode, respErr.ErrorCode))
+			}
+			// If it's just ContainerNotFound, that's actually expected and good
+			l.Infof("Successfully verified storage account %s exists (container not found as expected)", storageAccountName)
+		case errors.As(err, &respErr) && respErr.StatusCode == http.StatusForbidden:
+			return nil, errors.New(fmt.Sprintf("access denied to storage account %s: insufficient permissions (HTTP %d: %s). "+
+				"Ensure you have 'Storage Blob Data Reader' or higher role assigned",
+				storageAccountName, respErr.StatusCode, respErr.ErrorCode))
+		case errors.As(err, &respErr) && respErr.StatusCode == http.StatusUnauthorized:
+			return nil, errors.New(fmt.Sprintf("authentication failed for storage account %s (HTTP %d: %s). "+
+				"Check your Azure credentials and ensure they are valid",
+				storageAccountName, respErr.StatusCode, respErr.ErrorCode))
+		case errors.As(err, &respErr) && respErr.StatusCode >= 500:
+			return nil, errors.New(fmt.Sprintf("Azure service error when accessing storage account %s (HTTP %d: %s). "+
+				"This may be a temporary issue, please try again",
+				storageAccountName, respErr.StatusCode, respErr.ErrorCode))
+		case errors.As(err, &respErr):
+			// Other Azure response errors
+			return nil, errors.New(fmt.Sprintf("unexpected Azure API error when verifying storage account %s "+
+				"(HTTP %d: %s): %v", storageAccountName, respErr.StatusCode, respErr.ErrorCode, err))
 		default:
-			// For other errors, check if it's a connectivity issue which suggests the storage account doesn't exist
+			// For non-Azure errors, check if it's a connectivity issue which suggests the storage account doesn't exist
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "no such host") ||
-				strings.Contains(errMsg, "dial tcp") || strings.Contains(errMsg, "not found") {
-				return nil, fmt.Errorf("storage account %s does not exist or is not accessible: %w",
-					storageAccountName, err)
+				strings.Contains(errMsg, "dial tcp") ||
+				strings.Contains(errMsg, "connection refused") ||
+				strings.Contains(errMsg, "connection timeout") {
+				return nil, errors.New(fmt.Sprintf("storage account %s does not exist or is not accessible "+
+					"(network error): %v", storageAccountName, err))
 			}
-			// For other errors, return a specific error message
-			return nil, fmt.Errorf("error verifying access to storage account %s: %w",
-				storageAccountName, err)
+			// For other errors, return a specific error message with context
+			return nil, errors.New(fmt.Sprintf("unexpected error verifying access to storage account %s: %v",
+				storageAccountName, err))
 		}
 	}
 
@@ -196,10 +218,10 @@ func (c *BlobServiceClient) GetObject(ctx context.Context, input *GetObjectInput
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.ErrorCode == "BlobNotFound" {
-			return nil, fmt.Errorf("blob not found: %w", err)
+			return nil, errors.New(fmt.Sprintf("blob not found: %v", err))
 		}
 
-		return nil, fmt.Errorf("error downloading blob: %w", err)
+		return nil, errors.New(fmt.Sprintf("error downloading blob: %v", err))
 	}
 
 	return &GetObjectOutput{
@@ -224,11 +246,11 @@ func (c *BlobServiceClient) ContainerExists(ctx context.Context, containerName s
 			}
 
 			if respErr.StatusCode == http.StatusUnauthorized || respErr.StatusCode == http.StatusForbidden {
-				return false, fmt.Errorf("authentication failed: %w", err)
+				return false, errors.New(fmt.Sprintf("authentication failed: %v", err))
 			}
 		}
 
-		return false, fmt.Errorf("error checking container existence: %w", err)
+		return false, errors.New(fmt.Sprintf("error checking container existence: %v", err))
 	}
 
 	return true, nil
@@ -246,7 +268,10 @@ func (c *BlobServiceClient) CreateContainerIfNecessary(ctx context.Context, l lo
 		_, err = c.client.CreateContainer(ctx, containerName, nil)
 
 		if err != nil {
-			return fmt.Errorf("error creating container: %w", err)
+			return ContainerCreationError{
+				Underlying:    err,
+				ContainerName: containerName,
+			}
 		}
 	}
 
@@ -262,7 +287,7 @@ func (c *BlobServiceClient) DeleteBlobIfNecessary(ctx context.Context, l log.Log
 			return nil
 		}
 
-		return fmt.Errorf("error deleting blob: %w", err)
+		return errors.New(fmt.Sprintf("error deleting blob: %v", err))
 	}
 
 	return nil
@@ -283,7 +308,7 @@ func (c *BlobServiceClient) DeleteContainer(ctx context.Context, l log.Logger, c
 			return nil
 		}
 
-		return fmt.Errorf("error deleting container: %w", err)
+		return errors.New(fmt.Sprintf("failed to delete Azure container %s: %v", containerName, err))
 	}
 
 	return nil
@@ -300,7 +325,7 @@ func (c *BlobServiceClient) UploadBlob(ctx context.Context, l log.Logger, contai
 
 	_, err := blockBlob.UploadBuffer(ctx, data, nil)
 	if err != nil {
-		return fmt.Errorf("error uploading blob: %w", err)
+		return errors.New(fmt.Sprintf("error uploading blob: %v", err))
 	}
 
 	return nil
@@ -342,4 +367,20 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 	}
 
 	return nil
+}
+
+// ContainerCreationError wraps errors that occur during Azure container operations.
+type ContainerCreationError struct {
+	Underlying    error  // 8 bytes (interface)
+	ContainerName string // 16 bytes (string)
+}
+
+// Error returns a string indicating that container operation failed.
+func (err ContainerCreationError) Error() string {
+	return fmt.Sprintf("error with container %s: %v", err.ContainerName, err.Underlying)
+}
+
+// Unwrap returns the underlying error that caused the container operation to fail.
+func (err ContainerCreationError) Unwrap() error {
+	return err.Underlying
 }

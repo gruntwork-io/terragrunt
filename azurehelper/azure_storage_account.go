@@ -129,13 +129,13 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 	// Create storage accounts client
 	accountsClient, err := armstorage.NewAccountsClient(subscriptionID, cred, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error creating storage accounts client: %w", err)
+		return nil, errors.New(fmt.Sprintf("error creating storage accounts client: %v", err))
 	}
 
 	// Create blob services client
 	blobClient, err := armstorage.NewBlobServicesClient(subscriptionID, cred, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error creating blob services client: %w", err)
+		return nil, errors.New(fmt.Sprintf("error creating blob services client: %v", err))
 	}
 
 	// Create role assignments client with the latest API version
@@ -148,7 +148,7 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 
 	roleAssignmentClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, cred, clientOptions)
 	if err != nil {
-		return nil, fmt.Errorf("error creating role assignments client: %w", err)
+		return nil, errors.New(fmt.Sprintf("error creating role assignments client: %v", err))
 	}
 
 	return &StorageAccountClient{
@@ -181,10 +181,10 @@ func (c *StorageAccountClient) StorageAccountExists(ctx context.Context) (bool, 
 				return false, nil, nil
 			}
 
-			return false, nil, fmt.Errorf("error checking storage account existence: %w", err)
+			return false, nil, errors.New(fmt.Sprintf("error checking storage account existence: %v", err))
 		}
 
-		return false, nil, fmt.Errorf("error checking storage account existence: %w", err)
+		return false, nil, errors.New(fmt.Sprintf("error checking storage account existence: %v", err))
 	}
 
 	return true, &resp.Account, nil
@@ -194,7 +194,7 @@ func (c *StorageAccountClient) StorageAccountExists(ctx context.Context) (bool, 
 func (c *StorageAccountClient) GetStorageAccountVersioning(ctx context.Context) (bool, error) {
 	_, err := c.blobClient.GetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
 	if err != nil {
-		return false, fmt.Errorf("error getting storage account blob service properties: %w", err)
+		return false, errors.New(fmt.Sprintf("error getting storage account blob service properties: %v", err))
 	}
 
 	// Check for versioning in the properties
@@ -425,12 +425,12 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 
 	pollerResp, err := c.client.BeginCreate(ctx, c.resourceGroupName, c.storageAccountName, parameters, nil)
 	if err != nil {
-		return fmt.Errorf("error creating storage account: %w", err)
+		return errors.New(fmt.Sprintf("error creating storage account: %v", err))
 	}
 
 	_, err = pollerResp.PollUntilDone(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("error waiting for storage account creation: %w", err)
+		return errors.New(fmt.Sprintf("error waiting for storage account creation: %v", err))
 	}
 
 	l.Infof("Successfully created storage account %s", c.storageAccountName)
@@ -519,13 +519,13 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 			return nil
 		}
 
-		return fmt.Errorf("error checking storage account: %w", err)
+		return errors.New(fmt.Sprintf("error checking storage account: %v", err))
 	}
 
 	// Delete the storage account
 	_, err = c.client.Delete(ctx, c.resourceGroupName, c.storageAccountName, nil)
 	if err != nil {
-		return fmt.Errorf("error deleting storage account: %w", err)
+		return errors.New(fmt.Sprintf("error deleting storage account: %v", err))
 	}
 
 	l.Infof("Successfully deleted storage account %s", c.storageAccountName)
@@ -583,7 +583,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 	// Get credentials for Microsoft Graph API
 	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
 	if err != nil {
-		return "", fmt.Errorf("error getting default azure credential: %w", err)
+		return "", errors.New(fmt.Sprintf("error getting default azure credential: %v", err))
 	}
 
 	// Get an access token for Microsoft Graph API
@@ -591,7 +591,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 		Scopes: []string{"https://graph.microsoft.com/.default"},
 	})
 	if err != nil {
-		return "", fmt.Errorf("error getting token for Microsoft Graph API: %w", err)
+		return "", errors.New(fmt.Sprintf("error getting token for Microsoft Graph API: %v", err))
 	}
 
 	// Create HTTP client
@@ -747,7 +747,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 			return nil // Don't fail the entire process
 		}
 
-		return fmt.Errorf("error creating role assignment: %w", err)
+		return errors.New(fmt.Sprintf("error creating role assignment: %v", err))
 	}
 
 	if isServicePrincipal {
@@ -835,7 +835,7 @@ func GetAzureCredentials(ctx context.Context, l log.Logger) (*azidentity.Default
 	// Create the credential
 	cred, err := azidentity.NewDefaultAzureCredential(options)
 	if err != nil {
-		return nil, subscriptionID, fmt.Errorf("failed to obtain Azure credentials: %w", err)
+		return nil, subscriptionID, errors.New(fmt.Sprintf("failed to obtain Azure credentials: %v", err))
 	}
 
 	// If we don't have a subscription ID, we'll need the caller to provide one

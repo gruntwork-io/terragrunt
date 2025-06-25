@@ -1,7 +1,6 @@
 package azurerm
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
@@ -159,7 +158,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 
 			// Validate required fields for service principal auth
 			if cfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-				return errors.New("subscription_id is required when using service principal authentication")
+				return NewServicePrincipalMissingSubscriptionIDError()
 			}
 		} else if cfg.RemoteStateConfigAzurerm.ClientID != "" ||
 			cfg.RemoteStateConfigAzurerm.ClientSecret != "" ||
@@ -179,7 +178,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 				missing = append(missing, "tenant_id")
 			}
 
-			return fmt.Errorf("incomplete service principal configuration: missing required fields: %v", missing)
+			return WrapIncompleteServicePrincipalError(missing)
 		}
 	}
 
@@ -192,7 +191,7 @@ func (cfg *ExtendedRemoteStateConfigAzurerm) Validate() error {
 	}
 
 	if authCount > 1 {
-		return errors.New("cannot specify multiple authentication methods: choose one of storage account key, SAS token, service principal, Azure AD auth, or MSI")
+		return NewMultipleAuthMethodsSpecifiedError()
 	}
 
 	return nil

@@ -2,6 +2,7 @@
 package azurerm_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -384,6 +385,10 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 		err = b.Bootstrap(t.Context(), l, config, opts)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "subscription_id", "Error should mention missing subscription_id")
+
+		// Verify the error is the expected custom type
+		var missingSubError azurerm.MissingSubscriptionIDError
+		require.ErrorAs(t, err, &missingSubError, "Error should be MissingSubscriptionIDError type")
 	})
 }
 
@@ -857,4 +862,201 @@ func TestContainerNameValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCustomErrorTypes tests the custom error types and their unwrapping functionality
+func TestCustomErrorTypes(t *testing.T) {
+	t.Parallel()
+
+	l := createLogger()
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	t.Run("MissingSubscriptionIDError", func(t *testing.T) {
+		t.Parallel()
+
+		config := backend.Config{
+			"storage_account_name":                 "mystorageaccount",
+			"container_name":                       "test-container",
+			"key":                                  "test/terraform.tfstate",
+			"resource_group_name":                  "my-resource-group",
+			"location":                             "eastus",
+			"create_storage_account_if_not_exists": true,
+			"use_azuread_auth":                     true,
+			// subscription_id is missing
+		}
+
+		b := azurerm.NewBackend()
+		err := b.Bootstrap(t.Context(), l, config, opts)
+
+		require.Error(t, err)
+
+		// Check that the error is of the expected custom type
+		var missingSubError azurerm.MissingSubscriptionIDError
+		require.ErrorAs(t, err, &missingSubError, "Error should be MissingSubscriptionIDError type")
+
+		// Check the error message
+		assert.Contains(t, err.Error(), "subscription_id is required for storage account creation")
+	})
+
+	t.Run("MissingLocationError", func(t *testing.T) {
+		t.Parallel()
+
+		config := backend.Config{
+			"storage_account_name":                 "mystorageaccount",
+			"container_name":                       "test-container",
+			"key":                                  "test/terraform.tfstate",
+			"subscription_id":                      "00000000-0000-0000-0000-000000000000",
+			"resource_group_name":                  "my-resource-group",
+			"create_storage_account_if_not_exists": true,
+			"use_azuread_auth":                     true,
+			// location is missing
+		}
+
+		b := azurerm.NewBackend()
+		err := b.Bootstrap(t.Context(), l, config, opts)
+
+		require.Error(t, err)
+
+		// Check that the error is of the expected custom type
+		var missingLocError azurerm.MissingLocationError
+		require.ErrorAs(t, err, &missingLocError, "Error should be MissingLocationError type")
+
+		// Check the error message
+		assert.Contains(t, err.Error(), "location is required for storage account creation")
+	})
+
+	t.Run("NoValidAuthMethodError", func(t *testing.T) {
+		t.Parallel()
+
+		// Test the NoValidAuthMethodError type directly since the current bootstrap logic
+		// always defaults to Azure AD auth. This tests the error type functionality.
+		err := azurerm.NoValidAuthMethodError{}
+
+		// Check the error message
+		expectedMsg := "no valid authentication method found: Azure AD auth is recommended. Alternatively, provide one of: MSI, service principal credentials, or SAS token"
+		assert.Equal(t, expectedMsg, err.Error())
+
+		// Test that the error can be identified using errors.As
+		var noAuthError azurerm.NoValidAuthMethodError
+		assert.ErrorAs(t, err, &noAuthError, "Error should be identifiable as NoValidAuthMethodError type")
+	})
+
+	t.Run("MissingResourceGroupError", func(t *testing.T) {
+		t.Parallel()
+
+		config := backend.Config{
+			"storage_account_name": "mystorageaccount",
+			"subscription_id":      "00000000-0000-0000-0000-000000000000",
+			"container_name":       "test-container",
+			"key":                  "test/terraform.tfstate",
+			"use_azuread_auth":     true,
+			// resource_group_name is missing (required for delete operation)
+		}
+
+		b := azurerm.NewBackend()
+		err := b.DeleteStorageAccount(t.Context(), l, config, opts)
+
+		require.Error(t, err)
+
+		// Check that the error is of the expected custom type
+		var missingRGError azurerm.MissingResourceGroupError
+		require.ErrorAs(t, err, &missingRGError, "Error should be MissingResourceGroupError type")
+
+		// Check the error message
+		assert.Contains(t, err.Error(), "resource_group_name is required")
+	})
+}
+
+// TestCustomErrorTypesUnwrapping tests that custom error types properly unwrap underlying errors
+func TestCustomErrorTypesUnwrapping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("StorageAccountCreationError", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a wrapped error to test unwrapping
+		underlyingError := errors.New("simulated Azure API error")
+		wrappedError := azurerm.StorageAccountCreationError{
+			Underlying:         underlyingError,
+			StorageAccountName: "testaccount",
+		}
+
+		// Test the error message format
+		expectedMsg := "error with storage account testaccount: simulated Azure API error"
+		assert.Equal(t, expectedMsg, wrappedError.Error())
+
+		// Test that Unwrap() returns the underlying error
+		unwrappedError := wrappedError.Unwrap()
+		assert.Equal(t, underlyingError, unwrappedError)
+
+		// Test that errors.Is() works with the unwrapped error
+		assert.ErrorIs(t, wrappedError, underlyingError)
+	})
+
+	t.Run("ContainerCreationError", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a wrapped error to test unwrapping
+		underlyingError := errors.New("simulated container creation error")
+		wrappedError := azurerm.ContainerCreationError{
+			Underlying:    underlyingError,
+			ContainerName: "testcontainer",
+		}
+
+		// Test the error message format
+		expectedMsg := "error with container testcontainer: simulated container creation error"
+		assert.Equal(t, expectedMsg, wrappedError.Error())
+
+		// Test that Unwrap() returns the underlying error
+		unwrappedError := wrappedError.Unwrap()
+		assert.Equal(t, underlyingError, unwrappedError)
+
+		// Test that errors.Is() works with the unwrapped error
+		assert.ErrorIs(t, wrappedError, underlyingError)
+	})
+
+	t.Run("AuthenticationError", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a wrapped error to test unwrapping
+		underlyingError := errors.New("invalid credentials")
+		wrappedError := azurerm.AuthenticationError{
+			Underlying: underlyingError,
+			AuthMethod: "Azure AD",
+		}
+
+		// Test the error message format
+		expectedMsg := "Azure authentication failed using Azure AD: invalid credentials"
+		assert.Equal(t, expectedMsg, wrappedError.Error())
+
+		// Test that Unwrap() returns the underlying error
+		unwrappedError := wrappedError.Unwrap()
+		assert.Equal(t, underlyingError, unwrappedError)
+
+		// Test that errors.Is() works with the unwrapped error
+		assert.ErrorIs(t, wrappedError, underlyingError)
+	})
+
+	t.Run("ContainerDoesNotExist", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a wrapped error to test unwrapping
+		underlyingError := errors.New("container not found")
+		wrappedError := azurerm.ContainerDoesNotExist{
+			Underlying:    underlyingError,
+			ContainerName: "nonexistent-container",
+		}
+
+		// Test the error message format
+		expectedMsg := "Container nonexistent-container does not exist. Underlying error: container not found"
+		assert.Equal(t, expectedMsg, wrappedError.Error())
+
+		// Test that Unwrap() returns the underlying error
+		unwrappedError := wrappedError.Unwrap()
+		assert.Equal(t, underlyingError, unwrappedError)
+
+		// Test that errors.Is() works with the unwrapped error
+		assert.ErrorIs(t, wrappedError, underlyingError)
+	})
 }

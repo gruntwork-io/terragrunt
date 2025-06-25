@@ -8,8 +8,10 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/azurehelper"
+	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -29,36 +31,36 @@ var _ backend.Backend = new(Backend)
 // - All letters must be lowercase
 func ValidateContainerName(containerName string) error {
 	if containerName == "" {
-		return errors.New("missing required Azure remote state configuration container_name")
+		return WrapContainerValidationError("missing required Azure remote state configuration container_name")
 	}
 
 	if len(containerName) < 3 || len(containerName) > 63 {
-		return errors.New("container name must be between 3 and 63 characters")
+		return WrapContainerValidationError("container name must be between 3 and 63 characters")
 	}
 
 	// Check for uppercase letters
 	if containerName != strings.ToLower(containerName) {
-		return errors.New("container name can only contain lowercase letters, numbers, and hyphens")
+		return WrapContainerValidationError("container name can only contain lowercase letters, numbers, and hyphens")
 	}
 
 	// Check that it starts and ends with alphanumeric
 	if !regexp.MustCompile(`^[a-z0-9].*[a-z0-9]$`).MatchString(containerName) && len(containerName) > 1 {
-		return errors.New("container name must start and end with a letter or number")
+		return WrapContainerValidationError("container name must start and end with a letter or number")
 	}
 
 	// For single character names, just check it's alphanumeric
 	if len(containerName) == 1 && !regexp.MustCompile(`^[a-z0-9]$`).MatchString(containerName) {
-		return errors.New("container name must start and end with a letter or number")
+		return WrapContainerValidationError("container name must start and end with a letter or number")
 	}
 
 	// Check that it only contains valid characters (lowercase letters, numbers, hyphens)
 	if !regexp.MustCompile(`^[a-z0-9-]+$`).MatchString(containerName) {
-		return errors.New("container name can only contain lowercase letters, numbers, and hyphens")
+		return WrapContainerValidationError("container name can only contain lowercase letters, numbers, and hyphens")
 	}
 
 	// Check that hyphens are not consecutive and not at start/end (already covered above, but being explicit)
 	if strings.Contains(containerName, "--") {
-		return errors.New("container name cannot contain consecutive hyphens")
+		return WrapContainerValidationError("container name cannot contain consecutive hyphens")
 	}
 
 	return nil
@@ -67,22 +69,41 @@ func ValidateContainerName(containerName string) error {
 // Backend implements the backend interface for the Azure backend.
 type Backend struct {
 	*backend.CommonBackend
+	telemetry *AzureTelemetryCollector
 }
 
 // NewBackend creates a new Azure backend.
 func NewBackend() *Backend {
-	return &Backend{CommonBackend: backend.NewCommonBackend(BackendName)}
+	return &Backend{
+		CommonBackend: backend.NewCommonBackend(BackendName),
+		telemetry:     nil, // Will be initialized when needed
+	}
 }
 
 // Bootstrap creates the Azure Storage container if it doesn't exist.
 func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	startTime := time.Now()
+	tel := backend.getTelemetry(l, opts)
+
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
+		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "ConfigError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationBootstrap,
+		})
 		return err
 	}
 
 	// Validate container name before any Azure operations
 	if err := ValidateContainerName(azureCfg.RemoteStateConfigAzurerm.ContainerName); err != nil {
+		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "ValidationError",
+			Classification: ErrorClassValidation,
+			Operation:      OperationBootstrap,
+			ResourceType:   "container",
+			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
+		})
 		return err
 	}
 
@@ -90,12 +111,12 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	if createIfNotExists, ok := backendConfig["create_storage_account_if_not_exists"].(bool); ok && createIfNotExists {
 		subscriptionID, hasSubscription := backendConfig["subscription_id"].(string)
 		if !hasSubscription || subscriptionID == "" {
-			return errors.New("subscription_id is required for storage account creation")
+			return NewMissingSubscriptionIDError()
 		}
 
 		location, hasLocation := backendConfig["location"].(string)
 		if !hasLocation || location == "" {
-			return errors.New("location is required for storage account creation")
+			return NewMissingLocationError()
 		}
 	}
 
@@ -150,7 +171,14 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	l.Debug("Using Azure AD authentication")
 
 	if !hasAzureAD && !hasMSI && !hasServicePrincipal && !hasSasToken && !hasEnvCreds {
-		return errors.New("no valid authentication method found: Azure AD auth is recommended. Alternatively, provide one of: MSI, service principal credentials, or SAS token")
+		err := NewNoValidAuthMethodError()
+		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "AuthenticationError",
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationBootstrap,
+			AuthMethod:     "none",
+		})
+		return err
 	}
 
 	// ensure that only one goroutine can initialize storage
@@ -160,11 +188,24 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 
 	if backend.IsConfigInited(azureCfg) {
 		l.Debugf("%s storage account %s has already been confirmed to be initialized, skipping initialization checks", backend.Name(), azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+
+		// Log successful completion (already initialized)
+		tel.LogOperation(ctx, OperationBootstrap, time.Since(startTime), map[string]interface{}{
+			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			"status":          "already_initialized",
+		})
 		return nil
 	}
 
 	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
+		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "ClientCreationError",
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationBootstrap,
+			ResourceType:   "blob_service_client",
+		})
 		return err
 	}
 
@@ -172,44 +213,119 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	if azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
 		// Validate required fields before attempting any Azure operations
 		if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-			return errors.New("subscription_id is required for storage account creation")
+			err := NewMissingSubscriptionIDError()
+			tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+				ErrorType:      "ConfigurationError",
+				Classification: ErrorClassConfiguration,
+				Operation:      OperationBootstrap,
+				ResourceType:   "subscription",
+			})
+			return err
 		}
 
 		if azureCfg.StorageAccountConfig.Location == "" {
-			return errors.New("location is required for storage account creation")
+			err := NewMissingLocationError()
+			tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+				ErrorType:      "ConfigurationError",
+				Classification: ErrorClassConfiguration,
+				Operation:      OperationBootstrap,
+				ResourceType:   "location",
+			})
+			return err
 		}
 
-		err = backend.bootstrapStorageAccount(ctx, l, opts, azureCfg)
+		// Use retry logic for storage account creation
+		retryConfig := DefaultRetryConfig()
+		err = WithRetry(ctx, l, "storage account bootstrap", retryConfig, func() error {
+			return backend.bootstrapStorageAccount(ctx, l, opts, azureCfg)
+		})
 		if err != nil {
-			return fmt.Errorf("error bootstrapping storage account: %w", err)
+			wrappedErr := WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+			tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
+				ErrorType:      "StorageAccountError",
+				Classification: ClassifyError(err),
+				Operation:      OperationBootstrap,
+				ResourceType:   "storage_account",
+				ResourceName:   azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+				SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+				Location:       azureCfg.StorageAccountConfig.Location,
+			})
+			return wrappedErr
 		}
 	}
 
-	// Create the container if necessary
-	err = client.CreateContainerIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+	// Create the container if necessary with retry logic
+	retryConfig := DefaultRetryConfig()
+	err = WithRetry(ctx, l, "container creation", retryConfig, func() error {
+		createErr := client.CreateContainerIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+		if createErr != nil {
+			// Wrap as transient error if it matches patterns
+			return WrapTransientError(createErr, "container creation")
+		}
+		return nil
+	})
 	if err != nil {
-		return err
+		wrappedErr := WrapContainerError(err, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+		tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
+			ErrorType:      "ContainerError",
+			Classification: ClassifyError(err),
+			Operation:      OperationBootstrap,
+			ResourceType:   "container",
+			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+		})
+		return wrappedErr
 	}
 
 	backend.MarkConfigInited(azureCfg)
+
+	// Log successful completion
+	tel.LogOperation(ctx, OperationBootstrap, time.Since(startTime), map[string]interface{}{
+		"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+		"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+		"subscription_id": azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+		"location":        azureCfg.StorageAccountConfig.Location,
+		"status":          "completed",
+	})
 
 	return nil
 }
 
 // NeedsBootstrap checks if Azure Storage container needs initialization.
 func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+	startTime := time.Now()
+	tel := backend.getTelemetry(l, opts)
+
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
+		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
+			ErrorType:      "ConfigError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationNeedsBootstrap,
+		})
 		return false, err
 	}
 
 	// Skip initialization if marked as already initialized
 	if backend.IsConfigInited(azureCfg) {
+		// Log completion - already initialized
+		tel.LogOperation(ctx, OperationNeedsBootstrap, time.Since(startTime), map[string]interface{}{
+			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			"needs_bootstrap": false,
+			"reason":          "already_initialized",
+		})
 		return false, nil
 	}
 
 	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
+		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
+			ErrorType:      "ClientCreationError",
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationNeedsBootstrap,
+			ResourceType:   "blob_service_client",
+		})
 		return false, err
 	}
 
@@ -217,23 +333,57 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 	if azureCfg.StorageAccountConfig.CreateStorageAccountIfNotExists {
 		// We will always return true if CreateStorageAccountIfNotExists is true
 		// The actual check will be done in Bootstrap() to reduce duplicate API calls
+		tel.LogOperation(ctx, OperationNeedsBootstrap, time.Since(startTime), map[string]interface{}{
+			"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			"needs_bootstrap": true,
+			"reason":          "create_storage_account_requested",
+		})
 		return true, nil
 	}
 
-	// Check if container exists
-	containerExists, existsErr := client.ContainerExists(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+	// Check if container exists with retry logic
+	var containerExists bool
+	retryConfig := DefaultRetryConfig()
+	err = WithRetry(ctx, l, "container existence check", retryConfig, func() error {
+		exists, existsErr := client.ContainerExists(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+		if existsErr != nil {
+			// Try to convert to Azure error
+			azureErr := azurehelper.ConvertAzureError(existsErr)
 
-	if existsErr != nil {
-		// Try to convert to Azure error
-		azureErr := azurehelper.ConvertAzureError(existsErr)
+			// If the storage account doesn't exist, we need bootstrap - not a transient error
+			if azureErr != nil && (azureErr.StatusCode == 404 || azureErr.ErrorCode == "StorageAccountNotFound") {
+				containerExists = false
+				return nil // Not an error, just doesn't exist
+			}
 
-		// If the storage account doesn't exist, we need bootstrap
-		if azureErr != nil && (azureErr.StatusCode == 404 || azureErr.ErrorCode == "StorageAccountNotFound") {
-			return true, nil
+			// Wrap as transient error if it matches patterns
+			return WrapTransientError(existsErr, "container existence check")
 		}
+		containerExists = exists
+		return nil
+	})
 
-		return false, existsErr
+	if err != nil {
+		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
+			ErrorType:      "ContainerExistenceCheckError",
+			Classification: ClassifyError(err),
+			Operation:      OperationNeedsBootstrap,
+			ResourceType:   "container",
+			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
+		})
+		return false, err
 	}
+
+	needsBootstrap := !containerExists
+
+	// Log completion
+	tel.LogOperation(ctx, OperationNeedsBootstrap, time.Since(startTime), map[string]interface{}{
+		"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+		"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+		"needs_bootstrap": needsBootstrap,
+		"reason":          map[bool]string{true: "container_not_exists", false: "container_exists"}[needsBootstrap],
+	})
 
 	if !containerExists {
 		return true, nil
@@ -244,8 +394,16 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 
 // Delete deletes the remote state file from Azure Storage.
 func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	startTime := time.Now()
+	tel := backend.getTelemetry(l, opts)
+
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
+		tel.LogError(ctx, err, OperationDelete, AzureErrorMetrics{
+			ErrorType:      "ConfigError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationDelete,
+		})
 		return err
 	}
 
@@ -253,25 +411,80 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 
 	shouldContinue, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
+		tel.LogError(ctx, err, OperationDelete, AzureErrorMetrics{
+			ErrorType:      "UserPromptError",
+			Classification: ErrorClassUserInput,
+			Operation:      OperationDelete,
+		})
 		return err
 	}
 
 	if !shouldContinue {
+		// Log user cancellation
+		tel.LogOperation(ctx, OperationDelete, time.Since(startTime), map[string]interface{}{
+			"container": azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			"blob_key":  azureCfg.RemoteStateConfigAzurerm.Key,
+			"status":    "cancelled_by_user",
+		})
 		return nil
 	}
 
 	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
+		tel.LogError(ctx, err, OperationDelete, AzureErrorMetrics{
+			ErrorType:      "ClientCreationError",
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationDelete,
+			ResourceType:   "blob_service_client",
+		})
 		return err
 	}
 
-	return client.DeleteBlobIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
+	// Delete blob with retry logic
+	retryConfig := DefaultRetryConfig()
+	err = WithRetry(ctx, l, "blob deletion", retryConfig, func() error {
+		deleteErr := client.DeleteBlobIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
+		if deleteErr != nil {
+			return WrapTransientError(deleteErr, "blob deletion")
+		}
+		return nil
+	})
+
+	if err != nil {
+		tel.LogError(ctx, err, OperationDelete, AzureErrorMetrics{
+			ErrorType:      "BlobDeletionError",
+			Classification: ClassifyError(err),
+			Operation:      OperationDelete,
+			ResourceType:   "blob",
+			ResourceName:   azureCfg.RemoteStateConfigAzurerm.Key,
+			SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+		})
+		return err
+	}
+
+	// Log successful completion
+	tel.LogOperation(ctx, OperationDelete, time.Since(startTime), map[string]interface{}{
+		"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+		"blob_key":        azureCfg.RemoteStateConfigAzurerm.Key,
+		"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+		"status":          "completed",
+	})
+
+	return nil
 }
 
 // DeleteBucket deletes the entire Azure Storage container.
 func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+	startTime := time.Now()
+	tel := backend.getTelemetry(l, opts)
+
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
+		tel.LogError(ctx, err, OperationDeleteBucket, AzureErrorMetrics{
+			ErrorType:      "ConfigError",
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationDeleteBucket,
+		})
 		return err
 	}
 
@@ -279,19 +492,64 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 
 	shouldContinue, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
+		tel.LogError(ctx, err, OperationDeleteBucket, AzureErrorMetrics{
+			ErrorType:      "UserPromptError",
+			Classification: ErrorClassUserInput,
+			Operation:      OperationDeleteBucket,
+		})
 		return err
 	}
 
 	if !shouldContinue {
+		// Log user cancellation
+		tel.LogOperation(ctx, OperationDeleteBucket, time.Since(startTime), map[string]interface{}{
+			"container": azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			"status":    "cancelled_by_user",
+		})
 		return nil
 	}
 
 	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
+		tel.LogError(ctx, err, OperationDeleteBucket, AzureErrorMetrics{
+			ErrorType:      "ClientCreationError",
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationDeleteBucket,
+			ResourceType:   "blob_service_client",
+		})
 		return err
 	}
 
-	return client.DeleteContainer(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+	// Delete container with retry logic
+	retryConfig := DefaultRetryConfig()
+	err = WithRetry(ctx, l, "container deletion", retryConfig, func() error {
+		deleteErr := client.DeleteContainer(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
+		if deleteErr != nil {
+			return WrapTransientError(deleteErr, "container deletion")
+		}
+		return nil
+	})
+
+	if err != nil {
+		tel.LogError(ctx, err, OperationDeleteBucket, AzureErrorMetrics{
+			ErrorType:      "ContainerDeletionError",
+			Classification: ClassifyError(err),
+			Operation:      OperationDeleteBucket,
+			ResourceType:   "container",
+			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
+			SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+		})
+		return err
+	}
+
+	// Log successful completion
+	tel.LogOperation(ctx, OperationDeleteBucket, time.Since(startTime), map[string]interface{}{
+		"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
+		"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+		"status":          "completed",
+	})
+
+	return nil
 }
 
 // Migrate copies the state file from source container to destination container and deletes the original.
@@ -321,48 +579,81 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		return fmt.Errorf("error creating destination blob client: %w", err)
 	}
 
-	// Check that source container exists and state file is present
+	// Check that source container exists and state file is present with retry logic
 	srcContainer := srcCfg.RemoteStateConfigAzurerm.ContainerName
 	srcKey := srcCfg.RemoteStateConfigAzurerm.Key
 
-	exists, existsErr := srcClient.ContainerExists(ctx, srcContainer)
-	if existsErr != nil {
-		return fmt.Errorf("error checking source container existence: %w", existsErr)
+	retryConfig := DefaultRetryConfig()
+	var exists bool
+	err = WithRetry(ctx, l, "source container existence check", retryConfig, func() error {
+		containerExists, existsErr := srcClient.ContainerExists(ctx, srcContainer)
+		if existsErr != nil {
+			return WrapTransientError(existsErr, "source container existence check")
+		}
+		exists = containerExists
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error checking source container existence: %w", err)
 	}
 
 	if !exists {
-		return fmt.Errorf("source container %s does not exist", srcContainer)
+		return WrapContainerDoesNotExistError(errors.New("container not found"), srcContainer)
 	}
 
-	// Ensure destination container exists (create if necessary)
+	// Ensure destination container exists (create if necessary) with retry logic
 	dstContainer := dstCfg.RemoteStateConfigAzurerm.ContainerName
 
-	createErr := dstClient.CreateContainerIfNecessary(ctx, l, dstContainer)
-	if createErr != nil {
-		return fmt.Errorf("error creating destination container: %w", createErr)
+	err = WithRetry(ctx, l, "destination container creation", retryConfig, func() error {
+		createErr := dstClient.CreateContainerIfNecessary(ctx, l, dstContainer)
+		if createErr != nil {
+			return WrapTransientError(createErr, "destination container creation")
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error creating destination container: %w", err)
 	}
 
-	// Copy state file from source to destination
-	err = srcClient.CopyBlobToContainer(ctx, srcContainer, srcKey, dstClient, dstContainer, dstCfg.RemoteStateConfigAzurerm.Key)
+	// Copy state file from source to destination with retry logic
+	err = WithRetry(ctx, l, "state file copy", retryConfig, func() error {
+		copyErr := srcClient.CopyBlobToContainer(ctx, srcContainer, srcKey, dstClient, dstContainer, dstCfg.RemoteStateConfigAzurerm.Key)
+		if copyErr != nil {
+			return WrapTransientError(copyErr, "state file copy")
+		}
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("error copying state file: %w", err)
 	}
 
-	// Verify the copy succeeded by reading the destination blob
+	// Verify the copy succeeded by reading the destination blob with retry logic
 	dstInput := &azurehelper.GetObjectInput{
 		Bucket: &dstContainer,
 		Key:    &dstCfg.RemoteStateConfigAzurerm.Key,
 	}
 
-	_, getObjectErr := dstClient.GetObject(ctx, dstInput)
-	if getObjectErr != nil {
-		return fmt.Errorf("error verifying destination state file: %w", getObjectErr)
+	err = WithRetry(ctx, l, "destination state file verification", retryConfig, func() error {
+		_, getObjectErr := dstClient.GetObject(ctx, dstInput)
+		if getObjectErr != nil {
+			return WrapTransientError(getObjectErr, "destination state file verification")
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error verifying destination state file: %w", err)
 	}
 
-	// Delete the source state file
-	deleteErr := srcClient.DeleteBlobIfNecessary(ctx, l, srcContainer, srcKey)
-	if deleteErr != nil {
-		return fmt.Errorf("error deleting source state file: %w", deleteErr)
+	// Delete the source state file with retry logic
+	err = WithRetry(ctx, l, "source state file deletion", retryConfig, func() error {
+		deleteErr := srcClient.DeleteBlobIfNecessary(ctx, l, srcContainer, srcKey)
+		if deleteErr != nil {
+			return WrapTransientError(deleteErr, "source state file deletion")
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error deleting source state file: %w", err)
 	}
 
 	return nil
@@ -381,16 +672,16 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 	)
 
 	if resourceGroupName == "" {
-		return errors.New("resource_group_name is required to delete a storage account")
+		return NewMissingResourceGroupError()
 	}
 
 	if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-		return errors.New("subscription_id is required to delete a storage account")
+		return NewMissingSubscriptionIDError()
 	}
 
 	// Check if we're in non-interactive mode
 	if opts.NonInteractive {
-		return fmt.Errorf("cannot delete storage account %s in non-interactive mode, user confirmation is required", storageAccountName)
+		return WrapNonInteractiveDeleteError(storageAccountName)
 	}
 
 	// Ask for confirmation
@@ -432,11 +723,11 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 	// go get github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage
 	// Validate that required fields are set for storage account operations
 	if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
-		return errors.New("subscription_id is required for storage account creation")
+		return tgerrors.New(MissingSubscriptionIDError{})
 	}
 
 	if azureCfg.StorageAccountConfig.Location == "" {
-		return errors.New("location is required for storage account creation")
+		return NewMissingLocationError()
 	}
 
 	// For now, we'll check if the package is available
@@ -458,12 +749,12 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 	// This is a workaround until we properly implement the storage account client
 	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, storageAccountConfig)
 	if err != nil {
-		return fmt.Errorf("error creating blob service client: %w", err)
+		return WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 	}
 	// Create a storage account client
 	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, l, storageAccountConfig)
 	if err != nil {
-		return fmt.Errorf("error creating storage account client: %w", err)
+		return WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 	}
 
 	// Convert configuration to the expected format for the storage account client
@@ -490,7 +781,7 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 	// Create resource group and storage account if needed
 	err = storageClient.CreateStorageAccountIfNecessary(ctx, l, saConfig)
 	if err != nil {
-		return fmt.Errorf("error creating storage account: %w", err)
+		return WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 	}
 
 	// Ensure the current user has Storage Blob Data Owner role
@@ -512,7 +803,8 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 		// Check if it's an authentication error
 		if azureErr != nil && (azureErr.StatusCode == 401 || azureErr.StatusCode == 403) {
 			l.Warn("Authentication failed when checking storage account. Make sure you have proper permissions")
-			return fmt.Errorf("authentication failed when checking storage account: %w", err)
+
+			return WrapAuthenticationError(err, "Azure AD")
 		}
 
 		// For other errors, let's assume account is accessible
@@ -539,4 +831,22 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 func (backend *Backend) GetTFInitArgs(backendConfig backend.Config) map[string]any {
 	// Azure backend takes all config values and filters out terragruntOnly ones
 	return Config(backendConfig).FilterOutTerragruntKeys()
+}
+
+// initTelemetry initializes the telemetry collector if available
+func (backend *Backend) initTelemetry(l log.Logger, opts *options.TerragruntOptions) {
+	if backend.telemetry == nil {
+		// For now, we'll create a simple telemetry collector without telemeter integration
+		// This can be enhanced later when we have better access to the telemeter instance
+		backend.telemetry = &AzureTelemetryCollector{
+			telemeter: nil, // Will be set later when telemeter is available
+			logger:    l,
+		}
+	}
+}
+
+// getTelemetry returns the telemetry collector, initializing it if needed
+func (backend *Backend) getTelemetry(l log.Logger, opts *options.TerragruntOptions) *AzureTelemetryCollector {
+	backend.initTelemetry(l, opts)
+	return backend.telemetry
 }
