@@ -79,9 +79,9 @@ func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 	})
 }
 
-// BenchmarkAutoProviderCacheDirWithManyUnits benchmarks Terragrunt init with many units
-// with and without auto provider cache dir enabled.
-func BenchmarkAutoProviderCacheDirWithManyUnits(b *testing.B) {
+// BenchmarkProviderCachingComparison benchmarks Terragrunt init with many units
+// comparing no caching, provider cache server, and auto provider cache dir experiment.
+func BenchmarkProviderCachingComparison(b *testing.B) {
 	setup := func(tmpDir string, count int) {
 		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "unit")
 		originalTerragruntConfig, err := os.ReadFile(filepath.Join(fixtureSource, "terragrunt.hcl"))
@@ -120,99 +120,18 @@ func BenchmarkAutoProviderCacheDirWithManyUnits(b *testing.B) {
 		8,
 		16,
 		32,
-	}
-
-	for _, count := range counts {
-		for _, autoProviderCacheDir := range []bool{false, true} {
-			name := strconv.Itoa(count) + " units " + (func() string {
-				if autoProviderCacheDir {
-					return "with auto provider cache dir"
-				}
-				return "without auto provider cache dir"
-			})()
-
-			b.Run(name, func(b *testing.B) {
-				tmpDir := b.TempDir()
-
-				setup(tmpDir, count)
-
-				args := []string{
-					"terragrunt",
-					"run",
-					"--all",
-					"init",
-					"--source-update",
-					"--non-interactive",
-					"--working-dir",
-					tmpDir,
-				}
-
-				if autoProviderCacheDir {
-					args = append(args, "--experiment", "auto-provider-cache-dir")
-				}
-
-				b.ResetTimer()
-
-				for b.Loop() {
-					helpers.RunTerragruntCommand(
-						b,
-						args...,
-					)
-				}
-
-				b.StopTimer()
-			})
-		}
-	}
-}
-
-// BenchmarkAutoProviderCacheDirVsServer benchmarks Terragrunt init with many units
-// comparing the auto provider cache dir experiment vs the provider cache server.
-func BenchmarkAutoProviderCacheDirVsServer(b *testing.B) {
-	setup := func(tmpDir string, count int) {
-		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "unit")
-		originalTerragruntConfig, err := os.ReadFile(filepath.Join(fixtureSource, "terragrunt.hcl"))
-		require.NoError(b, err)
-		originalMainTf, err := os.ReadFile(filepath.Join(fixtureSource, "main.tf"))
-		require.NoError(b, err)
-
-		// Generate units with the provider configuration
-		for i := range count {
-			unitDir := filepath.Join(tmpDir, "unit-"+strconv.Itoa(i))
-			require.NoError(b, os.MkdirAll(unitDir, helpers.DefaultDirPermissions))
-
-			unitTerragruntConfigPath := filepath.Join(unitDir, "terragrunt.hcl")
-			unitMainTfPath := filepath.Join(unitDir, "main.tf")
-			require.NoError(b, os.WriteFile(unitTerragruntConfigPath, originalTerragruntConfig, helpers.DefaultFilePermissions))
-			require.NoError(b, os.WriteFile(unitMainTfPath, originalMainTf, helpers.DefaultFilePermissions))
-		}
-
-		// Run initial init to avoid noise from the first iteration being slower
-		helpers.RunTerragruntCommand(
-			b,
-			"terragrunt",
-			"run",
-			"--all",
-			"init",
-			"--non-interactive",
-			"--working-dir",
-			tmpDir,
-		)
-	}
-
-	counts := []int{
-		1,
-		2,
-		4,
-		8,
-		16,
-		32,
+		64,
+		128,
 	}
 
 	cacheTypes := []struct {
 		name string
 		args []string
 	}{
+		{
+			name: "no provider caching",
+			args: []string{},
+		},
 		{
 			name: "with provider cache server",
 			args: []string{"--provider-cache"},
