@@ -1,5 +1,5 @@
 terraform {
-  source = "${get_terragrunt_dir()}/tf"
+  source = "."
 }
 
 inputs = {

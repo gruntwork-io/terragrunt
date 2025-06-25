@@ -20,7 +20,7 @@ func TestSetupNativeProviderCache_RequiresOpenTofu(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	err := setupNativeProviderCache(l, opts)
+	err := setupNativeProviderCache(t.Context(), l, opts)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "native provider cache requires OpenTofu")
@@ -35,7 +35,7 @@ func TestSetupNativeProviderCache_RequiresVersion1_10_Plus(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	err := setupNativeProviderCache(l, opts)
+	err := setupNativeProviderCache(t.Context(), l, opts)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "native provider cache requires OpenTofu version > 1.10")
@@ -54,7 +54,7 @@ func TestSetupNativeProviderCache_Success(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	err := setupNativeProviderCache(l, opts)
+	err := setupNativeProviderCache(t.Context(), l, opts)
 
 	require.NoError(t, err)
 	assert.Equal(t, tmpDir, opts.Env[tf.EnvNameTFPluginCacheDir])
@@ -70,7 +70,7 @@ func TestSetupNativeProviderCache_DefaultCacheDir(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	err := setupNativeProviderCache(l, opts)
+	err := setupNativeProviderCache(t.Context(), l, opts)
 
 	require.NoError(t, err)
 	assert.Contains(t, opts.Env[tf.EnvNameTFPluginCacheDir], "providers")
@@ -85,7 +85,7 @@ func TestSetupNativeProviderCache_NilVersion(t *testing.T) {
 	}
 
 	l := logger.CreateLogger()
-	err := setupNativeProviderCache(l, opts)
+	err := setupNativeProviderCache(t.Context(), l, opts)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot determine OpenTofu version")
