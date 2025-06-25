@@ -151,7 +151,7 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	// Handle auto provider cache dir experiment
-	if opts.Experiments.Evaluate(experiment.AutoProviderCacheDir) {
+	if opts.Experiments.Evaluate(experiment.AutoProviderCacheDir) && !opts.NoAutoProviderCacheDir {
 		if err := setupAutoProviderCacheDir(ctx, l, opts); err != nil {
 			l.Debugf("Auto provider cache dir setup failed: %v", err)
 		}

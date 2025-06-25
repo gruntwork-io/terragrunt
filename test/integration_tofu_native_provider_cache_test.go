@@ -54,3 +54,20 @@ func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 	assert.Regexp(t, `Using hashicorp\/null [^ ]+ from the shared cache directory`, stdout)
 	assert.Contains(t, stderr, "Auto provider cache dir enabled")
 }
+
+func TestAutoProviderCacheDirDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
+	unitPath := util.JoinPath(testPath, "unit")
+
+	cmd := "terragrunt init --log-level debug --experiment auto-provider-cache-dir --no-auto-provider-cache-dir --non-interactive --working-dir " + unitPath
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "Auto provider cache dir enabled")
+	assert.NotRegexp(t, `Using hashicorp\/null [^ ]+ from the shared cache directory`, stdout)
+}
