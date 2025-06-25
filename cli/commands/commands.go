@@ -238,6 +238,7 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 		if err != nil {
 			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
+
 		providerCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
