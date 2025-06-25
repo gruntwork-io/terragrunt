@@ -867,7 +867,11 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 		moduleDir = maybeNested
 	}
 
-	cmd := fmt.Sprintf("terragrunt hcl validate --inputs %s --log-level trace --non-interactive --working-dir %s", strings.Join(extraArgs, " "), moduleDir)
+	cmd := fmt.Sprintf(
+		"terragrunt hcl validate --inputs %s --log-level trace --non-interactive --working-dir %s",
+		strings.Join(extraArgs, " "),
+		moduleDir,
+	)
 	t.Logf("Command: %s", cmd)
 	_, _, err := RunTerragruntCommandWithOutput(t, cmd)
 

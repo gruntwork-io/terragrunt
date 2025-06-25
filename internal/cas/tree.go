@@ -5,7 +5,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 )
 
 const (
@@ -99,40 +101,139 @@ func ParseTree(output, path string) (*Tree, error) {
 func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) error {
 	content := NewContent(store)
 
+	dirsToCreate := make(map[string]struct{}, len(t.entries))
+
+	type workItem struct {
+		itemType string
+		entry    TreeEntry
+		path     string
+		dirPath  string
+	}
+
+	workItems := make([]workItem, 0, len(t.entries))
+
 	for _, entry := range t.entries {
-		// Check for cancellation
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
 		entryPath := filepath.Join(targetDir, entry.Path)
-		if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
-			return wrapError("mkdir_all", entryPath, err)
-		}
+		dirPath := filepath.Dir(entryPath)
 
+		dirsToCreate[dirPath] = struct{}{}
+
+		// If the parent directory is in dirsToCreate,
+		// we can remove it, since it will be created
+		// when creating the subtree anyways.
+		parentDirPath := filepath.Dir(dirPath)
+		delete(dirsToCreate, parentDirPath)
+
+		// Create work items based on entry type
 		switch entry.Type {
 		case "blob":
-			if err := content.Link(entry.Hash, entryPath); err != nil {
-				return wrapError("link_blob", entryPath, err)
-			}
+			workItems = append(workItems, workItem{
+				itemType: "link",
+				entry:    entry,
+				path:     entryPath,
+				dirPath:  dirPath,
+			})
 		case "tree":
-			treeData, err := content.Read(entry.Hash)
-			if err != nil {
-				return wrapError("read_tree", entry.Hash, err)
-			}
-
-			subTree, err := ParseTree(string(treeData), entryPath)
-			if err != nil {
-				return wrapError("parse_tree", entry.Hash, err)
-			}
-
-			if err := subTree.LinkTree(ctx, store, entryPath); err != nil {
-				return wrapError("link_subtree", entryPath, err)
-			}
+			workItems = append(workItems, workItem{
+				itemType: "subtree",
+				entry:    entry,
+				path:     entryPath,
+				dirPath:  dirPath,
+			})
 		}
 	}
 
-	return nil
+	for dirPath := range dirsToCreate {
+		if err := os.MkdirAll(dirPath, DefaultDirPerms); err != nil {
+			return wrapError("mkdir_all", dirPath, err)
+		}
+	}
+
+	scalingFactor := 2
+	maxWorkers := max(1, runtime.NumCPU()/scalingFactor)
+	workChan := make(chan workItem, len(workItems))
+	errChan := make(chan error, 1)
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for work := range workChan {
+				select {
+				case <-ctx.Done():
+					return
+				case <-errChan:
+					return
+				default:
+				}
+
+				var err error
+
+				switch work.itemType {
+				case "link":
+					err = content.Link(ctx, work.entry.Hash, work.path)
+					if err != nil {
+						err = wrapError("link_blob", work.path, err)
+					}
+				case "subtree":
+					var treeData []byte
+
+					treeData, err = content.Read(work.entry.Hash)
+					if err != nil {
+						err = wrapError("read_tree", work.entry.Hash, err)
+						break
+					}
+
+					var subTree *Tree
+
+					subTree, err = ParseTree(string(treeData), work.path)
+					if err != nil {
+						err = wrapError("parse_tree", work.entry.Hash, err)
+						break
+					}
+
+					err = subTree.LinkTree(ctx, store, work.path)
+					if err != nil {
+						err = wrapError("link_subtree", work.path, err)
+					}
+				}
+
+				if err != nil {
+					select {
+					case errChan <- err:
+					default:
+					}
+
+					return
+				}
+			}
+		}()
+	}
+
+	for _, work := range workItems {
+		select {
+		case <-ctx.Done():
+			close(workChan)
+			return ctx.Err()
+		case err := <-errChan:
+			close(workChan)
+			return err
+		case workChan <- work:
+		}
+	}
+
+	close(workChan)
+
+	wg.Wait()
+
+	select {
+	case err := <-errChan:
+		return err
+	default:
+		return nil
+	}
 }
