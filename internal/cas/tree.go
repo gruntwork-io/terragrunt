@@ -160,7 +160,6 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 
 	// Process work items concurrently
 	for _, work := range workItems {
-		work := work // Capture loop variable
 		g.Go(func() error {
 			switch work.itemType {
 			case "link":
