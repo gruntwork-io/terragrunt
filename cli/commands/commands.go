@@ -16,8 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-version"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend"
@@ -41,7 +41,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/telemetry"
-	hashicorpversion "github.com/hashicorp/go-version"
+	"github.com/hashicorp/go-version"
 )
 
 // Command category names.
@@ -220,7 +220,7 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 
 	// Check OpenTofu version > 1.10
 	if opts.TerraformVersion == nil {
-		return fmt.Errorf("cannot determine OpenTofu version")
+		return errors.New("cannot determine OpenTofu version")
 	}
 
 	requiredVersion, err := version.NewVersion("1.10.0")
@@ -235,11 +235,10 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 	// Set up the provider cache directory
 	providerCacheDir := opts.ProviderCacheDir
 	if providerCacheDir == "" {
-		cacheDir, err := util.GetCacheDir()
+		providerCacheDir, err = cliconfig.UserProviderDir()
 		if err != nil {
-			return fmt.Errorf("failed to get cache directory: %w", err)
+			return fmt.Errorf("failed to get user provider directory: %w", err)
 		}
-		providerCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
 	// Make sure the cache directory is absolute
@@ -248,11 +247,14 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 		if err != nil {
 			return fmt.Errorf("failed to get absolute path for provider cache directory: %w", err)
 		}
+
 		providerCacheDir = absPath
 	}
 
+	const cacheDirMode = 0755
+
 	// Create the cache directory if it doesn't exist
-	if err := os.MkdirAll(providerCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(providerCacheDir, cacheDirMode); err != nil {
 		return fmt.Errorf("failed to create provider cache directory: %w", err)
 	}
 
@@ -260,9 +262,11 @@ func setupNativeProviderCache(ctx context.Context, l log.Logger, opts *options.T
 	if opts.Env == nil {
 		opts.Env = make(map[string]string)
 	}
+
 	opts.Env[tf.EnvNameTFPluginCacheDir] = providerCacheDir
 
 	l.Debugf("Native provider cache enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
+
 	return nil
 }
 
@@ -395,10 +399,10 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
 
 	// --- Terragrunt Version
-	terragruntVersion, err := hashicorpversion.NewVersion(cliCtx.App.Version)
+	terragruntVersion, err := version.NewVersion(cliCtx.App.Version)
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
-		if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {
+		if terragruntVersion, err = version.NewVersion("0.0"); err != nil {
 			return errors.New(err)
 		}
 	}
