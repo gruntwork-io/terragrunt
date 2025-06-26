@@ -1,10 +1,13 @@
-package runbase
+package runbase_test
 
 import (
 	"bytes"
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -16,8 +19,8 @@ import (
 
 // mockUnit is a minimal mock for Unit to test UnitRunner logic
 // You may want to expand this for more complex tests
-func newMockUnit() *Unit {
-	return &Unit{
+func newMockUnit() *runbase.Unit {
+	return &runbase.Unit{
 		Logger:            logger.CreateLogger(),
 		Path:              "mock/path",
 		TerragruntOptions: &options.TerragruntOptions{},
@@ -27,9 +30,9 @@ func newMockUnit() *Unit {
 func TestNewUnitRunner(t *testing.T) {
 	t.Parallel()
 	unit := newMockUnit()
-	runner := NewUnitRunner(unit)
+	runner := runbase.NewUnitRunner(unit)
 	assert.Equal(t, unit, runner.Unit)
-	assert.Equal(t, Waiting, runner.Status)
+	assert.Equal(t, runbase.Waiting, runner.Status)
 }
 
 func TestUnitRunner_Run_AssumeAlreadyApplied(t *testing.T) {
@@ -37,11 +40,11 @@ func TestUnitRunner_Run_AssumeAlreadyApplied(t *testing.T) {
 
 	unit := newMockUnit()
 	unit.AssumeAlreadyApplied = true
-	runner := NewUnitRunner(unit)
+	runner := runbase.NewUnitRunner(unit)
 	report := &report.Report{}
 	err := runner.Run(t.Context(), &options.TerragruntOptions{}, report)
 	assert.NoError(t, err)
-	assert.Equal(t, Running, runner.Status)
+	assert.Equal(t, runbase.Running, runner.Status)
 }
 
 func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
@@ -54,11 +57,11 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 			return errors.New("fail")
 		},
 	}
-	runner := NewUnitRunner(unit)
+	runner := runbase.NewUnitRunner(unit)
 	report := &report.Report{}
 	err := runner.Run(t.Context(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
-	assert.Error(t, err)
-	assert.Equal(t, Running, runner.Status)
+	require.Error(t, err)
+	assert.Equal(t, runbase.Running, runner.Status)
 	assert.Contains(t, err.Error(), "fail")
 }
 
@@ -72,9 +75,9 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 			return nil
 		},
 	}
-	runner := NewUnitRunner(unit)
+	runner := runbase.NewUnitRunner(unit)
 	report := &report.Report{}
 	err := runner.Run(t.Context(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
-	assert.NoError(t, err)
-	assert.Equal(t, Running, runner.Status)
+	require.NoError(t, err)
+	assert.Equal(t, runbase.Running, runner.Status)
 }

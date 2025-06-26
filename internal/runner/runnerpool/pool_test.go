@@ -81,6 +81,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 }
 
 func TestRunnerPool_FailFast(t *testing.T) {
+	t.Parallel()
 	//   A
 	//  / \
 	// B   C

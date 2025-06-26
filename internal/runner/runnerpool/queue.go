@@ -182,7 +182,7 @@ func (q *dagQueue) results() []Result {
 	return out
 }
 
-// Add String() method for Status for readable output
+// String text representation of the status.
 func (s Status) String() string {
 	switch s {
 	case StatusPending:
