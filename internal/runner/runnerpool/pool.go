@@ -2,7 +2,6 @@ package runnerpool
 
 import (
 	"context"
-	"runtime"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -16,6 +15,7 @@ type RunnerPool struct {
 	runner      TaskRunner
 	concurrency int
 	failFast    bool
+	readyCh     chan struct{} // channel to signal when new tasks are ready
 }
 
 // New creates a new RunnerPool with the given units, runner function.
@@ -25,6 +25,7 @@ func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *Runne
 		runner:      r,
 		concurrency: maxConc,
 		failFast:    failFast,
+		readyCh:     make(chan struct{}, 1), // buffered to avoid blocking
 	}
 }
 
@@ -37,6 +38,15 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 
 	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t", len(p.q.Ordered), p.concurrency, p.failFast)
 
+	signalReady := func() {
+		select {
+		case p.readyCh <- struct{}{}:
+		default:
+		}
+	}
+
+	signalReady() // initial signal in case there are ready tasks at the start
+
 	for {
 		ready := p.q.GetReady()
 		if len(ready) == 0 {
@@ -45,9 +55,13 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 				break
 			}
 
-			l.Tracef("RunnerPool: no ready tasks, yielding (queue not Empty)")
-			runtime.Gosched()
-
+			l.Tracef("RunnerPool: no ready tasks, waiting (queue not Empty)")
+			select {
+			case <-p.readyCh:
+			case <-ctx.Done():
+				l.Debugf("RunnerPool: context cancelled, breaking loop")
+				return p.q.Results()
+			}
 			continue
 		}
 
@@ -67,6 +81,7 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 
 				ent.Result = p.runner(ctx, ent.Task)
 				p.q.MarkDone(ent, p.failFast)
+				signalReady() // notify that new tasks may be ready
 			}(e)
 		}
 	}
