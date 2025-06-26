@@ -312,6 +312,8 @@ type TerragruntOptions struct {
 	SummaryDisable bool
 	// SummaryPerUnit enables showing duration information for each unit in the summary.
 	SummaryPerUnit bool
+	// FailFast is a flag to stop execution on the first error in apply of units.
+	FailFast bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests

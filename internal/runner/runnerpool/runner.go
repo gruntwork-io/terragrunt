@@ -96,9 +96,6 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	terraformCmd := opts.TerraformCommand
 
-	//------------------------------------------------------------------
-	// 1. Pre‑flight flag mangling (same behaviour as legacy configstack)
-	//------------------------------------------------------------------
 	if opts.OutputFolder != "" {
 		for _, u := range r.Stack.Units {
 			planFile := u.OutputFile(l, opts)
@@ -132,9 +129,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, errs)
 	}
 
-	//------------------------------------------------------------------
-	// 2. Glue runnerpool.TaskRunner around each runbase.Unit
-	//------------------------------------------------------------------
 	taskRun := func(ctx context.Context, t *Task) Result {
 		unitRunner := runbase.NewUnitRunner(t.Unit)
 		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, r.Stack.Report)
@@ -148,25 +142,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		return res
 	}
 
-	//------------------------------------------------------------------
-	// 3. Instantiate the pool with CLI‑provided parallelism / fail‑fast
-	//------------------------------------------------------------------
-	maxConc := opts.Parallelism
-	if maxConc <= 0 {
-		maxConc = 1
-	}
+	pool := New(r.Stack.Units, taskRun, opts.Parallelism, opts.FailFast)
 
-	failFast := false
-	pool := New(r.Stack.Units, taskRun, maxConc, failFast)
-
-	//------------------------------------------------------------------
-	// 4. Execute the pool and gather Results
-	//------------------------------------------------------------------
 	results := pool.Run(ctx, l)
 
-	//------------------------------------------------------------------
-	// 5. Reduce Results into a single error (preserve old behaviour)
-	//------------------------------------------------------------------
 	var allErrs []error
 
 	for _, res := range results {

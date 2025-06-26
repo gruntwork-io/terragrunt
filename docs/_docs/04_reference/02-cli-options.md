@@ -1265,6 +1265,7 @@ terragrunt dag graph  | dot -Tpng > graph.png
   - [tf-forward-stdout](#tf-forward-stdout)
   - [no-destroy-dependencies-check](#no-destroy-dependencies-check)
   - [feature](#feature)
+  - [fail-fast](#fail-fast)
   - [experiment](#experiment)
   - [experiment-mode](#experiment-mode)
   - [strict-control](#strict-control)
@@ -2449,6 +2450,22 @@ Setting feature flags through environment variables:
 export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true,string_feature_flag=app1
 terragrunt apply
 ```
+
+### fail-fast
+
+**CLI Arg**: `--fail-fast`<br/>
+**Environment Variable**: `TG_FAIL_FAST` (set to `true`)<br/>
+
+When enabled, Terragrunt will fail the entire run as soon as any unit fails. This means that if any unit encounters an error during execution, all remaining units will be skipped and the run will exit with a failure status immediately.
+This is useful for enforcing strict failure handling in CI/CD pipelines or when you want to stop processing on the first error.
+
+Example:
+
+```bash
+terragrunt run --all apply --fail-fast
+```
+
+By default, Terragrunt will continue running other units even if one fails (unless other error-handling flags are set). Use `--fail-fast` to change this behavior and stop on the first failure.
 
 ### experiment
 
