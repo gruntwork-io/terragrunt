@@ -2465,6 +2465,9 @@ Example:
 terragrunt run --all apply --fail-fast
 ```
 
+NOTE: Currently, `--fail-fast` is honored only when the experimental *runner-pool* execution engine is enabled (`--experiment runner-pool` or the matching env var).
+When using the legacy *configstack* runner, the flag is ignored.
+
 By default, Terragrunt will continue running other units even if one fails (unless other error-handling flags are set). Use `--fail-fast` to change this behavior and stop on the first failure.
 
 ### experiment

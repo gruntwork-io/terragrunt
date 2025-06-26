@@ -62,7 +62,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 	}
 }
 
-func TestGetModuleRunGraphApplyOrder(t *testing.T) {
+func TestGetUnitRunGraphApplyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestRunner()
@@ -87,7 +87,7 @@ func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 	)
 }
 
-func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
+func TestGetUnitRunGraphDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestRunner()
@@ -1248,18 +1248,18 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	_, actualErr := stack.ResolveTerraformModules(t.Context(), logger.CreateLogger(), configPaths)
 	require.Error(t, actualErr)
 
-	var processingModuleError runbase.ProcessingUnitError
-	ok := errors.As(actualErr, &processingModuleError)
+	var processingUnitError runbase.ProcessingUnitError
+	ok := errors.As(actualErr, &processingUnitError)
 	require.True(t, ok)
 
 	goError := new(goerrors.Error)
 
-	unwrapped := processingModuleError.UnderlyingError
+	unwrapped := processingUnitError.UnderlyingError
 	if errors.As(unwrapped, &goError) {
 		unwrapped = goError.Err
 	}
 
-	require.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", processingModuleError.UnderlyingError)
+	require.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", processingUnitError.UnderlyingError)
 }
 
 func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
