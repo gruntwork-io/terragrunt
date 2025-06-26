@@ -18,12 +18,8 @@ type RunnerPool struct {
 	failFast    bool
 }
 
-// New creates a pool; if maxConc ≤0 uses GOMAXPROCS.
+// New creates a new RunnerPool with the given units, runner function.
 func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *RunnerPool {
-	if maxConc <= 0 {
-		maxConc = runtime.GOMAXPROCS(0)
-	}
-
 	return &RunnerPool{
 		q:           BuildQueue(units, failFast),
 		runner:      r,

@@ -1393,7 +1393,7 @@ func TestAwsRunAllCommandPrompt(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --working-dir "+environmentPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
-	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
+	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed described above? (y/n)")
 	require.Error(t, err)
 }
 
