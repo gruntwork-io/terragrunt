@@ -100,8 +100,9 @@ func (q *dagQueue) markDone(e *entry, failFast bool) {
 				switch n.state {
 				case StatusPending, StatusBlocked, StatusReady:
 					n.state = StatusFailFast
-				default:
-					// skip
+				case StatusRunning, StatusSucceeded, StatusFailed, StatusAncestorFailed, StatusFailFast:
+					// no op
+					continue
 				}
 			}
 		}
@@ -172,8 +173,9 @@ func (q *dagQueue) results() []Result {
 					res.Err = ErrSkippedAncestorFailed
 				}
 			}
-		default:
-			// skip
+		case StatusPending, StatusBlocked, StatusReady, StatusRunning, StatusSucceeded, StatusFailed:
+			// no-op
+			continue
 		}
 
 		out[i] = res

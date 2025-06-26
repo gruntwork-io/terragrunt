@@ -43,7 +43,7 @@ func TestUnitRunner_Run_AssumeAlreadyApplied(t *testing.T) {
 	runner := runbase.NewUnitRunner(unit)
 	report := &report.Report{}
 	err := runner.Run(t.Context(), &options.TerragruntOptions{}, report)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, runbase.Running, runner.Status)
 }
 
