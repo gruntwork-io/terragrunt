@@ -1156,7 +1156,8 @@ func flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.R
 				if opts.Experiments.Evaluate(experiment.Report) {
 					run, err := r.GetRun(dependency.Path)
 					if err != nil {
-						return units
+						l.Errorf("Error getting run for dependency %s: %v", dependency.Path, err)
+						continue
 					}
 
 					if err := r.EndRun(
@@ -1164,7 +1165,8 @@ func flagExcludedDirs(l log.Logger, opts *options.TerragruntOptions, r *report.R
 						report.WithResult(report.ResultExcluded),
 						report.WithReason(report.ReasonExcludeDir),
 					); err != nil {
-						return units
+						l.Errorf("Error ending run for dependency %s: %v", dependency.Path, err)
+						continue
 					}
 				}
 			}
