@@ -135,7 +135,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	//------------------------------------------------------------------
 	taskRun := func(ctx context.Context, t *Task) Result {
 		unitRunner := runbase.NewUnitRunner(t.Unit)
-		fmt.Printf("************ Running %s for unit %s\n", t.Unit.TerragruntOptions.TerraformCommand, t.Unit.Path)
 		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, r.Stack.Report)
 
 		res := Result{TaskID: t.ID()}

@@ -42,14 +42,19 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t", len(p.q.ordered), p.concurrency, p.failFast)
 
 	for {
-		ready := p.q.getReady(cap(sem) - len(sem))
+		l.Debugf("RunnerPool: top of loop, queue state: %v", p.q.summarizeStates())
+		ready := p.q.getReady()
 		if len(ready) == 0 {
 			if p.q.empty() {
+				l.Debugf("RunnerPool: queue is empty, breaking loop")
 				break
 			}
+			l.Tracef("RunnerPool: no ready tasks, yielding (queue not empty)")
+			l.Tracef("RunnerPool: current task states: %v", p.q.summarizeStates())
 			runtime.Gosched()
 			continue
 		}
+		l.Debugf("RunnerPool: found %d ready tasks", len(ready))
 		for _, e := range ready {
 			l.Debugf("Running task %s with %d remaining dependencies", e.task.ID(), e.remainingDeps)
 			sem <- struct{}{}

@@ -64,15 +64,12 @@ func buildQueue(units []*runbase.Unit, failFast bool) *dagQueue {
 // -----------------------------------------------------------------------------
 
 // getReady returns up to max ready entries, respecting the original order.
-func (q *dagQueue) getReady(max int) []*entry {
+func (q *dagQueue) getReady() []*entry {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	out := make([]*entry, 0, max)
+	out := make([]*entry, 0, len(q.ordered))
 	for _, e := range q.ordered {
-		if len(out) >= max {
-			break
-		}
 		if e.state == StatusReady {
 			e.state = StatusRunning
 			out = append(out, e)
@@ -169,4 +166,57 @@ func (q *dagQueue) results() []Result {
 		out[i] = res
 	}
 	return out
+}
+
+func (q *dagQueue) summarizeStates() string {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	counts := make(map[Status]int)
+	ids := make(map[Status][]string)
+	for _, e := range q.ordered {
+		counts[e.state]++
+		if e.state != StatusSucceeded {
+			ids[e.state] = append(ids[e.state], e.task.ID())
+		}
+	}
+	// Build a summary string
+	summary := ""
+	for s, c := range counts {
+		summary += s.String() + ":" + itoa(c)
+		if len(ids[s]) > 0 {
+			summary += " [" + strings.Join(ids[s], ",") + "]"
+		}
+		summary += ", "
+	}
+	return summary
+}
+
+// Helper to convert int to string without fmt
+func itoa(i int) string {
+	return string('0' + i)
+}
+
+// Add String() method for Status for readable output
+func (s Status) String() string {
+	switch s {
+	case StatusPending:
+		return "Pending"
+	case StatusBlocked:
+		return "Blocked"
+	case StatusReady:
+		return "Ready"
+	case StatusRunning:
+		return "Running"
+	case StatusSucceeded:
+		return "Succeeded"
+	case StatusFailed:
+		return "Failed"
+	case StatusAncestorFailed:
+		return "AncestorFailed"
+	case StatusFailFast:
+		return "FailFast"
+	default:
+		return "Unknown"
+	}
 }
