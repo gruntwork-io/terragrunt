@@ -45,7 +45,7 @@ func NewDependencyController(unit *runbase.Unit) *DependencyController {
 	}
 }
 
-// Run a unit once all of its dependencies have finished executing.
+// runUnitWhenReady a unit once all of its dependencies have finished executing.
 func (ctrl *DependencyController) runUnitWhenReady(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, semaphore chan struct{}) {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "wait_for_unit_ready", map[string]any{
 		"path":             ctrl.Runner.Unit.Path,
@@ -71,7 +71,7 @@ func (ctrl *DependencyController) runUnitWhenReady(ctx context.Context, opts *op
 	ctrl.unitFinished(err, r, opts.Experiments.Evaluate(experiment.Report))
 }
 
-// Wait for all of this unit's dependencies to finish executing. Return an error if any of those dependencies complete
+// waitForDependencies for all of this unit's dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this unit has no dependencies.
 func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOptions, r *report.Report) error {
 	ctrl.Runner.Unit.Logger.Debugf("Unit %s must wait for %d dependencies to finish", ctrl.Runner.Unit.Path, len(ctrl.Dependencies))
@@ -112,7 +112,7 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 	return nil
 }
 
-// Record that a unit has finished executing and notify all of this unit's dependencies
+// unitFinished Record that a unit has finished executing and notify all of this unit's dependencies
 func (ctrl *DependencyController) unitFinished(unitErr error, r *report.Report, reportExperiment bool) {
 	if unitErr == nil {
 		ctrl.Runner.Unit.Logger.Debugf("Unit %s has finished successfully!", ctrl.Runner.Unit.Path)
@@ -198,8 +198,10 @@ func (ctrl *DependencyController) unitFinished(unitErr error, r *report.Report, 
 	}
 }
 
+// RunningUnits is a map of unit path to DependencyController, representing the units that are currently running or
 type RunningUnits map[string]*DependencyController
 
+// toTerraformUnitGroups converts the RunningUnits into a slice of runbase.Units, where each slice represents a group of
 func (units RunningUnits) toTerraformUnitGroups(maxDepth int) []runbase.Units {
 	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
 	// the units that have no dependencies and captures that as a run group.
@@ -260,7 +262,7 @@ func (units RunningUnits) toTerraformUnitGroups(maxDepth int) []runbase.Units {
 	return groups
 }
 
-// Loop through the map of runningUnits and for each unit U:
+// crossLinkDependencies Loop through the map of runningUnits and for each unit U:
 //
 //   - If dependencyOrder is NormalOrder, plug in all the units U depends on into the Dependencies field and all the
 //     units that depend on U into the NotifyWhenDone field.
@@ -338,7 +340,7 @@ func (units RunningUnits) RemoveFlagExcluded(r *report.Report, reportExperiment 
 	return finalUnits, nil
 }
 
-// Run the given map of unit path to runningUnit. To "run" a unit, execute the runTerragrunt command in its
+// runUnits Run the given map of unit path to runningUnit. To "run" a unit, execute the runTerragrunt command in its
 // TerragruntOptions object. The units will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func (units RunningUnits) runUnits(ctx context.Context, opts *options.TerragruntOptions, r *report.Report, parallelism int) error {
@@ -362,7 +364,7 @@ func (units RunningUnits) runUnits(ctx context.Context, opts *options.Terragrunt
 	return units.collectErrors()
 }
 
-// Collect the errors from the given units and return a single error object to represent them, or nil if no errors
+// collectErrors Collect the errors from the given units and return a single error object to represent them, or nil if no errors
 // occurred
 func (units RunningUnits) collectErrors() error {
 	var errs *errors.MultiError
