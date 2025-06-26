@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
@@ -76,6 +78,18 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 
 			go func(ent *Entry) {
 				defer func() {
+					if r := recover(); r != nil {
+						l.Errorf("Panic in task %s: %v", ent.Task.ID(), r)
+						// Mark the task as failed due to panic
+						ent.Result = Result{
+							TaskID:   ent.Task.ID(),
+							ExitCode: 1,
+							Err:      errors.Errorf("panic: %v", r),
+						}
+						p.q.MarkDone(ent, p.failFast)
+						signalReady()
+					}
+
 					<-sem
 					wg.Done()
 				}()
