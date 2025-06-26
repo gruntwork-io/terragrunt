@@ -20,8 +20,8 @@ func TestBuildQueue_SimpleDAG(t *testing.T) {
 
 	q := rp.BuildQueue(units, false)
 	assert.NotNil(t, q)
-	assert.Equal(t, 3, len(q.Index))
-	assert.Equal(t, 3, len(q.Ordered))
+	assert.Len(t, q.Index, 3)
+	assert.Len(t, q.Ordered, 3)
 
 	// Check initial states
 	assert.Equal(t, rp.StatusReady, q.Index["A"].State)
@@ -38,7 +38,7 @@ func TestDagQueue_GetReady(t *testing.T) {
 	q := rp.BuildQueue(units, false)
 
 	ready := q.GetReady()
-	assert.Equal(t, 1, len(ready))
+	assert.Len(t, ready, 1)
 	assert.Equal(t, "A", ready[0].Task.ID())
 	assert.Equal(t, rp.StatusRunning, ready[0].State)
 }
@@ -105,7 +105,7 @@ func TestDagQueue_Results_SkippedDueToFailFast(t *testing.T) {
 	q.MarkDone(entryA, true)
 
 	results := q.Results()
-	assert.Equal(t, 2, len(results))
+	assert.Len(t, results, 2)
 	for _, res := range results {
 		if res.TaskID == "A" {
 			assert.Equal(t, 1, res.ExitCode)

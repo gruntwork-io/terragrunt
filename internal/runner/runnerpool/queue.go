@@ -143,11 +143,12 @@ func (q *DagQueue) Results() []Result {
 	out := make([]Result, len(q.Ordered))
 
 	for i, e := range q.Ordered {
-		switch e.State {
-		case StatusFailFast:
+		if e.State == StatusFailFast {
 			e.Result.ExitCode = 1 // Use 1 for skipped due to fail-fast
 			e.Result.Err = ErrSkippedFailFast
-		case StatusAncestorFailed:
+		}
+
+		if e.State == StatusAncestorFailed {
 			e.Result.ExitCode = 1 // Use 1 for skipped due to ancestor failure
 			// Find all failed ancestors
 			var failedAncestors []string
@@ -164,7 +165,7 @@ func (q *DagQueue) Results() []Result {
 				e.Result.Err = ErrSkippedAncestorFailed
 			}
 		}
-		// For all states, always assign the result
+
 		out[i] = e.Result
 	}
 
