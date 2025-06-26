@@ -195,50 +195,50 @@ func (c *StorageAccountClient) StorageAccountExists(ctx context.Context) (bool, 
 
 // GetStorageAccountVersioning checks if versioning is enabled on a storage account
 func (c *StorageAccountClient) GetStorageAccountVersioning(ctx context.Context) (bool, error) {
-	_, err := c.blobClient.GetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+	resp, err := c.blobClient.GetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
 	if err != nil {
 		return false, errors.Errorf("error getting storage account blob service properties: %w", err)
 	}
 
-	// Check for versioning in the properties
-	// Since the SDK structure might vary between versions, we'll need to check the struct fields
-	// This is a simplified implementation that assumes versioning is enabled if we can get properties
-	return true, nil
+	// Check if blob service properties exist and have versioning information
+	if resp.BlobServiceProperties.BlobServiceProperties == nil {
+		return false, nil
+	}
+
+	// Return the actual versioning status from the Azure SDK
+	if resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled != nil {
+		return *resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled, nil
+	}
+
+	// Default to false if versioning status is not set
+	return false, nil
 }
 
 // EnableStorageAccountVersioning enables versioning on a storage account
 func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Enabling versioning on storage account %s", c.storageAccountName)
 
-	// Create update parameters with minimal settings
-	// The exact fields needed will depend on the SDK version
-	// We're using reflection to set the property correctly
-
-	// For Azure SDK versions, this is the standard way to enable versioning
-	// We would typically set a field like IsVersioningEnabled = true
-
-	// Create a set of properties to enable versioning
-	// This structure will vary based on the Azure SDK version
-	params := armstorage.BlobServiceProperties{
-		// Different Azure SDK versions use different field names
-		// IsVersioningEnabled seems to be common in newer versions
-		// Here we'll use a compatible field structure
+	// Get current service properties to preserve other settings
+	resp, err := c.blobClient.GetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+	if err != nil {
+		return errors.Errorf("error getting current blob service properties: %w", err)
 	}
 
-	// Update service properties
-	// This will error if the field structure isn't compatible
-	_, err := c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, params, nil)
-	if err != nil {
-		// The SDK version might not support this operation directly
-		l.Warnf("Could not enable versioning via SDK: %s", err)
-		l.Warn("To enable versioning, you may need to use Azure Portal or Azure CLI")
-		// Don't return the error as this is optional functionality
+	// Update the versioning setting while preserving other properties
+	if resp.BlobServiceProperties.BlobServiceProperties == nil {
+		resp.BlobServiceProperties.BlobServiceProperties = &armstorage.BlobServicePropertiesProperties{}
+	}
 
-		return nil
+	// Enable versioning
+	resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled = to.Ptr(true)
+
+	// Update service properties
+	_, err = c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, resp.BlobServiceProperties, nil)
+	if err != nil {
+		return errors.Errorf("failed to enable versioning on storage account %s: %w", c.storageAccountName, err)
 	}
 
 	l.Info("Successfully enabled versioning on storage account")
-
 	return nil
 }
 
@@ -246,27 +246,27 @@ func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Contex
 func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Disabling versioning on storage account %s", c.storageAccountName)
 
-	// Similar to enabling versioning, but with the opposite setting
-	// We would typically set a field like IsVersioningEnabled = false
-
-	// Create a set of properties to disable versioning
-	params := armstorage.BlobServiceProperties{
-		// Structure depends on SDK version
+	// Get current service properties to preserve other settings
+	resp, err := c.blobClient.GetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+	if err != nil {
+		return errors.Errorf("error getting current blob service properties: %w", err)
 	}
 
-	// Update service properties
-	_, err := c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, params, nil)
-	if err != nil {
-		// The SDK version might not support this operation directly
-		l.Warnf("Could not disable versioning via SDK: %s", err)
-		l.Warn("To disable versioning, you may need to use Azure Portal or Azure CLI")
-		// Don't return the error as this is optional functionality
+	// Update the versioning setting while preserving other properties
+	if resp.BlobServiceProperties.BlobServiceProperties == nil {
+		resp.BlobServiceProperties.BlobServiceProperties = &armstorage.BlobServicePropertiesProperties{}
+	}
 
-		return nil
+	// Disable versioning
+	resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled = to.Ptr(false)
+
+	// Update service properties
+	_, err = c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, resp.BlobServiceProperties, nil)
+	if err != nil {
+		return errors.Errorf("failed to disable versioning on storage account %s: %w", c.storageAccountName, err)
 	}
 
 	l.Info("Successfully disabled versioning on storage account")
-
 	return nil
 }
 
