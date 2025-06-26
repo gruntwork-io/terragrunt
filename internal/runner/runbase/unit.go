@@ -84,12 +84,18 @@ func (unit *Unit) OutputJSONFile(l log.Logger, opts *options.TerragruntOptions) 
 	return unit.getPlanFilePath(l, opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
 }
 
+// getPlanFilePath - return plan graph file location, if output folder is set
 func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}
 
-	path, _ := filepath.Rel(opts.WorkingDir, unit.Path)
+	path, err := filepath.Rel(opts.WorkingDir, unit.Path)
+	if err != nil {
+		l.Warnf("Failed to get relative path for %s: %v", unit.Path, err)
+		path = unit.Path
+	}
+
 	dir := filepath.Join(outputFolder, path)
 
 	if !filepath.IsAbs(dir) {
@@ -109,7 +115,7 @@ func (unit *Unit) FindUnitInPath(targetDirs []string) bool {
 	return slices.Contains(targetDirs, unit.Path)
 }
 
-// Get the list of units this unit depends on
+// getDependenciesForUnit Get the list of units this unit depends on
 func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPaths []string) (Units, error) {
 	dependencies := Units{}
 
@@ -130,13 +136,13 @@ func (unit *Unit) getDependenciesForUnit(unitsMap UnitsMap, terragruntConfigPath
 
 		dependencyUnit, foundUnit := unitsMap[dependencyUnitPath]
 		if !foundUnit {
-			err := UnrecognizedDependencyError{
+			dependencyErr := UnrecognizedDependencyError{
 				UnitPath:              unit.Path,
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
 
-			return dependencies, errors.New(err)
+			return dependencies, dependencyErr
 		}
 
 		dependencies = append(dependencies, dependencyUnit)
@@ -157,14 +163,9 @@ func (unitsMap UnitsMap) MergeMaps(externalDependencies UnitsMap) UnitsMap {
 	return out
 }
 
+// FindByPath returns the unit that matches the given path, or nil if no such unit exists in the map.
 func (unitsMap UnitsMap) FindByPath(path string) *Unit {
-	for _, unit := range unitsMap {
-		if unit.Path == path {
-			return unit
-		}
-	}
-
-	return nil
+	return unitsMap[path]
 }
 
 // CrossLinkDependencies Go through each unit in the given map and cross-link its dependencies to the other units in that same map. If
@@ -240,8 +241,9 @@ func (units Units) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntO
 
 // CheckForCycles checks for dependency cycles in the given list of units and return an error if one is found.
 func (units Units) CheckForCycles() error {
-	visitedPaths := []string{}
-	currentTraversalPaths := []string{}
+	var visitedPaths []string
+
+	var currentTraversalPaths []string
 
 	for _, unit := range units {
 		err := checkForCyclesUsingDepthFirstSearch(unit, &visitedPaths, &currentTraversalPaths)
@@ -256,7 +258,7 @@ func (units Units) CheckForCycles() error {
 // SortedKeys Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of units
 // in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
 func (unitsMap UnitsMap) SortedKeys() []string {
-	keys := []string{}
+	keys := make([]string, 0, len(unitsMap))
 	for key := range unitsMap {
 		keys = append(keys, key)
 	}
@@ -280,7 +282,7 @@ func checkForCyclesUsingDepthFirstSearch(unit *Unit, visitedPaths *[]string, cur
 	}
 
 	if util.ListContainsElement(*currentTraversalPaths, unit.Path) {
-		return errors.New(DependencyCycleError(append(*currentTraversalPaths, unit.Path)))
+		return DependencyCycleError(append(*currentTraversalPaths, unit.Path))
 	}
 
 	*currentTraversalPaths = append(*currentTraversalPaths, unit.Path)
