@@ -87,25 +87,11 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 				ctrl.Runner.Unit.Logger.Errorf("Dependency %s of unit %s just finished with an error. Unit %s will have to return an error too.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
 
 				if opts.Experiments.Evaluate(experiment.Report) {
-					run, err := r.GetRun(ctrl.Runner.Unit.Path)
+					run, err := r.EnsureRun(ctrl.Runner.Unit.Path)
 					if err != nil {
-						if errors.Is(err, report.ErrRunNotFound) {
-							run, err = report.NewRun(ctrl.Runner.Unit.Path)
-							if err != nil {
-								ctrl.Runner.Unit.Logger.Errorf("Error creating run for unit %s: %v", ctrl.Runner.Unit.Path, err)
-								return err
-							}
-
-							if err := r.AddRun(run); err != nil {
-								ctrl.Runner.Unit.Logger.Errorf("Error adding run for unit %s: %v", ctrl.Runner.Unit.Path, err)
-								return err
-							}
-						} else {
-							ctrl.Runner.Unit.Logger.Errorf("Error getting run for unit %s: %v", ctrl.Runner.Unit.Path, err)
-							return err
-						}
+						ctrl.Runner.Unit.Logger.Errorf("Error ensuring run for unit %s: %v", ctrl.Runner.Unit.Path, err)
+						return err
 					}
-
 					if err := r.EndRun(
 						run.Path,
 						report.WithResult(report.ResultEarlyExit),
@@ -329,18 +315,10 @@ func (units RunningUnits) RemoveFlagExcluded(r *report.Report, reportExperiment 
 				}
 			}
 		} else if reportExperiment {
-			run, err := r.GetRun(unit.Runner.Unit.Path)
-			if errors.Is(err, report.ErrRunNotFound) {
-				run, err = report.NewRun(unit.Runner.Unit.Path)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-
-				if err := r.AddRun(run); err != nil {
-					errs = append(errs, err)
-					continue
-				}
+			run, err := r.EnsureRun(unit.Runner.Unit.Path)
+			if err != nil {
+				errs = append(errs, err)
+				continue
 			}
 
 			if err := r.EndRun(
