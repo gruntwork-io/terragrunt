@@ -28,14 +28,14 @@ func TestDefaultRetryConfig(t *testing.T) {
 	assert.Equal(t, 3, config.MaxRetries)
 	assert.Equal(t, 1*time.Second, config.InitialDelay)
 	assert.Equal(t, 30*time.Second, config.MaxDelay)
-	assert.Equal(t, 2.0, config.BackoffMultiple)
+	assert.InEpsilon(t, 2.0, config.BackoffMultiple, 0.001)
 	assert.True(t, config.Jitter)
 }
 
 func TestWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := createTestLogger()
 	config := azurerm.RetryConfig{
 		MaxRetries:      3,
@@ -60,7 +60,7 @@ func TestWithRetry_SuccessOnFirstAttempt(t *testing.T) {
 func TestWithRetry_SuccessAfterRetries(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := createTestLogger()
 	config := azurerm.RetryConfig{
 		MaxRetries:      3,
@@ -90,14 +90,14 @@ func TestWithRetry_SuccessAfterRetries(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, callCount)
 	// Should have some delay but not too much (we used small delays)
-	assert.True(t, elapsed >= 30*time.Millisecond) // At least two delays
-	assert.True(t, elapsed < 1*time.Second)        // But not too long
+	assert.GreaterOrEqual(t, elapsed, 30*time.Millisecond) // At least two delays
+	assert.Less(t, elapsed, 1*time.Second)                 // But not too long
 }
 
 func TestWithRetry_MaxRetriesExceeded(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := createTestLogger()
 	config := azurerm.RetryConfig{
 		MaxRetries:      2,
@@ -123,7 +123,7 @@ func TestWithRetry_MaxRetriesExceeded(t *testing.T) {
 	assert.Equal(t, 3, callCount) // MaxRetries + 1 = initial attempt + 2 retries
 
 	var maxRetriesErr azurerm.MaxRetriesExceededError
-	require.True(t, errors.As(err, &maxRetriesErr))
+	require.ErrorAs(t, err, &maxRetriesErr)
 	assert.Equal(t, "test operation", maxRetriesErr.Operation)
 	assert.Equal(t, 2, maxRetriesErr.MaxRetries)
 	assert.Contains(t, maxRetriesErr.Error(), "failed after 2 retries")
@@ -132,7 +132,7 @@ func TestWithRetry_MaxRetriesExceeded(t *testing.T) {
 func TestWithRetry_NonRetryableError(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := createTestLogger()
 	config := azurerm.RetryConfig{
 		MaxRetries:      3,
@@ -159,7 +159,7 @@ func TestWithRetry_NonRetryableError(t *testing.T) {
 func TestWithRetry_ContextCancellation(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	logger := createTestLogger()
 	config := azurerm.RetryConfig{
 		MaxRetries:      3,
@@ -197,77 +197,79 @@ func TestIsRetryableError(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name        string
 		error       error
+		name        string
 		shouldRetry bool
 	}{
 		{
-			name:        "nil error",
 			error:       nil,
+			name:        "nil error",
 			shouldRetry: false,
 		},
 		{
-			name: "transient azure error - retryable",
 			error: azurerm.TransientAzureError{
 				Underlying: errors.New("service unavailable"),
 				Operation:  "test",
 				StatusCode: 503,
 			},
+			name:        "transient azure error - retryable",
 			shouldRetry: true,
 		},
 		{
-			name: "transient azure error - non-retryable",
 			error: azurerm.TransientAzureError{
 				Underlying: errors.New("not found"),
 				Operation:  "test",
 				StatusCode: 404,
 			},
+			name:        "transient azure error - non-retryable",
 			shouldRetry: false,
 		},
 		{
-			name:        "HTTP 429 in message",
 			error:       errors.New("request failed with status 429"),
+			name:        "HTTP 429 in message",
 			shouldRetry: true,
 		},
 		{
-			name:        "too many requests in message",
 			error:       errors.New("too many requests"),
+			name:        "too many requests in message",
 			shouldRetry: true,
 		},
 		{
-			name:        "HTTP 500 in message",
 			error:       errors.New("internal server error 500"),
+			name:        "HTTP 500 in message",
 			shouldRetry: true,
 		},
 		{
-			name:        "HTTP 503 in message",
 			error:       errors.New("service unavailable 503"),
+			name:        "HTTP 503 in message",
 			shouldRetry: true,
 		},
 		{
-			name:        "connection reset",
 			error:       errors.New("connection reset by peer"),
+			name:        "connection reset",
 			shouldRetry: true,
 		},
 		{
-			name:        "timeout error",
 			error:       errors.New("request timeout occurred"),
+			name:        "timeout error",
 			shouldRetry: true,
 		},
 		{
-			name:        "throttled error",
 			error:       errors.New("request was throttled"),
+			name:        "throttled error",
 			shouldRetry: true,
 		},
 		{
-			name:        "non-retryable error",
 			error:       errors.New("authentication failed"),
+			name:        "non-retryable error",
 			shouldRetry: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := azurerm.IsRetryableError(tc.error)
 			assert.Equal(t, tc.shouldRetry, result, "Error: %v", tc.error)
 		})
@@ -299,6 +301,8 @@ func TestCalculateDelay(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("attempt_%d", tc.attempt), func(t *testing.T) {
+			t.Parallel()
+
 			delay := azurerm.CalculateDelay(tc.attempt, config)
 			assert.Equal(t, tc.expectedMin, delay)
 		})
@@ -323,8 +327,8 @@ func TestCalculateDelayWithJitter(t *testing.T) {
 
 	// All delays should be around 2 seconds but with some variation
 	for _, delay := range delays {
-		assert.True(t, delay >= 2*time.Second, "Delay should be at least base delay")
-		assert.True(t, delay <= 3*time.Second, "Delay should not be too much more than base + jitter")
+		assert.GreaterOrEqual(t, delay, 2*time.Second, "Delay should be at least base delay")
+		assert.LessOrEqual(t, delay, 3*time.Second, "Delay should not be too much more than base + jitter")
 	}
 }
 
@@ -332,22 +336,28 @@ func TestWrapTransientError(t *testing.T) {
 	t.Parallel()
 
 	t.Run("nil error", func(t *testing.T) {
+		t.Parallel()
+
 		result := azurerm.WrapTransientError(nil, "test")
-		assert.Nil(t, result)
+		assert.NoError(t, result)
 	})
 
 	t.Run("retryable error", func(t *testing.T) {
+		t.Parallel()
+
 		originalErr := errors.New("service unavailable 503")
 		result := azurerm.WrapTransientError(originalErr, "test operation")
 
 		var transientErr azurerm.TransientAzureError
-		require.True(t, errors.As(result, &transientErr))
+		require.ErrorAs(t, result, &transientErr)
 		assert.Equal(t, originalErr, transientErr.Underlying)
 		assert.Equal(t, "test operation", transientErr.Operation)
 		assert.Equal(t, 503, transientErr.StatusCode)
 	})
 
 	t.Run("non-retryable error", func(t *testing.T) {
+		t.Parallel()
+
 		originalErr := errors.New("authentication failed")
 		result := azurerm.WrapTransientError(originalErr, "test operation")
 
@@ -375,6 +385,8 @@ func TestTransientAzureError_IsRetryable(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("status_%d", tc.statusCode), func(t *testing.T) {
+			t.Parallel()
+
 			err := azurerm.TransientAzureError{
 				Underlying: errors.New("test error"),
 				Operation:  "test",

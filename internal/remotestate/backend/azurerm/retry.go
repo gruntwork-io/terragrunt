@@ -3,15 +3,29 @@ package azurerm
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"strings"
 	"time"
 
-	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+)
+
+// Constants for retry configuration defaults
+const (
+	DefaultMaxRetries          = 3
+	DefaultInitialDelaySeconds = 1
+	DefaultMaxDelaySeconds     = 30
+	DefaultBackoffMultiple     = 2.0
+)
+
+// Constants for jitter calculation
+const (
+	JitterDivisor        = 4      // For 25% jitter calculation
+	JitterModulo         = 1000   // For random jitter generation
+	JitterDivisorFloat64 = 1000.0 // Float64 version for division
 )
 
 // RetryConfig holds configuration for retry behavior
@@ -26,10 +40,10 @@ type RetryConfig struct {
 // DefaultRetryConfig returns a sensible default retry configuration for Azure operations
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
-		MaxRetries:      3,
-		InitialDelay:    1 * time.Second,
-		MaxDelay:        30 * time.Second,
-		BackoffMultiple: 2.0,
+		MaxRetries:      DefaultMaxRetries,
+		InitialDelay:    DefaultInitialDelaySeconds * time.Second,
+		MaxDelay:        DefaultMaxDelaySeconds * time.Second,
+		BackoffMultiple: DefaultBackoffMultiple,
 		Jitter:          true,
 	}
 }
@@ -40,6 +54,7 @@ type RetryableOperation func() error
 // WithRetry executes an operation with exponential backoff retry logic for transient Azure errors
 func WithRetry(ctx context.Context, logger log.Logger, operation string, config RetryConfig, op RetryableOperation) error {
 	startTime := time.Now()
+
 	var lastErr error
 
 	for attempt := 0; attempt <= config.MaxRetries; attempt++ {
@@ -55,6 +70,7 @@ func WithRetry(ctx context.Context, logger log.Logger, operation string, config 
 			if attempt > 0 {
 				logger.Infof("Operation %s succeeded on attempt %d", operation, attempt+1)
 			}
+
 			return nil
 		}
 
@@ -84,7 +100,6 @@ func WithRetry(ctx context.Context, logger log.Logger, operation string, config 
 			timer.Stop()
 			return fmt.Errorf("operation %s cancelled during retry delay: %w", operation, ctx.Err())
 		case <-timer.C:
-			// Continue to next retry
 		}
 	}
 
@@ -93,12 +108,7 @@ func WithRetry(ctx context.Context, logger log.Logger, operation string, config 
 	logger.Errorf("Operation %s failed after %d retries (elapsed: %v): %v",
 		operation, config.MaxRetries+1, totalElapsed, lastErr)
 
-	return tgerrors.New(MaxRetriesExceededError{
-		Underlying:   lastErr,
-		Operation:    operation,
-		MaxRetries:   config.MaxRetries,
-		TotalElapsed: totalElapsed,
-	})
+	return WrapMaxRetriesExceededError(lastErr, operation, config.MaxRetries, totalElapsed)
 }
 
 // IsRetryableError determines if an error represents a transient condition that should be retried
@@ -178,12 +188,12 @@ func CalculateDelay(attempt int, config RetryConfig) time.Duration {
 
 	// Add jitter to avoid thundering herd
 	if config.Jitter {
-		jitterRange := duration / 4 // 25% jitter
+		jitterRange := duration / JitterDivisor // 25% jitter
 		// Generate random jitter between 0 and jitterRange
 		nanoTime := time.Now().UnixNano()
-		jitterMultiplier := float64(nanoTime%1000) / 1000.0 // 0.0 to 1.0
+		jitterMultiplier := float64(nanoTime%JitterModulo) / JitterDivisorFloat64 // 0.0 to 1.0
 		jitter := time.Duration(float64(jitterRange) * jitterMultiplier)
-		duration = duration + jitter
+		duration += jitter
 	}
 
 	return duration
@@ -199,11 +209,7 @@ func WrapTransientError(err error, operation string) error {
 	statusCode := extractStatusCode(err.Error())
 
 	if IsRetryableError(err) {
-		return tgerrors.New(TransientAzureError{
-			Underlying: err,
-			Operation:  operation,
-			StatusCode: statusCode,
-		})
+		return WrapTransientAzureError(err, operation, statusCode)
 	}
 
 	return err
@@ -215,15 +221,19 @@ func extractStatusCode(errorStr string) int {
 	if strings.Contains(errorStr, "429") {
 		return http.StatusTooManyRequests
 	}
+
 	if strings.Contains(errorStr, "500") {
 		return http.StatusInternalServerError
 	}
+
 	if strings.Contains(errorStr, "502") {
 		return http.StatusBadGateway
 	}
+
 	if strings.Contains(errorStr, "503") {
 		return http.StatusServiceUnavailable
 	}
+
 	if strings.Contains(errorStr, "504") {
 		return http.StatusGatewayTimeout
 	}

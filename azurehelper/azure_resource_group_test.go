@@ -203,7 +203,6 @@ func TestResourceGroupNameValidation(t *testing.T) {
 
 // TestResourceGroupClientCreation tests the creation of resource group client with various inputs
 func TestResourceGroupClientCreation(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name                string
@@ -245,7 +244,6 @@ func TestResourceGroupClientCreation(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc // Capture range variable
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 
 			// Clear environment variables for this test
 			t.Setenv("AZURE_SUBSCRIPTION_ID", "")

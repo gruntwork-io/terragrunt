@@ -1,7 +1,6 @@
 package azurerm_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -221,7 +220,7 @@ func TestAzureTelemetryCollector_NilSafety(t *testing.T) {
 	collector := azurerm.NewAzureTelemetryCollector(nil, logger)
 	require.NotNil(t, collector)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := errors.New("test error")
 
 	// These should not panic with nil telemeter
@@ -245,7 +244,7 @@ func TestAzureTelemetryCollector_LogError(t *testing.T) {
 	logger := log.New()
 	collector := azurerm.NewAzureTelemetryCollector(nil, logger)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := errors.New("test authentication error")
 
 	// Test with minimal metrics
@@ -284,7 +283,7 @@ func TestAzureTelemetryCollector_LogOperation(t *testing.T) {
 	logger := log.New()
 	collector := azurerm.NewAzureTelemetryCollector(nil, logger)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test successful operation logging
 	collector.LogOperation(ctx, azurerm.OperationBootstrap, time.Second*2, map[string]interface{}{

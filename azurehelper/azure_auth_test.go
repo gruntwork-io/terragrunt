@@ -15,7 +15,6 @@ import (
 )
 
 func TestAzureEnvironmentVariables(t *testing.T) {
-	t.Parallel()
 
 	t.Setenv("AZURE_CLIENT_ID", "test-client-id")
 	t.Setenv("AZURE_CLIENT_SECRET", "test-client-secret")
@@ -41,7 +40,6 @@ func TestAzureEnvironmentVariables(t *testing.T) {
 }
 
 func TestAzureCredentialPriority(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name                   string
@@ -93,7 +91,6 @@ func TestAzureCredentialPriority(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			t.Setenv("AZURE_CLIENT_ID", tc.azureClientID)
 			t.Setenv("AZURE_SUBSCRIPTION_ID", tc.azureSubscriptionID)
 			t.Setenv("ARM_CLIENT_ID", tc.armClientID)
@@ -124,7 +121,6 @@ func TestAzureCredentialPriority(t *testing.T) {
 }
 
 func TestGetAzureCredentialsPriority(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name                   string
@@ -209,7 +205,6 @@ func TestGetAzureCredentialsPriority(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			if tc.azureSubscriptionID != "" {
 				t.Setenv("AZURE_SUBSCRIPTION_ID", tc.azureSubscriptionID)
 			}
@@ -241,7 +236,6 @@ func TestGetAzureCredentialsPriority(t *testing.T) {
 }
 
 func TestAzureCredentialEnvironmentVariables(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name                   string
@@ -316,7 +310,6 @@ func TestAzureCredentialEnvironmentVariables(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			for key, val := range tc.setupEnvVars {
 				t.Setenv(key, val)
 			}
@@ -334,7 +327,6 @@ func TestAzureCredentialEnvironmentVariables(t *testing.T) {
 }
 
 func TestAzureSafeConfiguration(t *testing.T) {
-	t.Parallel()
 
 	testCases := []struct {
 		name              string
@@ -364,7 +356,6 @@ func TestAzureSafeConfiguration(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			for k, v := range tc.envVars {
 				t.Setenv(k, v)
 			}

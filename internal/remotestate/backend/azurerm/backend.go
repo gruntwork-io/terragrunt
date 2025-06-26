@@ -83,7 +83,7 @@ func NewBackend() *Backend {
 // Bootstrap creates the Azure Storage container if it doesn't exist.
 func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	startTime := time.Now()
-	tel := backend.getTelemetry(l, opts)
+	tel := backend.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -92,6 +92,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationBootstrap,
 		})
+
 		return err
 	}
 
@@ -104,6 +105,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			ResourceType:   "container",
 			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
 		})
+
 		return err
 	}
 
@@ -178,6 +180,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			Operation:      OperationBootstrap,
 			AuthMethod:     "none",
 		})
+
 		return err
 	}
 
@@ -195,6 +198,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
 			"status":          "already_initialized",
 		})
+
 		return nil
 	}
 
@@ -206,6 +210,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			Operation:      OperationBootstrap,
 			ResourceType:   "blob_service_client",
 		})
+
 		return err
 	}
 
@@ -220,6 +225,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 				Operation:      OperationBootstrap,
 				ResourceType:   "subscription",
 			})
+
 			return err
 		}
 
@@ -231,6 +237,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 				Operation:      OperationBootstrap,
 				ResourceType:   "location",
 			})
+
 			return err
 		}
 
@@ -239,6 +246,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		err = WithRetry(ctx, l, "storage account bootstrap", retryConfig, func() error {
 			return backend.bootstrapStorageAccount(ctx, l, opts, azureCfg)
 		})
+
 		if err != nil {
 			wrappedErr := WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 			tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
@@ -250,6 +258,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 				SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
 				Location:       azureCfg.StorageAccountConfig.Location,
 			})
+
 			return wrappedErr
 		}
 	}
@@ -262,8 +271,10 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			// Wrap as transient error if it matches patterns
 			return WrapTransientError(createErr, "container creation")
 		}
+
 		return nil
 	})
+
 	if err != nil {
 		wrappedErr := WrapContainerError(err, azureCfg.RemoteStateConfigAzurerm.ContainerName)
 		tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
@@ -274,6 +285,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
 			SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
 		})
+
 		return wrappedErr
 	}
 
@@ -294,7 +306,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 // NeedsBootstrap checks if Azure Storage container needs initialization.
 func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
 	startTime := time.Now()
-	tel := backend.getTelemetry(l, opts)
+	tel := backend.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -303,6 +315,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationNeedsBootstrap,
 		})
+
 		return false, err
 	}
 
@@ -315,6 +328,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 			"needs_bootstrap": false,
 			"reason":          "already_initialized",
 		})
+
 		return false, nil
 	}
 
@@ -326,6 +340,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 			Operation:      OperationNeedsBootstrap,
 			ResourceType:   "blob_service_client",
 		})
+
 		return false, err
 	}
 
@@ -339,11 +354,13 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 			"needs_bootstrap": true,
 			"reason":          "create_storage_account_requested",
 		})
+
 		return true, nil
 	}
 
 	// Check if container exists with retry logic
 	var containerExists bool
+
 	retryConfig := DefaultRetryConfig()
 	err = WithRetry(ctx, l, "container existence check", retryConfig, func() error {
 		exists, existsErr := client.ContainerExists(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
@@ -360,7 +377,9 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 			// Wrap as transient error if it matches patterns
 			return WrapTransientError(existsErr, "container existence check")
 		}
+
 		containerExists = exists
+
 		return nil
 	})
 
@@ -372,6 +391,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 			ResourceType:   "container",
 			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
 		})
+
 		return false, err
 	}
 
@@ -395,7 +415,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 // Delete deletes the remote state file from Azure Storage.
 func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	startTime := time.Now()
-	tel := backend.getTelemetry(l, opts)
+	tel := backend.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -404,6 +424,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationDelete,
 		})
+
 		return err
 	}
 
@@ -416,6 +437,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 			Classification: ErrorClassUserInput,
 			Operation:      OperationDelete,
 		})
+
 		return err
 	}
 
@@ -426,6 +448,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 			"blob_key":  azureCfg.RemoteStateConfigAzurerm.Key,
 			"status":    "cancelled_by_user",
 		})
+
 		return nil
 	}
 
@@ -437,6 +460,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 			Operation:      OperationDelete,
 			ResourceType:   "blob_service_client",
 		})
+
 		return err
 	}
 
@@ -447,6 +471,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		if deleteErr != nil {
 			return WrapTransientError(deleteErr, "blob deletion")
 		}
+
 		return nil
 	})
 
@@ -459,6 +484,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 			ResourceName:   azureCfg.RemoteStateConfigAzurerm.Key,
 			SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
 		})
+
 		return err
 	}
 
@@ -476,7 +502,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 // DeleteBucket deletes the entire Azure Storage container.
 func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	startTime := time.Now()
-	tel := backend.getTelemetry(l, opts)
+	tel := backend.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -485,6 +511,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationDeleteBucket,
 		})
+
 		return err
 	}
 
@@ -497,6 +524,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 			Classification: ErrorClassUserInput,
 			Operation:      OperationDeleteBucket,
 		})
+
 		return err
 	}
 
@@ -506,6 +534,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 			"container": azureCfg.RemoteStateConfigAzurerm.ContainerName,
 			"status":    "cancelled_by_user",
 		})
+
 		return nil
 	}
 
@@ -517,6 +546,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 			Operation:      OperationDeleteBucket,
 			ResourceType:   "blob_service_client",
 		})
+
 		return err
 	}
 
@@ -527,6 +557,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 		if deleteErr != nil {
 			return WrapTransientError(deleteErr, "container deletion")
 		}
+
 		return nil
 	})
 
@@ -539,6 +570,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
 			SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
 		})
+
 		return err
 	}
 
@@ -584,15 +616,20 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 	srcKey := srcCfg.RemoteStateConfigAzurerm.Key
 
 	retryConfig := DefaultRetryConfig()
+
 	var exists bool
+
 	err = WithRetry(ctx, l, "source container existence check", retryConfig, func() error {
 		containerExists, existsErr := srcClient.ContainerExists(ctx, srcContainer)
 		if existsErr != nil {
 			return WrapTransientError(existsErr, "source container existence check")
 		}
+
 		exists = containerExists
+
 		return nil
 	})
+
 	if err != nil {
 		return fmt.Errorf("error checking source container existence: %w", err)
 	}
@@ -609,6 +646,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		if createErr != nil {
 			return WrapTransientError(createErr, "destination container creation")
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -621,6 +659,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		if copyErr != nil {
 			return WrapTransientError(copyErr, "state file copy")
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -638,6 +677,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		if getObjectErr != nil {
 			return WrapTransientError(getObjectErr, "destination state file verification")
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -650,6 +690,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		if deleteErr != nil {
 			return WrapTransientError(deleteErr, "source state file deletion")
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -763,7 +804,6 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 		ResourceGroupName:     azureCfg.StorageAccountConfig.ResourceGroupName,
 		StorageAccountName:    azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 		Location:              azureCfg.StorageAccountConfig.Location,
-		EnableHierarchicalNS:  azureCfg.StorageAccountConfig.EnableHierarchicalNS,
 		EnableVersioning:      azureCfg.StorageAccountConfig.EnableVersioning,
 		AllowBlobPublicAccess: azureCfg.StorageAccountConfig.AllowBlobPublicAccess,
 		AccountKind:           azureCfg.StorageAccountConfig.AccountKind,
@@ -834,7 +874,7 @@ func (backend *Backend) GetTFInitArgs(backendConfig backend.Config) map[string]a
 }
 
 // initTelemetry initializes the telemetry collector if available
-func (backend *Backend) initTelemetry(l log.Logger, opts *options.TerragruntOptions) {
+func (backend *Backend) initTelemetry(l log.Logger) {
 	if backend.telemetry == nil {
 		// For now, we'll create a simple telemetry collector without telemeter integration
 		// This can be enhanced later when we have better access to the telemeter instance
@@ -846,7 +886,7 @@ func (backend *Backend) initTelemetry(l log.Logger, opts *options.TerragruntOpti
 }
 
 // getTelemetry returns the telemetry collector, initializing it if needed
-func (backend *Backend) getTelemetry(l log.Logger, opts *options.TerragruntOptions) *AzureTelemetryCollector {
-	backend.initTelemetry(l, opts)
+func (backend *Backend) getTelemetry(l log.Logger) *AzureTelemetryCollector {
+	backend.initTelemetry(l)
 	return backend.telemetry
 }

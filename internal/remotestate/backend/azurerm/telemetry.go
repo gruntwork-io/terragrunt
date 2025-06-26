@@ -59,23 +59,23 @@ const (
 	OperationAuthentication OperationType = "authentication"
 )
 
-// AzureErrorMetrics contains metrics and context about Azure errors
-type AzureErrorMetrics struct {
-	ErrorType      string                 `json:"error_type"`
-	Classification ErrorClassification    `json:"classification"`
-	Operation      OperationType          `json:"operation"`
-	ResourceType   string                 `json:"resource_type,omitempty"`
-	ResourceName   string                 `json:"resource_name,omitempty"`
-	SubscriptionID string                 `json:"subscription_id,omitempty"`
-	Location       string                 `json:"location,omitempty"`
-	AuthMethod     string                 `json:"auth_method,omitempty"`
-	StatusCode     int                    `json:"status_code,omitempty"`
-	RetryAttempts  int                    `json:"retry_attempts,omitempty"`
-	Duration       time.Duration          `json:"duration,omitempty"`
-	IsRetryable    bool                   `json:"is_retryable"`
-	ErrorMessage   string                 `json:"error_message"`
-	StackTrace     string                 `json:"stack_trace,omitempty"`
-	Additional     map[string]interface{} `json:"additional,omitempty"`
+// AzureErrorMetrics is the metrics and context about Azure errors
+type AzureErrorMetrics struct { // nolint: govet
+	Additional     map[string]interface{} `json:"additional,omitempty"`      // 8-byte aligned (map)
+	Duration       time.Duration          `json:"duration,omitempty"`        // 8-byte aligned (int64)
+	ErrorType      string                 `json:"error_type"`                // 8-byte aligned (string)
+	Classification ErrorClassification    `json:"classification"`            // 8-byte aligned (string)
+	Operation      OperationType          `json:"operation"`                 // 8-byte aligned (string)
+	ResourceType   string                 `json:"resource_type,omitempty"`   // 8-byte aligned (string)
+	ResourceName   string                 `json:"resource_name,omitempty"`   // 8-byte aligned (string)
+	SubscriptionID string                 `json:"subscription_id,omitempty"` // 8-byte aligned (string)
+	Location       string                 `json:"location,omitempty"`        // 8-byte aligned (string)
+	AuthMethod     string                 `json:"auth_method,omitempty"`     // 8-byte aligned (string)
+	ErrorMessage   string                 `json:"error_message"`             // 8-byte aligned (string)
+	StackTrace     string                 `json:"stack_trace,omitempty"`     // 8-byte aligned (string)
+	StatusCode     int                    `json:"status_code,omitempty"`     // 4-byte aligned (int)
+	RetryAttempts  int                    `json:"retry_attempts,omitempty"`  // 4-byte aligned (int)
+	IsRetryable    bool                   `json:"is_retryable"`              // 1-byte aligned (bool)
 }
 
 // ClassifyError determines the classification of an Azure error for telemetry purposes
@@ -104,6 +104,7 @@ func ClassifyError(err error) ErrorClassification {
 		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "does not exist") {
 			return ErrorClassResourceNotFound
 		}
+
 		return ErrorClassStorage
 	}
 
@@ -112,9 +113,11 @@ func ClassifyError(err error) ErrorClassification {
 		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "does not exist") {
 			return ErrorClassResourceNotFound
 		}
+
 		if strings.Contains(errStr, "validation") || strings.Contains(errStr, "invalid") {
 			return ErrorClassValidation
 		}
+
 		return ErrorClassContainer
 	}
 
@@ -158,9 +161,11 @@ func (atc *AzureTelemetryCollector) LogError(ctx context.Context, err error, ope
 	if metrics.Classification == "" {
 		metrics.Classification = ClassifyError(err)
 	}
+
 	if metrics.Operation == "" {
 		metrics.Operation = operation
 	}
+
 	if metrics.ErrorMessage == "" {
 		metrics.ErrorMessage = err.Error()
 	}
@@ -178,24 +183,31 @@ func (atc *AzureTelemetryCollector) LogError(ctx context.Context, err error, ope
 	if metrics.ResourceType != "" {
 		logFields["resource_type"] = metrics.ResourceType
 	}
+
 	if metrics.ResourceName != "" {
 		logFields["resource_name"] = metrics.ResourceName
 	}
+
 	if metrics.SubscriptionID != "" {
 		logFields["subscription_id"] = MaskSubscriptionID(metrics.SubscriptionID)
 	}
+
 	if metrics.Location != "" {
 		logFields["location"] = metrics.Location
 	}
+
 	if metrics.AuthMethod != "" {
 		logFields["auth_method"] = metrics.AuthMethod
 	}
+
 	if metrics.StatusCode > 0 {
 		logFields["status_code"] = metrics.StatusCode
 	}
+
 	if metrics.RetryAttempts > 0 {
 		logFields["retry_attempts"] = metrics.RetryAttempts
 	}
+
 	if metrics.Duration > 0 {
 		logFields["duration_ms"] = metrics.Duration.Milliseconds()
 	}
@@ -227,7 +239,7 @@ func (atc *AzureTelemetryCollector) LogError(ctx context.Context, err error, ope
 
 	// Collect telemetry if telemeter is available
 	if atc.telemeter != nil {
-		atc.collectErrorTelemetry(ctx, metrics, logFields)
+		atc.collectErrorTelemetry(ctx, metrics)
 	}
 }
 
@@ -253,7 +265,7 @@ func (atc *AzureTelemetryCollector) LogOperation(ctx context.Context, operation 
 }
 
 // collectErrorTelemetry sends error metrics to the telemetry system
-func (atc *AzureTelemetryCollector) collectErrorTelemetry(ctx context.Context, metrics AzureErrorMetrics, logFields map[string]interface{}) {
+func (atc *AzureTelemetryCollector) collectErrorTelemetry(ctx context.Context, metrics AzureErrorMetrics) {
 	telemetryAttrs := map[string]any{
 		"error_classification": string(metrics.Classification),
 		"operation_type":       string(metrics.Operation),
@@ -265,15 +277,19 @@ func (atc *AzureTelemetryCollector) collectErrorTelemetry(ctx context.Context, m
 	if metrics.ResourceType != "" {
 		telemetryAttrs["resource_type"] = metrics.ResourceType
 	}
+
 	if metrics.Location != "" {
 		telemetryAttrs["location"] = metrics.Location
 	}
+
 	if metrics.AuthMethod != "" {
 		telemetryAttrs["auth_method"] = metrics.AuthMethod
 	}
+
 	if metrics.StatusCode > 0 {
 		telemetryAttrs["status_code"] = metrics.StatusCode
 	}
+
 	if metrics.RetryAttempts > 0 {
 		telemetryAttrs["retry_attempts"] = metrics.RetryAttempts
 	}
@@ -308,27 +324,32 @@ func (atc *AzureTelemetryCollector) collectOperationTelemetry(ctx context.Contex
 
 // Helper functions
 
-// maskSubscriptionID masks part of the subscription ID for privacy
+// MaskSubscriptionID masks part of the subscription ID for privacy
+// nolint: mnd
 func MaskSubscriptionID(subscriptionID string) string {
 	if len(subscriptionID) < 8 {
 		return "****"
 	}
+
 	return subscriptionID[:4] + "****" + subscriptionID[len(subscriptionID)-4:]
 }
 
-// formatLogMessage creates a human-readable log message with structured data
+// FormatLogMessage creates a human-readable log message with structured data
 func FormatLogMessage(metrics AzureErrorMetrics, fields map[string]interface{}) string {
 	var parts []string
 
 	if metrics.Operation != "" {
 		parts = append(parts, fmt.Sprintf("operation=%s", metrics.Operation))
 	}
+
 	if metrics.ResourceType != "" && metrics.ResourceName != "" {
 		parts = append(parts, fmt.Sprintf("resource=%s/%s", metrics.ResourceType, metrics.ResourceName))
 	}
+
 	if metrics.StatusCode > 0 {
 		parts = append(parts, fmt.Sprintf("status=%d", metrics.StatusCode))
 	}
+
 	if metrics.RetryAttempts > 0 {
 		parts = append(parts, fmt.Sprintf("retries=%d", metrics.RetryAttempts))
 	}
@@ -341,7 +362,7 @@ func FormatLogMessage(metrics AzureErrorMetrics, fields map[string]interface{}) 
 	return message
 }
 
-// formatSuccessMessage creates a human-readable success log message
+// FormatSuccessMessage creates a human-readable success log message
 func FormatSuccessMessage(operation OperationType, fields map[string]interface{}) string {
 	var parts []string
 
@@ -357,7 +378,7 @@ func FormatSuccessMessage(operation OperationType, fields map[string]interface{}
 	return message
 }
 
-// isSensitiveAttribute checks if an attribute contains sensitive information
+// IsSensitiveAttribute checks if an attribute contains sensitive information
 func IsSensitiveAttribute(key string) bool {
 	sensitiveKeys := []string{
 		"subscription_id", "client_id", "client_secret", "tenant_id",
@@ -370,5 +391,6 @@ func IsSensitiveAttribute(key string) bool {
 			return true
 		}
 	}
+
 	return false
 }

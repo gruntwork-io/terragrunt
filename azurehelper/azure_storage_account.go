@@ -63,14 +63,12 @@ type StorageAccountConfig struct {
 
 	// Boolean fields at the end
 	AllowBlobPublicAccess bool // Whether to allow public access to blobs (not recommended)
-	EnableHierarchicalNS  bool // Whether to enable hierarchical namespace (for ADLS Gen2)
 	EnableVersioning      bool // Whether to enable blob versioning
 }
 
 // DefaultStorageAccountConfig returns the default configuration for a storage account
 func DefaultStorageAccountConfig() StorageAccountConfig {
 	return StorageAccountConfig{
-		EnableHierarchicalNS:  false,
 		EnableVersioning:      true, // Blob versioning enabled by default
 		AllowBlobPublicAccess: false,
 		AccountKind:           "StorageV2",
@@ -414,7 +412,6 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 	parameters.Properties = &armstorage.AccountPropertiesCreateParameters{
 		EnableHTTPSTrafficOnly: to.Ptr(true),
 		MinimumTLSVersion:      to.Ptr(armstorage.MinimumTLSVersionTLS12),
-		IsHnsEnabled:           to.Ptr(config.EnableHierarchicalNS),
 		AllowBlobPublicAccess:  to.Ptr(config.AllowBlobPublicAccess),
 		AccessTier:             accessTier,
 		// Add more properties as needed based on your requirements

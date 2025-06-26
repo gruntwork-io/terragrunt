@@ -5,9 +5,10 @@ package azurerm
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
-	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // MissingRequiredAzureRemoteStateConfig represents a missing required configuration parameter for Azure remote state.
@@ -193,11 +194,11 @@ func (err TransientAzureError) Unwrap() error {
 func (err TransientAzureError) IsRetryable() bool {
 	// Common transient HTTP status codes
 	switch err.StatusCode {
-	case 429, // Too Many Requests
-		500, // Internal Server Error
-		502, // Bad Gateway
-		503, // Service Unavailable
-		504: // Gateway Timeout
+	case http.StatusTooManyRequests, // 429 - Too Many Requests
+		http.StatusInternalServerError, // 500 - Internal Server Error
+		http.StatusBadGateway,          // 502 - Bad Gateway
+		http.StatusServiceUnavailable,  // 503 - Service Unavailable
+		http.StatusGatewayTimeout:      // 504 - Gateway Timeout
 		return true
 	default:
 		return false
@@ -229,7 +230,8 @@ func WrapStorageAccountError(err error, storageAccountName string) error {
 	if err == nil {
 		return nil
 	}
-	return tgerrors.New(StorageAccountCreationError{
+
+	return errors.New(StorageAccountCreationError{
 		Underlying:         err,
 		StorageAccountName: storageAccountName,
 	})
@@ -240,7 +242,8 @@ func WrapContainerError(err error, containerName string) error {
 	if err == nil {
 		return nil
 	}
-	return tgerrors.New(ContainerCreationError{
+
+	return errors.New(ContainerCreationError{
 		Underlying:    err,
 		ContainerName: containerName,
 	})
@@ -251,7 +254,8 @@ func WrapAuthenticationError(err error, authMethod string) error {
 	if err == nil {
 		return nil
 	}
-	return tgerrors.New(AuthenticationError{
+
+	return errors.New(AuthenticationError{
 		Underlying: err,
 		AuthMethod: authMethod,
 	})
@@ -262,7 +266,8 @@ func WrapContainerDoesNotExistError(err error, containerName string) error {
 	if err == nil {
 		return nil
 	}
-	return tgerrors.New(ContainerDoesNotExist{
+
+	return errors.New(ContainerDoesNotExist{
 		Underlying:    err,
 		ContainerName: containerName,
 	})
@@ -270,70 +275,28 @@ func WrapContainerDoesNotExistError(err error, containerName string) error {
 
 // WrapConfigMissingError creates a MissingRequiredAzureRemoteStateConfig error
 func WrapConfigMissingError(configName string) error {
-	return tgerrors.New(MissingRequiredAzureRemoteStateConfig(configName))
+	return errors.New(MissingRequiredAzureRemoteStateConfig(configName))
 }
 
 // WrapContainerValidationError creates a ContainerValidationError with the given validation issue
 func WrapContainerValidationError(validationIssue string) error {
-	return tgerrors.New(ContainerValidationError{
+	return errors.New(ContainerValidationError{
 		ValidationIssue: validationIssue,
 	})
 }
 
 // WrapNonInteractiveDeleteError creates a NonInteractiveDeleteRestrictionError
 func WrapNonInteractiveDeleteError(storageAccountName string) error {
-	return tgerrors.New(NonInteractiveDeleteRestrictionError{
+	return errors.New(NonInteractiveDeleteRestrictionError{
 		StorageAccountName: storageAccountName,
 	})
 }
 
 // WrapIncompleteServicePrincipalError creates an IncompleteServicePrincipalConfigError
 func WrapIncompleteServicePrincipalError(missingFields []string) error {
-	return tgerrors.New(IncompleteServicePrincipalConfigError{
+	return errors.New(IncompleteServicePrincipalConfigError{
 		MissingFields: missingFields,
 	})
-}
-
-// Helper functions for common singleton errors (errors without parameters)
-
-// NewMissingSubscriptionIDError creates a new MissingSubscriptionIDError
-func NewMissingSubscriptionIDError() error {
-	return tgerrors.New(MissingSubscriptionIDError{})
-}
-
-// NewMissingLocationError creates a new MissingLocationError
-func NewMissingLocationError() error {
-	return tgerrors.New(MissingLocationError{})
-}
-
-// NewNoValidAuthMethodError creates a new NoValidAuthMethodError
-func NewNoValidAuthMethodError() error {
-	return tgerrors.New(NoValidAuthMethodError{})
-}
-
-// NewMissingResourceGroupError creates a new MissingResourceGroupError
-func NewMissingResourceGroupError() error {
-	return tgerrors.New(MissingResourceGroupError{})
-}
-
-// NewServicePrincipalMissingSubscriptionIDError creates a new ServicePrincipalMissingSubscriptionIDError
-func NewServicePrincipalMissingSubscriptionIDError() error {
-	return tgerrors.New(ServicePrincipalMissingSubscriptionIDError{})
-}
-
-// NewMultipleAuthMethodsSpecifiedError creates a new MultipleAuthMethodsSpecifiedError
-func NewMultipleAuthMethodsSpecifiedError() error {
-	return tgerrors.New(MultipleAuthMethodsSpecifiedError{})
-}
-
-// Helper functions for Azure-specific error patterns
-
-// WrapAzureAuthError wraps Azure authentication errors with context about auth method
-func WrapAzureAuthError(err error, authMethod string) error {
-	if err == nil {
-		return nil
-	}
-	return WrapAuthenticationError(err, authMethod)
 }
 
 // WrapAzureClientError wraps errors from Azure client creation with appropriate context
@@ -351,4 +314,63 @@ func WrapAzureClientError(err error, clientType, resourceName string) error {
 	default:
 		return err
 	}
+}
+
+// WrapTransientAzureError wraps an error as a TransientAzureError with context
+func WrapTransientAzureError(err error, operation string, statusCode int) error {
+	if err == nil {
+		return nil
+	}
+
+	return errors.New(TransientAzureError{
+		Underlying: err,
+		Operation:  operation,
+		StatusCode: statusCode,
+	})
+}
+
+// WrapMaxRetriesExceededError wraps an error as a MaxRetriesExceededError with context
+func WrapMaxRetriesExceededError(err error, operation string, maxRetries int, totalElapsed time.Duration) error {
+	if err == nil {
+		return nil
+	}
+
+	return errors.New(MaxRetriesExceededError{
+		Underlying:   err,
+		Operation:    operation,
+		MaxRetries:   maxRetries,
+		TotalElapsed: totalElapsed,
+	})
+}
+
+// Helper functions for common singleton errors (errors without parameters)
+
+// NewMissingSubscriptionIDError creates a new MissingSubscriptionIDError
+func NewMissingSubscriptionIDError() error {
+	return errors.New(MissingSubscriptionIDError{})
+}
+
+// NewMissingLocationError creates a new MissingLocationError
+func NewMissingLocationError() error {
+	return errors.New(MissingLocationError{})
+}
+
+// NewNoValidAuthMethodError creates a new NoValidAuthMethodError
+func NewNoValidAuthMethodError() error {
+	return errors.New(NoValidAuthMethodError{})
+}
+
+// NewMissingResourceGroupError creates a new MissingResourceGroupError
+func NewMissingResourceGroupError() error {
+	return errors.New(MissingResourceGroupError{})
+}
+
+// NewServicePrincipalMissingSubscriptionIDError creates a new ServicePrincipalMissingSubscriptionIDError
+func NewServicePrincipalMissingSubscriptionIDError() error {
+	return errors.New(ServicePrincipalMissingSubscriptionIDError{})
+}
+
+// NewMultipleAuthMethodsSpecifiedError creates a new MultipleAuthMethodsSpecifiedError
+func NewMultipleAuthMethodsSpecifiedError() error {
+	return errors.New(MultipleAuthMethodsSpecifiedError{})
 }
