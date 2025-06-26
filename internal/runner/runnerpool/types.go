@@ -42,10 +42,10 @@ type Result struct {
 // TaskRunner defines a function type that executes a Task within a given context and returns a Result.
 type TaskRunner func(ctx context.Context, t *Task) Result
 
-// Status represents the lifecycle state of a Task, following the
+// Status represents the lifecycle State of a Task, following the
 // naming described in the Async Queue Planning RFC.
 //
-// [*] StatusPending         – entry created, dependencies not yet evaluated
+// [*] StatusPending         – Entry created, dependencies not yet evaluated
 // [*] StatusBlocked         – waiting on at least one dependency
 // [*] StatusReady           – all deps resolved, waiting for a pool slot
 // [*] StatusRunning         – actively executing in a Worker
@@ -67,11 +67,11 @@ const (
 	StatusFailFast
 )
 
-// entry is an internal struct used to track the execution state of a Task, its dependencies, and dependents within the runner pool.
-type entry struct {
-	result        Result
-	task          *Task
-	dependents    []*entry
-	state         Status
-	remainingDeps int
+// Entry is an internal struct used to track the execution State of a Task, its dependencies, and Dependents within the runner pool.
+type Entry struct {
+	Result        Result
+	Task          *Task
+	Dependents    []*Entry
+	State         Status
+	RemainingDeps int
 }

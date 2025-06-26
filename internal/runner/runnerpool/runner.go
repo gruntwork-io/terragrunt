@@ -160,12 +160,12 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	pool := New(r.Stack.Units, taskRun, maxConc, failFast)
 
 	//------------------------------------------------------------------
-	// 4. Execute the pool and gather results
+	// 4. Execute the pool and gather Results
 	//------------------------------------------------------------------
 	results := pool.Run(ctx, l)
 
 	//------------------------------------------------------------------
-	// 5. Reduce results into a single error (preserve old behaviour)
+	// 5. Reduce Results into a single error (preserve old behaviour)
 	//------------------------------------------------------------------
 	var allErrs []error
 
@@ -263,14 +263,14 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 }
 
 // We inspect the error streams to give an explicit message if the plan failed because there were references to
-// remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
+// remote states. `terraform plan` will fail if it tries to access remote State from dependencies and the plan
 // has never been applied on the dependency.
 func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
 
 		if len(output) == 0 {
-			// We get empty buffer if runner execution completed without errors, so skip that to avoid logging too much
+			// We get Empty buffer if runner execution completed without errors, so skip that to avoid logging too much
 			continue
 		}
 
@@ -280,7 +280,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", r.Stack.Units[i].Config.Dependencies.Paths)
 			}
 
-			l.Infof("%v%v refers to remote state "+
+			l.Infof("%v%v refers to remote State "+
 				"you may have to apply your changes in the dependencies prior running terragrunt run --all plan.\n",
 				r.Stack.Units[i].Path,
 				dependenciesMsg,

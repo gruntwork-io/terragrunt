@@ -12,7 +12,7 @@ import (
 
 // RunnerPool orchestrates concurrent execution over a DAG.
 type RunnerPool struct {
-	q           *dagQueue
+	q           *DagQueue
 	runner      TaskRunner
 	concurrency int
 	failFast    bool
@@ -25,31 +25,31 @@ func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *Runne
 	}
 
 	return &RunnerPool{
-		q:           buildQueue(units, failFast),
+		q:           BuildQueue(units, failFast),
 		runner:      r,
 		concurrency: maxConc,
 		failFast:    failFast,
 	}
 }
 
-// Run blocks until the DAG finishes and returns ordered results.
+// Run blocks until the DAG finishes and returns ordered Results.
 func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 	var (
 		wg  sync.WaitGroup
 		sem = make(chan struct{}, p.concurrency)
 	)
 
-	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t", len(p.q.ordered), p.concurrency, p.failFast)
+	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t", len(p.q.Ordered), p.concurrency, p.failFast)
 
 	for {
-		ready := p.q.getReady()
+		ready := p.q.GetReady()
 		if len(ready) == 0 {
-			if p.q.empty() {
-				l.Debugf("RunnerPool: queue is empty, breaking loop")
+			if p.q.Empty() {
+				l.Debugf("RunnerPool: queue is Empty, breaking loop")
 				break
 			}
 
-			l.Tracef("RunnerPool: no ready tasks, yielding (queue not empty)")
+			l.Tracef("RunnerPool: no ready tasks, yielding (queue not Empty)")
 			runtime.Gosched()
 
 			continue
@@ -58,24 +58,24 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 		l.Debugf("RunnerPool: found %d ready tasks", len(ready))
 
 		for _, e := range ready {
-			l.Debugf("Running task %s with %d remaining dependencies", e.task.ID(), e.remainingDeps)
+			l.Debugf("Running Task %s with %d remaining dependencies", e.Task.ID(), e.RemainingDeps)
 			sem <- struct{}{}
 
 			wg.Add(1)
 
-			go func(ent *entry) {
+			go func(ent *Entry) {
 				defer func() {
 					<-sem
 					wg.Done()
 				}()
 
-				ent.result = p.runner(ctx, ent.task)
-				p.q.markDone(ent, p.failFast)
+				ent.Result = p.runner(ctx, ent.Task)
+				p.q.MarkDone(ent, p.failFast)
 			}(e)
 		}
 	}
 
 	wg.Wait()
 
-	return p.q.results()
+	return p.q.Results()
 }

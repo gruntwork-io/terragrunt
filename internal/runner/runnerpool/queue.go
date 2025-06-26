@@ -15,44 +15,44 @@ var (
 	ErrSkippedAncestorFailed = errors.New("skipped due to ancestor failure")
 )
 
-// dagQueue holds task nodes and tracks their dependency state in a
-// concurrency‑safe way. Each child keeps a `remainingDeps` counter so we never
+// DagQueue holds Task nodes and tracks their dependency State in a
+// concurrency‑safe way. Each child keeps a `RemainingDeps` counter so we never
 // rescan the whole map when a parent finishes.
-type dagQueue struct {
-	index    map[string]*entry
-	ordered  []*entry
+type DagQueue struct {
+	Index    map[string]*Entry
+	Ordered  []*Entry
 	mu       sync.Mutex
 	failFast bool
 }
 
-func buildQueue(units []*runbase.Unit, failFast bool) *dagQueue {
-	q := &dagQueue{
-		index:    make(map[string]*entry, len(units)),
-		ordered:  make([]*entry, 0, len(units)),
+func BuildQueue(units []*runbase.Unit, failFast bool) *DagQueue {
+	q := &DagQueue{
+		Index:    make(map[string]*Entry, len(units)),
+		Ordered:  make([]*Entry, 0, len(units)),
 		failFast: failFast,
 	}
 
 	// 1. create entries
 	for _, u := range units {
-		e := &entry{task: taskFromUnit(u), state: StatusPending}
-		q.index[e.task.ID()] = e
-		q.ordered = append(q.ordered, e)
+		e := &Entry{Task: taskFromUnit(u), State: StatusPending}
+		q.Index[e.Task.ID()] = e
+		q.Ordered = append(q.Ordered, e)
 	}
 
-	// 2. wire dependencies and dependents, set initial status / counters
-	for _, e := range q.ordered {
-		parents := e.task.Parents()
-		e.remainingDeps = len(parents)
+	// 2. wire dependencies and Dependents, set initial status / counters
+	for _, e := range q.Ordered {
+		parents := e.Task.Parents()
+		e.RemainingDeps = len(parents)
 
-		if e.remainingDeps == 0 {
-			e.state = StatusReady
+		if e.RemainingDeps == 0 {
+			e.State = StatusReady
 		} else {
-			e.state = StatusBlocked
+			e.State = StatusBlocked
 		}
 
 		for _, pid := range parents {
-			if p, ok := q.index[pid]; ok {
-				p.dependents = append(p.dependents, e)
+			if p, ok := q.Index[pid]; ok {
+				p.Dependents = append(p.Dependents, e)
 			}
 		}
 	}
@@ -60,20 +60,16 @@ func buildQueue(units []*runbase.Unit, failFast bool) *dagQueue {
 	return q
 }
 
-// -----------------------------------------------------------------------------
-// Scheduling helpers
-// -----------------------------------------------------------------------------
-
-// getReady returns up to max ready entries, respecting the original order.
-func (q *dagQueue) getReady() []*entry {
+// GetReady returns up to max ready entries, respecting the original order.
+func (q *DagQueue) GetReady() []*Entry {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	out := make([]*entry, 0, len(q.ordered))
+	out := make([]*Entry, 0, len(q.Ordered))
 
-	for _, e := range q.ordered {
-		if e.state == StatusReady {
-			e.state = StatusRunning
+	for _, e := range q.Ordered {
+		if e.State == StatusReady {
+			e.State = StatusRunning
 			out = append(out, e)
 		}
 	}
@@ -81,25 +77,25 @@ func (q *dagQueue) getReady() []*entry {
 	return out
 }
 
-// markDone records the result, unblocks children, and handles fail-fast.
-func (q *dagQueue) markDone(e *entry, failFast bool) {
+// MarkDone records the Result, unblocks children, and handles fail-fast.
+func (q *DagQueue) MarkDone(e *Entry, failFast bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	if e.state != StatusRunning {
+	if e.State != StatusRunning {
 		return // double call safeguard
 	}
 
-	if e.result.ExitCode == 0 && e.result.Err == nil {
-		e.state = StatusSucceeded
+	if e.Result.ExitCode == 0 && e.Result.Err == nil {
+		e.State = StatusSucceeded
 	} else {
-		e.state = StatusFailed
+		e.State = StatusFailed
 
 		if failFast {
-			for _, n := range q.ordered {
-				switch n.state {
+			for _, n := range q.Ordered {
+				switch n.State {
 				case StatusPending, StatusBlocked, StatusReady:
-					n.state = StatusFailFast
+					n.State = StatusFailFast
 				case StatusRunning, StatusSucceeded, StatusFailed, StatusAncestorFailed, StatusFailFast:
 					// no op
 					continue
@@ -108,30 +104,30 @@ func (q *dagQueue) markDone(e *entry, failFast bool) {
 		}
 	}
 
-	success := e.state == StatusSucceeded
+	success := e.State == StatusSucceeded
 
-	for _, child := range e.dependents {
+	for _, child := range e.Dependents {
 		switch {
 		case success:
-			child.remainingDeps--
-			if child.remainingDeps == 0 && child.state == StatusBlocked {
-				child.state = StatusReady
+			child.RemainingDeps--
+			if child.RemainingDeps == 0 && child.State == StatusBlocked {
+				child.State = StatusReady
 			}
 		default:
-			if child.state == StatusPending || child.state == StatusBlocked {
-				child.state = StatusAncestorFailed
+			if child.State == StatusPending || child.State == StatusBlocked {
+				child.State = StatusAncestorFailed
 			}
 		}
 	}
 }
 
-// empty reports when no runnable or running tasks remain.
-func (q *dagQueue) empty() bool {
+// Empty reports when no runnable or running tasks remain.
+func (q *DagQueue) Empty() bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	for _, e := range q.ordered {
-		if e.state == StatusReady || e.state == StatusRunning {
+	for _, e := range q.Ordered {
+		if e.State == StatusReady || e.State == StatusRunning {
 			return false
 		}
 	}
@@ -139,17 +135,17 @@ func (q *dagQueue) empty() bool {
 	return true
 }
 
-// results returns final Result slice in original unit order.
-func (q *dagQueue) results() []Result {
+// Results returns final Result slice in original unit order.
+func (q *DagQueue) Results() []Result {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	out := make([]Result, len(q.ordered))
+	out := make([]Result, len(q.Ordered))
 
-	for i, e := range q.ordered {
-		res := e.result
-		// If the task was skipped due to fail-fast or ancestor failure, set ExitCode and Err
-		switch e.state {
+	for i, e := range q.Ordered {
+		res := e.Result
+		// If the Task was skipped due to fail-fast or ancestor failure, set ExitCode and Err
+		switch e.State {
 		case StatusFailFast:
 			if res.ExitCode == 0 && res.Err == nil {
 				res.ExitCode = 1 // Use 1 for skipped due to fail-fast
@@ -161,8 +157,8 @@ func (q *dagQueue) results() []Result {
 				// Find all failed ancestors
 				var failedAncestors []string
 
-				for _, pid := range e.task.Parents() {
-					if parent, ok := q.index[pid]; ok && parent.state != StatusSucceeded {
+				for _, pid := range e.Task.Parents() {
+					if parent, ok := q.Index[pid]; ok && parent.State != StatusSucceeded {
 						failedAncestors = append(failedAncestors, pid)
 					}
 				}
