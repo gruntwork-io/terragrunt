@@ -143,38 +143,29 @@ func (q *DagQueue) Results() []Result {
 	out := make([]Result, len(q.Ordered))
 
 	for i, e := range q.Ordered {
-		res := e.Result
-		// If the Task was skipped due to fail-fast or ancestor failure, set ExitCode and Err
 		switch e.State {
 		case StatusFailFast:
-			if res.ExitCode == 0 && res.Err == nil {
-				res.ExitCode = 1 // Use 1 for skipped due to fail-fast
-				res.Err = ErrSkippedFailFast
-			}
+			e.Result.ExitCode = 1 // Use 1 for skipped due to fail-fast
+			e.Result.Err = ErrSkippedFailFast
 		case StatusAncestorFailed:
-			if res.ExitCode == 0 && res.Err == nil {
-				res.ExitCode = 1 // Use 1 for skipped due to ancestor failure
-				// Find all failed ancestors
-				var failedAncestors []string
+			e.Result.ExitCode = 1 // Use 1 for skipped due to ancestor failure
+			// Find all failed ancestors
+			var failedAncestors []string
 
-				for _, pid := range e.Task.Parents() {
-					if parent, ok := q.Index[pid]; ok && parent.State != StatusSucceeded {
-						failedAncestors = append(failedAncestors, pid)
-					}
-				}
-
-				if len(failedAncestors) > 0 {
-					res.Err = errors.New("skipped due to ancestor failure: " + strings.Join(failedAncestors, ", "))
-				} else {
-					res.Err = ErrSkippedAncestorFailed
+			for _, pid := range e.Task.Parents() {
+				if parent, ok := q.Index[pid]; ok && parent.State != StatusSucceeded {
+					failedAncestors = append(failedAncestors, pid)
 				}
 			}
-		case StatusPending, StatusBlocked, StatusReady, StatusRunning, StatusSucceeded, StatusFailed:
-			// no-op
-			continue
-		}
 
-		out[i] = res
+			if len(failedAncestors) > 0 {
+				e.Result.Err = errors.New("skipped due to ancestor failure: " + strings.Join(failedAncestors, ", "))
+			} else {
+				e.Result.Err = ErrSkippedAncestorFailed
+			}
+		}
+		// For all states, always assign the result
+		out[i] = e.Result
 	}
 
 	return out
