@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --working-dir "+testPath+"  -- apply")
+	fmt.Printf("error: %v\n", err)
 	require.NoError(t, err)
 	// Verify that the output contains value from the app
 	require.Contains(t, stdout, "output_value = \"42\"")

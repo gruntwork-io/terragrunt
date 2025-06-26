@@ -11,47 +11,55 @@ import (
 // rescan the whole map when a parent finishes.
 type dagQueue struct {
 	mu       sync.Mutex
-	entries  map[string]*entry // lookup by ID
-	ordered  []*entry          // preserved insertion order
+	index    map[string]*entry // canonical ID → entry
+	ordered  []*entry          // slice preserves caller order
 	failFast bool
 }
 
-// buildQueue initialises the DAG from the immutable runbase.Unit slice.
 func buildQueue(units []*runbase.Unit, failFast bool) *dagQueue {
-	q := &dagQueue{entries: make(map[string]*entry), failFast: failFast}
+	q := &dagQueue{
+		index:    make(map[string]*entry, len(units)),
+		ordered:  make([]*entry, 0, len(units)),
+		failFast: failFast,
+	}
 
-	// 1. Create entries (all start as pending)
+	// 1. create entries
 	for _, u := range units {
-		e := &entry{task: &Task{Unit: u}, state: StatusPending}
-		q.entries[e.task.ID()] = e
+		e := &entry{task: taskFromUnit(u), state: StatusPending}
+		q.index[e.task.ID()] = e
 		q.ordered = append(q.ordered, e)
 	}
 
-	// 2. Wire parent/child edges and set starting state.
-	for _, e := range q.entries {
-		for _, parentPath := range e.task.Parents() {
-			if p, ok := q.entries[parentPath]; ok {
-				e.blockedBy = append(e.blockedBy, p)
-				p.dependents = append(p.dependents, e)
-			}
-		}
-		e.remainingDeps = len(e.blockedBy)
+	// 2. wire dependencies and dependents, set initial status / counters
+	for _, e := range q.ordered {
+		parents := e.task.Parents()
+		e.remainingDeps = len(parents)
+
 		if e.remainingDeps == 0 {
 			e.state = StatusReady
 		} else {
 			e.state = StatusBlocked
 		}
+
+		for _, pid := range parents {
+			if p, ok := q.index[pid]; ok {
+				p.dependents = append(p.dependents, e)
+			}
+		}
 	}
 	return q
 }
 
-// getReady returns up to `max` entries that are ready to run and marks them
-// as Running to prevent double scheduling.
+// -----------------------------------------------------------------------------
+// Scheduling helpers
+// -----------------------------------------------------------------------------
+
+// getReady returns up to max ready entries, respecting the original order.
 func (q *dagQueue) getReady(max int) []*entry {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	var out []*entry
+	out := make([]*entry, 0, max)
 	for _, e := range q.ordered {
 		if len(out) >= max {
 			break
@@ -64,27 +72,24 @@ func (q *dagQueue) getReady(max int) []*entry {
 	return out
 }
 
-// markDone updates an entry's state, cascades success or failure,
-// and (optionally) flips every still-pending node to StatusFailFast.
+// markDone records the result, unblocks children, and handles fail-fast.
 func (q *dagQueue) markDone(e *entry, failFast bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	// 1. set this node’s final state
-	switch e.state {
-	case StatusRunning:
-		if e.result.ExitCode == 0 && e.result.Err == nil {
-			e.state = StatusSucceeded
-		} else {
-			e.state = StatusFailed
-			if failFast {
-				// 3a. fail-fast: skip everything not started yet
-				for _, n := range q.ordered {
-					if n.state == StatusPending ||
-						n.state == StatusBlocked ||
-						n.state == StatusReady {
-						n.state = StatusFailFast
-					}
+	if e.state != StatusRunning {
+		return // double call safeguard
+	}
+
+	if e.result.ExitCode == 0 && e.result.Err == nil {
+		e.state = StatusSucceeded
+	} else {
+		e.state = StatusFailed
+		if failFast {
+			for _, n := range q.ordered {
+				switch n.state {
+				case StatusPending, StatusBlocked, StatusReady:
+					n.state = StatusFailFast
 				}
 			}
 		}
@@ -92,14 +97,14 @@ func (q *dagQueue) markDone(e *entry, failFast bool) {
 
 	success := e.state == StatusSucceeded
 
-	// 2. walk children and update their counters / states
 	for _, child := range e.dependents {
-		if success {
+		switch {
+		case success:
 			child.remainingDeps--
 			if child.remainingDeps == 0 && child.state == StatusBlocked {
 				child.state = StatusReady
 			}
-		} else {
+		default:
 			if child.state == StatusPending || child.state == StatusBlocked {
 				child.state = StatusAncestorFailed
 			}
@@ -107,28 +112,27 @@ func (q *dagQueue) markDone(e *entry, failFast bool) {
 	}
 }
 
-// empty reports whether any tasks are still runnable or running.
+// empty reports when no runnable or running tasks remain.
 func (q *dagQueue) empty() bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	for _, e := range q.entries {
-		switch e.state {
-		case StatusPending, StatusBlocked, StatusReady, StatusRunning:
+	for _, e := range q.ordered {
+		if e.state == StatusReady || e.state == StatusRunning {
 			return false
 		}
 	}
 	return true
 }
 
-// results returns all task results in undefined order (call after empty()==true).
+// results returns final Result slice in original unit order.
 func (q *dagQueue) results() []Result {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	out := make([]Result, 0, len(q.entries))
-	for _, e := range q.entries {
-		out = append(out, e.result)
+	out := make([]Result, len(q.ordered))
+	for i, e := range q.ordered {
+		out[i] = e.result
 	}
 	return out
 }

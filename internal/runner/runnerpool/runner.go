@@ -35,6 +35,7 @@ type Runner struct {
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...runbase.Option) (runbase.StackRunner, error) {
 	unitsMap := make(runbase.UnitsMap, len(discovered))
+	orderedUnits := make(runbase.Units, 0, len(discovered))
 
 	stack := runbase.Stack{
 		TerragruntOptions: terragruntOptions,
@@ -43,8 +44,6 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 	runner := &Runner{
 		Stack: &stack,
 	}
-
-	terragruntConfigPaths := make([]string, 0, len(discovered))
 
 	for _, cfg := range discovered {
 		configPath := config.GetDefaultConfigPath(cfg.Path)
@@ -69,33 +68,20 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 			Config:            *cfg.Parsed,
 		}
 
-		terragruntConfigPaths = append(terragruntConfigPaths, configPath)
-
+		orderedUnits = append(orderedUnits, mod)
 		unitsMap[cfg.Path] = mod
 	}
 
-	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
-	if err != nil {
-		return nil, err
-	}
-
-	linkedUnits, err := unitsMap.CrossLinkDependencies(canonicalTerragruntConfigPaths)
-	if err != nil {
-		return nil, err
-	}
-	// Reorder linkedUnits to match the order of canonicalTerragruntConfigPaths
-	orderedUnits := make(runbase.Units, 0, len(canonicalTerragruntConfigPaths))
-	pathToUnit := make(map[string]*runbase.Unit)
-
-	for _, m := range linkedUnits {
-		pathToUnit[config.GetDefaultConfigPath(m.Path)] = m
-	}
-
-	for _, configPath := range canonicalTerragruntConfigPaths {
-		if m, ok := pathToUnit[configPath]; ok {
-			orderedUnits = append(orderedUnits, m)
-		} else {
-			l.Warnf("Unit for config path %s not found in linked units", configPath)
+	// cross-link dependencies units based on the discovered configurations
+	for _, cfg := range discovered {
+		unit := unitsMap[cfg.Path]
+		for _, dependency := range cfg.Dependencies {
+			path := dependency.Path
+			if depUnit, ok := unitsMap[path]; ok {
+				unit.Dependencies = append(unit.Dependencies, depUnit)
+			} else {
+				return nil, errors.Errorf("Dependency %s for unit %s not found in discovered units", path, unit.Path)
+			}
 		}
 	}
 
