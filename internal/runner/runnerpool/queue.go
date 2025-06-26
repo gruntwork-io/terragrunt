@@ -64,23 +64,44 @@ func (q *dagQueue) getReady(max int) []*entry {
 	return out
 }
 
-// markDone updates the entry state and unblocks dependants.
-func (q *dagQueue) markDone(e *entry, res Result) {
+// markDone updates an entry's state, cascades success or failure,
+// and (optionally) flips every still-pending node to StatusFailFast.
+func (q *dagQueue) markDone(e *entry, failFast bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	if res.Err != nil || res.ExitCode != 0 {
-		e.state = StatusFailed
-	} else {
-		e.state = StatusSucceeded
+	// 1. set this node’s final state
+	switch e.state {
+	case StatusRunning:
+		if e.result.ExitCode == 0 && e.result.Err == nil {
+			e.state = StatusSucceeded
+		} else {
+			e.state = StatusFailed
+			if failFast {
+				// 3a. fail-fast: skip everything not started yet
+				for _, n := range q.ordered {
+					if n.state == StatusPending ||
+						n.state == StatusBlocked ||
+						n.state == StatusReady {
+						n.state = StatusFailFast
+					}
+				}
+			}
+		}
 	}
-	e.result = res
 
+	success := e.state == StatusSucceeded
+
+	// 2. walk children and update their counters / states
 	for _, child := range e.dependents {
-		if child.state == StatusBlocked {
+		if success {
 			child.remainingDeps--
-			if child.remainingDeps == 0 {
+			if child.remainingDeps == 0 && child.state == StatusBlocked {
 				child.state = StatusReady
+			}
+		} else {
+			if child.state == StatusPending || child.state == StatusBlocked {
+				child.state = StatusAncestorFailed
 			}
 		}
 	}

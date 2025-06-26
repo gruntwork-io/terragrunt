@@ -8,8 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 )
 
-// RunnerPool drives a bounded worker pool that executes tasks respecting
-// dependency ordering held in a dagQueue.
+// RunnerPool orchestrates concurrent execution over a DAG.
 type RunnerPool struct {
 	q           *dagQueue
 	runner      TaskRunner
@@ -17,10 +16,10 @@ type RunnerPool struct {
 	failFast    bool
 }
 
-// New constructs a RunnerPool. If maxConc <= 0 it defaults to runtime.NumCPU().
+// New creates a pool; if maxConc ≤0 uses GOMAXPROCS.
 func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *RunnerPool {
 	if maxConc <= 0 {
-		maxConc = runtime.NumCPU()
+		maxConc = runtime.GOMAXPROCS(0)
 	}
 	return &RunnerPool{
 		q:           buildQueue(units, failFast),
@@ -30,50 +29,44 @@ func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *Runne
 	}
 }
 
-// Run executes all tasks and returns a slice of Result once the DAG is fully
-// processed. It blocks until every runnable task has finished.
+// Run blocks until the DAG finishes and returns ordered results.
 func (p *RunnerPool) Run(ctx context.Context) []Result {
-	sem := make(chan struct{}, p.concurrency) // acts as worker slots
-	wg := sync.WaitGroup{}
+	var (
+		wg   sync.WaitGroup
+		sem  = make(chan struct{}, p.concurrency)
+		done = make(chan *entry)
+	)
+
+	// collector goroutine
+	go func() {
+		for e := range done {
+			p.q.markDone(e, p.failFast)
+			<-sem
+			wg.Done()
+		}
+	}()
 
 	for {
-		// Drain ctx cancelation early.
-		select {
-		case <-ctx.Done():
-			wg.Wait()
-			return p.q.results()
-		default:
-		}
-
-		// fetch ready tasks respecting remaining slots
-		ready := p.q.getReady(p.concurrency - len(sem))
+		ready := p.q.getReady(cap(sem) - len(sem))
 		if len(ready) == 0 {
-			// no ready entries; if queue empty we're done, else wait for a task to finish
 			if p.q.empty() {
 				break
 			}
-			// tiny sleep or continue after wg.Wait?
-			select {
-			case <-ctx.Done():
-				wg.Wait()
-				return p.q.results()
-			default:
-			}
+			runtime.Gosched()
 			continue
 		}
-
 		for _, e := range ready {
 			sem <- struct{}{}
 			wg.Add(1)
+
 			go func(ent *entry) {
-				defer func() { <-sem; wg.Done() }()
-				res := p.runner(ctx, ent.task)
-				p.q.markDone(ent, res)
+				ent.result = p.runner(ctx, ent.task)
+				done <- ent
 			}(e)
 		}
 	}
-
-	// wait for running goroutines
 	wg.Wait()
+	close(done)
+
 	return p.q.results()
 }

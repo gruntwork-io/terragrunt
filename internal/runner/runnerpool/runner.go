@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
@@ -150,6 +149,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	//------------------------------------------------------------------
 	taskRun := func(ctx context.Context, t *Task) Result {
 		unitRunner := runbase.NewUnitRunner(t.Unit)
+		fmt.Printf("************ Running %s for unit %s\n", t.Unit.TerragruntOptions.TerraformCommand, t.Unit.Path)
 		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, r.Stack.Report)
 
 		res := Result{TaskID: t.ID()}
@@ -165,7 +165,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	//------------------------------------------------------------------
 	maxConc := opts.Parallelism
 	if maxConc <= 0 {
-		maxConc = runtime.NumCPU()
+		maxConc = 1
 	}
 
 	failFast := false
