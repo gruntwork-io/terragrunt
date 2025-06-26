@@ -29,7 +29,8 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack *runbase.Stack
+	Stack            *runbase.Stack
+	planErrorBuffers []bytes.Buffer // Store plan error buffers for summarizePlanAllErrors
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
@@ -110,23 +111,21 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		r.syncTerraformCliArgs(l, opts)
 	}
 
+	var planDefer bool
+
 	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
-		if opts.RunAllAutoApprove {
-			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
-		}
-
-		r.syncTerraformCliArgs(l, opts)
-
+		r.handleApplyDestroy(l, opts)
 	case tf.CommandNameShow:
-		r.syncTerraformCliArgs(l, opts)
-
+		r.handleShow(l, opts)
 	case tf.CommandNamePlan:
-		errs := make([]bytes.Buffer, len(r.Stack.Units))
-		for i, u := range r.Stack.Units {
-			u.TerragruntOptions.ErrWriter = io.MultiWriter(&errs[i], u.TerragruntOptions.ErrWriter)
-		}
-		defer r.summarizePlanAllErrors(l, errs)
+		r.handlePlan()
+
+		planDefer = true
+	}
+
+	if planDefer {
+		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
 	taskRun := func(ctx context.Context, t *Task) Result {
@@ -159,6 +158,28 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	return nil
+}
+
+// handleApplyDestroy handles logic for apply and destroy commands.
+func (r *Runner) handleApplyDestroy(l log.Logger, opts *options.TerragruntOptions) {
+	if opts.RunAllAutoApprove {
+		opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
+	}
+
+	r.syncTerraformCliArgs(l, opts)
+}
+
+// handleShow handles logic for show command.
+func (r *Runner) handleShow(l log.Logger, opts *options.TerragruntOptions) {
+	r.syncTerraformCliArgs(l, opts)
+}
+
+// handlePlan handles logic for plan command, including error buffer setup and summary.
+func (r *Runner) handlePlan() {
+	r.planErrorBuffers = make([]bytes.Buffer, len(r.Stack.Units))
+	for i, u := range r.Stack.Units {
+		u.TerragruntOptions.ErrWriter = io.MultiWriter(&r.planErrorBuffers[i], u.TerragruntOptions.ErrWriter)
+	}
 }
 
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {

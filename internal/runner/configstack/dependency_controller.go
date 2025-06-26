@@ -210,6 +210,27 @@ func (ctrl *DependencyController) unitFinished(unitErr error, r *report.Report, 
 // RunningUnits is a map of unit path to DependencyController, representing the units that are currently running or
 type RunningUnits map[string]*DependencyController
 
+// categorizeUnitsForIteration categorizes units into those to deploy, those to remove, and those to defer.
+func categorizeUnitsForIteration(units RunningUnits) (currentIterationDeploy runbase.Units, removeDep []string, next RunningUnits) {
+	currentIterationDeploy = runbase.Units{}
+	next = RunningUnits{}
+	removeDep = []string{}
+
+	for path, unit := range units {
+		switch {
+		case unit.Runner.Unit.AssumeAlreadyApplied:
+			removeDep = append(removeDep, path)
+		case len(unit.Dependencies) == 0:
+			currentIterationDeploy = append(currentIterationDeploy, unit.Runner.Unit)
+			removeDep = append(removeDep, path)
+		default:
+			next[path] = unit
+		}
+	}
+
+	return
+}
+
 // toTerraformUnitGroups converts the RunningUnits into a slice of runbase.Units, where each slice represents a group of
 func (units RunningUnits) toTerraformUnitGroups(maxDepth int) []runbase.Units {
 	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
@@ -217,29 +238,7 @@ func (units RunningUnits) toTerraformUnitGroups(maxDepth int) []runbase.Units {
 	groups := []runbase.Units{}
 
 	for len(units) > 0 && len(groups) < maxDepth {
-		currentIterationDeploy := runbase.Units{}
-
-		// next tracks which units are being deferred to a later run.
-		next := RunningUnits{}
-		// removeDep tracks which units are run in the current iteration so that they need to be removed in the
-		// dependency list for the next iteration. This is separately tracked from currentIterationDeploy for
-		// convenience: this tracks the map key of the Dependencies attribute.
-		var removeDep []string
-
-		// Iterate the units, looking for those that have no dependencies and select them for "running". In the
-		// process, track those that still need to run in a separate map for further processing.
-		for path, unit := range units {
-			// Anything that is already applied is culled from the graph when running, so we ignore them here as well.
-			switch {
-			case unit.Runner.Unit.AssumeAlreadyApplied:
-				removeDep = append(removeDep, path)
-			case len(unit.Dependencies) == 0:
-				currentIterationDeploy = append(currentIterationDeploy, unit.Runner.Unit)
-				removeDep = append(removeDep, path)
-			default:
-				next[path] = unit
-			}
-		}
+		currentIterationDeploy, removeDep, next := categorizeUnitsForIteration(units)
 
 		// Go through the remaining units and remove the dependencies that were selected to run in this current
 		// iteration.
