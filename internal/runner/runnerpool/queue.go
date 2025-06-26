@@ -3,7 +3,16 @@ package runnerpool
 import (
 	"sync"
 
+	"errors"
+
+	"strings"
+
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+)
+
+var (
+	ErrSkippedFailFast       = errors.New("skipped due to fail-fast")
+	ErrSkippedAncestorFailed = errors.New("skipped due to ancestor failure")
 )
 
 // dagQueue holds task nodes and tracks their dependency state in a
@@ -132,7 +141,32 @@ func (q *dagQueue) results() []Result {
 
 	out := make([]Result, len(q.ordered))
 	for i, e := range q.ordered {
-		out[i] = e.result
+		res := e.result
+		// If the task was skipped due to fail-fast or ancestor failure, set ExitCode and Err
+		switch e.state {
+		case StatusFailFast:
+			if res.ExitCode == 0 && res.Err == nil {
+				res.ExitCode = 1 // Use 1 for skipped due to fail-fast
+				res.Err = ErrSkippedFailFast
+			}
+		case StatusAncestorFailed:
+			if res.ExitCode == 0 && res.Err == nil {
+				res.ExitCode = 1 // Use 1 for skipped due to ancestor failure
+				// Find all failed ancestors
+				var failedAncestors []string
+				for _, pid := range e.task.Parents() {
+					if parent, ok := q.index[pid]; ok && parent.state != StatusSucceeded {
+						failedAncestors = append(failedAncestors, pid)
+					}
+				}
+				if len(failedAncestors) > 0 {
+					res.Err = errors.New("skipped due to ancestor failure: " + strings.Join(failedAncestors, ", "))
+				} else {
+					res.Err = ErrSkippedAncestorFailed
+				}
+			}
+		}
+		out[i] = res
 	}
 	return out
 }
