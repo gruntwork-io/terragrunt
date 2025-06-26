@@ -270,6 +270,7 @@ remote_state {
  enable_bucket_policy_only = false # use only if uniform bucket-level access is needed (https://cloud.google.com/storage/docs/uniform-bucket-level-access)
 
  encryption_key = "GOOGLE_ENCRYPTION_KEY"
+ kms_encryption_key = "projects/${local.project}/locations/${local.location}/keyRings/${local.keyRing}/cryptoKeys/${local.name}"
 }
 ```
 

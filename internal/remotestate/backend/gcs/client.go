@@ -250,6 +250,14 @@ func (client *Client) CreateGCSBucket(ctx context.Context, l log.Logger, bucketN
 		bucketAttrs.BucketPolicyOnly = storage.BucketPolicyOnly{Enabled: true}
 	}
 
+	if client.RemoteStateConfigGCS.KMSEncryptionKey != "" {
+		l.Debugf("Enabling KMS encryption using %s on GCS bucket %s", client.RemoteStateConfigGCS.KMSEncryptionKey, bucketName)
+
+		bucketAttrs.Encryption = &storage.BucketEncryption{
+			DefaultKMSKeyName: client.RemoteStateConfigGCS.KMSEncryptionKey,
+		}
+	}
+
 	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
 		return errors.Errorf("error creating GCS bucket %s: %w", bucketName, err)
 	}
