@@ -24,6 +24,11 @@ import (
 const (
 	// Storage Blob Data Owner role definition ID
 	storageBlobDataOwnerRoleID = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
+
+	// Access tier constants
+	AccessTierHot     = "Hot"
+	AccessTierCool    = "Cool"
+	AccessTierPremium = "Premium"
 )
 
 // StorageAccountClient wraps Azure's armstorage client to provide a simpler interface
@@ -73,7 +78,7 @@ func DefaultStorageAccountConfig() StorageAccountConfig {
 		AllowBlobPublicAccess: false,
 		AccountKind:           "StorageV2",
 		AccountTier:           "Standard",
-		AccessTier:            "Hot",
+		AccessTier:            AccessTierHot,
 		ReplicationType:       "LRS",
 		Tags:                  map[string]string{"created-by": "terragrunt"},
 	}
@@ -347,15 +352,15 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 	// Map access tier if specified
 	accessTierStr := config.AccessTier
 	if accessTierStr == "" {
-		accessTierStr = "Hot" // Default
+		accessTierStr = AccessTierHot // Default
 	}
 
 	switch accessTierStr {
-	case "Hot", "Cool", "Premium":
+	case AccessTierHot, AccessTierCool, AccessTierPremium:
 		// Valid tier
 	default:
 		l.Warnf("Unsupported access tier %s, using Hot", accessTierStr)
-		accessTierStr = "Hot"
+		accessTierStr = AccessTierHot
 	}
 
 	// Convert tags map to pointer map
@@ -400,11 +405,11 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 	var accessTier *armstorage.AccessTier
 
 	switch accessTierStr {
-	case "Hot":
+	case AccessTierHot:
 		accessTier = to.Ptr(armstorage.AccessTierHot)
-	case "Cool":
+	case AccessTierCool:
 		accessTier = to.Ptr(armstorage.AccessTierCool)
-	case "Premium":
+	case AccessTierPremium:
 		accessTier = to.Ptr(armstorage.AccessTierPremium)
 	}
 
@@ -450,10 +455,106 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 }
 
 // updateStorageAccountIfNeeded updates a storage account if settings don't match
-// TODO: Add logic to check other properties like access tier, replication type, etc and update them if needed
-// nolint:unparam
 func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context, l log.Logger, config StorageAccountConfig, account *armstorage.Account) error {
-	// Check if versioning is enabled as expected
+	var needsUpdate bool
+
+	var updateParams armstorage.AccountUpdateParameters
+
+	updateParams.Properties = &armstorage.AccountPropertiesUpdateParameters{}
+
+	// Check updatable properties first
+
+	// 1. Check AllowBlobPublicAccess
+	if account.Properties.AllowBlobPublicAccess != nil &&
+		*account.Properties.AllowBlobPublicAccess != config.AllowBlobPublicAccess {
+		needsUpdate = true
+		updateParams.Properties.AllowBlobPublicAccess = to.Ptr(config.AllowBlobPublicAccess)
+		l.Infof("Updating AllowBlobPublicAccess from %t to %t on storage account %s",
+			*account.Properties.AllowBlobPublicAccess, config.AllowBlobPublicAccess, c.storageAccountName)
+	}
+
+	// 2. Check AccessTier
+	if !compareAccessTier(account.Properties.AccessTier, config.AccessTier) && config.AccessTier != "" {
+		needsUpdate = true
+
+		var accessTier *armstorage.AccessTier
+
+		switch config.AccessTier {
+		case AccessTierHot:
+			accessTier = to.Ptr(armstorage.AccessTierHot)
+		case AccessTierCool:
+			accessTier = to.Ptr(armstorage.AccessTierCool)
+		case AccessTierPremium:
+			accessTier = to.Ptr(armstorage.AccessTierPremium)
+		default:
+			l.Warnf("Unsupported access tier %s, skipping update", config.AccessTier)
+		}
+
+		if accessTier != nil {
+			updateParams.Properties.AccessTier = accessTier
+			currentTier := "Unknown"
+
+			if account.Properties.AccessTier != nil {
+				currentTier = string(*account.Properties.AccessTier)
+			}
+
+			l.Infof("Updating AccessTier from %s to %s on storage account %s", currentTier, config.AccessTier, c.storageAccountName)
+		}
+	}
+
+	// 3. Check Tags
+	if !compareStringMaps(account.Tags, config.Tags) && len(config.Tags) > 0 {
+		needsUpdate = true
+		updateParams.Tags = convertToPointerMap(config.Tags)
+
+		l.Infof("Updating tags on storage account %s", c.storageAccountName)
+	}
+
+	// Check read-only properties and warn if they differ
+
+	// Check SKU/ReplicationType (read-only after creation)
+	if account.SKU != nil && config.ReplicationType != "" {
+		currentSKU := string(*account.SKU.Name)
+		expectedSKU, _ := GetStorageAccountSKU(config.AccountTier, config.ReplicationType)
+
+		if currentSKU != expectedSKU {
+			l.Warnf("Storage account SKU cannot be changed after creation. Current: %s, Desired: %s",
+				currentSKU, expectedSKU)
+		}
+	}
+
+	// Check AccountKind (read-only after creation)
+	if account.Kind != nil && config.AccountKind != "" {
+		currentKind := string(*account.Kind)
+		if currentKind != config.AccountKind {
+			l.Warnf("Storage account kind cannot be changed after creation. Current: %s, Desired: %s",
+				currentKind, config.AccountKind)
+		}
+	}
+
+	// Check Location (read-only after creation)
+	if account.Location != nil && config.Location != "" {
+		if *account.Location != config.Location {
+			l.Warnf("Storage account location cannot be changed after creation. Current: %s, Desired: %s",
+				*account.Location, config.Location)
+		}
+	}
+
+	// Apply updates if needed
+	if needsUpdate {
+		l.Infof("Updating storage account %s with new properties", c.storageAccountName)
+
+		_, err := c.client.Update(ctx, c.resourceGroupName, c.storageAccountName, updateParams, nil)
+		if err != nil {
+			return errors.Errorf("error updating storage account properties: %w", err)
+		}
+
+		l.Infof("Successfully updated storage account %s", c.storageAccountName)
+	} else {
+		l.Infof("Storage account %s properties are already up to date", c.storageAccountName)
+	}
+
+	// Handle versioning separately (as it's a blob service property, not account property)
 	isVersioningEnabled, err := c.GetStorageAccountVersioning(ctx)
 	if err != nil {
 		return err
@@ -474,31 +575,6 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 		}
 	}
 
-	// Check if we need to update the storage account properties
-	// var needsUpdate bool
-
-	// Check blob public access
-	// if account.Properties.AllowBlobPublicAccess != nil && *account.Properties.AllowBlobPublicAccess != config.AllowBlobPublicAccess {
-	//	needsUpdate = true
-	//
-	//	l.Infof("Updating AllowBlobPublicAccess from %t to %t on storage account %s", *account.Properties.AllowBlobPublicAccess, config.AllowBlobPublicAccess, c.storageAccountName)
-	// }
-
-	// If any properties need updating, update the storage account
-	// TODO: add the logic to check other properties like access tier, replication type, etc.
-	// if needsUpdate {
-	// Note: The actual structure depends on the SDK version
-	// This is a simplified version that should work with most SDK versions
-	// In production code, you would set the appropriate properties based on your SDK version
-	//  For now, we'll skip the update to avoid compilation errors
-	// l.Infof("Would update storage account %s, but skipping due to SDK compatibility", c.storageAccountName)
-	// Uncomment in production code:
-	// updateParameters := armstorage.AccountUpdateParameters{}
-	// _, err := c.client.Update(ctx, c.resourceGroupName, c.storageAccountName, updateParameters, nil)
-	// if err != nil {
-	//    return fmt.Errorf("error updating storage account: %w", err)
-	// }
-	// }
 	return nil
 }
 
@@ -887,4 +963,46 @@ func (cfg StorageAccountConfig) Validate() error {
 	}
 
 	return nil
+}
+
+// Helper functions for property comparison and conversion
+
+// compareStringMaps compares existing tags (map[string]*string) with desired tags (map[string]string)
+func compareStringMaps(existing map[string]*string, desired map[string]string) bool {
+	if len(existing) != len(desired) {
+		return false
+	}
+
+	for k, v := range desired {
+		if existingVal, ok := existing[k]; !ok || existingVal == nil || *existingVal != v {
+			return false
+		}
+	}
+
+	return true
+}
+
+// convertToPointerMap converts map[string]string to map[string]*string for Azure SDK compatibility
+func convertToPointerMap(input map[string]string) map[string]*string {
+	result := make(map[string]*string, len(input))
+
+	for k, v := range input {
+		val := v // Create new variable to avoid capturing loop variable
+		result[k] = &val
+	}
+
+	return result
+}
+
+// compareAccessTier compares Azure access tier values
+func compareAccessTier(current *armstorage.AccessTier, desired string) bool {
+	if current == nil && desired == "" {
+		return true
+	}
+
+	if current == nil || desired == "" {
+		return false
+	}
+
+	return string(*current) == desired
 }
