@@ -11,8 +11,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	testFixtureCatalogLocalTemplate = "fixtures/catalog/local-template"
 )
 
 func TestCatalogGitRepoUpdate(t *testing.T) {
@@ -122,6 +127,31 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5")
 
 	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+opts.WorkingDir)
+}
+
+func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCatalogLocalTemplate, ".boilerplate")
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureCatalogLocalTemplate)
+
+	targetPath := filepath.Join(rootPath, "app")
+	moduleURL := "github.com/gruntwork-io/terragrunt//test/fixtures/inputs"
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt scaffold --non-interactive --working-dir "+targetPath+" "+moduleURL,
+	)
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.FileExists(t, filepath.Join(targetPath, "terragrunt.hcl"))
+	assert.FileExists(t, filepath.Join(targetPath, "custom-template.txt"))
+
+	content, err := util.ReadFileAsString(filepath.Join(targetPath, "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, content, "# Custom local template")
 }
 
 func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.TerragruntConfig {
