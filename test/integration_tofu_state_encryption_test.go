@@ -87,13 +87,13 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var rendered map[string]interface{}
+	var rendered map[string]any
 	require.NoError(t, json.Unmarshal(jsonBytes, &rendered))
 
 	// Make sure all terraform block is visible
 	terraformBlock, hasTerraform := rendered["terraform"]
 	if assert.True(t, hasTerraform) {
-		source, hasSource := terraformBlock.(map[string]interface{})["source"]
+		source, hasSource := terraformBlock.(map[string]any)["source"]
 		assert.True(t, hasSource)
 		assert.Equal(t, "./module", source)
 	}
@@ -103,23 +103,23 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	if assert.True(t, hasRemoteState) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
+			map[string]any{
 				"backend": "local",
-				"generate": map[string]interface{}{
+				"generate": map[string]any{
 					"path":      "backend.tf",
 					"if_exists": "overwrite_terragrunt",
 				},
-				"config": map[string]interface{}{
+				"config": map[string]any{
 					"path": "foo.tfstate",
 				},
-				"encryption": map[string]interface{}{
+				"encryption": map[string]any{
 					"key_provider": "pbkdf2",
 					"passphrase":   "correct-horse-battery-staple",
 				},
 				"disable_init":                    false,
 				"disable_dependency_optimization": false,
 			},
-			remoteState.(map[string]interface{}),
+			remoteState.(map[string]any),
 		)
 	}
 
@@ -128,8 +128,8 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	if assert.True(t, hasDependency) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
-				"dep": map[string]interface{}{
+			map[string]any{
+				"dep": map[string]any{
 					"name":         "dep",
 					"config_path":  "../dep",
 					"outputs":      nil,
@@ -142,7 +142,7 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 					"skip":                                    nil,
 				},
 			},
-			dependencyBlocks.(map[string]interface{}),
+			dependencyBlocks.(map[string]any),
 		)
 	}
 
@@ -151,8 +151,8 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	if assert.True(t, hasGenerate) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
-				"provider": map[string]interface{}{
+			map[string]any{
+				"provider": map[string]any{
 					"path":              "provider.tf",
 					"comment_prefix":    "# ",
 					"disable_signature": false,
@@ -166,7 +166,7 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 `,
 				},
 			},
-			generateBlocks.(map[string]interface{}),
+			generateBlocks.(map[string]any),
 		)
 	}
 
@@ -175,13 +175,13 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	if assert.True(t, hasInputs) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
+			map[string]any{
 				"env":        "qa",
 				"name":       "dep",
 				"type":       "main",
 				"aws_region": "us-east-1",
 			},
-			inputsBlock.(map[string]interface{}),
+			inputsBlock.(map[string]any),
 		)
 	}
 }
@@ -201,13 +201,13 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var rendered map[string]interface{}
+	var rendered map[string]any
 	require.NoError(t, json.Unmarshal(jsonBytes, &rendered))
 
 	// Make sure all terraform block is visible
 	terraformBlock, hasTerraform := rendered["terraform"]
 	if assert.True(t, hasTerraform) {
-		source, hasSource := terraformBlock.(map[string]interface{})["source"]
+		source, hasSource := terraformBlock.(map[string]any)["source"]
 		assert.True(t, hasSource)
 		assert.Equal(t, "./module", source)
 	}
@@ -217,23 +217,23 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	if assert.True(t, hasRemoteState) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
+			map[string]any{
 				"backend": "local",
-				"generate": map[string]interface{}{
+				"generate": map[string]any{
 					"path":      "backend.tf",
 					"if_exists": "overwrite_terragrunt",
 				},
-				"config": map[string]interface{}{
+				"config": map[string]any{
 					"path": "foo.tfstate",
 				},
-				"encryption": map[string]interface{}{
+				"encryption": map[string]any{
 					"key_provider": "pbkdf2",
 					"passphrase":   "correct-horse-battery-staple",
 				},
 				"disable_init":                    false,
 				"disable_dependency_optimization": false,
 			},
-			remoteState.(map[string]interface{}),
+			remoteState.(map[string]any),
 		)
 	}
 
@@ -242,8 +242,8 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	if assert.True(t, hasDependency) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
-				"dep": map[string]interface{}{
+			map[string]any{
+				"dep": map[string]any{
 					"name":         "dep",
 					"config_path":  "../dep",
 					"outputs":      nil,
@@ -256,7 +256,7 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 					"skip":                                    nil,
 				},
 			},
-			dependencyBlocks.(map[string]interface{}),
+			dependencyBlocks.(map[string]any),
 		)
 	}
 
@@ -265,8 +265,8 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	if assert.True(t, hasGenerate) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
-				"provider": map[string]interface{}{
+			map[string]any{
+				"provider": map[string]any{
 					"path":              "provider.tf",
 					"comment_prefix":    "# ",
 					"disable_signature": false,
@@ -280,7 +280,7 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 `,
 				},
 			},
-			generateBlocks.(map[string]interface{}),
+			generateBlocks.(map[string]any),
 		)
 	}
 
@@ -289,13 +289,13 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	if assert.True(t, hasInputs) {
 		assert.Equal(
 			t,
-			map[string]interface{}{
+			map[string]any{
 				"env":        "qa",
 				"name":       "dep",
 				"type":       "main",
 				"aws_region": "us-east-1",
 			},
-			inputsBlock.(map[string]interface{}),
+			inputsBlock.(map[string]any),
 		)
 	}
 }
@@ -313,7 +313,7 @@ func validateStateIsEncrypted(t *testing.T, fileName string, path string) {
 	byteValue, err := io.ReadAll(file)
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = json.Unmarshal(byteValue, &result)
 	require.NoError(t, err, "Error unmarshalling the state file '%s'", fileName)
 

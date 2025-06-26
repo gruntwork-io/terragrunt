@@ -149,12 +149,12 @@ func BenchmarkGitOperations(b *testing.B) {
 
 	ctx := b.Context()
 
-	if err := git.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
+	if err = git.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
 		b.Fatal(err)
 	}
 
 	b.Run("ls-remote", func(b *testing.B) {
-		git, err := cas.NewGitRunner()
+		git, err = cas.NewGitRunner()
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -2,13 +2,14 @@ package cas
 
 import (
 	"bufio"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Content manages git object storage and linking
@@ -23,6 +24,8 @@ const (
 	StoredFilePerms = os.FileMode(0444)
 	// RegularFilePerms represents standard file permissions (rw-r--r--)
 	RegularFilePerms = os.FileMode(0644)
+	// WindowsOS is the name of the Windows operating system
+	WindowsOS = "windows"
 )
 
 // NewContent creates a new Content instance
@@ -33,100 +36,128 @@ func NewContent(store *Store) *Content {
 }
 
 // Link creates a hard link from the store to the target path
-func (c *Content) Link(hash, targetPath string) error {
-	if err := c.ensureTargetDirectory(targetPath); err != nil {
-		return err
-	}
+func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
+	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_link", map[string]any{
+		"hash": hash,
+		"path": targetPath,
+	}, func(childCtx context.Context) error {
+		sourcePath := c.getPath(hash)
 
-	sourcePath := c.getPath(hash)
+		// Try to create hard link directly (most efficient path)
+		if err := os.Link(sourcePath, targetPath); err != nil {
+			// Check if it's because target already exists
+			if os.IsExist(err) {
+				// File already exists, which is fine
+				return nil
+			}
 
-	// Check if target exists
-	if _, err := os.Stat(targetPath); err == nil {
-		// File exists, skip creating link
+			// If hard link fails for other reasons, try to copy the file
+			data, readErr := os.ReadFile(sourcePath)
+			if readErr != nil {
+				return &WrappedError{
+					Op:   "read_source",
+					Path: sourcePath,
+					Err:  ErrReadFile,
+				}
+			}
+
+			// Write to temporary file first
+			tempPath := targetPath + ".tmp"
+			if err := os.WriteFile(tempPath, data, RegularFilePerms); err != nil {
+				return &WrappedError{
+					Op:   "write_target",
+					Path: tempPath,
+					Err:  err,
+				}
+			}
+
+			// Atomic rename to final path
+			if err := os.Rename(tempPath, targetPath); err != nil {
+				return &WrappedError{
+					Op:   "rename_target",
+					Path: tempPath,
+					Err:  err,
+				}
+			}
+		}
+
 		return nil
-	} else if !os.IsNotExist(err) {
-		// Some other error occurred
-		return &WrappedError{
-			Op:   "stat_target",
-			Path: targetPath,
-			Err:  err,
-		}
-	}
-
-	// Create hard link
-	if err := os.Link(sourcePath, targetPath); err != nil {
-		// If hard link fails, try to copy the file
-		data, readErr := os.ReadFile(sourcePath)
-
-		if readErr != nil {
-			return &WrappedError{
-				Op:   "read_source",
-				Path: sourcePath,
-				Err:  ErrReadFile,
-			}
-		}
-
-		// Write to temporary file first
-		tempPath := targetPath + ".tmp"
-
-		if err := os.WriteFile(tempPath, data, RegularFilePerms); err != nil {
-			return &WrappedError{
-				Op:   "write_target",
-				Path: tempPath,
-				Err:  err,
-			}
-		}
-
-		// Rename to a final path
-		if err := os.Rename(tempPath, targetPath); err != nil {
-			return &WrappedError{
-				Op:   "rename_target",
-				Path: tempPath,
-				Err:  err,
-			}
-		}
-	}
-
-	return nil
-}
-
-func (c *Content) ensureTargetDirectory(targetPath string) error {
-	targetDir := filepath.Dir(targetPath)
-	if err := os.MkdirAll(targetDir, DefaultDirPerms); err != nil {
-		return &WrappedError{
-			Op:   "create_target_dir",
-			Path: targetDir,
-			Err:  ErrCreateDir,
-		}
-	}
-
-	return nil
+	})
 }
 
 // Store stores a single content item. This is typically used for trees,
 // As blobs are written directly from git cat-file stdout.
 func (c *Content) Store(l log.Logger, hash string, data []byte) error {
-	c.store.mapLock.Lock()
-
-	if _, ok := c.store.locks[hash]; !ok {
-		c.store.locks[hash] = &sync.Mutex{}
+	lock, err := c.store.AcquireLock(hash)
+	if err != nil {
+		return wrapError("acquire_lock", hash, err)
 	}
 
-	c.store.locks[hash].Lock()
-	defer c.store.locks[hash].Unlock()
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
+		}
+	}()
 
-	c.store.mapLock.Unlock()
-
-	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+	if err = os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
-	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
+	return c.writeContentToFile(l, hash, data)
+}
+
+// Ensure ensures that a content item exists in the store
+func (c *Content) Ensure(l log.Logger, hash string, data []byte) error {
+	path := c.getPath(hash)
+	if c.store.hasContent(path) {
+		return nil
+	}
+
+	return c.Store(l, hash, data)
+}
+
+// EnsureWithWait ensures that a content item exists in the store, with optimization
+// to wait for concurrent writes instead of doing redundant work
+func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
+	needsWrite, lock, err := c.store.EnsureWithWait(hash)
+	if err != nil {
+		return wrapError("ensure_with_wait", hash, err)
+	}
+
+	// If content already exists or was written by another process, we're done
+	if !needsWrite {
+		return nil
+	}
+
+	// We have the lock and need to write the content
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
+		}
+	}()
+
+	if err = os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
+	}
+
+	// Ensure partition directory exists
+	partitionDir := c.getPartition(hash)
+	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+	}
+
+	return c.writeContentToFile(l, hash, data)
+}
+
+// writeContentToFile writes data to a temporary file,
+// sets appropriate permissions, and performs an atomic rename.
+func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) error {
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 
@@ -140,8 +171,8 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	if _, err := buf.Write(data); err != nil {
 		f.Close()
 
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("write_to_store", tempPath, err)
@@ -150,16 +181,16 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	if err := buf.Flush(); err != nil {
 		f.Close()
 
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("flush_buffer", tempPath, err)
 	}
 
 	if err := f.Close(); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("close_file", tempPath, err)
@@ -167,15 +198,15 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 
 	// Set read-only permissions on the temporary file
 	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("chmod_temp_file", tempPath, err)
 	}
 
 	// For Windows, handle readonly attributes specifically
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == WindowsOS {
 		// Check if a destination file exists and is read-only
 		if _, err := os.Stat(path); err == nil {
 			// File exists, make it writable before rename operation
@@ -187,15 +218,15 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 
 	// Atomic rename
 	if err := os.Rename(tempPath, path); err != nil {
-		if err := os.Remove(tempPath); err != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, err)
+		if removeErr := os.Remove(tempPath); removeErr != nil {
+			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
 		return wrapError("finalize_store", path, err)
 	}
 
 	// For Windows, we need to set the permissions again after rename
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == WindowsOS {
 		// Ensure the file has read-only permissions after rename
 		if err := os.Chmod(path, StoredFilePerms); err != nil {
 			return wrapError("chmod_final_file", path, err)
@@ -205,16 +236,6 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 	return nil
 }
 
-// Ensure ensures that a content item exists in the store
-func (c *Content) Ensure(l log.Logger, hash string, data []byte) error {
-	path := c.getPath(hash)
-	if c.store.hasContent(path) {
-		return nil
-	}
-
-	return c.Store(l, hash, data)
-}
-
 // EnsureCopy ensures that a content item exists in the store by copying from a file
 func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 	path := c.getPath(hash)
@@ -222,20 +243,20 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 		return nil
 	}
 
-	c.store.mapLock.Lock()
-
-	if _, ok := c.store.locks[hash]; !ok {
-		c.store.locks[hash] = &sync.Mutex{}
+	lock, err := c.store.AcquireLock(hash)
+	if err != nil {
+		return wrapError("acquire_lock", hash, err)
 	}
 
-	c.store.locks[hash].Lock()
-	defer c.store.locks[hash].Unlock()
-
-	c.store.mapLock.Unlock()
+	defer func() {
+		if unlockErr := lock.Unlock(); unlockErr != nil {
+			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
+		}
+	}()
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
-	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 

@@ -92,8 +92,6 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	for _, service := range server.services {
-		service := service
-
 		errGroup.Go(func() error {
 			return service.Run(ctx)
 		})

@@ -100,6 +100,90 @@ func TestGetRun(t *testing.T) {
 	}
 }
 
+func TestEnsureRun(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+
+	tests := []struct {
+		expectedErrIs error
+		setupFunc     func(*report.Report) *report.Run
+		name          string
+		runName       string
+		existingRun   bool
+		expectError   bool
+	}{
+		{
+			name:        "creates new run when run does not exist",
+			runName:     filepath.Join(tmp, "new-run"),
+			existingRun: false,
+			expectError: false,
+		},
+		{
+			name:        "returns existing run when it exists",
+			runName:     filepath.Join(tmp, "existing-run"),
+			existingRun: true,
+			expectError: false,
+			setupFunc: func(r *report.Report) *report.Run {
+				run := newRun(t, filepath.Join(tmp, "existing-run"))
+				err := r.AddRun(run)
+				require.NoError(t, err)
+				return run
+			},
+		},
+		{
+			name:          "returns error for invalid path",
+			runName:       "relative-path",
+			existingRun:   false,
+			expectError:   true,
+			expectedErrIs: report.ErrPathMustBeAbsolute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := report.NewReport()
+			var existingRun *report.Run
+
+			if tt.setupFunc != nil {
+				existingRun = tt.setupFunc(r)
+			}
+
+			run, err := r.EnsureRun(tt.runName)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, run)
+				if tt.expectedErrIs != nil {
+					require.ErrorIs(t, err, tt.expectedErrIs)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, run)
+				assert.Equal(t, tt.runName, run.Path)
+				assert.False(t, run.Started.IsZero())
+
+				if tt.existingRun {
+					// Should return the same instance as the existing run
+					assert.Equal(t, existingRun.Started, run.Started)
+				}
+
+				// Verify the run was added to the report
+				retrievedRun, err := r.GetRun(tt.runName)
+				require.NoError(t, err)
+				assert.Equal(t, run, retrievedRun)
+
+				// Verify that calling EnsureRun again returns the same run
+				secondRun, err := r.EnsureRun(tt.runName)
+				require.NoError(t, err)
+				assert.Equal(t, run, secondRun)
+			}
+		})
+	}
+}
+
 func TestEndRun(t *testing.T) {
 	t.Parallel()
 
@@ -590,7 +674,7 @@ func TestWriteJSON(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse both expected and actual JSON to compare them
-			var expectedJSON, actualJSON []map[string]interface{}
+			var expectedJSON, actualJSON []map[string]any
 			err = json.Unmarshal([]byte(tt.expected), &expectedJSON)
 			require.NoError(t, err)
 			err = json.Unmarshal(actualBytes, &actualJSON)
@@ -711,7 +795,7 @@ func TestWriteSchema(t *testing.T) {
 	assert.JSONEq(t, ExpectedSchema, buf.String())
 
 	// Parse the schema
-	var schema map[string]interface{}
+	var schema map[string]any
 	err = json.Unmarshal(buf.Bytes(), &schema)
 	require.NoError(t, err)
 
@@ -721,15 +805,15 @@ func TestWriteSchema(t *testing.T) {
 	assert.Equal(t, "Terragrunt Run Report Schema", schema["title"])
 
 	// Verify the items schema
-	items, ok := schema["items"].(map[string]interface{})
+	items, ok := schema["items"].(map[string]any)
 	require.True(t, ok)
 
 	// Verify the properties
-	properties, ok := items["properties"].(map[string]interface{})
+	properties, ok := items["properties"].(map[string]any)
 	require.True(t, ok)
 
 	// Verify required fields
-	required, ok := items["required"].([]interface{})
+	required, ok := items["required"].([]any)
 	require.True(t, ok)
 	assert.Contains(t, required, "Name")
 	assert.Contains(t, required, "Started")
@@ -737,17 +821,17 @@ func TestWriteSchema(t *testing.T) {
 	assert.Contains(t, required, "Result")
 
 	// Verify field types
-	assert.Equal(t, "string", properties["Name"].(map[string]interface{})["type"])
-	assert.Equal(t, "string", properties["Result"].(map[string]interface{})["type"])
-	assert.Equal(t, "string", properties["Started"].(map[string]interface{})["type"])
-	assert.Equal(t, "string", properties["Ended"].(map[string]interface{})["type"])
+	assert.Equal(t, "string", properties["Name"].(map[string]any)["type"])
+	assert.Equal(t, "string", properties["Result"].(map[string]any)["type"])
+	assert.Equal(t, "string", properties["Started"].(map[string]any)["type"])
+	assert.Equal(t, "string", properties["Ended"].(map[string]any)["type"])
 
 	// Verify optional fields
-	reason, ok := properties["Reason"].(map[string]interface{})
+	reason, ok := properties["Reason"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "string", reason["type"])
 
-	cause, ok := properties["Cause"].(map[string]interface{})
+	cause, ok := properties["Cause"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "string", cause["type"])
 }

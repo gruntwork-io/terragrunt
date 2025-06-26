@@ -9,7 +9,8 @@ order: 202
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
-    - /docs/features/execute-terraform-commands-on-multiple-units-at-once/
+  - /docs/features/execute-terraform-commands-on-multiple-units-at-once/
+  - /docs/features/execute-terraform-commands-on-multiple-modules-at-once/
 slug: stacks
 ---
 
@@ -30,7 +31,7 @@ slug: stacks
 
 ## Motivation
 
-Let’s say your infrastructure is defined across multiple OpenTofu/Terraform root modules:
+Let's say your infrastructure is defined across multiple OpenTofu/Terraform root modules:
 
 ```tree
 root
@@ -145,9 +146,9 @@ terragrunt run --all output
 Finally, if you make some changes to your project, you could evaluate the impact by using `run --all` command with `plan`:
 
 Note: It is important to realize that you could get errors running `run --all plan` if you have dependencies between your
-projects and some of those dependencies haven’t been applied yet.
+projects and some of those dependencies haven't been applied yet.
 
-_Ex: If unit A depends on unit B and unit B hasn’t been applied yet, then run --all plan will show the plan for B, but exit with an error when trying to show the plan for A._
+_Ex: If unit A depends on unit B and unit B hasn't been applied yet, then run --all plan will show the plan for B, but exit with an error when trying to show the plan for A._
 
 ```bash
 terragrunt run --all plan
@@ -155,7 +156,7 @@ terragrunt run --all plan
 
 \* Note that the units _might_ run concurrently, but some units can be blocked from running until their dependencies are run.
 
-If your units have dependencies between them, for example, you can’t deploy the backend-app until MySQL and valkey are deployed. You’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
+If your units have dependencies between them, for example, you can't deploy the backend-app until MySQL and valkey are deployed. You'll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
 Additional note: If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--queue-exclude-external` flag, or use the `--exclude-dir` once for each directory you wish to exclude.
 
@@ -251,11 +252,11 @@ If any of the units failed to deploy, then Terragrunt will not attempt to deploy
 
 Terragrunt will return an error if the unit referenced in a `dependency` block has not been applied yet. This is because you cannot actually fetch outputs out of an unapplied unit, even if there are no resources being created in the unit.
 
-This is most problematic when running commands that do not modify state (e.g `run --all plan` and `run --all validate`) on a completely new setup where no infrastructure has been deployed. You won’t be able to `plan` or `validate` a unit if you can’t determine the `inputs`. If the unit depends on the outputs of another unit that hasn’t been applied yet, you won’t be able to compute the `inputs` unless the dependencies are all applied.
+This is most problematic when running commands that do not modify state (e.g `run --all plan` and `run --all validate`) on a completely new setup where no infrastructure has been deployed. You won't be able to `plan` or `validate` a unit if you can't determine the `inputs`. If the unit depends on the outputs of another unit that hasn't been applied yet, you won't be able to compute the `inputs` unless the dependencies are all applied.
 
 Of course, in real life usage, you typically need the ability to run `run --all validate` or `run --all plan` on a completely new set of infrastructure.
 
-To address this, you can provide mock outputs to use when a unit hasn’t been applied yet. This is configured using the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of the actual dependency outputs if the target config hasn’t been applied yet.
+To address this, you can provide mock outputs to use when a unit hasn't been applied yet. This is configured using the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of the actual dependency outputs if the target config hasn't been applied yet.
 
 Using a mock output is typically the best solution here, as you typically don't actually care that an _accurate_ value is used for a given value at this stage, just that it will plan successfully. When you actually apply the unit, that's when you want to be sure that a real value is used.
 
@@ -279,7 +280,7 @@ inputs = {
 
 You can now run `validate` on this config before the `vpc` unit is applied because Terragrunt will use the map `{vpc_id = "mock-vpc-id"}` as the `outputs` attribute on the dependency instead of erroring out.
 
-What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use the defaults for a `plan` operation because the plan doesn’t give you any indication of what is actually going to be created.
+What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use the defaults for a `plan` operation because the plan doesn't give you any indication of what is actually going to be created.
 
 You can use the `mock_outputs_allowed_terraform_commands` attribute to indicate that the `mock_outputs` should only be used when running those OpenTofu/Terraform commands. So to restrict the `mock_outputs` to only when `validate` is being run, you can modify the above `terragrunt.hcl` file to:
 
@@ -394,7 +395,7 @@ root
     └── terragrunt.hcl
 ```
 
-Let’s assume you have the following dependencies between OpenTofu/Terraform units:
+Let's assume you have the following dependencies between OpenTofu/Terraform units:
 
 - `backend-app` depends on `mysql`, `valkey`, and `vpc`
 
@@ -422,7 +423,7 @@ dependencies {
 }
 ```
 
-Once you’ve specified these dependencies in each `terragrunt.hcl` file, Terragrunt will be able to perform updates respecting the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of dependencies.
+Once you've specified these dependencies in each `terragrunt.hcl` file, Terragrunt will be able to perform updates respecting the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of dependencies.
 
 For the example at the start of this section, the order of runs for the `run --all apply` command would be:
 
@@ -472,7 +473,7 @@ If you set the `--source` parameter, the `run --all` command will assume that pa
 
 For each unit that is being processed via a `run --all` command, Terragrunt will:
 
-1. Read in the `source` parameter in that unit’s `terragrunt.hcl` file.
+1. Read in the `source` parameter in that unit's `terragrunt.hcl` file.
 2. Parse out the path (the portion after the double-slash).
 3. Append the path to the `--source` parameter to create the final local path for that unit.
 
@@ -520,11 +521,11 @@ $ terragrunt run --all plan --out-dir /tmp/tfplan
 $ tree /tmp/tfplan
 /tmp/tfplan
 ├── app1
-│   └── tfplan.tfplan
+│   └── tfplan.tfplan
 ├── app2
-│   └── tfplan.tfplan
+│   └── tfplan.tfplan
 ├── app3
-│   └── tfplan.tfplan
+│   └── tfplan.tfplan
 └── project-2
     └── project-2-app1
         └── tfplan.tfplan
@@ -545,11 +546,11 @@ $ terragrunt run --all plan --json-out-dir /tmp/json
 $ tree /tmp/json
 /tmp/json
 ├── app1
-│   └── tfplan.json
+│   └── tfplan.json
 ├── app2
-│   └── tfplan.json
+│   └── tfplan.json
 ├── app3
-│   └── tfplan.json
+│   └── tfplan.json
 └── project-2
     └── project-2-app1
         └── tfplan.json
@@ -559,14 +560,14 @@ $ terragrunt run --all plan --out-dir /tmp/all --json-out-dir /tmp/all
 $ tree /tmp/all
 /tmp/all
 ├── app1
-│   ├── tfplan.json
-│   └── tfplan.tfplan
+│   ├── tfplan.json
+│   └── tfplan.tfplan
 ├── app2
-│   ├── tfplan.json
-│   └── tfplan.tfplan
+│   ├── tfplan.json
+│   └── tfplan.tfplan
 ├── app3
-│   ├── tfplan.json
-│   └── tfplan.tfplan
+│   ├── tfplan.json
+│   └── tfplan.tfplan
 └── project-2
     └── project-2-app1
         ├── tfplan.json

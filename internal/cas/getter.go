@@ -2,7 +2,9 @@ package cas
 
 import (
 	"context"
+	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -28,6 +30,7 @@ func NewCASGetter(l log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
 			new(getter.GitDetector),
 			new(getter.BitBucketDetector),
 			new(getter.GitLabDetector),
+			new(getter.FileDetector),
 		},
 		CAS:    cas,
 		Logger: l,
@@ -36,6 +39,11 @@ func NewCASGetter(l log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
 }
 
 func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
+	if req.Copy {
+		// Handle local directory by persisting to CAS and linking
+		return g.CAS.StoreLocalDirectory(ctx, g.Logger, req.Src, req.Dst)
+	}
+
 	ref := ""
 
 	url := req.URL()
@@ -90,10 +98,31 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		}
 
 		if ok {
+			// Check if this is a FileDetector using type assertion
+			if _, isFileDetector := detector.(*getter.FileDetector); isFileDetector {
+				info, statErr := os.Stat(src)
+				if statErr != nil {
+					return false, fmt.Errorf("%w: %s", ErrDirectoryNotFound, src)
+				}
+
+				if !info.IsDir() {
+					return false, fmt.Errorf("%w: %s", ErrNotADirectory, src)
+				}
+
+				// We use this as a simple way to indicate that we're working with a local directory.
+				req.Copy = true
+			}
+
 			req.Src = src
+
 			return ok, nil
 		}
 	}
 
 	return false, nil
 }
+
+var (
+	ErrDirectoryNotFound = errors.New("directory not found")
+	ErrNotADirectory     = errors.New("not a directory")
+)
