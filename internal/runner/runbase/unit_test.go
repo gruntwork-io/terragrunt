@@ -61,12 +61,23 @@ func TestUnit_PlanFile_OutputFile_JSONOutputFolder(t *testing.T) {
 
 	planFile := unit.PlanFile(l, opts)
 	assert.NotEmpty(t, planFile)
+	assert.Contains(t, planFile, "/out-folder/module/path/")
+	assert.True(t, hasSuffix(planFile, ".tfplan"), "planFile should end with .tfplan: %s", planFile)
 
 	outputFile := unit.OutputFile(l, opts)
 	assert.NotEmpty(t, outputFile)
+	assert.Contains(t, outputFile, "/out-folder/module/path/")
+	assert.True(t, hasSuffix(outputFile, ".tfplan"), "outputFile should end with .tfplan: %s", outputFile)
 
 	jsonFile := unit.OutputJSONFile(l, opts)
 	assert.NotEmpty(t, jsonFile)
+	assert.Contains(t, jsonFile, "/json-folder/module/path/")
+	assert.True(t, hasSuffix(jsonFile, ".json"), "jsonFile should end with .json: %s", jsonFile)
+}
+
+// hasSuffix is a helper to handle both Unix and Windows path separators
+func hasSuffix(path, suffix string) bool {
+	return len(path) >= len(suffix) && path[len(path)-len(suffix):] == suffix
 }
 
 func TestUnit_FindUnitInPath(t *testing.T) {

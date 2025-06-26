@@ -36,7 +36,8 @@ func TestGraph(t *testing.T) {
 	units := runbase.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
-	terragruntOptions, _ := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
+	require.NoError(t, err)
 	units.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
 	expected := strings.TrimSpace(`
 digraph {
@@ -84,7 +85,8 @@ func TestGraphTrimPrefix(t *testing.T) {
 	units := runbase.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
-	terragruntOptions, _ := options.NewTerragruntOptionsWithConfigPath("/config/terragrunt.hcl")
+	terragruntOptions, err := options.NewTerragruntOptionsWithConfigPath("/config/terragrunt.hcl")
+	require.NoError(t, err)
 	units.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
 	expected := strings.TrimSpace(`
 digraph {
@@ -129,7 +131,8 @@ func TestGraphFlagExcluded(t *testing.T) {
 	units := runbase.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
-	terragruntOptions, _ := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
+	require.NoError(t, err)
 	units.WriteDot(logger.CreateLogger(), &stdout, terragruntOptions)
 	expected := strings.TrimSpace(`
 digraph {

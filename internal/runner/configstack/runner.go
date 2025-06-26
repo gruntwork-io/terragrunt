@@ -307,9 +307,55 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil, err
 	}
 
+	unitsMap, err := runner.telemetryResolveUnits(ctx, l, canonicalTerragruntConfigPaths)
+	if err != nil {
+		return nil, err
+	}
+
+	externalDependencies, err := runner.telemetryResolveExternalDependencies(ctx, l, unitsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	crossLinkedUnits, err := runner.telemetryCrosslinkDependencies(ctx, unitsMap, externalDependencies, canonicalTerragruntConfigPaths)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsIncluded, err := runner.telemetryFlagIncludedDirs(ctx, crossLinkedUnits)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsThatAreIncludedByOthers, err := runner.telemetryFlagUnitsThatAreIncluded(ctx, withUnitsIncluded)
+	if err != nil {
+		return nil, err
+	}
+
+	withExcludedUnits, err := runner.telemetryFlagExcludedUnits(ctx, l, withUnitsThatAreIncludedByOthers)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsRead, err := runner.telemetryFlagUnitsThatRead(ctx, withExcludedUnits)
+	if err != nil {
+		return nil, err
+	}
+
+	withUnitsExcluded, err := runner.telemetryFlagExcludedDirs(ctx, l, withUnitsRead)
+	if err != nil {
+		return nil, err
+	}
+
+	return withUnitsExcluded, nil
+}
+
+// --- Helper methods for ResolveTerraformModules ---
+
+func (runner *Runner) telemetryResolveUnits(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string) (runbase.UnitsMap, error) {
 	var unitsMap runbase.UnitsMap
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_units", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_units", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		howThesePathsWereFound := "Terragrunt config file found in a subdirectory of " + runner.Stack.TerragruntOptions.WorkingDir
@@ -324,13 +370,13 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
+	return unitsMap, err
+}
 
+func (runner *Runner) telemetryResolveExternalDependencies(ctx context.Context, l log.Logger, unitsMap runbase.UnitsMap) (runbase.UnitsMap, error) {
 	var externalDependencies runbase.UnitsMap
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_external_dependencies_for_units", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "resolve_external_dependencies_for_units", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(ctx context.Context) error {
 		result, err := runner.resolveExternalDependenciesForUnits(ctx, l, unitsMap, runbase.UnitsMap{}, 0)
@@ -342,13 +388,14 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
 
+	return externalDependencies, err
+}
+
+func (runner *Runner) telemetryCrosslinkDependencies(ctx context.Context, unitsMap, externalDependencies runbase.UnitsMap, canonicalTerragruntConfigPaths []string) (runbase.Units, error) {
 	var crossLinkedUnits runbase.Units
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "crosslink_dependencies", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
 		result, err := unitsMap.MergeMaps(externalDependencies).CrossLinkDependencies(canonicalTerragruntConfigPaths)
@@ -361,26 +408,26 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
+	return crossLinkedUnits, err
+}
 
+func (runner *Runner) telemetryFlagIncludedDirs(ctx context.Context, crossLinkedUnits runbase.Units) (runbase.Units, error) {
 	var withUnitsIncluded runbase.Units
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_included_dirs", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_included_dirs", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
 		withUnitsIncluded = flagIncludedDirs(runner.Stack.TerragruntOptions, crossLinkedUnits)
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
+	return withUnitsIncluded, err
+}
 
+func (runner *Runner) telemetryFlagUnitsThatAreIncluded(ctx context.Context, withUnitsIncluded runbase.Units) (runbase.Units, error) {
 	var withUnitsThatAreIncludedByOthers runbase.Units
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_are_included", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_are_included", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
 		result, err := flagUnitsThatAreIncluded(runner.Stack.TerragruntOptions, withUnitsIncluded)
@@ -393,13 +440,13 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
+	return withUnitsThatAreIncludedByOthers, err
+}
 
+func (runner *Runner) telemetryFlagExcludedUnits(ctx context.Context, l log.Logger, withUnitsThatAreIncludedByOthers runbase.Units) (runbase.Units, error) {
 	var withExcludedUnits runbase.Units
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_units", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
 		result := flagExcludedUnits(l, runner.Stack.TerragruntOptions, withUnitsThatAreIncludedByOthers)
@@ -408,37 +455,33 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
+	return withExcludedUnits, err
+}
 
+func (runner *Runner) telemetryFlagUnitsThatRead(ctx context.Context, withExcludedUnits runbase.Units) (runbase.Units, error) {
 	var withUnitsRead runbase.Units
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_read", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_units_that_read", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
 		withUnitsRead = flagUnitsThatRead(runner.Stack.TerragruntOptions, withExcludedUnits)
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
+	return withUnitsRead, err
+}
 
+func (runner *Runner) telemetryFlagExcludedDirs(ctx context.Context, l log.Logger, withUnitsRead runbase.Units) (runbase.Units, error) {
 	var withUnitsExcluded runbase.Units
 
-	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_dirs", map[string]any{
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "flag_excluded_dirs", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
 	}, func(_ context.Context) error {
 		withUnitsExcluded = flagExcludedDirs(l, runner.Stack.TerragruntOptions, runner.Stack.Report, withUnitsRead)
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
-	return withUnitsExcluded, nil
+	return withUnitsExcluded, err
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the unit that configuration file represents
@@ -506,7 +549,7 @@ func (runner *Runner) resolveUnits(ctx context.Context, l log.Logger, canonicalT
 // Note that this method will NOT fill in the Dependencies field of the Unit struct (see the
 // crosslinkDependencies method for that).
 func (runner *Runner) resolveTerraformUnit(ctx context.Context, l log.Logger, terragruntConfigPath string, unitsMap runbase.UnitsMap, howThisUnitWasFound string) (*runbase.Unit, error) {
-	unitPath, err := util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
+	unitPath, err := runner.resolveUnitPath(terragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -515,22 +558,73 @@ func (runner *Runner) resolveTerraformUnit(ctx context.Context, l log.Logger, te
 		return nil, nil
 	}
 
-	// Clone the options struct so we don't modify the original one. This is especially important as run --all operations
-	// happen concurrently.
-	l, opts, err := runner.Stack.TerragruntOptions.CloneWithConfigPath(l, terragruntConfigPath)
+	l, opts, err := runner.cloneOptionsWithConfigPath(l, terragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// We need to reset the original path for each unit. Otherwise, this path will be set to wherever you ran run --all
-	// from, which is not what any of the units will want.
+	includeConfig := runner.setupIncludeConfig(terragruntConfigPath, opts)
+
+	if collections.ListContainsElement(opts.ExcludeDirs, unitPath) {
+		return &runbase.Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
+	}
+
+	parseCtx := runner.createParsingContext(ctx, l, opts)
+
+	if err := runner.acquireCredentials(ctx, l, opts); err != nil {
+		return nil, err
+	}
+
+	terragruntConfig, err := runner.partialParseConfig(ctx, parseCtx, l, terragruntConfigPath, includeConfig, howThisUnitWasFound)
+	if err != nil {
+		return nil, err
+	}
+
+	runner.Stack.TerragruntOptions.CloneReadFiles(opts.ReadFiles)
+
+	terragruntSource, err := config.GetTerragruntSourceForModule(runner.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	opts.Source = terragruntSource
+
+	if err := runner.setupDownloadDir(terragruntConfigPath, opts, l); err != nil {
+		return nil, err
+	}
+
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
+	if err != nil {
+		return nil, err
+	}
+
+	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && matches == nil {
+		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
+		return nil, nil
+	}
+
+	return &runbase.Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+}
+
+// --- Helper methods for resolveTerraformUnit ---
+
+func (runner *Runner) resolveUnitPath(terragruntConfigPath string) (string, error) {
+	return util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
+}
+
+func (runner *Runner) cloneOptionsWithConfigPath(l log.Logger, terragruntConfigPath string) (log.Logger, *options.TerragruntOptions, error) {
+	l, opts, err := runner.Stack.TerragruntOptions.CloneWithConfigPath(l, terragruntConfigPath)
+	if err != nil {
+		return l, nil, err
+	}
+
 	opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
-	// If `childTerragruntConfig.ProcessedIncludes` contains the path `terragruntConfigPath`, then this is a parent config
-	// which implies that `TerragruntConfigPath` must refer to a child configuration file, and the defined `IncludeConfig` must contain the path to the file itself
-	// for the built-in functions `read_terragrunt_config()`, `path_relative_to_include()` to work correctly.
-	var includeConfig *config.IncludeConfig
+	return l, opts, nil
+}
 
+func (runner *Runner) setupIncludeConfig(terragruntConfigPath string, opts *options.TerragruntOptions) *config.IncludeConfig {
+	var includeConfig *config.IncludeConfig
 	if runner.Stack.ChildTerragruntConfig != nil && runner.Stack.ChildTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
 		includeConfig = &config.IncludeConfig{
 			Path: terragruntConfigPath,
@@ -538,36 +632,28 @@ func (runner *Runner) resolveTerraformUnit(ctx context.Context, l log.Logger, te
 		opts.TerragruntConfigPath = runner.Stack.TerragruntOptions.OriginalTerragruntConfigPath
 	}
 
-	if collections.ListContainsElement(opts.ExcludeDirs, unitPath) {
-		// unit is excluded
-		return &runbase.Unit{Path: unitPath, Logger: l, TerragruntOptions: opts, FlagExcluded: true}, nil
-	}
+	return includeConfig
+}
 
-	parseCtx := config.NewParsingContext(ctx, l, opts).
+func (runner *Runner) createParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) *config.ParsingContext {
+	return config.NewParsingContext(ctx, l, opts).
 		WithParseOption(runner.Stack.ParserOptions).
 		WithDecodeList(
-			// Need for initializing the units
 			config.TerraformSource,
-
-			// Need for parsing out the dependencies
 			config.DependenciesBlock,
 			config.DependencyBlock,
 			config.FeatureFlagsBlock,
 			config.ErrorsBlock,
 		)
+}
 
-	// Credentials have to be acquired before the config is parsed, as the config may contain interpolation functions
-	// that require credentials to be available.
+func (runner *Runner) acquireCredentials(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
-		return nil, err
-	}
+	return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts))
+}
 
-	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
-	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
-	// before we call out to terraform.
-
-	// TODO: Remove lint suppression
+// nolint:unparam
+func (runner *Runner) partialParseConfig(ctx context.Context, parseCtx *config.ParsingContext, l log.Logger, terragruntConfigPath string, includeConfig *config.IncludeConfig, howThisUnitWasFound string) (*config.TerragruntConfig, error) {
 	terragruntConfig, err := config.PartialParseConfigFile( //nolint:contextcheck
 		parseCtx,
 		l,
@@ -582,46 +668,26 @@ func (runner *Runner) resolveTerraformUnit(ctx context.Context, l log.Logger, te
 		})
 	}
 
-	// Hack to persist readFiles. Need to discuss with team to see if there is a better way to handle this.
-	runner.Stack.TerragruntOptions.CloneReadFiles(opts.ReadFiles)
+	return terragruntConfig, nil
+}
 
-	terragruntSource, err := config.GetTerragruntSourceForModule(runner.Stack.TerragruntOptions.Source, unitPath, terragruntConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	opts.Source = terragruntSource
-
+func (runner *Runner) setupDownloadDir(terragruntConfigPath string, opts *options.TerragruntOptions, l log.Logger) error {
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(runner.Stack.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// If we're using the default download directory, put it into the same folder as the Terragrunt configuration file.
-	// If we're not using the default, then the user has specified a custom download directory, and we leave it as-is.
 	if runner.Stack.TerragruntOptions.DownloadDir == defaultDownloadDir {
 		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		l.Debugf("Setting download directory for unit %s to %s", filepath.Dir(opts.TerragruntConfigPath), downloadDir)
 		opts.DownloadDir = downloadDir
 	}
 
-	// Fix for https://github.com/gruntwork-io/terragrunt/issues/208
-	matches, err := filepath.Glob(filepath.Join(filepath.Dir(terragruntConfigPath), "*.tf"))
-	if err != nil {
-		return nil, err
-	}
-
-	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && matches == nil {
-		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
-		return nil, nil
-	}
-
-	//TODO: fix linking Stack: runner
-	return &runbase.Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return nil
 }
 
 // resolveDependenciesForUnit looks through the dependencies of the given unit and resolve the dependency paths listed in the unit's config.
@@ -909,11 +975,8 @@ func flagIncludedDirs(opts *options.TerragruntOptions, units runbase.Units) runb
 // flagUnitsThatAreIncluded iterates over a unit slice and flags all units that include at least one file in
 // the specified include list on the TerragruntOptions ModulesThatInclude attribute.
 func flagUnitsThatAreIncluded(opts *options.TerragruntOptions, units runbase.Units) (runbase.Units, error) {
-	// The two flags ModulesThatInclude and UnitsReading should both be considered when determining which
-	// units to include in the run queue.
 	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...) //nolint:gocritic
 
-	// If no unitsThatInclude is specified return the units list instantly
 	if len(unitsThatInclude) == 0 {
 		return units, nil
 	}
@@ -930,40 +993,62 @@ func flagUnitsThatAreIncluded(opts *options.TerragruntOptions, units runbase.Uni
 	}
 
 	for _, unit := range units {
-		for _, includeConfig := range unit.Config.ProcessedIncludes {
-			// resolve include config to canonical path to compare with unitsThatIncludeCanonicalPath
-			// https://github.com/gruntwork-io/terragrunt/issues/1944
-			canonicalPath, err := util.CanonicalPath(includeConfig.Path, unit.Path)
-			if err != nil {
-				return nil, err
-			}
-
-			if util.ListContainsElement(unitsThatIncludeCanonicalPaths, canonicalPath) {
-				unit.FlagExcluded = false
-			}
+		if err := flagUnitIncludes(unit, unitsThatIncludeCanonicalPaths); err != nil {
+			return nil, err
 		}
 
-		// Also search unit dependencies and exclude if the dependency path doesn't include any of the specified
-		// paths, using a similar logic.
-		for _, dependency := range unit.Dependencies {
-			if dependency.FlagExcluded {
-				continue
-			}
-
-			for _, includeConfig := range dependency.Config.ProcessedIncludes {
-				canonicalPath, err := util.CanonicalPath(includeConfig.Path, unit.Path)
-				if err != nil {
-					return nil, err
-				}
-
-				if util.ListContainsElement(unitsThatIncludeCanonicalPaths, canonicalPath) {
-					dependency.FlagExcluded = false
-				}
-			}
+		if err := flagUnitDependencies(unit, unitsThatIncludeCanonicalPaths); err != nil {
+			return nil, err
 		}
 	}
 
 	return units, nil
+}
+
+// --- Helper methods for flagUnitsThatAreIncluded ---
+
+func flagUnitIncludes(unit *runbase.Unit, canonicalPaths []string) error {
+	for _, includeConfig := range unit.Config.ProcessedIncludes {
+		canonicalPath, err := util.CanonicalPath(includeConfig.Path, unit.Path)
+		if err != nil {
+			return err
+		}
+
+		if util.ListContainsElement(canonicalPaths, canonicalPath) {
+			unit.FlagExcluded = false
+		}
+	}
+
+	return nil
+}
+
+func flagUnitDependencies(unit *runbase.Unit, canonicalPaths []string) error {
+	for _, dependency := range unit.Dependencies {
+		if dependency.FlagExcluded {
+			continue
+		}
+
+		if err := flagDependencyIncludes(dependency, unit.Path, canonicalPaths); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func flagDependencyIncludes(dependency *runbase.Unit, unitPath string, canonicalPaths []string) error {
+	for _, includeConfig := range dependency.Config.ProcessedIncludes {
+		canonicalPath, err := util.CanonicalPath(includeConfig.Path, unitPath)
+		if err != nil {
+			return err
+		}
+
+		if util.ListContainsElement(canonicalPaths, canonicalPath) {
+			dependency.FlagExcluded = false
+		}
+	}
+
+	return nil
 }
 
 // flagExcludedUnits iterates over a unit slice and flags all units that are excluded based on the exclude block.

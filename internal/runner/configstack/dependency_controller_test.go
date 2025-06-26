@@ -17,6 +17,26 @@ import (
 
 var mockOptions, _ = options.NewTerragruntOptionsForTest("running_unit_test")
 
+// Helper to create a runbase.Unit with default fields
+func newTestUnit(path string, dependencies runbase.Units, config config.TerragruntConfig, opts *options.TerragruntOptions) *runbase.Unit {
+	return &runbase.Unit{
+		Path:              path,
+		Dependencies:      dependencies,
+		Config:            config,
+		TerragruntOptions: opts,
+	}
+}
+
+// Helper to create and initialize a DependencyController for a unit
+func newTestDependencyController(unit *runbase.Unit) *configstack.DependencyController {
+	ctrl := configstack.NewDependencyController(unit)
+	ctrl.Dependencies = map[string]*configstack.DependencyController{}
+	ctrl.NotifyWhenDone = []*configstack.DependencyController{}
+	ctrl.Runner.Status = runbase.Waiting
+	ctrl.Runner.Err = nil
+	return ctrl
+}
+
 func cloneOptions(t *testing.T, l log.Logger, opts *options.TerragruntOptions, terragruntConfigPath string) (log.Logger, *options.TerragruntOptions) {
 	t.Helper()
 
@@ -35,18 +55,8 @@ func TestToRunningUnitsNoUnits(t *testing.T) {
 func TestToRunningUnitsOneUnitNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
 	units := runbase.Units{unitA}
 	expected := configstack.RunningUnits{"a": ctrlA}
@@ -57,31 +67,11 @@ func TestToRunningUnitsOneUnitNoDependencies(t *testing.T) {
 func TestToRunningUnitsTwoUnitsNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
-
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlB := configstack.NewDependencyController(unitB)
-	ctrlB.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlB.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
+	unitB := newTestUnit("b", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 
 	units := runbase.Units{unitA, unitB}
 	expected := configstack.RunningUnits{"a": ctrlA, "b": ctrlB}
@@ -92,31 +82,12 @@ func TestToRunningUnitsTwoUnitsNoDependencies(t *testing.T) {
 func TestToRunningUnitsTwoUnitsWithDependencies(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
-
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlB := configstack.NewDependencyController(unitB)
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 	ctrlB.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlB.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
 
 	ctrlA.NotifyWhenDone = []*configstack.DependencyController{ctrlB}
 
@@ -129,31 +100,12 @@ func TestToRunningUnitsTwoUnitsWithDependencies(t *testing.T) {
 func TestToRunningUnitsTwoUnitsWithDependenciesReverseOrder(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
-
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlB := configstack.NewDependencyController(unitB)
-	ctrlB.Dependencies = map[string]*configstack.DependencyController{}
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 	ctrlB.NotifyWhenDone = []*configstack.DependencyController{ctrlA}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
 
 	ctrlA.Dependencies = configstack.RunningUnits{"b": ctrlB}
 
@@ -166,31 +118,11 @@ func TestToRunningUnitsTwoUnitsWithDependenciesReverseOrder(t *testing.T) {
 func TestToRunningUnitsTwoUnitsWithDependenciesIgnoreOrder(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
-
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlB := configstack.NewDependencyController(unitB)
-	ctrlB.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlB.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 
 	units := runbase.Units{unitA, unitB}
 	expected := configstack.RunningUnits{"a": ctrlA, "b": ctrlB}
@@ -201,81 +133,35 @@ func TestToRunningUnitsTwoUnitsWithDependenciesIgnoreOrder(t *testing.T) {
 func TestToRunningUnitsMultipleUnitsWithAndWithoutDependencies(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
-
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlB := configstack.NewDependencyController(unitB)
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 	ctrlB.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlB.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
 
 	ctrlA.NotifyWhenDone = []*configstack.DependencyController{ctrlB}
 
-	unitC := &runbase.Unit{
-		Path:              "c",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlC := configstack.NewDependencyController(unitC)
+	unitC := newTestUnit("c", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlC := newTestDependencyController(unitC)
 	ctrlC.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlC.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlC.Runner.Status = runbase.Waiting
-	ctrlC.Runner.Err = nil
 
 	ctrlA.NotifyWhenDone = []*configstack.DependencyController{ctrlC}
 
-	unitD := &runbase.Unit{
-		Path:              "d",
-		Dependencies:      runbase.Units{unitC},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlD := configstack.NewDependencyController(unitD)
+	unitD := newTestUnit("d", runbase.Units{unitC}, config.TerragruntConfig{}, mockOptions)
+	ctrlD := newTestDependencyController(unitD)
 	ctrlD.Dependencies = map[string]*configstack.DependencyController{"c": ctrlC}
-	ctrlD.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlD.Runner.Status = runbase.Waiting
-	ctrlD.Runner.Err = nil
 
 	ctrlC.NotifyWhenDone = []*configstack.DependencyController{ctrlD}
 
-	unitE := &runbase.Unit{
-		Path:              "e",
-		Dependencies:      runbase.Units{unitA, unitB, unitC, unitD},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlE := configstack.NewDependencyController(unitE)
+	unitE := newTestUnit("e", runbase.Units{unitA, unitB, unitC, unitD}, config.TerragruntConfig{}, mockOptions)
+	ctrlE := newTestDependencyController(unitE)
 	ctrlE.Dependencies = configstack.RunningUnits{
 		"a": ctrlA,
 		"b": ctrlB,
 		"c": ctrlC,
 		"d": ctrlD,
 	}
-	ctrlE.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlE.Runner.Status = runbase.Waiting
-	ctrlE.Runner.Err = nil
 
 	ctrlA.NotifyWhenDone = []*configstack.DependencyController{ctrlB, ctrlC, ctrlE}
 	ctrlB.NotifyWhenDone = []*configstack.DependencyController{ctrlE}
@@ -297,60 +183,20 @@ func TestToRunningUnitsMultipleUnitsWithAndWithoutDependencies(t *testing.T) {
 func TestToRunningUnitsMultipleUnitsWithAndWithoutDependenciesReverseOrder(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitC := newTestUnit("c", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlC := newTestDependencyController(unitC)
 
-	ctrlB := configstack.NewDependencyController(unitB)
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
+	unitD := newTestUnit("d", runbase.Units{unitC}, config.TerragruntConfig{}, mockOptions)
+	ctrlD := newTestDependencyController(unitD)
 
-	unitC := &runbase.Unit{
-		Path:              "c",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlC := configstack.NewDependencyController(unitC)
-	ctrlC.Runner.Status = runbase.Waiting
-	ctrlC.Runner.Err = nil
-
-	unitD := &runbase.Unit{
-		Path:              "d",
-		Dependencies:      runbase.Units{unitC},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlD := configstack.NewDependencyController(unitD)
-	ctrlD.Runner.Status = runbase.Waiting
-	ctrlD.Runner.Err = nil
-
-	unitE := &runbase.Unit{
-		Path:              "e",
-		Dependencies:      runbase.Units{unitA, unitB, unitC, unitD},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlE := configstack.NewDependencyController(unitE)
-	ctrlE.Runner.Status = runbase.Waiting
-	ctrlE.Runner.Err = nil
+	unitE := newTestUnit("e", runbase.Units{unitA, unitB, unitC, unitD}, config.TerragruntConfig{}, mockOptions)
+	ctrlE := newTestDependencyController(unitE)
 
 	// Set up dependencies and notify lists for reverse order
 	ctrlA.Dependencies = configstack.RunningUnits{
@@ -394,70 +240,22 @@ func TestToRunningUnitsMultipleUnitsWithAndWithoutDependenciesReverseOrder(t *te
 func TestToRunningUnitsMultipleUnitsWithAndWithoutDependenciesIgnoreOrder(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitC := newTestUnit("c", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlC := newTestDependencyController(unitC)
 
-	ctrlB := configstack.NewDependencyController(unitB)
-	ctrlB.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlB.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
+	unitD := newTestUnit("d", runbase.Units{unitC}, config.TerragruntConfig{}, mockOptions)
+	ctrlD := newTestDependencyController(unitD)
 
-	unitC := &runbase.Unit{
-		Path:              "c",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlC := configstack.NewDependencyController(unitC)
-	ctrlC.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlC.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlC.Runner.Status = runbase.Waiting
-	ctrlC.Runner.Err = nil
-
-	unitD := &runbase.Unit{
-		Path:              "d",
-		Dependencies:      runbase.Units{unitC},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlD := configstack.NewDependencyController(unitD)
-	ctrlD.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlD.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlD.Runner.Status = runbase.Waiting
-	ctrlD.Runner.Err = nil
-
-	unitE := &runbase.Unit{
-		Path:              "e",
-		Dependencies:      runbase.Units{unitA, unitB, unitC, unitD},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlE := configstack.NewDependencyController(unitE)
+	unitE := newTestUnit("e", runbase.Units{unitA, unitB, unitC, unitD}, config.TerragruntConfig{}, mockOptions)
+	ctrlE := newTestDependencyController(unitE)
 	ctrlE.Dependencies = configstack.RunningUnits{}
 	ctrlE.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlE.Runner.Status = runbase.Waiting
-	ctrlE.Runner.Err = nil
 
 	units := runbase.Units{unitA, unitB, unitC, unitD, unitE}
 	expected := configstack.RunningUnits{
@@ -483,73 +281,20 @@ func testToRunningUnits(t *testing.T, units runbase.Units, order configstack.Dep
 func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitC := newTestUnit("c", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlC := newTestDependencyController(unitC)
 
-	ctrlB := configstack.NewDependencyController(unitB)
-	ctrlB.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlB.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
+	unitD := newTestUnit("d", runbase.Units{unitC}, config.TerragruntConfig{}, mockOptions)
+	ctrlD := newTestDependencyController(unitD)
 
-	unitC := &runbase.Unit{
-		Path:              "c",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlC := configstack.NewDependencyController(unitC)
-	ctrlC.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlC.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlC.Runner.Status = runbase.Waiting
-	ctrlC.Runner.Err = nil
-
-	unitD := &runbase.Unit{
-		Path:              "d",
-		Dependencies:      runbase.Units{unitC},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlD := configstack.NewDependencyController(unitD)
-	ctrlD.Dependencies = map[string]*configstack.DependencyController{"c": ctrlC}
-	ctrlD.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlD.Runner.Status = runbase.Waiting
-	ctrlD.Runner.Err = nil
-
-	unitE := &runbase.Unit{
-		Path:              "e",
-		Dependencies:      runbase.Units{unitB, unitD},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlE := configstack.NewDependencyController(unitE)
-	ctrlE.Dependencies = configstack.RunningUnits{
-		"b": ctrlB,
-		"d": ctrlD,
-	}
-	ctrlE.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlE.Runner.Status = runbase.Waiting
-	ctrlE.Runner.Err = nil
+	unitE := newTestUnit("e", runbase.Units{unitB, unitD}, config.TerragruntConfig{}, mockOptions)
+	ctrlE := newTestDependencyController(unitE)
 
 	runningUnits := configstack.RunningUnits{
 		"a": ctrlA,
@@ -576,44 +321,14 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlB := configstack.NewDependencyController(unitB)
-	ctrlB.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlB.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
-
-	unitC := &runbase.Unit{
-		Path:              "c",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlC := configstack.NewDependencyController(unitC)
-	ctrlC.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlC.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlC.Runner.Status = runbase.Waiting
-	ctrlC.Runner.Err = nil
+	unitC := newTestUnit("c", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlC := newTestDependencyController(unitC)
 	ctrlC.Runner.Unit.FlagExcluded = true
 
 	runningUnits := configstack.RunningUnits{
@@ -636,74 +351,21 @@ func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	t.Parallel()
 
-	unitA := &runbase.Unit{
-		Path:              "a",
-		Dependencies:      runbase.Units{},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitA := newTestUnit("a", runbase.Units{}, config.TerragruntConfig{}, mockOptions)
+	ctrlA := newTestDependencyController(unitA)
 
-	ctrlA := configstack.NewDependencyController(unitA)
-	ctrlA.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlA.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlA.Runner.Status = runbase.Waiting
-	ctrlA.Runner.Err = nil
+	unitB := newTestUnit("b", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlB := newTestDependencyController(unitB)
 
-	unitB := &runbase.Unit{
-		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlB := configstack.NewDependencyController(unitB)
-	ctrlB.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlB.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlB.Runner.Status = runbase.Waiting
-	ctrlB.Runner.Err = nil
-
-	unitC := &runbase.Unit{
-		Path:              "c",
-		Dependencies:      runbase.Units{unitA},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlC := configstack.NewDependencyController(unitC)
-	ctrlC.Dependencies = map[string]*configstack.DependencyController{"a": ctrlA}
-	ctrlC.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlC.Runner.Status = runbase.Waiting
-	ctrlC.Runner.Err = nil
+	unitC := newTestUnit("c", runbase.Units{unitA}, config.TerragruntConfig{}, mockOptions)
+	ctrlC := newTestDependencyController(unitC)
 	ctrlC.Runner.Unit.FlagExcluded = true
 
-	unitD := &runbase.Unit{
-		Path:              "d",
-		Dependencies:      runbase.Units{unitC},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
+	unitD := newTestUnit("d", runbase.Units{unitC}, config.TerragruntConfig{}, mockOptions)
+	ctrlD := newTestDependencyController(unitD)
 
-	ctrlD := configstack.NewDependencyController(unitD)
-	ctrlD.Dependencies = map[string]*configstack.DependencyController{}
-	ctrlD.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlD.Runner.Status = runbase.Waiting
-	ctrlD.Runner.Err = nil
-
-	unitE := &runbase.Unit{
-		Path:              "e",
-		Dependencies:      runbase.Units{unitB, unitD},
-		Config:            config.TerragruntConfig{},
-		TerragruntOptions: mockOptions,
-	}
-
-	ctrlE := configstack.NewDependencyController(unitE)
-	ctrlE.Dependencies = configstack.RunningUnits{
-		"b": ctrlB,
-		"d": ctrlD,
-	}
-	ctrlE.NotifyWhenDone = []*configstack.DependencyController{}
-	ctrlE.Runner.Status = runbase.Waiting
-	ctrlE.Runner.Err = nil
+	unitE := newTestUnit("e", runbase.Units{unitB, unitD}, config.TerragruntConfig{}, mockOptions)
+	ctrlE := newTestDependencyController(unitE)
 
 	runningUnits := configstack.RunningUnits{
 		"a": ctrlA,
@@ -715,7 +377,7 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	actual, err := runningUnits.RemoveFlagExcluded(report.NewReport(), false)
 	require.NoError(t, err)
 
-	_ctrlD := configstack.NewDependencyController(unitD)
+	_ctrlD := newTestDependencyController(unitD)
 	_ctrlD.Dependencies = map[string]*configstack.DependencyController{}
 	_ctrlD.NotifyWhenDone = []*configstack.DependencyController{}
 	_ctrlD.Runner.Status = runbase.Waiting
