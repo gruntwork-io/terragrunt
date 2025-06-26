@@ -25,6 +25,7 @@ func newMockUnit() *Unit {
 }
 
 func TestNewUnitRunner(t *testing.T) {
+	t.Parallel()
 	unit := newMockUnit()
 	runner := NewUnitRunner(unit)
 	assert.Equal(t, unit, runner.Unit)
@@ -32,16 +33,20 @@ func TestNewUnitRunner(t *testing.T) {
 }
 
 func TestUnitRunner_Run_AssumeAlreadyApplied(t *testing.T) {
+	t.Parallel()
+
 	unit := newMockUnit()
 	unit.AssumeAlreadyApplied = true
 	runner := NewUnitRunner(unit)
 	report := &report.Report{}
-	err := runner.Run(context.Background(), &options.TerragruntOptions{}, report)
+	err := runner.Run(t.Context(), &options.TerragruntOptions{}, report)
 	assert.NoError(t, err)
 	assert.Equal(t, Running, runner.Status)
 }
 
 func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
+	t.Parallel()
+
 	unit := newMockUnit()
 	unit.TerragruntOptions = &options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
@@ -51,13 +56,15 @@ func TestUnitRunner_Run_ErrorFromRunTerragrunt(t *testing.T) {
 	}
 	runner := NewUnitRunner(unit)
 	report := &report.Report{}
-	err := runner.Run(context.Background(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
+	err := runner.Run(t.Context(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
 	assert.Error(t, err)
 	assert.Equal(t, Running, runner.Status)
 	assert.Contains(t, err.Error(), "fail")
 }
 
 func TestUnitRunner_Run_Success(t *testing.T) {
+	t.Parallel()
+
 	unit := newMockUnit()
 	unit.TerragruntOptions = &options.TerragruntOptions{
 		Writer: &bytes.Buffer{},
@@ -67,7 +74,7 @@ func TestUnitRunner_Run_Success(t *testing.T) {
 	}
 	runner := NewUnitRunner(unit)
 	report := &report.Report{}
-	err := runner.Run(context.Background(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
+	err := runner.Run(t.Context(), &options.TerragruntOptions{Writer: &bytes.Buffer{}}, report)
 	assert.NoError(t, err)
 	assert.Equal(t, Running, runner.Status)
 }

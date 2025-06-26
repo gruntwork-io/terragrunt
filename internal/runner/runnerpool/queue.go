@@ -19,9 +19,9 @@ var (
 // concurrency‑safe way. Each child keeps a `remainingDeps` counter so we never
 // rescan the whole map when a parent finishes.
 type dagQueue struct {
+	index    map[string]*entry
+	ordered  []*entry
 	mu       sync.Mutex
-	index    map[string]*entry // canonical ID → entry
-	ordered  []*entry          // slice preserves caller order
 	failFast bool
 }
 
@@ -56,6 +56,7 @@ func buildQueue(units []*runbase.Unit, failFast bool) *dagQueue {
 			}
 		}
 	}
+
 	return q
 }
 
@@ -69,12 +70,14 @@ func (q *dagQueue) getReady() []*entry {
 	defer q.mu.Unlock()
 
 	out := make([]*entry, 0, len(q.ordered))
+
 	for _, e := range q.ordered {
 		if e.state == StatusReady {
 			e.state = StatusRunning
 			out = append(out, e)
 		}
 	}
+
 	return out
 }
 
@@ -91,11 +94,14 @@ func (q *dagQueue) markDone(e *entry, failFast bool) {
 		e.state = StatusSucceeded
 	} else {
 		e.state = StatusFailed
+
 		if failFast {
 			for _, n := range q.ordered {
 				switch n.state {
 				case StatusPending, StatusBlocked, StatusReady:
 					n.state = StatusFailFast
+				default:
+					// skip
 				}
 			}
 		}
@@ -128,6 +134,7 @@ func (q *dagQueue) empty() bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -137,6 +144,7 @@ func (q *dagQueue) results() []Result {
 	defer q.mu.Unlock()
 
 	out := make([]Result, len(q.ordered))
+
 	for i, e := range q.ordered {
 		res := e.result
 		// If the task was skipped due to fail-fast or ancestor failure, set ExitCode and Err
@@ -151,50 +159,27 @@ func (q *dagQueue) results() []Result {
 				res.ExitCode = 1 // Use 1 for skipped due to ancestor failure
 				// Find all failed ancestors
 				var failedAncestors []string
+
 				for _, pid := range e.task.Parents() {
 					if parent, ok := q.index[pid]; ok && parent.state != StatusSucceeded {
 						failedAncestors = append(failedAncestors, pid)
 					}
 				}
+
 				if len(failedAncestors) > 0 {
 					res.Err = errors.New("skipped due to ancestor failure: " + strings.Join(failedAncestors, ", "))
 				} else {
 					res.Err = ErrSkippedAncestorFailed
 				}
 			}
+		default:
+			// skip
 		}
+
 		out[i] = res
 	}
+
 	return out
-}
-
-func (q *dagQueue) summarizeStates() string {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	counts := make(map[Status]int)
-	ids := make(map[Status][]string)
-	for _, e := range q.ordered {
-		counts[e.state]++
-		if e.state != StatusSucceeded {
-			ids[e.state] = append(ids[e.state], e.task.ID())
-		}
-	}
-	// Build a summary string
-	summary := ""
-	for s, c := range counts {
-		summary += s.String() + ":" + itoa(c)
-		if len(ids[s]) > 0 {
-			summary += " [" + strings.Join(ids[s], ",") + "]"
-		}
-		summary += ", "
-	}
-	return summary
-}
-
-// Helper to convert int to string without fmt
-func itoa(i int) string {
-	return string('0' + i)
 }
 
 // Add String() method for Status for readable output

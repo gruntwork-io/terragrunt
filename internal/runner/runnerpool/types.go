@@ -25,6 +25,7 @@ func (t *Task) Parents() []string {
 	for _, dep := range t.Unit.Dependencies {
 		ids = append(ids, filepath.Clean(dep.Path))
 	}
+
 	return ids
 }
 
@@ -32,9 +33,9 @@ func (t *Task) Parents() []string {
 func taskFromUnit(u *runbase.Unit) *Task { return &Task{Unit: u} }
 
 type Result struct {
+	Err      error
 	TaskID   string
 	ExitCode int
-	Err      error
 }
 
 type TaskRunner func(ctx context.Context, t *Task) Result

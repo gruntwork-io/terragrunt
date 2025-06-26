@@ -1,9 +1,11 @@
-package runnerpool
+package runnerpool_test
 
 import (
 	"context"
 	"sync"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -19,6 +21,8 @@ func mockUnit(path string, deps ...*runbase.Unit) *runbase.Unit {
 }
 
 func TestRunnerPool_LinearDependency(t *testing.T) {
+	t.Parallel()
+
 	// A -> B -> C
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
@@ -27,26 +31,27 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 
 	var mu sync.Mutex
 	executionOrder := []string{}
-	runner := func(ctx context.Context, t *Task) Result {
+	runner := func(ctx context.Context, t *runnerpool.Task) runnerpool.Result {
 		mu.Lock()
 		executionOrder = append(executionOrder, t.ID())
 		mu.Unlock()
-		return Result{TaskID: t.ID(), ExitCode: 0}
+		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
 	}
 
-	pool := New(units, runner, 2, false)
-	results := pool.Run(context.Background(), logger.CreateLogger())
+	pool := runnerpool.New(units, runner, 2, false)
+	results := pool.Run(t.Context(), logger.CreateLogger())
 
 	// All should succeed
 	for _, res := range results {
 		assert.Equal(t, 0, res.ExitCode)
 	}
 	// A must run before B, B before C
-	assert.True(t, indexOf(executionOrder, "A") < indexOf(executionOrder, "B"))
-	assert.True(t, indexOf(executionOrder, "B") < indexOf(executionOrder, "C"))
+	assert.Less(t, indexOf(executionOrder, "A"), indexOf(executionOrder, "B"))
+	assert.Less(t, indexOf(executionOrder, "B"), indexOf(executionOrder, "C"))
 }
 
 func TestRunnerPool_ParallelExecution(t *testing.T) {
+	t.Parallel()
 	//   A
 	//  / \
 	// B   C
@@ -57,22 +62,22 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 
 	var mu sync.Mutex
 	executionOrder := []string{}
-	runner := func(ctx context.Context, t *Task) Result {
+	runner := func(ctx context.Context, t *runnerpool.Task) runnerpool.Result {
 		mu.Lock()
 		executionOrder = append(executionOrder, t.ID())
 		mu.Unlock()
-		return Result{TaskID: t.ID(), ExitCode: 0}
+		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
 	}
 
-	pool := New(units, runner, 2, false)
-	results := pool.Run(context.Background(), logger.CreateLogger())
+	pool := runnerpool.New(units, runner, 2, false)
+	results := pool.Run(t.Context(), logger.CreateLogger())
 
 	for _, res := range results {
 		assert.Equal(t, 0, res.ExitCode)
 	}
 	// A must run before B and C
-	assert.True(t, indexOf(executionOrder, "A") < indexOf(executionOrder, "B"))
-	assert.True(t, indexOf(executionOrder, "A") < indexOf(executionOrder, "C"))
+	assert.Less(t, indexOf(executionOrder, "A"), indexOf(executionOrder, "B"))
+	assert.Less(t, indexOf(executionOrder, "A"), indexOf(executionOrder, "C"))
 }
 
 func TestRunnerPool_FailFast(t *testing.T) {
@@ -84,15 +89,15 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	unitC := mockUnit("C", unitA)
 	units := []*runbase.Unit{unitA, unitB, unitC}
 
-	runner := func(ctx context.Context, t *Task) Result {
+	runner := func(ctx context.Context, t *runnerpool.Task) runnerpool.Result {
 		if t.ID() == "A" {
-			return Result{TaskID: t.ID(), ExitCode: 1, Err: assert.AnError}
+			return runnerpool.Result{TaskID: t.ID(), ExitCode: 1, Err: assert.AnError}
 		}
-		return Result{TaskID: t.ID(), ExitCode: 0}
+		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
 	}
 
-	pool := New(units, runner, 2, true)
-	results := pool.Run(context.Background(), logger.CreateLogger())
+	pool := runnerpool.New(units, runner, 2, true)
+	results := pool.Run(t.Context(), logger.CreateLogger())
 
 	// A should fail, B and C should be skipped (fail-fast)
 	for _, res := range results {

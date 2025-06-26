@@ -75,6 +75,7 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 	// cross-link dependencies units based on the discovered configurations
 	for _, cfg := range discovered {
 		unit := unitsMap[cfg.Path]
+
 		for _, dependency := range cfg.Dependencies {
 			path := dependency.Path
 			if depUnit, ok := unitsMap[path]; ok {
@@ -117,6 +118,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		if opts.RunAllAutoApprove {
 			opts.TerraformCliArgs = util.StringListInsert(opts.TerraformCliArgs, "-auto-approve", 1)
 		}
+
 		r.syncTerraformCliArgs(l, opts)
 
 	case tf.CommandNameShow:
@@ -142,6 +144,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			res.Err = err
 			res.ExitCode = 1
 		}
+
 		return res
 	}
 
@@ -165,14 +168,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	// 5. Reduce results into a single error (preserve old behaviour)
 	//------------------------------------------------------------------
 	var allErrs []error
+
 	for _, res := range results {
 		if res.Err != nil {
 			allErrs = append(allErrs, res.Err)
 		}
 	}
+
 	if len(allErrs) > 0 {
 		return errors.Join(allErrs...)
 	}
+
 	return nil
 }
 
