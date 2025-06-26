@@ -76,33 +76,40 @@ func (ctrl *DependencyController) runUnitWhenReady(ctx context.Context, opts *op
 func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOptions, r *report.Report) error {
 	ctrl.Runner.Unit.Logger.Debugf("Unit %s must wait for %d dependencies to finish", ctrl.Runner.Unit.Path, len(ctrl.Dependencies))
 
+	handleDependencyError := func(doneDependency *DependencyController) error {
+		if ctrl.Runner.Unit.TerragruntOptions.IgnoreDependencyErrors {
+			ctrl.Runner.Unit.Logger.Errorf("Dependency %s of unit %s just finished with an error. Normally, unit %s would exit early, however, because --queue-ignore-errors has been set, unit %s will run anyway.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
+			return nil
+		}
+
+		ctrl.Runner.Unit.Logger.Errorf("Dependency %s of unit %s just finished with an error. Unit %s will have to return an error too.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
+
+		if opts.Experiments.Evaluate(experiment.Report) {
+			run, err := r.EnsureRun(ctrl.Runner.Unit.Path)
+			if err != nil {
+				ctrl.Runner.Unit.Logger.Errorf("Error ensuring run for unit %s: %v", ctrl.Runner.Unit.Path, err)
+				return err
+			}
+			if err := r.EndRun(
+				run.Path,
+				report.WithResult(report.ResultEarlyExit),
+				report.WithReason(report.ReasonAncestorError),
+				report.WithCauseAncestorExit(doneDependency.Runner.Unit.Path),
+			); err != nil {
+				ctrl.Runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
+			}
+		}
+
+		return runbase.ProcessingUnitDependencyError{Unit: ctrl.Runner.Unit, Dependency: doneDependency.Runner.Unit, Err: doneDependency.Runner.Err}
+	}
+
 	for len(ctrl.Dependencies) > 0 {
 		doneDependency := <-ctrl.DependencyDone
 		delete(ctrl.Dependencies, doneDependency.Runner.Unit.Path)
 
 		if doneDependency.Runner.Err != nil {
-			if ctrl.Runner.Unit.TerragruntOptions.IgnoreDependencyErrors {
-				ctrl.Runner.Unit.Logger.Errorf("Dependency %s of unit %s just finished with an error. Unit %s will have to return an error too. However, because of --queue-ignore-errors, unit %s will run anyway.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
-			} else {
-				ctrl.Runner.Unit.Logger.Errorf("Dependency %s of unit %s just finished with an error. Unit %s will have to return an error too.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path)
-
-				if opts.Experiments.Evaluate(experiment.Report) {
-					run, err := r.EnsureRun(ctrl.Runner.Unit.Path)
-					if err != nil {
-						ctrl.Runner.Unit.Logger.Errorf("Error ensuring run for unit %s: %v", ctrl.Runner.Unit.Path, err)
-						return err
-					}
-					if err := r.EndRun(
-						run.Path,
-						report.WithResult(report.ResultEarlyExit),
-						report.WithReason(report.ReasonAncestorError),
-						report.WithCauseAncestorExit(doneDependency.Runner.Unit.Path),
-					); err != nil {
-						ctrl.Runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", ctrl.Runner.Unit.Path, err)
-					}
-				}
-
-				return runbase.ProcessingUnitDependencyError{Unit: ctrl.Runner.Unit, Dependency: doneDependency.Runner.Unit, Err: doneDependency.Runner.Err}
+			if err := handleDependencyError(doneDependency); err != nil {
+				return err
 			}
 		} else {
 			ctrl.Runner.Unit.Logger.Debugf("Dependency %s of unit %s just finished successfully. Unit %s must wait on %d more dependencies.", doneDependency.Runner.Unit.Path, ctrl.Runner.Unit.Path, ctrl.Runner.Unit.Path, len(ctrl.Dependencies))
