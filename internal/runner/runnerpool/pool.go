@@ -38,6 +38,9 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 		sem = make(chan struct{}, p.concurrency)
 	)
 
+	// debug print the queue state
+	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t", len(p.q.ordered), p.concurrency, p.failFast)
+
 	for {
 		ready := p.q.getReady(cap(sem) - len(sem))
 		if len(ready) == 0 {
