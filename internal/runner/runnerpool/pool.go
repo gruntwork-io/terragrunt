@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 )
 
@@ -30,21 +32,11 @@ func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *Runne
 }
 
 // Run blocks until the DAG finishes and returns ordered results.
-func (p *RunnerPool) Run(ctx context.Context) []Result {
+func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 	var (
-		wg   sync.WaitGroup
-		sem  = make(chan struct{}, p.concurrency)
-		done = make(chan *entry)
+		wg  sync.WaitGroup
+		sem = make(chan struct{}, p.concurrency)
 	)
-
-	// collector goroutine
-	go func() {
-		for e := range done {
-			p.q.markDone(e, p.failFast)
-			<-sem
-			wg.Done()
-		}
-	}()
 
 	for {
 		ready := p.q.getReady(cap(sem) - len(sem))
@@ -56,17 +48,21 @@ func (p *RunnerPool) Run(ctx context.Context) []Result {
 			continue
 		}
 		for _, e := range ready {
+			l.Debugf("Running task %s with %d remaining dependencies", e.task.ID(), e.remainingDeps)
 			sem <- struct{}{}
 			wg.Add(1)
 
 			go func(ent *entry) {
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
 				ent.result = p.runner(ctx, ent.task)
-				done <- ent
+				p.q.markDone(ent, p.failFast)
 			}(e)
 		}
 	}
 	wg.Wait()
-	close(done)
 
 	return p.q.results()
 }

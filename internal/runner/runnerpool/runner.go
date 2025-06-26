@@ -160,7 +160,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	//------------------------------------------------------------------
 	// 4. Execute the pool and gather results
 	//------------------------------------------------------------------
-	results := pool.Run(ctx)
+	results := pool.Run(ctx, l)
 
 	//------------------------------------------------------------------
 	// 5. Reduce results into a single error (preserve old behaviour)
