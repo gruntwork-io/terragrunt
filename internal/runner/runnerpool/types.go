@@ -8,9 +8,6 @@ import (
 )
 
 // Task wraps a runbase.Unit so we can attach execution‑time helpers while
-// leaving the underlying model untouched./gruntwork-io/terragrunt/internal/runbase"
-
-// Task wraps a runbase.Unit so we can attach execution‑time helpers while
 // leaving the underlying model untouched.
 type Task struct {
 	Unit *runbase.Unit
@@ -42,18 +39,7 @@ type Result struct {
 // TaskRunner defines a function type that executes a Task within a given context and returns a Result.
 type TaskRunner func(ctx context.Context, t *Task) Result
 
-// Status represents the lifecycle State of a Task, following the
-// naming described in the Async Queue Planning RFC.
-//
-// [*] StatusPending         – Entry created, dependencies not yet evaluated
-// [*] StatusBlocked         – waiting on at least one dependency
-// [*] StatusReady           – all deps resolved, waiting for a pool slot
-// [*] StatusRunning         – actively executing in a Worker
-// [*] StatusSucceeded       – finished with exit code 0
-// [*] StatusFailed          – finished with non‑zero exit code
-// [*] StatusAncestorFailed  – skipped because an ancestor failed
-// [*] StatusFailFast        – skipped due to global fail‑fast
-
+// Status represents the lifecycle State of a Task
 type Status int
 
 const (
