@@ -37,15 +37,30 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 // 2. Iterate over includes from opts if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
 func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) runbase.Units {
-	var (
-		pathsToCheck      []string
-		matchedModulesMap = make(runbase.UnitsMap)
-	)
+	matchedModulesMap := make(runbase.UnitsMap)
+	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
+
+	for _, dir := range pathsToCheck {
+		for k, v := range findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig) {
+			matchedModulesMap[k] = v
+		}
+	}
+
+	var matchedModules = make(runbase.Units, 0, len(matchedModulesMap))
+	for _, module := range matchedModulesMap {
+		matchedModules = append(matchedModules, module)
+	}
+
+	return matchedModules
+}
+
+// discoverPathsToCheck finds root git top level directory and builds list of modules, or iterates over includes if git detection fails.
+func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
+	var pathsToCheck []string
 
 	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir); err == nil {
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else {
-		// detection failed, trying to use include directories as source for stacks
 		uniquePaths := make(map[string]bool)
 		for _, includePath := range terragruntConfig.ProcessedIncludes {
 			uniquePaths[filepath.Dir(includePath.Path)] = true
@@ -56,48 +71,43 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 		}
 	}
 
-	for _, dir := range pathsToCheck { // iterate over detected paths, build stacks and filter modules by working dir
-		dir += filepath.FromSlash("/")
+	return pathsToCheck
+}
 
-		cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
-		if err != nil {
-			l.Debugf("Failed to build terragrunt options from %s %v", dir, err)
-			continue
-		}
+// findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) runbase.UnitsMap {
+	matchedModulesMap := make(runbase.UnitsMap)
 
-		cfgOptions.Env = opts.Env
-		cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-		cfgOptions.TerraformCommand = opts.TerraformCommand
-		cfgOptions.NonInteractive = true
+	dir += filepath.FromSlash("/")
 
-		// build stack from config directory
-		runner, err := FindStackInSubfolders(ctx, l, cfgOptions, runbase.WithChildTerragruntConfig(terragruntConfig))
-		if err != nil {
-			// log error as debug since in some cases stack building may fail because parent files can be designed
-			// to work with relative paths from downstream modules
-			l.Debugf("Failed to build module stack %v", err)
-			continue
-		}
+	cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
+	if err != nil {
+		l.Debugf("Failed to build terragrunt options from %s %v", dir, err)
+		return matchedModulesMap
+	}
 
-		stack := runner.GetStack()
+	cfgOptions.Env = opts.Env
+	cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
+	cfgOptions.TerraformCommand = opts.TerraformCommand
+	cfgOptions.NonInteractive = true
 
-		depdendentModules := runner.ListStackDependentUnits()
+	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, runbase.WithChildTerragruntConfig(terragruntConfig))
+	if err != nil {
+		l.Debugf("Failed to build module stack %v", err)
+		return matchedModulesMap
+	}
 
-		deps, found := depdendentModules[opts.WorkingDir]
-		if found {
-			for _, module := range stack.Units {
-				if slices.Contains(deps, module.Path) {
-					matchedModulesMap[module.Path] = module
-				}
+	stack := runner.GetStack()
+	dependentModules := runner.ListStackDependentUnits()
+
+	deps, found := dependentModules[opts.WorkingDir]
+	if found {
+		for _, module := range stack.Units {
+			if slices.Contains(deps, module.Path) {
+				matchedModulesMap[module.Path] = module
 			}
 		}
 	}
 
-	// extract modules as list
-	var matchedModules = make(runbase.Units, 0, len(matchedModulesMap))
-	for _, module := range matchedModulesMap {
-		matchedModules = append(matchedModules, module)
-	}
-
-	return matchedModules
+	return matchedModulesMap
 }

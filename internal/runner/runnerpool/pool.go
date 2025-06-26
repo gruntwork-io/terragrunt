@@ -13,9 +13,9 @@ import (
 type RunnerPool struct {
 	q           *DagQueue
 	runner      TaskRunner
+	readyCh     chan struct{}
 	concurrency int
 	failFast    bool
-	readyCh     chan struct{} // channel to signal when new tasks are ready
 }
 
 // New creates a new RunnerPool with the given units, runner function.
@@ -62,6 +62,7 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 				l.Debugf("RunnerPool: context cancelled, breaking loop")
 				return p.q.Results()
 			}
+
 			continue
 		}
 
