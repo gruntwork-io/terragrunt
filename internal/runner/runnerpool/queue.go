@@ -77,33 +77,30 @@ func (q *DagQueue) GetReady() []*Entry {
 	return out
 }
 
-// MarkDone records the Result, unblocks children, and handles fail-fast.
-func (q *DagQueue) MarkDone(e *Entry, failFast bool) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	if e.State != StatusRunning {
-		return // double call safeguard
-	}
-
+// updateEntryState updates the state of the entry based on its result.
+func (q *DagQueue) updateEntryState(e *Entry) {
 	if e.Result.ExitCode == 0 && e.Result.Err == nil {
 		e.State = StatusSucceeded
 	} else {
 		e.State = StatusFailed
+	}
+}
 
-		if failFast {
-			for _, n := range q.Ordered {
-				switch n.State {
-				case StatusPending, StatusBlocked, StatusReady:
-					n.State = StatusFailFast
-				case StatusRunning, StatusSucceeded, StatusFailed, StatusAncestorFailed, StatusFailFast:
-					// no op
-					continue
-				}
-			}
+// applyFailFast sets the state of all pending, blocked, or ready entries to StatusFailFast.
+func (q *DagQueue) applyFailFast() {
+	for _, n := range q.Ordered {
+		switch n.State {
+		case StatusPending, StatusBlocked, StatusReady:
+			n.State = StatusFailFast
+		case StatusRunning, StatusSucceeded, StatusFailed, StatusAncestorFailed, StatusFailFast:
+			// no op
+			continue
 		}
 	}
+}
 
+// updateDependents updates the states of the dependents of the entry based on its success or failure.
+func (q *DagQueue) updateDependents(e *Entry) {
 	success := e.State == StatusSucceeded
 
 	for _, child := range e.Dependents {
@@ -119,6 +116,24 @@ func (q *DagQueue) MarkDone(e *Entry, failFast bool) {
 			}
 		}
 	}
+}
+
+// MarkDone records the Result, unblocks children, and handles fail-fast.
+func (q *DagQueue) MarkDone(e *Entry, failFast bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if e.State != StatusRunning {
+		return // double call safeguard
+	}
+
+	q.updateEntryState(e)
+
+	if e.State == StatusFailed && failFast {
+		q.applyFailFast()
+	}
+
+	q.updateDependents(e)
 }
 
 // Empty reports when no runnable or running tasks remain.
