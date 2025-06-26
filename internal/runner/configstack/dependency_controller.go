@@ -86,10 +86,12 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 
 		if opts.Experiments.Evaluate(experiment.Report) {
 			run, err := r.EnsureRun(ctrl.Runner.Unit.Path)
+
 			if err != nil {
 				ctrl.Runner.Unit.Logger.Errorf("Error ensuring run for unit %s: %v", ctrl.Runner.Unit.Path, err)
 				return err
 			}
+
 			if err := r.EndRun(
 				run.Path,
 				report.WithResult(report.ResultEarlyExit),
