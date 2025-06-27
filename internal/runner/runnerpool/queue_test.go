@@ -40,6 +40,7 @@ func TestDagQueue_GetReady(t *testing.T) {
 	ready := q.GetReady()
 	assert.Len(t, ready, 1)
 	assert.Equal(t, "A", ready[0].Task.ID())
+	q.MarkRunning(ready[0])
 	assert.Equal(t, rp.StatusRunning, ready[0].State)
 }
 
@@ -53,6 +54,7 @@ func TestDagQueue_MarkDone_SuccessAndUnblock(t *testing.T) {
 
 	ready := q.GetReady()
 	entryA := ready[0]
+	q.MarkRunning(entryA)
 	entryA.Result = rp.Result{TaskID: "A", ExitCode: 0}
 	q.MarkDone(entryA, false)
 
@@ -70,6 +72,7 @@ func TestDagQueue_MarkDone_FailFast(t *testing.T) {
 
 	ready := q.GetReady()
 	entryA := ready[0]
+	q.MarkRunning(entryA)
 	entryA.Result = rp.Result{TaskID: "A", ExitCode: 1, Err: errors.New("fail")}
 	q.MarkDone(entryA, true)
 
@@ -86,6 +89,7 @@ func TestDagQueue_Empty(t *testing.T) {
 	assert.False(t, q.Empty())
 	ready := q.GetReady()
 	entryA := ready[0]
+	q.MarkRunning(entryA)
 	entryA.Result = rp.Result{TaskID: "A", ExitCode: 0}
 	q.MarkDone(entryA, false)
 	assert.True(t, q.Empty())
@@ -101,6 +105,7 @@ func TestDagQueue_Results_SkippedDueToFailFast(t *testing.T) {
 
 	ready := q.GetReady()
 	entryA := ready[0]
+	q.MarkRunning(entryA)
 	entryA.Result = rp.Result{TaskID: "A", ExitCode: 1, Err: errors.New("fail")}
 	q.MarkDone(entryA, true)
 

@@ -60,7 +60,7 @@ func BuildQueue(units []*runbase.Unit, failFast bool) *DagQueue {
 	return q
 }
 
-// GetReady returns all entries that are ready to run, marking them as running.
+// GetReady returns all entries that are ready to run, without marking them as running.
 func (q *DagQueue) GetReady() []*Entry {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -69,12 +69,21 @@ func (q *DagQueue) GetReady() []*Entry {
 
 	for _, e := range q.Ordered {
 		if e.State == StatusReady {
-			e.State = StatusRunning
 			out = append(out, e)
 		}
 	}
 
 	return out
+}
+
+// MarkRunning marks the given entry as running.
+func (q *DagQueue) MarkRunning(e *Entry) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if e.State == StatusReady {
+		e.State = StatusRunning
+	}
 }
 
 // updateEntryState updates the state of the entry based on its result.

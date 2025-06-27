@@ -20,18 +20,55 @@ type RunnerPool struct {
 	failFast    bool
 }
 
-// NewRunnerPool creates a new RunnerPool with the given units, runner function.
-func NewRunnerPool(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *RunnerPool {
-	if maxConc <= 0 {
-		maxConc = 1
+// RunnerPoolOption is a function that modifies a RunnerPool.
+type RunnerPoolOption func(*RunnerPool)
+
+// WithUnits sets the units for the RunnerPool.
+func WithUnits(units []*runbase.Unit) RunnerPoolOption {
+	return func(rp *RunnerPool) {
+		rp.q = BuildQueue(units, rp.failFast)
 	}
-	return &RunnerPool{
-		q:           BuildQueue(units, failFast),
-		runner:      r,
-		concurrency: maxConc,
-		failFast:    failFast,
+}
+
+// WithRunner sets the TaskRunner for the RunnerPool.
+func WithRunner(runner TaskRunner) RunnerPoolOption {
+	return func(rp *RunnerPool) {
+		rp.runner = runner
+	}
+}
+
+// WithMaxConcurrency sets the concurrency for the RunnerPool.
+func WithMaxConcurrency(maxConc int) RunnerPoolOption {
+	return func(rp *RunnerPool) {
+		if maxConc <= 0 {
+			maxConc = 1
+		}
+		rp.concurrency = maxConc
+	}
+}
+
+// WithFailFast sets the failFast flag for the RunnerPool.
+func WithFailFast(failFast bool) RunnerPoolOption {
+	return func(rp *RunnerPool) {
+		rp.failFast = failFast
+	}
+}
+
+// NewRunnerPool creates a new RunnerPool with the given options.
+func NewRunnerPool(opts ...RunnerPoolOption) *RunnerPool {
+	rp := &RunnerPool{
+		concurrency: 1, // default
+		failFast:    false,
 		readyCh:     make(chan struct{}, 1), // buffered to avoid blocking
 	}
+	for _, opt := range opts {
+		opt(rp)
+	}
+	if rp.q == nil {
+		// If units were not set, create an empty queue
+		rp.q = BuildQueue(nil, rp.failFast)
+	}
+	return rp
 }
 
 // Run blocks until the DAG finishes and returns ordered Results.
@@ -75,6 +112,7 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 
 		for _, e := range ready {
 			l.Debugf("Running Task %s with %d remaining dependencies", e.Task.ID(), e.RemainingDeps)
+			p.q.MarkRunning(e)
 			sem <- struct{}{}
 
 			wg.Add(1)
