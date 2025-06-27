@@ -8,7 +8,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/pkg/errors"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // TaskRunner defines a function type that executes a Unit within a given context and returns an exit code and error.
@@ -147,6 +148,14 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 		}
 	}
 	wg.Wait()
+
+	// After all goroutines finish, set failed result for any entry that does not have a result (e.g., due to fail-fast)
+	for _, e := range p.q.Entries {
+		if _, ok := results[e.Config.Path]; !ok {
+			// Mark as failed/skipped
+			results[e.Config.Path] = RunResult{ExitCode: 1, Err: errors.New("skipped or failed due to fail-fast or ancestor failure")}
+		}
+	}
 
 	// Collect results in order of queue entries
 	ordered := make([]RunResult, 0, len(p.q.Entries))

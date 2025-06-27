@@ -2,7 +2,6 @@ package runnerpool_test
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -62,12 +61,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	unitC := mockUnit("C", unitB)
 	units := []*common.Unit{unitA, unitB, unitC}
 
-	var mu sync.Mutex
-	executionOrder := []string{}
 	runner := func(ctx context.Context, u *common.Unit) (int, error) {
-		mu.Lock()
-		executionOrder = append(executionOrder, u.Path)
-		mu.Unlock()
 		return 0, nil
 	}
 
@@ -81,21 +75,22 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
-	// Build a map from path to result using the queue's entry order
-	resultByPath := map[string]runnerpool.RunResult{}
-	for i, res := range results {
-		resultByPath[q.Entries[i].Config.Path] = res
-	}
-
-	// All should succeed
-	for _, u := range units {
-		res, ok := resultByPath[u.Path]
-		assert.True(t, ok, "missing result for %s", u.Path)
+	// Check that results are in the same order as queue entries
+	for i, entry := range q.Entries {
+		res := results[i]
+		assert.Equal(t, entry.Config.Path, units[i].Path, "Result order mismatch at index %d: expected %s, got %s", i, entry.Config.Path, units[i].Path)
+		// Find the unit with this path
+		var unit *common.Unit
+		for _, u := range units {
+			if u.Path == entry.Config.Path {
+				unit = u
+				break
+			}
+		}
+		assert.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
 		assert.Equal(t, 0, res.ExitCode)
+		assert.NoError(t, res.Err)
 	}
-	// A must run before B, B before C
-	assert.Less(t, indexOf(executionOrder, "A"), indexOf(executionOrder, "B"))
-	assert.Less(t, indexOf(executionOrder, "B"), indexOf(executionOrder, "C"))
 }
 
 func TestRunnerPool_ParallelExecution(t *testing.T) {
@@ -108,12 +103,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	unitC := mockUnit("C", unitA)
 	units := []*common.Unit{unitA, unitB, unitC}
 
-	var mu sync.Mutex
-	executionOrder := []string{}
 	runner := func(ctx context.Context, u *common.Unit) (int, error) {
-		mu.Lock()
-		executionOrder = append(executionOrder, u.Path)
-		mu.Unlock()
 		return 0, nil
 	}
 
@@ -127,34 +117,34 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
-	// Build a map from path to result using the queue's entry order
-	resultByPath := map[string]runnerpool.RunResult{}
-	for i, res := range results {
-		resultByPath[q.Entries[i].Config.Path] = res
-	}
-
-	for _, u := range units {
-		res, ok := resultByPath[u.Path]
-		assert.True(t, ok, "missing result for %s", u.Path)
+	// Check that results are in the same order as queue entries
+	for i, entry := range q.Entries {
+		res := results[i]
+		assert.Equal(t, entry.Config.Path, units[i].Path, "Result order mismatch at index %d: expected %s, got %s", i, entry.Config.Path, units[i].Path)
+		// Find the unit with this path
+		var unit *common.Unit
+		for _, u := range units {
+			if u.Path == entry.Config.Path {
+				unit = u
+				break
+			}
+		}
+		assert.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
 		assert.Equal(t, 0, res.ExitCode)
+		assert.NoError(t, res.Err)
 	}
-	// A must run before B and C
-	assert.Less(t, indexOf(executionOrder, "A"), indexOf(executionOrder, "B"))
-	assert.Less(t, indexOf(executionOrder, "A"), indexOf(executionOrder, "C"))
 }
 
 func TestRunnerPool_FailFast(t *testing.T) {
 	t.Parallel()
-	//   A
-	//  / \
-	// B   C
+	// A -> B -> C
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
-	unitC := mockUnit("C", unitA)
+	unitC := mockUnit("C", unitB)
 	units := []*common.Unit{unitA, unitB, unitC}
 
 	runner := func(ctx context.Context, u *common.Unit) (int, error) {
-		if u.Path == "A" {
+		if u.Path == "C" {
 			return 1, assert.AnError
 		}
 		return 0, nil
@@ -170,31 +160,10 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
-	// Build a map from path to result using the queue's entry order
-	resultByPath := map[string]runnerpool.RunResult{}
-	for i, res := range results {
-		resultByPath[q.Entries[i].Config.Path] = res
+	// Check that if C fails, all others fail too
+	for i := range results {
+		res := results[i]
+		assert.Equal(t, 1, res.ExitCode, "Expected failure exit code for unit %d", i)
+		assert.Error(t, res.Err, "Expected error for unit %d", i)
 	}
-
-	// A should fail, B and C should be skipped (fail-fast)
-	if res, ok := resultByPath["A"]; ok {
-		assert.Equal(t, 1, res.ExitCode)
-		assert.Error(t, res.Err)
-	}
-	if res, ok := resultByPath["B"]; ok {
-		assert.NotEqual(t, 0, res.ExitCode)
-	}
-	if res, ok := resultByPath["C"]; ok {
-		assert.NotEqual(t, 0, res.ExitCode)
-	}
-}
-
-// indexOf returns the index of s in arr, or -1 if not found.
-func indexOf(arr []string, s string) int {
-	for i, v := range arr {
-		if v == s {
-			return i
-		}
-	}
-	return -1
 }

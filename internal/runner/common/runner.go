@@ -1,4 +1,4 @@
-// Package runbase provide base components for implementing runners.
+// Package common provide base components for implementing runners.
 package common
 
 import (

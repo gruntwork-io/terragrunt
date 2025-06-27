@@ -238,23 +238,37 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
-	executionOrder := []string{}
-	markAndTrack := func(path string) {
-		entry := q.Index[path]
-		entry.Status = queue.StatusRunning
-		executionOrder = append(executionOrder, path)
-		q.SetStatus(entry, queue.StatusSucceeded, false)
-	}
+	// Check that all entries are ready initially and in order A, B, C
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Config.Path)
+	assert.Equal(t, "A", readyEntries[0].Config.Path, "First ready entry should be A")
 
-	// Simulate execution in dependency order
-	markAndTrack("A")
-	markAndTrack("B")
-	markAndTrack("C")
+	// Mark A as running and complete it
+	entryA := readyEntries[0]
+	q.SetStatus(entryA, queue.StatusRunning)
+	q.SetStatus(entryA, queue.StatusSucceeded)
 
-	assert.Equal(t, []string{"A", "B", "C"}, executionOrder)
-	assert.Equal(t, queue.StatusSucceeded, q.Index["A"].Status)
-	assert.Equal(t, queue.StatusSucceeded, q.Index["B"].Status)
-	assert.Equal(t, queue.StatusSucceeded, q.Index["C"].Status)
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After A is done, only B should be ready")
+	assert.Equal(t, "B", readyEntries[0].Config.Path, "Second ready entry should be B")
+
+	// Mark B as running and complete it
+	entryB := q.Index["B"]
+	q.SetStatus(entryB, queue.StatusRunning)
+	q.SetStatus(entryB, queue.StatusSucceeded)
+
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After B is done, only C should be ready")
+	assert.Equal(t, "C", readyEntries[0].Config.Path, "Third ready entry should be C")
+
+	// Mark C as running and complete it
+	entryC := q.Index["C"]
+	q.SetStatus(entryC, queue.StatusRunning)
+	q.SetStatus(entryC, queue.StatusSucceeded)
+
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 0, "After C is done, no entries should be ready")
 }
 
 func TestQueue_ParallelExecution(t *testing.T) {
@@ -273,9 +287,9 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	executionOrder := []string{}
 	markAndTrack := func(path string) {
 		entry := q.Index[path]
-		entry.Status = queue.StatusRunning
+		q.SetStatus(entry, queue.StatusRunning)
 		executionOrder = append(executionOrder, path)
-		q.SetStatus(entry, queue.StatusSucceeded, false)
+		q.SetStatus(entry, queue.StatusSucceeded)
 	}
 
 	// A must run before B and C
@@ -303,11 +317,12 @@ func TestQueue_FailFast(t *testing.T) {
 
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
+	q.FailFast = true
 
 	// Simulate A failing
 	entryA := q.Index["A"]
-	entryA.Status = queue.StatusRunning
-	q.SetStatus(entryA, queue.StatusFailed, true)
+	q.SetStatus(entryA, queue.StatusRunning)
+	q.SetStatus(entryA, queue.StatusFailed)
 
 	// B and C should be marked as failed due to fail-fast
 	assert.Equal(t, queue.StatusFailed, q.Index["A"].Status)

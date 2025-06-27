@@ -3,8 +3,9 @@ package common_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/stretchr/testify/require"
 

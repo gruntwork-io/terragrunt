@@ -48,7 +48,6 @@ const (
 	StatusRunning
 	StatusSucceeded
 	StatusFailed
-	StatusAncestorFailed
 )
 
 // UpdateBlocked updates the status of the entry to blocked, if it is blocked.
@@ -134,8 +133,9 @@ func (e *Entry) IsUp() bool {
 }
 
 type Queue struct {
-	Entries Entries
-	Index   map[string]*Entry // path to Entry for quick lookup
+	Entries  Entries
+	Index    map[string]*Entry // path to Entry for quick lookup
+	FailFast bool
 }
 
 type Entries []*Entry
@@ -180,8 +180,9 @@ func (q *Queue) Configs() discovery.DiscoveredConfigs {
 func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	if len(discovered) == 0 {
 		return &Queue{
-			Entries: Entries{},
-			Index:   map[string]*Entry{},
+			Entries:  Entries{},
+			Index:    map[string]*Entry{},
+			FailFast: false, // default, can be set after construction
 		}, nil
 	}
 
@@ -210,8 +211,9 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	}
 
 	q := &Queue{
-		Entries: entries,
-		Index:   index,
+		Entries:  entries,
+		Index:    index,
+		FailFast: false, // default, can be set after construction
 	}
 
 	// readyPending returns the index of the first pending entry if there is one,
@@ -271,48 +273,39 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	return q, errors.New("cycle detected during queue construction")
 }
 
-// GetReady returns all entries that are ready to run, without marking them as running.
-func (q *Queue) GetReady() []*Entry {
+// GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed(or no dependencies).
+func (q *Queue) GetReadyWithDependencies() []*Entry {
 	out := make([]*Entry, 0, len(q.Entries))
 	for _, e := range q.Entries {
 		if e.Status == StatusReady {
-			out = append(out, e)
+			allDepsReady := true
+			for _, dep := range e.Config.Dependencies {
+				depEntry, ok := q.Index[dep.Path]
+				if !ok || depEntry.Status != StatusSucceeded {
+					allDepsReady = false
+					break
+				}
+			}
+			if allDepsReady {
+				out = append(out, e)
+			}
 		}
 	}
 	return out
 }
 
-// SetStatus records the status, unblocks children, and handles fail-fast.
-// status should be the final status for the entry (StatusSucceeded, StatusFailed, etc.).
-func (q *Queue) SetStatus(e *Entry, status Status, failFast bool) {
-	if e.Status != StatusRunning {
-		return // double call safeguard
-	}
+// SetStatus sets the status of the given entry, handles fail-fast logic if enabled, and updates the statuses of dependents accordingly.
+// This method should be used for all status transitions. If fail-fast is enabled and the entry fails, all not-yet-started tasks are marked as failed.
+// It also unblocks children or marks them as failed/ancestor-failed as appropriate.
+func (q *Queue) SetStatus(e *Entry, status Status) {
 	e.Status = status
-	if e.Status == StatusFailed && failFast {
+	if e.Status == StatusFailed && q.FailFast {
 		// Fail-fast: Mark all not-yet-started tasks (Pending, Blocked, Ready) as Failed to prevent further execution.
 		for _, n := range q.Entries {
 			if n.Status != StatusPending && n.Status != StatusBlocked && n.Status != StatusReady {
 				continue
 			}
 			n.Status = StatusFailed
-		}
-	}
-	// Update dependents
-	successStatus := e.Status == StatusSucceeded
-	for _, childPath := range e.Dependents {
-		child, ok := q.Index[childPath]
-		if !ok {
-			continue
-		}
-		if successStatus {
-			if q.RemainingDeps(child) == 0 && child.Status == StatusBlocked {
-				child.Status = StatusReady
-			}
-			continue
-		}
-		if child.Status == StatusPending || child.Status == StatusBlocked {
-			child.Status = StatusAncestorFailed
 		}
 	}
 }
