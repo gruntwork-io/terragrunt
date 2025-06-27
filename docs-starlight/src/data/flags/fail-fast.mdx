@@ -13,6 +13,5 @@ When enabled, Terragrunt will fail the entire run as soon as any unit fails. If 
 This is useful for enforcing strict failure handling in CI/CD pipelines or when you want to stop processing on the first error.
 
 <Aside type="warning">
-Using `--fail-fast` will stop all further processing as soon as a failure is detected. This can be helpful for fast feedback, but may prevent you from seeing all errors in a single run.
-Currently, `--fail-fast` is honored only when the experimental *runner-pool* execution engine is enabled (`--experiment runner-pool` or the matching env var). When using the legacy *configstack* runner, the flag is ignored.
+Currently, `--fail-fast` is honored only when the experimental _runner-pool_ is enabled.
 </Aside>
