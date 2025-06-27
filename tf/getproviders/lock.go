@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -90,8 +91,32 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 
 	providerBlock.Body().SetAttributeValue("version", cty.StringVal(provider.Version()))
 
-	// Constraints can contain multiple constraint expressions, including comparison operators, but in the Terragrunt Provider Cache use case, we assume that the required_providers are pinned to a specific version to detect the required version without terraform init, so we can simply specify the constraints attribute as the same as the version. This may differ from what terraform generates, but we expect that it doesn't matter in practice.
-	providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(provider.Version()))
+	// If version constraints exist in current lock file and match the new version, we keep them unchanged.
+	// Otherwise, we specify the constraints attribute the same as the version.
+	currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
+
+	shouldUpdateConstraints := false
+
+	if currentConstraintsAttr != nil {
+		currentConstraints, err := version.NewConstraint(strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, ""))
+		// If current version constraints are malformed, we should update it.
+		if err != nil {
+			shouldUpdateConstraints = true
+		}
+
+		newVersion, _ := version.NewVersion(provider.Version())
+		// If current version constrains do not match the new provider version, we should update it.
+		if !currentConstraints.Check(newVersion) {
+			shouldUpdateConstraints = true
+		}
+	} else {
+		// If there is no constraints attribute, we should update it.
+		shouldUpdateConstraints = true
+	}
+
+	if shouldUpdateConstraints {
+		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(provider.Version()))
+	}
 
 	h1Hash, err := PackageHashV1(provider.PackageDir())
 	if err != nil {
