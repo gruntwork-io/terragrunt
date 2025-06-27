@@ -143,7 +143,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 		return 0, nil
 	}
-
+	r.queue.FailFast = opts.FailFast
 	pool := NewRunnerPool(
 		r.queue,
 		r.Stack.Units,

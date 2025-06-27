@@ -104,7 +104,7 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 	signalReady() // initial signal in case there are ready tasks at the start
 
 	for {
-		ready := p.q.GetReady()
+		ready := p.q.GetReadyWithDependencies()
 		if len(ready) == 0 {
 			if p.q.Empty() {
 				l.Debugf("RunnerPool: queue is Empty, breaking loop")
@@ -129,7 +129,7 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 				defer func() {
 					if r := recover(); r != nil {
 						results[ent.Config.Path] = RunResult{ExitCode: 1, Err: errors.Errorf("panic: %v", r)}
-						p.q.SetStatus(ent, queue.StatusFailed, p.failFast)
+						p.q.SetStatus(ent, queue.StatusFailed)
 						signalReady()
 					}
 					<-sem
@@ -139,9 +139,9 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 				exitCode, err := p.runner(ctx, unit)
 				results[ent.Config.Path] = RunResult{ExitCode: exitCode, Err: err}
 				if err == nil {
-					p.q.SetStatus(ent, queue.StatusSucceeded, p.failFast)
+					p.q.SetStatus(ent, queue.StatusSucceeded)
 				} else {
-					p.q.SetStatus(ent, queue.StatusFailed, p.failFast)
+					p.q.SetStatus(ent, queue.StatusFailed)
 				}
 				signalReady() // notify that new tasks may be ready
 			}(e)
