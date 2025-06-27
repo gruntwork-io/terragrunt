@@ -355,4 +355,13 @@ func TestQueue_FailFast(t *testing.T) {
 	assert.Equal(t, queue.StatusFailed, q.Index["A"].Status)
 	assert.Equal(t, queue.StatusFailed, q.Index["B"].Status)
 	assert.Equal(t, queue.StatusFailed, q.Index["C"].Status)
+
+	// All entries should be listed as failed
+	for _, entry := range q.Entries {
+		assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+	}
+
+	// No entries should be ready after fail-fast
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 0, "No entries should be ready after fail-fast triggers")
 }
