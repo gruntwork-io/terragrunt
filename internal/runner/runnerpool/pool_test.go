@@ -144,7 +144,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	units := []*common.Unit{unitA, unitB, unitC}
 
 	runner := func(ctx context.Context, u *common.Unit) (int, error) {
-		if u.Path == "C" {
+		if u.Path == "A" {
 			return 1, assert.AnError
 		}
 		return 0, nil
