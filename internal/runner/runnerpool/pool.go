@@ -128,7 +128,7 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 				defer func() {
 					if r := recover(); r != nil {
 						results[ent.Config.Path] = RunResult{ExitCode: 1, Err: errors.Errorf("panic: %v", r)}
-						p.q.MarkDone(ent, results[ent.Config.Path].Err, p.failFast)
+						p.q.SetStatus(ent, queue.StatusFailed, p.failFast)
 						signalReady()
 					}
 					<-sem
@@ -137,7 +137,11 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 				unit := p.unitsMap[ent.Config.Path]
 				exitCode, err := p.runner(ctx, unit)
 				results[ent.Config.Path] = RunResult{ExitCode: exitCode, Err: err}
-				p.q.MarkDone(ent, err, p.failFast)
+				if err == nil {
+					p.q.SetStatus(ent, queue.StatusSucceeded, p.failFast)
+				} else {
+					p.q.SetStatus(ent, queue.StatusFailed, p.failFast)
+				}
 				signalReady() // notify that new tasks may be ready
 			}(e)
 		}

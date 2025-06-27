@@ -226,3 +226,91 @@ func findIndex(entries queue.Entries, path string) int {
 	}
 	return -1
 }
+
+func TestQueue_LinearDependencyExecution(t *testing.T) {
+	t.Parallel()
+	// A -> B -> C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	executionOrder := []string{}
+	markAndTrack := func(path string) {
+		entry := q.Index[path]
+		entry.Status = queue.StatusRunning
+		executionOrder = append(executionOrder, path)
+		q.SetStatus(entry, queue.StatusSucceeded, false)
+	}
+
+	// Simulate execution in dependency order
+	markAndTrack("A")
+	markAndTrack("B")
+	markAndTrack("C")
+
+	assert.Equal(t, []string{"A", "B", "C"}, executionOrder)
+	assert.Equal(t, queue.StatusSucceeded, q.Index["A"].Status)
+	assert.Equal(t, queue.StatusSucceeded, q.Index["B"].Status)
+	assert.Equal(t, queue.StatusSucceeded, q.Index["C"].Status)
+}
+
+func TestQueue_ParallelExecution(t *testing.T) {
+	t.Parallel()
+	//   A
+	//  / \
+	// B   C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	executionOrder := []string{}
+	markAndTrack := func(path string) {
+		entry := q.Index[path]
+		entry.Status = queue.StatusRunning
+		executionOrder = append(executionOrder, path)
+		q.SetStatus(entry, queue.StatusSucceeded, false)
+	}
+
+	// A must run before B and C
+	markAndTrack("A")
+	markAndTrack("B")
+	markAndTrack("C")
+
+	assert.Equal(t, "A", executionOrder[0])
+	assert.Contains(t, []string{"B", "C"}, executionOrder[1])
+	assert.Contains(t, []string{"B", "C"}, executionOrder[2])
+	assert.NotEqual(t, executionOrder[1], executionOrder[2])
+	assert.Less(t, findIndex(q.Entries, "A"), findIndex(q.Entries, executionOrder[1]))
+	assert.Less(t, findIndex(q.Entries, "A"), findIndex(q.Entries, executionOrder[2]))
+}
+
+func TestQueue_FailFast(t *testing.T) {
+	t.Parallel()
+	//   A
+	//  / \
+	// B   C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	// Simulate A failing
+	entryA := q.Index["A"]
+	entryA.Status = queue.StatusRunning
+	q.SetStatus(entryA, queue.StatusFailed, true)
+
+	// B and C should be marked as failed due to fail-fast
+	assert.Equal(t, queue.StatusFailed, q.Index["A"].Status)
+	assert.Equal(t, queue.StatusFailed, q.Index["B"].Status)
+	assert.Equal(t, queue.StatusFailed, q.Index["C"].Status)
+}

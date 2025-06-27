@@ -49,6 +49,14 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	t.Parallel()
 
 	// A -> B -> C
+	// Build DiscoveredConfig objects directly
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B"}
+	cfgC := &discovery.DiscoveredConfig{Path: "C"}
+	cfgB.Dependencies = []*discovery.DiscoveredConfig{cfgA}
+	cfgC.Dependencies = []*discovery.DiscoveredConfig{cfgB}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
 	unitC := mockUnit("C", unitB)
@@ -63,7 +71,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		return 0, nil
 	}
 
-	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	q, _ := queue.NewQueue(configs)
 	pool := runnerpool.NewRunnerPool(
 		q,
 		units,
@@ -73,8 +81,16 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
+	// Build a map from path to result using the queue's entry order
+	resultByPath := map[string]runnerpool.RunResult{}
+	for i, res := range results {
+		resultByPath[q.Entries[i].Config.Path] = res
+	}
+
 	// All should succeed
-	for _, res := range results {
+	for _, u := range units {
+		res, ok := resultByPath[u.Path]
+		assert.True(t, ok, "missing result for %s", u.Path)
 		assert.Equal(t, 0, res.ExitCode)
 	}
 	// A must run before B, B before C
@@ -111,7 +127,15 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
-	for _, res := range results {
+	// Build a map from path to result using the queue's entry order
+	resultByPath := map[string]runnerpool.RunResult{}
+	for i, res := range results {
+		resultByPath[q.Entries[i].Config.Path] = res
+	}
+
+	for _, u := range units {
+		res, ok := resultByPath[u.Path]
+		assert.True(t, ok, "missing result for %s", u.Path)
 		assert.Equal(t, 0, res.ExitCode)
 	}
 	// A must run before B and C
@@ -146,14 +170,22 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
-	// A should fail, B and C should be skipped (fail-fast)
+	// Build a map from path to result using the queue's entry order
+	resultByPath := map[string]runnerpool.RunResult{}
 	for i, res := range results {
-		if units[i].Path == "A" {
-			assert.Equal(t, 1, res.ExitCode)
-			assert.Error(t, res.Err)
-		} else {
-			assert.NotEqual(t, 0, res.ExitCode)
-		}
+		resultByPath[q.Entries[i].Config.Path] = res
+	}
+
+	// A should fail, B and C should be skipped (fail-fast)
+	if res, ok := resultByPath["A"]; ok {
+		assert.Equal(t, 1, res.ExitCode)
+		assert.Error(t, res.Err)
+	}
+	if res, ok := resultByPath["B"]; ok {
+		assert.NotEqual(t, 0, res.ExitCode)
+	}
+	if res, ok := resultByPath["C"]; ok {
+		assert.NotEqual(t, 0, res.ExitCode)
 	}
 }
 

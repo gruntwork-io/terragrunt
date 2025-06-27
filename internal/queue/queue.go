@@ -282,23 +282,13 @@ func (q *Queue) GetReady() []*Entry {
 	return out
 }
 
-// MarkDone records the Result, unblocks children, and handles fail-fast.
-// result should be the runnerpool.Result or similar struct.
-func (q *Queue) MarkDone(e *Entry, result interface{}, failFast bool) {
+// SetStatus records the status, unblocks children, and handles fail-fast.
+// status should be the final status for the entry (StatusSucceeded, StatusFailed, etc.).
+func (q *Queue) SetStatus(e *Entry, status Status, failFast bool) {
 	if e.Status != StatusRunning {
 		return // double call safeguard
 	}
-	// No e.Result assignment here; handled externally
-	// Update state based on result (assume runnerpool.Result shape)
-	var err error
-	if res, ok := result.(interface{ Err() error }); ok {
-		err = res.Err()
-	}
-	if err == nil {
-		e.Status = StatusSucceeded
-	} else {
-		e.Status = StatusFailed
-	}
+	e.Status = status
 	if e.Status == StatusFailed && failFast {
 		// Fail-fast: Mark all not-yet-started tasks (Pending, Blocked, Ready) as Failed to prevent further execution.
 		for _, n := range q.Entries {
@@ -309,20 +299,20 @@ func (q *Queue) MarkDone(e *Entry, result interface{}, failFast bool) {
 		}
 	}
 	// Update dependents
-	success := e.Status == StatusSucceeded
+	successStatus := e.Status == StatusSucceeded
 	for _, childPath := range e.Dependents {
 		child, ok := q.Index[childPath]
 		if !ok {
 			continue
 		}
-		if success {
+		if successStatus {
 			if q.RemainingDeps(child) == 0 && child.Status == StatusBlocked {
 				child.Status = StatusReady
 			}
-		} else {
-			if child.Status == StatusPending || child.Status == StatusBlocked {
-				child.Status = StatusAncestorFailed
-			}
+			continue
+		}
+		if child.Status == StatusPending || child.Status == StatusBlocked {
+			child.Status = StatusAncestorFailed
 		}
 	}
 }
