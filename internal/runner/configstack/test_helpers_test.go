@@ -8,8 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type UnitByPath runbase.Units
+type UnitByPath common.Units
 
 func (byPath UnitByPath) Len() int           { return len(byPath) }
 func (byPath UnitByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
@@ -33,7 +33,7 @@ func (byPath DependencyControllerByPath) Less(i, j int) bool {
 
 // We can't use assert.Equals on Unit or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertUnitListsEqual(t *testing.T, expectedUnits runbase.Units, actualUnits runbase.Units, messageAndArgs ...any) {
+func assertUnitListsEqual(t *testing.T, expectedUnits common.Units, actualUnits common.Units, messageAndArgs ...any) {
 	t.Helper()
 
 	if !assert.Len(t, actualUnits, len(expectedUnits), messageAndArgs...) {
@@ -53,7 +53,7 @@ func assertUnitListsEqual(t *testing.T, expectedUnits runbase.Units, actualUnits
 
 // We can't use assert.Equals on Unit because it contains some fields (e.g. TerragruntOptions) that cannot
 // be compared directly
-func assertUnitsEqual(t *testing.T, expected *runbase.Unit, actual *runbase.Unit, messageAndArgs ...any) {
+func assertUnitsEqual(t *testing.T, expected *common.Unit, actual *common.Unit, messageAndArgs ...any) {
 	t.Helper()
 
 	if assert.NotNil(t, actual, messageAndArgs...) {
@@ -146,9 +146,9 @@ func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArg
 
 	actual = errors.Unwrap(actual)
 
-	var unrecognizedDependencyError runbase.UnrecognizedDependencyError
+	var unrecognizedDependencyError common.UnrecognizedDependencyError
 	if ok := errors.As(expected, &unrecognizedDependencyError); ok {
-		var actualUnrecognized runbase.UnrecognizedDependencyError
+		var actualUnrecognized common.UnrecognizedDependencyError
 		ok = errors.As(actual, &actualUnrecognized)
 		if assert.True(t, ok, messageAndArgs...) {
 			assert.Equal(t, unrecognizedDependencyError, actualUnrecognized, messageAndArgs...)

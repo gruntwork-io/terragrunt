@@ -5,11 +5,10 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
@@ -29,16 +28,16 @@ type DependencyOrder int
 
 // DependencyController manages dependencies and dependency order, and contains a UnitRunner.
 type DependencyController struct {
-	Runner         *runbase.UnitRunner
+	Runner         *common.UnitRunner
 	DependencyDone chan *DependencyController
 	Dependencies   map[string]*DependencyController
 	NotifyWhenDone []*DependencyController
 }
 
 // NewDependencyController Create a new dependency controller for the given unit.
-func NewDependencyController(unit *runbase.Unit) *DependencyController {
+func NewDependencyController(unit *common.Unit) *DependencyController {
 	return &DependencyController{
-		Runner:         runbase.NewUnitRunner(unit),
+		Runner:         common.NewUnitRunner(unit),
 		DependencyDone: make(chan *DependencyController, channelSize),
 		Dependencies:   map[string]*DependencyController{},
 		NotifyWhenDone: []*DependencyController{},
@@ -102,7 +101,7 @@ func (ctrl *DependencyController) waitForDependencies(opts *options.TerragruntOp
 			}
 		}
 
-		return runbase.ProcessingUnitDependencyError{Unit: ctrl.Runner.Unit, Dependency: doneDependency.Runner.Unit, Err: doneDependency.Runner.Err}
+		return common.ProcessingUnitDependencyError{Unit: ctrl.Runner.Unit, Dependency: doneDependency.Runner.Unit, Err: doneDependency.Runner.Err}
 	}
 
 	for len(ctrl.Dependencies) > 0 {
@@ -199,7 +198,7 @@ func (ctrl *DependencyController) unitFinished(unitErr error, r *report.Report, 
 		}
 	}
 
-	ctrl.Runner.Status = runbase.Finished
+	ctrl.Runner.Status = common.Finished
 	ctrl.Runner.Err = unitErr
 
 	for _, toNotify := range ctrl.NotifyWhenDone {
@@ -211,8 +210,8 @@ func (ctrl *DependencyController) unitFinished(unitErr error, r *report.Report, 
 type RunningUnits map[string]*DependencyController
 
 // categorizeUnitsForIteration categorizes units into those to deploy, those to remove, and those to defer.
-func categorizeUnitsForIteration(units RunningUnits) (currentIterationDeploy runbase.Units, removeDep []string, next RunningUnits) {
-	currentIterationDeploy = runbase.Units{}
+func categorizeUnitsForIteration(units RunningUnits) (currentIterationDeploy common.Units, removeDep []string, next RunningUnits) {
+	currentIterationDeploy = common.Units{}
 	next = RunningUnits{}
 	removeDep = []string{}
 
@@ -234,10 +233,10 @@ func categorizeUnitsForIteration(units RunningUnits) (currentIterationDeploy run
 // toTerraformUnitGroups organizes the RunningUnits into groups of units that can be executed in parallel based on their dependencies.
 // Each group in the returned slice contains units that have no remaining dependencies and can be run concurrently in that iteration.
 // The function iteratively removes units with no dependencies, updates the dependency graph, and continues until all units are grouped or maxDepth is reached.
-func (units RunningUnits) toTerraformUnitGroups(maxDepth int) []runbase.Units {
+func (units RunningUnits) toTerraformUnitGroups(maxDepth int) []common.Units {
 	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
 	// the units that have no dependencies and captures that as a run group.
-	groups := []runbase.Units{}
+	groups := []common.Units{}
 
 	for len(units) > 0 && len(groups) < maxDepth {
 		currentIterationDeploy, removeDep, next := categorizeUnitsForIteration(units)
@@ -283,7 +282,7 @@ func (units RunningUnits) crossLinkDependencies(dependencyOrder DependencyOrder)
 		for _, dependency := range unit.Runner.Unit.Dependencies {
 			runningDependency, hasDependency := units[dependency.Path]
 			if !hasDependency {
-				return units, errors.New(runbase.DependencyNotFoundWhileCrossLinkingError{Unit: unit.Runner.Unit, Dependency: dependency})
+				return units, errors.New(common.DependencyNotFoundWhileCrossLinkingError{Unit: unit.Runner.Unit, Dependency: dependency})
 			}
 
 			// TODO: Remove lint suppression

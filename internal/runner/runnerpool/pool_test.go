@@ -5,19 +5,44 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 // mockUnit creates a runbase.Unit with the given path and dependencies.
-func mockUnit(path string, deps ...*runbase.Unit) *runbase.Unit {
-	return &runbase.Unit{
+func mockUnit(path string, deps ...*common.Unit) *common.Unit {
+	return &common.Unit{
 		Path:         path,
 		Dependencies: deps,
 	}
+}
+
+// Add a helper to convert units to discovered configs
+func discoveryFromUnits(units []*common.Unit) []*discovery.DiscoveredConfig {
+	discovered := make([]*discovery.DiscoveredConfig, 0, len(units))
+	unitMap := make(map[*common.Unit]*discovery.DiscoveredConfig)
+	// First pass: create configs
+	for _, u := range units {
+		cfg := &discovery.DiscoveredConfig{Path: u.Path}
+		unitMap[u] = cfg
+		discovered = append(discovered, cfg)
+	}
+	// Second pass: wire dependencies
+	for i, u := range units {
+		var deps []*discovery.DiscoveredConfig
+		for _, dep := range u.Dependencies {
+			if depCfg, ok := unitMap[dep]; ok {
+				deps = append(deps, depCfg)
+			}
+		}
+		discovered[i].Dependencies = deps
+	}
+	return discovered
 }
 
 func TestRunnerPool_LinearDependency(t *testing.T) {
@@ -27,19 +52,21 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
 	unitC := mockUnit("C", unitB)
-	units := []*runbase.Unit{unitA, unitB, unitC}
+	units := []*common.Unit{unitA, unitB, unitC}
 
 	var mu sync.Mutex
 	executionOrder := []string{}
-	runner := func(ctx context.Context, t *runnerpool.Task) runnerpool.Result {
+	runner := func(ctx context.Context, u *common.Unit) (int, error) {
 		mu.Lock()
-		executionOrder = append(executionOrder, t.ID())
+		executionOrder = append(executionOrder, u.Path)
 		mu.Unlock()
-		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
+		return 0, nil
 	}
 
+	q, _ := queue.NewQueue(discoveryFromUnits(units))
 	pool := runnerpool.NewRunnerPool(
-		runnerpool.WithUnits(units),
+		q,
+		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 		runnerpool.WithFailFast(false),
@@ -63,19 +90,21 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
 	unitC := mockUnit("C", unitA)
-	units := []*runbase.Unit{unitA, unitB, unitC}
+	units := []*common.Unit{unitA, unitB, unitC}
 
 	var mu sync.Mutex
 	executionOrder := []string{}
-	runner := func(ctx context.Context, t *runnerpool.Task) runnerpool.Result {
+	runner := func(ctx context.Context, u *common.Unit) (int, error) {
 		mu.Lock()
-		executionOrder = append(executionOrder, t.ID())
+		executionOrder = append(executionOrder, u.Path)
 		mu.Unlock()
-		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
+		return 0, nil
 	}
 
+	q, _ := queue.NewQueue(discoveryFromUnits(units))
 	pool := runnerpool.NewRunnerPool(
-		runnerpool.WithUnits(units),
+		q,
+		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 		runnerpool.WithFailFast(false),
@@ -98,17 +127,19 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	unitA := mockUnit("A")
 	unitB := mockUnit("B", unitA)
 	unitC := mockUnit("C", unitA)
-	units := []*runbase.Unit{unitA, unitB, unitC}
+	units := []*common.Unit{unitA, unitB, unitC}
 
-	runner := func(ctx context.Context, t *runnerpool.Task) runnerpool.Result {
-		if t.ID() == "A" {
-			return runnerpool.Result{TaskID: t.ID(), ExitCode: 1, Err: assert.AnError}
+	runner := func(ctx context.Context, u *common.Unit) (int, error) {
+		if u.Path == "A" {
+			return 1, assert.AnError
 		}
-		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
+		return 0, nil
 	}
 
+	q, _ := queue.NewQueue(discoveryFromUnits(units))
 	pool := runnerpool.NewRunnerPool(
-		runnerpool.WithUnits(units),
+		q,
+		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 		runnerpool.WithFailFast(true),
@@ -116,8 +147,8 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
 	// A should fail, B and C should be skipped (fail-fast)
-	for _, res := range results {
-		if res.TaskID == "A" {
+	for i, res := range results {
+		if units[i].Path == "A" {
 			assert.Equal(t, 1, res.ExitCode)
 			assert.Error(t, res.Err)
 		} else {

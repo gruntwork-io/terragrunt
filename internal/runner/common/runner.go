@@ -1,5 +1,5 @@
 // Package runbase provide base components for implementing runners.
-package runbase
+package common
 
 import (
 	"context"

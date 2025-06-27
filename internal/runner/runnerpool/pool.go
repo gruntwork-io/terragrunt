@@ -7,9 +7,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/pkg/errors"
 )
+
+// TaskRunner defines a function type that executes a Unit within a given context and returns an exit code and error.
+type TaskRunner func(ctx context.Context, u *common.Unit) (int, error)
 
 // RunnerPool orchestrates concurrent execution over a DAG.
 type RunnerPool struct {
@@ -19,7 +22,7 @@ type RunnerPool struct {
 	concurrency int
 	failFast    bool
 	// unitsMap maps unit paths to their corresponding *runbase.Unit for efficient lookup during task execution.
-	unitsMap map[string]*runbase.Unit
+	unitsMap map[string]*common.Unit
 }
 
 // RunnerPoolOption is a function that modifies a RunnerPool.
@@ -50,14 +53,14 @@ func WithFailFast(failFast bool) RunnerPoolOption {
 }
 
 // NewRunnerPool creates a new RunnerPool with the given options and a pre-built queue.
-func NewRunnerPool(q *queue.Queue, units []*runbase.Unit, opts ...RunnerPoolOption) *RunnerPool {
+func NewRunnerPool(q *queue.Queue, units []*common.Unit, opts ...RunnerPoolOption) *RunnerPool {
 	rp := &RunnerPool{
 		q:        q,
 		failFast: false,
 		readyCh:  make(chan struct{}, 1), // buffered to avoid blocking
 	}
 	// Build unitsMap from units slice
-	unitsMap := make(map[string]*runbase.Unit)
+	unitsMap := make(map[string]*common.Unit)
 	for _, u := range units {
 		if u != nil && u.Path != "" {
 			unitsMap[u.Path] = u

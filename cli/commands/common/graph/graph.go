@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -49,7 +49,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	rootOptions.WorkingDir = rootDir
 
-	stackOpts := []runbase.Option{}
+	stackOpts := []common.Option{}
 
 	if opts.Experiments.Evaluate(experiment.Report) {
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
@@ -66,7 +66,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			r.WithShowUnitLevelSummary()
 		}
 
-		stackOpts = append(stackOpts, runbase.WithReport(r))
+		stackOpts = append(stackOpts, common.WithReport(r))
 
 		if opts.ReportSchemaFile != "" {
 			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck

@@ -3,15 +3,14 @@ package runnerpool
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
-
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Build stack runner using discovery and queueing mechanisms.
-func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...runbase.Option) (runbase.StackRunner, error) {
+func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
 	// discovery configurations
 	d := discovery.
 		NewDiscovery(terragruntOptions.WorkingDir).

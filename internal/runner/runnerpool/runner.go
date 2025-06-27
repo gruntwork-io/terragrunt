@@ -11,9 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/tf"
 
@@ -30,22 +29,22 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack            *runbase.Stack
+	Stack            *common.Stack
 	planErrorBuffers []bytes.Buffer // Store plan error buffers for summarizePlanAllErrors
 	queue            *queue.Queue   // The execution queue for this runner
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
-func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...runbase.Option) (runbase.StackRunner, error) {
+func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...common.Option) (common.StackRunner, error) {
 	q, queueErr := queue.NewQueue(discovered)
 	if queueErr != nil {
 		return nil, queueErr
 	}
 
-	unitsMap := make(runbase.UnitsMap, len(discovered))
-	orderedUnits := make(runbase.Units, 0, len(discovered))
+	unitsMap := make(common.UnitsMap, len(discovered))
+	orderedUnits := make(common.Units, 0, len(discovered))
 
-	stack := runbase.Stack{
+	stack := common.Stack{
 		TerragruntOptions: terragruntOptions,
 	}
 
@@ -70,7 +69,7 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 			continue // skip on error
 		}
 
-		mod := &runbase.Unit{
+		mod := &common.Unit{
 			TerragruntOptions: modOpts,
 			Logger:            modLogger,
 			Path:              cfg.Path,
@@ -136,8 +135,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
-	taskRun := func(ctx context.Context, u *runbase.Unit) (int, error) {
-		unitRunner := runbase.NewUnitRunner(u)
+	taskRun := func(ctx context.Context, u *common.Unit) (int, error) {
+		unitRunner := common.NewUnitRunner(u)
 		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
 		if err != nil {
 			return 1, err
@@ -300,7 +299,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 }
 
 // WithOptions updates the stack with the provided options.
-func (r *Runner) WithOptions(opts ...runbase.Option) *Runner {
+func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
 		opt(r)
 	}
@@ -308,7 +307,7 @@ func (r *Runner) WithOptions(opts ...runbase.Option) *Runner {
 	return r
 }
 
-func (r *Runner) GetStack() *runbase.Stack {
+func (r *Runner) GetStack() *common.Stack {
 	return r.Stack
 }
 

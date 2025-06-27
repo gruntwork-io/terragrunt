@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
@@ -78,7 +78,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return err
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, runbase.WithParseOptions(parseOptions))
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts, common.WithParseOptions(parseOptions))
 	if err != nil {
 		return err
 	}

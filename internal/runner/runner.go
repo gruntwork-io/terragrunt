@@ -7,9 +7,9 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 	"github.com/gruntwork-io/terragrunt/shell"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
@@ -22,7 +22,7 @@ import (
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...runbase.Option) (runbase.StackRunner, error) {
+func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
 	if terragruntOptions.Experiments.Evaluate(experiment.RunnerPool) {
 		l.Infof("Using RunnerPoolStackBuilder to build stack for %s", terragruntOptions.WorkingDir)
 
@@ -36,8 +36,8 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 // 1. Find root git top level directory and build list of modules
 // 2. Iterate over includes from opts if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) runbase.Units {
-	matchedModulesMap := make(runbase.UnitsMap)
+func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.Units {
+	matchedModulesMap := make(common.UnitsMap)
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
@@ -46,7 +46,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 		}
 	}
 
-	var matchedModules = make(runbase.Units, 0, len(matchedModulesMap))
+	var matchedModules = make(common.Units, 0, len(matchedModulesMap))
 	for _, module := range matchedModulesMap {
 		matchedModules = append(matchedModules, module)
 	}
@@ -75,8 +75,8 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) runbase.UnitsMap {
-	matchedModulesMap := make(runbase.UnitsMap)
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) common.UnitsMap {
+	matchedModulesMap := make(common.UnitsMap)
 
 	dir += filepath.FromSlash("/")
 
@@ -91,7 +91,7 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	cfgOptions.TerraformCommand = opts.TerraformCommand
 	cfgOptions.NonInteractive = true
 
-	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, runbase.WithChildTerragruntConfig(terragruntConfig))
+	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, common.WithChildTerragruntConfig(terragruntConfig))
 	if err != nil {
 		l.Debugf("Failed to build module stack %v", err)
 		return matchedModulesMap

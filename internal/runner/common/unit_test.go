@@ -1,4 +1,4 @@
-package runbase_test
+package common_test
 
 import (
 	"bytes"

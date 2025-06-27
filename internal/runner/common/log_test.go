@@ -1,11 +1,11 @@
-package runbase_test
+package common_test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 
@@ -14,7 +14,7 @@ import (
 
 func TestLogReductionHook(t *testing.T) {
 	t.Parallel()
-	var hook = runbase.NewForceLogLevelHook(log.ErrorLevel)
+	var hook = common.NewForceLogLevelHook(log.ErrorLevel)
 
 	stdout := bytes.Buffer{}
 

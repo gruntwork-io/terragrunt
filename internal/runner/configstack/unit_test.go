@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
@@ -24,16 +24,16 @@ func TestGraph(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	a := &runbase.Unit{Path: "a", Logger: l}
-	b := &runbase.Unit{Path: "b", Logger: l}
-	c := &runbase.Unit{Path: "c", Logger: l}
-	d := &runbase.Unit{Path: "d", Logger: l}
-	e := &runbase.Unit{Path: "e", Dependencies: []*runbase.Unit{a}, Logger: l}
-	f := &runbase.Unit{Path: "f", Dependencies: []*runbase.Unit{a, b}, Logger: l}
-	g := &runbase.Unit{Path: "g", Dependencies: []*runbase.Unit{e}, Logger: l}
-	h := &runbase.Unit{Path: "h", Dependencies: []*runbase.Unit{g, f, c}, Logger: l}
+	a := &common.Unit{Path: "a", Logger: l}
+	b := &common.Unit{Path: "b", Logger: l}
+	c := &common.Unit{Path: "c", Logger: l}
+	d := &common.Unit{Path: "d", Logger: l}
+	e := &common.Unit{Path: "e", Dependencies: []*common.Unit{a}, Logger: l}
+	f := &common.Unit{Path: "f", Dependencies: []*common.Unit{a, b}, Logger: l}
+	g := &common.Unit{Path: "g", Dependencies: []*common.Unit{e}, Logger: l}
+	h := &common.Unit{Path: "h", Dependencies: []*common.Unit{g, f, c}, Logger: l}
 
-	units := runbase.Units{a, b, c, d, e, f, g, h}
+	units := common.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
@@ -73,16 +73,16 @@ func TestGraphTrimPrefix(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	a := &runbase.Unit{Path: "/config/a", Logger: l}
-	b := &runbase.Unit{Path: "/config/b", Logger: l}
-	c := &runbase.Unit{Path: "/config/c", Logger: l}
-	d := &runbase.Unit{Path: "/config/d", Logger: l}
-	e := &runbase.Unit{Path: "/config/alpha/beta/gamma/e", Dependencies: []*runbase.Unit{a}, Logger: l}
-	f := &runbase.Unit{Path: "/config/alpha/beta/gamma/f", Dependencies: []*runbase.Unit{a, b}, Logger: l}
-	g := &runbase.Unit{Path: "/config/alpha/g", Dependencies: []*runbase.Unit{e}, Logger: l}
-	h := &runbase.Unit{Path: "/config/alpha/beta/h", Dependencies: []*runbase.Unit{g, f, c}, Logger: l}
+	a := &common.Unit{Path: "/config/a", Logger: l}
+	b := &common.Unit{Path: "/config/b", Logger: l}
+	c := &common.Unit{Path: "/config/c", Logger: l}
+	d := &common.Unit{Path: "/config/d", Logger: l}
+	e := &common.Unit{Path: "/config/alpha/beta/gamma/e", Dependencies: []*common.Unit{a}, Logger: l}
+	f := &common.Unit{Path: "/config/alpha/beta/gamma/f", Dependencies: []*common.Unit{a, b}, Logger: l}
+	g := &common.Unit{Path: "/config/alpha/g", Dependencies: []*common.Unit{e}, Logger: l}
+	h := &common.Unit{Path: "/config/alpha/beta/h", Dependencies: []*common.Unit{g, f, c}, Logger: l}
 
-	units := runbase.Units{a, b, c, d, e, f, g, h}
+	units := common.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, err := options.NewTerragruntOptionsWithConfigPath("/config/terragrunt.hcl")
@@ -119,16 +119,16 @@ func TestGraphFlagExcluded(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	a := &runbase.Unit{Path: "a", FlagExcluded: true, Logger: l}
-	b := &runbase.Unit{Path: "b", Logger: l}
-	c := &runbase.Unit{Path: "c", Logger: l}
-	d := &runbase.Unit{Path: "d", Logger: l}
-	e := &runbase.Unit{Path: "e", Dependencies: []*runbase.Unit{a}, Logger: l}
-	f := &runbase.Unit{Path: "f", FlagExcluded: true, Dependencies: []*runbase.Unit{a, b}, Logger: l}
-	g := &runbase.Unit{Path: "g", Dependencies: []*runbase.Unit{e}, Logger: l}
-	h := &runbase.Unit{Path: "h", Dependencies: []*runbase.Unit{g, f, c}, Logger: l}
+	a := &common.Unit{Path: "a", FlagExcluded: true, Logger: l}
+	b := &common.Unit{Path: "b", Logger: l}
+	c := &common.Unit{Path: "c", Logger: l}
+	d := &common.Unit{Path: "d", Logger: l}
+	e := &common.Unit{Path: "e", Dependencies: []*common.Unit{a}, Logger: l}
+	f := &common.Unit{Path: "f", FlagExcluded: true, Dependencies: []*common.Unit{a, b}, Logger: l}
+	g := &common.Unit{Path: "g", Dependencies: []*common.Unit{e}, Logger: l}
+	h := &common.Unit{Path: "h", Dependencies: []*common.Unit{g, f, c}, Logger: l}
 
-	units := runbase.Units{a, b, c, d, e, f, g, h}
+	units := common.Units{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
@@ -169,66 +169,66 @@ func TestCheckForCycles(t *testing.T) {
 	////////////////////////////////////
 	// These units have no dependencies
 	////////////////////////////////////
-	a := &runbase.Unit{Path: "a", Logger: l}
-	b := &runbase.Unit{Path: "b", Logger: l}
-	c := &runbase.Unit{Path: "c", Logger: l}
-	d := &runbase.Unit{Path: "d", Logger: l}
+	a := &common.Unit{Path: "a", Logger: l}
+	b := &common.Unit{Path: "b", Logger: l}
+	c := &common.Unit{Path: "c", Logger: l}
+	d := &common.Unit{Path: "d", Logger: l}
 
 	////////////////////////////////////
 	// These units have dependencies, but no cycles
 	////////////////////////////////////
 
 	// e -> a
-	e := &runbase.Unit{Path: "e", Dependencies: []*runbase.Unit{a}, Logger: l}
+	e := &common.Unit{Path: "e", Dependencies: []*common.Unit{a}, Logger: l}
 
 	// f -> a, b
-	f := &runbase.Unit{Path: "f", Dependencies: []*runbase.Unit{a, b}, Logger: l}
+	f := &common.Unit{Path: "f", Dependencies: []*common.Unit{a, b}, Logger: l}
 
 	// g -> e -> a
-	g := &runbase.Unit{Path: "g", Dependencies: []*runbase.Unit{e}, Logger: l}
+	g := &common.Unit{Path: "g", Dependencies: []*common.Unit{e}, Logger: l}
 
 	// h -> g -> e -> a
 	// |            /
 	//  --> f -> b
 	// |
 	//  --> c
-	h := &runbase.Unit{Path: "h", Dependencies: []*runbase.Unit{g, f, c}, Logger: l}
+	h := &common.Unit{Path: "h", Dependencies: []*common.Unit{g, f, c}, Logger: l}
 
 	////////////////////////////////////
 	// These units have dependencies and cycles
 	////////////////////////////////////
 
 	// i -> i
-	i := &runbase.Unit{Path: "i", Dependencies: []*runbase.Unit{}, Logger: l}
+	i := &common.Unit{Path: "i", Dependencies: []*common.Unit{}, Logger: l}
 	i.Dependencies = append(i.Dependencies, i)
 
 	// j -> k -> j
-	j := &runbase.Unit{Path: "j", Dependencies: []*runbase.Unit{}, Logger: l}
-	k := &runbase.Unit{Path: "k", Dependencies: []*runbase.Unit{j}, Logger: l}
+	j := &common.Unit{Path: "j", Dependencies: []*common.Unit{}, Logger: l}
+	k := &common.Unit{Path: "k", Dependencies: []*common.Unit{j}, Logger: l}
 	j.Dependencies = append(j.Dependencies, k)
 
 	// l -> m -> n -> o -> l
-	unitNameL := &runbase.Unit{Path: "l", Dependencies: []*runbase.Unit{}, Logger: l}
-	o := &runbase.Unit{Path: "o", Dependencies: []*runbase.Unit{unitNameL}, Logger: l}
-	n := &runbase.Unit{Path: "n", Dependencies: []*runbase.Unit{o}, Logger: l}
-	m := &runbase.Unit{Path: "m", Dependencies: []*runbase.Unit{n}, Logger: l}
+	unitNameL := &common.Unit{Path: "l", Dependencies: []*common.Unit{}, Logger: l}
+	o := &common.Unit{Path: "o", Dependencies: []*common.Unit{unitNameL}, Logger: l}
+	n := &common.Unit{Path: "n", Dependencies: []*common.Unit{o}, Logger: l}
+	m := &common.Unit{Path: "m", Dependencies: []*common.Unit{n}, Logger: l}
 	unitNameL.Dependencies = append(unitNameL.Dependencies, m)
 
 	testCases := []struct {
-		units    runbase.Units
-		expected runbase.DependencyCycleError
+		units    common.Units
+		expected common.DependencyCycleError
 	}{
-		{[]*runbase.Unit{}, nil},
-		{[]*runbase.Unit{a}, nil},
-		{[]*runbase.Unit{a, b, c, d}, nil},
-		{[]*runbase.Unit{a, e}, nil},
-		{[]*runbase.Unit{a, b, f}, nil},
-		{[]*runbase.Unit{a, e, g}, nil},
-		{runbase.Units{a, b, c, e, f, g, h}, nil},
-		{[]*runbase.Unit{i}, runbase.DependencyCycleError([]string{"i", "i"})},
-		{[]*runbase.Unit{j, k}, runbase.DependencyCycleError([]string{"j", "k", "j"})},
-		{[]*runbase.Unit{unitNameL, o, n, m}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
-		{[]*runbase.Unit{a, unitNameL, b, o, n, f, m, h}, runbase.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*common.Unit{}, nil},
+		{[]*common.Unit{a}, nil},
+		{[]*common.Unit{a, b, c, d}, nil},
+		{[]*common.Unit{a, e}, nil},
+		{[]*common.Unit{a, b, f}, nil},
+		{[]*common.Unit{a, e, g}, nil},
+		{common.Units{a, b, c, e, f, g, h}, nil},
+		{[]*common.Unit{i}, common.DependencyCycleError([]string{"i", "i"})},
+		{[]*common.Unit{j, k}, common.DependencyCycleError([]string{"j", "k", "j"})},
+		{[]*common.Unit{unitNameL, o, n, m}, common.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*common.Unit{a, unitNameL, b, o, n, f, m, h}, common.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
 	}
 
 	for _, tc := range testCases {
@@ -236,7 +236,7 @@ func TestCheckForCycles(t *testing.T) {
 		if tc.expected == nil {
 			require.NoError(t, actual)
 		} else if assert.Error(t, actual, "For units %v", tc.units) {
-			var actualErr runbase.DependencyCycleError
+			var actualErr common.DependencyCycleError
 			errors.As(actual, &actualErr)
 			assert.Equal(t, []string(tc.expected), []string(actualErr), "For units %v", tc.units)
 		}
@@ -251,8 +251,8 @@ func TestRunUnitsNoUnits(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{},
+		Stack: &common.Stack{
+			Units:  common.Units{},
 			Report: report.NewReport(),
 		},
 	}
@@ -266,9 +266,9 @@ func TestRunUnitsOneUnitSuccess(t *testing.T) {
 
 	l := logger.CreateLogger()
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 		Logger:            l,
@@ -279,8 +279,8 @@ func TestRunUnitsOneUnitSuccess(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -295,9 +295,9 @@ func TestRunUnitsOneUnitAssumeAlreadyRan(t *testing.T) {
 
 	l := logger.CreateLogger()
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:                 "a",
-		Dependencies:         runbase.Units{},
+		Dependencies:         common.Units{},
 		Config:               config.TerragruntConfig{},
 		TerragruntOptions:    optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 		AssumeAlreadyApplied: true,
@@ -309,8 +309,8 @@ func TestRunUnitsOneUnitAssumeAlreadyRan(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -324,9 +324,9 @@ func TestRunUnitsReverseOrderOneUnitSuccess(t *testing.T) {
 
 	l := logger.CreateLogger()
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 		Logger:            l,
@@ -337,8 +337,8 @@ func TestRunUnitsReverseOrderOneUnitSuccess(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -352,9 +352,9 @@ func TestRunUnitsIgnoreOrderOneUnitSuccess(t *testing.T) {
 
 	l := logger.CreateLogger()
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 		Logger:            l,
@@ -365,8 +365,8 @@ func TestRunUnitsIgnoreOrderOneUnitSuccess(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -381,9 +381,9 @@ func TestRunUnitsOneUnitError(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 		Logger:            l,
@@ -394,8 +394,8 @@ func TestRunUnitsOneUnitError(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -410,9 +410,9 @@ func TestRunUnitsReverseOrderOneUnitError(t *testing.T) {
 	l := logger.CreateLogger()
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 		Logger:            l,
@@ -423,8 +423,8 @@ func TestRunUnitsReverseOrderOneUnitError(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -440,9 +440,9 @@ func TestRunUnitsIgnoreOrderOneUnitError(t *testing.T) {
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
@@ -453,8 +453,8 @@ func TestRunUnitsIgnoreOrderOneUnitError(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA},
 			Report: report.NewReport(),
 		},
 	}
@@ -469,27 +469,27 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -500,8 +500,8 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -519,27 +519,27 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccessNoParallelism(t *testing.T) {
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -550,8 +550,8 @@ func TestRunUnitsMultipleUnitsNoDependenciesSuccessNoParallelism(t *testing.T) {
 
 	opts.Parallelism = 1
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -570,27 +570,27 @@ func TestRunUnitsReverseOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -601,8 +601,8 @@ func TestRunUnitsReverseOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -620,27 +620,27 @@ func TestRunUnitsIgnoreOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -651,8 +651,8 @@ func TestRunUnitsIgnoreOrderMultipleUnitsNoDependenciesSuccess(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -670,9 +670,9 @@ func TestRunUnitsMultipleUnitsNoDependenciesOneFailure(t *testing.T) {
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
@@ -680,18 +680,18 @@ func TestRunUnitsMultipleUnitsNoDependenciesOneFailure(t *testing.T) {
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -702,8 +702,8 @@ func TestRunUnitsMultipleUnitsNoDependenciesOneFailure(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -722,9 +722,9 @@ func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
@@ -732,9 +732,9 @@ func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
@@ -742,9 +742,9 @@ func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 
 	cRan := false
 	expectedErrC := errors.New("Expected error for unit c")
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", expectedErrC, &cRan),
@@ -755,8 +755,8 @@ func TestRunUnitsMultipleUnitsNoDependenciesMultipleFailures(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -774,27 +774,27 @@ func TestRunUnitsMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -805,8 +805,8 @@ func TestRunUnitsMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -824,27 +824,27 @@ func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *tes
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:                 "c",
-		Dependencies:         runbase.Units{unitB},
+		Dependencies:         common.Units{unitB},
 		Config:               config.TerragruntConfig{},
 		Logger:               l,
 		TerragruntOptions:    optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -852,9 +852,9 @@ func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *tes
 	}
 
 	dRan := false
-	unitD := &runbase.Unit{
+	unitD := &common.Unit{
 		Path:              "d",
-		Dependencies:      runbase.Units{unitC},
+		Dependencies:      common.Units{unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
@@ -865,8 +865,8 @@ func TestRunUnitsMultipleUnitsWithDependenciesWithAssumeAlreadyRanSuccess(t *tes
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC, unitD},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC, unitD},
 			Report: report.NewReport(),
 		},
 	}
@@ -885,27 +885,27 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) 
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -916,8 +916,8 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) 
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -935,27 +935,27 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -966,8 +966,8 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesSuccess(t *testing.T) {
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -985,9 +985,9 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
@@ -995,32 +995,32 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailure(t *testing.T) {
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrC := runbase.ProcessingUnitDependencyError{Unit: unitC, Dependency: unitB, Err: expectedErrB}
+	expectedErrC := common.ProcessingUnitDependencyError{Unit: unitC, Dependency: unitB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1040,9 +1040,9 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t
 	aRan := false
 	terragruntOptionsA := optionsWithMockTerragruntCommand(t, "a", nil, &aRan)
 	terragruntOptionsA.IgnoreDependencyErrors = true
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: terragruntOptionsA,
@@ -1052,9 +1052,9 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t
 	expectedErrB := errors.New("Expected error for unit b")
 	terragruntOptionsB := optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan)
 	terragruntOptionsB.IgnoreDependencyErrors = true
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: terragruntOptionsB,
@@ -1063,9 +1063,9 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t
 	cRan := false
 	terragruntOptionsC := optionsWithMockTerragruntCommand(t, "c", nil, &cRan)
 	terragruntOptionsC.IgnoreDependencyErrors = true
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: terragruntOptionsC,
@@ -1076,8 +1076,8 @@ func TestRunUnitsMultipleUnitsWithDependenciesOneFailureIgnoreDependencyErrors(t
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1096,9 +1096,9 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesOneFailure(t *testing.
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
@@ -1106,32 +1106,32 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesOneFailure(t *testing.
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrA := runbase.ProcessingUnitDependencyError{Unit: unitA, Dependency: unitB, Err: expectedErrB}
+	expectedErrA := common.ProcessingUnitDependencyError{Unit: unitA, Dependency: unitB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1150,9 +1150,9 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
@@ -1160,18 +1160,18 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for unit b")
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -1182,8 +1182,8 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesOneFailure(t *testing.T
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1203,42 +1203,42 @@ func TestRunUnitsMultipleUnitsWithDependenciesMultipleFailures(t *testing.T) {
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrB := runbase.ProcessingUnitDependencyError{Unit: unitB, Dependency: unitA, Err: expectedErrA}
-	expectedErrC := runbase.ProcessingUnitDependencyError{Unit: unitC, Dependency: unitB, Err: expectedErrB}
+	expectedErrB := common.ProcessingUnitDependencyError{Unit: unitB, Dependency: unitA, Err: expectedErrA}
+	expectedErrC := common.ProcessingUnitDependencyError{Unit: unitC, Dependency: unitB, Err: expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1258,27 +1258,27 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesMultipleFailures(t *tes
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for unit a")
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
@@ -1289,8 +1289,8 @@ func TestRunUnitsIgnoreOrderMultipleUnitsWithDependenciesMultipleFailures(t *tes
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC},
 			Report: report.NewReport(),
 		},
 	}
@@ -1309,54 +1309,54 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
 	dRan := false
-	unitD := &runbase.Unit{
+	unitD := &common.Unit{
 		Path:              "d",
-		Dependencies:      runbase.Units{unitA, unitB, unitC},
+		Dependencies:      common.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
 	}
 
 	eRan := false
-	unitE := &runbase.Unit{
+	unitE := &common.Unit{
 		Path:              "e",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "e", nil, &eRan),
 	}
 
 	fRan := false
-	unitF := &runbase.Unit{
+	unitF := &common.Unit{
 		Path:              "f",
-		Dependencies:      runbase.Units{unitE, unitD},
+		Dependencies:      common.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
@@ -1367,8 +1367,8 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphAllSuccess(t *testing.T)
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC, unitD, unitE, unitF},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC, unitD, unitE, unitF},
 			Report: report.NewReport(),
 		},
 	}
@@ -1390,18 +1390,18 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "large-graph-a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "large-graph-b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-b", nil, &bRan),
@@ -1409,27 +1409,27 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 
 	cRan := false
 	expectedErrC := errors.New("Expected error for unit large-graph-c")
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "large-graph-c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-c", expectedErrC, &cRan),
 	}
 
 	dRan := false
-	unitD := &runbase.Unit{
+	unitD := &common.Unit{
 		Path:              "large-graph-d",
-		Dependencies:      runbase.Units{unitA, unitB, unitC},
+		Dependencies:      common.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-d", nil, &dRan),
 	}
 
 	eRan := false
-	unitE := &runbase.Unit{
+	unitE := &common.Unit{
 		Path:                 "large-graph-e",
-		Dependencies:         runbase.Units{},
+		Dependencies:         common.Units{},
 		Config:               config.TerragruntConfig{},
 		Logger:               l,
 		TerragruntOptions:    optionsWithMockTerragruntCommand(t, "large-graph-e", nil, &eRan),
@@ -1437,33 +1437,33 @@ func TestRunUnitsMultipleUnitsWithDependenciesLargeGraphPartialFailure(t *testin
 	}
 
 	fRan := false
-	unitF := &runbase.Unit{
+	unitF := &common.Unit{
 		Path:              "large-graph-f",
-		Dependencies:      runbase.Units{unitE, unitD},
+		Dependencies:      common.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-f", nil, &fRan),
 	}
 
 	gRan := false
-	unitG := &runbase.Unit{
+	unitG := &common.Unit{
 		Path:              "large-graph-g",
-		Dependencies:      runbase.Units{unitE},
+		Dependencies:      common.Units{unitE},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-g", nil, &gRan),
 	}
 
-	expectedErrD := runbase.ProcessingUnitDependencyError{Unit: unitD, Dependency: unitC, Err: expectedErrC}
-	expectedErrF := runbase.ProcessingUnitDependencyError{Unit: unitF, Dependency: unitD, Err: expectedErrD}
+	expectedErrD := common.ProcessingUnitDependencyError{Unit: unitD, Dependency: unitC, Err: expectedErrC}
+	expectedErrF := common.ProcessingUnitDependencyError{Unit: unitF, Dependency: unitD, Err: expectedErrD}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC, unitD, unitE, unitF, unitG},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC, unitD, unitE, unitF, unitG},
 			Report: report.NewReport(),
 		},
 	}
@@ -1486,18 +1486,18 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 	l := logger.CreateLogger()
 
 	aRan := false
-	unitA := &runbase.Unit{
+	unitA := &common.Unit{
 		Path:              "a",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	unitB := &runbase.Unit{
+	unitB := &common.Unit{
 		Path:              "b",
-		Dependencies:      runbase.Units{unitA},
+		Dependencies:      common.Units{unitA},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
@@ -1505,51 +1505,51 @@ func TestRunUnitsReverseOrderMultipleUnitsWithDependenciesLargeGraphPartialFailu
 
 	cRan := false
 	expectedErrC := errors.New("Expected error for unit c")
-	unitC := &runbase.Unit{
+	unitC := &common.Unit{
 		Path:              "c",
-		Dependencies:      runbase.Units{unitB},
+		Dependencies:      common.Units{unitB},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", expectedErrC, &cRan),
 	}
 
 	dRan := false
-	unitD := &runbase.Unit{
+	unitD := &common.Unit{
 		Path:              "d",
-		Dependencies:      runbase.Units{unitA, unitB, unitC},
+		Dependencies:      common.Units{unitA, unitB, unitC},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
 	}
 
 	eRan := false
-	unitE := &runbase.Unit{
+	unitE := &common.Unit{
 		Path:              "e",
-		Dependencies:      runbase.Units{},
+		Dependencies:      common.Units{},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "e", nil, &eRan),
 	}
 
 	fRan := false
-	unitF := &runbase.Unit{
+	unitF := &common.Unit{
 		Path:              "f",
-		Dependencies:      runbase.Units{unitE, unitD},
+		Dependencies:      common.Units{unitE, unitD},
 		Config:            config.TerragruntConfig{},
 		Logger:            l,
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
 	}
 
-	expectedErrB := runbase.ProcessingUnitDependencyError{Unit: unitB, Dependency: unitC, Err: expectedErrC}
-	expectedErrA := runbase.ProcessingUnitDependencyError{Unit: unitA, Dependency: unitB, Err: expectedErrB}
+	expectedErrB := common.ProcessingUnitDependencyError{Unit: unitB, Dependency: unitC, Err: expectedErrC}
+	expectedErrA := common.ProcessingUnitDependencyError{Unit: unitA, Dependency: unitB, Err: expectedErrB}
 
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, optsErr)
 
 	opts.Parallelism = options.DefaultParallelism
 	runner := configstack.Runner{
-		Stack: &runbase.Stack{
-			Units:  runbase.Units{unitA, unitB, unitC, unitD, unitE, unitF},
+		Stack: &common.Stack{
+			Units:  common.Units{unitA, unitB, unitC, unitD, unitE, unitF},
 			Report: report.NewReport(),
 		},
 	}
