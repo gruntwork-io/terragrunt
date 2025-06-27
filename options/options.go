@@ -75,6 +75,13 @@ var (
 		"state",
 	}
 
+	defaultVersionManagerFileName = []string{
+		".terraform-version",
+		".tool-versions",
+		"mise.toml",
+		".mise.toml",
+	}
+
 	// Pattern used to clean error message when looking for retry and ignore patterns.
 	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
 )
@@ -202,6 +209,8 @@ type TerragruntOptions struct {
 	ModulesThatInclude []string
 	// When used with `run --all`, restrict the units in the stack to only those that read at least one of the files in this list.
 	UnitsReading []string
+	// When set, it will be used to compute the cache key for `-version` checks.
+	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
 	// Maximum number of times to retry errors matching RetryableErrors
@@ -420,6 +429,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Telemetry:                  new(telemetry.Options),
 		NoStackValidate:            false,
 		NoStackGenerate:            false,
+		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
 }
 
