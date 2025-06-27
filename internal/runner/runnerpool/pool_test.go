@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// mockUnit creates a runbase.Unit with the given path and dependencies.
+// mockUnit creates a common.Unit with the given path and dependencies.
 func mockUnit(path string, deps ...*common.Unit) *common.Unit {
 	return &common.Unit{
 		Path:         path,
