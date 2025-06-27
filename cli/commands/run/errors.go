@@ -47,7 +47,7 @@ type ModuleIsProtected struct {
 }
 
 func (err ModuleIsProtected) Error() string {
-	return fmt.Sprintf("Module is protected by the prevent_destroy flag in %s. Set it to false or delete it to allow destroying of the module.", err.Opts.TerragruntConfigPath)
+	return fmt.Sprintf("Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.", err.Opts.TerragruntConfigPath)
 }
 
 type MaxRetriesExceeded struct {

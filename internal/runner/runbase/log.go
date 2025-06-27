@@ -1,4 +1,4 @@
-package configstack
+package runbase
 
 import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"

@@ -7,8 +7,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -34,12 +34,14 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions, _ flags.Prefix) *
 }
 
 func Run(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	stack, err := configstack.FindStackInSubfolders(ctx, l, opts)
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
-	stack.Graph(l, opts)
+	if err := stack.GetStack().Units.WriteDot(l, opts.Writer, opts); err != nil {
+		l.Warnf("Failed to graph dot: %v", err)
+	}
 
 	return nil
 }
