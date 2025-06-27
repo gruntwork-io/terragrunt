@@ -302,12 +302,12 @@ func (r *Runner) GetStack() *runbase.Stack {
 	return r.Stack
 }
 
-// SetTerragruntConfig sets the report for the stack.
+// SetTerragruntConfig sets the config for the stack.
 func (r *Runner) SetTerragruntConfig(config *config.TerragruntConfig) {
 	r.Stack.ChildTerragruntConfig = config
 }
 
-// SetParseOptions sets the report for the stack.
+// SetParseOptions sets the ParseOptions for the stack.
 func (r *Runner) SetParseOptions(parserOptions []hclparse.Option) {
 	r.Stack.ParserOptions = parserOptions
 }
