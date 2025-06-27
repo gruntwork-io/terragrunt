@@ -71,42 +71,42 @@ func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.Terragru
 	if runner.Unit.AssumeAlreadyApplied {
 		runner.Unit.Logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path)
 		return nil
-	} else {
-		if err := runner.runTerragrunt(ctx, runner.Unit.TerragruntOptions, r); err != nil {
+	}
+	if err := runner.runTerragrunt(ctx, runner.Unit.TerragruntOptions, r); err != nil {
+		return err
+	}
+
+	// convert terragrunt output to json
+	if runner.Unit.OutputJSONFile(runner.Unit.Logger, runner.Unit.TerragruntOptions) != "" {
+		l, jsonOptions, err := runner.Unit.TerragruntOptions.CloneWithConfigPath(runner.Unit.Logger, runner.Unit.TerragruntOptions.TerragruntConfigPath)
+		if err != nil {
 			return err
 		}
 
-		// convert terragrunt output to json
-		if runner.Unit.OutputJSONFile(runner.Unit.Logger, runner.Unit.TerragruntOptions) != "" {
-			l, jsonOptions, err := runner.Unit.TerragruntOptions.CloneWithConfigPath(runner.Unit.Logger, runner.Unit.TerragruntOptions.TerragruntConfigPath)
-			if err != nil {
-				return err
-			}
+		stdout := bytes.Buffer{}
+		jsonOptions.ForwardTFStdout = true
+		jsonOptions.JSONLogFormat = false
+		jsonOptions.Writer = &stdout
+		jsonOptions.TerraformCommand = tf.CommandNameShow
+		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(l, rootOptions)}
 
-			stdout := bytes.Buffer{}
-			jsonOptions.ForwardTFStdout = true
-			jsonOptions.JSONLogFormat = false
-			jsonOptions.Writer = &stdout
-			jsonOptions.TerraformCommand = tf.CommandNameShow
-			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(l, rootOptions)}
-
-			if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
-				return err
-			}
-
-			// save the json output to the file plan file
-			outputFile := runner.Unit.OutputJSONFile(l, rootOptions)
-			jsonDir := filepath.Dir(outputFile)
-
-			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
-				return err
-			}
-
-			if err := os.WriteFile(outputFile, stdout.Bytes(), os.ModePerm); err != nil {
-				return err
-			}
+		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, r); err != nil {
+			return err
 		}
 
-		return nil
+		// save the json output to the file plan file
+		outputFile := runner.Unit.OutputJSONFile(l, rootOptions)
+		jsonDir := filepath.Dir(outputFile)
+
+		if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
+			return err
+		}
+
+		if err := os.WriteFile(outputFile, stdout.Bytes(), os.ModePerm); err != nil {
+			return err
+		}
 	}
+
+	return nil
+
 }

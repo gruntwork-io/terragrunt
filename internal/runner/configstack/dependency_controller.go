@@ -231,7 +231,9 @@ func categorizeUnitsForIteration(units RunningUnits) (currentIterationDeploy run
 	return
 }
 
-// toTerraformUnitGroups converts the RunningUnits into a slice of runbase.Units, where each slice represents a group of
+// toTerraformUnitGroups organizes the RunningUnits into groups of units that can be executed in parallel based on their dependencies.
+// Each group in the returned slice contains units that have no remaining dependencies and can be run concurrently in that iteration.
+// The function iteratively removes units with no dependencies, updates the dependency graph, and continues until all units are grouped or maxDepth is reached.
 func (units RunningUnits) toTerraformUnitGroups(maxDepth int) []runbase.Units {
 	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
 	// the units that have no dependencies and captures that as a run group.
