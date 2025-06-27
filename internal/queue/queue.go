@@ -32,8 +32,9 @@ import (
 
 // Entry represents a node in the queue/DAG for execution.
 type Entry struct {
-	Config *discovery.DiscoveredConfig
-	Status Status
+	Config     *discovery.DiscoveredConfig
+	Status     Status
+	Dependents []*Entry // direct dependents of this entry
 }
 
 // Status represents the lifecycle state of a task in the queue.
@@ -192,15 +193,22 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 	for _, cfg := range discovered {
 		entry := &Entry{
-			Config: cfg,
-			Status: StatusPending,
+			Config:     cfg,
+			Status:     StatusPending,
+			Dependents: []*Entry{},
 		}
 		entries = append(entries, entry)
 		index[cfg.Path] = entry
 	}
 
-	// Wire up dependents as a list of paths
-	// (Removed: code that appends to depEntry.Dependents)
+	// Populate Dependents for each entry
+	for _, entry := range entries {
+		for _, dep := range entry.Config.Dependencies {
+			if depEntry, ok := index[dep.Path]; ok {
+				depEntry.Dependents = append(depEntry.Dependents, entry)
+			}
+		}
+	}
 
 	q := &Queue{
 		Entries:  entries,
@@ -291,13 +299,24 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 // It also unblocks children or marks them as failed/ancestor-failed as appropriate.
 func (q *Queue) SetStatus(e *Entry, status Status) {
 	e.Status = status
-	if e.Status == StatusFailed && q.FailFast {
-		// Fail-fast: Mark all not-yet-started tasks (Pending, Blocked, Ready) as Failed to prevent further execution.
-		for _, n := range q.Entries {
-			if n.Status != StatusPending && n.Status != StatusBlocked && n.Status != StatusReady {
+
+	// If this entry failed, recursively fail all dependents using the Dependents field
+	if status == StatusFailed {
+		// If fail-fast is enabled, mark all not-yet-started tasks (Pending, Blocked, Ready) as Failed to prevent further execution.
+		if q.FailFast {
+			for _, n := range q.Entries {
+				if n.Status == StatusSucceeded {
+					continue
+				}
+				n.Status = StatusFailed
+			}
+			return
+		}
+		for _, depEntry := range e.Dependents {
+			if depEntry.Status == StatusSucceeded {
 				continue
 			}
-			n.Status = StatusFailed
+			depEntry.Status = StatusFailed
 		}
 	}
 }
