@@ -150,16 +150,16 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	results := pool.Run(ctx, l)
 
-	var allErrs []error
+	var errs []error
 
 	for _, res := range results {
 		if res.Err != nil {
-			allErrs = append(allErrs, res.Err)
+			errs = append(errs, res.Err)
 		}
 	}
 
-	if len(allErrs) > 0 {
-		return errors.Join(allErrs...)
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	return nil
