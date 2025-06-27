@@ -892,16 +892,16 @@ func (backend *Backend) getTelemetry(l log.Logger) *AzureTelemetryCollector {
 }
 
 // IsVersionControlEnabled checks if versioning is enabled on the Azure storage account.
-func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
 	startTime := time.Now()
-	tel := backend.getTelemetry(l)
+	tel := b.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
-		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationValidation, AzureErrorMetrics{
 			ErrorType:      "ConfigError",
 			Classification: ErrorClassConfiguration,
-			Operation:      OperationVersionCheck,
+			Operation:      OperationValidation,
 		})
 
 		return false, err
@@ -911,17 +911,17 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 	storageConfig := map[string]interface{}{
 		"storage_account_name": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 		"resource_group_name":  azureCfg.RemoteStateConfigAzurerm.ResourceGroupName,
-		"subscription_id":      azureCfg.SubscriptionID,
-		"use_azuread_auth":     azureCfg.RemoteStateConfigAzurerm.UseAzureadAuth,
+		"subscription_id":      azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+		"use_azuread_auth":     azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth,
 	}
 
 	// Create storage account client
 	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, l, storageConfig)
 	if err != nil {
-		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationValidation, AzureErrorMetrics{
 			ErrorType:      "StorageClientError",
-			Classification: ErrorClassTechnical,
-			Operation:      OperationVersionCheck,
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationValidation,
 		})
 
 		return false, tgerrors.Errorf("failed to create storage account client: %w", err)
@@ -930,10 +930,10 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 	// Check if storage account exists first
 	exists, _, err := storageClient.StorageAccountExists(ctx)
 	if err != nil {
-		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationValidation, AzureErrorMetrics{
 			ErrorType:      "StorageAccountAccessError",
-			Classification: ErrorClassTechnical,
-			Operation:      OperationVersionCheck,
+			Classification: ErrorClassAuthentication,
+			Operation:      OperationValidation,
 		})
 
 		return false, tgerrors.Errorf("failed to check if storage account exists: %w", err)
@@ -941,31 +941,29 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 
 	if !exists {
 		l.Debugf("Storage account %s does not exist, versioning check skipped", azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
-		return false, backend.BucketDoesNotExistError{
-			BucketName: azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-		}
+		return false, backend.NewBucketDoesNotExistError(azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 	}
 
 	// Check if versioning is enabled
 	enabled, err := storageClient.GetStorageAccountVersioning(ctx)
 	if err != nil {
-		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationValidation, AzureErrorMetrics{
 			ErrorType:      "VersioningCheckError",
-			Classification: ErrorClassTechnical,
-			Operation:      OperationVersionCheck,
+			Classification: ErrorClassConfiguration,
+			Operation:      OperationValidation,
 		})
 
 		return false, tgerrors.Errorf("failed to check versioning status: %w", err)
 	}
 
 	// Log telemetry for successful version check
-	tel.LogOperation(ctx, OperationVersionCheck, startTime, AzureOperationMetrics{
-		Operation:          OperationVersionCheck,
-		StorageAccountName: azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-		ResourceGroupName:  azureCfg.RemoteStateConfigAzurerm.ResourceGroupName,
-		SubscriptionID:     azureCfg.SubscriptionID,
-		Success:            true,
-		VersioningEnabled:  enabled,
+	tel.LogOperation(ctx, OperationValidation, time.Since(startTime), map[string]interface{}{
+		"storage_account":     azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+		"resource_group":      azureCfg.RemoteStateConfigAzurerm.ResourceGroupName,
+		"subscription_id":     azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+		"versioning_enabled":  enabled,
+		"operation":           "version_control_check",
+		"status":              "completed",
 	})
 
 	l.Debugf("Storage account %s versioning status: %t", azureCfg.RemoteStateConfigAzurerm.StorageAccountName, enabled)

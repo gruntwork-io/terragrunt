@@ -21,16 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const (
-	// Storage Blob Data Owner role definition ID
-	storageBlobDataOwnerRoleID = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
-
-	// Access tier constants
-	AccessTierHot     = "Hot"
-	AccessTierCool    = "Cool"
-	AccessTierPremium = "Premium"
-)
-
 // StorageAccountClient wraps Azure's armstorage client to provide a simpler interface
 type StorageAccountClient struct {
 	client               *armstorage.AccountsClient
