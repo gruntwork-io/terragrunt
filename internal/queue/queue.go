@@ -32,9 +32,8 @@ import (
 
 // Entry represents a node in the queue/DAG for execution.
 type Entry struct {
-	Config     *discovery.DiscoveredConfig
-	Status     Status
-	Dependents []string // paths to dependent entries
+	Config *discovery.DiscoveredConfig
+	Status Status
 }
 
 // Status represents the lifecycle state of a task in the queue.
@@ -193,22 +192,15 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 
 	for _, cfg := range discovered {
 		entry := &Entry{
-			Config:     cfg,
-			Status:     StatusPending,
-			Dependents: nil,
+			Config: cfg,
+			Status: StatusPending,
 		}
 		entries = append(entries, entry)
 		index[cfg.Path] = entry
 	}
 
 	// Wire up dependents as a list of paths
-	for _, entry := range entries {
-		for _, dep := range entry.Config.Dependencies {
-			if depEntry, ok := index[dep.Path]; ok {
-				depEntry.Dependents = append(depEntry.Dependents, entry.Config.Path)
-			}
-		}
-	}
+	// (Removed: code that appends to depEntry.Dependents)
 
 	q := &Queue{
 		Entries:  entries,

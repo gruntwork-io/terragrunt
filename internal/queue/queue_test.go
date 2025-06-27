@@ -254,7 +254,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	assert.Equal(t, "B", readyEntries[0].Config.Path, "Second ready entry should be B")
 
 	// Mark B as running and complete it
-	entryB := q.Index["B"]
+	entryB := readyEntries[0]
 	q.SetStatus(entryB, queue.StatusRunning)
 	q.SetStatus(entryB, queue.StatusSucceeded)
 
@@ -263,7 +263,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	assert.Equal(t, "C", readyEntries[0].Config.Path, "Third ready entry should be C")
 
 	// Mark C as running and complete it
-	entryC := q.Index["C"]
+	entryC := readyEntries[0]
 	q.SetStatus(entryC, queue.StatusRunning)
 	q.SetStatus(entryC, queue.StatusSucceeded)
 
