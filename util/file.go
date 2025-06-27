@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -979,4 +980,37 @@ func evalRealPathAndInfo(currentPath string) (string, os.FileInfo, error) {
 	}
 
 	return realPath, realInfo, nil
+}
+
+// SanitizePath resolves a file path within a base directory, returning the sanitized path or an error if it attempts
+// to access anything outside the base directory.
+func SanitizePath(baseDir string, file string) (string, error) {
+	if baseDir == "" || file == "" {
+		return "", errors.New("baseDir and file must be provided")
+	}
+
+	file, err := url.QueryUnescape(file)
+	if err != nil {
+		return "", err
+	}
+
+	baseDir, err = url.QueryUnescape(baseDir)
+	if err != nil {
+		return "", err
+	}
+
+	root, err := os.OpenRoot(baseDir)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close() //nolint:errcheck
+
+	fileInfo, err := root.Stat(file)
+	if err != nil {
+		return "", err
+	}
+
+	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
+
+	return fullPath, nil
 }

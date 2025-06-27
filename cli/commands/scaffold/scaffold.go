@@ -440,6 +440,11 @@ func rewriteTemplateURL(ctx context.Context, l log.Logger, opts *options.Terragr
 			return nil, errors.New(err)
 		}
 
+		if rootSourceURL.Scheme == "" || rootSourceURL.Scheme == "file" {
+			l.Debugf("Skipping git tag lookup for local template path: %s", rootSourceURL)
+			return updatedTemplateURL, nil
+		}
+
 		tag, err := shell.GitLastReleaseTag(ctx, l, opts, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceURL)

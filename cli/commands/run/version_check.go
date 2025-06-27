@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -31,8 +30,6 @@ const DefaultTerraformVersionConstraint = ">= v0.12.0"
 var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
-
-var versionFiles = []string{".terraform-version", ".tool-versions", "mise.toml", ".mise.toml"}
 
 // CheckVersionConstraints checks the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
 // following settings on terragruntOptions:
@@ -96,7 +93,8 @@ func CheckVersionConstraints(ctx context.Context, l log.Logger, terragruntOption
 // The caller also gets a copy of the logger with the config path set.
 func PopulateTerraformVersion(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (log.Logger, error) {
 	versionCache := GetRunVersionCache(ctx)
-	cacheKey := computeVersionFilesCacheKey(terragruntOptions.WorkingDir)
+	cacheKey := computeVersionFilesCacheKey(terragruntOptions.WorkingDir, terragruntOptions.VersionManagerFileName)
+	l.Debugf("using cache key for version files: %s", cacheKey)
 
 	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
 		terraformVersion, err := ParseTerraformVersion(cachedOutput)
@@ -244,15 +242,22 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 	}
 }
 
-// Helper to compute a cache key from the checksums of .terraform-version and .tool-versions
-func computeVersionFilesCacheKey(workingDir string) string {
+// Helper to compute a cache key from the checksums of provided files
+func computeVersionFilesCacheKey(workingDir string, versionFiles []string) string {
 	var hashes []string
 
 	for _, file := range versionFiles {
-		path := filepath.Join(workingDir, file)
+		path, err := util.SanitizePath(workingDir, file)
+		if err != nil {
+			continue
+		}
+
 		if util.FileExists(path) {
 			hash, err := util.FileSHA256(path)
 			if err == nil {
+				// We use `file` as part of the cache key because the `path` becomes an absolute path after sanitization.
+				// Without implementing a full "mock filesystem", this would be difficult to test currently.
+				// Note: This approach may potentially create duplicate cache files in some edge cases.
 				hashes = append(hashes, file+":"+hex.EncodeToString(hash))
 			}
 		}

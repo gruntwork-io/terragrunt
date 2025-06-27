@@ -1271,6 +1271,7 @@ terragrunt dag graph  | dot -Tpng > graph.png
   - [strict-control](#strict-control)
   - [strict-mode](#strict-mode)
   - [in-download-dir](#in-download-dir)
+  - [version-manager-file-name](#version-manager-file-name)
 
 ### all
 
@@ -2512,6 +2513,21 @@ For more information, see the [Strict Mode](/docs/reference/strict-mode) documen
 - [exec](#exec)
 
 Execute the provided command in the download directory.
+
+### version-manager-file-name
+
+**CLI Arg**: `--version-manager-file-name`<br/>
+**Environment Variable**: `TG_VERSION_MANAGER_FILE_NAME`<br/>
+
+File names used during the computation of the cache key for the version manager files.<br/>
+By default terragrunt is specifying:
+
+```shell
+.terraform-version
+.tool-versions
+.mise.toml
+mise.toml
+```
 
 ## Deprecated
 

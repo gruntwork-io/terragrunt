@@ -647,3 +647,80 @@ func TestWalkWithSymlinksErrors(t *testing.T) {
 		return err
 	}))
 }
+
+func Test_sanitizePath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseDir string
+		file    string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "happy path",
+			baseDir: "./testdata/fixture-sanitize-path/env/unit",
+			file:    ".terraform-version",
+			want:    "./testdata/fixture-sanitize-path/env/unit/.terraform-version",
+		},
+		{
+			name:    "base dir is empty",
+			baseDir: "",
+			file:    ".terraform-version",
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "try to escape base dir",
+			baseDir: "./testdata/fixture-sanitize-path/env/unit",
+			file:    "../../../dev/random",
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "file is empty",
+			baseDir: "./testdata/fixture-sanitize-path/env/unit",
+			file:    "",
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "file is just a slash",
+			baseDir: "./testdata/fixture-sanitize-path/env/unit",
+			file:    "/",
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "file is just a dot",
+			baseDir: "./testdata/fixture-sanitize-path/env/unit",
+			file:    ".",
+			want:    "./testdata/fixture-sanitize-path/env/unit/.",
+			wantErr: false,
+		},
+		{
+			name:    "encoded characters",
+			baseDir: "./testdata/fixture-sanitize-path/env/unit",
+			file:    "..%2F..%2Fetc%2Fpasswd",
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := util.SanitizePath(tt.baseDir, tt.file)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+
+			assert.Equalf(t, tt.want, got, "sanitizePath(%v, %v)", tt.baseDir, tt.file)
+		})
+	}
+}

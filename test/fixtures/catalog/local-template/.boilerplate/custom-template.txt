@@ -1,0 +1,1 @@
+This file proves that the local template was used for scaffolding.
