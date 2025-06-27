@@ -988,3 +988,59 @@ func HCLFilesInDir(t *testing.T, dir string) []string {
 
 	return files
 }
+
+// CopyDir copies the contents of the directory at src to dst.
+func CopyDir(t *testing.T, src, dst string) {
+	t.Helper()
+
+	// First, ensure the destination directory exists
+	require.NoError(t, os.MkdirAll(dst, allPermissions))
+
+	err := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		require.NoError(t, err)
+
+		relPath, err := filepath.Rel(src, path)
+		require.NoError(t, err)
+
+		dstPath := filepath.Join(dst, relPath)
+
+		if d.IsDir() {
+			// Get the source directory info to preserve permissions
+			srcInfo, err := os.Stat(path)
+			require.NoError(t, err)
+			require.NoError(t, os.MkdirAll(dstPath, srcInfo.Mode()))
+		} else {
+			// Ensure parent directory exists
+			parentDir := filepath.Dir(dstPath)
+			require.NoError(t, os.MkdirAll(parentDir, allPermissions))
+			CopyFile(t, path, dstPath)
+		}
+
+		return nil
+	})
+
+	require.NoError(t, err)
+}
+
+// CopyFile copies a single file from src to dst and preserves permissions.
+func CopyFile(t *testing.T, src, dst string) {
+	t.Helper()
+
+	sourceFile, err := os.Open(src)
+	require.NoError(t, err)
+
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	require.NoError(t, err)
+
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	require.NoError(t, err)
+
+	sourceInfo, err := os.Stat(src)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Chmod(dst, sourceInfo.Mode()))
+}
