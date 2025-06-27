@@ -29,7 +29,8 @@ const (
 	UnitsThatIncludeFlagName               = "units-that-include"
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
-	SummaryUnitDurationFlagName            = "summary-unit-duration"
+	SummaryPerUnitFlagName                 = "summary-per-unit"
+	VersionManagerFileNameFlagName         = "version-manager-file-name"
 
 	BackendBootstrapFlagName        = "backend-bootstrap"
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
@@ -342,6 +343,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("use-partial-parse-config-cache"), terragruntPrefixControl)),
 
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        VersionManagerFileNameFlagName,
+			EnvVars:     tgPrefix.EnvVars(VersionManagerFileNameFlagName),
+			Destination: &opts.VersionManagerFileName,
+			Usage:       "File names used during the computation of the cache key for the version manager files.",
+		}),
+
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DependencyFetchOutputFromStateFlagName,
 			EnvVars:     tgPrefix.EnvVars(DependencyFetchOutputFromStateFlagName),
@@ -550,9 +558,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		}),
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        SummaryUnitDurationFlagName,
-			EnvVars:     tgPrefix.EnvVars(SummaryUnitDurationFlagName),
-			Destination: &opts.SummaryUnitDuration,
+			Name:        SummaryPerUnitFlagName,
+			EnvVars:     tgPrefix.EnvVars(SummaryPerUnitFlagName),
+			Destination: &opts.SummaryPerUnit,
 			Usage:       `Show duration information for each unit in the summary output.`,
 		}),
 

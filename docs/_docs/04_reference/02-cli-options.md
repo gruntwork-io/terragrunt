@@ -9,6 +9,10 @@ tags: ["CLI"]
 order: 402
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+  - /docs/reference/cli/
+  - /docs/reference/cli/commands/run
+  - /docs/reference/cli/commands/stack/generate
 slug: cli-options
 ---
 
@@ -1266,6 +1270,7 @@ terragrunt dag graph  | dot -Tpng > graph.png
   - [strict-control](#strict-control)
   - [strict-mode](#strict-mode)
   - [in-download-dir](#in-download-dir)
+  - [version-manager-file-name](#version-manager-file-name)
 
 ### all
 
@@ -1710,12 +1715,12 @@ When passed in, disable the summary output at the end of a run.
 
 For more information, see the [Run Report](/docs/features/run-report#disabling-the-summary) feature.
 
-### summary-unit-duration
+### summary-per-unit
 
-**CLI Arg**: `--summary-unit-duration`<br/>
-**Environment Variable**: `TG_SUMMARY_UNIT_DURATION`<br/>
+**CLI Arg**: `--summary-per-unit`<br/>
+**Environment Variable**: `TG_SUMMARY_PER_UNIT`<br/>
 
-When enabled, Terragrunt will show the duration of each unit in the run summary. The units are sorted by duration, with the longest-running units shown first.
+When enabled, Terragrunt will break down the run summary by unit. The units are sorted by result, then duration, with the longest-running units shown first.
 
 For more information, see the [Run Report](/docs/features/run-report) feature.
 
@@ -1779,14 +1784,14 @@ When passed in, the `*-all` commands continue processing components even if a de
 **Environment Variable Alias**: `TERRAGRUNT_EXCLUDES_FILE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Requires an argument**: `--queue-excludes-file /path/to/file`<br/>
 
-Path to a file with a list of directories that need to be excluded when running *-all commands, by default `.terragrunt-excludes`. Modules under these directories will be
+Path to a file with a list of directories that need to be excluded when running `run --all` commands, by default `.terragrunt-excludes`. Units in these directories will be
 excluded during execution of the commands. If a relative path is specified, it should be relative from
 [--working-dir](#working-dir). This will only exclude the module, not its dependencies.
 
-This flag has been designed to integrate nicely with the `hclvalidate` command, which can return a list of invalid files delimited by newlines when passed the `--show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
+This flag has been designed to integrate nicely with the `hcl validate` command, which can return a list of invalid files delimited by newlines when passed the `--show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
 
 ```bash
-terragrunt run --all plan --queue-excludes-file <(terragrunt hclvalidate --show-config-path)
+terragrunt run --all plan --queue-excludes-file <(terragrunt hcl validate --show-config-path || true)
 ```
 
 ### queue-exclude-dir
@@ -2491,6 +2496,21 @@ For more information, see the [Strict Mode](/docs/reference/strict-mode) documen
 - [exec](#exec)
 
 Execute the provided command in the download directory.
+
+### version-manager-file-name
+
+**CLI Arg**: `--version-manager-file-name`<br/>
+**Environment Variable**: `TG_VERSION_MANAGER_FILE_NAME`<br/>
+
+File names used during the computation of the cache key for the version manager files.<br/>
+By default terragrunt is specifying:
+
+```shell
+.terraform-version
+.tool-versions
+.mise.toml
+mise.toml
+```
 
 ## Deprecated
 

@@ -99,9 +99,9 @@ Support for Terragrunt Content Addressable Storage (CAS).
 
 #### `cas` - What it does
 
-Allow Terragrunt to store and retrieve state files from a Content Addressable Storage (CAS) system.
+Allow Terragrunt to store and retrieve Git repositories from a Content Addressable Storage (CAS) system.
 
-At the moment, the CAS is only used to speed up catalog cloning, but in the future, it can be used to store more content.
+The CAS is used to speed up both catalog cloning and OpenTofu/Terraform source cloning by avoiding redundant downloads of Git repositories.
 
 #### `cas` - How to provide feedback
 
@@ -116,10 +116,10 @@ Feedback is crucial for ensuring the feature meets real-world use cases. Please 
 To transition the `cas` feature to a stable release, the following must be addressed:
 
 - [x] Add support for storing and retrieving catalog repositories from the CAS.
-- [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
+- [x] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
 - [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
 
-#### `report`
+### `report`
 
 Support for Terragrunt Run Reports and Summaries.
 
@@ -138,11 +138,11 @@ To transition the `report` feature to a stable release, the following must be ad
 - [x] Add support for generating reports (in CSV format by default).
 - [x] Add support for displaying summaries of runs.
 - [x] Add ability to disable summary display.
-- [ ] Add support for generating reports in JSON format.
-- [ ] Add comprehensive integration tests for the `report` experiment.
-- [ ] Finalize the design of run summaries and reports.
+- [x] Add support for generating reports in JSON format.
+- [x] Add comprehensive integration tests for the `report` experiment.
+- [x] Finalize the design of run summaries and reports.
 
-#### `runner-pool`
+### `runner-pool`
 
 Proposes replacing Terragrunt’s group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
 This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.

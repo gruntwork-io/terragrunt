@@ -196,6 +196,14 @@ export default defineConfig({
     "/docs/features/auto-retry/": "/docs/features/runtime-control/",
     "/docs/features/provider-cache/": "/docs/features/provider-cache-server/",
     "/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
+
+    // Additional redirects for 404ing URLs
+    "/docs/features/execute-terraform-commands-on-multiple-modules-at-once/": "/docs/features/stacks/",
+    "/docs/getting-started/configuration/": "/docs/reference/hcl/",
+    "/docs/features/before-and-after-hooks/": "/docs/features/hooks/",
+    "/docs/etting-started/configuration/": "/docs/reference/hcl/", // typo in original URL
+    "/docs/features/log-formatting": "/docs/reference/logging/formatting/",
+    "/docs/reference/lock-file-handling/": "/docs/reference/lock-files/",
   },
   vite: {
     plugins: [tailwindcss()],

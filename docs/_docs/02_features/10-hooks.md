@@ -8,6 +8,8 @@ tags: ["hooks"]
 order: 211
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+  - /docs/features/before-and-after-hooks/
 slug: hooks
 ---
 
@@ -15,7 +17,7 @@ _Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that
 
 They allow you to _orchestrate_ certain operations around IaC updates so that you have a consistent way to run custom code before or after running OpenTofu/Terraform.
 
-Here’s an example:
+Here's an example:
 
 ``` hcl
 terraform {

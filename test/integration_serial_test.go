@@ -691,6 +691,10 @@ func TestTerragruntProviderCache(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, entry := range entries {
+					// skip .lock files since it is used to lock file action
+					if strings.HasSuffix(entry.Name(), ".lock") {
+						continue
+					}
 					actualProviderSymlinks++
 					assert.Equal(t, fs.ModeSymlink, entry.Type())
 

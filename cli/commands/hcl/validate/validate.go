@@ -101,6 +101,14 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		if err := writeDiagnostics(l, opts, diags); err != nil {
 			return err
 		}
+
+		// If there were diagnostics and stackErr is currently nil,
+		// create a new error to signal overall validation failure.
+		//
+		// This also ensures a non-zero exit code is returned by Terragrunt.
+		if stackErr == nil {
+			stackErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
+		}
 	}
 
 	return stackErr
@@ -276,8 +284,8 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 	)
 
 	for envName := range envVars {
-		if strings.HasPrefix(envName, tfVarPrefix) {
-			inputName := strings.TrimPrefix(envName, tfVarPrefix)
+		if after, ok := strings.CutPrefix(envName, tfVarPrefix); ok {
+			inputName := after
 			out = append(out, inputName)
 		}
 	}
@@ -450,8 +458,8 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 			vars = append(vars, splitArg[1])
 		}
 
-		if strings.HasPrefix(shlexedArg, "-var-file=") {
-			varFiles = append(varFiles, strings.TrimPrefix(shlexedArg, "-var-file="))
+		if after, ok := strings.CutPrefix(shlexedArg, "-var-file="); ok {
+			varFiles = append(varFiles, after)
 		}
 	}
 

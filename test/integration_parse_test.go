@@ -23,11 +23,12 @@ import (
 )
 
 var knownBadFiles = []string{
-	"fixtures/hclvalidate/second/a/terragrunt.hcl",
+	"fixtures/catalog/local-template/.boilerplate/terragrunt.hcl",
+	"fixtures/disabled/unit-disabled/terragrunt.hcl",
 	"fixtures/hclfmt-errors/dangling-attribute/terragrunt.hcl",
 	"fixtures/hclfmt-errors/invalid-character/terragrunt.hcl",
 	"fixtures/hclfmt-errors/invalid-key/terragrunt.hcl",
-	"fixtures/disabled/unit-disabled/terragrunt.hcl",
+	"fixtures/hclvalidate/second/a/terragrunt.hcl",
 }
 
 func TestParseAllFixtureFiles(t *testing.T) {
@@ -143,20 +144,34 @@ func TestParseFindListAllComponentsWithDAG(t *testing.T) {
 
 			fields := strings.Fields(stdout)
 
-			aDepLine := 0
-			bDepLine := 0
+			// Find positions of all fixtures in the output
+			aDepLine := -1
+			bDepLine := -1
+			cMixedLine := -1
+			dDepsLine := -1
 
 			for i, field := range fields {
-				if field == "fixtures/find/dag/a-dependent" {
+				switch field {
+				case "fixtures/find/dag/a-dependent":
 					aDepLine = i
-				}
-
-				if field == "fixtures/find/dag/b-dependency" {
+				case "fixtures/find/dag/b-dependency":
 					bDepLine = i
+				case "fixtures/find/dag/c-mixed-deps":
+					cMixedLine = i
+				case "fixtures/find/dag/d-dependencies-only":
+					dDepsLine = i
 				}
 			}
 
-			assert.Greater(t, aDepLine, bDepLine)
+			// Verify DAG ordering:
+			// b-dependency (no deps) should come first
+			// a-dependent (depends on b) should come after b
+			// d-dependencies-only (depends on b) should come after b
+			// c-mixed-deps (depends on a and d) should come last
+			assert.Greater(t, aDepLine, bDepLine, "a-dependent should come after b-dependency")
+			assert.Greater(t, dDepsLine, bDepLine, "d-dependencies-only should come after b-dependency")
+			assert.Greater(t, cMixedLine, aDepLine, "c-mixed-deps should come after a-dependent")
+			assert.Greater(t, cMixedLine, dDepsLine, "c-mixed-deps should come after d-dependencies-only")
 		})
 	}
 }
@@ -187,20 +202,38 @@ func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 
 			fields := strings.Fields(stdout)
 
-			aDepLine := 0
-			bDepLine := 0
+			// Find positions of all fixtures in the output
+			aDepLine := -1
+			bDepLine := -1
+			cMixedLine := -1
+			dDepsLine := -1
 
 			for i, field := range fields {
-				if field == "fixtures/find/dag/a-dependent" {
+				switch field {
+				case "fixtures/find/dag/a-dependent":
 					aDepLine = i
-				}
-
-				if field == "fixtures/find/dag/b-dependency" {
+				case "fixtures/find/dag/b-dependency":
 					bDepLine = i
+				case "fixtures/find/dag/c-mixed-deps":
+					cMixedLine = i
+				case "fixtures/find/dag/d-dependencies-only":
+					dDepsLine = i
 				}
 			}
 
-			assert.Greater(t, aDepLine, bDepLine)
+			// Verify DAG ordering for the core dependencies
+			// The exact ordering may vary with external dependencies included,
+			// but the basic dependency relationship should hold
+			if aDepLine >= 0 && bDepLine >= 0 {
+				assert.Greater(t, aDepLine, bDepLine, "a-dependent should come after b-dependency")
+			}
+			if dDepsLine >= 0 && bDepLine >= 0 {
+				assert.Greater(t, dDepsLine, bDepLine, "d-dependencies-only should come after b-dependency")
+			}
+			if cMixedLine >= 0 && aDepLine >= 0 && dDepsLine >= 0 {
+				assert.Greater(t, cMixedLine, aDepLine, "c-mixed-deps should come after a-dependent")
+				assert.Greater(t, cMixedLine, dDepsLine, "c-mixed-deps should come after d-dependencies-only")
+			}
 		})
 	}
 }

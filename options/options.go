@@ -75,6 +75,13 @@ var (
 		"state",
 	}
 
+	defaultVersionManagerFileName = []string{
+		".terraform-version",
+		".tool-versions",
+		"mise.toml",
+		".mise.toml",
+	}
+
 	// Pattern used to clean error message when looking for retry and ignore patterns.
 	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
 )
@@ -117,6 +124,8 @@ type TerragruntOptions struct {
 	SourceMap map[string]string
 	// Environment variables at runtime
 	Env map[string]string
+	// StackAction is the action that should be performed on the stack.
+	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
 	IAMRoleOptions IAMRoleOptions
 	// IAM Role options set from command line.
@@ -200,6 +209,8 @@ type TerragruntOptions struct {
 	ModulesThatInclude []string
 	// When used with `run --all`, restrict the units in the stack to only those that read at least one of the files in this list.
 	UnitsReading []string
+	// When set, it will be used to compute the cache key for `-version` checks.
+	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
 	// Maximum number of times to retry errors matching RetryableErrors
@@ -308,8 +319,8 @@ type TerragruntOptions struct {
 	ForceBackendMigrate bool
 	// SummaryDisable disables the summary output at the end of a run.
 	SummaryDisable bool
-	// SummaryUnitDuration enables showing duration information for each unit in the summary.
-	SummaryUnitDuration bool
+	// SummaryPerUnit enables showing duration information for each unit in the summary.
+	SummaryPerUnit bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -416,6 +427,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Telemetry:                  new(telemetry.Options),
 		NoStackValidate:            false,
 		NoStackGenerate:            false,
+		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
 }
 
