@@ -60,7 +60,7 @@ func BuildQueue(units []*runbase.Unit, failFast bool) *DagQueue {
 	return q
 }
 
-// GetReady returns up to max ready entries, respecting the original order.
+// GetReady returns all entries that are ready to run, marking them as running.
 func (q *DagQueue) GetReady() []*Entry {
 	q.mu.Lock()
 	defer q.mu.Unlock()

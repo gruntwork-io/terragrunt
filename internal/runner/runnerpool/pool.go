@@ -20,8 +20,11 @@ type RunnerPool struct {
 	failFast    bool
 }
 
-// New creates a new RunnerPool with the given units, runner function.
-func New(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *RunnerPool {
+// NewRunnerPool creates a new RunnerPool with the given units, runner function.
+func NewRunnerPool(units []*runbase.Unit, r TaskRunner, maxConc int, failFast bool) *RunnerPool {
+	if maxConc <= 0 {
+		maxConc = 1
+	}
 	return &RunnerPool{
 		q:           BuildQueue(units, failFast),
 		runner:      r,

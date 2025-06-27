@@ -38,7 +38,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
 	}
 
-	pool := runnerpool.New(units, runner, 2, false)
+	pool := runnerpool.NewRunnerPool(units, runner, 2, false)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
 	// All should succeed
@@ -69,7 +69,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
 	}
 
-	pool := runnerpool.New(units, runner, 2, false)
+	pool := runnerpool.NewRunnerPool(units, runner, 2, false)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
 	for _, res := range results {
@@ -97,7 +97,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		return runnerpool.Result{TaskID: t.ID(), ExitCode: 0}
 	}
 
-	pool := runnerpool.New(units, runner, 2, true)
+	pool := runnerpool.NewRunnerPool(units, runner, 2, true)
 	results := pool.Run(t.Context(), logger.CreateLogger())
 
 	// A should fail, B and C should be skipped (fail-fast)

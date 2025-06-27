@@ -141,7 +141,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		return res
 	}
 
-	pool := New(r.Stack.Units, taskRun, opts.Parallelism, opts.FailFast)
+	pool := NewRunnerPool(r.Stack.Units, taskRun, opts.Parallelism, opts.FailFast)
 
 	results := pool.Run(ctx, l)
 
