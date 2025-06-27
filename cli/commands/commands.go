@@ -191,6 +191,8 @@ func runAction(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOption
 	return errGroup.Wait()
 }
 
+const minTofuVersionForAutoProviderCacheDir = "1.10.0"
+
 // setupAutoProviderCacheDir configures native provider caching by setting TF_PLUGIN_CACHE_DIR.
 //
 // Only works with OpenTofu version >= 1.10. Returns error if conditions aren't met.
@@ -222,7 +224,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 		return errors.New("cannot determine OpenTofu version")
 	}
 
-	requiredVersion, err := version.NewVersion("1.10.0")
+	requiredVersion, err := version.NewVersion(minTofuVersionForAutoProviderCacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to parse required version: %w", err)
 	}
