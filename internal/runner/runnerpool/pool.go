@@ -4,31 +4,26 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
-
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
+	"github.com/pkg/errors"
 )
 
 // RunnerPool orchestrates concurrent execution over a DAG.
 type RunnerPool struct {
-	q           *DagQueue
+	q           *queue.Queue
 	runner      TaskRunner
 	readyCh     chan struct{}
 	concurrency int
 	failFast    bool
+	// unitsMap maps unit paths to their corresponding *runbase.Unit for efficient lookup during task execution.
+	unitsMap map[string]*runbase.Unit
 }
 
 // RunnerPoolOption is a function that modifies a RunnerPool.
 type RunnerPoolOption func(*RunnerPool)
-
-// WithUnits sets the units for the RunnerPool.
-func WithUnits(units []*runbase.Unit) RunnerPoolOption {
-	return func(rp *RunnerPool) {
-		rp.q = BuildQueue(units, rp.failFast)
-	}
-}
 
 // WithRunner sets the TaskRunner for the RunnerPool.
 func WithRunner(runner TaskRunner) RunnerPoolOption {
@@ -54,31 +49,46 @@ func WithFailFast(failFast bool) RunnerPoolOption {
 	}
 }
 
-// NewRunnerPool creates a new RunnerPool with the given options.
-func NewRunnerPool(opts ...RunnerPoolOption) *RunnerPool {
+// NewRunnerPool creates a new RunnerPool with the given options and a pre-built queue.
+func NewRunnerPool(q *queue.Queue, units []*runbase.Unit, opts ...RunnerPoolOption) *RunnerPool {
 	rp := &RunnerPool{
-		concurrency: 1, // default
-		failFast:    false,
-		readyCh:     make(chan struct{}, 1), // buffered to avoid blocking
+		q:        q,
+		failFast: false,
+		readyCh:  make(chan struct{}, 1), // buffered to avoid blocking
 	}
+	// Build unitsMap from units slice
+	unitsMap := make(map[string]*runbase.Unit)
+	for _, u := range units {
+		if u != nil && u.Path != "" {
+			unitsMap[u.Path] = u
+		}
+	}
+	rp.unitsMap = unitsMap
 	for _, opt := range opts {
 		opt(rp)
 	}
 	if rp.q == nil {
-		// If units were not set, create an empty queue
-		rp.q = BuildQueue(nil, rp.failFast)
+		// If queue was not set, create an empty queue
+		rp.q = &queue.Queue{Entries: []*queue.Entry{}}
 	}
 	return rp
 }
 
+// Define RunResult struct for results
+type RunResult struct {
+	ExitCode int
+	Err      error
+}
+
 // Run blocks until the DAG finishes and returns ordered Results.
-func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
+func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 	var (
-		wg  sync.WaitGroup
-		sem = make(chan struct{}, p.concurrency)
+		wg      sync.WaitGroup
+		sem     = make(chan struct{}, p.concurrency)
+		results = make(map[string]RunResult)
 	)
 
-	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t", len(p.q.Ordered), p.concurrency, p.failFast)
+	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t", len(p.q.Entries), p.concurrency, p.failFast)
 
 	signalReady := func() {
 		select {
@@ -96,53 +106,47 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []Result {
 				l.Debugf("RunnerPool: queue is Empty, breaking loop")
 				break
 			}
-
 			l.Tracef("RunnerPool: no ready tasks, waiting (queue not Empty)")
 			select {
 			case <-p.readyCh:
 			case <-ctx.Done():
 				l.Debugf("RunnerPool: context cancelled, breaking loop")
-				return p.q.Results()
+				return nil
 			}
-
 			continue
 		}
-
 		l.Debugf("RunnerPool: found %d ready tasks", len(ready))
-
 		for _, e := range ready {
-			l.Debugf("Running Task %s with %d remaining dependencies", e.Task.ID(), e.RemainingDeps)
-			p.q.MarkRunning(e)
+			// Set status to running explicitly
+			e.Status = queue.StatusRunning
 			sem <- struct{}{}
-
 			wg.Add(1)
-
-			go func(ent *Entry) {
+			go func(ent *queue.Entry) {
 				defer func() {
 					if r := recover(); r != nil {
-						l.Errorf("Panic in task %s: %v", ent.Task.ID(), r)
-						// Mark the task as failed due to panic
-						ent.Result = Result{
-							TaskID:   ent.Task.ID(),
-							ExitCode: 1,
-							Err:      errors.Errorf("panic: %v", r),
-						}
-						p.q.MarkDone(ent, p.failFast)
+						results[ent.Config.Path] = RunResult{ExitCode: 1, Err: errors.Errorf("panic: %v", r)}
+						p.q.MarkDone(ent, results[ent.Config.Path].Err, p.failFast)
 						signalReady()
 					}
-
 					<-sem
 					wg.Done()
 				}()
-
-				ent.Result = p.runner(ctx, ent.Task)
-				p.q.MarkDone(ent, p.failFast)
+				unit := p.unitsMap[ent.Config.Path]
+				exitCode, err := p.runner(ctx, unit)
+				results[ent.Config.Path] = RunResult{ExitCode: exitCode, Err: err}
+				p.q.MarkDone(ent, err, p.failFast)
 				signalReady() // notify that new tasks may be ready
 			}(e)
 		}
 	}
-
 	wg.Wait()
 
-	return p.q.Results()
+	// Collect results in order of queue entries
+	ordered := make([]RunResult, 0, len(p.q.Entries))
+	for _, e := range p.q.Entries {
+		if res, ok := results[e.Config.Path]; ok {
+			ordered = append(ordered, res)
+		}
+	}
+	return ordered
 }

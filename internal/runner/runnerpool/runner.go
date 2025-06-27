@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -31,10 +32,16 @@ import (
 type Runner struct {
 	Stack            *runbase.Stack
 	planErrorBuffers []bytes.Buffer // Store plan error buffers for summarizePlanAllErrors
+	queue            *queue.Queue   // The execution queue for this runner
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
 func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptions, discovered discovery.DiscoveredConfigs, opts ...runbase.Option) (runbase.StackRunner, error) {
+	q, queueErr := queue.NewQueue(discovered)
+	if queueErr != nil {
+		return nil, queueErr
+	}
+
 	unitsMap := make(runbase.UnitsMap, len(discovered))
 	orderedUnits := make(runbase.Units, 0, len(discovered))
 
@@ -44,6 +51,7 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 
 	runner := &Runner{
 		Stack: &stack,
+		queue: q,
 	}
 
 	for _, cfg := range discovered {
@@ -128,21 +136,18 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
-	taskRun := func(ctx context.Context, t *Task) Result {
-		unitRunner := runbase.NewUnitRunner(t.Unit)
-		err := unitRunner.Run(ctx, t.Unit.TerragruntOptions, r.Stack.Report)
-
-		res := Result{TaskID: t.ID()}
+	taskRun := func(ctx context.Context, u *runbase.Unit) (int, error) {
+		unitRunner := runbase.NewUnitRunner(u)
+		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
 		if err != nil {
-			res.Err = err
-			res.ExitCode = 1
+			return 1, err
 		}
-
-		return res
+		return 0, nil
 	}
 
 	pool := NewRunnerPool(
-		WithUnits(r.Stack.Units),
+		r.queue,
+		r.Stack.Units,
 		WithRunner(taskRun),
 		WithMaxConcurrency(opts.Parallelism),
 		WithFailFast(opts.FailFast),

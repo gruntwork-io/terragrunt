@@ -30,11 +30,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 )
 
+// Entry represents a node in the queue/DAG for execution.
 type Entry struct {
-	Config *discovery.DiscoveredConfig
-	Status Status
+	Config     *discovery.DiscoveredConfig
+	Status     Status
+	Dependents []string // paths to dependent entries
 }
 
+// Status represents the lifecycle state of a task in the queue.
 type Status byte
 
 const (
@@ -42,6 +45,10 @@ const (
 	StatusBlocked
 	StatusUnsorted
 	StatusReady
+	StatusRunning
+	StatusSucceeded
+	StatusFailed
+	StatusAncestorFailed
 )
 
 // UpdateBlocked updates the status of the entry to blocked, if it is blocked.
@@ -128,6 +135,7 @@ func (e *Entry) IsUp() bool {
 
 type Queue struct {
 	Entries Entries
+	Index   map[string]*Entry // path to Entry for quick lookup
 }
 
 type Entries []*Entry
@@ -173,22 +181,37 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	if len(discovered) == 0 {
 		return &Queue{
 			Entries: Entries{},
+			Index:   map[string]*Entry{},
 		}, nil
 	}
 
 	// First, we need to take all the discovered configs
 	// and assign them a status of pending.
 	entries := make(Entries, 0, len(discovered))
+	index := make(map[string]*Entry, len(discovered))
 
 	for _, cfg := range discovered {
-		entries = append(entries, &Entry{
-			Config: cfg,
-			Status: StatusPending,
-		})
+		entry := &Entry{
+			Config:     cfg,
+			Status:     StatusPending,
+			Dependents: nil,
+		}
+		entries = append(entries, entry)
+		index[cfg.Path] = entry
+	}
+
+	// Wire up dependents as a list of paths
+	for _, entry := range entries {
+		for _, dep := range entry.Config.Dependencies {
+			if depEntry, ok := index[dep.Path]; ok {
+				depEntry.Dependents = append(depEntry.Dependents, entry.Config.Path)
+			}
+		}
 	}
 
 	q := &Queue{
 		Entries: entries,
+		Index:   index,
 	}
 
 	// readyPending returns the index of the first pending entry if there is one,
@@ -246,4 +269,85 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	}
 
 	return q, errors.New("cycle detected during queue construction")
+}
+
+// GetReady returns all entries that are ready to run, without marking them as running.
+func (q *Queue) GetReady() []*Entry {
+	out := make([]*Entry, 0, len(q.Entries))
+	for _, e := range q.Entries {
+		if e.Status == StatusReady {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// MarkDone records the Result, unblocks children, and handles fail-fast.
+// result should be the runnerpool.Result or similar struct.
+func (q *Queue) MarkDone(e *Entry, result interface{}, failFast bool) {
+	if e.Status != StatusRunning {
+		return // double call safeguard
+	}
+	// No e.Result assignment here; handled externally
+	// Update state based on result (assume runnerpool.Result shape)
+	var err error
+	if res, ok := result.(interface{ Err() error }); ok {
+		err = res.Err()
+	}
+	if err == nil {
+		e.Status = StatusSucceeded
+	} else {
+		e.Status = StatusFailed
+	}
+	if e.Status == StatusFailed && failFast {
+		// Fail-fast: Mark all not-yet-started tasks (Pending, Blocked, Ready) as Failed to prevent further execution.
+		for _, n := range q.Entries {
+			if n.Status != StatusPending && n.Status != StatusBlocked && n.Status != StatusReady {
+				continue
+			}
+			n.Status = StatusFailed
+		}
+	}
+	// Update dependents
+	success := e.Status == StatusSucceeded
+	for _, childPath := range e.Dependents {
+		child, ok := q.Index[childPath]
+		if !ok {
+			continue
+		}
+		if success {
+			if q.RemainingDeps(child) == 0 && child.Status == StatusBlocked {
+				child.Status = StatusReady
+			}
+		} else {
+			if child.Status == StatusPending || child.Status == StatusBlocked {
+				child.Status = StatusAncestorFailed
+			}
+		}
+	}
+}
+
+// Empty reports when no runnable or running tasks remain.
+func (q *Queue) Empty() bool {
+	for _, e := range q.Entries {
+		if e.Status == StatusReady || e.Status == StatusRunning {
+			return false
+		}
+	}
+	return true
+}
+
+// Helper to calculate remaining dependencies for an entry.
+func (q *Queue) RemainingDeps(e *Entry) int {
+	if e.Config == nil || e.Config.Dependencies == nil {
+		return 0
+	}
+	count := 0
+	for _, dep := range e.Config.Dependencies {
+		depEntry, ok := q.Index[dep.Path]
+		if !ok || depEntry.Status != StatusSucceeded {
+			count++
+		}
+	}
+	return count
 }

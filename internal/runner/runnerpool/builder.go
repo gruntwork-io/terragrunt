@@ -6,7 +6,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runbase"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -28,13 +27,7 @@ func Build(ctx context.Context, l log.Logger, terragruntOptions *options.Terragr
 		return nil, err
 	}
 
-	// build processing queue for discovered configurations
-	q, queueErr := queue.NewQueue(discovered)
-	if queueErr != nil {
-		return nil, queueErr
-	}
-
-	runner, err := NewRunnerPoolStack(l, terragruntOptions, q.Configs(), opts...)
+	runner, err := NewRunnerPoolStack(l, terragruntOptions, discovered, opts...)
 	if err != nil {
 		return nil, err
 	}
