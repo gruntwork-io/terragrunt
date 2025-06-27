@@ -23,7 +23,6 @@ type StorageAccountBootstrapConfig struct {
 	// Group boolean fields together at the end
 	EnableVersioning                bool `mapstructure:"enable_versioning"`
 	AllowBlobPublicAccess           bool `mapstructure:"allow_blob_public_access"`
-	EnableHierarchicalNS            bool `mapstructure:"enable_hierarchical_namespace"`
 	CreateStorageAccountIfNotExists bool `mapstructure:"create_storage_account_if_not_exists"`
 	SkipStorageAccountUpdate        bool `mapstructure:"skip_storage_account_update"`
 }
@@ -220,6 +219,6 @@ var terragruntOnlyConfigs = []string{
 	"enable_versioning",
 	"allow_blob_public_access",
 	"disable_blob_public_access", // Legacy name for allow_blob_public_access
-	"enable_hierarchical_namespace",
+	// "enable_hierarchical_namespace", // removed
 	"storage_account_tags",
 }

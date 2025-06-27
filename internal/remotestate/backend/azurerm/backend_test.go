@@ -326,7 +326,7 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 			"create_storage_account_if_not_exists": true,
 			"enable_versioning":                    false, // Explicitly disable versioning
 			"allow_blob_public_access":             true,  // Explicitly enable public access
-			"enable_hierarchical_namespace":        true,
+			   // "enable_hierarchical_namespace":        true, // removed
 			"account_kind":                         "BlobStorage",
 			"account_tier":                         "Premium",
 			"access_tier":                          "Cool",
@@ -350,7 +350,7 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 		assert.True(t, extConfig.StorageAccountConfig.CreateStorageAccountIfNotExists)
 		assert.False(t, extConfig.StorageAccountConfig.EnableVersioning)     // Explicitly set
 		assert.True(t, extConfig.StorageAccountConfig.AllowBlobPublicAccess) // Explicitly set
-		assert.True(t, extConfig.StorageAccountConfig.EnableHierarchicalNS)
+	   // assert.True(t, extConfig.StorageAccountConfig.EnableHierarchicalNS) // removed
 		assert.Equal(t, "BlobStorage", extConfig.StorageAccountConfig.AccountKind)
 		assert.Equal(t, "Premium", extConfig.StorageAccountConfig.AccountTier)
 		assert.Equal(t, "Cool", extConfig.StorageAccountConfig.AccessTier)
@@ -610,7 +610,7 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 			expectedSAConfig: map[string]interface{}{
 				"EnableVersioning":      true,  // Default value
 				"AllowBlobPublicAccess": false, // Default value
-				"EnableHierarchicalNS":  false, // Default value
+			   // "EnableHierarchicalNS":  false, // removed
 				"AccountKind":           "",    // Empty means default
 				"AccountTier":           "",    // Empty means default
 				"AccessTier":            "",    // Empty means default
@@ -629,7 +629,7 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 				"resource_group_name":                  "test-resource-group",
 				"enable_versioning":                    false,
 				"allow_blob_public_access":             true,
-				"enable_hierarchical_namespace":        true,
+			   // "enable_hierarchical_namespace":        true, // removed
 				"account_kind":                         "BlockBlobStorage",
 				"account_tier":                         "Premium",
 				"access_tier":                          "Cool",
@@ -639,7 +639,7 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 			expectedSAConfig: map[string]interface{}{
 				"EnableVersioning":      false,
 				"AllowBlobPublicAccess": true,
-				"EnableHierarchicalNS":  true,
+			   // "EnableHierarchicalNS":  true, // removed
 				"AccountKind":           "BlockBlobStorage",
 				"AccountTier":           "Premium",
 				"AccessTier":            "Cool",
@@ -728,9 +728,9 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 				assert.Equal(t, v, azureCfg.StorageAccountConfig.AllowBlobPublicAccess)
 			}
 
-			if v, exists := tc.expectedSAConfig["EnableHierarchicalNS"]; exists && !tc.skipExtendedChecks {
-				assert.Equal(t, v, azureCfg.StorageAccountConfig.EnableHierarchicalNS)
-			}
+		   // if v, exists := tc.expectedSAConfig["EnableHierarchicalNS"]; exists && !tc.skipExtendedChecks {
+		   //     assert.Equal(t, v, azureCfg.StorageAccountConfig.EnableHierarchicalNS)
+		   // }
 
 			// Check storage account kind and tier if specified
 			if v, exists := tc.expectedSAConfig["AccountKind"]; exists && !tc.skipExtendedChecks {

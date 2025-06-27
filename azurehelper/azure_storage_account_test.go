@@ -490,7 +490,6 @@ func TestStorageAccountAdvancedFeatures(t *testing.T) {
 	testCases := []struct {
 		name                          string
 		expectedBlobServiceProperties string
-		enableHierarchicalNS          bool
 		enableVersioning              bool
 		allowBlobPublicAccess         bool
 		isPublicNetworkAccessOK       bool
@@ -498,7 +497,6 @@ func TestStorageAccountAdvancedFeatures(t *testing.T) {
 	}{
 		{
 			name:                          "Default configuration",
-			enableHierarchicalNS:          false,
 			enableVersioning:              false,
 			allowBlobPublicAccess:         true,
 			isPublicNetworkAccessOK:       true,
@@ -506,17 +504,7 @@ func TestStorageAccountAdvancedFeatures(t *testing.T) {
 			expectedBlobServiceProperties: "Default properties",
 		},
 		{
-			name:                          "Hierarchical namespace enabled",
-			enableHierarchicalNS:          true,
-			enableVersioning:              false,
-			allowBlobPublicAccess:         true,
-			isPublicNetworkAccessOK:       true,
-			isContainerDeleteRetentionOK:  false,
-			expectedBlobServiceProperties: "Hierarchical namespace enabled",
-		},
-		{
 			name:                          "Versioning enabled",
-			enableHierarchicalNS:          false,
 			enableVersioning:              true,
 			allowBlobPublicAccess:         true,
 			isPublicNetworkAccessOK:       true,
@@ -525,7 +513,6 @@ func TestStorageAccountAdvancedFeatures(t *testing.T) {
 		},
 		{
 			name:                          "Public access disabled",
-			enableHierarchicalNS:          false,
 			enableVersioning:              false,
 			allowBlobPublicAccess:         false,
 			isPublicNetworkAccessOK:       true,
@@ -534,21 +521,11 @@ func TestStorageAccountAdvancedFeatures(t *testing.T) {
 		},
 		{
 			name:                          "Secure configuration",
-			enableHierarchicalNS:          false,
 			enableVersioning:              true,
 			allowBlobPublicAccess:         false,
 			isPublicNetworkAccessOK:       false,
 			isContainerDeleteRetentionOK:  true,
 			expectedBlobServiceProperties: "Secure configuration",
-		},
-		{
-			name:                          "Data lake configuration",
-			enableHierarchicalNS:          true,
-			enableVersioning:              true,
-			allowBlobPublicAccess:         false,
-			isPublicNetworkAccessOK:       false,
-			isContainerDeleteRetentionOK:  true,
-			expectedBlobServiceProperties: "Data lake configuration",
 		},
 	}
 
@@ -576,19 +553,6 @@ func TestStorageAccountAdvancedFeatures(t *testing.T) {
 			// we're just ensuring the values are correctly stored in the config.
 			assert.Equal(t, tc.enableVersioning, config.EnableVersioning)
 			assert.Equal(t, tc.allowBlobPublicAccess, config.AllowBlobPublicAccess)
-
-			// Check feature compatibility (these would normally be enforced by Azure)
-			// Simulate validation that would happen in real implementation
-			// Some features like versioning require certain account types
-			if tc.enableVersioning && config.AccountKind == "BlobStorage" {
-				// Versioning requires a StorageV2 account
-				t.Logf("Warning: Versioning may not be supported on BlobStorage account kind")
-			}
-
-			// HNS is only supported on certain account kinds
-			if tc.enableHierarchicalNS && config.AccountKind != "StorageV2" && config.AccountKind != "" {
-				t.Logf("Warning: Hierarchical namespace requires StorageV2 account kind")
-			}
 		})
 	}
 }
