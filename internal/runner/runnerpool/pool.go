@@ -106,11 +106,11 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 	for {
 		ready := p.q.GetReadyWithDependencies()
 		if len(ready) == 0 {
-			if p.q.Empty() {
-				l.Debugf("RunnerPool: queue is Empty, breaking loop")
+			if p.q.AllTerminal() {
+				l.Debugf("RunnerPool: all queue entries are in a terminal state, breaking loop")
 				break
 			}
-			l.Tracef("RunnerPool: no ready tasks, waiting (queue not Empty)")
+			l.Tracef("RunnerPool: no ready tasks, waiting (queue not all terminal)")
 			select {
 			case <-p.readyCh:
 			case <-ctx.Done():

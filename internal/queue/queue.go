@@ -345,3 +345,13 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 	}
 	return count
 }
+
+// AllTerminal returns true if all entries are in a terminal state (Succeeded or Failed).
+func (q *Queue) AllTerminal() bool {
+	for _, e := range q.Entries {
+		if e.Status != StatusSucceeded && e.Status != StatusFailed {
+			return false
+		}
+	}
+	return true
+}

@@ -238,6 +238,9 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
+	// Initially, not all are terminal
+	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
+
 	// Check that all entries are ready initially and in order A, B, C
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
@@ -249,6 +252,8 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	q.SetStatus(entryA, queue.StatusRunning)
 	q.SetStatus(entryA, queue.StatusSucceeded)
 
+	assert.False(t, q.AllTerminal(), "AllTerminal should be false after A is done")
+
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After A is done, only B should be ready")
 	assert.Equal(t, "B", readyEntries[0].Config.Path, "Second ready entry should be B")
@@ -258,6 +263,8 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	q.SetStatus(entryB, queue.StatusRunning)
 	q.SetStatus(entryB, queue.StatusSucceeded)
 
+	assert.False(t, q.AllTerminal(), "AllTerminal should be false after B is done")
+
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After B is done, only C should be ready")
 	assert.Equal(t, "C", readyEntries[0].Config.Path, "Third ready entry should be C")
@@ -266,6 +273,9 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	entryC := readyEntries[0]
 	q.SetStatus(entryC, queue.StatusRunning)
 	q.SetStatus(entryC, queue.StatusSucceeded)
+
+	// Now all should be terminal
+	assert.True(t, q.AllTerminal(), "AllTerminal should be true after all succeeded")
 
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 0, "After C is done, no entries should be ready")
@@ -346,6 +356,8 @@ func TestQueue_FailFast(t *testing.T) {
 	require.NoError(t, err)
 	q.FailFast = true
 
+	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
+
 	// Simulate A failing
 	entryA := q.Index["A"]
 	q.SetStatus(entryA, queue.StatusRunning)
@@ -360,6 +372,9 @@ func TestQueue_FailFast(t *testing.T) {
 	for _, entry := range q.Entries {
 		assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
 	}
+
+	// Now all should be terminal
+	assert.True(t, q.AllTerminal(), "AllTerminal should be true after fail-fast triggers")
 
 	// No entries should be ready after fail-fast
 	readyEntries := q.GetReadyWithDependencies()
@@ -510,6 +525,8 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	require.NoError(t, err)
 	q.FailFast = false
 
+	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
+
 	// 1. Initially, only A should be ready
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
@@ -519,6 +536,8 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	entryA := readyEntries[0]
 	q.SetStatus(entryA, queue.StatusRunning)
 	q.SetStatus(entryA, queue.StatusSucceeded)
+
+	assert.False(t, q.AllTerminal(), "AllTerminal should be false after A is done")
 
 	// 2. After A, B and C should be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -538,6 +557,8 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	q.SetStatus(entryB, queue.StatusRunning)
 	q.SetStatus(entryB, queue.StatusFailed)
 
+	assert.False(t, q.AllTerminal(), "AllTerminal should be false after B fails if C is not done")
+
 	// D and E should be marked as failed due to dependency on B
 	assert.Equal(t, queue.StatusFailed, q.Index["B"].Status)
 	assert.Equal(t, queue.StatusFailed, q.Index["D"].Status)
@@ -551,6 +572,9 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	// Mark C as succeeded
 	q.SetStatus(entryC, queue.StatusRunning)
 	q.SetStatus(entryC, queue.StatusSucceeded)
+
+	// After C is done, now all should be terminal
+	assert.True(t, q.AllTerminal(), "AllTerminal should be true after all entries are terminal")
 
 	// After C is done, nothing should be ready
 	readyEntries = q.GetReadyWithDependencies()
