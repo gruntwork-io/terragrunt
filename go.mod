@@ -86,6 +86,7 @@ require (
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20250611152503-f53cdd7e01ef
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/invopop/jsonschema v0.13.0
+	github.com/wI2L/jsondiff v0.7.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/mock v0.5.2
 	golang.org/x/exp v0.0.0-20250531010427-b6e5de432a8b
@@ -268,6 +269,10 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/terraform-linters/tflint-plugin-sdk v0.22.0 // indirect
 	github.com/terraform-linters/tflint-ruleset-terraform v0.10.0 // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/urfave/cli v1.22.16 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
