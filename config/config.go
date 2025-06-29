@@ -2118,3 +2118,47 @@ func ParseRemoteState(ctx context.Context, l log.Logger, opts *options.Terragrun
 
 	return cfg.GetRemoteState(l, opts)
 }
+
+func CleanStacks(_ context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	if opts.TerraformCommand == tf.CommandNameDestroy {
+		l.Debugf("Skipping stack clean for %s, as part of delete command", opts.WorkingDir)
+		return nil
+	}
+
+	errs := &errors.MultiError{}
+
+	walkFn := func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			l.Warnf("Error accessing path %s: %v", path, walkErr)
+
+			errs = errs.Append(walkErr)
+
+			return nil
+		}
+
+		if d.IsDir() && d.Name() == StackDir {
+			relPath, relErr := filepath.Rel(opts.WorkingDir, path)
+			if relErr != nil {
+				relPath = path // fallback to absolute if error
+			}
+
+			l.Infof("Deleting stack directory: %s", relPath)
+
+			if rmErr := os.RemoveAll(path); rmErr != nil {
+				l.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
+
+				errs = errs.Append(rmErr)
+			}
+
+			return filepath.SkipDir
+		}
+
+		return nil
+	}
+
+	if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil {
+		errs = errs.Append(walkErr)
+	}
+
+	return errs.ErrorOrNil()
+}
