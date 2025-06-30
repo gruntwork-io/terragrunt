@@ -323,8 +323,6 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
-	// SummaryUnitDuration enables showing duration information for each unit in the summary.
-	SummaryUnitDuration bool
 	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
 	NoDependencyPrompt bool
 }
