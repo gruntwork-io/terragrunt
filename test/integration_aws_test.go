@@ -198,7 +198,7 @@ func TestAwsDualLockingBackend(t *testing.T) {
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, terragruntConfigPath, terragruntConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
 	// Test backend bootstrap with dual locking
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath+" -- -auto-approve")
 	require.NoError(t, err)
 
 	// Validate both S3 bucket and DynamoDB table are created
@@ -235,7 +235,7 @@ func TestAwsNativeS3LockingBackend(t *testing.T) {
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, terragruntConfigPath, terragruntConfigPath, s3BucketName, "unused-dynamodb-name", helpers.TerraformRemoteStateS3Region)
 
 	// Test backend bootstrap with S3 native locking only
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath+" -- -auto-approve")
 	require.NoError(t, err)
 
 	// Validate S3 bucket is created and versioned
