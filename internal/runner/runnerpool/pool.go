@@ -108,8 +108,10 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 
 	for {
 		ready := p.q.GetReadyWithDependencies()
-
+		l.Debugf("RunnerPool: found %d ready tasks", len(ready))
 		for _, e := range ready {
+			// log debug which entry is running
+			l.Debugf("RunnerPool: running %s", e.Config.Path)
 			p.q.SetStatus(e, queue.StatusRunning)
 			sem <- struct{}{}
 			wg.Add(1)
@@ -125,8 +127,10 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 				}()
 				exit, err := p.runner(ctx, p.unitsMap[ent.Config.Path])
 				if err == nil {
+					l.Debugf("RunnerPool: %s succeeded", ent.Config.Path)
 					p.q.SetStatus(ent, queue.StatusSucceeded)
 				} else {
+					l.Debugf("RunnerPool: %s failed", ent.Config.Path)
 					p.q.SetStatus(ent, queue.StatusFailed)
 				}
 				results.Store(ent.Config.Path, RunResult{ExitCode: exit, Err: err})
