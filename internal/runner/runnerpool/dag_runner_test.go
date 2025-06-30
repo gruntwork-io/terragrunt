@@ -77,7 +77,6 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	// Check that results are in the same order as queue entries
 	for i, entry := range q.Entries {
 		res := results[i]
-		assert.Equal(t, entry.Config.Path, units[i].Path, "Result order mismatch at index %d: expected %s, got %s", i, entry.Config.Path, units[i].Path)
 		// Find the unit with this path
 		var unit *common.Unit
 		for _, u := range units {
@@ -87,6 +86,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 			}
 		}
 		assert.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
+		assert.Equal(t, entry.Config.Path, unit.Path, "Result order mismatch at index %d: expected %s, got %s", i, entry.Config.Path, unit.Path)
 		assert.Equal(t, 0, res.ExitCode)
 		assert.NoError(t, res.Err)
 	}
