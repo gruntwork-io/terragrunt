@@ -107,7 +107,7 @@ func TestGetObjectInputValidation(t *testing.T) {
 			name: "Valid Input",
 			input: &azurehelper.GetObjectInput{
 				Container: stringPtr("container-name"),
-				Key:    stringPtr("blob-key"),
+				Key:       stringPtr("blob-key"),
 			},
 			expectedError: "",
 		},
@@ -122,7 +122,7 @@ func TestGetObjectInputValidation(t *testing.T) {
 			name: "Empty Container",
 			input: &azurehelper.GetObjectInput{
 				Container: stringPtr(""),
-				Key:    stringPtr("blob-key"),
+				Key:       stringPtr("blob-key"),
 			},
 			expectedError: "container name is required",
 		},
@@ -137,7 +137,7 @@ func TestGetObjectInputValidation(t *testing.T) {
 			name: "Empty Key",
 			input: &azurehelper.GetObjectInput{
 				Container: stringPtr("container-name"),
-				Key:    stringPtr(""),
+				Key:       stringPtr(""),
 			},
 			expectedError: "blob key is required",
 		},

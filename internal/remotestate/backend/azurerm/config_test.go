@@ -64,6 +64,16 @@ func TestFilterOutTerragruntKeys(t *testing.T) {
 				"storage_account_name": "testaccount",
 				"container_name":       "test-container",
 				"key":                  "test/terraform.tfstate",
+				// Terragrunt-specific keys to be filtered out
+				"create_storage_account_if_not_exists": true,
+				"enable_versioning":                    true,
+				"location":                             "eastus",
+				"allow_blob_public_access":             false,
+				"skip_storage_account_update":          false,
+				"account_kind":                         "StorageV2",
+				"account_tier":                         "Standard",
+				"access_tier":                          "Hot",
+				"replication_type":                     "LRS",
 			},
 			expected: azurerm.Config{
 				"storage_account_name": "testaccount",

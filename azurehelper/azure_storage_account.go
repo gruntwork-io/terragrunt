@@ -229,26 +229,20 @@ func (c *StorageAccountClient) listAndUpdateVersioning(ctx context.Context, enab
 func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Enabling versioning on storage account %s", c.storageAccountName)
 	err := c.listAndUpdateVersioning(ctx, true)
-
 	if err != nil {
 		return err
 	}
-
 	l.Info("Successfully enabled versioning on storage account")
-
 	return nil
 }
 
 func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Disabling versioning on storage account %s", c.storageAccountName)
 	err := c.listAndUpdateVersioning(ctx, false)
-
 	if err != nil {
 		return err
 	}
-
 	l.Info("Successfully disabled versioning on storage account")
-
 	return nil
 }
 
@@ -700,118 +694,133 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 
 // AssignStorageBlobDataOwnerRole assigns the Storage Blob Data Owner role to the current user
 func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Context, l log.Logger) error {
-	// Get current user object ID
 	userObjectID, err := c.getCurrentUserObjectID(ctx)
 	if err != nil {
-		l.Warnf("Could not get current user object ID: %v. Skipping role assignment.", err)
-		l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <your-user-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
-
-		return nil // Don't fail the entire process
+		c.handleMissingUserObjectID(l, err)
+		return nil
 	}
 
-	// Determine if this is a user or service principal
+	isServicePrincipal := c.isServicePrincipalAndLog(l, userObjectID)
+
+	storageAccountResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Storage/storageAccounts/%s",
+		c.subscriptionID, c.resourceGroupName, c.storageAccountName)
+	roleDefinitionID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s",
+		c.subscriptionID, storageBlobDataOwnerRoleID)
+	roleAssignmentID := GenerateUUID()
+
+	c.logPrincipalAssignment(l, isServicePrincipal, userObjectID)
+
+	roleAssignment := c.createRoleAssignmentParams(roleDefinitionID, userObjectID)
+
+	c.logRoleAssignmentDebug(l, roleAssignmentID, roleDefinitionID, storageAccountResourceID)
+
+	err = c.createRoleAssignmentWithRetry(ctx, l, storageAccountResourceID, roleAssignmentID, roleAssignment, userObjectID, isServicePrincipal)
+	if err != nil {
+		return errors.Errorf("error creating role assignment: %w", err)
+	}
+
+	c.logRoleAssignmentSuccess(l, isServicePrincipal, userObjectID)
+	return nil
+}
+// handleMissingUserObjectID logs and handles the case where the user object ID could not be retrieved.
+func (c *StorageAccountClient) handleMissingUserObjectID(l log.Logger, err error) {
+	l.Warnf("Could not get current user object ID: %v. Skipping role assignment.", err)
+	l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <your-user-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
+}
+
+// isServicePrincipalAndLog determines if the principal is a service principal and logs accordingly.
+func (c *StorageAccountClient) isServicePrincipalAndLog(l log.Logger, userObjectID string) bool {
 	isServicePrincipal := false
 	if os.Getenv("AZURE_CLIENT_ID") != "" || os.Getenv("ARM_CLIENT_ID") != "" {
 		isServicePrincipal = true
-
 		l.Infof("Detected service principal authentication. Assigning role to service principal with object ID: %s", userObjectID)
 	} else {
 		l.Infof("Assigning Storage Blob Data Owner role to user with object ID: %s", userObjectID)
 	}
+	return isServicePrincipal
+}
 
-	// Construct the storage account resource ID
-	storageAccountResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Storage/storageAccounts/%s",
-		c.subscriptionID, c.resourceGroupName, c.storageAccountName)
-
-	// Construct the role definition ID
-	roleDefinitionID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s",
-		c.subscriptionID, storageBlobDataOwnerRoleID)
-
-	// Generate a proper UUID for the role assignment
-	roleAssignmentID := GenerateUUID()
-
-	// Log appropriate message based on principal type
+// logPrincipalAssignment logs the assignment action based on principal type.
+func (c *StorageAccountClient) logPrincipalAssignment(l log.Logger, isServicePrincipal bool, userObjectID string) {
 	if isServicePrincipal {
 		l.Infof("Assigning Storage Blob Data Owner role to service principal %s for storage account %s", userObjectID, c.storageAccountName)
 	} else {
 		l.Infof("Assigning Storage Blob Data Owner role to user %s for storage account %s", userObjectID, c.storageAccountName)
 	}
+}
 
-	// Create role assignment
-	roleAssignment := armauthorization.RoleAssignmentCreateParameters{
+// createRoleAssignmentParams creates the parameters for the role assignment.
+func (c *StorageAccountClient) createRoleAssignmentParams(roleDefinitionID, userObjectID string) armauthorization.RoleAssignmentCreateParameters {
+	return armauthorization.RoleAssignmentCreateParameters{
 		Properties: &armauthorization.RoleAssignmentProperties{
 			RoleDefinitionID: to.Ptr(roleDefinitionID),
 			PrincipalID:      to.Ptr(userObjectID),
-			// PrincipalType isn't a supported field in the RoleAssignmentProperties struct
-			// Azure will automatically determine the principal type based on the principal ID
 		},
 	}
+}
 
-	// Add debug logging to help diagnose issues
+// logRoleAssignmentDebug logs debug information for the role assignment.
+func (c *StorageAccountClient) logRoleAssignmentDebug(l log.Logger, roleAssignmentID, roleDefinitionID, storageAccountResourceID string) {
 	l.Debugf("Creating role assignment with ID: %s", roleAssignmentID)
 	l.Debugf("Role definition ID: %s", roleDefinitionID)
 	l.Debugf("Storage account resource ID: %s", storageAccountResourceID)
+}
 
-	// Create the role assignment
-	_, err = c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
-	if err != nil {
-		// Check if the role assignment already exists
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && respErr.StatusCode == httpStatusConflict {
-			if isServicePrincipal {
-				l.Infof("Storage Blob Data Owner role already assigned to service principal %s", userObjectID)
-			} else {
-				l.Infof("Storage Blob Data Owner role already assigned to user %s", userObjectID)
-			}
-
+// createRoleAssignmentWithRetry handles the creation of the role assignment with retry logic for known errors.
+func (c *StorageAccountClient) createRoleAssignmentWithRetry(
+	ctx context.Context,
+	l log.Logger,
+	storageAccountResourceID, roleAssignmentID string,
+	roleAssignment armauthorization.RoleAssignmentCreateParameters,
+	userObjectID string,
+	isServicePrincipal bool,
+) error {
+	_, err := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
+	if err == nil {
+		return nil
+	}
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) && respErr.StatusCode == httpStatusConflict {
+		if isServicePrincipal {
+			l.Infof("Storage Blob Data Owner role already assigned to service principal %s", userObjectID)
+		} else {
+			l.Infof("Storage Blob Data Owner role already assigned to user %s", userObjectID)
+		}
+		return nil
+	}
+	if errors.As(err, &respErr) && (respErr.StatusCode == httpStatusForbidden || respErr.StatusCode == httpStatusUnauthorized) {
+		l.Warnf("Permission denied when assigning Storage Blob Data Owner role. Principal %s doesn't have sufficient permissions.", userObjectID)
+		l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <principal-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
+		return nil
+	}
+	if errors.As(err, &respErr) && respErr.ErrorCode == "InvalidRoleAssignmentId" {
+		l.Warnf("Invalid role assignment ID format. Status: %d, Error code: %s", respErr.StatusCode, respErr.ErrorCode)
+		l.Debugf("Full error: %+v", respErr)
+		// Try with a different format for the role assignment ID
+		roleAssignmentID := fmt.Sprintf("%s-%s-4000-8000-%s",
+			GenerateUUID()[0:8],
+			GenerateUUID()[0:4],
+			GenerateUUID()[0:12])
+		l.Infof("Retrying with alternative role assignment ID format: %s", roleAssignmentID)
+		_, retryErr := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
+		if retryErr == nil {
+			l.Info("Successfully created role assignment with alternative ID format")
 			return nil
 		}
-
-		// Check for permission issues
-		if errors.As(err, &respErr) && (respErr.StatusCode == httpStatusForbidden || respErr.StatusCode == httpStatusUnauthorized) {
-			l.Warnf("Permission denied when assigning Storage Blob Data Owner role. Principal %s doesn't have sufficient permissions.", userObjectID)
-			l.Info("To assign Storage Blob Data Owner role manually, use: az role assignment create --role 'Storage Blob Data Owner' --assignee <principal-id> --scope /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<sa-name>")
-
-			return nil // Don't fail the entire process
-		}
-
-		// Check for specific error: InvalidRoleAssignmentId
-		if errors.As(err, &respErr) && respErr.ErrorCode == "InvalidRoleAssignmentId" {
-			l.Warnf("Invalid role assignment ID format. Status: %d, Error code: %s", respErr.StatusCode, respErr.ErrorCode)
-			l.Debugf("Full error: %+v", respErr)
-
-			// Try with a different format for the role assignment ID
-			// Generate a more standard GUID format
-			roleAssignmentID := fmt.Sprintf("%s-%s-4000-8000-%s",
-				GenerateUUID()[0:8],
-				GenerateUUID()[0:4],
-				GenerateUUID()[0:12])
-
-			l.Infof("Retrying with alternative role assignment ID format: %s", roleAssignmentID)
-			_, retryErr := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
-
-			if retryErr == nil {
-				l.Info("Successfully created role assignment with alternative ID format")
-
-				return nil
-			}
-
-			l.Warnf("Retry also failed. Consider creating the role assignment manually: az role assignment create --role 'Storage Blob Data Owner' --assignee %s --scope %s",
-				userObjectID, storageAccountResourceID)
-
-			return nil // Don't fail the entire process
-		}
-
-		return errors.Errorf("error creating role assignment: %w", err)
+		l.Warnf("Retry also failed. Consider creating the role assignment manually: az role assignment create --role 'Storage Blob Data Owner' --assignee %s --scope %s",
+			userObjectID, storageAccountResourceID)
+		return nil
 	}
+	return err
+}
 
+// logRoleAssignmentSuccess logs a success message after role assignment.
+func (c *StorageAccountClient) logRoleAssignmentSuccess(l log.Logger, isServicePrincipal bool, userObjectID string) {
 	if isServicePrincipal {
 		l.Infof("Successfully assigned Storage Blob Data Owner role to service principal %s", userObjectID)
 	} else {
 		l.Infof("Successfully assigned Storage Blob Data Owner role to user %s", userObjectID)
 	}
-
-	return nil
 }
 
 // GenerateUUID generates a random RFC 4122 UUID using github.com/google/uuid.

@@ -28,8 +28,4 @@ const (
 	AccessTierHot     = "Hot"
 	AccessTierCool    = "Cool"
 	AccessTierPremium = "Premium"
-	// UUID generation constants
-	uuidTimeMask32 = 0xFFFFFFFF     // Mask for first 32 bits of timestamp
-	uuidTimeMask16 = 0xFFFF         // Mask for 16 bits of timestamp
-	uuidTimeMask48 = 0xFFFFFFFFFFFF // Mask for 48 bits of microsecond timestamp
 )

@@ -42,8 +42,8 @@ type RemoteStateConfigAzurerm struct {
 	Key                string `mapstructure:"key"`
 	SasToken           string `mapstructure:"sas_token"`
 
-	// Add padding to optimize struct size
-	_ struct{}
+	// Add padding to optimize struct size (align to 8 bytes for bool fields)
+	_ [6]byte // 6 bytes padding to align the following bools to 8-byte boundary
 
 	// Group bool fields together at the end (1 byte each)
 	UseMsi         bool `mapstructure:"use_msi"`
@@ -56,8 +56,8 @@ type ExtendedRemoteStateConfigAzurerm struct {
 	StorageAccountConfig     StorageAccountBootstrapConfig `mapstructure:",squash"` // storage account bootstrap config
 	RemoteStateConfigAzurerm RemoteStateConfigAzurerm      `mapstructure:",squash"` // large struct
 	// Put smaller fields at the end
-	DisableBlobPublicAccess bool     `mapstructure:"disable_blob_public_access"` // 1 byte at end
-	_                       struct{} // padding for optimal alignment
+	DisableBlobPublicAccess bool    `mapstructure:"disable_blob_public_access"` // 1 byte at end
+	_                       [7]byte // 7 bytes padding to align struct size
 }
 
 // Config represents the configuration for Azure Storage backend.

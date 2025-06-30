@@ -272,11 +272,5 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *op
 func (remote *RemoteState) UpdateBackend() {
 	if backend := backends.Get(remote.BackendName); backend != nil {
 		remote.backend = backend
-	} else {
-		fmt.Printf("[DEBUG] Available backends:\n")
-
-		for i, b := range backends {
-			fmt.Printf("[DEBUG]   %d: %s\n", i, b.Name())
-		}
 	}
 }

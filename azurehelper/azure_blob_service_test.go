@@ -118,7 +118,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 			name: "Invalid container name",
 			input: &azurehelper.GetObjectInput{
 				Container: stringPtr("invalid/container/name"),
-				Key:    stringPtr("test.txt"),
+				Key:       stringPtr("test.txt"),
 			},
 			expectedError: true,
 			errorContains: "invalid container name",
@@ -127,7 +127,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 			name: "Invalid blob key",
 			input: &azurehelper.GetObjectInput{
 				Container: stringPtr("container"),
-				Key:    stringPtr(""),
+				Key:       stringPtr(""),
 			},
 			expectedError: true,
 			errorContains: "blob key is required",
@@ -136,7 +136,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 			name: "Container not found",
 			input: &azurehelper.GetObjectInput{
 				Container: stringPtr("nonexistentcontainer"),
-				Key:    stringPtr("test.txt"),
+				Key:       stringPtr("test.txt"),
 			},
 			expectedError: true,
 			errorContains: "container not found",
@@ -145,7 +145,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 			name: "Blob not found",
 			input: &azurehelper.GetObjectInput{
 				Container: stringPtr("existingcontainer"),
-				Key:    stringPtr("nonexistent.txt"),
+				Key:       stringPtr("nonexistent.txt"),
 			},
 			expectedError: true,
 			errorContains: "blob not found",
@@ -207,7 +207,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 			name: "Empty Container",
 			input: &azurehelper.GetObjectInput{
 				Container: strPtr(""),
-				Key:    strPtr("test-key"),
+				Key:       strPtr("test-key"),
 			},
 			expectedError: "container name is required",
 		},
@@ -222,7 +222,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 			name: "Empty key",
 			input: &azurehelper.GetObjectInput{
 				Container: strPtr("test-Container"),
-				Key:    strPtr(""),
+				Key:       strPtr(""),
 			},
 			expectedError: "blob key is required",
 		},
@@ -235,7 +235,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 			name: "Invalid container name with spaces",
 			input: &azurehelper.GetObjectInput{
 				Container: strPtr("invalid container name"),
-				Key:    strPtr("test-key"),
+				Key:       strPtr("test-key"),
 			},
 			expectedError: "container name contains invalid characters",
 		},
@@ -243,7 +243,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 			name: "Container name too long",
 			input: &azurehelper.GetObjectInput{
 				Container: strPtr(strings.Repeat("a", 64)), // Azure container names must be 3-63 characters
-				Key:    strPtr("test-key"),
+				Key:       strPtr("test-key"),
 			},
 			expectedError: "container name length invalid",
 		},
@@ -251,7 +251,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 			name: "Container name too short",
 			input: &azurehelper.GetObjectInput{
 				Container: strPtr("ab"), // Azure container names must be 3-63 characters
-				Key:    strPtr("test-key"),
+				Key:       strPtr("test-key"),
 			},
 			expectedError: "container name length invalid",
 		},

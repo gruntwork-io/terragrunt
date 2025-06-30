@@ -390,7 +390,7 @@ func TestConvertToPointerMap(t *testing.T) {
 			t.Parallel()
 
 			result := azurehelper.ConvertToPointerMap(tc.input)
-			require.Len(t, tc.expected, len(result))
+			require.Len(t, result, len(tc.expected))
 
 			for key, expectedValue := range tc.expected {
 				resultValue, exists := result[key]
