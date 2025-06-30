@@ -327,8 +327,6 @@ type TerragruntOptions struct {
 	TFPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
 	FailFast bool
-	// SummaryUnitDuration enables showing duration information for each unit in the summary.
-	SummaryUnitDuration bool
 	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
 	NoDependencyPrompt bool
 }
