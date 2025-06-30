@@ -362,7 +362,7 @@ func TestAwsDeleteBackend(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -417,7 +417,7 @@ func TestAwsMigrateBackend(t *testing.T) {
 	unit2TableKey := path.Join(s3BucketName, unit2BackendKey+"-md5")
 
 	defer func() {
-		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
