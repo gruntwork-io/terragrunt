@@ -3,7 +3,6 @@ package azurerm
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"net/http"
 	"strings"
@@ -61,7 +60,7 @@ func WithRetry(ctx context.Context, logger log.Logger, operation string, config 
 		// Check if context is cancelled
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("operation %s cancelled: %w", operation, ctx.Err())
+			return errors.Errorf("operation %s cancelled: %w", operation, ctx.Err())
 		default:
 		}
 
@@ -98,7 +97,7 @@ func WithRetry(ctx context.Context, logger log.Logger, operation string, config 
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return fmt.Errorf("operation %s cancelled during retry delay: %w", operation, ctx.Err())
+			return errors.Errorf("operation %s cancelled during retry delay: %w", operation, ctx.Err())
 		case <-timer.C:
 		}
 	}

@@ -155,9 +155,6 @@ func TestDeleteStorageAccount(t *testing.T) {
 		// when trying to read from stdin during the prompt
 		err := b.DeleteStorageAccount(t.Context(), l, config, &interactiveOpts)
 		require.Error(t, err)
-		// The specific error can vary between environments (could be "EOF", "not a terminal", etc.)
-		// So we just check that we get an error, but don't check the specific message
-		require.Error(t, err)
 	})
 
 	// Test with valid configuration in non-interactive mode
