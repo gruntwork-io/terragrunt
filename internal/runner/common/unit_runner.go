@@ -72,6 +72,7 @@ func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.Terragru
 		runner.Unit.Logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path)
 		return nil
 	}
+
 	if err := runner.runTerragrunt(ctx, runner.Unit.TerragruntOptions, r); err != nil {
 		return err
 	}
@@ -108,5 +109,4 @@ func (runner *UnitRunner) Run(ctx context.Context, rootOptions *options.Terragru
 	}
 
 	return nil
-
 }

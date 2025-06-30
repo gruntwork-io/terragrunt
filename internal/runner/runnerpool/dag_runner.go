@@ -20,10 +20,9 @@ type DAGRunner struct {
 	q           *queue.Queue
 	runner      UnitExecutor
 	readyCh     chan struct{}
+	unitsMap    map[string]*common.Unit
 	concurrency int
 	failFast    bool
-	// unitsMap maps unit paths to their corresponding *common.Unit for efficient lookup during task execution.
-	unitsMap map[string]*common.Unit
 }
 
 // DAGRunnerOption is a function that modifies a DAGRunner.
@@ -42,6 +41,7 @@ func WithMaxConcurrency(maxConc int) DAGRunnerOption {
 		if maxConc <= 0 {
 			maxConc = 1
 		}
+
 		dr.concurrency = maxConc
 	}
 }
@@ -62,26 +62,30 @@ func NewDAGRunner(q *queue.Queue, units []*common.Unit, opts ...DAGRunnerOption)
 	}
 	// Build unitsMap from units slice
 	unitsMap := make(map[string]*common.Unit)
+
 	for _, u := range units {
 		if u != nil && u.Path != "" {
 			unitsMap[u.Path] = u
 		}
 	}
+
 	dr.unitsMap = unitsMap
 	for _, opt := range opts {
 		opt(dr)
 	}
+
 	if dr.q == nil {
 		// If queue was not set, create an empty queue
 		dr.q = &queue.Queue{Entries: []*queue.Entry{}}
 	}
+
 	return dr
 }
 
 // RunResult Define RunResult struct for results
 type RunResult struct {
-	ExitCode int
 	Err      error
+	ExitCode int
 }
 
 // Run executes the DAG and returns one result per queue entry
@@ -109,11 +113,13 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 	for {
 		ready := dr.q.GetReadyWithDependencies()
 		l.Debugf("DAGRunner: found %d ready tasks", len(ready))
+
 		for _, e := range ready {
 			// log debug which entry is running
 			l.Debugf("DAGRunner: running %s", e.Config.Path)
 			dr.q.SetStatus(e, queue.StatusRunning)
 			sem <- struct{}{}
+
 			wg.Add(1)
 
 			go func(ent *queue.Entry) {
@@ -125,6 +131,7 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 					default:
 					}
 				}()
+
 				exit, err := dr.runner(ctx, dr.unitsMap[ent.Config.Path])
 				if err == nil {
 					l.Debugf("DAGRunner: %s succeeded", ent.Config.Path)
@@ -133,6 +140,7 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 					l.Debugf("DAGRunner: %s failed", ent.Config.Path)
 					dr.q.SetStatus(ent, queue.StatusFailed)
 				}
+
 				results.Store(ent.Config.Path, RunResult{ExitCode: exit, Err: err})
 			}(e)
 		}
@@ -156,10 +164,12 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 
 	// Preserve original order
 	ordered := make([]RunResult, 0, len(dr.q.Entries))
+
 	for _, e := range dr.q.Entries {
 		if res, ok := results.Load(e.Config.Path); ok {
 			ordered = append(ordered, res)
 		}
 	}
+
 	return ordered
 }

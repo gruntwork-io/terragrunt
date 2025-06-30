@@ -30,8 +30,8 @@ import (
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
 	Stack            *common.Stack
-	planErrorBuffers []bytes.Buffer // Store plan error buffers for summarizePlanAllErrors
-	queue            *queue.Queue   // The execution queue for this runner
+	queue            *queue.Queue
+	planErrorBuffers []bytes.Buffer
 }
 
 // NewRunnerPoolStack creates a new stack from discovered units.
@@ -137,10 +137,12 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	taskRun := func(ctx context.Context, u *common.Unit) (int, error) {
 		unitRunner := common.NewUnitRunner(u)
+
 		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
 		if err != nil {
 			return 1, err
 		}
+
 		return 0, nil
 	}
 	r.queue.FailFast = opts.FailFast

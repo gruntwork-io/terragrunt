@@ -33,8 +33,8 @@ import (
 // Entry represents a node in the queue/DAG for execution.
 type Entry struct {
 	Config     *discovery.DiscoveredConfig
+	Dependents []*Entry
 	Status     Status
-	Dependents []*Entry // direct dependents of this entry
 }
 
 // Status represents the lifecycle state of a task in the queue.
@@ -133,8 +133,8 @@ func (e *Entry) IsUp() bool {
 }
 
 type Queue struct {
+	Index    map[string]*Entry
 	Entries  Entries
-	Index    map[string]*Entry // path to Entry for quick lookup
 	FailFast bool
 }
 
@@ -276,9 +276,11 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed(or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
 	out := make([]*Entry, 0, len(q.Entries))
+
 	for _, e := range q.Entries {
 		if e.Status == StatusReady {
 			allDepsReady := true
+
 			for _, dep := range e.Config.Dependencies {
 				depEntry, ok := q.Index[dep.Path]
 				if !ok || depEntry.Status != StatusSucceeded {
@@ -286,11 +288,13 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 					break
 				}
 			}
+
 			if allDepsReady {
 				out = append(out, e)
 			}
 		}
 	}
+
 	return out
 }
 
@@ -308,14 +312,18 @@ func (q *Queue) SetStatus(e *Entry, status Status) {
 				if n.Status == StatusSucceeded {
 					continue
 				}
+
 				n.Status = StatusFailed
 			}
+
 			return
 		}
+
 		for _, depEntry := range e.Dependents {
 			if depEntry.Status == StatusSucceeded {
 				continue
 			}
+
 			depEntry.Status = StatusFailed
 		}
 	}
@@ -328,21 +336,25 @@ func (q *Queue) Empty() bool {
 			return false
 		}
 	}
+
 	return true
 }
 
-// Helper to calculate remaining dependencies for an entry.
+// RemainingDeps Helper to calculate remaining dependencies for an entry.
 func (q *Queue) RemainingDeps(e *Entry) int {
 	if e.Config == nil || e.Config.Dependencies == nil {
 		return 0
 	}
+
 	count := 0
+
 	for _, dep := range e.Config.Dependencies {
 		depEntry, ok := q.Index[dep.Path]
 		if !ok || depEntry.Status != StatusSucceeded {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -353,5 +365,6 @@ func (q *Queue) AllTerminal() bool {
 			return false
 		}
 	}
+
 	return true
 }

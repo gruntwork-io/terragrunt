@@ -278,7 +278,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	assert.True(t, q.AllTerminal(), "AllTerminal should be true after all succeeded")
 
 	readyEntries = q.GetReadyWithDependencies()
-	assert.Len(t, readyEntries, 0, "After C is done, no entries should be ready")
+	assert.Empty(t, readyEntries, "After C is done, no entries should be ready")
 }
 
 func TestQueue_ParallelExecution(t *testing.T) {
@@ -339,7 +339,7 @@ func TestQueue_ParallelExecution(t *testing.T) {
 
 	// After C is done, nothing should be ready
 	readyEntries = q.GetReadyWithDependencies()
-	assert.Len(t, readyEntries, 0, "After B and C are done, no entries should be ready")
+	assert.Empty(t, readyEntries, "After B and C are done, no entries should be ready")
 }
 
 func TestQueue_FailFast(t *testing.T) {
@@ -378,7 +378,7 @@ func TestQueue_FailFast(t *testing.T) {
 
 	// No entries should be ready after fail-fast
 	readyEntries := q.GetReadyWithDependencies()
-	assert.Len(t, readyEntries, 0, "No entries should be ready after fail-fast triggers")
+	assert.Empty(t, readyEntries, "No entries should be ready after fail-fast triggers")
 }
 
 // buildMultiLevelDependencyTree returns the configs for the following dependency tree:
@@ -468,7 +468,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 
 	// 4. After all are done, nothing should be ready
 	readyEntries = q.GetReadyWithDependencies()
-	assert.Len(t, readyEntries, 0, "After all are done, no entries should be ready")
+	assert.Empty(t, readyEntries, "After all are done, no entries should be ready")
 }
 
 func TestQueue_AdvancedDependency_BFails(t *testing.T) {
@@ -514,7 +514,7 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	assert.Equal(t, queue.StatusFailed, q.Index["C"].Status)
 
 	readyEntries = q.GetReadyWithDependencies()
-	assert.Len(t, readyEntries, 0, "All entries should be failed")
+	assert.Empty(t, readyEntries, "All entries should be failed")
 }
 
 func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
@@ -578,7 +578,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 
 	// After C is done, nothing should be ready
 	readyEntries = q.GetReadyWithDependencies()
-	assert.Len(t, readyEntries, 0, "After C is done, no entries should be ready")
+	assert.Empty(t, readyEntries, "After C is done, no entries should be ready")
 }
 
 func TestQueue_FailFast_SequentialOrder(t *testing.T) {
@@ -615,5 +615,5 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 
 	// No entries should be ready
 	readyEntries = q.GetReadyWithDependencies()
-	assert.Len(t, readyEntries, 0, "No entries should be ready after fail-fast triggers")
+	assert.Empty(t, readyEntries, "No entries should be ready after fail-fast triggers")
 }
