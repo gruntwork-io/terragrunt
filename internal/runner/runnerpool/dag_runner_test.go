@@ -66,14 +66,14 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	}
 
 	q, _ := queue.NewQueue(configs)
-	pool := runnerpool.NewRunnerPool(
+	dagRunner := runnerpool.NewDAGRunner(
 		q,
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 		runnerpool.WithFailFast(false),
 	)
-	results := pool.Run(t.Context(), logger.CreateLogger())
+	results := dagRunner.Run(t.Context(), logger.CreateLogger())
 
 	// Check that results are in the same order as queue entries
 	for i, entry := range q.Entries {
@@ -108,14 +108,14 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	}
 
 	q, _ := queue.NewQueue(discoveryFromUnits(units))
-	pool := runnerpool.NewRunnerPool(
+	dagRunner := runnerpool.NewDAGRunner(
 		q,
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 		runnerpool.WithFailFast(false),
 	)
-	results := pool.Run(t.Context(), logger.CreateLogger())
+	results := dagRunner.Run(t.Context(), logger.CreateLogger())
 
 	// Check that results are in the same order as queue entries
 	for i, entry := range q.Entries {
@@ -151,14 +151,14 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	}
 
 	q, _ := queue.NewQueue(discoveryFromUnits(units))
-	pool := runnerpool.NewRunnerPool(
+	dagRunner := runnerpool.NewDAGRunner(
 		q,
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 		runnerpool.WithFailFast(true),
 	)
-	results := pool.Run(t.Context(), logger.CreateLogger())
+	results := dagRunner.Run(t.Context(), logger.CreateLogger())
 
 	// Check that if C fails, all others fail too
 	for i := range results {

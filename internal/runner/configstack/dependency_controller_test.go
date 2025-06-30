@@ -16,7 +16,7 @@ import (
 
 var mockOptions, _ = options.NewTerragruntOptionsForTest("running_unit_test")
 
-// Helper to create a runbase.Unit with default fields
+// Helper to create a common.Unit with default fields
 func newTestUnit(path string, dependencies common.Units, config config.TerragruntConfig, opts *options.TerragruntOptions) *common.Unit {
 	return &common.Unit{
 		Path:              path,

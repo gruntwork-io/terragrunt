@@ -144,7 +144,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		return 0, nil
 	}
 	r.queue.FailFast = opts.FailFast
-	pool := NewRunnerPool(
+	dagRunner := NewDAGRunner(
 		r.queue,
 		r.Stack.Units,
 		WithRunner(taskRun),
@@ -152,7 +152,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		WithFailFast(opts.FailFast),
 	)
 
-	results := pool.Run(ctx, l)
+	results := dagRunner.Run(ctx, l)
 
 	var errs []error
 
