@@ -30,11 +30,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 )
 
-// Entry represents a node in the queue/DAG for execution.
+// Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
+// and tracks its execution status and relationships to other entries in the queue.
 type Entry struct {
-	Config     *discovery.DiscoveredConfig
+	// Config is the Terragrunt configuration associated with this entry. It contains all metadata about the module,
+	// including its path, dependencies, and discovery context (such as the command being run).
+	Config *discovery.DiscoveredConfig
+
+	// Dependents is a list of entries that directly depend on this entry. If this entry fails (and fail-fast is not enabled),
+	// all its dependents will also be marked as failed. This field is populated during queue construction and is used to
+	// propagate status changes and determine execution order for destroy operations.
 	Dependents []*Entry
-	Status     Status
+
+	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
+	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
+	Status Status
 }
 
 // Status represents the lifecycle state of a task in the queue.
