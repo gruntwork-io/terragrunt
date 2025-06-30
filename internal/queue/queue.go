@@ -190,9 +190,8 @@ func (q *Queue) Configs() discovery.DiscoveredConfigs {
 func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	if len(discovered) == 0 {
 		return &Queue{
-			Entries:  Entries{},
-			Index:    map[string]*Entry{},
-			FailFast: false, // default, can be set after construction
+			Entries: Entries{},
+			Index:   map[string]*Entry{},
 		}, nil
 	}
 
@@ -221,9 +220,8 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	}
 
 	q := &Queue{
-		Entries:  entries,
-		Index:    index,
-		FailFast: false, // default, can be set after construction
+		Entries: entries,
+		Index:   index,
 	}
 
 	// readyPending returns the index of the first pending entry if there is one,
@@ -319,7 +317,7 @@ func (q *Queue) SetStatus(e *Entry, status Status) {
 		// If fail-fast is enabled, mark all not-yet-started tasks (Pending, Blocked, Ready) as Failed to prevent further execution.
 		if q.FailFast {
 			for _, n := range q.Entries {
-				if n.Status == StatusSucceeded {
+				if isTerminalOrRunning(n.Status) {
 					continue
 				}
 
@@ -330,7 +328,7 @@ func (q *Queue) SetStatus(e *Entry, status Status) {
 		}
 
 		for _, depEntry := range e.Dependents {
-			if depEntry.Status == StatusSucceeded {
+			if isTerminalOrRunning(depEntry.Status) {
 				continue
 			}
 
@@ -377,4 +375,9 @@ func (q *Queue) AllTerminal() bool {
 	}
 
 	return true
+}
+
+// isTerminalOrRunning returns true if the status is terminal (Succeeded or Failed) or running.
+func isTerminalOrRunning(status Status) bool {
+	return status == StatusSucceeded || status == StatusRunning
 }
