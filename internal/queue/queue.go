@@ -377,7 +377,7 @@ func (q *Queue) AllTerminal() bool {
 	return true
 }
 
-// isTerminalOrRunning returns true if the status is terminal (Succeeded or Failed) or running.
+// isTerminalOrRunning returns true if the status is terminal.
 func isTerminalOrRunning(status Status) bool {
-	return status == StatusSucceeded || status == StatusRunning
+	return status == StatusSucceeded || status == StatusFailed || status == StatusRunning
 }
