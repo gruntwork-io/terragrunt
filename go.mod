@@ -82,7 +82,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.81.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.82.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20250611152503-f53cdd7e01ef
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/invopop/jsonschema v0.13.0
