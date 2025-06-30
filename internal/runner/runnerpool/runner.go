@@ -151,7 +151,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		r.Stack.Units,
 		WithRunner(taskRun),
 		WithMaxConcurrency(opts.Parallelism),
-		WithFailFast(opts.FailFast),
 	)
 
 	results := dagRunner.Run(ctx, l)

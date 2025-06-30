@@ -71,7 +71,6 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
-		runnerpool.WithFailFast(false),
 	)
 	results := dagRunner.Run(t.Context(), logger.CreateLogger())
 
@@ -113,7 +112,6 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
-		runnerpool.WithFailFast(false),
 	)
 	results := dagRunner.Run(t.Context(), logger.CreateLogger())
 
@@ -156,7 +154,6 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
-		runnerpool.WithFailFast(true),
 	)
 	results := dagRunner.Run(t.Context(), logger.CreateLogger())
 

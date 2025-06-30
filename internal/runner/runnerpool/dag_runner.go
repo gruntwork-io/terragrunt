@@ -23,7 +23,6 @@ type DAGRunner struct {
 	readyCh     chan struct{}
 	unitsMap    map[string]*common.Unit
 	concurrency int
-	failFast    bool
 }
 
 // DAGRunnerOption is a function that modifies a DAGRunner.
@@ -44,13 +43,6 @@ func WithMaxConcurrency(maxConc int) DAGRunnerOption {
 		}
 
 		dr.concurrency = maxConc
-	}
-}
-
-// WithFailFast sets the failFast flag for the DAGRunner.
-func WithFailFast(failFast bool) DAGRunnerOption {
-	return func(dr *DAGRunner) {
-		dr.failFast = failFast
 	}
 }
 
@@ -101,8 +93,8 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 		results = xsync.NewMapOf[string, RunResult]()
 	)
 
-	l.Debugf("DAGRunner: starting with %d tasks, concurrency %d, failFast=%t",
-		len(dr.q.Entries), dr.concurrency, dr.failFast)
+	l.Debugf("DAGRunner: starting with %d tasks, concurrency %d",
+		len(dr.q.Entries), dr.concurrency)
 
 	// Initial signal to start scheduling
 	select {
@@ -138,6 +130,7 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 					l.Errorf("DAGRunner: %s unit is nil, skipping execution", ent.Config.Path)
 					dr.q.SetStatus(ent, queue.StatusFailed)
 					results.Store(ent.Config.Path, RunResult{ExitCode: 1, Err: err})
+
 					return
 				}
 
@@ -147,12 +140,12 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 				if err != nil {
 					l.Debugf("DAGRunner: %s failed", ent.Config.Path)
 					dr.q.SetStatus(ent, queue.StatusFailed)
+
 					return
 				}
 
 				l.Debugf("DAGRunner: %s succeeded", ent.Config.Path)
 				dr.q.SetStatus(ent, queue.StatusSucceeded)
-
 			}(e)
 		}
 
