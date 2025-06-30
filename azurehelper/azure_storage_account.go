@@ -204,59 +204,51 @@ func (c *StorageAccountClient) GetStorageAccountVersioning(ctx context.Context) 
 	return false, nil
 }
 
-// EnableStorageAccountVersioning enables versioning on a storage account
-func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
-	l.Infof("Enabling versioning on storage account %s", c.storageAccountName)
-
+// listAndUpdateVersioning is a helper to get service properties, set IsVersioningEnabled, and update.
+func (c *StorageAccountClient) listAndUpdateVersioning(ctx context.Context, enable bool) error {
 	// Get current service properties to preserve other settings
 	resp, err := c.blobClient.GetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
 	if err != nil {
 		return errors.Errorf("error getting current blob service properties: %w", err)
 	}
-
-	// Update the versioning setting while preserving other properties
+	
 	if resp.BlobServiceProperties.BlobServiceProperties == nil {
 		resp.BlobServiceProperties.BlobServiceProperties = &armstorage.BlobServicePropertiesProperties{}
 	}
-
-	// Enable versioning
-	resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled = to.Ptr(true)
-
-	// Update service properties
+	
+	resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled = to.Ptr(enable)
 	_, err = c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, resp.BlobServiceProperties, nil)
+	
 	if err != nil {
-		return errors.Errorf("failed to enable versioning on storage account %s: %w", c.storageAccountName, err)
+		return errors.Errorf("failed to set versioning on storage account %s: %w", c.storageAccountName, err)
 	}
-
-	l.Info("Successfully enabled versioning on storage account")
+	
 	return nil
 }
 
-// DisableStorageAccountVersioning disables versioning on a storage account
+func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
+	l.Infof("Enabling versioning on storage account %s", c.storageAccountName)
+	err := c.listAndUpdateVersioning(ctx, l, true)
+	
+	if err != nil {
+		return err
+	}
+	
+	l.Info("Successfully enabled versioning on storage account")
+	
+	return nil
+}
+
 func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Disabling versioning on storage account %s", c.storageAccountName)
-
-	// Get current service properties to preserve other settings
-	resp, err := c.blobClient.GetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+	err := c.listAndUpdateVersioning(ctx, l, false)
+	
 	if err != nil {
-		return errors.Errorf("error getting current blob service properties: %w", err)
+		return err
 	}
-
-	// Update the versioning setting while preserving other properties
-	if resp.BlobServiceProperties.BlobServiceProperties == nil {
-		resp.BlobServiceProperties.BlobServiceProperties = &armstorage.BlobServicePropertiesProperties{}
-	}
-
-	// Disable versioning
-	resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled = to.Ptr(false)
-
-	// Update service properties
-	_, err = c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, resp.BlobServiceProperties, nil)
-	if err != nil {
-		return errors.Errorf("failed to disable versioning on storage account %s: %w", c.storageAccountName, err)
-	}
-
+	
 	l.Info("Successfully disabled versioning on storage account")
+	
 	return nil
 }
 
@@ -464,7 +456,7 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 	}
 
 	// 2. Check AccessTier
-	if !compareAccessTier(account.Properties.AccessTier, config.AccessTier) && config.AccessTier != "" {
+	if !CompareAccessTier(account.Properties.AccessTier, config.AccessTier) && config.AccessTier != "" {
 		needsUpdate = true
 
 		var accessTier *armstorage.AccessTier
@@ -493,9 +485,9 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 	}
 
 	// 3. Check Tags
-	if !compareStringMaps(account.Tags, config.Tags) && len(config.Tags) > 0 {
+	if !CompareStringMaps(account.Tags, config.Tags) && len(config.Tags) > 0 {
 		needsUpdate = true
-		updateParams.Tags = convertToPointerMap(config.Tags)
+		updateParams.Tags = ConvertToPointerMap(config.Tags)
 
 		l.Infof("Updating tags on storage account %s", c.storageAccountName)
 	}
@@ -736,7 +728,7 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 		c.subscriptionID, storageBlobDataOwnerRoleID)
 
 	// Generate a proper UUID for the role assignment
-	roleAssignmentID := generateUUID()
+	roleAssignmentID := GenerateUUID()
 
 	// Log appropriate message based on principal type
 	if isServicePrincipal {
@@ -791,9 +783,9 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 			// Try with a different format for the role assignment ID
 			// Generate a more standard GUID format
 			roleAssignmentID := fmt.Sprintf("%s-%s-4000-8000-%s",
-				generateUUID()[0:8],
-				generateUUID()[0:4],
-				generateUUID()[0:12])
+				GenerateUUID()[0:8],
+				GenerateUUID()[0:4],
+				GenerateUUID()[0:12])
 
 			l.Infof("Retrying with alternative role assignment ID format: %s", roleAssignmentID)
 			_, retryErr := c.roleAssignmentClient.Create(ctx, storageAccountResourceID, roleAssignmentID, roleAssignment, nil)
@@ -822,10 +814,10 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 	return nil
 }
 
-// generateUUID generates a random UUID for role assignments
+// GenerateUUID generates a random UUID for role assignments
 //
 //nolint:mnd // UUID formatting requires specific hex format constants
-func generateUUID() string {
+func GenerateUUID() string {
 	// Generate a random UUID based on current time and other random data
 	// This is a simplified implementation that generates a sufficiently random ID
 	// It's not a perfect UUID implementation but works well for our use case
@@ -957,8 +949,8 @@ func (cfg StorageAccountConfig) Validate() error {
 
 // Helper functions for property comparison and conversion
 
-// compareStringMaps compares existing tags (map[string]*string) with desired tags (map[string]string)
-func compareStringMaps(existing map[string]*string, desired map[string]string) bool {
+// CompareStringMaps compares existing tags (map[string]*string) with desired tags (map[string]string)
+func CompareStringMaps(existing map[string]*string, desired map[string]string) bool {
 	if len(existing) != len(desired) {
 		return false
 	}
@@ -972,8 +964,8 @@ func compareStringMaps(existing map[string]*string, desired map[string]string) b
 	return true
 }
 
-// convertToPointerMap converts map[string]string to map[string]*string for Azure SDK compatibility
-func convertToPointerMap(input map[string]string) map[string]*string {
+// ConvertToPointerMap converts map[string]string to map[string]*string for Azure SDK compatibility
+func ConvertToPointerMap(input map[string]string) map[string]*string {
 	result := make(map[string]*string, len(input))
 
 	for k, v := range input {
@@ -984,8 +976,8 @@ func convertToPointerMap(input map[string]string) map[string]*string {
 	return result
 }
 
-// compareAccessTier compares Azure access tier values
-func compareAccessTier(current *armstorage.AccessTier, desired string) bool {
+// CompareAccessTier compares Azure access tier values
+func CompareAccessTier(current *armstorage.AccessTier, desired string) bool {
 	if current == nil && desired == "" {
 		return true
 	}

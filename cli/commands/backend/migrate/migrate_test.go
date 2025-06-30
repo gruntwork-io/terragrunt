@@ -1,13 +1,11 @@
 package migrate_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/backend/migrate"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +22,7 @@ func TestMigrateOutputMessage(t *testing.T) {
 	// Create a logger
 	testLogger := logger.CreateLogger()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Note: This test would normally fail because we don't have valid paths,
 	// but we're mainly testing that the message structure is correct
@@ -38,7 +36,7 @@ func TestMigrateOutputMessage(t *testing.T) {
 	err = migrate.Run(ctx, testLogger, srcPath, dstPath, opts)
 
 	// We expect an error due to missing files, but the function should be callable
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	t.Logf("Migration function callable and returns expected error for invalid paths")
 }

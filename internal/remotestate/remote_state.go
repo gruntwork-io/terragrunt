@@ -274,6 +274,7 @@ func (remote *RemoteState) UpdateBackend() {
 		remote.backend = backend
 	} else {
 		fmt.Printf("[DEBUG] Available backends:\n")
+
 		for i, b := range backends {
 			fmt.Printf("[DEBUG]   %d: %s\n", i, b.Name())
 		}

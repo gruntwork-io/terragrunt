@@ -92,5 +92,6 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Infof("Successfully migrated remote state from %s to %s", srcPath, dstPath)
 	fmt.Printf("Backend migration completed successfully from %s to %s\n", srcPath, dstPath)
+
 	return nil
 }

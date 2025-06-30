@@ -499,17 +499,17 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 	return nil
 }
 
-// DeleteBucket deletes the entire Azure Storage container.
-func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+// DeleteContainer deletes the entire Azure Storage container.
+func (backend *Backend) DeleteContainer(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
 	startTime := time.Now()
 	tel := backend.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteBucket, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteContainer, AzureErrorMetrics{
 			ErrorType:      "ConfigError",
 			Classification: ErrorClassConfiguration,
-			Operation:      OperationDeleteBucket,
+			Operation:      OperationDeleteContainer,
 		})
 
 		return err
@@ -519,10 +519,10 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 
 	shouldContinue, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteBucket, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteContainer, AzureErrorMetrics{
 			ErrorType:      "UserPromptError",
 			Classification: ErrorClassUserInput,
-			Operation:      OperationDeleteBucket,
+			Operation:      OperationDeleteContainer,
 		})
 
 		return err
@@ -530,7 +530,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 
 	if !shouldContinue {
 		// Log user cancellation
-		tel.LogOperation(ctx, OperationDeleteBucket, time.Since(startTime), map[string]interface{}{
+		tel.LogOperation(ctx, OperationDeleteContainer, time.Since(startTime), map[string]interface{}{
 			"container": azureCfg.RemoteStateConfigAzurerm.ContainerName,
 			"status":    "cancelled_by_user",
 		})
@@ -540,10 +540,10 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 
 	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, backendConfig)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteBucket, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteContainer, AzureErrorMetrics{
 			ErrorType:      "ClientCreationError",
 			Classification: ErrorClassAuthentication,
-			Operation:      OperationDeleteBucket,
+			Operation:      OperationDeleteContainer,
 			ResourceType:   "blob_service_client",
 		})
 
@@ -562,10 +562,10 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 	})
 
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteBucket, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteContainer, AzureErrorMetrics{
 			ErrorType:      "ContainerDeletionError",
 			Classification: ClassifyError(err),
-			Operation:      OperationDeleteBucket,
+			Operation:      OperationDeleteContainer,
 			ResourceType:   "container",
 			ResourceName:   azureCfg.RemoteStateConfigAzurerm.ContainerName,
 			SubscriptionID: azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
@@ -575,7 +575,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 	}
 
 	// Log successful completion
-	tel.LogOperation(ctx, OperationDeleteBucket, time.Since(startTime), map[string]interface{}{
+	tel.LogOperation(ctx, OperationDeleteContainer, time.Since(startTime), map[string]interface{}{
 		"container":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
 		"storage_account": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
 		"status":          "completed",
@@ -668,8 +668,8 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 
 	// Verify the copy succeeded by reading the destination blob with retry logic
 	dstInput := &azurehelper.GetObjectInput{
-		Bucket: &dstContainer,
-		Key:    &dstCfg.RemoteStateConfigAzurerm.Key,
+		Container: &dstContainer,
+		Key:       &dstCfg.RemoteStateConfigAzurerm.Key,
 	}
 
 	err = WithRetry(ctx, l, "destination state file verification", retryConfig, func() error {
@@ -892,9 +892,9 @@ func (backend *Backend) getTelemetry(l log.Logger) *AzureTelemetryCollector {
 }
 
 // IsVersionControlEnabled checks if versioning is enabled on the Azure storage account.
-func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
 	startTime := time.Now()
-	tel := b.getTelemetry(l)
+	tel := backend.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
@@ -941,7 +941,7 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, bac
 
 	if !exists {
 		l.Debugf("Storage account %s does not exist, versioning check skipped", azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
-		return false, backend.NewBucketDoesNotExistError(azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+		return false, WrapStorageAccountError(errors.New("storage account does not exist"), azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 	}
 
 	// Check if versioning is enabled
@@ -958,14 +958,15 @@ func (b *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, bac
 
 	// Log telemetry for successful version check
 	tel.LogOperation(ctx, OperationValidation, time.Since(startTime), map[string]interface{}{
-		"storage_account":     azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-		"resource_group":      azureCfg.RemoteStateConfigAzurerm.ResourceGroupName,
-		"subscription_id":     azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
-		"versioning_enabled":  enabled,
-		"operation":           "version_control_check",
-		"status":              "completed",
+		"storage_account":    azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
+		"resource_group":     azureCfg.RemoteStateConfigAzurerm.ResourceGroupName,
+		"subscription_id":    azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
+		"versioning_enabled": enabled,
+		"operation":          "version_control_check",
+		"status":             "completed",
 	})
 
 	l.Debugf("Storage account %s versioning status: %t", azureCfg.RemoteStateConfigAzurerm.StorageAccountName, enabled)
+
 	return enabled, nil
 }

@@ -477,8 +477,8 @@ func TestBackendDeleteValidation(t *testing.T) {
 	}
 }
 
-// TestBackendDeleteBucketValidation tests that DeleteBucket validates configuration
-func TestBackendDeleteBucketValidation(t *testing.T) {
+// TestBackendDeleteContainerValidation tests that DeleteContainer validates configuration
+func TestBackendDeleteContainerValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createBackendTestLogger()
@@ -515,8 +515,8 @@ func TestBackendDeleteBucketValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Test that DeleteBucket properly validates configuration
-			err := azureBackend.DeleteBucket(ctx, l, backend.Config(tc.config), opts)
+			// Test that DeleteContainer properly validates configuration
+			err := azureBackend.DeleteContainer(ctx, l, backend.Config(tc.config), opts)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.error)
 		})

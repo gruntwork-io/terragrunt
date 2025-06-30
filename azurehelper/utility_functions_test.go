@@ -1,10 +1,11 @@
-package azurehelper
+package azurehelper_test
 
 import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
+	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,8 +42,8 @@ func TestStringPtr(t *testing.T) {
 		},
 		{
 			name:     "unicode string",
-			input:    "测试字符串",
-			expected: "测试字符串",
+			input:    "测试字符串", //nolint:gosmopolitan
+			expected: "测试字符串", //nolint:gosmopolitan
 		},
 	}
 
@@ -51,7 +52,7 @@ func TestStringPtr(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := StringPtr(tc.input)
+			result := azurehelper.StringPtr(tc.input)
 			require.NotNil(t, result)
 			assert.Equal(t, tc.expected, *result)
 		})
@@ -62,10 +63,11 @@ func TestStringPtr(t *testing.T) {
 func TestConvertAzureError(t *testing.T) {
 	t.Parallel()
 
+	//nolint: govet
 	tests := []struct {
 		name           string
 		input          error
-		expectedResult *AzureResponseError
+		expectedResult *azurehelper.AzureResponseError
 	}{
 		{
 			name:           "nil error",
@@ -83,7 +85,7 @@ func TestConvertAzureError(t *testing.T) {
 				StatusCode: 404,
 				ErrorCode:  "NotFound",
 			},
-			expectedResult: &AzureResponseError{
+			expectedResult: &azurehelper.AzureResponseError{
 				StatusCode: 404,
 				ErrorCode:  "NotFound",
 				Message:    "404 NotFound", // This will be what Error() returns
@@ -96,7 +98,7 @@ func TestConvertAzureError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := ConvertAzureError(tc.input)
+			result := azurehelper.ConvertAzureError(tc.input)
 			if tc.expectedResult == nil {
 				assert.Nil(t, result)
 			} else {
@@ -116,12 +118,12 @@ func TestAzureResponseErrorString(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		err      *AzureResponseError
+		err      *azurehelper.AzureResponseError
 		expected string
 	}{
 		{
 			name: "complete error",
-			err: &AzureResponseError{
+			err: &azurehelper.AzureResponseError{
 				StatusCode: 404,
 				ErrorCode:  "NotFound",
 				Message:    "Resource not found",
@@ -130,7 +132,7 @@ func TestAzureResponseErrorString(t *testing.T) {
 		},
 		{
 			name: "error with empty message",
-			err: &AzureResponseError{
+			err: &azurehelper.AzureResponseError{
 				StatusCode: 500,
 				ErrorCode:  "InternalError",
 				Message:    "",
@@ -139,7 +141,7 @@ func TestAzureResponseErrorString(t *testing.T) {
 		},
 		{
 			name: "error with empty error code",
-			err: &AzureResponseError{
+			err: &azurehelper.AzureResponseError{
 				StatusCode: 400,
 				ErrorCode:  "",
 				Message:    "Bad request",
@@ -212,17 +214,18 @@ func TestGetStorageAccountSKU(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			resultSKU, resultIsDefault := GetStorageAccountSKU(tc.accountTier, tc.replicationType)
+			resultSKU, resultIsDefault := azurehelper.GetStorageAccountSKU(tc.accountTier, tc.replicationType)
 			assert.Equal(t, tc.expectedSKU, resultSKU)
 			assert.Equal(t, tc.expectedIsDefault, resultIsDefault)
 		})
 	}
 }
 
-// TestCompareStringMaps tests the compareStringMaps utility function
+// TestCompareStringMaps tests the CompareStringMaps utility function
 func TestCompareStringMaps(t *testing.T) {
 	t.Parallel()
 
+	//nolint: govet
 	tests := []struct {
 		name     string
 		existing map[string]*string
@@ -243,15 +246,15 @@ func TestCompareStringMaps(t *testing.T) {
 		},
 		{
 			name:     "existing not empty, desired empty",
-			existing: map[string]*string{"key1": StringPtr("value1")},
+			existing: map[string]*string{"key1": azurehelper.StringPtr("value1")},
 			desired:  map[string]string{},
 			expected: false,
 		},
 		{
 			name: "identical maps",
 			existing: map[string]*string{
-				"key1": StringPtr("value1"),
-				"key2": StringPtr("value2"),
+				"key1": azurehelper.StringPtr("value1"),
+				"key2": azurehelper.StringPtr("value2"),
 			},
 			desired: map[string]string{
 				"key1": "value1",
@@ -262,8 +265,8 @@ func TestCompareStringMaps(t *testing.T) {
 		{
 			name: "different values",
 			existing: map[string]*string{
-				"key1": StringPtr("value1"),
-				"key2": StringPtr("value2"),
+				"key1": azurehelper.StringPtr("value1"),
+				"key2": azurehelper.StringPtr("value2"),
 			},
 			desired: map[string]string{
 				"key1": "value1",
@@ -274,7 +277,7 @@ func TestCompareStringMaps(t *testing.T) {
 		{
 			name: "missing key in existing",
 			existing: map[string]*string{
-				"key1": StringPtr("value1"),
+				"key1": azurehelper.StringPtr("value1"),
 			},
 			desired: map[string]string{
 				"key1": "value1",
@@ -285,7 +288,7 @@ func TestCompareStringMaps(t *testing.T) {
 		{
 			name: "nil value in existing",
 			existing: map[string]*string{
-				"key1": StringPtr("value1"),
+				"key1": azurehelper.StringPtr("value1"),
 				"key2": nil,
 			},
 			desired: map[string]string{
@@ -297,9 +300,9 @@ func TestCompareStringMaps(t *testing.T) {
 		{
 			name: "extra key in existing",
 			existing: map[string]*string{
-				"key1": StringPtr("value1"),
-				"key2": StringPtr("value2"),
-				"key3": StringPtr("value3"),
+				"key1": azurehelper.StringPtr("value1"),
+				"key2": azurehelper.StringPtr("value2"),
+				"key3": azurehelper.StringPtr("value3"),
 			},
 			desired: map[string]string{
 				"key1": "value1",
@@ -314,16 +317,17 @@ func TestCompareStringMaps(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := compareStringMaps(tc.existing, tc.desired)
+			result := azurehelper.CompareStringMaps(tc.existing, tc.desired)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
 
-// TestConvertToPointerMap tests the convertToPointerMap utility function
+// TestConvertToPointerMap tests the ConvertToPointerMap utility function
 func TestConvertToPointerMap(t *testing.T) {
 	t.Parallel()
 
+	//nolint: govet
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -340,7 +344,7 @@ func TestConvertToPointerMap(t *testing.T) {
 				"key1": "value1",
 			},
 			expected: map[string]*string{
-				"key1": StringPtr("value1"),
+				"key1": azurehelper.StringPtr("value1"),
 			},
 		},
 		{
@@ -351,9 +355,9 @@ func TestConvertToPointerMap(t *testing.T) {
 				"key3": "value3",
 			},
 			expected: map[string]*string{
-				"key1": StringPtr("value1"),
-				"key2": StringPtr("value2"),
-				"key3": StringPtr("value3"),
+				"key1": azurehelper.StringPtr("value1"),
+				"key2": azurehelper.StringPtr("value2"),
+				"key3": azurehelper.StringPtr("value3"),
 			},
 		},
 		{
@@ -363,8 +367,8 @@ func TestConvertToPointerMap(t *testing.T) {
 				"key2": "value2",
 			},
 			expected: map[string]*string{
-				"key1": StringPtr(""),
-				"key2": StringPtr("value2"),
+				"key1": azurehelper.StringPtr(""),
+				"key2": azurehelper.StringPtr("value2"),
 			},
 		},
 		{
@@ -374,8 +378,8 @@ func TestConvertToPointerMap(t *testing.T) {
 				"key space": "value with spaces",
 			},
 			expected: map[string]*string{
-				"key@1":     StringPtr("value#1"),
-				"key space": StringPtr("value with spaces"),
+				"key@1":     azurehelper.StringPtr("value#1"),
+				"key space": azurehelper.StringPtr("value with spaces"),
 			},
 		},
 	}
@@ -385,8 +389,8 @@ func TestConvertToPointerMap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := convertToPointerMap(tc.input)
-			assert.Equal(t, len(tc.expected), len(result))
+			result := azurehelper.ConvertToPointerMap(tc.input)
+			require.Len(t, tc.expected, len(result))
 
 			for key, expectedValue := range tc.expected {
 				resultValue, exists := result[key]
@@ -402,7 +406,7 @@ func TestConvertToPointerMap(t *testing.T) {
 	}
 }
 
-// TestCompareAccessTier tests the compareAccessTier utility function
+// TestCompareAccessTier tests the CompareAccessTier utility function
 func TestCompareAccessTier(t *testing.T) {
 	t.Parallel()
 
@@ -477,7 +481,7 @@ func TestCompareAccessTier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := compareAccessTier(tc.current, tc.desired)
+			result := azurehelper.CompareAccessTier(tc.current, tc.desired)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -487,13 +491,13 @@ func TestCompareAccessTier(t *testing.T) {
 func TestDefaultStorageAccountConfig(t *testing.T) {
 	t.Parallel()
 
-	config := DefaultStorageAccountConfig()
+	config := azurehelper.DefaultStorageAccountConfig()
 
 	// Verify that the default config has expected values
 	assert.Equal(t, "Standard", config.AccountTier)
 	assert.Equal(t, "LRS", config.ReplicationType)
 	assert.Equal(t, "StorageV2", config.AccountKind)
-	assert.Equal(t, AccessTierHot, config.AccessTier)
+	assert.Equal(t, azurehelper.AccessTierHot, config.AccessTier)
 	assert.True(t, config.EnableVersioning)
 	assert.False(t, config.AllowBlobPublicAccess)
 
@@ -508,7 +512,7 @@ func TestDefaultStorageAccountConfig(t *testing.T) {
 	assert.Equal(t, "terragrunt", config.Tags["created-by"])
 }
 
-// TestGenerateUUID tests the generateUUID utility function
+// TestGenerateUUID tests the GenerateUUID utility function
 func TestGenerateUUID(t *testing.T) {
 	t.Parallel()
 
@@ -516,14 +520,14 @@ func TestGenerateUUID(t *testing.T) {
 	t.Run("generates non-empty UUID", func(t *testing.T) {
 		t.Parallel()
 
-		uuid := generateUUID()
+		uuid := azurehelper.GenerateUUID()
 		assert.NotEmpty(t, uuid)
 	})
 
 	t.Run("generates UUID with correct format", func(t *testing.T) {
 		t.Parallel()
 
-		uuid := generateUUID()
+		uuid := azurehelper.GenerateUUID()
 		// UUID format: 8-4-4-4-12 characters
 		assert.Len(t, uuid, 36) // 8+4+4+4+12+4 hyphens = 36
 		assert.Equal(t, "-", string(uuid[8]))
@@ -535,15 +539,15 @@ func TestGenerateUUID(t *testing.T) {
 	t.Run("generates different UUIDs on subsequent calls", func(t *testing.T) {
 		t.Parallel()
 
-		uuid1 := generateUUID()
-		uuid2 := generateUUID()
+		uuid1 := azurehelper.GenerateUUID()
+		uuid2 := azurehelper.GenerateUUID()
 		assert.NotEqual(t, uuid1, uuid2)
 	})
 
 	t.Run("generates UUID with only hex characters and hyphens", func(t *testing.T) {
 		t.Parallel()
 
-		uuid := generateUUID()
+		uuid := azurehelper.GenerateUUID()
 		for i, char := range uuid {
 			if i == 8 || i == 13 || i == 18 || i == 23 {
 				assert.Equal(t, '-', char, "Character at position %d should be hyphen", i)
@@ -562,7 +566,7 @@ func TestGenerateUUID(t *testing.T) {
 		uuids := make(map[string]bool)
 
 		for i := 0; i < numUUIDs; i++ {
-			uuid := generateUUID()
+			uuid := azurehelper.GenerateUUID()
 			assert.False(t, uuids[uuid], "UUID %s was generated more than once", uuid)
 			uuids[uuid] = true
 		}
@@ -575,15 +579,16 @@ func TestGenerateUUID(t *testing.T) {
 func TestStorageAccountConfigValidate(t *testing.T) {
 	t.Parallel()
 
+	//nolint: govet
 	tests := []struct {
 		name        string
-		config      StorageAccountConfig
+		config      azurehelper.StorageAccountConfig
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "valid complete config",
-			config: StorageAccountConfig{
+			config: azurehelper.StorageAccountConfig{
 				SubscriptionID:     "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName:  "test-rg",
 				StorageAccountName: "teststorageaccount",
@@ -593,7 +598,7 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing subscription ID",
-			config: StorageAccountConfig{
+			config: azurehelper.StorageAccountConfig{
 				ResourceGroupName:  "test-rg",
 				StorageAccountName: "teststorageaccount",
 				Location:           "East US",
@@ -603,7 +608,7 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing resource group name",
-			config: StorageAccountConfig{
+			config: azurehelper.StorageAccountConfig{
 				SubscriptionID:     "12345678-1234-1234-1234-123456789012",
 				StorageAccountName: "teststorageaccount",
 				Location:           "East US",
@@ -613,7 +618,7 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing storage account name",
-			config: StorageAccountConfig{
+			config: azurehelper.StorageAccountConfig{
 				SubscriptionID:    "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName: "test-rg",
 				Location:          "East US",
@@ -623,7 +628,7 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing location",
-			config: StorageAccountConfig{
+			config: azurehelper.StorageAccountConfig{
 				SubscriptionID:     "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName:  "test-rg",
 				StorageAccountName: "teststorageaccount",
@@ -633,7 +638,7 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 		},
 		{
 			name: "empty strings should fail validation",
-			config: StorageAccountConfig{
+			config: azurehelper.StorageAccountConfig{
 				SubscriptionID:     "",
 				ResourceGroupName:  "",
 				StorageAccountName: "",
@@ -644,7 +649,7 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 		},
 		{
 			name: "valid config with optional fields",
-			config: StorageAccountConfig{
+			config: azurehelper.StorageAccountConfig{
 				SubscriptionID:     "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName:  "test-rg",
 				StorageAccountName: "teststorageaccount",
@@ -665,10 +670,10 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 
 			err := tc.config.Validate()
 			if tc.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorMsg)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errorMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -678,15 +683,16 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 func TestResourceGroupConfigValidate(t *testing.T) {
 	t.Parallel()
 
+	//nolint: govet
 	tests := []struct {
 		name        string
-		config      ResourceGroupConfig
+		config      azurehelper.ResourceGroupConfig
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "valid complete config",
-			config: ResourceGroupConfig{
+			config: azurehelper.ResourceGroupConfig{
 				SubscriptionID:    "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName: "test-rg",
 				Location:          "East US",
@@ -695,7 +701,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing subscription ID",
-			config: ResourceGroupConfig{
+			config: azurehelper.ResourceGroupConfig{
 				ResourceGroupName: "test-rg",
 				Location:          "East US",
 			},
@@ -704,7 +710,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing resource group name",
-			config: ResourceGroupConfig{
+			config: azurehelper.ResourceGroupConfig{
 				SubscriptionID: "12345678-1234-1234-1234-123456789012",
 				Location:       "East US",
 			},
@@ -713,7 +719,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 		},
 		{
 			name: "missing location",
-			config: ResourceGroupConfig{
+			config: azurehelper.ResourceGroupConfig{
 				SubscriptionID:    "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName: "test-rg",
 			},
@@ -722,7 +728,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 		},
 		{
 			name: "empty strings should fail validation",
-			config: ResourceGroupConfig{
+			config: azurehelper.ResourceGroupConfig{
 				SubscriptionID:    "",
 				ResourceGroupName: "",
 				Location:          "",
@@ -732,7 +738,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 		},
 		{
 			name: "valid config with tags",
-			config: ResourceGroupConfig{
+			config: azurehelper.ResourceGroupConfig{
 				SubscriptionID:    "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName: "test-rg",
 				Location:          "East US",
@@ -752,19 +758,20 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 
 			err := tc.config.Validate()
 			if tc.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorMsg)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errorMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
-// TestIsNotFoundError tests the isNotFoundError utility function
+// TestIsNotFoundError tests the IsNotFoundError utility function
 func TestIsNotFoundError(t *testing.T) {
 	t.Parallel()
 
+	//nolint: govet
 	tests := []struct {
 		name     string
 		err      error
@@ -819,7 +826,7 @@ func TestIsNotFoundError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := isNotFoundError(tc.err)
+			result := azurehelper.IsNotFoundError(tc.err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -830,14 +837,14 @@ func TestAccessTierConstants(t *testing.T) {
 	t.Parallel()
 
 	// Test that the constants have the expected values
-	assert.Equal(t, "Hot", AccessTierHot)
-	assert.Equal(t, "Cool", AccessTierCool)
-	assert.Equal(t, "Premium", AccessTierPremium)
+	assert.Equal(t, "Hot", azurehelper.AccessTierHot)
+	assert.Equal(t, "Cool", azurehelper.AccessTierCool)
+	assert.Equal(t, "Premium", azurehelper.AccessTierPremium)
 
 	// Test that constants can be used in comparisons
-	assert.NotEqual(t, AccessTierHot, AccessTierCool)
-	assert.NotEqual(t, AccessTierHot, AccessTierPremium)
-	assert.NotEqual(t, AccessTierCool, AccessTierPremium)
+	assert.NotEqual(t, azurehelper.AccessTierHot, azurehelper.AccessTierCool)
+	assert.NotEqual(t, azurehelper.AccessTierHot, azurehelper.AccessTierPremium)
+	assert.NotEqual(t, azurehelper.AccessTierCool, azurehelper.AccessTierPremium)
 }
 
 // TestErrorInterfaceImplementation tests that our error types implement the error interface
@@ -845,13 +852,13 @@ func TestErrorInterfaceImplementation(t *testing.T) {
 	t.Parallel()
 
 	// Test AzureResponseError implements error interface
-	var err error = &AzureResponseError{
+	var err error = &azurehelper.AzureResponseError{
 		StatusCode: 404,
 		ErrorCode:  "NotFound",
 		Message:    "Resource not found",
 	}
 
-	assert.NotNil(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "404")
 	assert.Contains(t, err.Error(), "NotFound")
 	assert.Contains(t, err.Error(), "Resource not found")

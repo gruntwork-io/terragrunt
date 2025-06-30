@@ -21,7 +21,7 @@ const (
 	// Azure API versions
 	defaultRoleAssignmentAPIVersion = "2022-04-01"
 
-		// Storage Blob Data Owner role definition ID
+	// Storage Blob Data Owner role definition ID
 	storageBlobDataOwnerRoleID = "b7e6dc6d-f1e8-4753-8033-0f276bb0955b"
 
 	// Access tier constants

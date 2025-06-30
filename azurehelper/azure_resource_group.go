@@ -155,7 +155,7 @@ func (c *ResourceGroupClient) ResourceGroupExists(ctx context.Context, resourceG
 	_, err := c.client.Get(ctx, resourceGroupName, nil)
 	if err != nil {
 		// Check if the error is a "not found" error
-		if isNotFoundError(err) {
+		if IsNotFoundError(err) {
 			return false, nil
 		}
 
@@ -165,8 +165,8 @@ func (c *ResourceGroupClient) ResourceGroupExists(ctx context.Context, resourceG
 	return true, nil
 }
 
-// isNotFoundError checks if the error is a "not found" error
-func isNotFoundError(err error) bool {
+// IsNotFoundError checks if the error is a "not found" error
+func IsNotFoundError(err error) bool {
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {
 		return respErr.StatusCode == httpStatusNotFound

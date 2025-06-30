@@ -1603,7 +1603,7 @@ func TestCreateStorageAccountClientErrorHandling(t *testing.T) {
 func TestHelperFunctionsErrorHandling(t *testing.T) {
 	t.Parallel()
 
-	t.Run("compareStringMaps edge cases", func(t *testing.T) {
+	t.Run("CompareStringMaps edge cases", func(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
@@ -1701,7 +1701,7 @@ func TestHelperFunctionsErrorHandling(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Test the comparison logic directly (since compareStringMaps is not exported)
+				// Test the comparison logic directly (since CompareStringMaps is not exported)
 				// We simulate the logic from the actual function
 				if len(tc.existing) != len(tc.desired) {
 					assert.Equal(t, tc.expected, false, "Length mismatch should result in false")
@@ -1721,7 +1721,7 @@ func TestHelperFunctionsErrorHandling(t *testing.T) {
 		}
 	})
 
-	t.Run("convertToPointerMap edge cases", func(t *testing.T) {
+	t.Run("ConvertToPointerMap edge cases", func(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
@@ -1790,7 +1790,7 @@ func TestHelperFunctionsErrorHandling(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Test the conversion logic directly (simulating convertToPointerMap)
+				// Test the conversion logic directly (simulating ConvertToPointerMap)
 				result := make(map[string]*string, len(tc.input))
 				for k, v := range tc.input {
 					val := v // Create new variable to avoid capturing loop variable
@@ -1814,7 +1814,7 @@ func TestHelperFunctionsErrorHandling(t *testing.T) {
 		}
 	})
 
-	t.Run("compareAccessTier edge cases", func(t *testing.T) {
+	t.Run("CompareAccessTier edge cases", func(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
@@ -1890,7 +1890,7 @@ func TestHelperFunctionsErrorHandling(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Test the comparison logic directly (simulating compareAccessTier)
+				// Test the comparison logic directly (simulating CompareAccessTier)
 				result := true
 				if tc.current == nil && tc.desired == "" {
 					result = true
@@ -2583,7 +2583,7 @@ func TestCompareStringMaps(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Test the comparison logic directly (since compareStringMaps is not exported)
+			// Test the comparison logic directly (since CompareStringMaps is not exported)
 			// We simulate the logic from the actual function
 			if len(tc.existing) != len(tc.desired) {
 				assert.Equal(t, tc.expected, false, "Length mismatch should result in false")
@@ -2673,7 +2673,7 @@ func TestConvertToPointerMap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Test the conversion logic directly (simulating convertToPointerMap)
+			// Test the conversion logic directly (simulating ConvertToPointerMap)
 			result := make(map[string]*string, len(tc.input))
 			for k, v := range tc.input {
 				val := v // Create new variable to avoid capturing loop variable
@@ -2774,7 +2774,7 @@ func TestCompareAccessTier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Test the comparison logic directly (simulating compareAccessTier)
+			// Test the comparison logic directly (simulating CompareAccessTier)
 			result := true
 			if tc.current == nil && tc.desired == "" {
 				result = true

@@ -326,11 +326,11 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 			"create_storage_account_if_not_exists": true,
 			"enable_versioning":                    false, // Explicitly disable versioning
 			"allow_blob_public_access":             true,  // Explicitly enable public access
-			   // "enable_hierarchical_namespace":        true, // removed
-			"account_kind":                         "BlobStorage",
-			"account_tier":                         "Premium",
-			"access_tier":                          "Cool",
-			"replication_type":                     "GRS",
+			// "enable_hierarchical_namespace":        true, // removed
+			"account_kind":     "BlobStorage",
+			"account_tier":     "Premium",
+			"access_tier":      "Cool",
+			"replication_type": "GRS",
 			"storage_account_tags": map[string]string{
 				"Environment": "Dev",
 				"Owner":       "Terragrunt",
@@ -350,7 +350,7 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 		assert.True(t, extConfig.StorageAccountConfig.CreateStorageAccountIfNotExists)
 		assert.False(t, extConfig.StorageAccountConfig.EnableVersioning)     // Explicitly set
 		assert.True(t, extConfig.StorageAccountConfig.AllowBlobPublicAccess) // Explicitly set
-	   // assert.True(t, extConfig.StorageAccountConfig.EnableHierarchicalNS) // removed
+		// assert.True(t, extConfig.StorageAccountConfig.EnableHierarchicalNS) // removed
 		assert.Equal(t, "BlobStorage", extConfig.StorageAccountConfig.AccountKind)
 		assert.Equal(t, "Premium", extConfig.StorageAccountConfig.AccountTier)
 		assert.Equal(t, "Cool", extConfig.StorageAccountConfig.AccessTier)
@@ -610,26 +610,26 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 			expectedSAConfig: map[string]interface{}{
 				"EnableVersioning":      true,  // Default value
 				"AllowBlobPublicAccess": false, // Default value
-			   // "EnableHierarchicalNS":  false, // removed
-				"AccountKind":           "",    // Empty means default
-				"AccountTier":           "",    // Empty means default
-				"AccessTier":            "",    // Empty means default
-				"ReplicationType":       "",    // Empty means default
+				// "EnableHierarchicalNS":  false, // removed
+				"AccountKind":     "", // Empty means default
+				"AccountTier":     "", // Empty means default
+				"AccessTier":      "", // Empty means default
+				"ReplicationType": "", // Empty means default
 			},
 			skipExtendedChecks: true, // This is a basic config without extended options
 		},
 		{
 			name: "complete-storage-config",
 			config: map[string]interface{}{
-				"storage_account_name":                 "teststorageaccount",
-				"container_name":                       "testcontainer",
-				"key":                                  "test/terraform.tfstate",
-				"use_azuread_auth":                     true,
-				"location":                             "eastus",
-				"resource_group_name":                  "test-resource-group",
-				"enable_versioning":                    false,
-				"allow_blob_public_access":             true,
-			   // "enable_hierarchical_namespace":        true, // removed
+				"storage_account_name":     "teststorageaccount",
+				"container_name":           "testcontainer",
+				"key":                      "test/terraform.tfstate",
+				"use_azuread_auth":         true,
+				"location":                 "eastus",
+				"resource_group_name":      "test-resource-group",
+				"enable_versioning":        false,
+				"allow_blob_public_access": true,
+				// "enable_hierarchical_namespace":        true, // removed
 				"account_kind":                         "BlockBlobStorage",
 				"account_tier":                         "Premium",
 				"access_tier":                          "Cool",
@@ -639,13 +639,13 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 			expectedSAConfig: map[string]interface{}{
 				"EnableVersioning":      false,
 				"AllowBlobPublicAccess": true,
-			   // "EnableHierarchicalNS":  true, // removed
-				"AccountKind":           "BlockBlobStorage",
-				"AccountTier":           "Premium",
-				"AccessTier":            "Cool",
-				"ReplicationType":       "ZRS",
-				"Location":              "eastus",
-				"ResourceGroupName":     "test-resource-group",
+				// "EnableHierarchicalNS":  true, // removed
+				"AccountKind":       "BlockBlobStorage",
+				"AccountTier":       "Premium",
+				"AccessTier":        "Cool",
+				"ReplicationType":   "ZRS",
+				"Location":          "eastus",
+				"ResourceGroupName": "test-resource-group",
 			},
 		},
 		{
@@ -728,9 +728,9 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 				assert.Equal(t, v, azureCfg.StorageAccountConfig.AllowBlobPublicAccess)
 			}
 
-		   // if v, exists := tc.expectedSAConfig["EnableHierarchicalNS"]; exists && !tc.skipExtendedChecks {
-		   //     assert.Equal(t, v, azureCfg.StorageAccountConfig.EnableHierarchicalNS)
-		   // }
+			// if v, exists := tc.expectedSAConfig["EnableHierarchicalNS"]; exists && !tc.skipExtendedChecks {
+			//     assert.Equal(t, v, azureCfg.StorageAccountConfig.EnableHierarchicalNS)
+			// }
 
 			// Check storage account kind and tier if specified
 			if v, exists := tc.expectedSAConfig["AccountKind"]; exists && !tc.skipExtendedChecks {
@@ -867,6 +867,7 @@ func TestContainerNameValidation(t *testing.T) {
 func TestContainerNameValidation_AdditionalEdgeCases(t *testing.T) {
 	t.Parallel()
 
+	//nolint: govet
 	testCases := []struct {
 		name          string
 		containerName string
@@ -987,6 +988,7 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 
 	b := azurerm.NewBackend()
 
+	//nolint: govet
 	testCases := []struct {
 		name                string
 		config              backend.Config
@@ -997,12 +999,12 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 		{
 			name: "missing_subscription_id_for_storage_creation",
 			config: backend.Config{
-				"storage_account_name":                "testaccount",
-				"container_name":                      "test-container", 
-				"key":                                 "test/terraform.tfstate",
-				"location":                            "East US",
+				"storage_account_name":                 "testaccount",
+				"container_name":                       "test-container",
+				"key":                                  "test/terraform.tfstate",
+				"location":                             "East US",
 				"create_storage_account_if_not_exists": true,
-				"use_azuread_auth":                    true,
+				"use_azuread_auth":                     true,
 				// subscription_id missing
 			},
 			expectError:       true,
@@ -1011,13 +1013,13 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 		{
 			name: "empty_subscription_id_for_storage_creation",
 			config: backend.Config{
-				"storage_account_name":                "testaccount",
-				"container_name":                      "test-container",
-				"key":                                 "test/terraform.tfstate", 
-				"location":                            "East US",
-				"subscription_id":                     "", // Empty
+				"storage_account_name":                 "testaccount",
+				"container_name":                       "test-container",
+				"key":                                  "test/terraform.tfstate",
+				"location":                             "East US",
+				"subscription_id":                      "", // Empty
 				"create_storage_account_if_not_exists": true,
-				"use_azuread_auth":                    true,
+				"use_azuread_auth":                     true,
 			},
 			expectError:       true,
 			expectedErrorType: &azurerm.MissingSubscriptionIDError{},
@@ -1025,12 +1027,12 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 		{
 			name: "missing_location_for_storage_creation",
 			config: backend.Config{
-				"storage_account_name":                "testaccount",
-				"container_name":                      "test-container",
-				"key":                                 "test/terraform.tfstate",
-				"subscription_id":                     "00000000-0000-0000-0000-000000000000",
+				"storage_account_name":                 "testaccount",
+				"container_name":                       "test-container",
+				"key":                                  "test/terraform.tfstate",
+				"subscription_id":                      "00000000-0000-0000-0000-000000000000",
 				"create_storage_account_if_not_exists": true,
-				"use_azuread_auth":                    true,
+				"use_azuread_auth":                     true,
 				// location missing
 			},
 			expectError:       true,
@@ -1039,13 +1041,13 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 		{
 			name: "empty_location_for_storage_creation",
 			config: backend.Config{
-				"storage_account_name":                "testaccount",
-				"container_name":                      "test-container",
-				"key":                                 "test/terraform.tfstate",
-				"subscription_id":                     "00000000-0000-0000-0000-000000000000",
-				"location":                            "", // Empty
+				"storage_account_name":                 "testaccount",
+				"container_name":                       "test-container",
+				"key":                                  "test/terraform.tfstate",
+				"subscription_id":                      "00000000-0000-0000-0000-000000000000",
+				"location":                             "", // Empty
 				"create_storage_account_if_not_exists": true,
-				"use_azuread_auth":                    true,
+				"use_azuread_auth":                     true,
 			},
 			expectError:       true,
 			expectedErrorType: &azurerm.MissingLocationError{},
@@ -1072,15 +1074,11 @@ func TestBootstrap_ConfigurationDependencyValidation(t *testing.T) {
 			if tc.expectError {
 				require.Error(t, err)
 				if tc.expectedErrorType != nil {
-					assert.ErrorAs(t, err, tc.expectedErrorType)
+					require.ErrorAs(t, err, tc.expectedErrorType)
 				}
 				if tc.expectedErrorString != "" {
-					assert.Contains(t, err.Error(), tc.expectedErrorString)
+					require.Contains(t, err.Error(), tc.expectedErrorString)
 				}
-			} else {
-				// For non-error cases, we expect the method to fail because we're not making actual Azure calls,
-				// but the validation should pass and it should fail later in the process
-				// We just verify it doesn't fail on the specific validation we're testing
 			}
 		})
 	}
@@ -1097,6 +1095,7 @@ func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 
 	b := azurerm.NewBackend()
 
+	//nolint: govet
 	testCases := []struct {
 		name                string
 		config              backend.Config
@@ -1127,13 +1126,13 @@ func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 			},
 			envVars: map[string]string{
 				// Clear any existing auth environment variables
-				"AZURE_CLIENT_ID":       "",
-				"AZURE_CLIENT_SECRET":   "",
-				"AZURE_TENANT_ID":       "",
-				"AZURE_SUBSCRIPTION_ID": "",
+				"AZURE_CLIENT_ID":         "",
+				"AZURE_CLIENT_SECRET":     "",
+				"AZURE_TENANT_ID":         "",
+				"AZURE_SUBSCRIPTION_ID":   "",
 				"AZURE_STORAGE_SAS_TOKEN": "",
-				"ARM_ACCESS_KEY":        "",
-				"AZURE_STORAGE_KEY":     "",
+				"ARM_ACCESS_KEY":          "",
+				"AZURE_STORAGE_KEY":       "",
 			},
 			expectError: false, // Azure AD auth is now the default and will be used
 		},
@@ -1153,7 +1152,7 @@ func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 		{
 			name: "invalid_sas_token_format",
 			config: backend.Config{
-				"storage_account_name": "testaccount", 
+				"storage_account_name": "testaccount",
 				"container_name":       "test-container",
 				"key":                  "test/terraform.tfstate",
 				"sas_token":            "invalid-sas-token", // Invalid format
@@ -1183,14 +1182,11 @@ func TestBootstrap_AuthenticationConfigurationErrors(t *testing.T) {
 			if tc.expectError {
 				require.Error(t, err)
 				if tc.expectedErrorType != nil {
-					assert.ErrorAs(t, err, tc.expectedErrorType)
+					require.ErrorAs(t, err, tc.expectedErrorType)
 				}
 				if tc.expectedErrorString != "" {
-					assert.Contains(t, err.Error(), tc.expectedErrorString)
+					require.Contains(t, err.Error(), tc.expectedErrorString)
 				}
-			} else {
-				// For non-error cases, we expect the method to fail because we're not making actual Azure calls,
-				// but the authentication validation should pass
 			}
 		})
 	}
@@ -1207,6 +1203,7 @@ func TestDelete_ErrorPathsDetailed(t *testing.T) {
 
 	b := azurerm.NewBackend()
 
+	//nolint: govet
 	testCases := []struct {
 		name                string
 		config              backend.Config
@@ -1274,20 +1271,18 @@ func TestDelete_ErrorPathsDetailed(t *testing.T) {
 				require.Error(t, err)
 				if tc.expectedErrorType != nil {
 					var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
-					assert.ErrorAs(t, err, &missingConfigError)
+					require.ErrorAs(t, err, &missingConfigError)
 				}
 				if tc.expectedErrorString != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorString)
 				}
-			} else {
-				// For valid configs, deletion might fail due to Azure connectivity, but config validation should pass
 			}
 		})
 	}
 }
 
-// Test error paths for DeleteBucket method  
-func TestDeleteBucket_ErrorPathsDetailed(t *testing.T) {
+// Test error paths for DeleteContainer method
+func TestDeleteContainer_ErrorPathsDetailed(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
@@ -1297,6 +1292,7 @@ func TestDeleteBucket_ErrorPathsDetailed(t *testing.T) {
 
 	b := azurerm.NewBackend()
 
+	//nolint: govet
 	testCases := []struct {
 		name                string
 		config              backend.Config
@@ -1335,18 +1331,16 @@ func TestDeleteBucket_ErrorPathsDetailed(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := b.DeleteBucket(t.Context(), l, tc.config, opts)
+			err := b.DeleteContainer(t.Context(), l, tc.config, opts)
 			if tc.expectError {
 				require.Error(t, err)
 				if tc.expectedErrorType != nil {
 					var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
-					assert.ErrorAs(t, err, &missingConfigError)
+					require.ErrorAs(t, err, &missingConfigError)
 				}
 				if tc.expectedErrorString != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorString)
 				}
-			} else {
-				// For valid configs, deletion might fail due to Azure connectivity, but config validation should pass
 			}
 		})
 	}
@@ -1363,6 +1357,7 @@ func TestMigrate_ErrorPathsDetailed(t *testing.T) {
 
 	b := azurerm.NewBackend()
 
+	//nolint: govet
 	testCases := []struct {
 		name                string
 		srcConfig           backend.Config
@@ -1419,13 +1414,11 @@ func TestMigrate_ErrorPathsDetailed(t *testing.T) {
 				require.Error(t, err)
 				if tc.expectedErrorType != nil {
 					var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
-					assert.ErrorAs(t, err, &missingConfigError)
+					require.ErrorAs(t, err, &missingConfigError)
 				}
 				if tc.expectedErrorString != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorString)
 				}
-			} else {
-				// For valid configs, migration might fail due to Azure connectivity, but config validation should pass
 			}
 		})
 	}
@@ -1434,12 +1427,14 @@ func TestMigrate_ErrorPathsDetailed(t *testing.T) {
 // TestNeedsBootstrap_ConfigValidation tests configuration validation in NeedsBootstrap
 // This test focuses only on config parsing errors that happen before Azure API calls
 func TestNeedsBootstrap_ConfigValidation(t *testing.T) {
+	t.Parallel()
 	l := createLogger()
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
 	b := azurerm.NewBackend()
 
+	//nolint: govet
 	testCases := []struct {
 		name          string
 		config        backend.Config
@@ -1514,6 +1509,7 @@ func TestNeedsBootstrap_ConfigValidation(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// These tests only exercise config parsing, which should fail before Azure API calls
 			_, err := b.NeedsBootstrap(t.Context(), l, tc.config, opts)
 			if tc.expectError {
@@ -1541,11 +1537,11 @@ func TestDeleteStorageAccount_ConfigValidation(t *testing.T) {
 		t.Parallel()
 
 		config := backend.Config{
-			"subscription_id":      "00000000-0000-0000-0000-000000000000",
-			"resource_group_name":  "test-rg",
-			"container_name":       "test-container",
-			"key":                  "test/terraform.tfstate",
-			"use_azuread_auth":     true,
+			"subscription_id":     "00000000-0000-0000-0000-000000000000",
+			"resource_group_name": "test-rg",
+			"container_name":      "test-container",
+			"key":                 "test/terraform.tfstate",
+			"use_azuread_auth":    true,
 			// storage_account_name missing
 		}
 
@@ -1553,7 +1549,7 @@ func TestDeleteStorageAccount_ConfigValidation(t *testing.T) {
 		require.Error(t, err)
 
 		var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
-		assert.ErrorAs(t, err, &missingConfigError)
+		require.ErrorAs(t, err, &missingConfigError)
 		assert.Equal(t, "storage_account_name", string(missingConfigError))
 	})
 
@@ -1573,7 +1569,7 @@ func TestDeleteStorageAccount_ConfigValidation(t *testing.T) {
 		require.Error(t, err)
 
 		var missingConfigError azurerm.MissingRequiredAzureRemoteStateConfig
-		assert.ErrorAs(t, err, &missingConfigError)
+		require.ErrorAs(t, err, &missingConfigError)
 		assert.Equal(t, "storage_account_name", string(missingConfigError))
 	})
 

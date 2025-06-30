@@ -1108,8 +1108,8 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.T
 	}
 
 	resp, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
-		Bucket: &containerName,
-		Key:    &key,
+		Container: &containerName,
+		Key:       &key,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error downloading state file: %w", err)

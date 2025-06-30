@@ -48,15 +48,15 @@ const (
 type OperationType string
 
 const (
-	OperationBootstrap      OperationType = "bootstrap"
-	OperationNeedsBootstrap OperationType = "needs_bootstrap"
-	OperationDelete         OperationType = "delete"
-	OperationDeleteBucket   OperationType = "delete_bucket"
-	OperationMigrate        OperationType = "migrate"
-	OperationContainerOp    OperationType = "container_operation"
-	OperationStorageOp      OperationType = "storage_operation"
-	OperationValidation     OperationType = "validation"
-	OperationAuthentication OperationType = "authentication"
+	OperationBootstrap       OperationType = "bootstrap"
+	OperationNeedsBootstrap  OperationType = "needs_bootstrap"
+	OperationDelete          OperationType = "delete"
+	OperationDeleteContainer OperationType = "delete_container"
+	OperationMigrate         OperationType = "migrate"
+	OperationContainerOp     OperationType = "container_operation"
+	OperationStorageOp       OperationType = "storage_operation"
+	OperationValidation      OperationType = "validation"
+	OperationAuthentication  OperationType = "authentication"
 )
 
 // AzureErrorMetrics is the metrics and context about Azure errors

@@ -280,12 +280,12 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.T
 	}
 
 	// Get the state file blob content
-	bucket := containerName
+	container := containerName
 	keyPtr := &key
-	bucketPtr := &bucket
+	containerPtr := &container
 	input := &azurehelper.GetObjectInput{
-		Bucket: bucketPtr,
-		Key:    keyPtr,
+		Container: containerPtr,
+		Key:       keyPtr,
 	}
 
 	output, err := client.GetObject(context.Background(), input)

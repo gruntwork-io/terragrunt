@@ -24,8 +24,8 @@ type BlobServiceClient struct {
 
 // GetObjectInput represents input parameters for getting a blob.
 type GetObjectInput struct {
-	Bucket *string
-	Key    *string
+	Container *string
+	Key       *string
 }
 
 // GetObjectOutput represents the output from getting a blob.
@@ -206,7 +206,7 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 
 // GetObject downloads a blob from Azure Storage.
 func (c *BlobServiceClient) GetObject(ctx context.Context, input *GetObjectInput) (*GetObjectOutput, error) {
-	if input.Bucket == nil || *input.Bucket == "" {
+	if input.Container == nil || *input.Container == "" {
 		return nil, errors.Errorf("container name is required")
 	}
 
@@ -214,7 +214,7 @@ func (c *BlobServiceClient) GetObject(ctx context.Context, input *GetObjectInput
 		return nil, errors.Errorf("blob key is required")
 	}
 
-	downloaded, err := c.client.DownloadStream(ctx, *input.Bucket, *input.Key, nil)
+	downloaded, err := c.client.DownloadStream(ctx, *input.Container, *input.Key, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.ErrorCode == "BlobNotFound" {
@@ -340,8 +340,8 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 
 	// Get source blob data
 	input := &GetObjectInput{
-		Bucket: &srcContainer,
-		Key:    &srcKey,
+		Container: &srcContainer,
+		Key:       &srcKey,
 	}
 
 	srcBlobOutput, err := c.GetObject(ctx, input)
