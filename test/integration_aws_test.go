@@ -119,7 +119,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 			defer func() {
-				deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+				deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 				cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 			}()
 
@@ -147,7 +147,7 @@ func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -190,7 +190,7 @@ func TestAwsDualLockingBackend(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -227,7 +227,7 @@ func TestAwsNativeS3LockingBackend(t *testing.T) {
 	// Note: No DynamoDB table needed for native S3 locking
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		// Note: No DynamoDB cleanup needed for S3 native locking
 	}()
 
@@ -265,7 +265,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -299,8 +299,8 @@ func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
-		deleteS3Bucket(t, s3AccessLogsBucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3AccessLogsBucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -329,7 +329,7 @@ func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -362,7 +362,7 @@ func TestAwsDeleteBackend(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -417,7 +417,7 @@ func TestAwsMigrateBackend(t *testing.T) {
 	unit2TableKey := path.Join(s3BucketName, unit2BackendKey+"-md5")
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -1837,7 +1837,7 @@ func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.Ge
 }
 
 // createS3Bucket create test S3 bucket.
-func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
+func createS3Bucket(t *testing.T, awsRegion, bucketName string) {
 	t.Helper()
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
@@ -1848,7 +1848,7 @@ func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 	require.NoError(t, err, "Failed to create S3 bucket")
 }
 
-func deleteS3Bucket(t *testing.T, bucketName string, awsRegion string) {
+func deleteS3Bucket(t *testing.T, awsRegion, bucketName string) {
 	t.Helper()
 
 	helpers.DeleteS3Bucket(t, awsRegion, bucketName)
