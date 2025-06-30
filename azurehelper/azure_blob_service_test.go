@@ -117,7 +117,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 		{
 			name: "Invalid container name",
 			input: &azurehelper.GetObjectInput{
-				Bucket: stringPtr("invalid/container/name"),
+				Container: stringPtr("invalid/container/name"),
 				Key:    stringPtr("test.txt"),
 			},
 			expectedError: true,
@@ -126,7 +126,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 		{
 			name: "Invalid blob key",
 			input: &azurehelper.GetObjectInput{
-				Bucket: stringPtr("container"),
+				Container: stringPtr("container"),
 				Key:    stringPtr(""),
 			},
 			expectedError: true,
@@ -135,7 +135,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 		{
 			name: "Container not found",
 			input: &azurehelper.GetObjectInput{
-				Bucket: stringPtr("nonexistentcontainer"),
+				Container: stringPtr("nonexistentcontainer"),
 				Key:    stringPtr("test.txt"),
 			},
 			expectedError: true,
@@ -144,7 +144,7 @@ func TestGetObjectErrorHandling(t *testing.T) {
 		{
 			name: "Blob not found",
 			input: &azurehelper.GetObjectInput{
-				Bucket: stringPtr("existingcontainer"),
+				Container: stringPtr("existingcontainer"),
 				Key:    stringPtr("nonexistent.txt"),
 			},
 			expectedError: true,
@@ -163,13 +163,13 @@ func TestGetObjectErrorHandling(t *testing.T) {
 			switch {
 			case tc.input == nil:
 				err = errors.New("input cannot be nil")
-			case tc.input.Bucket == nil || *tc.input.Bucket == "":
+			case tc.input.Container == nil || *tc.input.Container == "":
 				err = errors.New("container name is required")
-			case strings.Contains(*tc.input.Bucket, "/"):
+			case strings.Contains(*tc.input.Container, "/"):
 				err = errors.New("invalid container name")
 			case tc.input.Key == nil || *tc.input.Key == "":
 				err = errors.New("blob key is required")
-			case *tc.input.Bucket == "nonexistentcontainer":
+			case *tc.input.Container == "nonexistentcontainer":
 				err = errors.New("container not found")
 			case *tc.input.Key == "nonexistent.txt":
 				err = errors.New("blob not found")
@@ -197,16 +197,16 @@ func TestBlobOperationErrorCases(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name: "Missing bucket",
+			name: "Missing Container",
 			input: &azurehelper.GetObjectInput{
 				Key: strPtr("test-key"),
 			},
 			expectedError: "container name is required",
 		},
 		{
-			name: "Empty bucket",
+			name: "Empty Container",
 			input: &azurehelper.GetObjectInput{
-				Bucket: strPtr(""),
+				Container: strPtr(""),
 				Key:    strPtr("test-key"),
 			},
 			expectedError: "container name is required",
@@ -214,14 +214,14 @@ func TestBlobOperationErrorCases(t *testing.T) {
 		{
 			name: "Missing key",
 			input: &azurehelper.GetObjectInput{
-				Bucket: strPtr("test-bucket"),
+				Container: strPtr("test-Container"),
 			},
 			expectedError: "blob key is required",
 		},
 		{
 			name: "Empty key",
 			input: &azurehelper.GetObjectInput{
-				Bucket: strPtr("test-bucket"),
+				Container: strPtr("test-Container"),
 				Key:    strPtr(""),
 			},
 			expectedError: "blob key is required",
@@ -234,7 +234,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 		{
 			name: "Invalid container name with spaces",
 			input: &azurehelper.GetObjectInput{
-				Bucket: strPtr("invalid container name"),
+				Container: strPtr("invalid container name"),
 				Key:    strPtr("test-key"),
 			},
 			expectedError: "container name contains invalid characters",
@@ -242,7 +242,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 		{
 			name: "Container name too long",
 			input: &azurehelper.GetObjectInput{
-				Bucket: strPtr(strings.Repeat("a", 64)), // Azure container names must be 3-63 characters
+				Container: strPtr(strings.Repeat("a", 64)), // Azure container names must be 3-63 characters
 				Key:    strPtr("test-key"),
 			},
 			expectedError: "container name length invalid",
@@ -250,7 +250,7 @@ func TestBlobOperationErrorCases(t *testing.T) {
 		{
 			name: "Container name too short",
 			input: &azurehelper.GetObjectInput{
-				Bucket: strPtr("ab"), // Azure container names must be 3-63 characters
+				Container: strPtr("ab"), // Azure container names must be 3-63 characters
 				Key:    strPtr("test-key"),
 			},
 			expectedError: "container name length invalid",
@@ -267,11 +267,11 @@ func TestBlobOperationErrorCases(t *testing.T) {
 			switch {
 			case tc.input == nil:
 				err = errors.New("input cannot be nil")
-			case tc.input.Bucket == nil || *tc.input.Bucket == "":
+			case tc.input.Container == nil || *tc.input.Container == "":
 				err = errors.New("container name is required")
-			case len(*tc.input.Bucket) < 3 || len(*tc.input.Bucket) > 63:
+			case len(*tc.input.Container) < 3 || len(*tc.input.Container) > 63:
 				err = errors.New("container name length invalid")
-			case strings.Contains(*tc.input.Bucket, " "):
+			case strings.Contains(*tc.input.Container, " "):
 				err = errors.New("container name contains invalid characters")
 			case tc.input.Key == nil || *tc.input.Key == "":
 				err = errors.New("blob key is required")
@@ -308,10 +308,5 @@ func TestGetObjectOutput(t *testing.T) {
 
 // Helper function to create string pointers
 func strPtr(s string) *string {
-	return &s
-}
-
-// Helper function to convert string to *string
-func stringPtr(s string) *string {
 	return &s
 }

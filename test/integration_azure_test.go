@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	azurerm "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -52,6 +54,9 @@ type azureStorageTestConfig struct {
 	StorageAccountName string
 	ContainerName      string
 	Location           string
+}
+type terraformOutput struct {
+    Value interface{} `json:"value"`
 }
 
 func getAzureStorageTestConfig(t *testing.T) *azureStorageTestConfig {
@@ -188,8 +193,8 @@ func assertAzureErrorType(t *testing.T, err error, expectedType string) bool {
 func checkBlobExistsHelper(ctx context.Context, t *testing.T, client *azurehelper.BlobServiceClient, containerName, blobName string) bool {
 	t.Helper()
 	_, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
-		Bucket: &containerName,
-		Key:    &blobName,
+		Container: &containerName,
+		Key:      &blobName,
 	})
 	return err == nil
 }
@@ -197,8 +202,8 @@ func checkBlobExistsHelper(ctx context.Context, t *testing.T, client *azurehelpe
 func getBlobObjectHelper(ctx context.Context, t *testing.T, client *azurehelper.BlobServiceClient, containerName, blobName string) ([]byte, error) {
 	t.Helper()
 	result, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
-		Bucket: &containerName,
-		Key:    &blobName,
+		Container: &containerName,
+		Key:      &blobName,
 	})
 	if err != nil {
 		return nil, err
@@ -351,7 +356,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				}
 
 				// For thoroughness, let's try bootstrapping and then deleting
-				azureCfg := helpers.GetAzureStorageTestConfig(t)
+				azureCfg := getAzureStorageTestConfig(t)
 				azureCfg.ContainerName = containerName
 
 				// Bootstrap the backend first
@@ -417,12 +422,12 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureBackend)
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 
-			azureCfg := helpers.GetAzureStorageTestConfig(t)
+			azureCfg := getAzureStorageTestConfig(t)
 
 			defer func() {
 				// Clean up the destination container
 				azureCfg.ContainerName = tc.containerName
-				helpers.CleanupAzureContainer(t, azureCfg)
+				cleanupAzureContainer(t, azureCfg)
 			}()
 
 			// Set up common configuration parameters
@@ -456,7 +461,7 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 	// So the environment path should be constructed accordingly
 	environmentPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromRemoteState, "env1")
 
-	azureCfg := helpers.GetAzureStorageTestConfig(t)
+	azureCfg := getAzureStorageTestConfig(t)
 
 	// Fill in Azure configuration
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromRemoteState)
@@ -480,7 +485,7 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 	defer func() {
 		// Clean up the destination container
 		azureCfg.ContainerName = containerName
-		helpers.CleanupAzureContainer(t, azureCfg)
+		cleanupAzureContainer(t, azureCfg)
 	}()
 
 	// Run terragrunt for app3, app2, and app1 in that order (dependencies first)
@@ -598,10 +603,10 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 
 		if errors.As(err, &containerCreationErr) {
 			// Server-side validation error wrapped in ContainerCreationError
-			helpers.AssertAzureErrorType(t, err, "ContainerCreationError")
+			assertAzureErrorType(t, err, "ContainerCreationError")
 		} else if errors.As(err, &containerValidationErr) {
 			// Client-side validation error
-			helpers.AssertAzureErrorType(t, err, "ContainerValidationError")
+			assertAzureErrorType(t, err, "ContainerValidationError")
 		} else {
 			// Fallback: check that the error mentions container validation issues
 			assert.True(t,
@@ -944,7 +949,7 @@ func TestAzureBackendCustomErrorTypes(t *testing.T) {
 
 		// Verify error is the custom type
 		require.Error(t, err)
-		helpers.AssertAzureErrorType(t, err, "MissingSubscriptionIDError")
+		assertAzureErrorType(t, err, "MissingSubscriptionIDError")
 	})
 
 	t.Run("missing-location-error", func(t *testing.T) {
@@ -971,7 +976,7 @@ func TestAzureBackendCustomErrorTypes(t *testing.T) {
 
 		// Verify error is the custom type
 		require.Error(t, err)
-		helpers.AssertAzureErrorType(t, err, "MissingLocationError")
+		assertAzureErrorType(t, err, "MissingLocationError")
 	})
 
 	t.Run("container-validation-error", func(t *testing.T) {
@@ -1072,7 +1077,7 @@ func TestAzureBackendCustomErrorTypes(t *testing.T) {
 
 		// Verify error is returned
 		require.Error(t, err)
-		helpers.AssertAzureErrorType(t, err, "MissingResourceGroupError")
+		assertAzureErrorType(t, err, "MissingResourceGroupError")
 	})
 
 	t.Run("authentication-failure-scenarios", func(t *testing.T) {
@@ -1427,7 +1432,7 @@ func TestStorageAccountConfigurationAndUpdate(t *testing.T) {
 			}
 
 			// Create resource group client
-			rgClient := createResourceGroupClientHelper(ctx, t, subscriptionID)
+			rgClient, _ := azurehelper.CreateResourceGroupClient(ctx, log, subscriptionID)
 
 			// Create resource group
 			err := rgClient.EnsureResourceGroup(ctx, log, resourceGroupName, location, map[string]string{"created-by": "terragrunt-integration-test"})
@@ -1452,7 +1457,7 @@ func TestStorageAccountConfigurationAndUpdate(t *testing.T) {
 						"use_azuread_auth":     true,
 					}
 
-					cleanupStorageClient := helpers.CreateStorageAccountClientHelper(cleanupCtx, t, cleanupStorageConfig)
+					cleanupStorageClient, _ := azurehelper.CreateStorageAccountClient(cleanupCtx, log, cleanupStorageConfig)
 					if err := cleanupStorageClient.DeleteStorageAccount(cleanupCtx, log); err != nil {
 						t.Logf("Warning: Failed to delete storage account %s: %v", storageAccountName, err)
 					} else {
@@ -1483,7 +1488,7 @@ func TestStorageAccountConfigurationAndUpdate(t *testing.T) {
 			t.Logf("Creating storage account %s in resource group %s", storageAccountName, resourceGroupName)
 
 			// Create storage account client
-			storageClient := helpers.CreateStorageAccountClientHelper(ctx, t, storageAccountConfig)
+			storageClient, _ := azurehelper.CreateStorageAccountClient(ctx, log, storageAccountConfig)
 			require.NotNil(t, storageClient)
 
 			// Create storage account with initial configuration
@@ -1553,11 +1558,11 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create storage account with versioning enabled for migration support
-	helpers.CreateTestStorageAccount(azureCtx.Ctx, t, azureCtx, true)
+	createTestStorageAccount(azureCtx.Ctx, t, azureCtx, true)
 
 	// Create a simple terraform module for testing
 	moduleDir := fmt.Sprintf("%s/modules/simple", tmpDir)
-	helpers.CreateTerraformModule(t, moduleDir)
+	createTerraformModule(t, moduleDir)
 
 	t.Run("migrate_between_state_paths", func(t *testing.T) {
 		// Test migrating state from one path to another in the same container
@@ -1566,19 +1571,19 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 		srcUnitDir := fmt.Sprintf("%s/src-unit", tmpDir)
 		dstUnitDir := fmt.Sprintf("%s/dst-unit", tmpDir)
 
-		err := os.MkdirAll(srcUnitDir, 0755)
+		err := os.MkdirAll(srcUnitDir, 0o755)
 		require.NoError(t, err)
-		err = os.MkdirAll(dstUnitDir, 0755)
+		err = os.MkdirAll(dstUnitDir, 0o755)
 		require.NoError(t, err)
 
 		// Copy terraform modules to both directories
 		for _, unitDir := range []string{srcUnitDir, dstUnitDir} {
 			unitModulesDir := fmt.Sprintf("%s/modules/simple", unitDir)
-			helpers.CreateTerraformModule(t, unitModulesDir)
+			createTerraformModule(t, unitModulesDir)
 		}
 
 		// Step 1: Create initial terragrunt.hcl for source unit with Azure backend
-		srcConfig := helpers.GenerateAzureTerragruntConfig(
+		srcConfig := generateAzureTerragruntConfig(
 			azureCtx.StorageAccountName,
 			azureCtx.ContainerName,
 			"source/terraform.tfstate",
@@ -1588,7 +1593,7 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 		)
 
 		srcConfigPath := fmt.Sprintf("%s/terragrunt.hcl", srcUnitDir)
-		err = os.WriteFile(srcConfigPath, []byte(srcConfig), 0644)
+		err = os.WriteFile(srcConfigPath, []byte(srcConfig), 0o644)
 		require.NoError(t, err)
 
 		// Setup container with permission test using helper
@@ -1604,16 +1609,16 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 		require.NoError(t, err)
 
 		// First bootstrap the backend to ensure proper initialization
-		output, stderr, err := runTerragruntCommandWithOutput(t, "backend bootstrap --non-interactive")
+		output, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt backend bootstrap --non-interactive")
 		require.NoError(t, err, "Backend bootstrap failed: %v\nOutput: %s\nError: %s", err, output, stderr)
 		t.Logf("Backend bootstrap completed successfully")
 
 		// Then apply to create initial state
-		output, stderr, err = runTerragruntCommandWithOutput(t, "apply --non-interactive -auto-approve")
+		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive -auto-approve")
 		require.NoError(t, err, "Initial apply failed: %v\nOutput: %s\nError: %s", err, output, stderr)
 
 		// Get initial outputs to verify state
-		output, stderr, err = runTerragruntCommandWithOutput(t, "output --non-interactive -json")
+		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt output --non-interactive -json")
 		require.NoError(t, err, "Output command failed: %v\nOutput: %s\nError: %s", err, output, stderr)
 
 		var initialOutputs map[string]interface{}
@@ -1641,7 +1646,7 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 		require.True(t, sourceStateExists, "Source state should exist in Azure")
 
 		// Step 3: Create destination unit terragrunt.hcl with different key path
-		dstConfig := helpers.GenerateAzureTerragruntConfig(
+		dstConfig := generateAzureTerragruntConfig(
 			azureCtx.StorageAccountName,
 			azureCtx.ContainerName,
 			"destination/terraform.tfstate",
@@ -1651,7 +1656,7 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 		)
 
 		dstConfigPath := fmt.Sprintf("%s/terragrunt.hcl", dstUnitDir)
-		err = os.WriteFile(dstConfigPath, []byte(dstConfig), 0644)
+		err = os.WriteFile(dstConfigPath, []byte(dstConfig), 0o644)
 		require.NoError(t, err)
 
 		// Migrate from dev to prod environment
@@ -1740,7 +1745,24 @@ func copyEnvironment(t *testing.T, src string) string {
 }
 
 func copyDir(src string, dst string) error {
-	return fmt.Errorf("copyDir not implemented: please implement as needed")
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		targetPath := filepath.Join(dst, relPath)
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(targetPath, data, info.Mode())
+	})
 }
 
 func copyTerragruntConfigAndFillProviderPlaceholders(t *testing.T, src, dst string, params map[string]string, location string) {
@@ -1812,7 +1834,7 @@ type azureTestContext struct {
 	StorageAccountName string
 	ResourceGroupName  string
 	ContainerName      string
-	Logger             logger.Logger
+	Logger             log.Logger
 	Ctx                context.Context
 	Cleanup            func()
 }
@@ -1990,8 +2012,8 @@ func testBlobOperations(t *testing.T, client *azurehelper.BlobServiceClient, con
 	blobName := "test-blob.txt"
 	log := logger.CreateLogger()
 	input := &azurehelper.GetObjectInput{
-		Bucket: &containerName,
-		Key:    &blobName,
+		Container: &containerName,
+		Key:      &blobName,
 	}
 	_, err := client.GetObject(ctx, input)
 	require.Error(t, err, "Getting non-existent blob should fail")
@@ -2022,3 +2044,61 @@ func getAzureCredentialsHelper(ctx context.Context, t *testing.T) (*azidentity.D
 }
 
 // --- End generic test helpers ---
+
+// --- Helper to create a simple Terraform module for testing ---
+func createTerraformModule(t *testing.T, moduleDir string) {
+	t.Helper()
+	err := os.MkdirAll(moduleDir, 0o755)
+	require.NoError(t, err)
+
+	terraformContent := `
+resource "random_id" "test" {
+  byte_length = 8
+}
+
+resource "local_file" "test" {
+  content  = "Migration test - ${random_id.test.hex}"
+  filename = "/tmp/terragrunt-migration-test-${random_id.test.hex}.txt"
+}
+
+output "random_id" {
+  value = random_id.test.hex
+}
+
+output "file_path" {
+  value = local_file.test.filename
+}
+
+output "content" {
+  value = local_file.test.content
+}
+`
+	err = os.WriteFile(fmt.Sprintf("%s/main.tf", moduleDir), []byte(terraformContent), 0o644)
+	require.NoError(t, err)
+}
+
+// --- Helper to generate a Terragrunt config for Azure remote state ---
+func generateAzureTerragruntConfig(storageAccount, container, stateKey, resourceGroup, subscriptionID, terraformSource string) string {
+	return fmt.Sprintf(`
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    storage_account_name = "%s"
+    container_name      = "%s"
+    key                 = "%s"
+    resource_group_name = "%s"
+    subscription_id     = "%s"
+    use_azuread_auth    = true
+  }
+}
+
+terraform {
+  source = "%s"
+}
+`, storageAccount, container, stateKey, resourceGroup, subscriptionID, terraformSource)
+}
+// --- End helper ---

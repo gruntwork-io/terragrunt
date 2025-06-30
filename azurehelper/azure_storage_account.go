@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -17,6 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
+	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -814,21 +814,9 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 	return nil
 }
 
-// GenerateUUID generates a random UUID for role assignments
-//
-//nolint:mnd // UUID formatting requires specific hex format constants
+// GenerateUUID generates a random RFC 4122 UUID using github.com/google/uuid.
 func GenerateUUID() string {
-	// Generate a random UUID based on current time and other random data
-	// This is a simplified implementation that generates a sufficiently random ID
-	// It's not a perfect UUID implementation but works well for our use case
-	timeNow := time.Now().UnixNano()
-	randomPart1 := fmt.Sprintf("%08x", timeNow&uuidTimeMask32)
-	randomPart2 := fmt.Sprintf("%04x", (timeNow>>32)&uuidTimeMask16)
-	randomPart3 := fmt.Sprintf("%04x", (timeNow>>48)&uuidTimeMask16)
-	randomPart4 := fmt.Sprintf("%04x", time.Now().Unix()&uuidTimeMask16)
-	randomPart5 := fmt.Sprintf("%012x", time.Now().UnixMicro()&uuidTimeMask48)
-
-	return fmt.Sprintf("%s-%s-%s-%s-%s", randomPart1, randomPart2, randomPart3, randomPart4, randomPart5)
+	return uuid.NewString()
 }
 
 // GetAzureCredentials checks for Azure environment variables and returns appropriate credentials.

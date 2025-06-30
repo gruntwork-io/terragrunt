@@ -106,22 +106,22 @@ func TestGetObjectInputValidation(t *testing.T) {
 		{
 			name: "Valid Input",
 			input: &azurehelper.GetObjectInput{
-				Bucket: stringPtr("container-name"),
+				Container: stringPtr("container-name"),
 				Key:    stringPtr("blob-key"),
 			},
 			expectedError: "",
 		},
 		{
-			name: "Missing Bucket",
+			name: "Missing Container",
 			input: &azurehelper.GetObjectInput{
 				Key: stringPtr("blob-key"),
 			},
 			expectedError: "container name is required",
 		},
 		{
-			name: "Empty Bucket",
+			name: "Empty Container",
 			input: &azurehelper.GetObjectInput{
-				Bucket: stringPtr(""),
+				Container: stringPtr(""),
 				Key:    stringPtr("blob-key"),
 			},
 			expectedError: "container name is required",
@@ -129,14 +129,14 @@ func TestGetObjectInputValidation(t *testing.T) {
 		{
 			name: "Missing Key",
 			input: &azurehelper.GetObjectInput{
-				Bucket: stringPtr("container-name"),
+				Container: stringPtr("container-name"),
 			},
 			expectedError: "blob key is required",
 		},
 		{
 			name: "Empty Key",
 			input: &azurehelper.GetObjectInput{
-				Bucket: stringPtr("container-name"),
+				Container: stringPtr("container-name"),
 				Key:    stringPtr(""),
 			},
 			expectedError: "blob key is required",
@@ -161,7 +161,7 @@ func TestGetObjectInputValidation(t *testing.T) {
 			switch {
 			case tc.input == nil:
 				err = errors.New("input cannot be nil")
-			case tc.input.Bucket == nil || *tc.input.Bucket == "":
+			case tc.input.Container == nil || *tc.input.Container == "":
 				err = errors.New("container name is required")
 			case tc.input.Key == nil || *tc.input.Key == "":
 				err = errors.New("blob key is required")
