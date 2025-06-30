@@ -321,6 +321,8 @@ type TerragruntOptions struct {
 	SummaryDisable bool
 	// SummaryPerUnit enables showing duration information for each unit in the summary.
 	SummaryPerUnit bool
+	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
+	NoAutoProviderCacheDir bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
 	FailFast bool
 }

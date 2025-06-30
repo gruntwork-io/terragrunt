@@ -1,0 +1,132 @@
+---
+layout: collection-browser-doc
+title: Automatic Provider Cache Dir
+category: features
+categories_url: features
+excerpt: Learn how Terragrunt automatically configures OpenTofu's native provider caching to improve performance and reduce bandwidth usage.
+tags: ["CLI", "Performance", "Caching"]
+order: 217
+nav_title: Documentation
+nav_title_link: /docs/
+slug: auto-provider-cache-dir
+---
+
+*Automatic Provider Cache Dir* is an experimental feature of Terragrunt that automatically configures OpenTofu's native provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This enables efficient provider caching without the need to manually configure provider cache directories or use Terragrunt's provider cache server.
+
+When the Auto Provider Cache Dir experiment is enabled, Terragrunt will automatically configure OpenTofu to use a shared provider cache directory, which provides several benefits:
+
+- **Improved performance**: Providers are downloaded once and reused across multiple configurations
+- **Reduced bandwidth usage**: Eliminates redundant provider downloads
+- **Better concurrency**: OpenTofu 1.10+ handles concurrent access to the provider cache safely
+- **Simplified setup**: No need for manual provider cache configuration
+
+## Requirements
+
+The Automatic Provider Cache Dir feature has specific requirements:
+
+- **OpenTofu version >= 1.10** is required
+- **Only works with OpenTofu** (not Terraform)
+- If requirements are not met, the experiment silently does nothing
+
+## Usage
+
+Since this is an experimental feature, it must be explicitly enabled using the `--experiment` flag:
+
+```bash
+terragrunt run --all apply --experiment auto-provider-cache-dir
+```
+
+Or with environment variables:
+
+```bash
+TG_EXPERIMENT='auto-provider-cache-dir' \
+terragrunt run --all apply
+```
+
+## How it Works
+
+When enabled, Terragrunt automatically:
+
+1. **Detects OpenTofu version** and ensures it meets the minimum requirement (>= 1.10)
+2. **Sets up provider cache directory** using the default cache location or a custom path
+3. **Configures TF_PLUGIN_CACHE_DIR** environment variable for OpenTofu processes
+4. **Ensures directory exists** with proper permissions
+
+The default provider cache directory is located at:
+
+- `$HOME/.terragrunt-cache/providers` on Unix systems
+- `$HOME/Library/Caches/terragrunt/providers` on macOS
+- `%LocalAppData%\terragrunt\providers` on Windows
+
+## Customizing the Cache Directory
+
+You can customize the provider cache directory using the `--provider-cache-dir` flag:
+
+```bash
+terragrunt apply \
+--experiment auto-provider-cache-dir \
+--provider-cache-dir /custom/path/to/cache
+```
+
+Or with environment variables:
+
+```bash
+TG_EXPERIMENT='auto-provider-cache-dir' \
+TG_PROVIDER_CACHE_DIR='/custom/path/to/cache' \
+terragrunt apply
+```
+
+## Disabling Auto Provider Cache Dir
+
+Even when the experiment is enabled, you can selectively disable the feature for specific runs using the `--no-auto-provider-cache-dir` flag:
+
+```bash
+terragrunt run --all apply \
+--experiment auto-provider-cache-dir \
+--no-auto-provider-cache-dir
+```
+
+This is particularly useful when:
+
+- You want manual control over provider caching for specific environments
+- Testing configurations without provider caching
+- Using custom provider cache configurations
+
+## Comparison with Provider Cache Server
+
+Terragrunt also provides a [Provider Cache Server]({{site.baseurl}}/docs/features/provider-cache-server) feature. Here's when to use each:
+
+**Use Auto Provider Cache Dir when:**
+
+- Using OpenTofu 1.10+
+- You want a simple, low-maintenance caching solution
+- You prefer native OpenTofu caching mechanisms
+- You need good concurrent access handling
+
+**Use Provider Cache Server when:**
+
+- Using older versions of OpenTofu/Terraform
+- You need advanced caching features
+- You want to share providers across different filesystems
+- You need custom registry configurations
+
+## Troubleshooting
+
+If the feature doesn't seem to be working:
+
+1. **Check OpenTofu version**: Ensure you're using OpenTofu 1.10 or later
+2. **Verify experiment is enabled**: Look for "Auto provider cache dir enabled" in debug logs
+3. **Check cache directory**: Ensure the cache directory is accessible and has proper permissions
+4. **Review environment variables**: Verify `TF_PLUGIN_CACHE_DIR` is not already set by another tool
+
+You can enable debug logging to see more information:
+
+```bash
+terragrunt apply --log-level debug --experiment auto-provider-cache-dir
+```
+
+## Status
+
+This feature is currently **experimental** and may change in future versions. Based on community feedback and testing, it may be stabilized and enabled by default in future releases.
+
+For the latest status and to provide feedback, see the [auto-provider-cache-dir experiment documentation]({{site.baseurl}}/docs/reference/experiments#auto-provider-cache-dir).

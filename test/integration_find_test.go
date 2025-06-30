@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wI2L/jsondiff"
 )
 
 const (
@@ -156,12 +157,23 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 
 			assert.Empty(t, stderr)
 			if strings.Contains(tc.args, "--json") {
-				assert.JSONEq(t, tc.expected, stdout)
+				jsonStringsEqual(t, tc.expected, stdout)
 			} else {
 				assert.Equal(t, tc.expected, stdout)
 			}
 		})
 	}
+}
+
+// jsonStringsEqual compares two JSON strings for equivalence, ignoring the order of nested arrays.
+func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...interface{}) bool {
+	t.Helper()
+
+	patch, err := jsondiff.CompareJSON([]byte(expected), []byte(actual), jsondiff.Equivalent())
+	require.NoErrorf(t, err, fmt.Sprintf("Error comparing JSON strings: %v", err), msgAndArgs...)
+	require.Emptyf(t, patch, fmt.Sprintf("JSON strings are not equal\nExpected: %s\nActual: %s", expected, actual), msgAndArgs...)
+
+	return true
 }
 
 func TestFindExternalDependencies(t *testing.T) {

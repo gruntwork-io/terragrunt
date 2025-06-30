@@ -1209,6 +1209,7 @@ terragrunt dag graph  | dot -Tpng > graph.png
   - [tf-path](#tf-path)
   - [no-auto-init](#no-auto-init)
   - [no-auto-approve](#no-auto-approve)
+  - [no-auto-provider-cache-dir](#no-auto-provider-cache-dir)
   - [no-auto-retry](#no-auto-retry)
   - [non-interactive](#non-interactive)
   - [working-dir](#working-dir)
@@ -1550,6 +1551,15 @@ _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_
 When passed in, Terragrunt will no longer automatically append `-auto-approve` to the underlying OpenTofu/Terraform commands run
 with `run --all`. Note that due to the interactive prompts, this flag will also **automatically assume
 `--parallelism 1`**.
+
+### no-auto-provider-cache-dir
+
+**CLI Arg**: `--no-auto-provider-cache-dir`<br/>
+**Environment Variable**: `TG_NO_AUTO_PROVIDER_CACHE_DIR` (set to `true`)<br/>
+
+When passed in, disable the `auto-provider-cache-dir` feature even when the [auto-provider-cache-dir experiment](/docs/reference/experiments#auto-provider-cache-dir) is enabled. This flag allows you to selectively opt-out of the automatic provider caching behavior without having to disable the entire experiment.
+
+This is useful when you want to maintain control over provider caching in specific environments or scenarios while still having the experiment enabled globally.
 
 ### no-auto-retry
 

@@ -20,6 +20,7 @@ const (
 	NoAutoInitFlagName                     = "no-auto-init"
 	NoAutoRetryFlagName                    = "no-auto-retry"
 	NoAutoApproveFlagName                  = "no-auto-approve"
+	NoAutoProviderCacheDirFlagName         = "no-auto-provider-cache-dir"
 	DownloadDirFlagName                    = "download-dir"
 	TFForwardStdoutFlagName                = "tf-forward-stdout"
 	TFPathFlagName                         = "tf-path"
@@ -192,6 +193,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				EnvVars: terragruntPrefix.EnvVars("auto-approve"),
 			}, nil, terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoAutoProviderCacheDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoAutoProviderCacheDirFlagName),
+			Destination: &opts.NoAutoProviderCacheDir,
+			Usage:       "Disable the auto-provider-cache-dir feature even when the experiment is enabled.",
+		}),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        DownloadDirFlagName,
