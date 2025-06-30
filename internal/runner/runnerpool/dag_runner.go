@@ -2,6 +2,7 @@ package runnerpool
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -131,16 +132,27 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 					}
 				}()
 
-				exit, err := dr.runner(ctx, dr.unitsMap[ent.Config.Path])
-				if err == nil {
-					l.Debugf("DAGRunner: %s succeeded", ent.Config.Path)
-					dr.q.SetStatus(ent, queue.StatusSucceeded)
-				} else {
-					l.Debugf("DAGRunner: %s failed", ent.Config.Path)
+				unit := dr.unitsMap[ent.Config.Path]
+				if unit == nil {
+					err := fmt.Errorf("unit for path %s is nil", ent.Config.Path)
+					l.Errorf("DAGRunner: %s unit is nil, skipping execution", ent.Config.Path)
 					dr.q.SetStatus(ent, queue.StatusFailed)
+					results.Store(ent.Config.Path, RunResult{ExitCode: 1, Err: err})
+					return
 				}
 
+				exit, err := dr.runner(ctx, unit)
 				results.Store(ent.Config.Path, RunResult{ExitCode: exit, Err: err})
+
+				if err != nil {
+					l.Debugf("DAGRunner: %s failed", ent.Config.Path)
+					dr.q.SetStatus(ent, queue.StatusFailed)
+					return
+				}
+
+				l.Debugf("DAGRunner: %s succeeded", ent.Config.Path)
+				dr.q.SetStatus(ent, queue.StatusSucceeded)
+
 			}(e)
 		}
 
