@@ -231,7 +231,7 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 	return nil
 }
 
-func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) error {
+func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) {
 	t.Helper()
 
 	t.Logf("Cleaning S3 bucket %s", bucketName)
@@ -241,10 +241,7 @@ func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) error {
 
 	for {
 		out, err := client.ListObjectVersions(versionsInput)
-		if err != nil {
-			t.Logf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
-			return err
-		}
+		require.NoError(t, err)
 
 		objectIdentifiers := []*s3.ObjectIdentifier{}
 
@@ -279,10 +276,8 @@ func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) error {
 					Delete: &s3.Delete{Objects: batch},
 				}
 
-				if _, err := client.DeleteObjects(deleteInput); err != nil {
-					t.Logf("Error deleting batch of objects in bucket %s: %v", bucketName, err)
-					return err
-				}
+				_, err := client.DeleteObjects(deleteInput)
+				require.NoError(t, err)
 			}
 		}
 
@@ -295,8 +290,6 @@ func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) error {
 		versionsInput.KeyMarker = out.NextKeyMarker
 		versionsInput.VersionIdMarker = out.NextVersionIdMarker
 	}
-
-	return nil
 }
 
 func FileIsInFolder(t *testing.T, name string, path string) bool {
