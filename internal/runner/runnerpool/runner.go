@@ -288,7 +288,11 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 			var dependenciesMsg string
 			if len(r.Stack.Units[i].Dependencies) > 0 {
-				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", r.Stack.Units[i].Config.Dependencies.Paths)
+				if r.Stack.Units[i].Config.Dependencies != nil {
+					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", r.Stack.Units[i].Config.Dependencies.Paths)
+				} else {
+					dependenciesMsg = " contains dependencies and"
+				}
 			}
 
 			l.Infof("%v%v refers to remote State "+

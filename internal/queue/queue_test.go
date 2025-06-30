@@ -359,14 +359,23 @@ func TestQueue_FailFast(t *testing.T) {
 	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
 
 	// Simulate A failing
-	entryA := q.Index["A"]
+	var entryA *queue.Entry
+	for _, entry := range q.Entries {
+		if entry.Config.Path == "A" {
+			entryA = entry
+			break
+		}
+	}
+	require.NotNil(t, entryA, "Entry A should exist")
 	q.SetStatus(entryA, queue.StatusRunning)
 	q.SetStatus(entryA, queue.StatusFailed)
 
 	// B and C should be marked as failed due to fail-fast
-	assert.Equal(t, queue.StatusFailed, q.Index["A"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["B"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["C"].Status)
+	for _, entry := range q.Entries {
+		if entry.Config.Path == "A" || entry.Config.Path == "B" || entry.Config.Path == "C" {
+			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+		}
+	}
 
 	// All entries should be listed as failed
 	for _, entry := range q.Entries {
@@ -606,9 +615,11 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	q.SetStatus(entryA, queue.StatusFailed)
 
 	// After fail-fast, all should be failed
-	assert.Equal(t, queue.StatusFailed, q.Index["A"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["B"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["C"].Status)
+	for _, entry := range q.Entries {
+		if entry.Config.Path == "A" || entry.Config.Path == "B" || entry.Config.Path == "C" {
+			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+		}
+	}
 
 	// AllTerminal should be true
 	assert.True(t, q.AllTerminal(), "AllTerminal should be true after fail-fast triggers")

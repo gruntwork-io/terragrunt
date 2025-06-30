@@ -1,6 +1,7 @@
 package configstack_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -14,7 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var mockOptions, _ = options.NewTerragruntOptionsForTest("running_unit_test")
+var mockOptions *options.TerragruntOptions
+
+func TestMain(m *testing.M) {
+	var err error
+	mockOptions, err = options.NewTerragruntOptionsForTest("running_unit_test")
+	if err != nil {
+		panic("Failed to initialize mockOptions: " + err.Error())
+	}
+	os.Exit(m.Run())
+}
 
 // Helper to create a common.Unit with default fields
 func newTestUnit(path string, dependencies common.Units, config config.TerragruntConfig, opts *options.TerragruntOptions) *common.Unit {

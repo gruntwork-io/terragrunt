@@ -56,9 +56,8 @@ func WithFailFast(failFast bool) DAGRunnerOption {
 // NewDAGRunner creates a new DAGRunner with the given options and a pre-built queue.
 func NewDAGRunner(q *queue.Queue, units []*common.Unit, opts ...DAGRunnerOption) *DAGRunner {
 	dr := &DAGRunner{
-		q:        q,
-		failFast: false,
-		readyCh:  make(chan struct{}, 1), // buffered to avoid blocking
+		q:       q,
+		readyCh: make(chan struct{}, 1), // buffered to avoid blocking
 	}
 	// Build unitsMap from units slice
 	unitsMap := make(map[string]*common.Unit)
@@ -75,7 +74,7 @@ func NewDAGRunner(q *queue.Queue, units []*common.Unit, opts ...DAGRunnerOption)
 	}
 
 	if dr.q == nil {
-		// If queue was not set, create an empty queue
+		// If the queue was not set, create an empty queue
 		dr.q = &queue.Queue{Entries: []*queue.Entry{}}
 	}
 
