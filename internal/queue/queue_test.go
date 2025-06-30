@@ -580,3 +580,40 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 0, "After C is done, no entries should be ready")
 }
+
+func TestQueue_FailFast_SequentialOrder(t *testing.T) {
+	t.Parallel()
+	// A -> B -> C, where A fails and fail-fast is enabled
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = true
+
+	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
+
+	// Only A should be ready
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path)
+
+	// Mark A as running and then failed
+	entryA := readyEntries[0]
+	q.SetStatus(entryA, queue.StatusRunning)
+	q.SetStatus(entryA, queue.StatusFailed)
+
+	// After fail-fast, all should be failed
+	assert.Equal(t, queue.StatusFailed, q.Index["A"].Status)
+	assert.Equal(t, queue.StatusFailed, q.Index["B"].Status)
+	assert.Equal(t, queue.StatusFailed, q.Index["C"].Status)
+
+	// AllTerminal should be true
+	assert.True(t, q.AllTerminal(), "AllTerminal should be true after fail-fast triggers")
+
+	// No entries should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 0, "No entries should be ready after fail-fast triggers")
+}

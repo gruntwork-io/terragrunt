@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/puzpuzpuz/xsync/v3"
 )
 
 // TaskRunner defines a function type that executes a Unit within a given context and returns an exit code and error.
@@ -78,21 +79,31 @@ func NewRunnerPool(q *queue.Queue, units []*common.Unit, opts ...RunnerPoolOptio
 	return rp
 }
 
-// Define RunResult struct for results
+// RunResult Define RunResult struct for results
 type RunResult struct {
 	ExitCode int
 	Err      error
 }
 
-// Run blocks until the DAG finishes and returns ordered Results.
+// Run executes the DAG and returns one result per queue entry
+// (order preserved).  The function:
+//
+//   - never blocks forever – if progress is impossible it bails out;
+//   - is data-race free (results map is mutex-protected);
+//   - needs no special-casing for fail-fast.
 func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 	var (
-		wg      sync.WaitGroup
-		sem     = make(chan struct{}, p.concurrency)
-		results = make(map[string]RunResult)
+		wg  sync.WaitGroup
+		sem = make(chan struct{}, p.concurrency)
+
+		results = xsync.NewMapOf[string, RunResult]()
+
+		scheduled int
 	)
 
-	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t", len(p.q.Entries), p.concurrency, p.failFast)
+	record := func(e *queue.Entry, res RunResult) {
+		results.Store(e.Config.Path, res)
+	}
 
 	signalReady := func() {
 		select {
@@ -101,66 +112,83 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 		}
 	}
 
-	signalReady() // initial signal in case there are ready tasks at the start
+	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t",
+		len(p.q.Entries), p.concurrency, p.failFast)
 
-	for {
+	signalReady() // let scheduler check initial ready set
+
+	var doneAll bool
+	for !doneAll {
 		ready := p.q.GetReadyWithDependencies()
-		if len(ready) == 0 {
-			if p.q.AllTerminal() {
-				l.Debugf("RunnerPool: all queue entries are in a terminal state, breaking loop")
-				break
-			}
-			l.Tracef("RunnerPool: no ready tasks, waiting (queue not all terminal)")
-			select {
-			case <-p.readyCh:
-			case <-ctx.Done():
-				l.Debugf("RunnerPool: context cancelled, breaking loop")
-				return nil
-			}
-			continue
-		}
-		l.Debugf("RunnerPool: found %d ready tasks", len(ready))
+		scheduled = 0
+
 		for _, e := range ready {
-			// Set status to running explicitly
-			e.Status = queue.StatusRunning
+			p.q.SetStatus(e, queue.StatusRunning)
 			sem <- struct{}{}
 			wg.Add(1)
+			scheduled++
+
 			go func(ent *queue.Entry) {
 				defer func() {
-					if r := recover(); r != nil {
-						results[ent.Config.Path] = RunResult{ExitCode: 1, Err: errors.Errorf("panic: %v", r)}
-						p.q.SetStatus(ent, queue.StatusFailed)
-						signalReady()
-					}
 					<-sem
 					wg.Done()
+					signalReady()
 				}()
-				unit := p.unitsMap[ent.Config.Path]
-				exitCode, err := p.runner(ctx, unit)
-				results[ent.Config.Path] = RunResult{ExitCode: exitCode, Err: err}
+				exit, err := p.runner(ctx, p.unitsMap[ent.Config.Path])
 				if err == nil {
 					p.q.SetStatus(ent, queue.StatusSucceeded)
 				} else {
 					p.q.SetStatus(ent, queue.StatusFailed)
 				}
-				signalReady() // notify that new tasks may be ready
+				record(ent, RunResult{ExitCode: exit, Err: err})
 			}(e)
 		}
-	}
-	wg.Wait()
 
-	// After all goroutines finish, set failed result for any entry that does not have a result (e.g., due to fail-fast)
-	for _, e := range p.q.Entries {
-		if _, ok := results[e.Config.Path]; !ok {
-			// Mark as failed/skipped
-			results[e.Config.Path] = RunResult{ExitCode: 1, Err: errors.New("skipped or failed due to fail-fast or ancestor failure")}
+		if scheduled == 0 {
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+			select {
+			case <-done:
+				// All goroutines finished, exit the loop
+				doneAll = true
+			case <-p.readyCh:
+				// Some worker finished and signaled readyCh, continue loop
+			case <-ctx.Done():
+				wg.Wait()
+				return nil
+			}
+		} else {
+			select {
+			case <-p.readyCh:
+			case <-ctx.Done():
+				wg.Wait()
+				return nil
+			}
 		}
 	}
 
-	// Collect results in order of queue entries
+	// all runnable work done ⇒ wait for goroutines to finish their defers
+	wg.Wait()
+
+	// mark every entry that never produced a result (blocked/unschedulable)
+	for _, e := range p.q.Entries {
+		if _, ok := results.Load(e.Config.Path); !ok {
+			results.Store(e.Config.Path, RunResult{
+				ExitCode: 1,
+				Err:      errors.New("skipped (dependencies failed or cycle)"),
+			})
+			// also make the queue state terminal so future runs work
+			p.q.SetStatus(e, queue.StatusFailed)
+		}
+	}
+
+	// preserve original order
 	ordered := make([]RunResult, 0, len(p.q.Entries))
 	for _, e := range p.q.Entries {
-		if res, ok := results[e.Config.Path]; ok {
+		if res, ok := results.Load(e.Config.Path); ok {
 			ordered = append(ordered, res)
 		}
 	}
