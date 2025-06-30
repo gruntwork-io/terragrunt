@@ -1,11 +1,11 @@
 package common
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/pkg/errors"
 )
 
 // Custom error types
@@ -17,7 +17,7 @@ type UnrecognizedDependencyError struct {
 }
 
 func (err UnrecognizedDependencyError) Error() string {
-	return fmt.Sprintf("Unit %s specifies %s as a dependency, but that dependency was not one of the ones found while scanning subfolders: %v", err.UnitPath, err.DependencyPath, err.TerragruntConfigPaths)
+	return errors.Errorf("Unit %s specifies %s as a dependency, but that dependency was not one of the ones found while scanning subfolders: %v", err.UnitPath, err.DependencyPath, err.TerragruntConfigPaths).Error()
 }
 
 type ProcessingUnitError struct {
@@ -40,7 +40,7 @@ type InfiniteRecursionError struct {
 }
 
 func (err InfiniteRecursionError) Error() string {
-	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Units involved: %v", err.RecursionLevel, err.Units)
+	return errors.Errorf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Units involved: %v", err.RecursionLevel, err.Units).Error()
 }
 
 var ErrNoUnitsFound = errors.New("could not find any subfolders with Terragrunt configuration files")
@@ -58,7 +58,7 @@ type ProcessingUnitDependencyError struct {
 }
 
 func (err ProcessingUnitDependencyError) Error() string {
-	return fmt.Sprintf("Cannot process unit %s because one of its dependencies, %s, finished with an error: %s", err.Unit, err.Dependency, err.Err)
+	return errors.Errorf("Cannot process unit %s because one of its dependencies, %s, finished with an error: %s", err.Unit, err.Dependency, err.Err).Error()
 }
 
 func (err ProcessingUnitDependencyError) ExitStatus() (int, error) {
