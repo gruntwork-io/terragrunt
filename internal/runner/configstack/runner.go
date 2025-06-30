@@ -65,6 +65,7 @@ func (runner *Runner) WithOptions(opts ...common.Option) *Runner {
 	return runner
 }
 
+// GetStack returns the queue used by this runner.
 func (runner *Runner) GetStack() *common.Stack {
 	return runner.Stack
 }
@@ -123,6 +124,7 @@ func (runner *Runner) JSONUnitDeployOrder(terraformCommand string) (string, erro
 	return string(j), nil
 }
 
+// Run execute configstack.
 func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	stackCmd := opts.TerraformCommand
 
@@ -182,9 +184,11 @@ func (runner *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terra
 	}
 }
 
-// We inspect the error streams to give an explicit message if the plan failed because there were references to
-// remote states. `terraform plan` will fail if it tries to access remote state from dependencies and the plan
-// has never been applied on the dependency.
+// summarizePlanAllErrors inspects the error streams collected from running 'terraform plan' on multiple units.
+// It logs a specific message if a plan failed due to unresolved remote state references, which typically occurs
+// when a dependency's state has not yet been applied. For each unit, if the error output contains an error
+// related to remote state, it logs an informational message suggesting that the user may need to apply changes
+// in the dependencies before running 'terragrunt run --all plan'.
 func (runner *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
@@ -211,7 +215,10 @@ func (runner *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.
 	}
 }
 
-// Sync the TerraformCliArgs for each unit in the stack to match the provided terragruntOptions struct.
+// syncTerraformCliArgs synchronizes the Terraform CLI arguments for each unit in the stack to match
+// the provided TerragruntOptions. It also ensures that the appropriate plan or output file arguments
+// are set for each unit, depending on the Terraform command being executed. This guarantees that all
+// units use consistent CLI arguments and output file locations during execution.
 func (runner *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, unit := range runner.Stack.Units {
 		unit.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(opts.TerraformCliArgs)
@@ -257,8 +264,9 @@ func (runner *Runner) GetUnitRunGraph(terraformCommand string) ([]common.Units, 
 	return groups, nil
 }
 
-// Find all the Terraform units in the folders that contain the given Terragrunt config files and assemble those
-// units into a Stack object that can be applied or destroyed in a single command
+// createStackForTerragruntConfigPaths discovers all Terraform units from the given Terragrunt config file paths,
+// assembles them into a stack, and checks for dependency cycles. Updates the Runner's stack with the resolved units.
+// Returns an error if discovery or validation fails.
 func (runner *Runner) createStackForTerragruntConfigPaths(ctx context.Context, l log.Logger, terragruntConfigPaths []string) error {
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "create_stack_for_terragrunt_config_paths", map[string]any{
 		"working_dir": runner.Stack.TerragruntOptions.WorkingDir,
@@ -349,8 +357,7 @@ func (runner *Runner) ResolveTerraformModules(ctx context.Context, l log.Logger,
 	return withUnitsExcluded, nil
 }
 
-// --- Helper methods for ResolveTerraformModules ---
-
+// telemetryResolveUnits resolves Terraform units from the given Terragrunt configuration paths
 func (runner *Runner) telemetryResolveUnits(ctx context.Context, l log.Logger, canonicalTerragruntConfigPaths []string) (common.UnitsMap, error) {
 	var unitsMap common.UnitsMap
 
@@ -372,6 +379,7 @@ func (runner *Runner) telemetryResolveUnits(ctx context.Context, l log.Logger, c
 	return unitsMap, err
 }
 
+// telemetryResolveExternalDependencies resolves external dependencies for the given units
 func (runner *Runner) telemetryResolveExternalDependencies(ctx context.Context, l log.Logger, unitsMap common.UnitsMap) (common.UnitsMap, error) {
 	var externalDependencies common.UnitsMap
 
@@ -391,6 +399,7 @@ func (runner *Runner) telemetryResolveExternalDependencies(ctx context.Context, 
 	return externalDependencies, err
 }
 
+// telemetryCrosslinkDependencies cross-links dependencies between units
 func (runner *Runner) telemetryCrosslinkDependencies(ctx context.Context, unitsMap, externalDependencies common.UnitsMap, canonicalTerragruntConfigPaths []string) (common.Units, error) {
 	var crossLinkedUnits common.Units
 
@@ -410,6 +419,7 @@ func (runner *Runner) telemetryCrosslinkDependencies(ctx context.Context, unitsM
 	return crossLinkedUnits, err
 }
 
+// telemetryFlagIncludedDirs flags directories that are included in the Terragrunt configuration
 func (runner *Runner) telemetryFlagIncludedDirs(ctx context.Context, crossLinkedUnits common.Units) (common.Units, error) {
 	var withUnitsIncluded common.Units
 
@@ -423,6 +433,7 @@ func (runner *Runner) telemetryFlagIncludedDirs(ctx context.Context, crossLinked
 	return withUnitsIncluded, err
 }
 
+// telemetryFlagUnitsThatAreIncluded flags units that are included in the Terragrunt configuration
 func (runner *Runner) telemetryFlagUnitsThatAreIncluded(ctx context.Context, withUnitsIncluded common.Units) (common.Units, error) {
 	var withUnitsThatAreIncludedByOthers common.Units
 
@@ -442,6 +453,7 @@ func (runner *Runner) telemetryFlagUnitsThatAreIncluded(ctx context.Context, wit
 	return withUnitsThatAreIncludedByOthers, err
 }
 
+// telemetryFlagExcludedUnits flags units that are excluded in the Terragrunt configuration
 func (runner *Runner) telemetryFlagExcludedUnits(ctx context.Context, l log.Logger, withUnitsThatAreIncludedByOthers common.Units) (common.Units, error) {
 	var withExcludedUnits common.Units
 
@@ -457,6 +469,7 @@ func (runner *Runner) telemetryFlagExcludedUnits(ctx context.Context, l log.Logg
 	return withExcludedUnits, err
 }
 
+// telemetryFlagUnitsThatRead flags units that read files in the Terragrunt configuration
 func (runner *Runner) telemetryFlagUnitsThatRead(ctx context.Context, withExcludedUnits common.Units) (common.Units, error) {
 	var withUnitsRead common.Units
 
@@ -470,6 +483,7 @@ func (runner *Runner) telemetryFlagUnitsThatRead(ctx context.Context, withExclud
 	return withUnitsRead, err
 }
 
+// telemetryFlagExcludedDirs flags directories that are excluded in the Terragrunt configuration
 func (runner *Runner) telemetryFlagExcludedDirs(ctx context.Context, l log.Logger, withUnitsRead common.Units) (common.Units, error) {
 	var withUnitsExcluded common.Units
 
@@ -604,8 +618,6 @@ func (runner *Runner) resolveTerraformUnit(ctx context.Context, l log.Logger, te
 
 	return &common.Unit{Path: unitPath, Logger: l, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
-
-// --- Helper methods for resolveTerraformUnit ---
 
 func (runner *Runner) resolveUnitPath(terragruntConfigPath string) (string, error) {
 	return util.CanonicalPath(filepath.Dir(terragruntConfigPath), ".")
@@ -1003,8 +1015,6 @@ func flagUnitsThatAreIncluded(opts *options.TerragruntOptions, units common.Unit
 
 	return units, nil
 }
-
-// --- Helper methods for flagUnitsThatAreIncluded ---
 
 func flagUnitIncludes(unit *common.Unit, canonicalPaths []string) error {
 	for _, includeConfig := range unit.Config.ProcessedIncludes {

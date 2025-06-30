@@ -74,7 +74,7 @@ func NewDAGRunner(q *queue.Queue, units []*common.Unit, opts ...DAGRunnerOption)
 	return dr
 }
 
-// RunResult Define RunResult struct for results
+// RunResult Define struct for results
 type RunResult struct {
 	Err      error
 	ExitCode int

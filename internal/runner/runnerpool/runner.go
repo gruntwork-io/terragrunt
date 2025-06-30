@@ -192,6 +192,7 @@ func (r *Runner) handlePlan() {
 	}
 }
 
+// LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
 	for _, unit := range r.Stack.Units {
@@ -203,6 +204,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	return nil
 }
 
+// JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
 func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
 	orderedUnits := make([]string, 0, len(r.Stack.Units))
 	for _, unit := range r.Stack.Units {
@@ -217,6 +219,7 @@ func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
 	return string(j), nil
 }
 
+// ListStackDependentUnits returns a map of units and their dependent units in the stack.
 func (r *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
@@ -252,7 +255,7 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 	return dependentUnits
 }
 
-// Sync the TerraformCliArgs for each unit in the stack to match the provided terragruntOptions struct.
+// syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
 func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
 	for _, unit := range r.Stack.Units {
 		unit.TerragruntOptions.TerraformCliArgs = make([]string, len(opts.TerraformCliArgs))
@@ -272,9 +275,7 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 	}
 }
 
-// We inspect the error streams to give an explicit message if the plan failed because there were references to
-// remote states. `terraform plan` will fail if it tries to access remote State from dependencies and the plan
-// has never been applied on the dependency.
+// summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
 func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffer) {
 	for i, errorStream := range errorStreams {
 		output := errorStream.String()
@@ -313,6 +314,7 @@ func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 	return r
 }
 
+// GetStack returns the stack associated with the runner.
 func (r *Runner) GetStack() *common.Stack {
 	return r.Stack
 }
