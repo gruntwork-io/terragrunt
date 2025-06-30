@@ -211,44 +211,44 @@ func (c *StorageAccountClient) listAndUpdateVersioning(ctx context.Context, enab
 	if err != nil {
 		return errors.Errorf("error getting current blob service properties: %w", err)
 	}
-	
+
 	if resp.BlobServiceProperties.BlobServiceProperties == nil {
 		resp.BlobServiceProperties.BlobServiceProperties = &armstorage.BlobServicePropertiesProperties{}
 	}
-	
+
 	resp.BlobServiceProperties.BlobServiceProperties.IsVersioningEnabled = to.Ptr(enable)
 	_, err = c.blobClient.SetServiceProperties(ctx, c.resourceGroupName, c.storageAccountName, resp.BlobServiceProperties, nil)
-	
+
 	if err != nil {
 		return errors.Errorf("failed to set versioning on storage account %s: %w", c.storageAccountName, err)
 	}
-	
+
 	return nil
 }
 
 func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Enabling versioning on storage account %s", c.storageAccountName)
-	err := c.listAndUpdateVersioning(ctx, l, true)
-	
+	err := c.listAndUpdateVersioning(ctx, true)
+
 	if err != nil {
 		return err
 	}
-	
+
 	l.Info("Successfully enabled versioning on storage account")
-	
+
 	return nil
 }
 
 func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Context, l log.Logger) error {
 	l.Infof("Disabling versioning on storage account %s", c.storageAccountName)
-	err := c.listAndUpdateVersioning(ctx, l, false)
-	
+	err := c.listAndUpdateVersioning(ctx, false)
+
 	if err != nil {
 		return err
 	}
-	
+
 	l.Info("Successfully disabled versioning on storage account")
-	
+
 	return nil
 }
 

@@ -253,8 +253,8 @@ remote_state {
     # storage_account_key = "your-storage-account-key"
     # use_azuread_auth   = false
     
-    # Optional: Disable Terragrunt's automatic container management
-    disable_container_update = true  # Set to true if you want to manage container settings manually
+    # Optional: Disable Terragrunt's automatic storage account updating
+    skip_storage_account_update = true  # Set to true if you want to manage storage account settings manually
   }
 }
 ```
@@ -468,18 +468,18 @@ remote_state {
 
 #### Storage Account Bootstrap Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `create_storage_account_if_not_exists` | Whether to check if the storage account exists and create it if needed | `false` |
-| `resource_group_name` | Resource group for the storage account | Same as storage account name with `-rg` suffix |
-| `location` | Azure region where the storage account should be created | `eastus` |
-| `enable_versioning` | Whether blob versioning should be enabled on the storage account | `true` |
-| `allow_blob_public_access` | Whether the storage account should allow public blob access | `false` |
-| `account_kind` | Storage account kind | `StorageV2` |
-| `account_tier` | Storage account performance tier | `Standard` |
-| `access_tier` | Access tier for the storage account | `Hot` |
-| `replication_type` | Data replication type | `LRS` |
-| `storage_account_tags` | Tags to apply to the storage account | `{ created-by = "terragrunt" }` |
+| Option | Description | Default | Updatable After Creation |
+|--------|-------------|---------|--------------------------|
+| `create_storage_account_if_not_exists` | Whether to check if the storage account exists and create it if needed | `false` | N/A |
+| `resource_group_name` | Resource group for the storage account | Same as storage account name with `-rg` suffix | No |
+| `location` | Azure region where the storage account should be created | `eastus` | No |
+| `enable_versioning` | Whether blob versioning should be enabled on the storage account | `true` | Yes |
+| `allow_blob_public_access` | Whether the storage account should allow public blob access | `false` | Yes |
+| `account_kind` | Storage account kind | `StorageV2` | No |
+| `account_tier` | Storage account performance tier | `Standard` | No |
+| `access_tier` | Access tier for the storage account | `Hot` | Yes |
+| `replication_type` | Data replication type | `LRS` | No |
+| `storage_account_tags` | Tags to apply to the storage account | `{ created-by = "terragrunt" }` | Yes |
 
 #### Storage Account Bootstrap Requirements
 
@@ -489,7 +489,7 @@ For storage account bootstrap to work:
 2. Your authentication method must have permissions to create/modify storage accounts
 3. The specified resource group must exist, or you must have permissions to create resource groups
 
-If the storage account already exists, Terragrunt will check its configuration and update certain settings like versioning if they don't match what's specified in your configuration.
+If the storage account already exists, Terragrunt will check its configuration and update certain settings like versioning, access tier, and tags if they don't match what's specified in your configuration. Read-only properties like storage account kind, tier, and replication type cannot be updated after creation and will generate warnings if they differ.
 
 #### Managing Existing Storage Accounts
 
