@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
@@ -93,46 +92,36 @@ type RunResult struct {
 //   - needs no special-casing for fail-fast.
 func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 	var (
-		wg  sync.WaitGroup
-		sem = make(chan struct{}, p.concurrency)
-
+		wg      sync.WaitGroup
+		sem     = make(chan struct{}, p.concurrency)
 		results = xsync.NewMapOf[string, RunResult]()
-
-		scheduled int
 	)
-
-	record := func(e *queue.Entry, res RunResult) {
-		results.Store(e.Config.Path, res)
-	}
-
-	signalReady := func() {
-		select {
-		case p.readyCh <- struct{}{}:
-		default:
-		}
-	}
 
 	l.Debugf("RunnerPool: starting with %d tasks, concurrency %d, failFast=%t",
 		len(p.q.Entries), p.concurrency, p.failFast)
 
-	signalReady() // let scheduler check initial ready set
+	// Initial signal to start scheduling
+	select {
+	case p.readyCh <- struct{}{}:
+	default:
+	}
 
-	var doneAll bool
-	for !doneAll {
+	for {
 		ready := p.q.GetReadyWithDependencies()
-		scheduled = 0
 
 		for _, e := range ready {
 			p.q.SetStatus(e, queue.StatusRunning)
 			sem <- struct{}{}
 			wg.Add(1)
-			scheduled++
 
 			go func(ent *queue.Entry) {
 				defer func() {
 					<-sem
 					wg.Done()
-					signalReady()
+					select {
+					case p.readyCh <- struct{}{}:
+					default:
+					}
 				}()
 				exit, err := p.runner(ctx, p.unitsMap[ent.Config.Path])
 				if err == nil {
@@ -140,52 +129,28 @@ func (p *RunnerPool) Run(ctx context.Context, l log.Logger) []RunResult {
 				} else {
 					p.q.SetStatus(ent, queue.StatusFailed)
 				}
-				record(ent, RunResult{ExitCode: exit, Err: err})
+				results.Store(ent.Config.Path, RunResult{ExitCode: exit, Err: err})
 			}(e)
 		}
 
-		if scheduled == 0 {
-			done := make(chan struct{})
-			go func() {
-				wg.Wait()
-				close(done)
-			}()
-			select {
-			case <-done:
-				// All goroutines finished, exit the loop
-				doneAll = true
-			case <-p.readyCh:
-				// Some worker finished and signaled readyCh, continue loop
-			case <-ctx.Done():
-				wg.Wait()
-				return nil
+		if len(ready) == 0 {
+			// If no goroutines are running, break
+			if len(sem) == 0 {
+				break
 			}
-		} else {
-			select {
-			case <-p.readyCh:
-			case <-ctx.Done():
-				wg.Wait()
-				return nil
-			}
+		}
+
+		select {
+		case <-p.readyCh:
+		case <-ctx.Done():
+			wg.Wait()
+			return nil
 		}
 	}
 
-	// all runnable work done ⇒ wait for goroutines to finish their defers
 	wg.Wait()
 
-	// mark every entry that never produced a result (blocked/unschedulable)
-	for _, e := range p.q.Entries {
-		if _, ok := results.Load(e.Config.Path); !ok {
-			results.Store(e.Config.Path, RunResult{
-				ExitCode: 1,
-				Err:      errors.New("skipped (dependencies failed or cycle)"),
-			})
-			// also make the queue state terminal so future runs work
-			p.q.SetStatus(e, queue.StatusFailed)
-		}
-	}
-
-	// preserve original order
+	// Preserve original order
 	ordered := make([]RunResult, 0, len(p.q.Entries))
 	for _, e := range p.q.Entries {
 		if res, ok := results.Load(e.Config.Path); ok {
