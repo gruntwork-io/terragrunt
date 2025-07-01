@@ -117,8 +117,8 @@ func TestGetObjectErrorHandling(t *testing.T) {
 		{
 			name: "Invalid container name",
 			input: &azurehelper.GetObjectInput{
-				Container: stringPtr("invalid/container/name"),
-				Key:       stringPtr("test.txt"),
+				Container: azurehelper.StringPtr("invalid/container/name"),
+				Key:       azurehelper.StringPtr("test.txt"),
 			},
 			expectedError: true,
 			errorContains: "invalid container name",
@@ -126,8 +126,8 @@ func TestGetObjectErrorHandling(t *testing.T) {
 		{
 			name: "Invalid blob key",
 			input: &azurehelper.GetObjectInput{
-				Container: stringPtr("container"),
-				Key:       stringPtr(""),
+				Container: azurehelper.StringPtr("container"),
+				Key:       azurehelper.StringPtr(""),
 			},
 			expectedError: true,
 			errorContains: "blob key is required",
@@ -135,8 +135,8 @@ func TestGetObjectErrorHandling(t *testing.T) {
 		{
 			name: "Container not found",
 			input: &azurehelper.GetObjectInput{
-				Container: stringPtr("nonexistentcontainer"),
-				Key:       stringPtr("test.txt"),
+				Container: azurehelper.StringPtr("nonexistentcontainer"),
+				Key:       azurehelper.StringPtr("test.txt"),
 			},
 			expectedError: true,
 			errorContains: "container not found",
@@ -144,8 +144,8 @@ func TestGetObjectErrorHandling(t *testing.T) {
 		{
 			name: "Blob not found",
 			input: &azurehelper.GetObjectInput{
-				Container: stringPtr("existingcontainer"),
-				Key:       stringPtr("nonexistent.txt"),
+				Container: azurehelper.StringPtr("existingcontainer"),
+				Key:       azurehelper.StringPtr("nonexistent.txt"),
 			},
 			expectedError: true,
 			errorContains: "blob not found",

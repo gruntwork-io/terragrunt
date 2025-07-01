@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -15,6 +17,25 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
+
+// waitForStorageAccountDNS waits for the storage account DNS to propagate and become available.
+func waitForStorageAccountDNS(name string, maxWait time.Duration) error {
+	url := name + ".blob.core.windows.net"
+	deadline := time.Now().Add(maxWait)
+
+	for {
+		_, err := net.LookupHost(url)
+		if err == nil {
+			return nil // DNS is ready
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("storage account DNS not available after %s: %w", maxWait, err)
+		}
+
+		time.Sleep(3 * time.Second) //nolint: mnd
+	}
+}
 
 // BlobServiceClient wraps Azure's azblob client to provide a simpler interface for our needs.
 type BlobServiceClient struct {
@@ -92,6 +113,15 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		return nil, errors.Errorf("storage_account_name is required")
 	}
 
+	// Wait for DNS propagation only if explicitly requested via config
+	// This is useful when the storage account was just created and DNS might not be propagated yet
+	if waitForDNS, ok := config["wait_for_dns"].(bool); ok && waitForDNS {
+		l.Infof("Waiting for DNS propagation for storage account %s", storageAccountName)
+
+		if err := waitForStorageAccountDNS(storageAccountName, 60*time.Second); err != nil { //nolint: mnd
+			l.Warnf("DNS propagation wait failed for %s: %v", storageAccountName, err)
+		}
+	}
 	// Extract resource group and subscription ID if provided
 	resourceGroupName, _ := config["resource_group_name"].(string)
 	subscriptionID, _ := config["subscription_id"].(string)

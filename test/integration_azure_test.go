@@ -2049,6 +2049,7 @@ func setupTestContainer(ctx context.Context, t *testing.T, storageAccountName, c
 		"storage_account_name": storageAccountName,
 		"container_name":       containerName,
 		"use_azuread_auth":     true,
+		"wait_for_dns":         true, // Enable DNS waiting since storage account might have just been created
 	}
 	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, log, opts, blobConfig)
 	require.NoError(t, err)

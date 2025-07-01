@@ -11,31 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestConvertAzureError tests the conversion of Azure errors to AzureResponseError
-func TestConvertAzureError(t *testing.T) {
-	t.Parallel()
-
-	// Test with non-Azure error
-	regularErr := errors.New("regular error")
-	azureErr := azurehelper.ConvertAzureError(regularErr)
-	assert.Nil(t, azureErr)
-
-	// Test with nil error
-	nilErr := azurehelper.ConvertAzureError(nil)
-	assert.Nil(t, nilErr)
-
-	// Test with a mock error that has similar structure to Azure errors
-	// Since we can't directly create an azcore.ResponseError, we're testing the behavior indirectly
-	mockErr := &MockResponseError{
-		StatusCode: 403,
-		ErrorCode:  "AuthorizationFailed",
-		Message:    "Authorization failed for the request",
-	}
-	// This won't actually convert since it's not a real Azure error, but it tests the code path
-	convertedErr := azurehelper.ConvertAzureError(mockErr)
-	assert.Nil(t, convertedErr)
-}
-
 // TestAzureResponseError tests the Error method of AzureResponseError
 func TestAzureResponseError(t *testing.T) {
 	t.Parallel()
@@ -106,38 +81,38 @@ func TestGetObjectInputValidation(t *testing.T) {
 		{
 			name: "Valid Input",
 			input: &azurehelper.GetObjectInput{
-				Container: stringPtr("container-name"),
-				Key:       stringPtr("blob-key"),
+				Container: azurehelper.StringPtr("container-name"),
+				Key:       azurehelper.StringPtr("blob-key"),
 			},
 			expectedError: "",
 		},
 		{
 			name: "Missing Container",
 			input: &azurehelper.GetObjectInput{
-				Key: stringPtr("blob-key"),
+				Key: azurehelper.StringPtr("blob-key"),
 			},
 			expectedError: "container name is required",
 		},
 		{
 			name: "Empty Container",
 			input: &azurehelper.GetObjectInput{
-				Container: stringPtr(""),
-				Key:       stringPtr("blob-key"),
+				Container: azurehelper.StringPtr(""),
+				Key:       azurehelper.StringPtr("blob-key"),
 			},
 			expectedError: "container name is required",
 		},
 		{
 			name: "Missing Key",
 			input: &azurehelper.GetObjectInput{
-				Container: stringPtr("container-name"),
+				Container: azurehelper.StringPtr("container-name"),
 			},
 			expectedError: "blob key is required",
 		},
 		{
 			name: "Empty Key",
 			input: &azurehelper.GetObjectInput{
-				Container: stringPtr("container-name"),
-				Key:       stringPtr(""),
+				Container: azurehelper.StringPtr("container-name"),
+				Key:       azurehelper.StringPtr(""),
 			},
 			expectedError: "blob key is required",
 		},

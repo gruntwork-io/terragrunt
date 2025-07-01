@@ -32,18 +32,8 @@ type ResourceGroupConfig struct {
 
 // CreateResourceGroupClient creates a new ResourceGroup client
 func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID string) (*ResourceGroupClient, error) {
-	// Validate subscription ID format
-	matched, err := regexp.MatchString(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, subscriptionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate subscription ID format: %w", err)
-	}
-
-	if !matched {
-		return nil, errors.Errorf("invalid subscription ID format: %s", subscriptionID)
-	}
-
+	// If subscription ID is empty, try to get it from environment variables
 	if subscriptionID == "" {
-		// Try to get subscription ID from environment variables
 		_, envSubscriptionID, err := GetAzureCredentials(ctx, l)
 		if err != nil {
 			return nil, fmt.Errorf("error getting azure credentials: %w", err)
@@ -55,6 +45,16 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 		} else {
 			return nil, errors.Errorf("subscription_id is required either in configuration or as an environment variable")
 		}
+	}
+
+	// Validate subscription ID format
+	matched, err := regexp.MatchString(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, subscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate subscription ID format: %w", err)
+	}
+
+	if !matched {
+		return nil, errors.Errorf("invalid subscription ID format: %s", subscriptionID)
 	}
 
 	// Get Azure credentials

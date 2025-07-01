@@ -228,7 +228,7 @@ func TestResourceGroupClientCreation(t *testing.T) {
 		   subscriptionID:      "",
 		   envSubscriptionID:   "",
 		   expectedError:       true,
-		   expectedErrorPrefix: "invalid subscription ID format",
+		   expectedErrorPrefix: "subscription_id is required",
 	   },
 		{
 			name:                "Invalid subscription ID format",
