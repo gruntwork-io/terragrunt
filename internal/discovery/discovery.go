@@ -98,10 +98,16 @@ type Discovery struct {
 
 	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
 	suppressParseErrors bool
+
+	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
+	configFilenames []string
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
 type DiscoveryOption func(*Discovery)
+
+// DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
+var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
 
 // NewDiscovery creates a new Discovery.
 func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
@@ -187,6 +193,12 @@ func (d *Discovery) WithSuppressParseErrors() *Discovery {
 func (d *Discovery) WithDiscoveryContext(discoveryContext *DiscoveryContext) *Discovery {
 	d.discoveryContext = discoveryContext
 
+	return d
+}
+
+// WithConfigFilenames sets the configFilenames field to the given list.
+func (d *Discovery) WithConfigFilenames(filenames []string) *Discovery {
+	d.configFilenames = filenames
 	return d
 }
 
@@ -281,6 +293,12 @@ func (d *Discovery) isInHiddenDirectory(path string) bool {
 func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (DiscoveredConfigs, error) {
 	var cfgs DiscoveredConfigs
 
+	// Set default config filenames if not set
+	filenames := d.configFilenames
+	if len(filenames) == 0 {
+		filenames = DefaultConfigFilenames
+	}
+
 	processFn := func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return errors.New(err)
@@ -294,29 +312,23 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 			return nil
 		}
 
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
-			cfg := &DiscoveredConfig{
-				Type: ConfigTypeUnit,
-				Path: filepath.Dir(path),
+		base := filepath.Base(path)
+		for _, fname := range filenames {
+			if base == fname {
+				cfgType := ConfigTypeUnit
+				if fname == config.DefaultStackFile {
+					cfgType = ConfigTypeStack
+				}
+				cfg := &DiscoveredConfig{
+					Type: cfgType,
+					Path: filepath.Dir(path),
+				}
+				if d.discoveryContext != nil {
+					cfg.DiscoveryContext = d.discoveryContext
+				}
+				cfgs = append(cfgs, cfg)
+				break
 			}
-
-			if d.discoveryContext != nil {
-				cfg.DiscoveryContext = d.discoveryContext
-			}
-
-			cfgs = append(cfgs, cfg)
-		case config.DefaultStackFile:
-			cfg := &DiscoveredConfig{
-				Type: ConfigTypeStack,
-				Path: filepath.Dir(path),
-			}
-
-			if d.discoveryContext != nil {
-				cfg.DiscoveryContext = d.discoveryContext
-			}
-
-			cfgs = append(cfgs, cfg)
 		}
 
 		return nil
