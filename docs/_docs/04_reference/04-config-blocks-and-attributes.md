@@ -1757,7 +1757,7 @@ The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**,
 
 **Notes:**
 * The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
-* A pre-created `terragrunt.values.hcl` file can be provided in the unit path. If present, this file will be used as the default values for the unit. However, if the values attribute is defined in the unit block, the generated terragrunt.values.hcl will replace the pre-existing file.
+* A pre-created `terragrunt.values.hcl` file can be provided in the unit path. If present, this file will be used as the default values for the unit. However, if the values attribute is defined in the unit block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
 
 ### stack
 
@@ -1810,7 +1810,7 @@ Terragrunt will recursively generate a stack using the contents of the `.terragr
 
 **Notes:**
 * The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
-* A pre-created `terragrunt.values.hcl` file can be provided in the unit path. If present, this file will be used as the default values for the unit. However, if the values attribute is defined in the unit block, the generated terragrunt.values.hcl will replace the pre-existing file.
+* A pre-created `terragrunt.values.hcl` file can be provided in the unit path. If present, this file will be used as the default values for the stack. However, if the values attribute is defined in the stack block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
 
 ## Attributes
 
