@@ -4123,6 +4123,9 @@ func TestTF110EphemeralVars(t *testing.T) {
 }
 
 func TestTfPath(t *testing.T) {
+	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
+	// t.Parallel()
+
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present
 	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
@@ -4133,16 +4136,10 @@ func TestTfPath(t *testing.T) {
 
 	// If TG_TF_PATH is not set, we'll use the default tofu binary,
 	// we'll explicitly set the value so that the test can pass.
-	if os.Getenv("TG_TF_PATH") == "" {
-		if helpers.IsOpenTofuInstalled() {
-			t.Setenv("TG_TF_PATH", helpers.TofuBinary)
-		} else if helpers.IsTerraformInstalled() {
-			t.Setenv("TG_TF_PATH", helpers.TerraformBinary)
-		} else {
-			t.Skip("This test requires that either OpenTofu or Terraform is installed")
-
-			return
-		}
+	if tfPath := os.Getenv("TG_TF_PATH"); tfPath != "" {
+		// Unset after using t.Setenv so that it'll be reset after the test.
+		t.Setenv("TG_TF_PATH", "")
+		os.Unsetenv("TG_TF_PATH")
 	}
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --working-dir "+workingDir)
