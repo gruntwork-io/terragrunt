@@ -1756,8 +1756,11 @@ The `vpc` unit is placed inside `.terragrunt-stack`, as expected.
 The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**, rather than inside `.terragrunt-stack`, due to `no_dot_terragrunt_stack = true`.
 
 **Notes:**
-* The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
-* A pre-created `terragrunt.values.hcl` file can be provided in the unit path. If present, this file will be used as the default values for the unit. However, if the values attribute is defined in the unit block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
+
+- The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+
+- A pre-created `terragrunt.values.hcl` file can be provided in the unit path. If present, this file will be used as the default values for the unit. However, if the values attribute is defined in the unit block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
+
 
 ### stack
 
@@ -1809,8 +1812,10 @@ The stack is also provided with custom values for `project` and `cidr`, which ca
 Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
 
 **Notes:**
-* The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
-* A pre-created `terragrunt.values.hcl` file can be provided in the unit path. If present, this file will be used as the default values for the stack. However, if the values attribute is defined in the stack block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
+
+- The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+
+- A pre-created `terragrunt.values.hcl` file can be provided in the unit path. If present, this file will be used as the default values for the stack. However, if the values attribute is defined in the stack block, the generated `terragrunt.values.hcl` will replace the pre-existing file.
 
 ## Attributes
 
