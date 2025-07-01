@@ -4122,6 +4122,7 @@ func TestTF110EphemeralVars(t *testing.T) {
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 }
 
+//nolint:paralleltest
 func TestTfPath(t *testing.T) {
 	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
 	// t.Parallel()
