@@ -118,10 +118,12 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			s3BucketName := "terragrunt-test-bucket-" + testID
 			dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
-			defer func() {
-				deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-				cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
-			}()
+			if tc.name != "no bootstrap s3 backend without flag" {
+				defer func() {
+					deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+					cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+				}()
+			}
 
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 			helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
