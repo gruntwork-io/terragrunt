@@ -743,6 +743,8 @@ func IsTerraform110OrHigher() bool {
 // IsNativeS3LockingSupported checks if the installed Terraform binary supports native S3 locking.
 // This is the case when using Terraform 1.11 or higher, or using OpenTofu 1.10 or higher.
 func IsNativeS3LockingSupported(t *testing.T) bool {
+	t.Helper()
+
 	const (
 		terraformRequiredMajor = 1
 		terraformRequiredMinor = 11
