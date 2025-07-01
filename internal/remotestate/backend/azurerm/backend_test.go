@@ -323,7 +323,6 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 			"create_storage_account_if_not_exists": true,
 			"enable_versioning":                    false, // Explicitly disable versioning
 			"allow_blob_public_access":             true,  // Explicitly enable public access
-			// "enable_hierarchical_namespace":        true, // removed
 			"account_kind":     "BlobStorage",
 			"account_tier":     "Premium",
 			"access_tier":      "Cool",
@@ -626,7 +625,6 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 				"resource_group_name":      "test-resource-group",
 				"enable_versioning":        false,
 				"allow_blob_public_access": true,
-				// "enable_hierarchical_namespace":        true, // removed
 				"account_kind":                         "BlockBlobStorage",
 				"account_tier":                         "Premium",
 				"access_tier":                          "Cool",

@@ -71,11 +71,10 @@ func NewExperiments() Experiments {
 			Name: RunnerPool,
 		},
 		{
-<<<<<<< HEAD
 			Name: AzureBackend,
-=======
+		},
+		{
 			Name: AutoProviderCacheDir,
->>>>>>> main
 		},
 	}
 }

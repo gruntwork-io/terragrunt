@@ -284,7 +284,6 @@ func TestGetTFInitArgsForAzureRMWithFullBootstrap(t *testing.T) {
 			"create_storage_account_if_not_exists": true,
 			"enable_versioning":                    true,
 			"allow_blob_public_access":             false,
-			"enable_hierarchical_namespace":        false,
 			"account_kind":                         "StorageV2",
 			"account_tier":                         "Standard",
 			"access_tier":                          "Hot",

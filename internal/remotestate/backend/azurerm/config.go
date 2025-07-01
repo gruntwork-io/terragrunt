@@ -219,6 +219,5 @@ var terragruntOnlyConfigs = []string{
 	"enable_versioning",
 	"allow_blob_public_access",
 	"disable_blob_public_access", // Legacy name for allow_blob_public_access
-	// "enable_hierarchical_namespace", // removed
 	"storage_account_tags",
 }

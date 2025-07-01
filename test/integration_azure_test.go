@@ -117,21 +117,21 @@ func createBlobServiceClientHelper(ctx context.Context, t *testing.T, config map
 }
 
 func assertAzureErrorType(t *testing.T, err error, expectedType string) bool {
-   t.Helper()
-   if err == nil {
-	   t.Fatalf("Expected %s error but got nil", expectedType)
-	   return false
-   }
-   switch expectedType {
-   case "AuthorizationError":
-	   // Accept any error that contains 'authorization', 'forbidden', or 'permission' in the message as an authorization error
-	   errMsg := strings.ToLower(err.Error())
-	   if strings.Contains(errMsg, "authorization") || strings.Contains(errMsg, "forbidden") || strings.Contains(errMsg, "permission") {
-		   assert.Contains(t, errMsg, "authorization", "Error message should mention authorization")
-		   return true
-	   }
-	   // No match, fall through to default
-   case "AuthenticationError":
+	t.Helper()
+	if err == nil {
+		t.Fatalf("Expected %s error but got nil", expectedType)
+		return false
+	}
+	switch expectedType {
+	case "AuthorizationError":
+		// Accept any error that contains 'authorization', 'forbidden', or 'permission' in the message as an authorization error
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "authorization") || strings.Contains(errMsg, "forbidden") || strings.Contains(errMsg, "permission") {
+			assert.Contains(t, errMsg, "authorization", "Error message should mention authorization")
+			return true
+		}
+		// No match, fall through to default
+	case "AuthenticationError":
 		var authErr azurerm.AuthenticationError
 		if assert.ErrorAs(t, err, &authErr, "Error should be AuthenticationError type") {
 			assert.NotEmpty(t, authErr.AuthMethod, "Authentication error should specify auth method")
@@ -176,7 +176,7 @@ func assertAzureErrorType(t *testing.T, err error, expectedType string) bool {
 			assert.Contains(t, err.Error(), "resource_group_name is required", "Error message should mention resource_group_name")
 			return true
 		}
-   // (Removed duplicate case "AuthorizationError")
+		// (Removed duplicate case "AuthorizationError")
 	default:
 		t.Fatalf("Unknown Azure error type: %s", expectedType)
 		return false
@@ -188,7 +188,7 @@ func checkBlobExistsHelper(ctx context.Context, t *testing.T, client *azurehelpe
 	t.Helper()
 	_, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
 		Container: &containerName,
-		Key:      &blobName,
+		Key:       &blobName,
 	})
 	return err == nil
 }
@@ -197,7 +197,7 @@ func getBlobObjectHelper(ctx context.Context, t *testing.T, client *azurehelper.
 	t.Helper()
 	result, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
 		Container: &containerName,
-		Key:      &blobName,
+		Key:       &blobName,
 	})
 	if err != nil {
 		return nil, err
@@ -214,40 +214,40 @@ func getBlobObjectHelper(ctx context.Context, t *testing.T, client *azurehelper.
 // LookupCurrentUserObjectID attempts to determine the current Azure user's object ID for role assignment.
 // It first checks environment variables, then falls back to Azure CLI if available.
 func LookupCurrentUserObjectID(ctx context.Context, t *testing.T) string {
-	   t.Helper()
-	   // 1. Check environment variables
-	   envVars := []string{"AZURE_CLIENT_OBJECT_ID", "ARM_CLIENT_OBJECT_ID"}
-	   for _, env := range envVars {
-			   if val := os.Getenv(env); val != "" {
-					   t.Logf("Using object ID from %s: %s", env, val)
-					   return val
-			   }
-	   }
+	t.Helper()
+	// 1. Check environment variables
+	envVars := []string{"AZURE_CLIENT_OBJECT_ID", "ARM_CLIENT_OBJECT_ID"}
+	for _, env := range envVars {
+		if val := os.Getenv(env); val != "" {
+			t.Logf("Using object ID from %s: %s", env, val)
+			return val
+		}
+	}
 
-	   // 2. Try Azure CLI (az)
-	   azPath, err := exec.LookPath("az")
-	   if err == nil {
-			   // Try to get signed-in user object ID
-			   cmd := exec.CommandContext(ctx, azPath, "ad", "signed-in-user", "show", "--query", "objectId", "-o", "tsv")
-			   var out bytes.Buffer
-			   cmd.Stdout = &out
-			   cmd.Stderr = &out
-			   if err := cmd.Run(); err == nil {
-					   objectID := strings.TrimSpace(out.String())
-					   if objectID != "" {
-							   t.Logf("Found current user object ID via Azure CLI: %s", objectID)
-							   return objectID
-					   }
-			   } else {
-					   t.Logf("Azure CLI object ID lookup failed: %v, output: %s", err, out.String())
-			   }
-	   } else {
-			   t.Logf("Azure CLI not found in PATH, skipping CLI object ID lookup")
-	   }
+	// 2. Try Azure CLI (az)
+	azPath, err := exec.LookPath("az")
+	if err == nil {
+		// Try to get signed-in user object ID
+		cmd := exec.CommandContext(ctx, azPath, "ad", "signed-in-user", "show", "--query", "objectId", "-o", "tsv")
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &out
+		if err := cmd.Run(); err == nil {
+			objectID := strings.TrimSpace(out.String())
+			if objectID != "" {
+				t.Logf("Found current user object ID via Azure CLI: %s", objectID)
+				return objectID
+			}
+		} else {
+			t.Logf("Azure CLI object ID lookup failed: %v, output: %s", err, out.String())
+		}
+	} else {
+		t.Logf("Azure CLI not found in PATH, skipping CLI object ID lookup")
+	}
 
-	   // 3. Not found
-	   t.Logf("Could not determine current Azure user object ID; role assignment may be skipped.")
-	   return ""
+	// 3. Not found
+	t.Logf("Could not determine current Azure user object ID; role assignment may be skipped.")
+	return ""
 }
 
 // TestAzureRBACRoleAssignment verifies backend operations with a service principal or managed identity with minimum RBAC
@@ -301,83 +301,83 @@ func TestAzureRBACRoleAssignment(t *testing.T) {
 		_ = client.DeleteContainer(ctx, log, containerName)
 	}()
 
-   // Only perform object ID lookup if Azure AD auth is enabled and MSI is NOT being used
-   useAzureAD := os.Getenv("TERRAGRUNT_AZURE_USE_AZUREAD_AUTH") == "true" || os.Getenv("USE_AZUREAD_AUTH") == "true"
-   usingMSI := os.Getenv("AZURE_CLIENT_ID") != "" || os.Getenv("ARM_CLIENT_ID") != ""
-   var objectID string
-   if useAzureAD && !usingMSI {
-	  objectID = LookupCurrentUserObjectID(ctx, t)
-	  if objectID == "" {
-		 t.Logf("Warning: Could not determine current user object ID; RBAC role assignment will be skipped.")
-	  } else {
-		 t.Logf("Using Azure AD authentication, looked up current user object ID: %s", objectID)
-		 // Here you would assign the Storage Blob Data Owner role to the objectID if needed
-		 // (Role assignment logic would go here, if not handled elsewhere)
-	  }
-   } else {
-	  t.Logf("Skipping object ID lookup: useAzureAD=%v, usingMSI=%v", useAzureAD, usingMSI)
-   }
+	// Only perform object ID lookup if Azure AD auth is enabled and MSI is NOT being used
+	useAzureAD := os.Getenv("TERRAGRUNT_AZURE_USE_AZUREAD_AUTH") == "true" || os.Getenv("USE_AZUREAD_AUTH") == "true"
+	usingMSI := os.Getenv("AZURE_CLIENT_ID") != "" || os.Getenv("ARM_CLIENT_ID") != ""
+	var objectID string
+	if useAzureAD && !usingMSI {
+		objectID = LookupCurrentUserObjectID(ctx, t)
+		if objectID == "" {
+			t.Logf("Warning: Could not determine current user object ID; RBAC role assignment will be skipped.")
+		} else {
+			t.Logf("Using Azure AD authentication, looked up current user object ID: %s", objectID)
+			// Here you would assign the Storage Blob Data Owner role to the objectID if needed
+			// (Role assignment logic would go here, if not handled elsewhere)
+		}
+	} else {
+		t.Logf("Skipping object ID lookup: useAzureAD=%v, usingMSI=%v", useAzureAD, usingMSI)
+	}
 
-	   // Create standard test configuration using helper
-	   config := createStandardBlobConfig(storageAccount, containerName, map[string]interface{}{
-			   "key":              "test/terraform.tfstate",
-			   "use_azuread_auth": true,
-	   })
+	// Create standard test configuration using helper
+	config := createStandardBlobConfig(storageAccount, containerName, map[string]interface{}{
+		"key":              "test/terraform.tfstate",
+		"use_azuread_auth": true,
+	})
 
-	   // Create backend
-	   backend := azurerm.NewBackend()
-	   require.NotNil(t, backend, "Azure backend should be created")
+	// Create backend
+	backend := azurerm.NewBackend()
+	require.NotNil(t, backend, "Azure backend should be created")
 
-	   // Test bootstrap with restricted RBAC permissions
-	   t.Run("BootstrapWithRestrictedRBAC", func(t *testing.T) {
-			   // Attempt to bootstrap the backend
-			   err := backend.Bootstrap(ctx, log, config, opts)
+	// Test bootstrap with restricted RBAC permissions
+	t.Run("BootstrapWithRestrictedRBAC", func(t *testing.T) {
+		// Attempt to bootstrap the backend
+		err := backend.Bootstrap(ctx, log, config, opts)
 
-			   if err != nil {
-					   // Check if it's a permissions-related error
-					   if strings.Contains(strings.ToLower(err.Error()), "authorizationfailed") ||
-							   strings.Contains(strings.ToLower(err.Error()), "permission") ||
-							   strings.Contains(strings.ToLower(err.Error()), "forbidden") {
-							   // This is acceptable - verify the error is clear and helpful
-							   t.Logf("Received expected authorization error with restricted RBAC: %v", err)
+		if err != nil {
+			// Check if it's a permissions-related error
+			if strings.Contains(strings.ToLower(err.Error()), "authorizationfailed") ||
+				strings.Contains(strings.ToLower(err.Error()), "permission") ||
+				strings.Contains(strings.ToLower(err.Error()), "forbidden") {
+				// This is acceptable - verify the error is clear and helpful
+				t.Logf("Received expected authorization error with restricted RBAC: %v", err)
 
-							   // Use helper to assert the error type
-							   if !assertAzureErrorType(t, err, "AuthorizationError") {
-									   // Fallback: ensure error mentions authorization
-									   assert.Contains(t, err.Error(), "authorization", "Error should mention authorization issues")
-							   }
-					   } else {
-							   // For any other error type, it's unexpected
-							   t.Fatalf("Unexpected error during RBAC test: %v", err)
-					   }
-			   } else {
-					   // Success case - verify the container was created and test blob operations
-					   client := createBlobServiceClientHelper(ctx, t, config)
+				// Use helper to assert the error type
+				if !assertAzureErrorType(t, err, "AuthorizationError") {
+					// Fallback: ensure error mentions authorization
+					assert.Contains(t, err.Error(), "authorization", "Error should mention authorization issues")
+				}
+			} else {
+				// For any other error type, it's unexpected
+				t.Fatalf("Unexpected error during RBAC test: %v", err)
+			}
+		} else {
+			// Success case - verify the container was created and test blob operations
+			client := createBlobServiceClientHelper(ctx, t, config)
 
-					   // Check container exists
-					   exists, err := client.ContainerExists(ctx, containerName)
-					   require.NoError(t, err)
-					   assert.True(t, exists, "Container should exist after successful bootstrap with RBAC permissions")
+			// Check container exists
+			exists, err := client.ContainerExists(ctx, containerName)
+			require.NoError(t, err)
+			assert.True(t, exists, "Container should exist after successful bootstrap with RBAC permissions")
 
-					   // Test blob upload to verify write permissions
-					   testBlobName := "rbac-test-blob.json"
-					   testData := []byte(`{"created_by": "terragrunt-rbac-test", "test_key": "test_value"}`)
+			// Test blob upload to verify write permissions
+			testBlobName := "rbac-test-blob.json"
+			testData := []byte(`{"created_by": "terragrunt-rbac-test", "test_key": "test_value"}`)
 
-					   err = client.UploadBlob(ctx, log, containerName, testBlobName, testData)
-					   require.NoError(t, err, "Should be able to upload blob with sufficient RBAC permissions")
+			err = client.UploadBlob(ctx, log, containerName, testBlobName, testData)
+			require.NoError(t, err, "Should be able to upload blob with sufficient RBAC permissions")
 
-					   // Verify blob exists using standard helper
-					   blobExists := checkBlobExistsHelper(ctx, t, client, containerName, testBlobName)
-					   assert.True(t, blobExists, "Test blob should exist after upload with RBAC permissions")
+			// Verify blob exists using standard helper
+			blobExists := checkBlobExistsHelper(ctx, t, client, containerName, testBlobName)
+			assert.True(t, blobExists, "Test blob should exist after upload with RBAC permissions")
 
-					   // Test blob download to verify read permissions
-					   downloadedData, err := getBlobObjectHelper(ctx, t, client, containerName, testBlobName)
-					   require.NoError(t, err, "Should be able to download blob with sufficient RBAC permissions")
-					   assert.Equal(t, testData, downloadedData, "Downloaded blob data should match uploaded data")
+			// Test blob download to verify read permissions
+			downloadedData, err := getBlobObjectHelper(ctx, t, client, containerName, testBlobName)
+			require.NoError(t, err, "Should be able to download blob with sufficient RBAC permissions")
+			assert.Equal(t, testData, downloadedData, "Downloaded blob data should match uploaded data")
 
-					   t.Logf("Successfully verified RBAC permissions for container, blob upload, and blob download operations")
-			   }
-	   })
+			t.Logf("Successfully verified RBAC permissions for container, blob upload, and blob download operations")
+		}
+	})
 }
 
 // TestCase represents the test case data without the check function.
@@ -465,10 +465,10 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-		tmpEnvPath := copyEnvironment(t, testFixtureAzureBackend)
-		// CopyEnvironment copies the contents of the source directory to tmpEnvPath
-		rootPath := tmpEnvPath
-		commonConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
+			tmpEnvPath := copyEnvironment(t, testFixtureAzureBackend)
+			// CopyEnvironment copies the contents of the source directory to tmpEnvPath
+			rootPath := tmpEnvPath
+			commonConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 
 			azureCfg := getAzureStorageTestConfig(t)
 
@@ -1834,7 +1834,7 @@ func copyTerragruntConfigAndFillProviderPlaceholders(t *testing.T, src, dst stri
 
 func runTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
 	t.Helper()
-	
+
 	// Set the experiment environment variable to enable Azure backend
 	oldEnv := os.Getenv("TG_EXPERIMENT")
 	defer func() {
@@ -1844,7 +1844,7 @@ func runTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 			os.Setenv("TG_EXPERIMENT", oldEnv)
 		}
 	}()
-	
+
 	// Set the Azure backend experiment
 	currentExperiments := os.Getenv("TG_EXPERIMENT")
 	if currentExperiments == "" {
@@ -1852,7 +1852,7 @@ func runTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 	} else if !strings.Contains(currentExperiments, "azure-backend") {
 		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
 	}
-	
+
 	// As a backup, also add the --experiment flag to ensure the experiment is enabled
 	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
 		// Add the experiment flag to the command
@@ -1868,7 +1868,7 @@ func runTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 			}
 		}
 	}
-	
+
 	return helpers.RunTerragruntCommandWithOutput(t, command)
 
 }
@@ -1876,7 +1876,7 @@ func runTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 // --- Generic test helpers (continued) ---
 func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Buffer) error {
 	t.Helper()
-	
+
 	// Set the experiment environment variable to enable Azure backend
 	oldEnv := os.Getenv("TG_EXPERIMENT")
 	defer func() {
@@ -1886,7 +1886,7 @@ func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Bu
 			os.Setenv("TG_EXPERIMENT", oldEnv)
 		}
 	}()
-	
+
 	// Set the Azure backend experiment
 	currentExperiments := os.Getenv("TG_EXPERIMENT")
 	if currentExperiments == "" {
@@ -1894,7 +1894,7 @@ func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Bu
 	} else if !strings.Contains(currentExperiments, "azure-backend") {
 		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
 	}
-	
+
 	// As a backup, also add the --experiment flag to ensure the experiment is enabled
 	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
 		// Add the experiment flag to the command
@@ -1910,16 +1910,14 @@ func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Bu
 			}
 		}
 	}
-	
+
 	return helpers.RunTerragruntCommand(t, command, stdout, stderr)
 }
-
-
 
 // --- Generic test helpers (continued) ---
 func runTerragrunt(t *testing.T, command string) {
 	t.Helper()
-	
+
 	// Set the experiment environment variable to enable Azure backend
 	oldEnv := os.Getenv("TG_EXPERIMENT")
 	defer func() {
@@ -1929,7 +1927,7 @@ func runTerragrunt(t *testing.T, command string) {
 			os.Setenv("TG_EXPERIMENT", oldEnv)
 		}
 	}()
-	
+
 	// Set the Azure backend experiment
 	currentExperiments := os.Getenv("TG_EXPERIMENT")
 	if currentExperiments == "" {
@@ -1937,7 +1935,7 @@ func runTerragrunt(t *testing.T, command string) {
 	} else if !strings.Contains(currentExperiments, "azure-backend") {
 		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
 	}
-	
+
 	// As a backup, also add the --experiment flag to ensure the experiment is enabled
 	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
 		// Add the experiment flag to the command
@@ -1953,7 +1951,7 @@ func runTerragrunt(t *testing.T, command string) {
 			}
 		}
 	}
-	
+
 	helpers.RunTerragrunt(t, command)
 }
 
@@ -2147,7 +2145,7 @@ func testBlobOperations(t *testing.T, client *azurehelper.BlobServiceClient, con
 	log := logger.CreateLogger()
 	input := &azurehelper.GetObjectInput{
 		Container: &containerName,
-		Key:      &blobName,
+		Key:       &blobName,
 	}
 	_, err := client.GetObject(ctx, input)
 	require.Error(t, err, "Getting non-existent blob should fail")
@@ -2235,4 +2233,5 @@ terraform {
 }
 `, storageAccount, container, stateKey, resourceGroup, subscriptionID, terraformSource)
 }
+
 // --- End helper ---
