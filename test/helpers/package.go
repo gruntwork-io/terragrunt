@@ -265,10 +265,7 @@ func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) {
 		if len(objectIdentifiers) > 0 {
 			const maxBatchSize = 1000
 			for i := 0; i < len(objectIdentifiers); i += maxBatchSize {
-				end := i + maxBatchSize
-				if end > len(objectIdentifiers) {
-					end = len(objectIdentifiers)
-				}
+				end := min(i+maxBatchSize, len(objectIdentifiers))
 
 				batch := objectIdentifiers[i:end]
 				deleteInput := &s3.DeleteObjectsInput{
