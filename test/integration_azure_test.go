@@ -19,30 +19,15 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	azurerm "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// init enables the Azure backend experiment for all Azure integration tests
-func init() {
-	// Enable the Azure backend experiment through environment variable
-	os.Setenv("TG_EXPERIMENT", "azure-backend")
-
-	// Also manually register the Azure backend for tests
-	// This ensures the backend is registered regardless of when the environment variable is processed
-	testOpts := options.NewTerragruntOptions()
-	err := testOpts.Experiments.EnableExperiment("azure-backend")
-	if err == nil {
-		// Import and call RegisterBackends - we need to use the internal/remotestate package
-		remotestate.RegisterBackends(testOpts)
-	}
-}
 
 const (
 	testFixtureAzureBackend               = "./fixtures/azure-backend"
@@ -56,7 +41,7 @@ type azureStorageTestConfig struct {
 	Location           string
 }
 type terraformOutput struct {
-    Value interface{} `json:"value"`
+	Value interface{} `json:"value"`
 }
 
 func getAzureStorageTestConfig(t *testing.T) *azureStorageTestConfig {
@@ -132,13 +117,21 @@ func createBlobServiceClientHelper(ctx context.Context, t *testing.T, config map
 }
 
 func assertAzureErrorType(t *testing.T, err error, expectedType string) bool {
-	t.Helper()
-	if err == nil {
-		t.Fatalf("Expected %s error but got nil", expectedType)
-		return false
-	}
-	switch expectedType {
-	case "AuthenticationError":
+   t.Helper()
+   if err == nil {
+	   t.Fatalf("Expected %s error but got nil", expectedType)
+	   return false
+   }
+   switch expectedType {
+   case "AuthorizationError":
+	   // Accept any error that contains 'authorization', 'forbidden', or 'permission' in the message as an authorization error
+	   errMsg := strings.ToLower(err.Error())
+	   if strings.Contains(errMsg, "authorization") || strings.Contains(errMsg, "forbidden") || strings.Contains(errMsg, "permission") {
+		   assert.Contains(t, errMsg, "authorization", "Error message should mention authorization")
+		   return true
+	   }
+	   // No match, fall through to default
+   case "AuthenticationError":
 		var authErr azurerm.AuthenticationError
 		if assert.ErrorAs(t, err, &authErr, "Error should be AuthenticationError type") {
 			assert.NotEmpty(t, authErr.AuthMethod, "Authentication error should specify auth method")
@@ -183,6 +176,7 @@ func assertAzureErrorType(t *testing.T, err error, expectedType string) bool {
 			assert.Contains(t, err.Error(), "resource_group_name is required", "Error message should mention resource_group_name")
 			return true
 		}
+   // (Removed duplicate case "AuthorizationError")
 	default:
 		t.Fatalf("Unknown Azure error type: %s", expectedType)
 		return false
@@ -217,6 +211,44 @@ func getBlobObjectHelper(ctx context.Context, t *testing.T, client *azurehelper.
 }
 
 // --- End Azure test helpers ---
+// LookupCurrentUserObjectID attempts to determine the current Azure user's object ID for role assignment.
+// It first checks environment variables, then falls back to Azure CLI if available.
+func LookupCurrentUserObjectID(ctx context.Context, t *testing.T) string {
+	   t.Helper()
+	   // 1. Check environment variables
+	   envVars := []string{"AZURE_CLIENT_OBJECT_ID", "ARM_CLIENT_OBJECT_ID"}
+	   for _, env := range envVars {
+			   if val := os.Getenv(env); val != "" {
+					   t.Logf("Using object ID from %s: %s", env, val)
+					   return val
+			   }
+	   }
+
+	   // 2. Try Azure CLI (az)
+	   azPath, err := exec.LookPath("az")
+	   if err == nil {
+			   // Try to get signed-in user object ID
+			   cmd := exec.CommandContext(ctx, azPath, "ad", "signed-in-user", "show", "--query", "objectId", "-o", "tsv")
+			   var out bytes.Buffer
+			   cmd.Stdout = &out
+			   cmd.Stderr = &out
+			   if err := cmd.Run(); err == nil {
+					   objectID := strings.TrimSpace(out.String())
+					   if objectID != "" {
+							   t.Logf("Found current user object ID via Azure CLI: %s", objectID)
+							   return objectID
+					   }
+			   } else {
+					   t.Logf("Azure CLI object ID lookup failed: %v, output: %s", err, out.String())
+			   }
+	   } else {
+			   t.Logf("Azure CLI not found in PATH, skipping CLI object ID lookup")
+	   }
+
+	   // 3. Not found
+	   t.Logf("Could not determine current Azure user object ID; role assignment may be skipped.")
+	   return ""
+}
 
 // TestAzureRBACRoleAssignment verifies backend operations with a service principal or managed identity with minimum RBAC
 func TestAzureRBACRoleAssignment(t *testing.T) {
@@ -269,66 +301,83 @@ func TestAzureRBACRoleAssignment(t *testing.T) {
 		_ = client.DeleteContainer(ctx, log, containerName)
 	}()
 
-	// Create standard test configuration using helper
-	config := createStandardBlobConfig(storageAccount, containerName, map[string]interface{}{
-		"key":              "test/terraform.tfstate",
-		"use_azuread_auth": true,
-	})
+   // Only perform object ID lookup if Azure AD auth is enabled and MSI is NOT being used
+   useAzureAD := os.Getenv("TERRAGRUNT_AZURE_USE_AZUREAD_AUTH") == "true" || os.Getenv("USE_AZUREAD_AUTH") == "true"
+   usingMSI := os.Getenv("AZURE_CLIENT_ID") != "" || os.Getenv("ARM_CLIENT_ID") != ""
+   var objectID string
+   if useAzureAD && !usingMSI {
+	  objectID = LookupCurrentUserObjectID(ctx, t)
+	  if objectID == "" {
+		 t.Logf("Warning: Could not determine current user object ID; RBAC role assignment will be skipped.")
+	  } else {
+		 t.Logf("Using Azure AD authentication, looked up current user object ID: %s", objectID)
+		 // Here you would assign the Storage Blob Data Owner role to the objectID if needed
+		 // (Role assignment logic would go here, if not handled elsewhere)
+	  }
+   } else {
+	  t.Logf("Skipping object ID lookup: useAzureAD=%v, usingMSI=%v", useAzureAD, usingMSI)
+   }
 
-	// Create backend
-	backend := azurerm.NewBackend()
-	require.NotNil(t, backend, "Azure backend should be created")
+	   // Create standard test configuration using helper
+	   config := createStandardBlobConfig(storageAccount, containerName, map[string]interface{}{
+			   "key":              "test/terraform.tfstate",
+			   "use_azuread_auth": true,
+	   })
 
-	// Test bootstrap with restricted RBAC permissions
-	t.Run("BootstrapWithRestrictedRBAC", func(t *testing.T) {
-		// Attempt to bootstrap the backend
-		err := backend.Bootstrap(ctx, log, config, opts)
+	   // Create backend
+	   backend := azurerm.NewBackend()
+	   require.NotNil(t, backend, "Azure backend should be created")
 
-		if err != nil {
-			// Check if it's a permissions-related error
-			if strings.Contains(strings.ToLower(err.Error()), "authorizationfailed") ||
-				strings.Contains(strings.ToLower(err.Error()), "permission") ||
-				strings.Contains(strings.ToLower(err.Error()), "forbidden") {
-				// This is acceptable - verify the error is clear and helpful
-				t.Logf("Received expected authorization error with restricted RBAC: %v", err)
+	   // Test bootstrap with restricted RBAC permissions
+	   t.Run("BootstrapWithRestrictedRBAC", func(t *testing.T) {
+			   // Attempt to bootstrap the backend
+			   err := backend.Bootstrap(ctx, log, config, opts)
 
-				// Use helper to assert the error type
-				if !assertAzureErrorType(t, err, "AuthorizationError") {
-					// Fallback: ensure error mentions authorization
-					assert.Contains(t, err.Error(), "authorization", "Error should mention authorization issues")
-				}
-			} else {
-				// For any other error type, it's unexpected
-				t.Fatalf("Unexpected error during RBAC test: %v", err)
-			}
-		} else {
-			// Success case - verify the container was created and test blob operations
-			client := createBlobServiceClientHelper(ctx, t, config)
+			   if err != nil {
+					   // Check if it's a permissions-related error
+					   if strings.Contains(strings.ToLower(err.Error()), "authorizationfailed") ||
+							   strings.Contains(strings.ToLower(err.Error()), "permission") ||
+							   strings.Contains(strings.ToLower(err.Error()), "forbidden") {
+							   // This is acceptable - verify the error is clear and helpful
+							   t.Logf("Received expected authorization error with restricted RBAC: %v", err)
 
-			// Check container exists
-			exists, err := client.ContainerExists(ctx, containerName)
-			require.NoError(t, err)
-			assert.True(t, exists, "Container should exist after successful bootstrap with RBAC permissions")
+							   // Use helper to assert the error type
+							   if !assertAzureErrorType(t, err, "AuthorizationError") {
+									   // Fallback: ensure error mentions authorization
+									   assert.Contains(t, err.Error(), "authorization", "Error should mention authorization issues")
+							   }
+					   } else {
+							   // For any other error type, it's unexpected
+							   t.Fatalf("Unexpected error during RBAC test: %v", err)
+					   }
+			   } else {
+					   // Success case - verify the container was created and test blob operations
+					   client := createBlobServiceClientHelper(ctx, t, config)
 
-			// Test blob upload to verify write permissions
-			testBlobName := "rbac-test-blob.json"
-			testData := []byte(`{"created_by": "terragrunt-rbac-test", "test_key": "test_value"}`)
+					   // Check container exists
+					   exists, err := client.ContainerExists(ctx, containerName)
+					   require.NoError(t, err)
+					   assert.True(t, exists, "Container should exist after successful bootstrap with RBAC permissions")
 
-			err = client.UploadBlob(ctx, log, containerName, testBlobName, testData)
-			require.NoError(t, err, "Should be able to upload blob with sufficient RBAC permissions")
+					   // Test blob upload to verify write permissions
+					   testBlobName := "rbac-test-blob.json"
+					   testData := []byte(`{"created_by": "terragrunt-rbac-test", "test_key": "test_value"}`)
 
-			// Verify blob exists using standard helper
-			blobExists := checkBlobExistsHelper(ctx, t, client, containerName, testBlobName)
-			assert.True(t, blobExists, "Test blob should exist after upload with RBAC permissions")
+					   err = client.UploadBlob(ctx, log, containerName, testBlobName, testData)
+					   require.NoError(t, err, "Should be able to upload blob with sufficient RBAC permissions")
 
-			// Test blob download to verify read permissions
-			downloadedData, err := getBlobObjectHelper(ctx, t, client, containerName, testBlobName)
-			require.NoError(t, err, "Should be able to download blob with sufficient RBAC permissions")
-			assert.Equal(t, testData, downloadedData, "Downloaded blob data should match uploaded data")
+					   // Verify blob exists using standard helper
+					   blobExists := checkBlobExistsHelper(ctx, t, client, containerName, testBlobName)
+					   assert.True(t, blobExists, "Test blob should exist after upload with RBAC permissions")
 
-			t.Logf("Successfully verified RBAC permissions for container, blob upload, and blob download operations")
-		}
-	})
+					   // Test blob download to verify read permissions
+					   downloadedData, err := getBlobObjectHelper(ctx, t, client, containerName, testBlobName)
+					   require.NoError(t, err, "Should be able to download blob with sufficient RBAC permissions")
+					   assert.Equal(t, testData, downloadedData, "Downloaded blob data should match uploaded data")
+
+					   t.Logf("Successfully verified RBAC permissions for container, blob upload, and blob download operations")
+			   }
+	   })
 }
 
 // TestCase represents the test case data without the check function.
@@ -360,7 +409,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 				azureCfg.ContainerName = containerName
 
 				// Bootstrap the backend first
-				bootstrapOutput, bootstrapErr, err := runTerragruntCommandWithOutput(t, "terragrunt backend bootstrap --backend-bootstrap --non-interactive --log-level debug --log-format key-value --working-dir "+rootPath)
+				bootstrapOutput, bootstrapErr, err := runTerragruntCommandWithOutput(t, "terragrunt backend bootstrap --non-interactive --log-level debug --log-format key-value --working-dir "+rootPath)
 				require.NoError(t, err, "Bootstrap command failed: %v\nOutput: %s\nError: %s", err, bootstrapOutput, bootstrapErr)
 
 				client := createBlobServiceClientHelper(
@@ -416,11 +465,10 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cleanupTerraformFolder(t, testFixtureAzureBackend)
-			tmpEnvPath := copyEnvironment(t, testFixtureAzureBackend)
-			// CopyEnvironment copies to tmpEnvPath + "/" + testFixtureAzureBackend
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureBackend)
-			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+		tmpEnvPath := copyEnvironment(t, testFixtureAzureBackend)
+		// CopyEnvironment copies the contents of the source directory to tmpEnvPath
+		rootPath := tmpEnvPath
+		commonConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 
 			azureCfg := getAzureStorageTestConfig(t)
 
@@ -457,14 +505,14 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 
 	tmpEnvPath := copyEnvironment(t, testFixtureAzureOutputFromRemoteState)
 
-	// CopyEnvironment copies to tmpEnvPath + "/" + testFixtureAzureOutputFromRemoteState
+	// CopyEnvironment copies the contents of the source directory to tmpEnvPath
 	// So the environment path should be constructed accordingly
-	environmentPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromRemoteState, "env1")
+	environmentPath := util.JoinPath(tmpEnvPath, "env1")
 
 	azureCfg := getAzureStorageTestConfig(t)
 
 	// Fill in Azure configuration
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromRemoteState)
+	rootPath := tmpEnvPath
 	rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
 	containerName := "terragrunt-test-container-" + strings.ToLower(uniqueID())
 
@@ -1663,7 +1711,7 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 		err = os.Chdir(tmpDir)
 		require.NoError(t, err)
 
-		migrationCmd := fmt.Sprintf("backend migrate --non-interactive %s %s", srcUnitDir, dstUnitDir)
+		migrationCmd := fmt.Sprintf("terragrunt backend migrate --non-interactive %s %s", srcUnitDir, dstUnitDir)
 		output, stderr, err = runTerragruntCommandWithOutput(t, migrationCmd)
 		require.NoError(t, err, "Backend migration failed: %v\nOutput: %s\nError: %s", err, output, stderr)
 
@@ -1680,7 +1728,7 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check outputs in destination unit
-		output, stderr, err = runTerragruntCommandWithOutput(t, "output --non-interactive -json")
+		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt output --non-interactive -json")
 		require.NoError(t, err, "Output after migration failed: %v\nOutput: %s\nError: %s", err, output, stderr)
 
 		var migratedOutputs map[string]interface{}
@@ -1703,14 +1751,14 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 		assert.False(t, sourceStateExists, "Source state should no longer exist after migration (state should be moved, not copied)")
 
 		// Step 8: Verify we can still manage resources with the migrated state
-		output, stderr, err = runTerragruntCommandWithOutput(t, "plan --non-interactive")
+		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive")
 		require.NoError(t, err, "Plan with migrated state failed: %v\nOutput: %s\nError: %s", err, output, stderr)
 		assert.Contains(t, output, "No changes", "Plan should show no changes after successful migration")
 
 		t.Log("Successfully migrated state from source path to destination path")
 
 		// Cleanup resources
-		output, stderr, err = runTerragruntCommandWithOutput(t, "destroy --non-interactive -auto-approve")
+		output, stderr, err = runTerragruntCommandWithOutput(t, "terragrunt destroy --non-interactive -auto-approve")
 		if err != nil {
 			t.Logf("Warning: Failed to destroy resources: %v\nOutput: %s\nError: %s", err, output, stderr)
 		} else {
@@ -1724,7 +1772,7 @@ func uniqueID() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
-func cleanupTerraformFolder(t *testing.T, dir string) {
+func cleanupAzureTerraformFolder(t *testing.T, dir string) {
 	t.Helper()
 	_ = os.RemoveAll(dir)
 }
@@ -1767,8 +1815,6 @@ func copyDir(src string, dst string) error {
 
 func copyTerragruntConfigAndFillProviderPlaceholders(t *testing.T, src, dst string, params map[string]string, location string) {
 	t.Helper()
-	// This is a stub. Implement as needed for your test config copying and placeholder replacement.
-	// For now, just copy the file.
 	input, err := os.ReadFile(src)
 	if err != nil {
 		t.Fatalf("Failed to read config: %v", err)
@@ -1780,49 +1826,135 @@ func copyTerragruntConfigAndFillProviderPlaceholders(t *testing.T, src, dst stri
 	if location != "" {
 		content = strings.ReplaceAll(content, "__FILL_IN_LOCATION__", location)
 	}
-	err = os.WriteFile(dst, []byte(content), 0644)
+	err = os.WriteFile(dst, []byte(content), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write config: %v", err)
-	}
-	err = os.Chmod(dst, 0600)
-	if err != nil {
-		t.Fatalf("Failed to set permissions on config file: %v", err)
 	}
 }
 
 func runTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
 	t.Helper()
-	cmd := execCommand("bash", "-c", command)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return stdout.String(), stderr.String(), err
+	
+	// Set the experiment environment variable to enable Azure backend
+	oldEnv := os.Getenv("TG_EXPERIMENT")
+	defer func() {
+		if oldEnv == "" {
+			os.Unsetenv("TG_EXPERIMENT")
+		} else {
+			os.Setenv("TG_EXPERIMENT", oldEnv)
+		}
+	}()
+	
+	// Set the Azure backend experiment
+	currentExperiments := os.Getenv("TG_EXPERIMENT")
+	if currentExperiments == "" {
+		os.Setenv("TG_EXPERIMENT", "azure-backend")
+	} else if !strings.Contains(currentExperiments, "azure-backend") {
+		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
+	}
+	
+	// As a backup, also add the --experiment flag to ensure the experiment is enabled
+	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
+		// Add the experiment flag to the command
+		parts := strings.Fields(command)
+		if len(parts) > 0 {
+			if parts[0] == "terragrunt" {
+				// Insert --experiment azure-backend after "terragrunt"
+				newParts := append([]string{parts[0], "--experiment", "azure-backend"}, parts[1:]...)
+				command = strings.Join(newParts, " ")
+			} else {
+				// If command doesn't start with terragrunt, prepend it
+				command = "terragrunt --experiment azure-backend " + command
+			}
+		}
+	}
+	
+	return helpers.RunTerragruntCommandWithOutput(t, command)
+
 }
 
 // --- Generic test helpers (continued) ---
 func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Buffer) error {
 	t.Helper()
-	cmd := execCommand("bash", "-c", command)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	return cmd.Run()
+	
+	// Set the experiment environment variable to enable Azure backend
+	oldEnv := os.Getenv("TG_EXPERIMENT")
+	defer func() {
+		if oldEnv == "" {
+			os.Unsetenv("TG_EXPERIMENT")
+		} else {
+			os.Setenv("TG_EXPERIMENT", oldEnv)
+		}
+	}()
+	
+	// Set the Azure backend experiment
+	currentExperiments := os.Getenv("TG_EXPERIMENT")
+	if currentExperiments == "" {
+		os.Setenv("TG_EXPERIMENT", "azure-backend")
+	} else if !strings.Contains(currentExperiments, "azure-backend") {
+		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
+	}
+	
+	// As a backup, also add the --experiment flag to ensure the experiment is enabled
+	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
+		// Add the experiment flag to the command
+		parts := strings.Fields(command)
+		if len(parts) > 0 {
+			if parts[0] == "terragrunt" {
+				// Insert --experiment azure-backend after "terragrunt"
+				newParts := append([]string{parts[0], "--experiment", "azure-backend"}, parts[1:]...)
+				command = strings.Join(newParts, " ")
+			} else {
+				// If command doesn't start with terragrunt, prepend it
+				command = "terragrunt --experiment azure-backend " + command
+			}
+		}
+	}
+	
+	return helpers.RunTerragruntCommand(t, command, stdout, stderr)
 }
 
-func execCommand(name string, arg ...string) *exec.Cmd {
-	return exec.Command(name, arg...)
-}
+
 
 // --- Generic test helpers (continued) ---
 func runTerragrunt(t *testing.T, command string) {
 	t.Helper()
-	cmd := execCommand("bash", "-c", command)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err != nil {
-		t.Fatalf("Failed to run terragrunt command: %v", err)
+	
+	// Set the experiment environment variable to enable Azure backend
+	oldEnv := os.Getenv("TG_EXPERIMENT")
+	defer func() {
+		if oldEnv == "" {
+			os.Unsetenv("TG_EXPERIMENT")
+		} else {
+			os.Setenv("TG_EXPERIMENT", oldEnv)
+		}
+	}()
+	
+	// Set the Azure backend experiment
+	currentExperiments := os.Getenv("TG_EXPERIMENT")
+	if currentExperiments == "" {
+		os.Setenv("TG_EXPERIMENT", "azure-backend")
+	} else if !strings.Contains(currentExperiments, "azure-backend") {
+		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
 	}
+	
+	// As a backup, also add the --experiment flag to ensure the experiment is enabled
+	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
+		// Add the experiment flag to the command
+		parts := strings.Fields(command)
+		if len(parts) > 0 {
+			if parts[0] == "terragrunt" {
+				// Insert --experiment azure-backend after "terragrunt"
+				newParts := append([]string{parts[0], "--experiment", "azure-backend"}, parts[1:]...)
+				command = strings.Join(newParts, " ")
+			} else {
+				// If command doesn't start with terragrunt, prepend it
+				command = "terragrunt --experiment azure-backend " + command
+			}
+		}
+	}
+	
+	helpers.RunTerragrunt(t, command)
 }
 
 // --- End generic test helpers ---
@@ -1987,6 +2119,8 @@ func setupTestContainer(ctx context.Context, t *testing.T, storageAccountName, c
 	t.Logf("Container %s created successfully", containerName)
 	testBlobName := "test-permissions.txt"
 	testContent := []byte("Permission test")
+	sleepTime := 5 * time.Second // Allow some time for the container to be fully ready
+	time.Sleep(sleepTime)
 	err = blobClient.UploadBlob(ctx, log, containerName, testBlobName, testContent)
 	require.NoError(t, err, "Should be able to upload test blob - check Azure permissions")
 	err = blobClient.DeleteBlobIfNecessary(ctx, log, containerName, testBlobName)
@@ -2083,16 +2217,16 @@ func generateAzureTerragruntConfig(storageAccount, container, stateKey, resource
 remote_state {
   backend = "azurerm"
   generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite"
+	path      = "backend.tf"
+	if_exists = "overwrite"
   }
   config = {
-    storage_account_name = "%s"
-    container_name      = "%s"
-    key                 = "%s"
-    resource_group_name = "%s"
-    subscription_id     = "%s"
-    use_azuread_auth    = true
+	storage_account_name = "%s"
+	container_name      = "%s"
+	key                 = "%s"
+	resource_group_name = "%s"
+	subscription_id     = "%s"
+	use_azuread_auth    = true
   }
 }
 

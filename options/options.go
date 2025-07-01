@@ -44,8 +44,8 @@ func RegisterHook(hook Hook) {
 	optionsHooks = append(optionsHooks, hook)
 }
 
-// runHooks executes all registered hooks with the provided options
-func runHooks(opts *TerragruntOptions) {
+// RunHooks executes all registered hooks with the provided options
+func RunHooks(opts *TerragruntOptions) {
 	for _, hook := range optionsHooks {
 		hook(opts)
 	}
@@ -439,7 +439,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 	}
 
 	// Run any registered options hooks
-	runHooks(opts)
+	RunHooks(opts)
 
 	return opts
 }
