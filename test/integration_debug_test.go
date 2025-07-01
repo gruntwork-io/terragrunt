@@ -101,7 +101,6 @@ func TestTerragruntValidateInputs(t *testing.T) {
 	for _, module := range moduleDirs {
 		// capture range var within range scope so it doesn't change as the tests are spun to the background in the
 		// t.Parallel call.
-		module := module
 
 		name := filepath.Base(module)
 		t.Run(name, func(t *testing.T) {

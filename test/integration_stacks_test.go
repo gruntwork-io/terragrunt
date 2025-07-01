@@ -47,6 +47,7 @@ const (
 	testFixtureStackSelfInclude                = "fixtures/stacks/self-include"
 	testFixtureStackNestedOutputs              = "fixtures/stacks/nested-outputs"
 	testFixtureStackNoValidation               = "fixtures/stacks/no-validation"
+	testFixtureStackTerragruntDir              = "fixtures/stacks/terragrunt-dir"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -993,7 +994,7 @@ func TestStacksCyclesErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "Cycle detected")
 }
 
-func TestStacksNoStackDirNoTerragruntStackDirectoryCreated(t *testing.T) {
+func TestStacksNoStackDirDirectoryCreated(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureNoStackNoDir)
@@ -1005,6 +1006,27 @@ func TestStacksNoStackDirNoTerragruntStackDirectoryCreated(t *testing.T) {
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	// validate that the stack directory is not created
 	assert.NoDirExists(t, path)
+}
+
+func TestStacksNoStackCommandFail(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNoStackNoDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStackNoDir)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureNoStackNoDir, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Stack directory does not exist or is not accessible")
+}
+
+func TestStacksGeneratePrintWarning(t *testing.T) {
+	t.Parallel()
+
+	rootPath := t.TempDir()
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
+	assert.Contains(t, stderr, "No stack files found")
+	require.NoError(t, err)
 }
 
 func TestStacksNotExistingPathError(t *testing.T) {
@@ -1274,4 +1296,21 @@ func validateStackDir(t *testing.T, path string) {
 	}
 
 	assert.True(t, hasSubdirectories, "The .terragrunt-stack directory should contain at least one subdirectory")
+}
+
+func TestStackTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackTerragruntDir)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTerragruntDir)
+	gitPath := util.JoinPath(tmpEnvPath, testFixtureStackTerragruntDir)
+	helpers.CreateGitRepo(t, gitPath)
+	rootPath := util.JoinPath(gitPath, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --no-stack-validate --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	out, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --all --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Contains(t, out, `terragrunt_dir = "./tennant_1"`)
 }

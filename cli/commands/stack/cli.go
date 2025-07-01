@@ -15,7 +15,6 @@ const (
 	OutputFormatFlagName = "format"
 	JSONFormatFlagName   = "json"
 	RawFormatFlagName    = "raw"
-	NoStackGenerate      = "no-stack-generate"
 	NoStackValidate      = "no-stack-validate"
 
 	generateCommandName = "generate"

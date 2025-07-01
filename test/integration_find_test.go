@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wI2L/jsondiff"
 )
 
 const (
@@ -96,8 +97,8 @@ func TestFindDAG(t *testing.T) {
 		sort     string
 		expected string
 	}{
-		{name: "alpha", sort: "alpha", expected: "a-dependent\nb-dependency\n"},
-		{name: "dag", sort: "dag", expected: "b-dependency\na-dependent\n"},
+		{name: "alpha", sort: "alpha", expected: "a-dependent\nb-dependency\nc-mixed-deps\nd-dependencies-only\n"},
+		{name: "dag", sort: "dag", expected: "b-dependency\na-dependent\nd-dependencies-only\nc-mixed-deps\n"},
 	}
 
 	for _, tc := range testCases {
@@ -119,6 +120,60 @@ func TestFindDAG(t *testing.T) {
 			assert.Equal(t, tc.expected, stdout)
 		})
 	}
+}
+
+func TestFindDAGWithMixedDependencies(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
+
+	testCases := []struct {
+		name     string
+		args     string
+		expected string
+	}{
+		{
+			name:     "dag with dependencies output",
+			args:     "--dag --dependencies",
+			expected: "b-dependency\na-dependent\nd-dependencies-only\nc-mixed-deps\n",
+		},
+		{
+			name:     "dag with dependencies json output",
+			args:     "--dag --dependencies --json",
+			expected: `[{"type":"unit","path":"b-dependency"},{"type":"unit","path":"a-dependent","dependencies":["b-dependency"]},{"type":"unit","path":"d-dependencies-only","dependencies":["a-dependent"]},{"type":"unit","path":"c-mixed-deps","dependencies":["a-dependent","d-dependencies-only"]}]`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
+
+			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindDAG + " " + tc.args
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			assert.Empty(t, stderr)
+			if strings.Contains(tc.args, "--json") {
+				jsonStringsEqual(t, tc.expected, stdout)
+			} else {
+				assert.Equal(t, tc.expected, stdout)
+			}
+		})
+	}
+}
+
+// jsonStringsEqual compares two JSON strings for equivalence, ignoring the order of nested arrays.
+func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...interface{}) bool {
+	t.Helper()
+
+	patch, err := jsondiff.CompareJSON([]byte(expected), []byte(actual), jsondiff.Equivalent())
+	require.NoErrorf(t, err, fmt.Sprintf("Error comparing JSON strings: %v", err), msgAndArgs...)
+	require.Emptyf(t, patch, fmt.Sprintf("JSON strings are not equal\nExpected: %s\nActual: %s", expected, actual), msgAndArgs...)
+
+	return true
 }
 
 func TestFindExternalDependencies(t *testing.T) {
@@ -233,7 +288,8 @@ func TestFindQueueConstructAs(t *testing.T) {
 	t.Parallel()
 
 	// I'm using the list fixture here because it's more convenient.
-	helpers.CleanupTerraformFolder(t, testFixtureListDag)
+	testFixtureQueueConstruct := "fixtures/list/dag"
+	helpers.CleanupTerraformFolder(t, testFixtureQueueConstruct)
 
 	testCases := []struct {
 		name           string
@@ -275,9 +331,9 @@ func TestFindQueueConstructAs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureListDag)
+			helpers.CleanupTerraformFolder(t, testFixtureQueueConstruct)
 
-			cmd := fmt.Sprintf("terragrunt find --json --no-color --working-dir %s %s", testFixtureListDag, tc.args)
+			cmd := fmt.Sprintf("terragrunt find --json --no-color --working-dir %s %s", testFixtureQueueConstruct, tc.args)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 			assert.Empty(t, stderr)

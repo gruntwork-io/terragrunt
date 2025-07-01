@@ -72,6 +72,10 @@ type Stack struct {
 	Path         string     `hcl:"path,attr"`
 }
 
+type stackParserContext struct {
+	stackConfigFile string
+}
+
 // GenerateStacks generates the stack files.
 func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	processedFiles := make(map[string]bool)
@@ -83,6 +87,14 @@ func GenerateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 	foundFiles, err := listStackFiles(l, opts, opts.WorkingDir)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
+	}
+
+	if len(foundFiles) == 0 {
+		if opts.StackAction == "generate" {
+			l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+		}
+
+		return nil
 	}
 
 	for {
@@ -163,6 +175,11 @@ func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	foundFiles, err := listStackFiles(l, opts, opts.WorkingDir)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
+	}
+
+	if len(foundFiles) == 0 {
+		l.Warnf("No stack files found in %s Nothing to generate.", opts.WorkingDir)
+		return cty.NilVal, nil
 	}
 
 	outputs := make(map[string]map[string]cty.Value)
@@ -674,6 +691,7 @@ func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, opts *options.Terr
 func ReadStackConfigFile(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, filePath string, values *cty.Value) (*StackConfig, error) {
 	l.Debugf("Reading Terragrunt stack config file at %s", filePath)
 
+	ctx = context.WithValue(ctx, stackParserContext{}, stackParserContext{stackConfigFile: filePath})
 	parser := NewParsingContext(ctx, l, opts)
 
 	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)

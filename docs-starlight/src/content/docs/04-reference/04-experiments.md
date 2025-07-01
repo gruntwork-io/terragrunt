@@ -71,7 +71,12 @@ The following experiments are available:
 - [cas](#cas)
 - [report](#report)
 - [runner-pool](#runner-pool)
+<<<<<<< HEAD
 - [azure-backend](#azure-backend)
+=======
+- [auto-provider-cache-dir](#auto-provider-cache-dir)
+
+>>>>>>> main
 
 ### symlinks
 
@@ -91,8 +96,8 @@ To stabilize this feature, the following need to be resolved, at a minimum:
 
 - [ ] Ensure that symlink support continues to work for users referencing symlinks in flags. See [#3622](https://github.com/gruntwork-io/terragrunt/issues/3622).
   - [ ] Add integration tests for all filesystem flags to confirm support with symlinks (or document the fact that they cannot be supported).
-- [ ] Ensure that macOS integration tests still work. See [#3616](https://github.com/gruntwork-io/terragrunt/issues/3616).
-  - [ ] Add integration tests for macOS in CI.
+- [ ] Ensure that MacOS integration tests still work. See [#3616](https://github.com/gruntwork-io/terragrunt/issues/3616).
+  - [ ] Add integration tests for MacOS in CI.
 
 ### `cas`
 
@@ -100,9 +105,9 @@ Support for Terragrunt Content Addressable Storage (CAS).
 
 #### `cas` - What it does
 
-Allow Terragrunt to store and retrieve state files from a Content Addressable Storage (CAS) system.
+Allow Terragrunt to store and retrieve Git repositories from a Content Addressable Storage (CAS) system.
 
-At the moment, the CAS is only used to speed up catalog cloning, but in the future, it can be used to store more content.
+The CAS is used to speed up both catalog cloning and OpenTofu/Terraform source cloning by avoiding redundant downloads of Git repositories.
 
 #### `cas` - How to provide feedback
 
@@ -117,7 +122,7 @@ Feedback is crucial for ensuring the feature meets real-world use cases. Please 
 To transition the `cas` feature to a stable release, the following must be addressed:
 
 - [x] Add support for storing and retrieving catalog repositories from the CAS.
-- [ ] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
+- [x] Add support for storing and retrieving OpenTofu/Terraform modules from the CAS.
 - [ ] Add support for storing and retrieving Unit/Stack configurations from the CAS.
 
 ### `report`
@@ -139,9 +144,9 @@ To transition the `report` feature to a stable release, the following must be ad
 - [x] Add support for generating reports (in CSV format by default).
 - [x] Add support for displaying summaries of runs.
 - [x] Add ability to disable summary display.
-- [ ] Add support for generating reports in JSON format.
-- [ ] Add comprehensive integration tests for the `report` experiment.
-- [ ] Finalize the design of run summaries and reports.
+- [x] Add support for generating reports in JSON format.
+- [x] Add comprehensive integration tests for the `report` experiment.
+- [x] Finalize the design of run summaries and reports.
 
 ### `runner-pool`
 
@@ -199,6 +204,58 @@ To transition the `azure-backend` feature to a stable release, the following mus
 - [ ] Test performance with various state file sizes and configurations
 - [ ] Validate compatibility with different Azure credential providers
 - [ ] Implement thorough security testing for the backend
+
+### `auto-provider-cache-dir`
+
+Enable native OpenTofu provider caching by setting `TF_PLUGIN_CACHE_DIR` instead of using Terragrunt's internal provider cache server.
+
+#### `auto-provider-cache-dir` - What it does
+
+When enabled, this experiment automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
+
+**Requirements:**
+
+- OpenTofu version >= 1.10 is required
+- Only works when using OpenTofu (not Terraform)
+- If the requirements are not met, the experiment silently does nothing
+
+**Usage:**
+
+```bash
+terragrunt run --all apply --experiment auto-provider-cache-dir
+```
+
+Or with environment variables:
+
+```bash
+TG_EXPERIMENT='auto-provider-cache-dir' \
+terragrunt run --all apply
+```
+
+**Disabling the feature:**
+
+Even when the experiment is enabled, you can still disable the auto-provider-cache-dir feature for specific runs using the `--no-auto-provider-cache-dir` flag:
+
+```bash
+terragrunt run --all apply --experiment auto-provider-cache-dir --no-auto-provider-cache-dir
+```
+
+This will be most important post-stabilization, when the feature is enabled by default.
+
+#### `auto-provider-cache-dir` - How to provide feedback
+
+Please provide feedback through [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) with the `experiment: auto-provider-cache-dir` label.
+
+#### `auto-provider-cache-dir` - Criteria for stabilization
+
+To transition the `auto-provider-cache-dir` feature to a stable release, the following must be addressed:
+
+- [ ] Comprehensive testing to confirm the safety of concurrent runs using the same provider cache directory.
+- [ ] Performance comparison with the existing provider cache server approach.
+- [ ] Documentation and examples of best practices for usage.
+- [ ] Community feedback on real-world usage and any edge cases discovered.
+
+Note that the current plan for stabilization is to have the feature be enabled by default, and to allow users to opt-out if they need to, or use the provider cache server if they want to do something more advanced, like store their provider cache in a different filesystem.
 
 ## Completed Experiments
 

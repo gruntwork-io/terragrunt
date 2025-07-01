@@ -417,8 +417,6 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, l log.Logger, dependencyCon
 	dependencyErrGroup, _ := errgroup.WithContext(ctx)
 
 	for _, dependencyConfig := range dependencyConfigs {
-		dependencyConfig := dependencyConfig // https://golang.org/doc/faq#closures_and_goroutines
-
 		dependencyErrGroup.Go(func() error {
 			// Loose struct to hold the attributes of the dependency. This includes:
 			// - outputs: The module outputs of the target config

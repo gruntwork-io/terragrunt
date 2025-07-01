@@ -5,15 +5,14 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
-	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
 	minTreePartsLength = 4
-	maxConcurrentLinks = 4
 )
 
 // TreeEntry represents a single entry in a git tree
@@ -101,97 +100,94 @@ func ParseTree(output, path string) (*Tree, error) {
 
 // LinkTree writes the tree to a target directory
 func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	content := NewContent(store)
 
-	var (
-		errMu sync.Mutex
-		errs  []error
-	)
+	dirsToCreate := make(map[string]struct{}, len(t.entries))
 
-	var wg sync.WaitGroup
+	type workItem struct {
+		itemType string
+		entry    TreeEntry
+		path     string
+		dirPath  string
+	}
 
-	semaphore := make(chan struct{}, maxConcurrentLinks)
+	workItems := make([]workItem, 0, len(t.entries))
 
 	for _, entry := range t.entries {
-		wg.Add(1)
+		entryPath := filepath.Join(targetDir, entry.Path)
+		dirPath := filepath.Dir(entryPath)
 
-		go func(entry TreeEntry) {
-			defer wg.Done()
+		dirsToCreate[dirPath] = struct{}{}
 
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
+		// If the parent directory is in dirsToCreate,
+		// we can remove it, since it will be created
+		// when creating the subtree anyways.
+		parentDirPath := filepath.Dir(dirPath)
+		delete(dirsToCreate, parentDirPath)
 
-			select {
-			case semaphore <- struct{}{}:
-				defer func() { <-semaphore }()
-			case <-ctx.Done():
-				return
-			}
-
-			entryPath := filepath.Join(targetDir, entry.Path)
-			if err := os.MkdirAll(filepath.Dir(entryPath), DefaultDirPerms); err != nil {
-				errMu.Lock()
-				errs = append(errs, wrapError("mkdir_all", entryPath, err))
-				errMu.Unlock()
-				cancel()
-
-				return
-			}
-
-			content := NewContent(store)
-
-			switch entry.Type {
-			case "blob":
-				if err := content.Link(entry.Hash, entryPath); err != nil {
-					errMu.Lock()
-					errs = append(errs, wrapError("link_blob", entryPath, err))
-					errMu.Unlock()
-					cancel()
-
-					return
-				}
-			case "tree":
-				treeData, err := content.Read(entry.Hash)
-				if err != nil {
-					errMu.Lock()
-					errs = append(errs, wrapError("read_tree", entry.Hash, err))
-					errMu.Unlock()
-					cancel()
-
-					return
-				}
-
-				subTree, err := ParseTree(string(treeData), entryPath)
-				if err != nil {
-					errMu.Lock()
-					errs = append(errs, wrapError("parse_tree", entry.Hash, err))
-					errMu.Unlock()
-					cancel()
-
-					return
-				}
-
-				if err := subTree.LinkTree(ctx, store, entryPath); err != nil {
-					errMu.Lock()
-					errs = append(errs, wrapError("link_subtree", entryPath, err))
-					errMu.Unlock()
-					cancel()
-
-					return
-				}
-			}
-		}(entry)
+		// Create work items based on entry type
+		switch entry.Type {
+		case "blob":
+			workItems = append(workItems, workItem{
+				itemType: "link",
+				entry:    entry,
+				path:     entryPath,
+				dirPath:  dirPath,
+			})
+		case "tree":
+			workItems = append(workItems, workItem{
+				itemType: "subtree",
+				entry:    entry,
+				path:     entryPath,
+				dirPath:  dirPath,
+			})
+		}
 	}
 
-	wg.Wait()
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+	for dirPath := range dirsToCreate {
+		if err := os.MkdirAll(dirPath, DefaultDirPerms); err != nil {
+			return wrapError("mkdir_all", dirPath, err)
+		}
 	}
 
-	return nil
+	// Use errgroup for concurrent processing
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Set concurrency limit
+	scalingFactor := 2
+	maxWorkers := max(1, runtime.NumCPU()/scalingFactor)
+	g.SetLimit(maxWorkers)
+
+	// Process work items concurrently
+	for _, work := range workItems {
+		g.Go(func() error {
+			switch work.itemType {
+			case "link":
+				err := content.Link(ctx, work.entry.Hash, work.path)
+				if err != nil {
+					return wrapError("link_blob", work.path, err)
+				}
+			case "subtree":
+				treeData, err := content.Read(work.entry.Hash)
+				if err != nil {
+					return wrapError("read_tree", work.entry.Hash, err)
+				}
+
+				subTree, err := ParseTree(string(treeData), work.path)
+				if err != nil {
+					return wrapError("parse_tree", work.entry.Hash, err)
+				}
+
+				err = subTree.LinkTree(ctx, store, work.path)
+				if err != nil {
+					return wrapError("link_subtree", work.path, err)
+				}
+			}
+
+			return nil
+		})
+	}
+
+	// Wait for all goroutines to complete and return first error if any
+	return g.Wait()
 }

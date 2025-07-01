@@ -29,6 +29,11 @@ const (
 	RunnerPool = "runner-pool"
 	// AzureBackend is the experiment that enables the Azure backend for remote state storage.
 	AzureBackend = "azure-backend"
+	// AutoProviderCacheDir is the experiment that automatically enables central
+	// provider caching by setting TF_PLUGIN_CACHE_DIR.
+	//
+	// Only works with OpenTofu version >= 1.10.
+	AutoProviderCacheDir = "auto-provider-cache-dir"
 )
 
 const (
@@ -66,7 +71,11 @@ func NewExperiments() Experiments {
 			Name: RunnerPool,
 		},
 		{
+<<<<<<< HEAD
 			Name: AzureBackend,
+=======
+			Name: AutoProviderCacheDir,
+>>>>>>> main
 		},
 	}
 }

@@ -44,6 +44,7 @@ flags:
   - inputs-debug
   - no-auto-approve
   - no-auto-init
+  - no-auto-provider-cache-dir
   - no-auto-retry
   - no-destroy-dependencies-check
   - parallelism
@@ -69,11 +70,12 @@ flags:
   - source-map
   - source-update
   - summary-disable
-  - summary-unit-duration
+  - summary-per-unit
   - tf-forward-stdout
   - tf-path
   - units-that-include
   - use-partial-parse-config-cache
+  - version-manager-file-name
 ---
 
 import { Aside } from '@astrojs/starlight/components';

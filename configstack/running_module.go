@@ -107,23 +107,10 @@ func (module *RunningModule) waitForDependencies(opts *options.TerragruntOptions
 				module.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
 
 				if opts.Experiments.Evaluate(experiment.Report) {
-					run, err := r.GetRun(module.Module.Path)
+					run, err := r.EnsureRun(module.Module.Path)
 					if err != nil {
-						if errors.Is(err, report.ErrRunNotFound) {
-							run, err = report.NewRun(module.Module.Path)
-							if err != nil {
-								module.Logger.Errorf("Error creating run for unit %s: %v", module.Module.Path, err)
-								return err
-							}
-
-							if err := r.AddRun(run); err != nil {
-								module.Logger.Errorf("Error adding run for unit %s: %v", module.Module.Path, err)
-								return err
-							}
-						} else {
-							module.Logger.Errorf("Error getting run for unit %s: %v", module.Module.Path, err)
-							return err
-						}
+						module.Logger.Errorf("Error ensuring run for unit %s: %v", module.Module.Path, err)
+						return err
 					}
 
 					if err := r.EndRun(
@@ -221,7 +208,34 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 
 		if reportExperiment {
 			if err := r.EndRun(module.Module.Path); err != nil {
-				module.Logger.Errorf("Error ending run for module %s: %v", module.Module.Path, err)
+				// If the run is not found in the report, it likely means this module was an external dependency
+				// that was excluded from the queue (e.g., with --queue-exclude-external).
+				if !errors.Is(err, report.ErrRunNotFound) {
+					module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+
+					return
+				}
+
+				if module.Module.AssumeAlreadyApplied {
+					run, err := report.NewRun(module.Module.Path)
+					if err != nil {
+						module.Logger.Errorf("Error creating run for unit %s: %v", module.Module.Path, err)
+						return
+					}
+
+					if err := r.AddRun(run); err != nil {
+						module.Logger.Errorf("Error adding run for unit %s: %v", module.Module.Path, err)
+						return
+					}
+
+					if err := r.EndRun(
+						run.Path,
+						report.WithResult(report.ResultExcluded),
+						report.WithReason(report.ReasonExcludeExternal),
+					); err != nil {
+						module.Logger.Errorf("Error ending run for unit %s: %v", module.Module.Path, err)
+					}
+				}
 			}
 		}
 	} else {
@@ -234,10 +248,6 @@ func (module *RunningModule) moduleFinished(moduleErr error, r *report.Report, r
 				report.WithReason(report.ReasonRunError),
 				report.WithCauseRunError(moduleErr.Error()),
 			); err != nil {
-				// If we can't find the run, then it never started,
-				// So we should start it and then end it as a failed run.
-				//
-				// Early exit runs should already be ended at this point.
 				if errors.Is(err, report.ErrRunNotFound) {
 					run, err := report.NewRun(module.Module.Path)
 					if err != nil {
@@ -393,18 +403,10 @@ func (modules RunningModules) RemoveFlagExcluded(r *report.Report, reportExperim
 				}
 			}
 		} else if reportExperiment {
-			run, err := r.GetRun(module.Module.Path)
-			if errors.Is(err, report.ErrRunNotFound) {
-				run, err = report.NewRun(module.Module.Path)
-				if err != nil {
-					errs = append(errs, err)
-					continue
-				}
-
-				if err := r.AddRun(run); err != nil {
-					errs = append(errs, err)
-					continue
-				}
+			run, err := r.EnsureRun(module.Module.Path)
+			if err != nil {
+				errs = append(errs, err)
+				continue
 			}
 
 			if err := r.EndRun(

@@ -9,7 +9,8 @@ order: 202
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
-    - /docs/features/execute-terraform-commands-on-multiple-units-at-once/
+  - /docs/features/execute-terraform-commands-on-multiple-units-at-once/
+  - /docs/features/execute-terraform-commands-on-multiple-modules-at-once/
 slug: stacks
 ---
 
@@ -26,11 +27,12 @@ slug: stacks
 - [Limiting run parallelism](#limiting-run-parallelism)
 - [Saving OpenTofu/Terraform plan output](#saving-opentofuterraform-plan-output)
 - [Nested Stacks](#nested-stacks)
+- [Using Local State with Stacks](#using-local-state-with-stacks)
 - [Learning more](#learning-more)
 
 ## Motivation
 
-Let’s say your infrastructure is defined across multiple OpenTofu/Terraform root modules:
+Let's say your infrastructure is defined across multiple OpenTofu/Terraform root modules:
 
 ```tree
 root
@@ -145,9 +147,9 @@ terragrunt run --all output
 Finally, if you make some changes to your project, you could evaluate the impact by using `run --all` command with `plan`:
 
 Note: It is important to realize that you could get errors running `run --all plan` if you have dependencies between your
-projects and some of those dependencies haven’t been applied yet.
+projects and some of those dependencies haven't been applied yet.
 
-_Ex: If unit A depends on unit B and unit B hasn’t been applied yet, then run --all plan will show the plan for B, but exit with an error when trying to show the plan for A._
+_Ex: If unit A depends on unit B and unit B hasn't been applied yet, then run --all plan will show the plan for B, but exit with an error when trying to show the plan for A._
 
 ```bash
 terragrunt run --all plan
@@ -155,7 +157,7 @@ terragrunt run --all plan
 
 \* Note that the units _might_ run concurrently, but some units can be blocked from running until their dependencies are run.
 
-If your units have dependencies between them, for example, you can’t deploy the backend-app until MySQL and valkey are deployed. You’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
+If your units have dependencies between them, for example, you can't deploy the backend-app until MySQL and valkey are deployed. You'll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
 Additional note: If your units have dependencies between them, and you run a `terragrunt run --all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--queue-exclude-external` flag, or use the `--exclude-dir` once for each directory you wish to exclude.
 
@@ -251,11 +253,11 @@ If any of the units failed to deploy, then Terragrunt will not attempt to deploy
 
 Terragrunt will return an error if the unit referenced in a `dependency` block has not been applied yet. This is because you cannot actually fetch outputs out of an unapplied unit, even if there are no resources being created in the unit.
 
-This is most problematic when running commands that do not modify state (e.g `run --all plan` and `run --all validate`) on a completely new setup where no infrastructure has been deployed. You won’t be able to `plan` or `validate` a unit if you can’t determine the `inputs`. If the unit depends on the outputs of another unit that hasn’t been applied yet, you won’t be able to compute the `inputs` unless the dependencies are all applied.
+This is most problematic when running commands that do not modify state (e.g `run --all plan` and `run --all validate`) on a completely new setup where no infrastructure has been deployed. You won't be able to `plan` or `validate` a unit if you can't determine the `inputs`. If the unit depends on the outputs of another unit that hasn't been applied yet, you won't be able to compute the `inputs` unless the dependencies are all applied.
 
 Of course, in real life usage, you typically need the ability to run `run --all validate` or `run --all plan` on a completely new set of infrastructure.
 
-To address this, you can provide mock outputs to use when a unit hasn’t been applied yet. This is configured using the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of the actual dependency outputs if the target config hasn’t been applied yet.
+To address this, you can provide mock outputs to use when a unit hasn't been applied yet. This is configured using the `mock_outputs` attribute on the `dependency` block and it corresponds to a map that will be injected in place of the actual dependency outputs if the target config hasn't been applied yet.
 
 Using a mock output is typically the best solution here, as you typically don't actually care that an _accurate_ value is used for a given value at this stage, just that it will plan successfully. When you actually apply the unit, that's when you want to be sure that a real value is used.
 
@@ -279,7 +281,7 @@ inputs = {
 
 You can now run `validate` on this config before the `vpc` unit is applied because Terragrunt will use the map `{vpc_id = "mock-vpc-id"}` as the `outputs` attribute on the dependency instead of erroring out.
 
-What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use the defaults for a `plan` operation because the plan doesn’t give you any indication of what is actually going to be created.
+What if you wanted to restrict this behavior to only the `validate` command? For example, you might not want to use the defaults for a `plan` operation because the plan doesn't give you any indication of what is actually going to be created.
 
 You can use the `mock_outputs_allowed_terraform_commands` attribute to indicate that the `mock_outputs` should only be used when running those OpenTofu/Terraform commands. So to restrict the `mock_outputs` to only when `validate` is being run, you can modify the above `terragrunt.hcl` file to:
 
@@ -394,7 +396,7 @@ root
     └── terragrunt.hcl
 ```
 
-Let’s assume you have the following dependencies between OpenTofu/Terraform units:
+Let's assume you have the following dependencies between OpenTofu/Terraform units:
 
 - `backend-app` depends on `mysql`, `valkey`, and `vpc`
 
@@ -422,7 +424,7 @@ dependencies {
 }
 ```
 
-Once you’ve specified these dependencies in each `terragrunt.hcl` file, Terragrunt will be able to perform updates respecting the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of dependencies.
+Once you've specified these dependencies in each `terragrunt.hcl` file, Terragrunt will be able to perform updates respecting the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of dependencies.
 
 For the example at the start of this section, the order of runs for the `run --all apply` command would be:
 
@@ -472,7 +474,7 @@ If you set the `--source` parameter, the `run --all` command will assume that pa
 
 For each unit that is being processed via a `run --all` command, Terragrunt will:
 
-1. Read in the `source` parameter in that unit’s `terragrunt.hcl` file.
+1. Read in the `source` parameter in that unit's `terragrunt.hcl` file.
 2. Parse out the path (the portion after the double-slash).
 3. Append the path to the `--source` parameter to create the final local path for that unit.
 
@@ -520,11 +522,11 @@ $ terragrunt run --all plan --out-dir /tmp/tfplan
 $ tree /tmp/tfplan
 /tmp/tfplan
 ├── app1
-│   └── tfplan.tfplan
+│   └── tfplan.tfplan
 ├── app2
-│   └── tfplan.tfplan
+│   └── tfplan.tfplan
 ├── app3
-│   └── tfplan.tfplan
+│   └── tfplan.tfplan
 └── project-2
     └── project-2-app1
         └── tfplan.tfplan
@@ -545,11 +547,11 @@ $ terragrunt run --all plan --json-out-dir /tmp/json
 $ tree /tmp/json
 /tmp/json
 ├── app1
-│   └── tfplan.json
+│   └── tfplan.json
 ├── app2
-│   └── tfplan.json
+│   └── tfplan.json
 ├── app3
-│   └── tfplan.json
+│   └── tfplan.json
 └── project-2
     └── project-2-app1
         └── tfplan.json
@@ -559,14 +561,14 @@ $ terragrunt run --all plan --out-dir /tmp/all --json-out-dir /tmp/all
 $ tree /tmp/all
 /tmp/all
 ├── app1
-│   ├── tfplan.json
-│   └── tfplan.tfplan
+│   ├── tfplan.json
+│   └── tfplan.tfplan
 ├── app2
-│   ├── tfplan.json
-│   └── tfplan.tfplan
+│   ├── tfplan.json
+│   └── tfplan.tfplan
 ├── app3
-│   ├── tfplan.json
-│   └── tfplan.tfplan
+│   ├── tfplan.json
+│   └── tfplan.tfplan
 └── project-2
     └── project-2-app1
         ├── tfplan.json
@@ -619,6 +621,153 @@ Generally speaking, this is the primary tool Terragrunt users use to control the
 In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#runner-queue), you can also use flags like [--queue-include-dir](/docs/reference/cli-options/#queue-include-dir) and [--queue-exclude-dir](/docs/reference/cli-options/#queue-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
 
 There are more flags that control the behavior of the `run --all` command, which you can find in the [CLI Options](/docs/reference/cli-options) section.
+
+## Using Local State with Stacks
+
+When using Terragrunt Stacks, you might want to use local state files instead of remote state for development, testing, or specific use cases. However, this presents a challenge because the generated `.terragrunt-stack` directory can be safely deleted and regenerated using `terragrunt stack clean && terragrunt stack generate`, which would normally cause local state files to be lost.
+
+To solve this problem, you can configure your stack to store state files outside of the `.terragrunt-stack` directory, in a persistent location that survives stack regeneration.
+
+### Configuration
+
+Here's how to configure local state that persists across stack regeneration:
+
+**1. Create a `root.hcl` file with local backend configuration:**
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "local"
+
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+
+  config = {
+    path = "${get_parent_terragrunt_dir()}/.terragrunt-local-state/${path_relative_to_include()}/tofu.tfstate"
+  }
+}
+```
+
+**2. Create your stack definition:**
+
+```hcl
+# live/terragrunt.stack.hcl
+unit "vpc" {
+  source = "${find_in_parent_folders("units/vpc")}"
+  path   = "vpc"
+}
+
+unit "database" {
+  source = "${find_in_parent_folders("units/database")}"
+  path   = "database"
+}
+
+unit "app" {
+  source = "${find_in_parent_folders("units/app")}"
+  path   = "app"
+}
+```
+
+**3. Configure your units to include the root configuration:**
+
+```hcl
+# units/vpc/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "."
+}
+```
+
+**4. Add a `.gitignore` file to exclude state files from version control:**
+
+```gitignore
+# .gitignore
+.terragrunt-local-state
+```
+
+**Important:** Local state files should never be committed to version control as they may contain sensitive information and can cause conflicts when multiple developers work on the same infrastructure.
+
+### How It Works
+
+The key insight is using `path_relative_to_include()` in the state path configuration. This function returns the relative path from each unit to the `root.hcl` file, creating unique state file paths like:
+
+```text
+.terragrunt-local-state/live/.terragrunt-stack/vpc/tofu.tfstate
+.terragrunt-local-state/live/.terragrunt-stack/database/tofu.tfstate
+.terragrunt-local-state/live/.terragrunt-stack/app/tofu.tfstate
+```
+
+Since these state files are stored in `.terragrunt-local-state/` (outside of `.terragrunt-stack/`), they persist when you run:
+
+```bash
+terragrunt stack clean && terragrunt stack generate
+```
+
+### Directory Structure
+
+After running the stack, your directory structure will look like this:
+
+```tree
+.
+├── root.hcl
+├── .gitignore                        # Excludes .terragrunt-local-state
+├── .terragrunt-local-state/          # Persistent state files (ignored by git)
+│   └── live/
+│       └── .terragrunt-stack/
+│           ├── vpc/
+│           │   └── tofu.tfstate
+│           ├── database/
+│           │   └── tofu.tfstate
+│           └── app/
+│               └── tofu.tfstate
+├── live/
+│   ├── terragrunt.stack.hcl
+│   └── .terragrunt-stack/            # Generated stack (can be deleted)
+│       ├── vpc/
+│       │   ├── terragrunt.hcl
+│       │   └── main.tf
+│       ├── database/
+│       │   ├── terragrunt.hcl
+│       │   └── main.tf
+│       └── app/
+│           ├── terragrunt.hcl
+│           └── main.tf
+└── units/                            # Reusable unit definitions
+    ├── vpc/
+    ├── database/
+    └── app/
+```
+
+### Benefits
+
+This approach provides several advantages:
+
+- **State Persistence**: State files survive stack regeneration
+- **Isolation**: Each unit gets its own state file
+- **Consistency**: Directory structure mirrors the stack layout
+- **Flexibility**: You can switch between local and remote state easily by changing the backend configuration
+
+### Example Workflow
+
+```bash
+# Initial setup
+terragrunt stack generate
+terragrunt stack run apply
+
+# Later, regenerate the stack without losing state
+terragrunt stack clean
+terragrunt stack generate
+
+# Verify existing resources are recognized
+terragrunt stack run plan  # Should show "No changes"
+```
+
+This pattern is particularly useful for development environments, testing scenarios, or when you need to maintain local state for compliance or security reasons while still benefiting from Terragrunt's stack management capabilities.
 
 ## Learning more
 

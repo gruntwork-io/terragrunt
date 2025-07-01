@@ -1,0 +1,11 @@
+---
+name: summary-per-unit
+description: Summarize each unit in the run summary.
+type: bool
+env:
+  - TG_SUMMARY_PER_UNIT
+---
+
+When enabled, Terragrunt will break down the run summary by unit. The units are sorted by result, then duration, with the longest-running units shown first.
+
+For more information, see the [Run Report](/docs/features/run-report) feature.

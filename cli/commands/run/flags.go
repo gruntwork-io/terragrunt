@@ -20,6 +20,7 @@ const (
 	NoAutoInitFlagName                     = "no-auto-init"
 	NoAutoRetryFlagName                    = "no-auto-retry"
 	NoAutoApproveFlagName                  = "no-auto-approve"
+	NoAutoProviderCacheDirFlagName         = "no-auto-provider-cache-dir"
 	DownloadDirFlagName                    = "download-dir"
 	TFForwardStdoutFlagName                = "tf-forward-stdout"
 	TFPathFlagName                         = "tf-path"
@@ -29,7 +30,8 @@ const (
 	UnitsThatIncludeFlagName               = "units-that-include"
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
-	SummaryUnitDurationFlagName            = "summary-unit-duration"
+	SummaryPerUnitFlagName                 = "summary-per-unit"
+	VersionManagerFileNameFlagName         = "version-manager-file-name"
 
 	BackendBootstrapFlagName        = "backend-bootstrap"
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
@@ -190,6 +192,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				EnvVars: terragruntPrefix.EnvVars("auto-approve"),
 			}, nil, terragruntPrefixControl)),
 
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoAutoProviderCacheDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoAutoProviderCacheDirFlagName),
+			Destination: &opts.NoAutoProviderCacheDir,
+			Usage:       "Disable the auto-provider-cache-dir feature even when the experiment is enabled.",
+		}),
+
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        DownloadDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(DownloadDirFlagName),
@@ -341,6 +350,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --iam-role option if provided.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("use-partial-parse-config-cache"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        VersionManagerFileNameFlagName,
+			EnvVars:     tgPrefix.EnvVars(VersionManagerFileNameFlagName),
+			Destination: &opts.VersionManagerFileName,
+			Usage:       "File names used during the computation of the cache key for the version manager files.",
+		}),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DependencyFetchOutputFromStateFlagName,
@@ -550,9 +566,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		}),
 
 		flags.NewFlag(&cli.BoolFlag{
-			Name:        SummaryUnitDurationFlagName,
-			EnvVars:     tgPrefix.EnvVars(SummaryUnitDurationFlagName),
-			Destination: &opts.SummaryUnitDuration,
+			Name:        SummaryPerUnitFlagName,
+			EnvVars:     tgPrefix.EnvVars(SummaryPerUnitFlagName),
+			Destination: &opts.SummaryPerUnit,
 			Usage:       `Show duration information for each unit in the summary output.`,
 		}),
 

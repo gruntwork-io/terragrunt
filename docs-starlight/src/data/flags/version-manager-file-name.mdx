@@ -1,0 +1,16 @@
+---
+name: version-manager-file-name
+description: File names used during the computation of the cache key for the version manager files.
+type: string
+env:
+  - TG_VERSION_MANAGER_FILE_NAME
+---
+
+By default, terragrunt is specifying:
+
+```shell
+.terraform-version
+.tool-versions
+.mise.toml
+mise.toml
+```
