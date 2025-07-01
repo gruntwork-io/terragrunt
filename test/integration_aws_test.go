@@ -182,6 +182,11 @@ func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
 func TestAwsDualLockingBackend(t *testing.T) {
 	t.Parallel()
 
+	if !helpers.IsNativeS3LockingSupported(t) {
+		t.Skip("Wrapped binary does not support native S3 locking")
+		return
+	}
+
 	helpers.CleanupTerraformFolder(t, testFixtureS3BackendDualLocking)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3BackendDualLocking)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3BackendDualLocking)
@@ -218,6 +223,11 @@ func TestAwsDualLockingBackend(t *testing.T) {
 
 func TestAwsNativeS3LockingBackend(t *testing.T) {
 	t.Parallel()
+
+	if !helpers.IsNativeS3LockingSupported(t) {
+		t.Skip("Wrapped binary does not support native S3 locking")
+		return
+	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3BackendUseLockfile)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3BackendUseLockfile)

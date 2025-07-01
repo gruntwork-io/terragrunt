@@ -740,6 +740,39 @@ func IsTerraform110OrHigher() bool {
 	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
 }
 
+// IsNativeS3LockingSupported checks if the installed Terraform binary supports native S3 locking.
+// This is the case when using Terraform 1.11 or higher, or using OpenTofu 1.10 or higher.
+func IsNativeS3LockingSupported(t *testing.T) bool {
+	const (
+		terraformRequiredMajor = 1
+		terraformRequiredMinor = 11
+		tofuRequiredMajor      = 1
+		tofuRequiredMinor      = 10
+	)
+
+	if IsTerraform() {
+		output, err := exec.Command(TerraformBinary, "-version").Output()
+		require.NoError(t, err)
+
+		matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+
+		major, _ := strconv.Atoi(matches[1])
+		minor, _ := strconv.Atoi(matches[2])
+
+		return major == terraformRequiredMajor && minor >= terraformRequiredMinor
+	}
+
+	output, err := exec.Command(TofuBinary, "-version").Output()
+	require.NoError(t, err)
+
+	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+
+	major, _ := strconv.Atoi(matches[1])
+	minor, _ := strconv.Atoi(matches[2])
+
+	return major == tofuRequiredMajor && minor >= tofuRequiredMinor
+}
+
 func FindFilesWithExtension(dir string, ext string) ([]string, error) {
 	var files []string
 
