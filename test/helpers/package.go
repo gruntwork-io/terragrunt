@@ -692,6 +692,16 @@ func IsTerraform110OrHigher() bool {
 	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
 }
 
+// IsOpenTofuInstalled checks if OpenTofu is installed.
+func IsOpenTofuInstalled() bool {
+	return util.IsCommandExecutable(TofuBinary, "-version")
+}
+
+// IsTerraformInstalled checks if Terraform is installed.
+func IsTerraformInstalled() bool {
+	return util.IsCommandExecutable(TerraformBinary, "-version")
+}
+
 func FindFilesWithExtension(dir string, ext string) ([]string, error) {
 	var files []string
 

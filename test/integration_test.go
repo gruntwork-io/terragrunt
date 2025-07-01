@@ -111,7 +111,8 @@ const (
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
-	testFixtureTfPath                         = "fixtures/tf-path"
+	testFixtureTfPathBasic                    = "fixtures/tf-path/basic"
+	testFixtureTfPathTofuTerraform            = "fixtures/tf-path/tofu-terraform"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
 	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
@@ -4125,9 +4126,9 @@ func TestTfPath(t *testing.T) {
 	t.Parallel()
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
-	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
-	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPathBasic)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
@@ -4141,9 +4142,9 @@ func TestTfPathOverridesConfig(t *testing.T) {
 	t.Parallel()
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
-	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
-	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPathBasic)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
@@ -4151,6 +4152,66 @@ func TestTfPathOverridesConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Other TF script used!")
+}
+
+func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
+	t.Parallel()
+
+	// This test requires that both tofu and terraform are installed.
+	if !helpers.IsTerraformInstalled() || !helpers.IsOpenTofuInstalled() {
+		t.Skip("This test requires that both OpenTofu and Terraform are installed")
+
+		return
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureTfPathTofuTerraform)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathTofuTerraform)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPathTofuTerraform)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		feature  string
+		tfPath   string
+		expected string
+	}{
+		{
+			feature:  "tofu",
+			tfPath:   helpers.TofuBinary,
+			expected: "OpenTofu",
+		},
+		{
+			feature:  "terraform",
+			tfPath:   helpers.TerraformBinary,
+			expected: "Terraform",
+		},
+		{
+			feature:  "tofu",
+			tfPath:   helpers.TerraformBinary,
+			expected: "Terraform",
+		},
+		{
+			feature:  "terraform",
+			tfPath:   helpers.TofuBinary,
+			expected: "OpenTofu",
+		},
+	}
+
+	for _, tc := range testCases {
+
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			fmt.Sprintf(
+				"terragrunt run version --feature binary=%s --tf-path %s --working-dir %s",
+				tc.feature,
+				tc.tfPath,
+				workingDir,
+			),
+		)
+		require.NoError(t, err)
+
+		assert.Contains(t, stdout, tc.expected)
+	}
 }
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {
