@@ -92,6 +92,7 @@ const (
 	testFixtureParallelism                    = "fixtures/parallelism"
 	testFixturePath                           = "fixtures/terragrunt/"
 	testFixturePlanfileOrder                  = "fixtures/planfile-order-test"
+	testFixturePlanOutput                     = "fixtures/plan-output"
 	testFixtureProviderCacheDirect            = "fixtures/provider-cache/direct"
 	testFixtureProviderCacheFilesystemMirror  = "fixtures/provider-cache/filesystem-mirror"
 	testFixtureProviderCacheMultiplePlatforms = "fixtures/provider-cache/multiple-platforms"
@@ -4185,4 +4186,39 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 
 	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+}
+
+func TestTerragruntPlanAllOutput(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixturePlanOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePlanOutput)
+
+	outDir := filepath.Join(tmpEnvPath, "plans")
+	pwd := filepath.Join(tmpEnvPath, testFixturePlanOutput)
+	{
+		originalDir, err := os.Getwd()
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, os.Chdir(originalDir))
+		})
+		require.NoError(t, os.Chdir(pwd))
+	}
+
+	cmd := fmt.Sprintf("terragrunt plan --all --non-interactive --out-dir %s --working-dir %s ", outDir, ".")
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
+	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+	require.NoError(t, err)
+
+	output := stdout.String()
+	errOutput := stderr.String()
+	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
+
+	assert.FileExists(t, filepath.Join(outDir, "vnet", "tfplan.tfplan"))
+	assert.FileExists(t, filepath.Join(outDir, "resource-group", "tfplan.tfplan"))
+	assert.FileExists(t, filepath.Join(outDir, "private-dns-zone", "tfplan.tfplan"))
 }
