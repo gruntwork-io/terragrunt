@@ -147,8 +147,6 @@ type TerragruntOptions struct {
 	WorkingDir string
 	// Location (or name) of the OpenTofu/Terraform binary
 	TFPath string
-	// Whether TFPath was explicitly set by the user via --tf-path flag
-	TFPathExplicitlySet bool
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
 	// Original Terraform command being executed by Terragrunt.
@@ -325,6 +323,8 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
+	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
+	TFPathExplicitlySet bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
