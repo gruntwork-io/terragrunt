@@ -145,8 +145,10 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
-	// Location of the terraform binary
-	TerraformPath string
+	// Location (or name) of the OpenTofu/Terraform binary
+	TFPath string
+	// Whether TFPath was explicitly set by the user via --tf-path flag
+	TFPathExplicitlySet bool
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
 	// Original Terraform command being executed by Terragrunt.
@@ -380,7 +382,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TerraformPath:                  DefaultWrappedPath,
+		TFPath:                         DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",

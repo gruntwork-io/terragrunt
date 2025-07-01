@@ -358,7 +358,7 @@ func initialSetup(cliCtx *cli.Context, l log.Logger, opts *options.TerragruntOpt
 		return errors.New(err)
 	}
 
-	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
+	opts.TFPath = filepath.ToSlash(opts.TFPath)
 
 	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
 	if err != nil {

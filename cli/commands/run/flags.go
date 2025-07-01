@@ -643,10 +643,14 @@ func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 
 	return flags.NewFlag(
 		&cli.GenericFlag[string]{
-			Name:        TFPathFlagName,
-			EnvVars:     tgPrefix.EnvVars(TFPathFlagName),
-			Destination: &opts.TerraformPath,
-			Usage:       "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
+			Name:    TFPathFlagName,
+			EnvVars: tgPrefix.EnvVars(TFPathFlagName),
+			Usage:   "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
+			Setter: func(value string) error {
+				opts.TFPath = value
+				opts.TFPathExplicitlySet = true
+				return nil
+			},
 		},
 		flags.WithDeprecatedNames(terragruntPrefix.FlagNames("tfpath"), terragruntPrefixControl),
 	)
