@@ -360,15 +360,15 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 
 		remoteStateBody.SetAttributeValue("backend", remoteStateAsCty.GetAttr("backend"))
 
-		if cfg.RemoteState.Config.DisableInit {
+		if cfg.RemoteState.DisableInit {
 			remoteStateBody.SetAttributeValue("disable_init", remoteStateAsCty.GetAttr("disable_init"))
 		}
 
-		if cfg.RemoteState.Config.DisableDependencyOptimization {
+		if cfg.RemoteState.DisableDependencyOptimization {
 			remoteStateBody.SetAttributeValue("disable_dependency_optimization", remoteStateAsCty.GetAttr("disable_dependency_optimization"))
 		}
 
-		if cfg.RemoteState.Config.BackendConfig != nil {
+		if cfg.RemoteState.BackendConfig != nil {
 			remoteStateBody.SetAttributeValue("config", remoteStateAsCty.GetAttr("config"))
 		}
 

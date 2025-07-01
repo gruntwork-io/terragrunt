@@ -290,6 +290,39 @@ gcloud projects add-iam-policy-binding <gcp-project> \
   --role="roles/iam.serviceAccountTokenCreator"
 ```
 
+### Azure Integration Tests
+
+To run the Azure integration tests, you need:
+
+1. An Azure subscription
+2. An Azure Storage Account (for testing the Azure Storage backend)
+3. Azure CLI authenticated with permissions to:
+   * Create/Delete containers in the storage account
+   * Read/Write blobs in the containers
+
+Set up the following environment variables:
+
+```bash
+# Required
+export TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT="your-storage-account-name"
+export AZURE_SUBSCRIPTION_ID="your-subscription-id"
+
+# Optional
+export TERRAGRUNT_AZURE_TEST_LOCATION="westus2"  # defaults to storage account's location if not set
+```
+
+Then run the tests:
+
+```bash
+# Run all Azure integration tests
+GOFLAGS='-tags=azure' go test -v ./test/integration_azure_test.go
+
+# Run a specific test
+GOFLAGS='-tags=azure' go test -v ./test/integration_azure_test.go -run TestAzureOutputFromRemoteState
+```
+
+Note: The tests will create and delete containers in the specified storage account. Make sure you have proper permissions and don't use a production storage account.
+
 #### Race tests
 
 Given that Terragrunt is a tool that frequently involves concurrently running multiple things at once, there's always a risk for race conditions to occur. As such, there are dedicated tests that are run with the `-race` flag in CI to use golang's built-in tooling for identifying race conditions.

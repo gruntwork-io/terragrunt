@@ -71,6 +71,7 @@ The following experiments are available:
 - [cas](#cas)
 - [report](#report)
 - [runner-pool](#runner-pool)
+- [azure-backend](#azure-backend)
 - [auto-provider-cache-dir](#auto-provider-cache-dir)
 
 ### symlinks
@@ -168,6 +169,37 @@ To transition the `runner-pool` feature to a stable release, the following must 
 - [ ] Add support for fail fast behavior in the runner pool.
 - [ ] Improve the UI to queue to apply.
 - [ ] Add OpenTelemetry support to the runner pool.
+
+### `azure-backend`
+
+Support for using Azure Storage as a remote state backend.
+
+#### `azure-backend` - What it does
+
+Enables the Azure Storage backend (azurerm) for Terraform remote state. When this experiment is enabled, you can use Azure Storage as a backend for storing Terraform state files.
+
+The backend supports configuration options for:
+
+- Storage account details (name, resource group)
+- Container configuration
+- Key/blob path for state files
+- Access control via Azure AD authentication, Managed Identity, or Service Principal
+- Optional creation of storage accounts and containers if they don't exist
+
+#### `azure-backend` - How to provide feedback
+
+If you use the Azure backend, please share your experience in the [Azure Backend for Remote State](https://github.com/gruntwork-io/terragrunt/discussions) GitHub Discussions. Your feedback will help improve the stability and features of this backend.
+
+#### `azure-backend` - Criteria for stabilization
+
+To transition the `azure-backend` feature to a stable release, the following must be addressed:
+
+- [ ] Add comprehensive integration tests for Azure storage backend
+- [ ] Ensure proper error handling and helpful error messages
+- [ ] Document all configuration options and usage examples
+- [ ] Test performance with various state file sizes and configurations
+- [ ] Validate compatibility with different Azure credential providers
+- [ ] Implement thorough security testing for the backend
 
 ### `auto-provider-cache-dir`
 

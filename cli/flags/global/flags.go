@@ -260,6 +260,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Action: func(_ *cli.Context, val []string) error {
 				opts.Experiments.NotifyCompletedExperiments(l)
 
+				// Re-register backends after experiments are enabled
+				// This is needed because RegisterBackends is called during options initialization
+				// before CLI flags are processed, so experimental backends need to be registered again
+				options.RunHooks(opts)
+
 				return nil
 			},
 		},
