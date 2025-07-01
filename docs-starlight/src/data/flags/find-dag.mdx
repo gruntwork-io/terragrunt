@@ -1,0 +1,128 @@
+---
+name: dag
+description: |
+  Output in DAG mode.
+type: boolean
+env:
+  - TG_DAG
+---
+
+Outputs configurations in DAG mode, which sorts configurations by dependency order by relationship in the dependency graph.
+
+By default, configurations are sorted alphabetically:
+
+```bash
+$ terragrunt find
+live/dev/db
+live/dev/ec2
+live/dev/vpc
+live/prod/db
+live/prod/ec2
+live/prod/vpc
+```
+
+When the `--dag` flag is used, configurations are sorted by dependency order (dependencies before their dependents):
+
+```bash
+$ terragrunt find --dag
+live/dev/vpc
+live/prod/vpc
+live/dev/db
+live/prod/db
+live/dev/ec2
+live/prod/ec2
+```
+
+When not used in the JSON format:
+
+```bash
+$ terragrunt find --json --dependencies
+[
+  {
+    "type": "unit",
+    "path": "live/dev/db",
+    "dependencies": [
+      "live/dev/vpc"
+    ]
+  },
+  {
+    "type": "unit",
+    "path": "live/dev/ec2",
+    "dependencies": [
+      "live/dev/vpc",
+      "live/dev/db"
+    ]
+  },
+  {
+    "type": "unit",
+    "path": "live/dev/vpc"
+  },
+  {
+    "type": "unit",
+    "path": "live/prod/db",
+    "dependencies": [
+      "live/prod/vpc"
+    ]
+  },
+  {
+    "type": "unit",
+    "path": "live/prod/ec2",
+    "dependencies": [
+      "live/prod/vpc",
+      "live/prod/db"
+    ]
+  },
+  {
+    "type": "unit",
+    "path": "live/prod/vpc"
+  }
+]
+```
+
+Results are sorted by path.
+
+When combined with the JSON format:
+
+```bash
+$ terragrunt find --json --dependencies --dag
+[
+  {
+    "type": "unit",
+    "path": "live/dev/vpc"
+  },
+  {
+    "type": "unit",
+    "path": "live/prod/vpc"
+  },
+  {
+    "type": "unit",
+    "path": "live/dev/db",
+    "dependencies": [
+      "live/dev/vpc"
+    ]
+  },
+  {
+    "type": "unit",
+    "path": "live/prod/db",
+    "dependencies": [
+      "live/prod/vpc"
+    ]
+  },
+  {
+    "type": "unit",
+    "path": "live/dev/ec2",
+    "dependencies": [
+      "live/dev/vpc",
+      "live/dev/db"
+    ]
+  },
+  {
+    "type": "unit",
+    "path": "live/prod/ec2",
+    "dependencies": [
+      "live/prod/vpc",
+      "live/prod/db"
+    ]
+  }
+]
+```

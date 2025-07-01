@@ -18,8 +18,8 @@ func TestLocalWithRelativeExtraArgsUnix(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalRelativeArgsUnixDownloadPath)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
 }

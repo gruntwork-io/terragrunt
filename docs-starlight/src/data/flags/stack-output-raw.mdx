@@ -6,6 +6,8 @@ env:
   - TG_RAW
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 A convenience flag that formats the stack output as a raw string. This is equivalent to using `--format raw`.
 
 This is particularly useful when you need to use the output in shell scripts or other automation.
@@ -16,3 +18,7 @@ Example:
 # Store the output in a variable
 APP_ID=$(terragrunt stack output --raw app.id)
 ```
+
+<Aside type="caution">
+When using `--stack-output-raw`, you must use index-based access. Attempting to access nested structures directly may result in unexpected output or errors.
+</Aside>

@@ -1,0 +1,38 @@
+---
+name: json
+description: |
+  Output results in JSON format. This is equivalent to using `--format=json`.
+type: bool
+env:
+  - TG_JSON
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This flag is a convenient shorthand for `--format=json`. It's particularly useful when you need to process the results programmatically or integrate with other tools.
+
+Example:
+
+```bash
+$ terragrunt find --json | jq '.[:3]'
+[
+  {
+    "type": "stack",
+    "path": "basic"
+  },
+  {
+    "type": "unit",
+    "path": "basic/units/chick"
+  },
+  {
+    "type": "unit",
+    "path": "basic/units/chicken"
+  }
+]
+```
+
+<Aside type="note" title="Equivalent Flags">
+
+The `--json` flag is equivalent to `--format=json`. You can use either one to get the same JSON output.
+
+</Aside>

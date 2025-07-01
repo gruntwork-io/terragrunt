@@ -1,9 +1,8 @@
 //go:build mocks
 
-package getproviders
+package getproviders_test
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -11,19 +10,21 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/gruntwork-io/terragrunt/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/tf/getproviders/mocks"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-func mockProviderUpdateLock(t *testing.T, address, version string) Provider {
-	packageDir, err := os.MkdirTemp("", "")
+func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, version string) getproviders.Provider {
+	t.Helper()
+
+	packageDir := t.TempDir()
+	file, err := os.Create(filepath.Join(packageDir, "terraform-provider-v"+version))
 	require.NoError(t, err)
-	file, err := os.Create(filepath.Join(packageDir, fmt.Sprintf("terraform-provider-v%s", version)))
-	require.NoError(t, err)
-	_, err = file.WriteString(fmt.Sprintf("mock-provider-content-%s-%s", address, version))
+	_, err = fmt.Fprintf(file, "mock-provider-content-%s-%s", address, version)
 	require.NoError(t, err)
 	err = file.Close()
 	require.NoError(t, err)
@@ -39,12 +40,12 @@ func mockProviderUpdateLock(t *testing.T, address, version string) Provider {
 		document += fmt.Sprintf("%s %s\n", sha, packageName)
 	}
 
-	provider := new(mocks.Provider)
-	provider.On("Address").Return(address)
-	provider.On("Version").Return(version)
-	provider.On("PackageDir").Return(packageDir)
-	provider.On("Logger").Return(log.New())
-	provider.On("DocumentSHA256Sums", mock.Anything).Return([]byte(document), nil)
+	provider := mocks.NewMockProvider(ctrl)
+	provider.EXPECT().Address().Return(address).AnyTimes()
+	provider.EXPECT().Version().Return(version).AnyTimes()
+	provider.EXPECT().PackageDir().Return(packageDir).AnyTimes()
+	provider.EXPECT().Logger().Return(logger.CreateLogger()).AnyTimes()
+	provider.EXPECT().DocumentSHA256Sums(gomock.Any()).Return([]byte(document), nil).AnyTimes()
 
 	return provider
 }
@@ -53,16 +54,14 @@ func TestMockUpdateLockfile(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		providers        []Provider
 		initialLockfile  string
 		expectedLockfile string
+		providers        []getproviders.Provider
 	}{
 		{
-			[]Provider{
-				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/aws", "5.37.0"),
-			},
-			``,
-			`
+			providers:       []getproviders.Provider{},
+			initialLockfile: ``,
+			expectedLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.37.0"
   constraints = "5.37.0"
@@ -75,11 +74,8 @@ provider "registry.terraform.io/hashicorp/aws" {
 `,
 		},
 		{
-			[]Provider{
-				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/aws", "5.36.0"),
-				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/template", "2.2.0"),
-			},
-			`
+			providers: []getproviders.Provider{},
+			initialLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.37.0"
   constraints = "5.37.0"
@@ -100,7 +96,7 @@ provider "registry.terraform.io/hashicorp/azurerm" {
   ]
 }
 `,
-			`
+			expectedLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.36.0"
   constraints = "5.36.0"
@@ -134,32 +130,44 @@ provider "registry.terraform.io/hashicorp/template" {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			workingDir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			switch i {
+			case 0:
+				tc.providers = []getproviders.Provider{
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.37.0"),
+				}
+			case 1:
+				tc.providers = []getproviders.Provider{
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/aws", "5.36.0"),
+					mockProviderUpdateLock(t, ctrl, "registry.terraform.io/hashicorp/template", "2.2.0"),
+				}
+			}
+
+			workingDir := t.TempDir()
 			lockfilePath := filepath.Join(workingDir, ".terraform.lock.hcl")
 
-			if testCase.initialLockfile != "" {
+			if tc.initialLockfile != "" {
 				file, err := os.Create(lockfilePath)
 				require.NoError(t, err)
-				_, err = file.WriteString(testCase.initialLockfile)
+				_, err = file.WriteString(tc.initialLockfile)
 				require.NoError(t, err)
 				err = file.Close()
 				require.NoError(t, err)
 			}
 
-			err = UpdateLockfile(context.Background(), workingDir, testCase.providers)
+			err := getproviders.UpdateLockfile(t.Context(), workingDir, tc.providers)
 			require.NoError(t, err)
 
 			actualLockfile, err := os.ReadFile(lockfilePath)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedLockfile, string(actualLockfile))
+			assert.Equal(t, tc.expectedLockfile, string(actualLockfile))
 		})
 	}
 }

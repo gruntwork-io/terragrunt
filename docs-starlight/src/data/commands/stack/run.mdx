@@ -7,9 +7,6 @@ sidebar:
 description: Run a command against a stack of units defined in a terragrunt.stack.hcl file.
 usage: |
   Run OpenTofu/Terraform commands against a stack of units.
-experiment:
-  control: stacks
-  name: Stacks
 examples:
   - description: |
       Run a plan on each unit.
@@ -23,6 +20,8 @@ examples:
       Destroy all units.
     code: |
       terragrunt stack run destroy
+flags:
+  - no-stack-generate
 ---
 
 The `stack run *` command allows users to execute IaC commands across all units defined in a `terragrunt.stack.hcl` file.

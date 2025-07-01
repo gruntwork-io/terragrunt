@@ -6,6 +6,8 @@ env:
   - TG_WORKING_DIR
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Specifies the working directory where Terragrunt should execute its commands. By default, Terragrunt uses the current directory.
 
 Example:
@@ -13,3 +15,9 @@ Example:
 ```bash
 terragrunt run plan --working-dir /path/to/infrastructure/prod
 ```
+
+<Aside type="note">
+The `--working-dir` flag behaves differently for `run --all` commands versus single unit commands.
+
+For `run --all`, Terragrunt will execute in all subdirectories of the working directory, while for `run` commands it will execute only in the specified directory.
+</Aside>

@@ -13,7 +13,7 @@ import (
 func TestResolveRelativeReferences(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		baseURL          string
 		body             models.ResponseBody
 		expectedResolved models.ResponseBody
@@ -46,17 +46,15 @@ func TestResolveRelativeReferences(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			baseURL, err := url.Parse(tt.baseURL)
+			baseURL, err := url.Parse(tc.baseURL)
 			require.NoError(t, err)
 
-			actualResolved := tt.body.ResolveRelativeReferences(baseURL)
-			assert.Equal(t, tt.expectedResolved, *actualResolved)
+			actualResolved := tc.body.ResolveRelativeReferences(baseURL)
+			assert.Equal(t, tc.expectedResolved, *actualResolved)
 		})
 	}
 }

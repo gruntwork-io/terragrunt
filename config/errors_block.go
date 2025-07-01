@@ -1,14 +1,16 @@
 package config
 
 import (
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
 )
 
 // ErrorsConfig represents the top-level errors configuration
 type ErrorsConfig struct {
-	Retry  []*RetryBlock  `cty:"retry"  hcl:"retry,block"`
-	Ignore []*IgnoreBlock `cty:"ignore"  hcl:"ignore,block"`
+	Retry  []*RetryBlock  `cty:"retry" hcl:"retry,block"`
+	Ignore []*IgnoreBlock `cty:"ignore" hcl:"ignore,block"`
 }
 
 // RetryBlock represents a labeled retry block
@@ -21,156 +23,175 @@ type RetryBlock struct {
 
 // IgnoreBlock represents a labeled ignore block
 type IgnoreBlock struct {
-	Label           string               `cty:"name" hcl:"name,label"`
-	IgnorableErrors []string             `cty:"ignorable_errors" hcl:"ignorable_errors"`
-	Message         string               `cty:"message" hcl:"message,optional"`
 	Signals         map[string]cty.Value `cty:"signals" hcl:"signals,optional"`
+	Label           string               `cty:"name" hcl:"name,label"`
+	Message         string               `cty:"message" hcl:"message,optional"`
+	IgnorableErrors []string             `cty:"ignorable_errors" hcl:"ignorable_errors"`
 }
 
-// Clone creates a deep copy of ErrorsConfig
+// Clone returns a deep copy of ErrorsConfig
 func (c *ErrorsConfig) Clone() *ErrorsConfig {
 	if c == nil {
 		return nil
 	}
 
-	clone := &ErrorsConfig{
-		Retry:  make([]*RetryBlock, len(c.Retry)),
-		Ignore: make([]*IgnoreBlock, len(c.Ignore)),
+	return &ErrorsConfig{
+		Retry:  cloneRetryBlocks(c.Retry),
+		Ignore: cloneIgnoreBlocks(c.Ignore),
 	}
-
-	// Clone Retry blocks
-	for i, retry := range c.Retry {
-		clone.Retry[i] = retry.Clone()
-	}
-
-	// Clone Ignore blocks
-	for i, ignore := range c.Ignore {
-		clone.Ignore[i] = ignore.Clone()
-	}
-
-	return clone
 }
 
-// Merge combines the current ErrorsConfig with another one, with the other config taking precedence
+// Merge combines the current ErrorsConfig with another one, prioritizing the other config
 func (c *ErrorsConfig) Merge(other *ErrorsConfig) {
-	if other == nil {
+	if c == nil || other == nil {
 		return
 	}
 
-	if c == nil {
-		*c = *other
-		return
-	}
-
-	retryMap := make(map[string]*RetryBlock)
-	for _, block := range c.Retry {
-		retryMap[block.Label] = block
-	}
-
-	ignoreMap := make(map[string]*IgnoreBlock)
-	for _, block := range c.Ignore {
-		ignoreMap[block.Label] = block
-	}
-
-	// Merge retry blocks
-	for _, otherBlock := range other.Retry {
-		if existing, exists := retryMap[otherBlock.Label]; exists {
-			existing.RetryableErrors = util.MergeStringSlices(existing.RetryableErrors, otherBlock.RetryableErrors)
-
-			if otherBlock.MaxAttempts > 0 {
-				existing.MaxAttempts = otherBlock.MaxAttempts
-			}
-
-			if otherBlock.SleepIntervalSec > 0 {
-				existing.SleepIntervalSec = otherBlock.SleepIntervalSec
-			}
-		} else {
-			// Add new block
-			retryMap[otherBlock.Label] = otherBlock
-		}
-	}
-
-	// Merge ignore blocks
-	for _, otherBlock := range other.Ignore {
-		if existing, exists := ignoreMap[otherBlock.Label]; exists {
-			existing.IgnorableErrors = util.MergeStringSlices(existing.IgnorableErrors, otherBlock.IgnorableErrors)
-
-			if otherBlock.Message != "" {
-				existing.Message = otherBlock.Message
-			}
-
-			if otherBlock.Signals != nil {
-				if existing.Signals == nil {
-					existing.Signals = make(map[string]cty.Value)
-				}
-
-				for k, v := range otherBlock.Signals {
-					existing.Signals[k] = v
-				}
-			}
-		} else {
-			// Add new block
-			ignoreMap[otherBlock.Label] = otherBlock
-		}
-	}
-
-	// Convert maps back to slices
-	c.Retry = make([]*RetryBlock, 0, len(retryMap))
-	for _, block := range retryMap {
-		c.Retry = append(c.Retry, block)
-	}
-
-	c.Ignore = make([]*IgnoreBlock, 0, len(ignoreMap))
-	for _, block := range ignoreMap {
-		c.Ignore = append(c.Ignore, block)
-	}
+	c.Retry = mergeRetryBlocks(c.Retry, other.Retry)
+	c.Ignore = mergeIgnoreBlocks(c.Ignore, other.Ignore)
 }
 
-// Clone creates a deep copy of RetryBlock
+// Clone returns a deep copy of a RetryBlock
 func (r *RetryBlock) Clone() *RetryBlock {
 	if r == nil {
 		return nil
 	}
 
-	clone := &RetryBlock{
+	return &RetryBlock{
 		Label:            r.Label,
+		RetryableErrors:  cloneStringSlice(r.RetryableErrors),
 		MaxAttempts:      r.MaxAttempts,
 		SleepIntervalSec: r.SleepIntervalSec,
 	}
-
-	// Deep copy RetryableErrors slice
-	if r.RetryableErrors != nil {
-		clone.RetryableErrors = make([]string, len(r.RetryableErrors))
-		copy(clone.RetryableErrors, r.RetryableErrors)
-	}
-
-	return clone
 }
 
-// Clone creates a deep copy of IgnoreBlock
+// Clone returns a deep copy of an IgnoreBlock
 func (i *IgnoreBlock) Clone() *IgnoreBlock {
 	if i == nil {
 		return nil
 	}
 
-	clone := &IgnoreBlock{
-		Label:   i.Label,
-		Message: i.Message,
+	return &IgnoreBlock{
+		Label:           i.Label,
+		IgnorableErrors: cloneStringSlice(i.IgnorableErrors),
+		Message:         i.Message,
+		Signals:         cloneSignalsMap(i.Signals),
+	}
+}
+
+// Helper function to deep copy a slice of RetryBlock
+func cloneRetryBlocks(blocks []*RetryBlock) []*RetryBlock {
+	if blocks == nil {
+		return nil
 	}
 
-	// Deep copy IgnorableErrors slice
-	if i.IgnorableErrors != nil {
-		clone.IgnorableErrors = make([]string, len(i.IgnorableErrors))
-		copy(clone.IgnorableErrors, i.IgnorableErrors)
+	cloned := make([]*RetryBlock, len(blocks))
+	for i, block := range blocks {
+		cloned[i] = block.Clone()
 	}
 
-	// Deep copy Signals map
-	if i.Signals != nil {
-		clone.Signals = make(map[string]cty.Value, len(i.Signals))
-		for k, v := range i.Signals {
-			clone.Signals[k] = v
+	return cloned
+}
+
+// Helper function to deep copy a slice of IgnoreBlock
+func cloneIgnoreBlocks(blocks []*IgnoreBlock) []*IgnoreBlock {
+	if blocks == nil {
+		return nil
+	}
+
+	cloned := make([]*IgnoreBlock, len(blocks))
+	for i, block := range blocks {
+		cloned[i] = block.Clone()
+	}
+
+	return cloned
+}
+
+// Helper function to deep copy a slice of strings
+func cloneStringSlice(slice []string) []string {
+	if slice == nil {
+		return nil
+	}
+
+	cloned := make([]string, len(slice))
+	copy(cloned, slice)
+
+	return cloned
+}
+
+// Helper function to deep copy a map of signals
+func cloneSignalsMap(signals map[string]cty.Value) map[string]cty.Value {
+	if signals == nil {
+		return nil
+	}
+
+	cloned := make(map[string]cty.Value, len(signals))
+	maps.Copy(cloned, signals)
+
+	return cloned
+}
+
+// Merges two slices of RetryBlock, prioritizing the second slice
+func mergeRetryBlocks(existing, other []*RetryBlock) []*RetryBlock {
+	retryMap := make(map[string]*RetryBlock, len(existing)+len(other))
+
+	// Add existing retry blocks
+	for _, block := range existing {
+		retryMap[block.Label] = block
+	}
+
+	// Merge retry blocks from 'other'
+	for _, otherBlock := range other {
+		if existingBlock, found := retryMap[otherBlock.Label]; found {
+			existingBlock.RetryableErrors = util.MergeStringSlices(existingBlock.RetryableErrors, otherBlock.RetryableErrors)
+
+			if otherBlock.MaxAttempts > 0 {
+				existingBlock.MaxAttempts = otherBlock.MaxAttempts
+			}
+
+			if otherBlock.SleepIntervalSec > 0 {
+				existingBlock.SleepIntervalSec = otherBlock.SleepIntervalSec
+			}
+
+			continue
+		}
+
+		retryMap[otherBlock.Label] = otherBlock
+	}
+
+	return util.MapToSlice(retryMap)
+}
+
+// Merges two slices of IgnoreBlock, prioritizing the second slice
+func mergeIgnoreBlocks(existing, other []*IgnoreBlock) []*IgnoreBlock {
+	ignoreMap := make(map[string]*IgnoreBlock, len(existing)+len(other))
+
+	// Add existing ignore blocks
+	for _, block := range existing {
+		ignoreMap[block.Label] = block
+	}
+
+	// Merge ignore blocks from 'other'
+	for _, otherBlock := range other {
+		if existingBlock, found := ignoreMap[otherBlock.Label]; found {
+			existingBlock.IgnorableErrors = util.MergeStringSlices(existingBlock.IgnorableErrors, otherBlock.IgnorableErrors)
+
+			if otherBlock.Message != "" {
+				existingBlock.Message = otherBlock.Message
+			}
+
+			if otherBlock.Signals != nil {
+				if existingBlock.Signals == nil {
+					existingBlock.Signals = make(map[string]cty.Value, len(otherBlock.Signals))
+				}
+
+				maps.Copy(existingBlock.Signals, otherBlock.Signals)
+			}
+		} else {
+			ignoreMap[otherBlock.Label] = otherBlock
 		}
 	}
 
-	return clone
+	// Convert map back to slice
+	return util.MapToSlice(ignoreMap)
 }

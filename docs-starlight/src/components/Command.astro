@@ -50,8 +50,8 @@ const { Content } = await render(command);
   data?.flags ? (
   <h2 id="flags">Flags</h2>
   <div>
-    {data?.flags.map((flagName) => (
-      flagName && <Flag name={flagName} />
+    {data?.flags.map((flagSlug) => (
+      flagSlug && <Flag slug={flagSlug} />
     ))}
   </div>
   ) : null

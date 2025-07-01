@@ -1,0 +1,89 @@
+---
+name: exclude
+description: Include exclude configuration in the output
+type: boolean
+env:
+  - TG_EXCLUDE
+---
+
+Include exclude configuration in the output. When enabled, the JSON output will include the configurations of the `exclude` block in the discovered units.
+
+## Usage
+
+```bash
+--exclude
+```
+
+## Examples
+
+Show exclude configurations in JSON format:
+```bash
+terragrunt find --exclude --format=json
+```
+
+Show exclude configurations with queue construct simulation:
+```bash
+terragrunt find --exclude --queue-construct-as=plan --format=json
+```
+
+## Behavior
+
+When enabled, the JSON output will include any `exclude` block configurations found in the units:
+
+```bash
+$ terragrunt find --exclude --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "action/exclude-apply",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "apply"
+      ],
+      "if": true
+    }
+  },
+  {
+    "type": "unit",
+    "path": "action/exclude-plan",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "plan"
+      ],
+      "if": true
+    }
+  },
+  {
+    "type": "unit",
+    "path": "all-except-output/app1",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "all_except_output"
+      ],
+      "if": true
+    }
+  }
+]
+```
+
+Note that you can combine this with the `--queue-construct-as` flag to dry-run behavior relevant to excludes.
+
+```bash
+$ terragrunt find --exclude --queue-construct-as=plan --format=json | jq
+[
+  {
+    "type": "unit",
+    "path": "action/exclude-apply",
+    "exclude": {
+      "exclude_dependencies": true,
+      "actions": [
+        "apply"
+      ],
+      "if": true
+    }
+  }
+]
+```

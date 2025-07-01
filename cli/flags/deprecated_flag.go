@@ -17,12 +17,11 @@ type DeprecatedFlags []*DeprecatedFlag
 // DeprecatedFlag represents a deprecated flag that is not shown in the CLI help, but its names, envVars, are registered.
 type DeprecatedFlag struct {
 	cli.Flag
-	controls strict.Controls
-
-	allowedSubcommandScope bool
+	newValueFn             NewValueFunc
+	controls               strict.Controls
 	names                  []string
 	envVars                []string
-	newValueFn             NewValueFunc
+	allowedSubcommandScope bool
 }
 
 // GetHidden implements `cli.Flag` interface.
@@ -37,19 +36,11 @@ func (flag *DeprecatedFlag) AllowedSubcommandScope() bool {
 
 // GetEnvVars implements `cli.Flag` interface.
 func (flag *DeprecatedFlag) GetEnvVars() []string {
-	if len(flag.envVars) == 0 && flag.Flag != nil {
-		return flag.Flag.GetEnvVars()
-	}
-
 	return flag.envVars
 }
 
 // Names implements `cli.Flag` interface.
 func (flag *DeprecatedFlag) Names() []string {
-	if len(flag.names) == 0 && flag.Flag != nil {
-		return flag.Flag.Names()
-	}
-
 	return flag.names
 }
 

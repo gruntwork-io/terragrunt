@@ -13,14 +13,14 @@ type FeatureFlags []*FeatureFlag
 
 // FeatureFlag feature flags struct.
 type FeatureFlag struct {
-	Name    string     `cty:"name"    hcl:",label"`
 	Default *cty.Value `cty:"default" hcl:"default,attr"`
+	Name    string     `cty:"name"    hcl:",label"`
 }
 
 // ctyFeatureFlag struct used to pass FeatureFlag to cty.Value.
 type ctyFeatureFlag struct {
-	Name  string    `cty:"name"`
 	Value cty.Value `cty:"value"`
+	Name  string    `cty:"name"`
 }
 
 // DeepMerge merges the source FeatureFlag into the target FeatureFlag.
@@ -95,7 +95,7 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 }
 
 // Convert generic flag value to cty.Value.
-func flagToCtyValue(name string, value interface{}) (cty.Value, error) {
+func flagToCtyValue(name string, value any) (cty.Value, error) {
 	ctyValue, err := goTypeToCty(value)
 	if err != nil {
 		return cty.NilVal, err
@@ -110,7 +110,7 @@ func flagToCtyValue(name string, value interface{}) (cty.Value, error) {
 }
 
 // Convert a flag to a cty.Value using the provided cty.Type.
-func flagToTypedCtyValue(name string, ctyType cty.Type, value interface{}) (cty.Value, error) {
+func flagToTypedCtyValue(name string, ctyType cty.Type, value any) (cty.Value, error) {
 	var flagValue = value
 	if ctyType == cty.Bool {
 		// convert value to boolean even if it is string

@@ -65,7 +65,7 @@ func createLogger() log.Logger {
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
 
-func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
+func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string, string, error) {
 	t.Helper()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
@@ -73,7 +73,7 @@ func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s %s", testPath, args))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --log-level trace --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
 
 	return tmpEnvPath, stdout, stderr, err
 }
@@ -159,8 +159,8 @@ func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string
 	t.Helper()
 
 	type VersionProvider struct {
-		Hashes []string `json:"hashes"`
 		URL    string   `json:"url"`
+		Hashes []string `json:"hashes"`
 	}
 	type Version struct {
 		Archives map[string]VersionProvider `json:"archives"`
@@ -351,7 +351,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	return serverTLSConf, clientTLSConf
 }
 
-func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, key string, value interface{}) {
+func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, key string, value any) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
 	assert.Truef(t, hasPlatform, "Expected output %s to be defined", key)

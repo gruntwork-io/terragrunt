@@ -1,0 +1,15 @@
+---
+name: inputs
+description: Validate that all variables are set by the module a unit provisions.
+type: bool
+env:
+  - TG_INPUTS
+---
+
+When enabled, Terragrunt will validate that all variables are set by the module a unit provisions.
+
+Example:
+
+```bash
+terragrunt hcl validate --inputs
+```

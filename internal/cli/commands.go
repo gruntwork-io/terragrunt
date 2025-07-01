@@ -2,6 +2,7 @@ package cli
 
 import (
 	"sort"
+	"strings"
 
 	"slices"
 )
@@ -83,7 +84,9 @@ func (commands Commands) VisibleCommands() Commands {
 		}
 
 		if cmd.HelpName == "" {
-			cmd.HelpName = cmd.Name
+			names := append([]string{cmd.Name}, cmd.Aliases...)
+
+			cmd.HelpName = strings.Join(names, ", ")
 		}
 
 		visible = append(visible, cmd)
@@ -145,4 +148,15 @@ func (commands Commands) GetCategories() Categories {
 // Merge merges the given `cmds` with `commands` and returns the result.
 func (commands Commands) Merge(cmds ...*Command) Commands {
 	return append(commands, cmds...)
+}
+
+// DisableErrorOnMultipleSetFlag returns a cloned command with disabled the check for multiple values set for the same flag.
+func (commands Commands) DisableErrorOnMultipleSetFlag() Commands {
+	var newCommands = make(Commands, len(commands))
+
+	for i := range commands {
+		newCommands[i] = commands[i].DisableErrorOnMultipleSetFlag()
+	}
+
+	return newCommands
 }

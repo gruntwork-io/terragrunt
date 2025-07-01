@@ -1,5 +1,5 @@
 module "foo" {
-  source = "../hello-world"
+  source = "../hello-world-no-remote"
   name   = var.name
 }
 

@@ -5,9 +5,6 @@ category: main
 sidebar:
   order: 100
 description: 'Run OpenTofu/Terraform commands.'
-experiment:
-  control: cli-redesign
-  name: CLI Redesign
 usage: |
   Run a command, passing arguments to an orchestrated tofu/terraform binary.
 
@@ -47,6 +44,7 @@ flags:
   - inputs-debug
   - no-auto-approve
   - no-auto-init
+  - no-auto-provider-cache-dir
   - no-auto-retry
   - no-destroy-dependencies-check
   - parallelism
@@ -65,14 +63,22 @@ flags:
   - queue-include-external
   - queue-include-units-reading
   - queue-strict-include
+  - report-file
+  - report-format
+  - report-schema-file
   - source
   - source-map
   - source-update
+  - summary-disable
+  - summary-per-unit
   - tf-forward-stdout
   - tf-path
   - units-that-include
   - use-partial-parse-config-cache
+  - version-manager-file-name
 ---
+
+import { Aside } from '@astrojs/starlight/components';
 
 ## Running multiple units
 
@@ -90,3 +96,19 @@ You may, at times, need to explicitly separate the arguments used for Terragrunt
 ```bash
 terragrunt run -- plan -no-color
 ```
+
+<Aside type="caution">
+When using `run --all plan` with units that have dependencies (e.g. via `dependency` or `dependencies` blocks), the command will fail if those dependencies have never been deployed. This is because Terragrunt cannot resolve dependency outputs without existing state.
+
+To work around this issue, use [mock outputs in dependency blocks](/docs/reference/hcl/blocks/#dependency).
+</Aside>
+
+<Aside type="caution">
+Do not set `TF_PLUGIN_CACHE_DIR` when using `run --all`. This can cause concurrent access issues with the provider cache. Instead, use Terragrunt's built-in [Provider Cache Server](/docs/features/provider-cache-server/).
+
+We are working with the OpenTofu team to improve this behavior in the future.
+</Aside>
+
+<Aside type="caution">
+When using `run --all` with `apply` or `destroy`, Terragrunt automatically adds the `-auto-approve` flag due to limitations with shared stdin making individual approvals impossible.
+</Aside>

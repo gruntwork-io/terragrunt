@@ -58,7 +58,7 @@ func (file *File) Update(content []byte) error {
 // blocks with labels, requiring the exact number of expected labels in the parsing step.  To handle this restriction,
 // we first see if there are any include blocks without any labels, and if there is, we modify it in the file object to
 // inject the label as "".
-func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err error) {
+func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 	if file.fileUpdateHandlerFunc != nil {
 		if err := file.Parser.fileUpdateHandlerFunc(file); err != nil {
 			return err

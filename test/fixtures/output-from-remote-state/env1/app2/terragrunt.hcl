@@ -6,7 +6,7 @@ dependency "app1" {
   config_path = "../app1"
 
   mock_outputs = {
-    app1_text = "(known after apply-all)"
+    app1_text = "(known after run --all apply)"
   }
 }
 
@@ -14,7 +14,7 @@ dependency "app3" {
   config_path = "../app3"
 
   mock_outputs = {
-    app3_text = "(known after apply-all)"
+    app3_text = "(known after run --all apply)"
   }
 }
 

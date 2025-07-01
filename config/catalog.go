@@ -9,7 +9,9 @@ import (
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -37,11 +39,12 @@ var (
 )
 
 type CatalogConfig struct {
-	URLs []string `hcl:"urls,attr" cty:"urls"`
+	DefaultTemplate string   `hcl:"default_template,optional" cty:"default_template"`
+	URLs            []string `hcl:"urls,attr" cty:"urls"`
 }
 
 func (cfg *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v}", cfg.URLs)
+	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v}", cfg.URLs, cfg.DefaultTemplate)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {
@@ -53,6 +56,13 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 
 		if files.FileExists(url) {
 			cfg.URLs[i] = url
+		}
+	}
+
+	if cfg.DefaultTemplate != "" {
+		path := filepath.Join(configDir, cfg.DefaultTemplate)
+		if files.FileExists(path) {
+			cfg.DefaultTemplate = path
 		}
 	}
 }
@@ -68,20 +78,20 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
 // Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
-func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOptions) (*CatalogConfig, error) {
-	configPath, configString, err := findCatalogConfig(parentCtx, opts)
+func ReadCatalogConfig(parentCtx context.Context, l log.Logger, opts *options.TerragruntOptions) (*CatalogConfig, error) {
+	configPath, configString, err := findCatalogConfig(parentCtx, l, opts)
 	if err != nil || configPath == "" {
 		return nil, err
 	}
 
 	opts.TerragruntConfigPath = configPath
 
-	ctx := NewParsingContext(parentCtx, opts)
+	ctx := NewParsingContext(parentCtx, l, opts)
 	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
 	ctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
 	// TODO: Resolve lint error
-	config, err := ParseConfigString(ctx, configPath, configString, nil) //nolint:contextcheck
+	config, err := ParseConfigString(ctx, l, configPath, configString, nil) //nolint:contextcheck
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +99,7 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	return config.Catalog, nil
 }
 
-func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (string, string, error) {
+func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, string, error) {
 	var (
 		configPath        = filepath.Join(filepath.Dir(opts.TerragruntConfigPath), opts.ScaffoldRootFileName)
 		configName        = opts.ScaffoldRootFileName
@@ -100,7 +110,6 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 		opts = &options.TerragruntOptions{
 			TerragruntConfigPath: filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName),
 			MaxFoldersToCheck:    opts.MaxFoldersToCheck,
-			Logger:               opts.Logger,
 		}
 
 		// This allows to stop the process by pressing Ctrl-C, in case the loop is endless,
@@ -111,7 +120,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 		default: // continue
 		}
 
-		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{configName}) //nolint:contextcheck
+		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, l, opts), l, []string{configName}) //nolint:contextcheck
 		if err != nil {
 			var parentFileNotFoundError ParentFileNotFoundError
 			if ok := errors.As(err, &parentFileNotFoundError); ok {
@@ -154,7 +163,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 	var (
 		terragruntConfig = &TerragruntConfig{}
-		defaultMetadata  = map[string]interface{}{FoundInFile: configPath}
+		defaultMetadata  = map[string]any{FoundInFile: configPath}
 	)
 
 	if terragruntConfigFromFile.Catalog != nil {
@@ -182,7 +191,7 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
 		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
 		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
-		localsParsed, _ := ParseCtyValueToMap(*ctx.Locals)
+		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*ctx.Locals)
 		terragruntConfig.Locals = localsParsed
 		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 	}

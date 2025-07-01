@@ -7,8 +7,11 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
+	"maps"
+
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // MaxIter is the maximum number of depth we support in recursively evaluating locals.
@@ -22,7 +25,7 @@ const MaxIter = 1000
 //
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
-func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]cty.Value, error) {
+func EvaluateLocalsBlock(ctx *ParsingContext, l log.Logger, file *hclparse.File) (map[string]cty.Value, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return nil, err
@@ -30,15 +33,15 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 
 	if len(localsBlock) == 0 {
 		// No locals block referenced in the file
-		ctx.TerragruntOptions.Logger.Debugf("Did not find any locals block: skipping evaluation.")
+		l.Debugf("Did not find any locals block: skipping evaluation.")
 		return nil, nil
 	}
 
-	ctx.TerragruntOptions.Logger.Debugf("Found locals block: evaluating the expressions.")
+	l.Debugf("Found locals block: evaluating the expressions.")
 
 	attrs, err := localsBlock[0].JustAttributes()
 	if err != nil {
-		ctx.TerragruntOptions.Logger.Debugf("Encountered error while decoding locals block into name expression pairs.")
+		l.Debugf("Encountered error while decoding locals block into name expression pairs.")
 		return nil, err
 	}
 
@@ -57,20 +60,21 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 		var err error
 		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
 			ctx,
+			l,
 			file,
 			attrs,
 			evaluatedLocals,
 		)
 
 		if err != nil {
-			ctx.TerragruntOptions.Logger.Debugf("Encountered error while evaluating locals in file %s", ctx.TerragruntOptions.TerragruntConfigPath)
-			return nil, err
+			l.Debugf("Encountered error while evaluating locals in file %s", ctx.TerragruntOptions.TerragruntConfigPath)
+			return evaluatedLocals, err
 		}
 	}
 
 	if len(attrs) > 0 {
 		// This is an error because we couldn't evaluate all locals
-		ctx.TerragruntOptions.Logger.Debugf("Not all locals could be evaluated:")
+		l.Debugf("Not all locals could be evaluated:")
 
 		var errs *errors.MultiError
 
@@ -97,21 +101,22 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 // - any errors from the evaluation
 func attemptEvaluateLocals(
 	ctx *ParsingContext,
+	l log.Logger,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
 	evaluatedLocals map[string]cty.Value,
 ) (unevaluatedAttrs hclparse.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
 	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		ctx.TerragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
+		l.Errorf("Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
 		return nil, evaluatedLocals, false, err
 	}
 
 	ctx.Locals = &localsAsCtyVal
 
-	evalCtx, err := createTerragruntEvalContext(ctx, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, l, file.ConfigPath)
 	if err != nil {
-		ctx.TerragruntOptions.Logger.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
+		l.Errorf("Could not convert include to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)
 		return nil, evaluatedLocals, false, err
 	}
 
@@ -121,16 +126,17 @@ func attemptEvaluateLocals(
 	unevaluatedAttrs = hclparse.Attributes{}
 	evaluated = false
 
-	newEvaluatedLocals = map[string]cty.Value{}
-	for key, val := range evaluatedLocals {
-		newEvaluatedLocals[key] = val
-	}
+	newEvaluatedLocals = make(map[string]cty.Value, len(evaluatedLocals))
+	maps.Copy(newEvaluatedLocals, evaluatedLocals)
+
+	errs := &errors.MultiError{}
 
 	for _, attr := range attrs {
 		if diags := canEvaluateLocals(attr.Expr, evaluatedLocals); !diags.HasErrors() {
 			evaluatedVal, err := attr.Value(evalCtx)
 			if err != nil {
-				return nil, evaluatedLocals, false, err
+				errs = errs.Append(err)
+				continue
 			}
 
 			newEvaluatedLocals[attr.Name] = evaluatedVal
@@ -142,14 +148,14 @@ func attemptEvaluateLocals(
 		}
 	}
 
-	ctx.TerragruntOptions.Logger.Debugf(
+	l.Debugf(
 		"Evaluated %d locals (remaining %d): %s",
 		len(newlyEvaluatedLocalNames),
 		len(unevaluatedAttrs),
 		strings.Join(newlyEvaluatedLocalNames, ", "),
 	)
 
-	return unevaluatedAttrs, newEvaluatedLocals, evaluated, nil
+	return unevaluatedAttrs, newEvaluatedLocals, evaluated, errs.ErrorOrNil()
 }
 
 // canEvaluateLocals determines if the local expression can be evaluated. An expression can be evaluated if one of the

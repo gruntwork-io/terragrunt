@@ -10,6 +10,11 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"maps"
+
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -18,7 +23,8 @@ import (
 // it the input parameters string slice as well as the given include and terragruntOptions.
 func wrapStringSliceToStringAsFuncImpl(
 	ctx *ParsingContext,
-	toWrap func(ctx *ParsingContext, params []string) (string, error),
+	l log.Logger,
+	toWrap func(ctx *ParsingContext, l log.Logger, params []string) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -28,7 +34,7 @@ func wrapStringSliceToStringAsFuncImpl(
 			if err != nil {
 				return cty.StringVal(""), err
 			}
-			out, err := toWrap(ctx, params)
+			out, err := toWrap(ctx, l, params)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -39,7 +45,8 @@ func wrapStringSliceToStringAsFuncImpl(
 
 func wrapStringSliceToNumberAsFuncImpl(
 	ctx *ParsingContext,
-	toWrap func(ctx *ParsingContext, params []string) (int64, error),
+	l log.Logger,
+	toWrap func(ctx *ParsingContext, l log.Logger, params []string) (int64, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
@@ -49,7 +56,7 @@ func wrapStringSliceToNumberAsFuncImpl(
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
-			out, err := toWrap(ctx, params)
+			out, err := toWrap(ctx, l, params)
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
@@ -83,12 +90,13 @@ func wrapStringSliceToBoolAsFuncImpl(
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringAsFuncImpl(
 	ctx *ParsingContext,
-	toWrap func(ctx *ParsingContext) (string, error),
+	l log.Logger,
+	toWrap func(ctx *ParsingContext, l log.Logger) (string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			out, err := toWrap(ctx)
+			out, err := toWrap(ctx, l)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
@@ -111,12 +119,13 @@ func wrapVoidToEmptyStringAsFuncImpl() function.Function {
 // function calls the given toWrap function, passing it the given include and terragruntOptions.
 func wrapVoidToStringSliceAsFuncImpl(
 	ctx *ParsingContext,
-	toWrap func(ctx *ParsingContext) ([]string, error),
+	l log.Logger,
+	toWrap func(ctx *ParsingContext, l log.Logger) ([]string, error),
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			outVals, err := toWrap(ctx)
+			outVals, err := toWrap(ctx, l)
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}
@@ -162,12 +171,12 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 // shallowMergeCtyMaps performs a shallow merge of two cty value objects.
 func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
-	outMap, err := ParseCtyValueToMap(target)
+	outMap, err := ctyhelper.ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
 
-	SourceMap, err := ParseCtyValueToMap(source)
+	SourceMap, err := ctyhelper.ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
 	}
@@ -191,24 +200,22 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 }
 
 // deepMergeCtyMapsMapOnly implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
-// we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
+// we cheat by using map[string]any as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
-	outMap := make(map[string]interface{})
+	outMap := make(map[string]any)
 
-	targetMap, err := ParseCtyValueToMap(target)
+	targetMap, err := ctyhelper.ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceMap, err := ParseCtyValueToMap(source)
+	sourceMap, err := ctyhelper.ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
 	}
 
-	for key, val := range targetMap {
-		outMap[key] = val
-	}
+	maps.Copy(outMap, targetMap)
 
 	if err := mergo.Merge(&outMap, sourceMap, append(opts, mergo.WithOverride)...); err != nil {
 		return nil, err
@@ -220,45 +227,6 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 	}
 
 	return &outCty, nil
-}
-
-// ParseCtyValueToMap converts a cty.Value to a map[string]interface{}.
-//
-// This is a hacky workaround to convert a cty Value to a Go map[string]interface{}. cty does not support this directly
-// (https://github.com/hashicorp/hcl2/issues/108) and doing it with gocty.FromCtyValue is nearly impossible, as cty
-// requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
-// we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
-// map[string]interface{} using the Go json library.
-func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
-	updatedValue, err := UpdateUnknownCtyValValues(value)
-	if err != nil {
-		return nil, err
-	}
-
-	value = updatedValue
-
-	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
-	if err != nil {
-		return nil, errors.New(err)
-	}
-
-	var ctyJSONOutput CtyJSONOutput
-	if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
-		return nil, errors.New(err)
-	}
-
-	return ctyJSONOutput.Value, nil
-}
-
-// CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.
-//
-// When you convert a cty value to JSON, if any of that types are not yet known (i.e., are labeled as
-// DynamicPseudoType), cty's Marshall method will write the type information to a type field and the actual value to
-// a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
-// can pull out just the Value field we need.
-type CtyJSONOutput struct {
-	Value map[string]interface{} `json:"Value"`
-	Type  interface{}            `json:"Type"`
 }
 
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
@@ -296,23 +264,23 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 // NOTE: When evaluated in a partial parse ctx, only the partially parsed ctx is available in the expose. This
 // ensures that we can parse the child config without having access to dependencies when constructing the dependency
 // graph.
-func includeMapAsCtyVal(ctx *ParsingContext) (cty.Value, error) {
+func includeMapAsCtyVal(ctx *ParsingContext, l log.Logger) (cty.Value, error) {
 	bareInclude, hasBareInclude := ctx.TrackInclude.CurrentMap[bareIncludeKey]
 	if len(ctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
-		ctx.TerragruntOptions.Logger.Debug("Detected single bare include block - exposing as top level")
-		return includeConfigAsCtyVal(ctx, bareInclude)
+		l.Debug("Detected single bare include block - exposing as top level")
+		return includeConfigAsCtyVal(ctx, l, bareInclude)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
 
 	for key, included := range ctx.TrackInclude.CurrentMap {
-		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, included)
+		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, l, included)
 		if err != nil {
 			return cty.NilVal, err
 		}
 
 		if parsedIncludedCty != cty.NilVal {
-			ctx.TerragruntOptions.Logger.Debugf("Exposing include block '%s'", key)
+			l.Debugf("Exposing include block '%s'", key)
 
 			exposedIncludeMap[key] = parsedIncludedCty
 		}
@@ -323,11 +291,11 @@ func includeMapAsCtyVal(ctx *ParsingContext) (cty.Value, error) {
 
 // includeConfigAsCtyVal returns the parsed include block as a cty.Value object if expose is true. Otherwise, return
 // the nil representation of cty.Value.
-func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (cty.Value, error) {
+func includeConfigAsCtyVal(ctx *ParsingContext, l log.Logger, includeConfig IncludeConfig) (cty.Value, error) {
 	ctx = ctx.WithTrackInclude(nil)
 
 	if includeConfig.GetExpose() {
-		parsedIncluded, err := parseIncludedConfig(ctx, &includeConfig)
+		parsedIncluded, err := parseIncludedConfig(ctx, l, &includeConfig)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -343,60 +311,8 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 	return cty.NilVal, nil
 }
 
-// UpdateUnknownCtyValValues deeply updates unknown values with default value
-func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
-	var updatedValue any
-
-	switch {
-	case !value.IsKnown():
-		return cty.StringVal(""), nil
-	case value.IsNull():
-		return value, nil
-	case value.Type().IsMapType(), value.Type().IsObjectType():
-		mapVals := value.AsValueMap()
-		for key, val := range mapVals {
-			val, err := UpdateUnknownCtyValValues(val)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			mapVals[key] = val
-		}
-
-		if len(mapVals) > 0 {
-			updatedValue = mapVals
-		}
-
-	case value.Type().IsTupleType(), value.Type().IsListType():
-		sliceVals := value.AsValueSlice()
-		for key, val := range sliceVals {
-			val, err := UpdateUnknownCtyValValues(val)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			sliceVals[key] = val
-		}
-
-		if len(sliceVals) > 0 {
-			updatedValue = sliceVals
-		}
-	}
-
-	if updatedValue == nil {
-		return value, nil
-	}
-
-	value, err := gocty.ToCtyValue(updatedValue, value.Type())
-	if err != nil {
-		return cty.NilVal, errors.New(err)
-	}
-
-	return value, nil
-}
-
 // CtyToStruct converts a cty.Value to a go struct.
-func CtyToStruct(ctyValue cty.Value, target interface{}) error {
+func CtyToStruct(ctyValue cty.Value, target any) error {
 	jsonBytes, err := ctyjson.Marshal(ctyValue, ctyValue.Type())
 	if err != nil {
 		return errors.New(err)
@@ -418,4 +334,35 @@ func CtyValueAsString(val cty.Value) (string, error) {
 	}
 
 	return string(jsonBytes), nil
+}
+
+// GetValueString returns the string representation of a cty.Value.
+// If the value is of type cty.String, it returns the raw string value directly.
+// Otherwise, it falls back to converting the value to a JSON-formatted string
+// using the CtyValueAsString helper function.
+//
+// Returns an error if the conversion fails.
+func GetValueString(value cty.Value) (string, error) {
+	if value.Type() == cty.String {
+		return value.AsString(), nil
+	}
+
+	return CtyValueAsString(value)
+}
+
+// IsComplexType checks if a value is a complex data type that can't be used with raw output.
+func IsComplexType(value cty.Value) bool {
+	return value.Type().IsObjectType() || value.Type().IsMapType() ||
+		value.Type().IsListType() || value.Type().IsTupleType() ||
+		value.Type().IsSetType()
+}
+
+// GetFirstKey returns the first key from a map.
+// This is a helper for maps that are known to have exactly one element.
+func GetFirstKey(m map[string]cty.Value) string {
+	for k := range m {
+		return k
+	}
+
+	return ""
 }

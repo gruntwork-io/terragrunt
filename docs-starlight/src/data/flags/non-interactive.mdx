@@ -6,4 +6,12 @@ env:
   - TG_NON_INTERACTIVE
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 When enabled, Terragrunt will automatically answer "yes" to any prompts that would normally require user input. This is particularly useful in automated environments or CI/CD pipelines where user interaction isn't possible.
+
+<Aside type="caution">
+When using `--non-interactive`, Terragrunt will automatically answer "yes" to all prompts except for external dependency inclusion prompts.
+
+These will default to "no" for safety. Use [`--queue-include-external`](/docs/reference/cli/commands/run#queue-include-external) to explicitly include external dependencies.
+</Aside>

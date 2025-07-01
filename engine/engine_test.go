@@ -11,7 +11,7 @@ import (
 
 func TestConvertMetaToProtobuf(t *testing.T) {
 	t.Parallel()
-	meta := map[string]interface{}{
+	meta := map[string]any{
 		"key1": "value1",
 		"key2": 42,
 	}

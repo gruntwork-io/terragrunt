@@ -1,12 +1,12 @@
 package config_test
 
 import (
-	"context"
 	"os"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -117,13 +117,13 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
 	filename := "../test/fixtures/regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
-	ctx := config.NewParsingContext(context.Background(), mockOptionsForTestWithConfigPath(t, filename))
+	ctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), mockOptionsForTestWithConfigPath(t, filename))
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)
 	ctx.TerragruntOptions = opts
 	ctx.TerragruntOptions.FetchDependencyOutputFromState = true
 	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
-	tfConfig, err := config.ParseConfigFile(ctx, filename, nil)
+	tfConfig, err := config.ParseConfigFile(ctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)

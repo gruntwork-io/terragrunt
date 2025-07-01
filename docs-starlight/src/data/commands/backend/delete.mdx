@@ -7,9 +7,6 @@ sidebar:
 description: Delete backend state used by a unit.
 usage: |
   Delete backend state used by a unit.
-experiment:
-  control: cli-redesign
-  name: cli redesign
 examples:
   - description: |
       Delete backend state for the current unit.
@@ -23,4 +20,34 @@ examples:
       Delete backend state for the current unit, even if it doesn't have versioning enabled.
     code: |
       terragrunt backend delete --force
+flags:
+  - backend-delete-all
+  - backend-delete-config
+  - backend-delete-download-dir
+  - backend-delete-force
 ---
+
+## Delete State
+
+Using this command deletes the backend state file for the current Terragrunt unit.
+
+For example, given the following `remote_state` block:
+
+```hcl
+# terragrunt.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket  = "mybucket"
+    key     = "path/to/my/key"
+    region  = "us-east-1"
+    encrypt = true
+
+    dynamodb_table = "tf-lock"
+
+    accesslogging_bucket_name = "mybucket-logs"
+  }
+}
+```
+
+Running `terragrunt backend delete` will delete the backend state file located at `path/to/my/key` in the `mybucket` bucket.

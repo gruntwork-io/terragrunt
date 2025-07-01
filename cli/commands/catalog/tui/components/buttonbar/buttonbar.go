@@ -27,12 +27,12 @@ var (
 
 // ButtonBar is bubbletea component that displays an inline list of buttons.
 type ButtonBar struct {
-	buttons        []string
-	activeButton   int
-	nameFmt        string
 	SeparatorStyle lipgloss.Style
 	FocusedStyle   lipgloss.Style
 	BlurredStyle   lipgloss.Style
+	nameFmt        string
+	buttons        []string
+	activeButton   int
 }
 
 // New creates a new ButtonBar component.

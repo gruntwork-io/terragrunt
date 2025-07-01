@@ -1,0 +1,43 @@
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+language: "en-US"
+early_access: false
+chat: { auto_reply: true }
+
+reviews:
+  profile: chill
+  high_level_summary: true
+
+  poem: false
+
+  collapse_walkthrough: true
+  sequence_diagrams: true
+
+
+  path_instructions:
+    - path: 'docs/**/*.md'
+      instructions: >-
+        Review the documentation for clarity, grammar, and spelling.
+        Make sure that the documentation is easy to understand and follow.
+        There is currently a migration underway from the Jekyll based documentation in `docs` to the Starlight + Astro based documentation in `docs-starlight`. Whenever changes are made to the `docs` directory, ensure that an equivalent change is made in the `docs-starlight` directory to keep the `docs-starlight` documentation accurate.
+
+    - path: 'docs-starlight/**/*.md*'
+      instructions: >-
+        Review the documentation for clarity, grammar, and spelling.
+        Make sure that the documentation is easy to understand and follow.
+        There is currently a migration underway from the Jekyll based documentation in `docs` to the Starlight + Astro based documentation in `docs-starlight`. Make sure that the `docs-starlight` documentation is accurate and up-to-date with the `docs` documentation, and that any difference between them results in an improvement in the `docs-starlight` documentation.
+
+    - path: 'docs-starlight/**/*.astro'
+      instructions: >-
+        Review the Astro code in the `docs-starlight` directory for quality and correctness.
+        Make sure that the Astro code follows best practices and is easy to understand, maintain, and follows best practices.
+        When possible, suggest improvements to the Astro code to make it better.
+
+    - path: '**/*.go'
+      instructions: >-
+        Review the Go code for quality and correctness.
+        Make sure that the Go code follows best practices, is performant, and is easy to understand and maintain.
+
+  tools:
+    languagetool:
+      enabled: true
+      level: default

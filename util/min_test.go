@@ -11,7 +11,7 @@ import (
 func TestMin(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		x        int
 		y        int
 		expected int
@@ -24,13 +24,11 @@ func TestMin(t *testing.T) {
 		{1, 1, 1},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, tc := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.expected, util.Min(tt.x, tt.y))
+			assert.Equal(t, tc.expected, util.Min(tc.x, tc.y))
 		})
 	}
 }

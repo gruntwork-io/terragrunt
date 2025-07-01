@@ -225,3 +225,20 @@ func MergeStringSlices(a, b []string) []string {
 
 	return result
 }
+
+// MapToSlice transforms a map with string keys and pointer values into a slice of pointers.
+// It extracts all values from the map and returns them as a slice while maintaining their original order in the map iteration.
+//
+// Parameters:
+//   - m: A map where the keys are strings and the values are pointers to elements of type T.
+//
+// Returns:
+//   - A slice containing all the pointer values from the input map.
+func MapToSlice[T any](m map[string]*T) []*T {
+	result := make([]*T, 0, len(m))
+	for _, block := range m {
+		result = append(result, block)
+	}
+
+	return result
+}

@@ -23,29 +23,37 @@ type SliceFlagType interface {
 type SliceFlag[T SliceFlagType] struct {
 	flag
 
-	// The name of the flag.
-	Name string
-	// The default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
-	DefaultText string
-	// A short usage description to display in help.
-	Usage string
-	// Aliases are usually used for the short flag name, like `-h`.
-	Aliases []string
-	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
-	EnvVars []string
 	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
 	Action FlagActionFunc[[]T]
-	// FlagSetterFunc represents function type that is called when the flag is specified.
-	// Executed during value parsing, in case of an error the returned error is wrapped with the flag or environment variable name.
+
+	// Setter represents the function that is called when the flag is specified.
 	Setter FlagSetterFunc[T]
+
 	// Destination is a pointer to which the value of the flag or env var is assigned.
-	// It also uses as the default value displayed in the help.
 	Destination *[]T
-	// The func used to split the EvnVar, by default `strings.Split`
+
+	// Splitter represents the function that is called when the flag is specified.
 	Splitter SplitterFunc
-	// The EnvVarSep value is passed to the Splitter function as an argument.
+
+	// Name is the name of the flag.
+	Name string
+
+	// DefaultText is the default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
+	DefaultText string
+
+	// Usage is a short usage description to display in help.
+	Usage string
+
+	// EnvVarSep is the separator used to split the env var value.
 	EnvVarSep string
-	// Hidden hides the flag from the help, if set to true.
+
+	// Aliases are usually used for the short flag name, like `-h`.
+	Aliases []string
+
+	// EnvVars are the names of the env variables that are parsed and assigned to `Destination` before the flag value.
+	EnvVars []string
+
+	// Hidden hides the flag from the help.
 	Hidden bool
 }
 
@@ -120,6 +128,10 @@ func (flag *SliceFlag[T]) String() string {
 
 // Names returns the names of the flag.
 func (flag *SliceFlag[T]) Names() []string {
+	if flag.Name == "" {
+		return flag.Aliases
+	}
+
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 

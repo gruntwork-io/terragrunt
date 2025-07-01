@@ -6,12 +6,19 @@ sidebar:
   order: 1000
 description: Graph the Directed Acyclic Graph (DAG) in DOT language.
 usage: |
-  Graph the Directed Acyclic Graph (DAG) in DOT language.
-experiment:
-  control: cli-redesign
-  name: cli redesign
+  Print a visual representation of the Terragrunt dependency graph in DOT language format.
+  This command analyzes your Terragrunt configuration and outputs a directed acyclic graph (DAG) showing the relationships and dependencies between your Terraform modules.
 examples:
   - description: Graph all dependencies in the graph as a DotViz graph.
     code: |
-      terragrunt dag graph
+      $ terragrunt dag graph
+      digraph {
+        "alb" ;
+        "ecs" ;
+        "ecs" -> "alb";
+      }
+  - description: Graph all dependencies in visual diagram.
+    code: |
+      $ terragrunt dag graph  | dot -Tpng > graph.png
+
 ---

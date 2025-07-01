@@ -14,9 +14,9 @@ type WriterParseFunc func(str string) (msg string, time *time.Time, level *log.L
 // Writer redirects Write requests to configured logger and level
 type Writer struct {
 	logger       log.Logger
-	defaultLevel log.Level
-	msgSeparator string
 	parseFunc    WriterParseFunc
+	msgSeparator string
+	defaultLevel log.Level
 }
 
 // New returns a new Writer instance with fields assigned to default values.

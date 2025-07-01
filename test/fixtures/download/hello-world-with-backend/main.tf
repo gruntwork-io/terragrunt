@@ -1,16 +1,28 @@
-data "template_file" "test" {
-  template = "hello, ${var.name}"
+terraform {
+  # These settings will be filled in by Terragrunt
+  backend "s3" {}
+
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    null = {
+      source  = "hashicorp/null"
+      version = "3.2.3"
+    }
+  }
 }
 
 variable "name" {
   description = "Specify a name"
+  type        = string
+}
+
+resource "null_resource" "test" {
+  provisioner "local-exec" {
+    command = "echo 'hello, ${var.name}'"
+  }
 }
 
 output "test" {
-  value = data.template_file.test.rendered
-}
-
-terraform {
-  # These settings will be filled in by Terragrunt
-  backend "s3" {}
+  value = "hello, ${var.name}"
 }

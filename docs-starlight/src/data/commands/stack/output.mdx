@@ -9,9 +9,6 @@ usage: |
   The `terragrunt stack output` command allows users to retrieve and interact with outputs from multiple units within a Terragrunt stack.
 
   This feature simplifies handling infrastructure outputs by consolidating them into a single view.
-experiment:
-  control: stacks
-  name: Stacks
 examples:
   - description: Get outputs from a stack of units.
     code: |
@@ -26,6 +23,7 @@ flags:
   - stack-output-format
   - stack-output-json
   - stack-output-raw
+  - no-stack-generate
 ---
 
 Executing `terragrunt stack output` in a stack directory produces an aggregated output from all units within the stack:

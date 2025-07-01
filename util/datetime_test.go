@@ -13,7 +13,7 @@ import (
 func TestParseTimestamp(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		arg   string
 		value time.Time
 		err   string
@@ -24,20 +24,18 @@ func TestParseTimestamp(t *testing.T) {
 		{"2017-11-22 00:00:00Z", time.Time{}, `not a valid RFC3339 timestamp: missing required time introducer 'T'`},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
-		t.Run(fmt.Sprintf("ParseTimestamp(%#v)", tt.arg), func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("ParseTimestamp(%#v)", tc.arg), func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := util.ParseTimestamp(tt.arg)
-			if tt.err != "" {
-				require.EqualError(t, err, tt.err)
+			actual, err := util.ParseTimestamp(tc.arg)
+			if tc.err != "" {
+				require.EqualError(t, err, tc.err)
 			} else {
 				require.NoError(t, err)
 			}
 
-			assert.Equal(t, tt.value, actual)
+			assert.Equal(t, tc.value, actual)
 		})
 	}
 }

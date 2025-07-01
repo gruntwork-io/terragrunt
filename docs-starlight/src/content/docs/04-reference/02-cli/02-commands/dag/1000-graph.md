@@ -4,9 +4,6 @@ description: Graph the Directed Acyclic Graph (DAG) in DOT language.
 slug: docs/reference/cli/commands/dag/graph
 sidebar:
   order: 1000
-  badge:
-    text: exp
-    variant: tip
 ---
 
 <!-- This page is intentionally empty. Commands are defined in `src/pages/docs/reference/cli/commands/[...slug.astro] -->

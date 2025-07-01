@@ -48,7 +48,7 @@ This tutorial will not assume the following:
 2. You have any experience with Terragrunt.
 3. You have any existing Terragrunt, OpenTofu or Terraform projects.
 
-\* Note that if you have _both_ OpenTofu and Terraform installed, you'll want to read the [terragrunt-tfpath](/docs/reference/cli-options/#terragrunt-tfpath) docs to understand how Terragrunt determines which binary to use.
+\* Note that if you have _both_ OpenTofu and Terraform installed, you'll want to read the [tf-path](/docs/reference/cli-options/#tf-path) docs to understand how Terragrunt determines which binary to use.
 
 If you would like a less gentle introduction geared towards users with an active AWS account, familiarity with OpenTofu/Terraform, and potentially a team actively using Terragrunt, consider starting with the [Overview](/docs/getting-started/overview/).
 
@@ -131,12 +131,12 @@ $ terragrunt apply -auto-approve
 
 You might notice that this is a little more verbose than the output you're used to seeing from running `tofu` or `terraform` directly. This is because Terragrunt does a bit of work behind the scenes to make sure that you can scale your OpenTofu/Terraform usage without running into common problems. As you get more comfortable with using Terragrunt on larger projects, you may find the extra information helpful.
 
-If you would prefer that Terragrunt output look more like the output from `tofu` or `terraform`, you can use the `--terragrunt-log-format bare` flag (or set the environment variable `TERRAGRUNT_LOG_FORMAT=bare`) to reduce the verbosity of the output.
+If you would prefer that Terragrunt output look more like the output from `tofu` or `terraform`, you can use the `--log-format bare` flag (or set the environment variable `TG_LOG_FORMAT=bare`) to reduce the verbosity of the output.
 
 e.g.
 
 ```bash
-$ terragrunt --terragrunt-log-format bare apply
+$ terragrunt --log-format bare apply
 local_file.file: Refreshing state... [id=0a0a9f2a6772942557ab5355d76af442f8f65e01]
 
 No changes. Your infrastructure matches the configuration.
@@ -280,7 +280,7 @@ e.g. Let's say we wanted to update both our `foo` and `bar` environments simulta
 In the directory above `foo` and `bar`, run the following:
 
 ```bash
-$ terragrunt run-all apply
+$ terragrunt run --all apply
 08:42:00.150 INFO   The stack at . will be processed in the following order for command apply:
 Group 1
 - Module ./bar
@@ -306,10 +306,46 @@ Are you sure you want to run 'terragrunt apply' in each folder of the stack desc
 
 This is where that additional verbosity in Terragrunt logging is really handy. You can see that Terragrunt concurrently ran `apply -auto-approve` in both the `foo` and `bar` units. The extra logging for Terragrunt also included information on the names of the units that were processed, and disambiguated the output from each unit.
 
-Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--terragrunt-non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
+When Terragrunt runs these commands, it creates a `.terragrunt-cache` directory in each unit's directory. This cache directory serves as Terragrunt's scratch directory where it:
+
+- Downloads your remote OpenTofu/Terraform configurations
+- Runs your OpenTofu/Terraform commands
+- Stores downloaded modules and providers
+- Stores generated files (in this case, the `hi.txt` file will be created under `.terragrunt-cache/[HASH]/[HASH]/hi.txt` rather than directly in the `foo` or `bar` directories)
+
+With this configuration, the `hi.txt` files will be created directly in the `foo` and `bar` directories instead of the `.terragrunt-cache` directory.
+
+The `.terragrunt-cache` directory is typically added to `.gitignore` files, similar to the `.terraform` directory that OpenTofu generates.
+
+If you want to control where the files are created, you can modify the module to accept an output directory parameter. For example, you can update the `shared/main.tf` file to:
+
+```hcl
+variable "content" {}
+variable "output_dir" {}
+
+resource "local_file" "file" {
+  content  = var.content
+  filename = "${var.output_dir}/hi.txt"
+}
+```
+
+Then in your `foo/terragrunt.hcl` and `bar/terragrunt.hcl` files, you can use the `get_terragrunt_dir()` built-in function to get the directory where the `terragrunt.hcl` file is located:
+
+```hcl
+terraform {
+  source = "../shared"
+}
+
+inputs = {
+  output_dir = get_terragrunt_dir()
+  content = "Hello from bar, Terragrunt!"
+}
+```
+
+Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
 
 ```bash
-terragrunt run-all --terragrunt-non-interactive apply
+terragrunt run --all --non-interactive apply
 ```
 
 ### Step 6: Use Terragrunt to manage your DAG
@@ -347,7 +383,7 @@ inputs = {
 Being good citizens of the IaC world, we should run a `plan` before an `apply` to see what changes Terragrunt will make to our infrastructure (note that you will get an error here. This is expected, and we'll fix it in the next step):
 
 ```bash
-$ terragrunt run-all plan
+$ terragrunt run --all plan
 08:57:09.271 INFO   The stack at . will be processed in the following order for command plan:
 Group 1
 - Module ./foo
@@ -383,7 +419,7 @@ Oh no! We got an error. This happens because the way in which dependencies are r
 
 You should notice, however, that Terragrunt has already figured out the order in which to run the `plan` command across the units in your stack. This is what we mean when we say that Terragrunt uses a DAG to determine the order of runs in your stack. Terragrunt analyzes the dependencies in your stack, and determines an order for runs so that outputs are ready to be used as inputs in dependent units.
 
-If you decided to run `terragrunt run-all apply` instead, you would instead see Terragrunt complete the `apply` in the `foo` unit first, and then complete the `apply` in the `bar` unit, as it's aware that the `bar` unit might need some outputs from the `foo` unit.
+If you decided to run `terragrunt run --all apply` instead, you would instead see Terragrunt complete the `apply` in the `foo` unit first, and then complete the `apply` in the `bar` unit, as it's aware that the `bar` unit might need some outputs from the `foo` unit.
 
 ### Step 7: Use mocks to handle unavailable outputs
 
@@ -410,7 +446,7 @@ inputs = {
 Re-running the `plan` command should now complete successfully:
 
 ```bash
-$ terragrunt run-all plan
+$ terragrunt run --all plan
 09:29:03.461 INFO   The stack at . will be processed in the following order for command plan:
 Group 1
 - Module ./foo
@@ -442,7 +478,7 @@ Group 2
 If you're concerned about the `mock_outputs` attribute resulting in invalid configurations, note that during an apply, the outputs of `foo` will be known, and Terragrunt won't use `mock_outputs` to resolve the outputs of `foo`.
 
 ```bash
-$ terragrunt run-all --terragrunt-non-interactive apply
+$ terragrunt run --all --non-interactive apply
 
 ...
 

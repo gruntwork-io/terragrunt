@@ -13,7 +13,7 @@ func ExtraInfo[T any](diag *hcl.Diagnostic) T {
 }
 
 // ExtraInfoNext takes a value previously returned by ExtraInfo and attempts to find an implementation of interface T wrapped inside of it. The return value meaning is the same as for ExtraInfo.
-func ExtraInfoNext[T any](previous interface{}) T {
+func ExtraInfoNext[T any](previous any) T {
 	// As long as T is an interface type as documented, zero will always be a nil interface value for us to return in the non-matching case.
 	var zero T
 
@@ -41,7 +41,7 @@ func ExtraInfoNext[T any](previous interface{}) T {
 
 // DiagnosticExtraUnwrapper is an interface implemented by values in the Extra field of Diagnostic when they are wrapping another "Extra" value that was generated downstream.
 type DiagnosticExtraUnwrapper interface {
-	UnwrapDiagnosticExtra() interface{}
+	UnwrapDiagnosticExtra() any
 }
 
 // DiagnosticExtraBecauseUnknown is an interface implemented by values in the Extra field of Diagnostic when the diagnostic is potentially caused by the presence of unknown values in an expression evaluation.

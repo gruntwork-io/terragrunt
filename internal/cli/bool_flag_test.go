@@ -18,98 +18,96 @@ func TestBoolFlagApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          cli.BoolFlag
-		args          []string
-		envs          map[string]string
-		expectedValue bool
 		expectedErr   error
+		envs          map[string]string
+		args          []string
+		flag          cli.BoolFlag
+		expectedValue bool
 	}{
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo"},
-			map[string]string{"FOO": "false"},
-			true,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo"},
+			envs:          map[string]string{"FOO": "false"},
+			expectedValue: true,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			map[string]string{"FOO": "true"},
-			true,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          nil,
+			envs:          map[string]string{"FOO": "true"},
+			expectedValue: true,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			nil,
-			false,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          nil,
+			envs:          nil,
+			expectedValue: false,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(false)},
-			[]string{"--foo"},
-			map[string]string{"FOO": "false"},
-			true,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(false)},
+			args:          []string{"--foo"},
+			envs:          map[string]string{"FOO": "false"},
+			expectedValue: true,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", Destination: mockDestValue(true)},
-			nil,
-			nil,
-			true,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", Destination: mockDestValue(true)},
+			args:          nil,
+			envs:          nil,
+			expectedValue: true,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", Destination: mockDestValue(true), Negative: true},
-			[]string{"--foo"},
-			nil,
-			false,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", Destination: mockDestValue(true), Negative: true},
+			args:          []string{"--foo"},
+			envs:          nil,
+			expectedValue: false,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(true), Negative: true},
-			nil,
-			map[string]string{"FOO": "true"},
-			false,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(true), Negative: true},
+			args:          nil,
+			envs:          map[string]string{"FOO": "true"},
+			expectedValue: false,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(false), Negative: true},
-			nil,
-			map[string]string{"FOO": "false"},
-			true,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(false), Negative: true},
+			args:          nil,
+			envs:          map[string]string{"FOO": "false"},
+			expectedValue: true,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
-			[]string{"--foo", "--foo"},
-			nil,
-			false,
-			errors.New(`invalid boolean flag foo: setting the flag multiple times`),
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          []string{"--foo", "--foo"},
+			envs:          nil,
+			expectedValue: false,
+			expectedErr:   errors.New(`invalid boolean flag foo: setting the flag multiple times`),
 		},
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			map[string]string{"FOO": ""},
-			false,
-			nil,
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          nil,
+			envs:          map[string]string{"FOO": ""},
+			expectedValue: false,
+			expectedErr:   nil,
 		},
 		{
-			cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
-			nil,
-			map[string]string{"FOO": "monkey"},
-			false,
-			errors.New(`invalid value "monkey" for env var FOO: must be one of: "0", "1", "f", "t", "false", "true"`),
+			flag:          cli.BoolFlag{Name: "foo", EnvVars: []string{"FOO"}},
+			args:          nil,
+			envs:          map[string]string{"FOO": "monkey"},
+			expectedValue: false,
+			expectedErr:   errors.New(`invalid value "monkey" for env var FOO: must be one of: "0", "1", "f", "t", "false", "true"`),
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			testBoolFlagApply(t, &testCase.flag, testCase.args, testCase.envs, testCase.expectedValue, testCase.expectedErr)
+			testBoolFlagApply(t, &tc.flag, tc.args, tc.envs, tc.expectedValue, tc.expectedErr)
 		})
 	}
 }

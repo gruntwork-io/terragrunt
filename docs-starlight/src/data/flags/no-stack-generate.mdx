@@ -1,0 +1,10 @@
+---
+name: no-stack-generate
+description: Disable automatic stack regeneration before running the stack commands.
+type: bool
+env:
+  - TG_NO_STACK_GENERATE
+---
+
+When enabled, Terragrunt will skip automatic stack regeneration before executing the command.
+This is useful when you want to run operations using the existing .terragrunt-stack directory without regenerating it, improving execution speed and avoiding unnecessary changes.

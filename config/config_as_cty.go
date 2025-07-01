@@ -8,7 +8,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 )
 
 // TerragruntConfigAsCty serializes TerragruntConfig struct to a cty Value that can be used to reference the attributes in other config. Note
@@ -389,7 +389,7 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 	return convertValuesMapToCtyVal(output)
 }
 
-func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]interface{}, fieldType string, output *map[string]cty.Value) error {
+func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]any, fieldType string, output *map[string]cty.Value) error {
 	var valueWithMetadata = map[string]cty.Value{}
 
 	for key, value := range *data {
@@ -427,7 +427,7 @@ func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]interface
 	return nil
 }
 
-func wrapWithMetadata(config *TerragruntConfig, value interface{}, metadataName string, output *map[string]cty.Value) error {
+func wrapWithMetadata(config *TerragruntConfig, value any, metadataName string, output *map[string]cty.Value) error {
 	if value == nil {
 		return nil
 	}
@@ -473,16 +473,16 @@ type ctyCatalogConfig struct {
 // ctyEngineConfig is an alternate representation of EngineConfig that converts internal blocks into a map that
 // maps the name to the underlying struct, as opposed to a list representation.
 type ctyEngineConfig struct {
+	Meta    cty.Value `cty:"meta"`
 	Source  string    `cty:"source"`
 	Version string    `cty:"version"`
 	Type    string    `cty:"type"`
-	Meta    cty.Value `cty:"meta"`
 }
 
 // ctyExclude exclude representation for cty.
 type ctyExclude struct {
-	If                  bool     `cty:"if"`
 	Actions             []string `cty:"actions"`
+	If                  bool     `cty:"if"`
 	ExcludeDependencies bool     `cty:"exclude_dependencies"`
 }
 
@@ -505,11 +505,6 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 		return cty.NilVal, nil
 	}
 
-	ctyMetaVal, err := convertToCtyWithJSON(config.Meta)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
 	var v, t string
 	if config.Version != nil {
 		v = *config.Version
@@ -523,7 +518,10 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 		Source:  config.Source,
 		Version: v,
 		Type:    t,
-		Meta:    ctyMetaVal,
+	}
+
+	if config.Meta != nil {
+		configCty.Meta = *config.Meta
 	}
 
 	return goTypeToCty(configCty)
@@ -601,31 +599,33 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 // RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
 // serialize the struct because `config` and `encryption` are arbitrary
 // interfaces whose type we do not know, so we have to do a hack to go through json.
-func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
-	if remoteState == nil {
+func RemoteStateAsCty(remote *remotestate.RemoteState) (cty.Value, error) {
+	if remote == nil || remote.Config == nil {
 		return cty.NilVal, nil
 	}
 
-	output := map[string]cty.Value{}
-	output["backend"] = gostringToCty(remoteState.Backend)
-	output["disable_init"] = goboolToCty(remoteState.DisableInit)
-	output["disable_dependency_optimization"] = goboolToCty(remoteState.DisableDependencyOptimization)
+	config := remote.Config
 
-	generateCty, err := goTypeToCty(remoteState.Generate)
+	output := map[string]cty.Value{}
+	output["backend"] = gostringToCty(config.BackendName)
+	output["disable_init"] = goboolToCty(config.DisableInit)
+	output["disable_dependency_optimization"] = goboolToCty(config.DisableDependencyOptimization)
+
+	generateCty, err := goTypeToCty(config.Generate)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
 	output["generate"] = generateCty
 
-	ctyJSONVal, err := convertToCtyWithJSON(remoteState.Config)
+	ctyJSONVal, err := convertToCtyWithJSON(config.BackendConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
 	output["config"] = ctyJSONVal
 
-	ctyJSONVal, err = convertToCtyWithJSON(remoteState.Encryption)
+	ctyJSONVal, err = convertToCtyWithJSON(config.Encryption)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -696,10 +696,140 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 	return convertValuesMapToCtyVal(output)
 }
 
+// stackConfigAsCty converts a StackConfig into a cty Value so its attributes can be used in other configs.
+func stackConfigAsCty(stackConfig *StackConfig) (cty.Value, error) {
+	if stackConfig == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{}
+
+	if stackConfig.Locals != nil {
+		localsCty, err := convertToCtyWithJSON(stackConfig.Locals)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		if localsCty != cty.NilVal {
+			output[MetadataLocal] = localsCty
+		}
+	}
+
+	// Process stacks as a map from stack name to stack config
+	if len(stackConfig.Stacks) > 0 {
+		stacksMap := make(map[string]cty.Value, len(stackConfig.Stacks))
+
+		for _, stack := range stackConfig.Stacks {
+			stackCty, err := stackToCty(stack)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			if stackCty != cty.NilVal {
+				stacksMap[stack.Name] = stackCty
+			}
+		}
+
+		if len(stacksMap) > 0 {
+			stacksCty, err := convertValuesMapToCtyVal(stacksMap)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			output[MetadataStack] = stacksCty
+		}
+	}
+
+	// Process units as a map from unit name to unit config
+	if len(stackConfig.Units) > 0 {
+		unitsMap := make(map[string]cty.Value, len(stackConfig.Units))
+
+		for _, unit := range stackConfig.Units {
+			unitCty, err := unitToCty(unit)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			if unitCty != cty.NilVal {
+				unitsMap[unit.Name] = unitCty
+			}
+		}
+
+		if len(unitsMap) > 0 {
+			unitsCty, err := convertValuesMapToCtyVal(unitsMap)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			output[MetadataUnit] = unitsCty
+		}
+	}
+
+	return convertValuesMapToCtyVal(output)
+}
+
+// stackToCty converts a Stack struct to a cty Value
+func stackToCty(stack *Stack) (cty.Value, error) {
+	if stack == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{
+		"name":   gostringToCty(stack.Name),
+		"source": gostringToCty(stack.Source),
+		"path":   gostringToCty(stack.Path),
+	}
+
+	// Handle Values if available
+	if stack.Values != nil {
+		output["values"] = *stack.Values
+	}
+
+	// Handle NoStack if available
+	if stack.NoStack != nil {
+		output["no_dot_terragrunt_stack"] = goboolToCty(*stack.NoStack)
+	}
+
+	if stack.NoValidation != nil {
+		output["no_validation"] = goboolToCty(*stack.NoValidation)
+	}
+
+	return convertValuesMapToCtyVal(output)
+}
+
+// unitToCty converts a Unit struct to a cty Value
+func unitToCty(unit *Unit) (cty.Value, error) {
+	if unit == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{
+		"name":   gostringToCty(unit.Name),
+		"source": gostringToCty(unit.Source),
+		"path":   gostringToCty(unit.Path),
+	}
+
+	// Handle Values if available
+	if unit.Values != nil {
+		output["values"] = *unit.Values
+	}
+
+	// Handle NoStack if available
+	if unit.NoStack != nil {
+		output["no_dot_terragrunt_stack"] = goboolToCty(*unit.NoStack)
+	}
+
+	if unit.NoValidation != nil {
+		output["no_validation"] = goboolToCty(*unit.NoValidation)
+	}
+
+	return convertValuesMapToCtyVal(output)
+}
+
 // Converts arbitrary go types that are json serializable to a cty Value by using json as an intermediary
 // representation. This avoids the strict type nature of cty, where you need to know the output type beforehand to
 // serialize to cty.
-func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
+func convertToCtyWithJSON(val any) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
 		return cty.NilVal, errors.New(err)
@@ -715,7 +845,24 @@ func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
 
 // Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
 // uint, float, cty.Value) to a cty Value
-func goTypeToCty(val interface{}) (cty.Value, error) {
+func goTypeToCty(val any) (cty.Value, error) {
+	// Check if the value is a map
+	if m, ok := val.(map[string]any); ok {
+		convertedMap := make(map[string]cty.Value)
+
+		for k, v := range m {
+			convertedValue, err := goTypeToCty(v)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			convertedMap[k] = convertedValue
+		}
+
+		return cty.ObjectVal(convertedMap), nil
+	}
+
+	// Use the existing logic for other types
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
 		return cty.NilVal, errors.New(err)
@@ -749,4 +896,13 @@ func goboolToCty(val bool) cty.Value {
 	}
 
 	return ctyOut
+}
+
+// FormatValue converts a primitive value to its string representation.
+func FormatValue(value cty.Value) (string, error) {
+	if value.Type() == cty.String {
+		return value.AsString(), nil
+	}
+
+	return GetValueString(value)
 }

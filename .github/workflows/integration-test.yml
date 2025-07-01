@@ -1,0 +1,246 @@
+name: Integration Tests
+
+on:
+  push:
+
+jobs:
+  test:
+    name: Test (${{ matrix.integration.name }})
+    runs-on: ${{ matrix.integration.os }}-latest
+    env:
+      MISE_PROFILE: cicd
+    strategy:
+      fail-fast: false
+      matrix:
+        integration:
+          - name: Fixtures with OpenTofu
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/tofu-switch.sh
+          - name: Fixtures with Latest OSS Terraform
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch-latest-oss.sh
+          - name: Fixtures with Latest Terraform
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch-latest.sh
+          - name: SSH
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/ssh.sh
+            tags: ssh
+            run: '^TestSSH'
+            secrets: [GHA_DEPLOY_KEY]
+          - name: SOPS
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/sops.sh
+            tags: sops
+            run: '^TestSOPS'
+          - name: Tflint
+            os: ubuntu
+            target: ./...
+            tags: tflint
+            run: '^TestTflint'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]
+          - name: GCP
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/gcp.sh
+            tags: gcp
+            run: '^TestGcp'
+            secrets: [GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID, GCLOUD_SERVICE_KEY_IMPERSONATOR]
+          - name: AWS Tofu
+            os: ubuntu
+            target: ./...
+            tags: aws
+            run: '^TestAws'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
+            setup_scripts:
+              - .github/scripts/setup/tofu-switch.sh
+          - name: AWS with Latest OSS Terraform
+            os: ubuntu
+            target: ./...
+            tags: aws
+            run: '^TestAws'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch-latest-oss.sh
+          - name: AWS with Latest Terraform
+            os: ubuntu
+            target: ./...
+            tags: aws
+            run: '^TestAws'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_TEST_S3_ASSUME_ROLE]
+            setup_scripts:
+              - .github/scripts/setup/terraform-switch-latest.sh
+          - name: AWSGCP
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/gcp.sh
+            tags: awsgcp
+            run: '^TestAwsGcp'
+            secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GCLOUD_SERVICE_KEY, GOOGLE_CLOUD_PROJECT, GOOGLE_COMPUTE_ZONE, GOOGLE_IDENTITY_EMAIL, GOOGLE_PROJECT_ID]
+          - name: Engine
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/engine.sh
+            tags: engine
+            run: '^TestEngine'
+          - name: Windows
+            os: windows
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/windows-setup.ps1
+            tags: windows
+            run: '^TestWindows'
+          - name: Provider Cache with Latest Terraform
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/provider-cache.sh
+              - .github/scripts/setup/terraform-switch-latest.sh
+          - name: Provider Cache with Tofu
+            os: ubuntu
+            target: ./test
+            setup_scripts:
+              - .github/scripts/setup/provider-cache.sh
+              - .github/scripts/setup/tofu-switch.sh
+          - name: Deprecated
+            os: ubuntu
+            target: ./...
+            tags: deprecated
+            run: '^TestDeprecated'
+          - name: Mock
+            os: ubuntu
+            target: ./...
+            tags: mocks
+            run: '^TestMock'
+            setup_scripts:
+              - .github/scripts/setup/generate-mocks.sh
+          - name: Race
+            os: ubuntu
+            target: ./...
+            run: '.*WithRacing'
+            test_args: "-race"
+          - name: Parse
+            os: ubuntu
+            target: ./...
+            tags: parse
+            run: '^TestParse'
+          - name: CAS
+            os: ubuntu
+            target: ./...
+            setup_scripts:
+              - .github/scripts/setup/cas.sh
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: "Save space on node"
+        if: runner.os != 'Windows'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo docker builder prune -a
+          df -h
+
+      # install dependencies for the integration tests
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.4.4
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Secrets Environment
+        run: ./.github/scripts/setup/generate-secrets.sh
+        env:
+          NAME: ${{ matrix.integration.name }}
+          ENV_FILE: ${{ github.workspace }}/.env.secrets
+          SECRETS: ${{ join(matrix.integration.secrets, ' ') }}
+          GHA_DEPLOY_KEY: ${{ secrets.GHA_DEPLOY_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_TEST_OIDC_ROLE_ARN: ${{ secrets.AWS_TEST_OIDC_ROLE_ARN }}
+          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
+          GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          GOOGLE_COMPUTE_ZONE: ${{ secrets.GOOGLE_COMPUTE_ZONE }}
+          GOOGLE_IDENTITY_EMAIL: ${{ secrets.GOOGLE_IDENTITY_EMAIL }}
+          GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+          GCLOUD_SERVICE_KEY_IMPERSONATOR: ${{ secrets.GCLOUD_SERVICE_KEY_IMPERSONATOR }}
+          AWS_TEST_S3_ASSUME_ROLE: ${{ secrets.AWS_TEST_S3_ASSUME_ROLE }}
+        shell: bash
+
+      - name: Setup
+        if: runner.os != 'Windows'
+        run: ./.github/scripts/setup/run-setup-scripts.sh
+        shell: bash
+        env:
+          ENV_FILE: ${{ github.workspace }}/.env.secrets
+          SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
+
+      - name: Windows Setup
+        if: runner.os == 'Windows'
+        run: pwsh -File ./.github/scripts/setup/windows-setup.ps1
+        shell: pwsh
+        env:
+          ENV_FILE: ${{ github.workspace }}/.env.secrets
+          SETUP_SCRIPTS: ${{ join(matrix.integration.setup_scripts, ' ') }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Go Build Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
+
+      - name: Run Tests
+        run: |
+          if [ "$SKIP" != "true" ]; then
+            source "${GITHUB_WORKSPACE}/.env.secrets"
+            # print command arguments
+            set -x
+            go test -v -timeout 45m ${TAGS:+-tags "$TAGS"} ${RUN:+-run "$RUN"} ${TEST_ARGS} "${TARGET}" | tee >(go-junit-report -set-exit-code > result.xml)
+          else
+            echo "Skipping tests for $NAME as the skip flag is true."
+          fi
+        shell: bash
+        env:
+          GITHUB_OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ matrix.integration.target }}
+          TAGS: ${{ matrix.integration.tags }}
+          RUN: ${{ matrix.integration.run }}
+          SKIP: ${{ matrix.integration.skip }}
+          NAME: ${{ matrix.integration.name }}
+          TEST_ARGS: ${{ matrix.integration.test_args }}
+
+      - name: Upload Report (${{ matrix.integration.name }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ matrix.integration.name }}
+          path: result.xml
+
+      - name: Display Test Results (${{ matrix.integration.name }})
+        uses: mikepenz/action-junit-report@v5
+        if: always()
+        with:
+          report_paths: result.xml
+          detailed_summary: 'true'
+          include_time_in_summary: 'true'
+          group_suite: 'true'

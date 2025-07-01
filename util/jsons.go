@@ -9,7 +9,7 @@ import (
 // to JSON using Go's built-in json.Marshal. However, we have special handling
 // for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to Terraform via
 // env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
-func AsTerraformEnvVarJSONValue(value interface{}) (string, error) {
+func AsTerraformEnvVarJSONValue(value any) (string, error) {
 	switch val := value.(type) {
 	case string:
 		return val, nil

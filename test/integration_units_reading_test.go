@@ -1,6 +1,17 @@
+//go:build sops
+
+// sops tests assume that you're going to import the test_pgp_key.asc file into your GPG keyring before
+// running the tests. We're not gonna assume that everyone is going to do this, so we're going to skip
+// these tests by default.
+//
+// You can import the key by running the following command:
+//
+//	gpg --import --no-tty --batch --yes ./test/fixtures/sops/test_pgp_key.asc
+
 package test_test
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -15,12 +26,12 @@ const (
 	testFixtureUnitsReading = "fixtures/units-reading/"
 )
 
-func TestUnitsReading(t *testing.T) {
+func TestSOPSUnitsReading(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureUnitsReading)
 
-	tc := []struct {
+	testCases := []struct {
 		name           string
 		unitsReading   []string
 		unitsExcluding []string
@@ -31,6 +42,7 @@ func TestUnitsReading(t *testing.T) {
 			name:         "empty",
 			unitsReading: []string{},
 			expectedUnits: []string{
+				"indirect",
 				"reading-from-tf",
 				"reading-hcl",
 				"reading-hcl-and-tfvars",
@@ -121,29 +133,38 @@ func TestUnitsReading(t *testing.T) {
 				"reading-tfvars",
 			},
 		},
+		{
+			name: "indirect",
+			unitsReading: []string{
+				filepath.Join("indirect", "src", "test.txt"),
+			},
+			expectedUnits: []string{
+				"indirect",
+			},
+		},
 	}
 
 	includedLogEntryRegex := regexp.MustCompile(`=> Module ./([^ ]+) \(excluded: false`)
 
-	for _, tt := range tc {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
 
-			cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir " + rootPath
+			cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath
 
-			for _, unit := range tt.unitsReading {
-				cmd = cmd + " --terragrunt-queue-include-units-reading " + unit
+			for _, f := range tc.unitsReading {
+				cmd = cmd + " --queue-include-units-reading " + f
 			}
 
-			for _, unit := range tt.unitsIncluding {
-				cmd = cmd + " --terragrunt-include-dir " + unit
+			for _, unit := range tc.unitsIncluding {
+				cmd = cmd + " --queue-include-dir " + unit
 			}
 
-			for _, unit := range tt.unitsExcluding {
-				cmd = cmd + " --terragrunt-exclude-dir " + unit
+			for _, unit := range tc.unitsExcluding {
+				cmd = cmd + " --queue-exclude-dir " + unit
 			}
 
 			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -156,7 +177,7 @@ func TestUnitsReading(t *testing.T) {
 				}
 			}
 
-			assert.ElementsMatch(t, tt.expectedUnits, includedUnits)
+			assert.ElementsMatch(t, tc.expectedUnits, includedUnits)
 		})
 	}
 }

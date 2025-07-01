@@ -111,13 +111,13 @@ func TestArgsRemove(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
+	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := testCase.args.Remove(testCase.removeName)
-			assert.Equal(t, testCase.expectedResult, actual)
-			assert.Equal(t, testCase.expectedArgs, testCase.args)
+			actual := tc.args.Remove(tc.removeName)
+			assert.Equal(t, tc.expectedResult, actual)
+			assert.Equal(t, tc.expectedArgs, tc.args)
 		})
 	}
 }

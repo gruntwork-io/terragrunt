@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"maps"
+
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
@@ -31,31 +33,40 @@ type MapFlagValueType interface {
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	flag
 
-	// The name of the flag.
-	Name string
-	// The default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
-	DefaultText string
-	// A short usage description to display in help.
-	Usage string
-	// Aliases are usually used for the short flag name, like `-h`.
-	Aliases []string
+	// Splitter is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	Splitter SplitterFunc
+
 	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
 	Action FlagActionFunc[map[K]V]
-	// FlagSetterFunc represents function type that is called when the flag is specified.
-	// Executed during value parsing, in case of an error the returned error is wrapped with the flag or environment variable name.
+
+	// Setter represents the function that is called when the flag is specified.
 	Setter MapFlagSetterFunc[K, V]
-	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
-	EnvVars []string
+
 	// Destination is a pointer to which the value of the flag or env var is assigned.
-	// It also uses as the default value displayed in the help.
 	Destination *map[K]V
-	// The func used to split the EvnVar, by default `strings.Split`
-	Splitter SplitterFunc
-	// The EnvVarSep value is passed to the Splitter function as an argument to split the args.
+
+	// DefaultText is the default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
+	DefaultText string
+
+	// Usage is a short usage description to display in help.
+	Usage string
+
+	// Name is the name of the flag.
+	Name string
+
+	// EnvVarSep is the separator used to split the env var value.
 	EnvVarSep string
-	// The KeyValSep value is passed to the Splitter function as an argument to split `key` and `val` of the arg.
+
+	// KeyValSep is the separator used to split the key and value of the flag.
 	KeyValSep string
-	// Hidden hides the flag from the help, if set to true.
+
+	// Aliases are usually used for the short flag name, like `-h`.
+	Aliases []string
+
+	// EnvVars are the names of the env variables that are parsed and assigned to `Destination` before the flag value.
+	EnvVars []string
+
+	// Hidden hides the flag from the help.
 	Hidden bool
 }
 
@@ -137,6 +148,10 @@ func (flag *MapFlag[K, V]) String() string {
 
 // Names returns the names of the flag.
 func (flag *MapFlag[K, V]) Names() []string {
+	if flag.Name == "" {
+		return flag.Aliases
+	}
+
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 
@@ -152,12 +167,13 @@ func (flag *MapFlag[K, V]) RunAction(ctx *Context) error {
 var _ = Value(new(mapValue[string, string]))
 
 type mapValue[K, V comparable] struct {
-	values         *map[K]V
-	setter         MapFlagSetterFunc[K, V]
-	keyType        FlagVariable[K]
-	valType        FlagVariable[V]
-	argSep, valSep string
-	splitter       SplitterFunc
+	keyType  FlagVariable[K]
+	valType  FlagVariable[V]
+	values   *map[K]V
+	setter   MapFlagSetterFunc[K, V]
+	splitter SplitterFunc
+	argSep   string
+	valSep   string
 }
 
 func newMapValue[K, V comparable](keyType FlagVariable[K], valType FlagVariable[V], argSep, valSep string, splitter SplitterFunc, dest *map[K]V, setter MapFlagSetterFunc[K, V]) *mapValue[K, V] {
@@ -204,9 +220,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 func (flag *mapValue[K, V]) Get() any {
 	var vals = map[K]V{}
 
-	for key, val := range *flag.values {
-		vals[key] = val
-	}
+	maps.Copy(vals, *flag.values)
 
 	return vals
 }

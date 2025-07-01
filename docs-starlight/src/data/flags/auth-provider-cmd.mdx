@@ -7,6 +7,8 @@ env:
   - TG_AUTH_PROVIDER_CMD
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command whenever it might need authentication. This includes HCL parsing, where it might be useful to authenticate with a cloud provider _before_ running HCL functions like [`get_aws_account_id`](/docs/reference/hcl/functions#get_aws_account_id) where authentication has to already have taken place. It can also be useful for HCL functions like [`run_cmd`](/docs/reference/hcl/functions#run_cmd) where it may be useful to be authenticated before calling the function.
 
 The output must be valid JSON of the following schema:
@@ -52,5 +54,10 @@ Similarly, if you would like Terragrunt to assume an AWS role on your behalf, yo
 
 Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the `envs` field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
 
-**Note**: The `awsRole` configuration is only used when the `awsCredentials` configuration is not present. If both are present, the `awsCredentials` configuration will take precedence.
+<Aside type="note">
+The `awsRole` configuration is only used when the `awsCredentials` configuration is not present. If both are present, the `awsCredentials` configuration will take precedence.
+</Aside>
 
+<Aside type="caution">
+When using `iam-assume-role`, AWS authentication takes place right before a Terraform run, after `terragrunt.hcl` files are fully parsed. This means HCL functions like `get_aws_account_id` and `run_cmd` will not run with the assumed role credentials. If you need roles to be assumed prior to parsing configurations, use `auth-provider-cmd` instead.
+</Aside>

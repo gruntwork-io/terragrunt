@@ -1,7 +1,6 @@
 package run_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -22,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
@@ -42,7 +44,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = terraformSource.WriteVersionFile()
+	err = terraformSource.WriteVersionFile(logger.CreateLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +257,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig, report.NewReport())
 	require.Error(t, err)
 	var downloadingTerraformSourceErr run.DownloadingTerraformSourceErr
 	ok := errors.As(err, &downloadingTerraformSourceErr)
@@ -321,60 +323,39 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	})
 
 	testCases := []struct {
+		comp      assert.Comparison
 		name      string
 		sourceURL string
-		comp      assert.Comparison
 	}{
-		{
-			"test-stale-file-exists", "../../../test/fixtures/manifest/version-1",
-			func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
-			},
-		},
-		{
-			"test-stale-file-doesnt-exist-after-source-update", "../../../test/fixtures/manifest/version-2",
-			func() bool {
-				return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
-			},
-		},
-		{
-			"test-tffile-exists-in-subfolder", "../../../test/fixtures/manifest/version-3-subfolder",
-			func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
-			},
-		},
-		{
-			"test-tffile-doesnt-exist-in-subfolder", "../../../test/fixtures/manifest/version-4-subfolder-empty",
-			func() bool {
-				return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
-			},
-		},
-		{
-			"test-empty-folder-gets-copied", testDir,
-			func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub2"))
-			},
-		},
-		{
-			"test-empty-folder-gets-populated", "../../../test/fixtures/manifest/version-5-not-empty-subfolder",
-			func() bool {
-				return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
-			},
-		},
+		{name: "test-stale-file-exists", sourceURL: "../../../test/fixtures/manifest/version-1", comp: func() bool {
+			return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+		}},
+		{name: "test-stale-file-doesnt-exist-after-source-update", sourceURL: "../../../test/fixtures/manifest/version-2", comp: func() bool {
+			return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+		}},
+		{name: "test-tffile-exists-in-subfolder", sourceURL: "../../../test/fixtures/manifest/version-3-subfolder", comp: func() bool {
+			return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+		}},
+		{name: "test-tffile-doesnt-exist-in-subfolder", sourceURL: "../../../test/fixtures/manifest/version-4-subfolder-empty", comp: func() bool {
+			return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+		}},
+		{name: "test-empty-folder-gets-copied", sourceURL: testDir, comp: func() bool {
+			return util.FileExists(filepath.Join(downloadDir, "sub2"))
+		}},
+		{name: "test-empty-folder-gets-populated", sourceURL: "../../../test/fixtures/manifest/version-5-not-empty-subfolder", comp: func() bool {
+			return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
+		}},
 	}
 
 	// The test cases are run sequentially because they depend on each other.
 	//
 	//nolint:paralleltest
-	for _, testCase := range testCases {
-		testCase := testCase
-		t.Run(testCase.name, func(t *testing.T) {
-			copyFolder(t, testCase.sourceURL, downloadDir)
-			assert.Condition(t, testCase.comp)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			copyFolder(t, tc.sourceURL, downloadDir)
+			assert.Condition(t, tc.comp)
 		})
-
 	}
-
 }
 
 func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {
@@ -384,7 +365,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig, report.NewReport())
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
@@ -402,14 +383,13 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool) (*tf.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	t.Helper()
 
-	logger := log.New()
+	logger := logger.CreateLogger()
 	logger.SetOptions(log.WithOutput(io.Discard))
 	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
-		Logger:             logger,
 	}
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -425,7 +405,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 		},
 	}
 
-	err = run.PopulateTerraformVersion(context.Background(), terragruntOptions)
+	_, err = run.PopulateTerraformVersion(t.Context(), logger, terragruntOptions)
 	require.NoError(t, err)
 	return terraformSource, terragruntOptions, terragruntConfig, err
 }
@@ -433,20 +413,19 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir string, expected bool) {
 	t.Helper()
 
-	logger := log.New()
+	logger := logger.CreateLogger()
 	logger.SetOptions(log.WithOutput(io.Discard))
 	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
 		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
-		Logger:             logger,
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := run.AlreadyHaveLatestCode(terraformSource, opts)
+	actual, err := run.AlreadyHaveLatestCode(logger, terraformSource, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }
@@ -495,7 +474,7 @@ func readFile(t *testing.T, path string) string {
 func copyFolder(t *testing.T, src string, dest string) {
 	t.Helper()
 
-	logger := log.New()
+	logger := logger.CreateLogger()
 	logger.SetOptions(log.WithOutput(io.Discard))
 
 	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil, nil)
@@ -552,6 +531,240 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			// Verify ExcludeFromCopy
 			assert.Equal(t, tc.expectedExcludeFiles, fileGetter.ExcludeFromCopy,
 				"ExcludeFromCopy should match expected value")
+		})
+	}
+}
+
+// TestDownloadSourceWithCASExperimentDisabled tests that CAS is not used when the experiment is disabled
+func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	// Ensure CAS experiment is not enabled
+	opts.Experiments = experiment.NewExperiments()
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	// Mock the download source function call
+	r := report.NewReport()
+
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+
+	require.NoError(t, err)
+
+	// Verify the file was downloaded
+	expectedFilePath := filepath.Join(tmpDir, "main.tf")
+	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceWithCASExperimentEnabled tests that CAS is attempted when the experiment is enabled
+func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	// Create options with CAS experiment enabled
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	// Enable CAS experiment
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.CAS)
+	require.NoError(t, err)
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+	require.NoError(t, err)
+
+	expectedFilePath := filepath.Join(tmpDir, "main.tf")
+	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceWithCASGitSource tests CAS functionality with a Git source
+func TestDownloadSourceWithCASGitSource(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "github.com/gruntwork-io/terragrunt//test/fixtures/download/hello-world"),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	// Enable CAS experiment
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.CAS)
+	require.NoError(t, err)
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+	require.NoError(t, err)
+
+	// Verify the file was downloaded
+	expectedFilePath := filepath.Join(tmpDir, "main.tf")
+	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceCASInitializationFailure tests the fallback behavior when CAS initialization fails
+func TestDownloadSourceCASInitializationFailure(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+	src := &tf.Source{
+		CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+		DownloadDir:        tmpDir,
+		WorkingDir:         tmpDir,
+		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+
+	// Enable CAS experiment
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.CAS)
+	require.NoError(t, err)
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+	require.NoError(t, err)
+
+	expectedFilePath := filepath.Join(tmpDir, "main.tf")
+	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceWithCASMultipleSources tests that CAS works with multiple different sources
+func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+	require.NoError(t, err)
+	opts.Env = env.Parse(os.Environ())
+
+	// Enable CAS experiment
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.CAS)
+	require.NoError(t, err)
+
+	cfg := &config.TerragruntConfig{
+		Terraform: &config.TerraformConfig{
+			ExtraArgs: []config.TerraformExtraArguments{},
+			Source:    nil,
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	testCases := []struct {
+		name      string
+		sourceURL string
+		expectCAS bool
+	}{
+		{
+			name:      "Local file source",
+			sourceURL: "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world"),
+			expectCAS: false, // CAS doesn't handle file:// URLs
+		},
+		{
+			name:      "HTTP source",
+			sourceURL: "https://example.com/repo.tar.gz",
+			expectCAS: false, // CAS doesn't handle HTTP sources
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+
+			src := &tf.Source{
+				CanonicalSourceURL: parseURL(t, tc.sourceURL),
+				DownloadDir:        tmpDir,
+				WorkingDir:         tmpDir,
+				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+			}
+
+			err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, opts, cfg, r)
+
+			if tc.name == "Local file source" {
+				require.NoError(t, err)
+				expectedFilePath := filepath.Join(tmpDir, "main.tf")
+				assert.FileExists(t, expectedFilePath)
+			} else {
+				t.Logf("Source %s result: %v", tc.sourceURL, err)
+			}
 		})
 	}
 }

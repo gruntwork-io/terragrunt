@@ -87,7 +87,7 @@ type ResponseBody struct {
 	SHA256SumsSignatureURL string `json:"shasums_signature_url,omitempty"`
 
 	SHA256Sum   string         `json:"shasum,omitempty"`
-	SigningKeys SigningKeyList `json:"signing_keys,omitempty"`
+	SigningKeys SigningKeyList `json:"signing_keys"`
 }
 
 func (body ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {

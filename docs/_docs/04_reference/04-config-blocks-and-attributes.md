@@ -22,11 +22,15 @@ The following is a reference of all the supported blocks and attributes in the c
   - [terraform](#terraform)
     - [A note about using modules from the registry](#a-note-about-using-modules-from-the-registry)
   - [remote\_state](#remote_state)
+    - [backend](#backend)
+    - [encryption](#encryption)
   - [include](#include)
     - [Single include](#single-include)
     - [Multiple includes](#multiple-includes)
     - [Limitations on accessing exposed config](#limitations-on-accessing-exposed-config)
   - [locals](#locals)
+    - [Complex locals](#complex-locals)
+    - [Computed locals](#computed-locals)
   - [dependency](#dependency)
   - [dependencies](#dependencies)
   - [generate](#generate)
@@ -34,9 +38,15 @@ The following is a reference of all the supported blocks and attributes in the c
   - [feature](#feature)
   - [exclude](#exclude)
   - [errors](#errors)
+    - [Retry Configuration](#retry-configuration)
+    - [Ignore Configuration](#ignore-configuration)
+    - [Combined Example](#combined-example)
+    - [Errors during source fetching](#errors-during-source-fetching)
   - [unit](#unit)
+  - [stack](#stack)
 - [Attributes](#attributes)
   - [inputs](#inputs)
+    - [Variable Precedence](#variable-precedence)
   - [download\_dir](#download_dir)
   - [prevent\_destroy](#prevent_destroy)
   - [skip](#skip)
@@ -44,6 +54,7 @@ The following is a reference of all the supported blocks and attributes in the c
   - [iam\_assume\_role\_duration](#iam_assume_role_duration)
   - [iam\_assume\_role\_session\_name](#iam_assume_role_session_name)
   - [iam\_web\_identity\_token](#iam_web_identity_token)
+    - [Git Provider Configuration](#git-provider-configuration)
   - [terraform\_binary](#terraform_binary)
   - [terraform\_version\_constraint](#terraform_version_constraint)
   - [terragrunt\_version\_constraint](#terragrunt_version_constraint)
@@ -63,6 +74,7 @@ The following is a reference of all the supported blocks and attributes in the c
 - [exclude](#exclude)
 - [errors](#errors)
 - [unit](#unit)
+- [stack](#stack)
 
 ### terraform
 
@@ -454,7 +466,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `skip_bucket_public_access_blocking`: When `true`, the S3 bucket that is created will not have public access blocking enabled.
 - `disable_bucket_update`: When `true`, disable update S3 bucket if not equal configured in config block
-- `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will not be configured with server side encryption.
+- `enable_lock_table_ssencryption`: When `true`, the synchronization lock table in DynamoDB used for remote state concurrent access will be configured with server side encryption.
 - `s3_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket.
 - `dynamodb_table_tags`: A map of key value pairs to associate as tags on the created DynamoDB remote state lock table.
 - `accesslogging_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket to store de access logs.
@@ -470,9 +482,23 @@ For the `s3` backend, the following additional properties are supported in the `
 - `bucket_sse_algorithm`: (Optional) The algorithm to use for server side encryption of the state bucket. Defaults to `aws:kms`.
 - `bucket_sse_kms_key_id`: (Optional) The KMS Key to use when the encryption algorithm is `aws:kms`. Defaults to the AWS Managed `aws/s3` key.
 - `assume_role`: (Optional) A configuration `map` to use when assuming a role (starting with Terraform 1.6 for Terraform). Override top level arguments
-  - `role_arn` - (Optional) The role to be assumed.
+  - `role_arn` - (Required) The role to be assumed.
+  - `duration` - (Optional) The duration the credentials will be valid.
   - `external_id` - (Optional) The external ID to use when assuming the role.
+  - `policy` - (Optional) Policy JSON to further restrict the role.
+  - `policy_arns` - (Optional) A list of policy ARNs to further restrict the role.
   - `session_name` - (Optional) The session name to use when assuming the role.
+  - `source_identity` - (Optional) The source identity to use when assuming the role.
+  - `tags` - (Optional) A map of key value pairs used as assume role session tags.
+  - `transitive_tag_keys` - (Optional) A list of tag keys that to be passed.
+- `assume_role_with_web_identity` - (Optional) A configuration `map` to use when assuming a role with a web identity token.
+  - `role_arn` - (Required) The role to be assumed.
+  - `duration` - (Optional) The duration the credentials will be valid.
+  - `policy` - (Optional) Policy JSON to further restrict the role.
+  - `policy_arns` - (Optional) A list of policy ARNs to further restrict the role.
+  - `session_name` - (Optional) The session name to use when assuming the role.
+  - `web_identity_token` - (Required) The web identity token to use when assuming the role.
+  - `web_identity_token_file` - (Optional) The path to the file containing the web identity token to use when assuming the role.
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
@@ -502,7 +528,8 @@ For the `gcs` backend, the following additional properties are supported in the 
 #
 # Note that since we are not using any of the skip args, this will automatically create the S3 bucket
 # "my-tofu-state" and DynamoDB table "my-lock-table" if it does not already exist.
-# terragrunt.hcl
+#
+# root.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -545,8 +572,8 @@ Example with GCS:
 #
 # Note that since we are not using any of the skip args, this will automatically create the GCS bucket
 # "my-tofu-state" if it does not already exist.
-
-# terragrunt.hcl
+#
+# root.hcl
 remote_state {
   backend = "gcs"
 
@@ -671,8 +698,8 @@ Examples:
 # └── child
 #     ├── main.tf
 #     └── terragrunt.hcl
-
-# terragrunt.hcl
+#
+# root.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -712,8 +739,8 @@ terraform {
 # ├── region.hcl
 # └── child
 #     └── terragrunt.hcl
-
-# terragrunt.hcl
+#
+# root.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -758,7 +785,7 @@ terraform {
 In general, you can access all attributes on `include` when they are exposed (e.g., `include.locals`, `include.inputs`,
 etc).
 
-However, to support `run-all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
+However, to support `run --all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
 block. To understand this, consider the following example:
 
 ```hcl
@@ -796,16 +823,16 @@ In the child `terragrunt.hcl`, the `dependency` path for the `alb` depends on wh
 which is determined by the `dependency.vpc` in the root config. This means that the output from `dependency.vpc` must be
 available to parse the `dependency.alb` config.
 
-This causes problems when performing a `run-all apply` operation. During a `run-all` operation, Terragrunt first parses
+This causes problems when performing a `run --all apply` operation. During a `run --all` operation, Terragrunt first parses
 all the `dependency` blocks to build a dependency tree of the Terragrunt modules to figure out the order of operations.
 If all the paths are static references, then Terragrunt can determine all the dependency paths before any module has
 been applied. In this case there is no problem even if other config blocks access `dependency`, as by the time
-Terragrunt needs to parse those blocks, the upstream dependencies would have been applied during the `run-all apply`.
+Terragrunt needs to parse those blocks, the upstream dependencies would have been applied during the `run --all apply`.
 
 However, if those `dependency` blocks depend on upstream dependencies, then there is a problem as Terragrunt would not
 be able to build the dependency tree without the upstream dependencies being applied.
 
-Therefore, to ensure that Terragrunt can build the dependency tree in a `run-all` operation, Terragrunt enforces the
+Therefore, to ensure that Terragrunt can build the dependency tree in a `run --all` operation, Terragrunt enforces the
 following limitation to exposed `include` config:
 
 If the included configuration has any `dependency` blocks, only `locals` and `include` are exposed and available to the
@@ -1253,7 +1280,7 @@ state for the target module without parsing the `dependency` blocks, avoiding th
 ### dependencies
 
 The `dependencies` block is used to enumerate all the Terragrunt modules that need to be applied in order for this
-module to be able to apply. Note that this is purely for ordering the operations when using `run-all` commands of
+module to be able to apply. Note that this is purely for ordering the operations when using `run --all` commands of
 OpenTofu/Terraform. This does not expose or pull in the outputs like `dependency` blocks.
 
 The `dependencies` block supports the following arguments:
@@ -1263,7 +1290,7 @@ The `dependencies` block supports the following arguments:
 Example:
 
 ```hcl
-# When applying this terragrunt config in an `run-all` command, make sure the modules at "../vpc" and "../rds" are
+# When applying this terragrunt config in an `run --all` command, make sure the modules at "../vpc" and "../rds" are
 # handled first.
 dependencies {
   paths = ["../vpc", "../rds"]
@@ -1635,8 +1662,10 @@ The `unit` block supports the following arguments:
 
 - `name` (label): A unique identifier for the unit. This is used to reference the unit elsewhere in your configuration.
 - `source` (attribute): Specifies where to find the Terragrunt configuration files for this unit. This follows the same syntax as the `source` parameter in the `terraform` block.
-- `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`).
+- `path` (attribute): The relative path where this unit should be deployed within the stack directory (`.terragrunt-stack`). If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory. Also take note of the `no_dot_terragrunt_stack` attribute below, which can impact this.
 - `values` (attribute, optional): A map of values that will be passed to the unit as inputs.
+- `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the unit **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
+- `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the unit's configuration. When set to `true`, Terragrunt will skip validation checks for this unit.
 
 Example:
 
@@ -1685,6 +1714,102 @@ inputs = {
 }
 ```
 
+Example usage of `no_dot_terragrunt_stack` attribute:
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-units.git//networking/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "rds" {
+  source = "git::git@github.com:acme/infrastructure-units.git//database/rds?ref=v0.0.1"
+  path   = "rds"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+  }
+  no_dot_terragrunt_stack = true
+}
+```
+
+With the above configuration, the resulting directory structure will be:
+
+```tree
+terragrunt.stack.hcl
+.terragrunt-stack
+├── vpc
+│   ├── terragrunt.values.hcl
+│   └── terragrunt.hcl
+rds
+├── terragrunt.values.hcl
+└── terragrunt.hcl
+```
+
+The `vpc` unit is placed inside `.terragrunt-stack`, as expected.
+The `rds` unit is generated in the **same directory as `terragrunt.stack.hcl`**, rather than inside `.terragrunt-stack`, due to `no_dot_terragrunt_stack = true`.
+
+**Note:**
+The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+
+### stack
+
+> **Note:**
+> The [`stacks`](/docs/reference/experiments/#stacks) experiment is still active, and using the `stack` block requires enabling the `stacks` experiment.
+
+The `stack` block is used to define a stack of deployment units in a Terragrunt configuration file (`terragrunt.stack.hcl`).
+Stacks allow for nesting, enabling the organization of infrastructure components into modular, reusable groups, reducing redundancy and improving maintainability.
+
+Stacks are designed to be nestable, helping to mitigate the risk of stacks becoming too large or too repetitive.
+When a stack is generated, it can include nested stacks, ensuring that the configuration scales efficiently.
+
+The `stack` block supports the following arguments:
+
+- `name` (label): A unique identifier for the stack. This is used to reference the stack elsewhere in your configuration.
+- `source` (attribute): Specifies where to find the Terragrunt configuration files for this stack. This follows the same syntax as the `source` parameter in the `terraform` block.
+- `path` (attribute): The relative path within `.terragrunt-stack` where this stack should be generated.If an absolute path is provided here, Terragrunt will generate the stack in that location, instead of generating it in a path relative to the `.terragrunt-stack` directory. Also take note of the `no_dot_terragrunt_stack` attribute below, which can impact this.
+- `values` (attribute, optional): A map of custom values that can be passed to the stack. These values can be referenced within the stack's configuration files, allowing for customization without modifying the stack source.
+- `no_dot_terragrunt_stack` (attribute, optional): A boolean flag (`true` or `false`). When set to `true`, the stack **will not** be placed inside the `.terragrunt-stack` directory but will instead be generated in the same directory where `terragrunt.stack.hcl` is located. This allows for a **soft adoption** of stacks, making it easier for users to start using `terragrunt.stack.hcl` without modifying existing directory structures, or performing state migrations.
+- `no_validation` (attribute, optional): A boolean flag (`true` or `false`) that controls whether Terragrunt should validate the stack's configuration. When set to `true`, Terragrunt will skip validation checks for this stack.
+
+Example:
+
+```hcl
+# terragrunt.stack.hcl
+stack "services" {
+    source = "github.com/gruntwork-io/terragrunt-stacks//stacks/mock/services?ref=v0.0.1"
+    path   = "services"
+    values = {
+        project = "dev-services"
+        cidr    = "10.0.0.0/16"
+    }
+}
+```
+
+```hcl
+# github.com/gruntwork-io/terragrunt-stacks//stacks/mock/services/terragrunt.stack.hcl
+# ...
+unit "vpc" {
+  # ...
+  values = {
+    cidr = values.cidr
+  }
+}
+```
+
+In this example, the `services` stack is defined with path `services`, which will be generated at `.terragrunt-stack/services`.
+The stack is also provided with custom values for `project` and `cidr`, which can be used within the stack's configuration files.
+Terragrunt will recursively generate a stack using the contents of the `.terragrunt-stack/services/terragrunt.stack.hcl` file until the entire stack is fully generated.
+
+**Note:**
+The `source` value can be updated dynamically using the `--source-map` flag, just like `terraform.source`.
+
 ## Attributes
 
 - [Blocks](#blocks)
@@ -1710,7 +1835,9 @@ inputs = {
     - [Retry Configuration](#retry-configuration)
     - [Ignore Configuration](#ignore-configuration)
     - [Combined Example](#combined-example)
+    - [Errors during source fetching](#errors-during-source-fetching)
   - [unit](#unit)
+  - [stack](#stack)
 - [Attributes](#attributes)
   - [inputs](#inputs)
     - [Variable Precedence](#variable-precedence)
@@ -1812,7 +1939,7 @@ tofu apply # or terraform apply
 
 #### Variable Precedence
 
-Variables loaded in OpenTofu/Terraform will consequently use the following precedence order (with the highest precedence being lowest on the list):
+Variables loaded in OpenTofu/Terraform will use the following precedence order from lowest (1) to highest (6):
 
 1. `inputs` set in `terragrunt.hcl` files.
 2. Explicitly set `TF_VAR_` environment variables (these will override the `inputs` set in `terragrunt.hcl` if they conflict).
@@ -1834,7 +1961,7 @@ It supports all terragrunt functions, i.e. `path_relative_from_include()`.
 ### prevent_destroy
 
 Terragrunt `prevent_destroy` boolean flag allows you to protect selected OpenTofu/Terraform module. It will prevent `destroy` or
-`destroy-all` command to actually destroy resources of the protected module. This is useful for modules you want to
+`run --all destroy` command from actually destroying resources of the protected module. This is useful for modules you want to
 carefully protect, such as a database, or a module that provides auth.
 
 Example:
@@ -1869,8 +1996,8 @@ root
 ```
 
 In some cases, the root level `terragrunt.hcl` file is solely used to DRY up your OpenTofu/Terraform configuration by being
-included in the other `terragrunt.hcl` files. In this case, you do not want the `run-all` commands to process the root
-level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run-all` commands skip the
+included in the other `terragrunt.hcl` files. In this case, you do not want the `run --all` commands to process the root
+level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run --all` commands skip the
 root level `terragrunt.hcl` file, you can set `skip = true`:
 
 ```hcl

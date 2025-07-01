@@ -5,7 +5,8 @@ import (
 )
 
 const (
-	DetailedExitCodeError = 1
+	DetailedExitCodeSuccess = 0
+	DetailedExitCodeError   = 1
 )
 
 // DetailedExitCode is the TF detailed exit code. https://opentofu.org/docs/cli/commands/plan/
@@ -14,12 +15,20 @@ type DetailedExitCode struct {
 	mu   sync.RWMutex
 }
 
-// Get returns exit code.
+// Get return exit code.
 func (coder *DetailedExitCode) Get() int {
 	coder.mu.RLock()
 	defer coder.mu.RUnlock()
 
 	return coder.Code
+}
+
+// ResetSuccess resets the exit code to success (0).
+func (coder *DetailedExitCode) ResetSuccess() {
+	coder.mu.Lock()
+	defer coder.mu.Unlock()
+
+	coder.Code = DetailedExitCodeSuccess
 }
 
 // Set updates the exit code following OpenTofu's exit code convention:

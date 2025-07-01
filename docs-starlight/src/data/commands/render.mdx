@@ -4,16 +4,82 @@ path: render
 category: configuration
 sidebar:
   order: 1100
-description: Render a simplified, but equivalent Terragrunt config.
+description: |
+  Render the Terragrunt configuration in the current working directory, with as much work done as possible beforehand (that is, with all includes merged, dependencies resolved/interpolated, function calls executed, etc).
 usage: |
   Generate a simplified version of the Terragrunt configuration with all includes and dependencies resolved.
-experiment:
-  control: cli-redesign
-  name: CLI Redesign
 examples:
   - description: Render the configurations for the current unit in JSON format.
     code: |
       terragrunt render --format=json
 flags:
   - render-format
+  - render-write
+  - render-all
 ---
+
+Render the Terragrunt configuration in the current working directory, with as much work done as possible beforehand (that is, with all includes merged, dependencies resolved/interpolated, function calls executed, etc).
+
+The only supported format at the moment is JSON, but support for HCL will be added in a future version.
+
+Example:
+
+The following `terragrunt.hcl`:
+
+```hcl
+locals {
+  aws_region = "us-east-1"
+}
+
+inputs = {
+  aws_region = local.aws_region
+}
+```
+
+
+Renders to the following HCL by default:
+
+```bash
+$ terragrunt render
+locals {
+  aws_region = "us-east-1"
+}
+inputs = {
+  aws_region = "us-east-1"
+}
+```
+
+Note the resolution of the `aws_region` local, making it easier to read the final evaluated configuration at a glance.
+
+Renders to the following JSON when the `--format json` flag is used:
+
+```bash
+$ terragrunt render --format json
+{
+  "locals": { "aws_region": "us-east-1" },
+  "inputs": { "aws_region": "us-east-1" }
+  // NOTE: other attributes are omitted for brevity
+}
+```
+
+You can also use the `--write` flag to write the rendered configuration to a canonically named file in the same working directory as the `terragrunt.hcl` file.
+
+Example:
+
+```bash
+# Note the use of the `--json` shortcut flag.
+terragrunt render --json --write
+```
+
+This will write the rendered configuration to `terragrunt.rendered.json` in the current working directory.
+
+This can be useful when rendering many configurations in a given directory, and you want to keep the rendered configurations in the same directory as the original configurations, without leveraging external tools or scripts.
+
+This is also useful when combined with the `--all` flag, which will render all configurations discovered from the current working directory.
+
+```bash
+# Note the use of the `-w` alias for the `--write` flag.
+terragrunt render --all --json -w
+```
+
+This will render all configurations discovered from the current working directory and write the rendered configurations to `terragrunt.rendered.json` files adjacent to the configurations they are derived from.

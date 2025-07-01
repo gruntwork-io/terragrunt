@@ -19,9 +19,8 @@ import (
 type Server struct {
 	*router.Router
 	*Config
-
-	services           []services.Service
 	ProviderController *controllers.ProviderController
+	services           []services.Service
 }
 
 // NewServer returns a new Server instance.
@@ -93,8 +92,6 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	for _, service := range server.services {
-		service := service
-
 		errGroup.Go(func() error {
 			return service.Run(ctx)
 		})

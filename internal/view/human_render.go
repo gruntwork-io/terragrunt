@@ -125,8 +125,8 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 	if diag.Detail != "" {
 		paraWidth := render.width - leftRuleWidth - 1 // leave room for the left rule
 		if paraWidth > 0 {
-			lines := strings.Split(diag.Detail, "\n")
-			for _, line := range lines {
+			lines := strings.SplitSeq(diag.Detail, "\n")
+			for line := range lines {
 				if !strings.HasPrefix(line, " ") {
 					line = wordwrap.WrapString(line, uint(paraWidth))
 				}
@@ -204,10 +204,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 	// Only buggy diagnostics can have an end range before the start, but
 	// we need to ensure we don't crash here if that happens.
 	if end < start {
-		end = start + 1
-		if end > len(code) {
-			end = len(code)
-		}
+		end = min(start+1, len(code))
 	}
 
 	// If either start or end is out of range for the code buffer then

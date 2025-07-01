@@ -1,4 +1,4 @@
-//go:generate mockery --name Provider
+//go:generate mockgen -source=$GOFILE -destination=mocks/mock_$GOFILE -package=mocks
 
 // Package getproviders provides an interface for getting providers.
 package getproviders

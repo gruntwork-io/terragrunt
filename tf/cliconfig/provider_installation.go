@@ -70,9 +70,9 @@ type ProviderInstallationMethod interface {
 }
 
 type ProviderInstallationDirect struct {
-	Name    string    `hcl:",label" json:"Name"`
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
+	Name    string    `hcl:",label" json:"Name"`
 }
 
 func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallationDirect {
@@ -180,10 +180,10 @@ func (method *ProviderInstallationDirect) String() string {
 }
 
 type ProviderInstallationFilesystemMirror struct {
-	Name    string    `hcl:",label" json:"Name"`
-	Path    string    `hcl:"path,attr" json:"Path"`
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
+	Name    string    `hcl:",label" json:"Name"`
+	Path    string    `hcl:"path,attr" json:"Path"`
 }
 
 func NewProviderInstallationFilesystemMirror(path string, include, exclude []string) *ProviderInstallationFilesystemMirror {
@@ -293,10 +293,10 @@ func (method *ProviderInstallationFilesystemMirror) String() string {
 }
 
 type ProviderInstallationNetworkMirror struct {
-	Name    string    `hcl:",label" json:"Name"`
-	URL     string    `hcl:"url,attr" json:"URL"`
 	Include *[]string `hcl:"include,optional" json:"Include"`
 	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
+	Name    string    `hcl:",label" json:"Name"`
+	URL     string    `hcl:"url,attr" json:"URL"`
 }
 
 func NewProviderInstallationNetworkMirror(url string, include, exclude []string) *ProviderInstallationNetworkMirror {

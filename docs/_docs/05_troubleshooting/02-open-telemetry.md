@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: OpenTelemetry
 category: troubleshooting
 categories_url: troubleshooting
-excerpt: Learn how to debug issues with terragrunt and tofu/terraform.
+excerpt: Learn how to collect traces from Terragrunt using OpenTelemetry.
 tags: ["OpenTelemetry", "Tracing", "Metrics", "Otel"]
 order: 502
 nav_title: Documentation
@@ -13,7 +13,11 @@ slug: open-telemetry
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format, traces and metrics.
 
-Concepts:
+OpenTelemetry tracing is frequently used in Terragrunt to collect traces to analyze performance. For more details on analyzing and optimizing performance, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
+
+## High-level overview
+
+The following are concepts and technologies that are important to be aware of when using OpenTelemetry with Terragrunt.
 
 - [OpenTelemetry](https://opentelemetry.io/)
 - [Traces](https://opentelemetry.io/docs/concepts/signals/traces/)
@@ -22,24 +26,24 @@ Concepts:
 
 Tracing configuration:
 
-- `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER` - traces exporter type to be used. Currently supported values are:
+- `TG_TELEMETRY_TRACE_EXPORTER` - traces exporter type to be used. Currently supported values are:
   - `none` - no trace exporting, default value.
   - `console` - to export traces to console as JSON
   - `otlpHttp` - to export traces to an OpenTelemetry collector over HTTP [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
   - `otlpGrpc` - to export traces over gRPC [otlptracegrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc)
   - `http` - to export traces to a custom HTTP endpoint using [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
-- `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
-- `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
+- `TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
+- `TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
 - `TRACEPARENT` - if set, the value will be used as a parent trace context, format `TRACEPARENT=00-<hex_trace_id>-<hex_span_id>-<trace_flags>`, example: `TRACEPARENT=00-xxx-yyy-01`
 
 Metrics configuration:
 
-- `TERRAGRUNT_TELEMETRY_METRIC_EXPORTER` - metrics exporter type to be used. Currently supported values are:
+- `TG_TELEMETRY_METRIC_EXPORTER` - metrics exporter type to be used. Currently supported values are:
   - `none` - no metric exporting, default value.
   - `console` - write metrics to console as JSONs.
   - `otlpHttp` - export metrics to an OpenTelemetry collector over HTTP [otlpmetrichttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp)
   - `grpcHttp` - export metrics to an OpenTelemetry collector over gRPC [otlpmetricgrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc)
-- `TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
+- `TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
 
 ## Example configurations for trace collection
 
@@ -57,9 +61,9 @@ docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4
 - Define environment variables for Terragrunt to report traces to Jaeger:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=http
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+export TG_TELEMETRY_TRACE_EXPORTER=http
+export TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
+export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ```
 
 - Run terragrunt
@@ -71,10 +75,10 @@ export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 - Define environment variables for Terragrunt to report traces to Tempo:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=otlpHttp
+export TG_TELEMETRY_TRACE_EXPORTER=otlpHttp
 # Replace with your tempo instance
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ````
 
 - Run terragrunt
@@ -85,7 +89,7 @@ export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 - Set env variable to enable telemetry:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=console
+export TG_TELEMETRY_TRACE_EXPORTER=console
 ```
 
 - Run terragrunt
@@ -97,7 +101,7 @@ export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=console
 {"Name":"run_terraform","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"152d873a18559f07","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:31.57161757Z","EndTime":"2024-02-08T12:32:31.688157882Z","Attributes":[{"Key":"command","Value":{"Type":"STRING","Value":"tofu"}},{"Key":"args","Value":{"Type":"STRING","Value":"[init]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 {"Name":"run_terraform","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"29341bdb65f66b1e","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:31.688240673Z","EndTime":"2024-02-08T12:32:31.793377642Z","Attributes":[{"Key":"command","Value":{"Type":"STRING","Value":"tofu"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply -auto-approve -input=false]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 {"Name":"run_module","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"8a01522bc65e0f1b","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:30.290680776Z","EndTime":"2024-02-08T12:32:31.793392803Z","Attributes":[{"Key":"path","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}},{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
-{"Name":"run-all apply","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"00000000000000000000000000000000","SpanID":"0000000000000000","TraceFlags":"00","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:26.388519019Z","EndTime":"2024-02-08T12:32:31.793405603Z","Attributes":[{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":28,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
+{"Name":"run --all apply","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"00000000000000000000000000000000","SpanID":"0000000000000000","TraceFlags":"00","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:26.388519019Z","EndTime":"2024-02-08T12:32:31.793405603Z","Attributes":[{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":28,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 ```
 
 ## Collection of metrics with OpenTelemetry collector and Prometheus
@@ -169,8 +173,8 @@ scrape_configs:
 - Define environment variables for Terragrunt to report metrics to OpenTelemetry collector:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=grpcHttp
-export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
+export TG_TELEMETRY_METRIC_EXPORTER=grpcHttp
+export TG_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 ```
 
@@ -182,7 +186,7 @@ Example configuration to export metrics to console:
 - Set env variable to enable telemetry:
 
 ```bash
-export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=console
+export TG_TELEMETRY_METRIC_EXPORTER=console
 ```
 
 - Run terragrunt

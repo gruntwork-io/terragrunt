@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"slices"
+
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -36,19 +38,19 @@ var commandsThatNeedPty = []string{
 }
 
 // RunCommand runs the given Terraform command.
-func RunCommand(ctx context.Context, opts *options.TerragruntOptions, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, opts, args...)
+func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, opts, args...)
 
 	return err
 }
 
 // RunCommandWithOutput runs the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
-func RunCommandWithOutput(ctx context.Context, opts *options.TerragruntOptions, args ...string) (*util.CmdOutput, error) {
+func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args ...string) (*util.CmdOutput, error) {
 	args = cli.Args(args).Normalize(cli.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-		return fn(ctx, opts, args)
+		return fn(ctx, l, opts, args)
 	}
 
 	needsPTY, err := isCommandThatNeedsPty(args)
@@ -58,10 +60,10 @@ func RunCommandWithOutput(ctx context.Context, opts *options.TerragruntOptions, 
 
 	if !opts.ForwardTFStdout {
 		opts = opts.Clone()
-		opts.Writer, opts.ErrWriter = logTFOutput(opts, args)
+		opts.Writer, opts.ErrWriter = logTFOutput(l, opts, args)
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, opts, "", false, needsPTY, opts.TerraformPath, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, opts, "", false, needsPTY, opts.TerraformPath, args...)
 
 	if err != nil && util.ListContainsElement(args, FlagNameDetailedExitCode) {
 		code, _ := util.GetExitCode(err)
@@ -77,13 +79,13 @@ func RunCommandWithOutput(ctx context.Context, opts *options.TerragruntOptions, 
 	return output, err
 }
 
-func logTFOutput(opts *options.TerragruntOptions, args cli.Args) (io.Writer, io.Writer) {
+func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args cli.Args) (io.Writer, io.Writer) {
 	var (
 		outWriter = opts.Writer
 		errWriter = opts.ErrWriter
 	)
 
-	logger := opts.Logger.
+	logger := l.
 		WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath)).
 		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
 		WithField(placeholders.TFCmdKeyName, args.CommandName())
@@ -163,10 +165,8 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 		FlagNameHelpShort,
 	}
 
-	for _, flag := range tfFlags {
-		if args.Normalize(cli.SingleDashFlag).Contains(flag) {
-			return true
-		}
+	if slices.ContainsFunc(tfFlags, args.Normalize(cli.SingleDashFlag).Contains) {
+		return true
 	}
 
 	return collections.ListContainsElement(tfCommands, args.CommandName())

@@ -27,7 +27,15 @@ process](https://help.github.com/articles/about-pull-requests/) for contribution
   - [Running locally](#running-locally)
   - [Dependencies](#dependencies)
   - [Linting](#linting)
+    - [Default linter](#default-linter)
+    - [Strict linter](#strict-linter)
+    - [Markdownlint](#markdownlint)
   - [Running tests](#running-tests)
+    - [Unit tests](#unit-tests)
+    - [Integration tests](#integration-tests)
+    - [Race tests](#race-tests)
+    - [Benchmark tests](#benchmark-tests)
+    - [Continuous Integration](#continuous-integration)
   - [Debug logging](#debug-logging)
   - [Error handling](#error-handling)
   - [Formatting](#formatting)
@@ -105,6 +113,16 @@ To run Terragrunt locally, use the `go run` command:
 ```bash
 go run main.go plan
 ```
+
+### Testing on Windows
+
+Running tests on Windows is currently limited. Not all tests pass reliably, and additional configuration is required for proper functionality.
+Specifically:
+
+- Long file paths must be enabled on Windows.
+- A Bash shell (e.g., via Git Bash or WSL) must be available in the environment.
+
+For setup instructions and requirements, `.github/scripts/windows-setup.ps1`.
 
 ### Dependencies
 
@@ -260,11 +278,54 @@ In general, we try to make sure that any test that requires a build tag is also 
 
 For example, all AWS tests are prefixed with `TestAws*`.
 
+Terragrunt also includes integration tests for Google Cloud Platform (GCP). These tests are prefixed with `TestGcp*` and are tagged with the `gcp` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable, similar to AWS tests:
+
+```bash
+GOFLAGS='-tags=gcp' go test -run 'TestGcp*' .
+```
+
+To successfully run the GCP tests, you must set the following environment variables:
+
+- `GCLOUD_SERVICE_KEY`: The service account JSON key used for authentication.
+- `GOOGLE_CLOUD_PROJECT` or `GOOGLE_PROJECT_ID`: The GCP project name.
+- `GOOGLE_COMPUTE_ZONE`: The compute zone name.
+- `GOOGLE_IDENTITY_EMAIL`: The service account identity email.
+- `GCLOUD_SERVICE_KEY_IMPERSONATOR`: (Optional) An additional service account key used in impersonation tests.
+
+Make sure these environment variables are set in your shell before running the tests. For example:
+
+```bash
+export GCLOUD_SERVICE_KEY="/path/to/service-account.json"
+export GOOGLE_CLOUD_PROJECT="your-gcp-project"
+export GOOGLE_COMPUTE_ZONE="us-central1-a"
+export GOOGLE_IDENTITY_EMAIL="service-account@your-gcp-project.iam.gserviceaccount.com"
+export GCLOUD_SERVICE_KEY_IMPERSONATOR="/path/to/impersonator-service-account.json"
+```
+
+The service account used for GCP tests must have the following IAM roles in your GCP project:
+
+- `roles/storage.admin`
+- `roles/iam.serviceAccountTokenCreator`
+
+You can assign these roles using the following gcloud commands:
+
+```bash
+gcloud projects add-iam-policy-binding <gcp-project> \
+  --member="<service-account>" \
+  --role="roles/storage.admin"
+
+gcloud projects add-iam-policy-binding <gcp-project> \
+  --member="<service-account>" \
+  --role="roles/iam.serviceAccountTokenCreator"
+```
+
 #### Race tests
 
 Given that Terragrunt is a tool that frequently involves concurrently running multiple things at once, there's always a risk for race conditions to occur. As such, there are dedicated tests that are run with the `-race` flag in CI to use golang's built-in tooling for identifying race conditions.
 
 In general, when encountering a bug caused by a race condition in the wild, we endeavor to write a test for it, and add it to the `./test/race_test.go` file to avoid regressions in the future. If you want to make sure that new code you are writing doesn't introduce a race condition, add a test for it in the `race_test.go` file.
+
+The convention we use for race tests is to prefix them with `WithRacing`. The Terragrunt Continuous Integration workflow will run these tests with the `-race` flag as part of the test suite.
 
 We can do a better job of finding candidates for additional testing here, so if you are interested in helping out, please open an issue to discuss it.
 
@@ -273,6 +334,8 @@ We can do a better job of finding candidates for additional testing here, so if 
 Benchmark tests are tests that are run with the `-bench` flag to the `go test` command. They are used to measure the performance of a particular function or set of functions.
 
 You can find them by looking for tests that start with `Benchmark*` instead of `Test*` in the codebase.
+
+For more information on Terragrunt performance, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
 
 In general, we have inadequate benchmark testing in the Terragrunt codebase, and want to improve this. If you are interested in helping out, please open an issue to discuss it.
 
@@ -290,7 +353,7 @@ This work will be completed prior to the release of Terragrunt 1.0.
 
 ### Debug logging
 
-If you set the `TERRAGRUNT_DEBUG` environment variable to "true", the stack trace for any error will be printed to stdout when you run the app.
+If you set the `TG_INPUTS_DEBUG` environment variable to "true", the stack trace for any error will be printed to stdout when you run the app.
 
 Additionally, newer features introduced in v0.19.0 (such as `locals` and `dependency` blocks) can output more verbose logging if you set the `TG_LOG` environment variable to `debug`.
 
@@ -306,7 +369,7 @@ To accomplish these two goals, we have created an `errors` package that has seve
 
 Here is how the `errors` package should be used:
 
-1. Any time you want to create your own error, create a custom type for it, and when instantiating that type, wrap it with a call to `errors.New`. That way, any time you call a method defined in the Terragrunt code, you know the error it returns already has a stacktrace and you don’t have to wrap it yourself.
+1. Any time you want to create your own error, create a custom type for it, and when instantiating that type, wrap it with a call to `errors.New`. That way, any time you call a method defined in the Terragrunt code, you know the error it returns already has a stacktrace and you don't have to wrap it yourself.
 
 2. Any time you get back an error object from a function built into Go or a 3rd party library, immediately wrap it with `errors.New`. This gives us a stacktrace as close to the source as possible.
 

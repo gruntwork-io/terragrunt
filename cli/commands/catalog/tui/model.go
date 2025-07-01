@@ -6,9 +6,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // sessionState keeps track of the view we are currently on.
@@ -25,15 +27,18 @@ const (
 )
 
 const (
-	listState sessionState = iota
-	pagerState
-	scaffoldState
+	ListState sessionState = iota
+	PagerState
+	ScaffoldState
 )
 
 const (
 	scaffoldBtn button = iota
 	viewSourceBtn
-	lastBtn
+)
+
+var (
+	availableButtons = []button{scaffoldBtn, viewSourceBtn}
 )
 
 func (b button) String() string {
@@ -43,31 +48,28 @@ func (b button) String() string {
 	}[b]
 }
 
-type model struct {
-	// globals
-	state  sessionState
-	width  int
-	height int
-
-	// list view
-	list         list.Model
-	listKeys     list.KeyMap
-	delegateKeys *delegateKeyMap
-
-	// pager view
-	ready           bool
-	viewport        viewport.Model
-	buttonBar       *buttonbar.ButtonBar
-	activeButton    button
-	releaseNotesURL string
-	pagerKeys       pagerKeyMap
-	selectedModule  *module.Module
-
-	terragruntOptions *options.TerragruntOptions
+type Model struct {
+	List                list.Model
+	logger              log.Logger
+	terragruntOptions   *options.TerragruntOptions
+	SVC                 catalog.CatalogService
+	selectedModule      *module.Module
+	delegateKeys        *delegateKeyMap
+	buttonBar           *buttonbar.ButtonBar
+	currentPagerButtons []button
+	pagerKeys           pagerKeyMap
+	listKeys            list.KeyMap
+	viewport            viewport.Model
+	activeButton        button
+	State               sessionState
+	height              int
+	width               int
+	ready               bool
 }
 
-func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
+func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) Model {
 	var (
+		modules      = svc.Modules()
 		items        = make([]list.Item, 0, len(modules))
 		listKeys     = newListKeyMap()
 		delegateKeys = newDelegateKeyMap()
@@ -94,26 +96,28 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
 	vp := viewport.New(0, 0)
 
 	// Setup the button bar
-	bs := make([]string, lastBtn)
-	for i, b := range []button{scaffoldBtn, viewSourceBtn} {
+	bs := make([]string, len(availableButtons))
+	for i, b := range availableButtons {
 		bs[i] = b.String()
 	}
 
 	bb := buttonbar.New(bs)
 
-	return model{
-		list:              list,
+	return Model{
+		List:              list,
 		listKeys:          listKeys,
 		delegateKeys:      delegateKeys,
 		viewport:          vp,
 		buttonBar:         bb,
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
+		SVC:               svc,
+		logger:            l,
 	}
 }
 
 // Init implements bubbletea.Model.Init
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.buttonBar.Init(),
 	)

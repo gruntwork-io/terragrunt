@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"slices"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/posener/complete/cmd/install"
 )
@@ -109,10 +111,7 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 		for _, name := range flag.Names() {
 			name = strings.TrimSpace(name)
 			// this will get total count utf8 letters in flag name
-			count := utf8.RuneCountInString(name)
-			if count > maxDashesInFlag {
-				count = maxDashesInFlag // reuse this count to generate single - or -- in flag completion
-			}
+			count := min(utf8.RuneCountInString(name), maxDashesInFlag)
 			// if flag name has more than one utf8 letter and last argument in cli has -- prefix then
 			// skip flag completion for short flags example -v or -x
 			if strings.HasPrefix(arg, "--") && count == 1 {
@@ -136,19 +135,14 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 }
 
 func cliArgContains(flagName string) bool {
-	for _, name := range strings.Split(flagName, ",") {
+	for name := range strings.SplitSeq(flagName, ",") {
 		name = strings.TrimSpace(name)
 
-		count := utf8.RuneCountInString(name)
-		if count > maxDashesInFlag {
-			count = maxDashesInFlag
-		}
+		count := min(utf8.RuneCountInString(name), maxDashesInFlag)
 
 		flag := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
-		for _, a := range os.Args {
-			if a == flag {
-				return true
-			}
+		if slices.Contains(os.Args, flag) {
+			return true
 		}
 	}
 

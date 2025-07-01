@@ -6,6 +6,8 @@ env:
   - TG_USE_PARTIAL_PARSE_CONFIG_CACHE
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 This flag can be used to drastically decrease time required for parsing Terragrunt configuration files. The effect will only show if a lot of similar includes are expected such as the root terragrunt configuration (e.g. `root.hcl`) include.
 
 NOTE: This is an experimental feature, use with caution.
@@ -14,10 +16,16 @@ The reason you might want to use this flag is that Terragrunt frequently only ne
 
 This is the case for scenarios like:
 
-- Building the Directed Acyclic Graph (DAG) during a `run-all` command where only the `dependency` blocks need to be evaluated to determine run order.
+- Building the Directed Acyclic Graph (DAG) during a `run --all` command where only the `dependency` blocks need to be evaluated to determine run order.
 - Parsing the `terraform` block to determine state configurations for fetching `dependency` outputs.
 - Determining whether Terragrunt execution behavior has to change like for `prevent_destroy` or `skip` flags in configuration.
 
 These configurations are generally safe to cache, but due to the nature of HCL being a dynamic configuration language, there are some edge cases where caching these can lead to incorrect behavior.
 
 Once this flag has been tested thoroughly, we will consider making it the default behavior.
+
+<Aside type="caution">
+This is an experimental feature. While it can significantly improve performance with frequently included configurations, the caching behavior may lead to unexpected results in some edge cases due to HCL's dynamic nature.
+
+Test thoroughly in your environment before using in production environments.
+</Aside>

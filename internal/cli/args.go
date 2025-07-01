@@ -26,6 +26,11 @@ type NormalizeActsType byte
 // Args provides convenient access to CLI arguments.
 type Args []string
 
+// String implements `fmt.Stringer` interface.
+func (args Args) String() string {
+	return strings.Join(args, " ")
+}
+
 // Split splits `args` into two slices separated by `sep`.
 func (args Args) Split(sep string) (Args, Args) {
 	for i := range args {
@@ -171,11 +176,5 @@ func (args Args) SubCommandName() string {
 
 // Contains returns true if args contains the given `target` arg.
 func (args Args) Contains(target string) bool {
-	for _, arg := range args {
-		if arg == target {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(args, target)
 }

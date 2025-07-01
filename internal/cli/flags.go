@@ -10,21 +10,31 @@ import (
 
 type Flags []Flag
 
-func (flags Flags) NewFlagSet(cmdName string) (*libflag.FlagSet, error) {
+func (flags Flags) Parse(args Args) error {
+	for _, flag := range flags {
+		if err := flag.Parse(args); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (flags Flags) NewFlagSet(cmdName string, errHandler func(err error) error) (*libflag.FlagSet, error) {
 	flagSet := libflag.NewFlagSet(cmdName, libflag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
-	if err := flags.Apply(flagSet); err != nil {
-		return nil, err
-	}
+	err := flags.Apply(flagSet, errHandler)
 
-	return flagSet, nil
+	return flagSet, err
 }
 
-func (flags Flags) Apply(flagSet *libflag.FlagSet) error {
+func (flags Flags) Apply(flagSet *libflag.FlagSet, errHandler func(err error) error) error {
 	for _, flag := range flags {
 		if err := flag.Apply(flagSet); err != nil {
-			return err
+			if err = errHandler(err); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -44,7 +54,7 @@ func (flags Flags) Get(name string) Flag {
 
 // Filter returns a list of flags filtered by the given names.
 func (flags Flags) Filter(names ...string) Flags {
-	var filtered Flags
+	var filtered = make(Flags, 0, len(names))
 
 	for _, flag := range flags {
 		for _, name := range names {
@@ -65,10 +75,10 @@ func (flags Flags) Add(newFlags ...Flag) Flags {
 // VisibleFlags returns a slice of the Flags.
 // Used by `urfave/cli` package to generate help.
 func (flags Flags) VisibleFlags() Flags {
-	var visibleFlags Flags
+	var visibleFlags = make(Flags, 0, len(flags))
 
 	for _, flag := range flags {
-		if !flag.GetHidden() {
+		if !flag.GetHidden() && len(flag.Names()) > 0 {
 			visibleFlags = append(visibleFlags, flag)
 		}
 	}

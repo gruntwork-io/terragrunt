@@ -1,0 +1,32 @@
+---
+name: external
+description: Include external dependencies in the output.
+type: bool
+env:
+  - TG_EXTERNAL
+---
+
+When enabled, units outside the working directory can be included as part of the output, if any unit depends on them. This is useful when you need to understand all dependency relationships, including those that don't exist in the current directory.
+
+Example:
+
+```bash
+terragrunt find --dependencies --external --format json
+[
+  {
+    "type": "unit",
+    "path": "internal/unitA",
+    "dependencies": []
+  },
+  {
+    "type": "unit",
+    "path": "internal/unitB",
+    "dependencies": ["../unitA", "../../external/unitC"]
+  },
+  {
+    "type": "unit",
+    "path": "external/unitC",
+    "dependencies": []
+  }
+]
+```

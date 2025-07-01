@@ -1,0 +1,23 @@
+---
+name: all
+description: Render all configurations discovered from the current working directory.
+type: boolean
+env:
+  - TG_ALL
+aliases:
+  - a
+---
+
+Example:
+
+```bash
+terragrunt render --all --json
+```
+
+This will render all configurations discovered from the current working directory and write the rendered configurations to `terragrunt.rendered.json` files adjacent to the configurations they are derived from.
+
+Combining this with the `--write` flag will write the rendered configurations to `terragrunt.rendered.json` files adjacent to the configurations they are derived from.
+
+```bash
+terragrunt render -a --json --write
+```

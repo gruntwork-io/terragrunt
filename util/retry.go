@@ -62,3 +62,7 @@ type FatalError struct {
 func (err FatalError) Error() string {
 	return err.Underlying.Error()
 }
+
+func (err FatalError) Unwrap() error {
+	return err.Underlying
+}

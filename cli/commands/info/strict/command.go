@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict/view"
 	"github.com/gruntwork-io/terragrunt/internal/strict/view/plaintext"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -34,28 +35,24 @@ func NewListFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flag
 	}
 }
 
-func NewCommand(opts *options.TerragruntOptions, prefix flags.Prefix) *cli.Command {
-	prefix = prefix.Append(CommandName)
-
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:  CommandName,
 		Usage: "Command associated with strict control settings.",
 		Subcommands: cli.Commands{
 			&cli.Command{
-				Name:                 ListCommandName,
-				Flags:                NewListFlags(opts, prefix),
-				Usage:                "List the strict control settings.",
-				UsageText:            "terragrunt info strict list [options] <name>",
-				ErrorOnUndefinedFlag: true,
-				Action:               ListAction(opts),
+				Name:      ListCommandName,
+				Flags:     NewListFlags(opts, nil),
+				Usage:     "List the strict control settings.",
+				UsageText: "terragrunt info strict list [options] <name>",
+				Action:    ListAction(l, opts),
 			},
 		},
-		ErrorOnUndefinedFlag: true,
-		Action:               cli.ShowCommandHelp,
+		Action: cli.ShowCommandHelp,
 	}
 }
 
-func ListAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+func ListAction(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
 		var allowedStatuses = []strict.Status{
 			strict.ActiveStatus,

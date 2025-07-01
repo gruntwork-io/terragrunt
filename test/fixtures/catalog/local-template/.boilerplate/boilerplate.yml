@@ -1,0 +1,8 @@
+variables:
+  - name: EnableRootInclude
+    description: Should include root module
+    type: bool
+    default: true
+  - name: RootFileName
+    description: Name of the root Terragrunt configuration file
+    type: string

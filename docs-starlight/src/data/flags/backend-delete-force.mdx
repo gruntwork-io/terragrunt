@@ -1,0 +1,18 @@
+---
+name: force
+description: |
+  When this flag is set, Terragrunt will delete the backend state regardless of whether the bucket containing it has versioning enabled.
+type: bool
+env:
+  - TG_FORCE
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="danger">
+
+This flag is dangerous and should be used with caution.
+
+Gruntwork recommends always enabling versioning on your backend state resources. Deleting backend state without versioning enabled can result in irreversible data loss.
+
+</Aside>

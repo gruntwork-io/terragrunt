@@ -1,0 +1,15 @@
+---
+name: strict
+description: Throw an error if any inputs are set that are not defined in the module that a unit provisions.
+type: bool
+env:
+  - TG_STRICT
+---
+
+When enabled, Terragrunt will throw an error if any inputs are set that are not defined in the module that a unit provisions.
+
+Example:
+
+```bash
+terragrunt hcl validate --inputs --strict
+```

@@ -6,8 +6,8 @@ import (
 
 // KeyLocks manages a map of locks, each associated with a string key.
 type KeyLocks struct {
-	masterLock sync.Mutex
 	locks      map[string]*sync.Mutex
+	masterLock sync.Mutex
 }
 
 // NewKeyLocks creates a new instance of KeyLocks.
