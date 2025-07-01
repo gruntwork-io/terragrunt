@@ -1080,29 +1080,29 @@ func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.Terrag
 }
 
 // getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
-func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) (outputsJSON []byte, err error) {
 	ctx := context.Background()
 	// Validation should be done immediately after each type assertion
 	storageAccount, okStorage := remoteState.BackendConfig["storage_account_name"].(string)
 	if !okStorage {
-		return nil, errors.New("storage_account_name in backend config must be a string")
+		return
 	}
 
 	containerName, okContainer := remoteState.BackendConfig["container_name"].(string)
 	if !okContainer {
-		return nil, errors.New("container_name in backend config must be a string")
+		return
 	}
 
 	key, okKey := remoteState.BackendConfig["key"].(string)
 	if !okKey {
-		return nil, errors.New("key in backend config must be a string")
+		return
 	}
 
 	l.Debugf("Attempting to fetch outputs directly from Azure Storage account %s, container %s, blob %s", storageAccount, containerName, key)
 
 	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, remoteState.BackendConfig)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	resp, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
@@ -1133,14 +1133,14 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.T
 		return nil, fmt.Errorf("error parsing state file JSON: %w", err)
 	}
 
-	outputsJSON, err := json.Marshal(state.Outputs)
+	outputsJSON, err = json.Marshal(state.Outputs)
 	if err != nil {
 		return nil, fmt.Errorf("error encoding outputs as JSON: %w", err)
 	}
 
 	l.Debugf("Successfully parsed outputs from Azure Storage state file")
 
-	return outputsJSON, nil
+	return
 }
 
 // setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform

@@ -230,7 +230,7 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test direct state access
-	jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(testLogger, terragruntOptions, remoteState)
+	jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(ctx, testLogger, terragruntOptions, remoteState)
 	require.NoError(t, err)
 
 	// Parse and verify outputs
@@ -258,8 +258,7 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 
 // getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
 // This is the test version of the function from config/dependency.go
-func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
-	ctx := context.Background()
+func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
 	// Create Azure blob client from the configuration
 	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, remoteState.BackendConfig)
 	if err != nil {
@@ -271,7 +270,7 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.T
 	key := remoteState.BackendConfig["key"].(string)
 
 	// Check if container exists
-	exists, err := client.ContainerExists(context.Background(), containerName)
+	exists, err := client.ContainerExists(ctx, containerName)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +287,7 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(l log.Logger, opts *options.T
 		Key:       keyPtr,
 	}
 
-	output, err := client.GetObject(context.Background(), input)
+	output, err := client.GetObject(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("error reading terraform state blob %s from container %s: %w", key, containerName, err)
 	}

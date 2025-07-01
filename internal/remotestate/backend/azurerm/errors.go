@@ -73,7 +73,7 @@ func (err NoValidAuthMethodError) Error() string {
 
 // StorageAccountCreationError wraps errors that occur during storage account creation or validation.
 type StorageAccountCreationError struct {
-	Underlying         error  // 8 bytes (interface)
+	Underlying         error  // 16 bytes (interface)
 	StorageAccountName string // 16 bytes (string)
 }
 
@@ -89,7 +89,7 @@ func (err StorageAccountCreationError) Unwrap() error {
 
 // ContainerCreationError wraps errors that occur during Azure container operations.
 type ContainerCreationError struct {
-	Underlying    error  // 8 bytes (interface)
+	Underlying    error  // 16 bytes (interface)
 	ContainerName string // 16 bytes (string)
 }
 
@@ -105,7 +105,7 @@ func (err ContainerCreationError) Unwrap() error {
 
 // AuthenticationError wraps Azure authentication failures with context about the attempted auth method.
 type AuthenticationError struct {
-	Underlying error  // 8 bytes (interface)
+	Underlying error  // 16 bytes (interface)
 	AuthMethod string // 16 bytes (string)
 }
 
@@ -175,7 +175,7 @@ func (err IncompleteServicePrincipalConfigError) Error() string {
 
 // TransientAzureError represents a transient Azure API error that can be retried.
 type TransientAzureError struct {
-	Underlying error  // 8 bytes (interface)
+	Underlying error  // 16 bytes (interface)
 	Operation  string // 16 bytes (string)
 	StatusCode int    // 8 bytes (int)
 }
@@ -312,7 +312,7 @@ func WrapAzureClientError(err error, clientType, resourceName string) error {
 	case "Container":
 		return WrapContainerError(err, resourceName)
 	default:
-		return err
+		return errors.Errorf("Azure %s client error for resource %s: %w", clientType, resourceName, err)
 	}
 }
 

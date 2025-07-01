@@ -4,6 +4,7 @@ package azurehelper
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -31,6 +32,16 @@ type ResourceGroupConfig struct {
 
 // CreateResourceGroupClient creates a new ResourceGroup client
 func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID string) (*ResourceGroupClient, error) {
+	// Validate subscription ID format
+	matched, err := regexp.MatchString(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, subscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate subscription ID format: %w", err)
+	}
+
+	if !matched {
+		return nil, errors.Errorf("invalid subscription ID format: %s", subscriptionID)
+	}
+
 	if subscriptionID == "" {
 		// Try to get subscription ID from environment variables
 		_, envSubscriptionID, err := GetAzureCredentials(ctx, l)
@@ -185,8 +196,23 @@ func (cfg ResourceGroupConfig) Validate() error {
 		return errors.Errorf("resource_group_name is required")
 	}
 
+	// Azure resource group name must not exceed 90 characters
+	if len(cfg.ResourceGroupName) > 90 { //nolint: mnd
+		return errors.Errorf("resource_group_name exceeds maximum length (90 characters)")
+	}
+
 	if cfg.Location == "" {
 		return errors.Errorf("location is required")
+	}
+
+	// Azure location must match allowed format: only letters, numbers, and hyphens
+	matched, err := regexp.MatchString(`^[a-zA-Z0-9-]+$`, cfg.Location)
+	if err != nil {
+		return errors.Errorf("failed to validate location format: %v", err)
+	}
+
+	if !matched {
+		return errors.Errorf("invalid location format")
 	}
 
 	return nil

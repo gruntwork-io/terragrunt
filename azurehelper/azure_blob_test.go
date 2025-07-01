@@ -177,8 +177,6 @@ func TestGetObjectInputValidation(t *testing.T) {
 	}
 }
 
-// Helper function to create a string pointer
-
 // Mock Azure Response Error for testing
 type MockResponseError struct {
 	// String fields first (8-byte alignment)

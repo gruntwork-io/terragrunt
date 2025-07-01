@@ -695,7 +695,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 			config: azurehelper.ResourceGroupConfig{
 				SubscriptionID:    "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName: "test-rg",
-				Location:          "East US",
+				Location:          "eastus",
 			},
 			expectError: false,
 		},
@@ -703,7 +703,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 			name: "missing subscription ID",
 			config: azurehelper.ResourceGroupConfig{
 				ResourceGroupName: "test-rg",
-				Location:          "East US",
+				Location:          "eastus",
 			},
 			expectError: true,
 			errorMsg:    "subscription_id is required",
@@ -712,7 +712,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 			name: "missing resource group name",
 			config: azurehelper.ResourceGroupConfig{
 				SubscriptionID: "12345678-1234-1234-1234-123456789012",
-				Location:       "East US",
+				Location:       "eastus",
 			},
 			expectError: true,
 			errorMsg:    "resource_group_name is required",
@@ -741,7 +741,7 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 			config: azurehelper.ResourceGroupConfig{
 				SubscriptionID:    "12345678-1234-1234-1234-123456789012",
 				ResourceGroupName: "test-rg",
-				Location:          "East US",
+				Location:          "eastus",
 				Tags: map[string]string{
 					"Environment": "test",
 					"Project":     "terragrunt",

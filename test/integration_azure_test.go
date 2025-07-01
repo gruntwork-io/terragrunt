@@ -29,6 +29,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// setAndRestoreTGExperiment sets the TG_EXPERIMENT environment variable to include "azure-backend" if not already present.
+// It returns a cleanup function that restores the previous value.
+func setAndRestoreTGExperiment() func() {
+	oldEnv := os.Getenv("TG_EXPERIMENT")
+	currentExperiments := oldEnv
+	if currentExperiments == "" {
+		os.Setenv("TG_EXPERIMENT", "azure-backend")
+	} else if !strings.Contains(currentExperiments, "azure-backend") {
+		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
+	}
+	return func() {
+		if oldEnv == "" {
+			os.Unsetenv("TG_EXPERIMENT")
+		} else {
+			os.Setenv("TG_EXPERIMENT", oldEnv)
+		}
+	}
+}
+
+// addAzureBackendExperimentFlag adds the --experiment azure-backend flag to the command string if not already present.
+func addAzureBackendExperimentFlag(command string) string {
+	if strings.Contains(command, "--experiment") || strings.Contains(command, "terragrunt --help") {
+		return command
+	}
+	parts := strings.Fields(command)
+	if len(parts) > 0 {
+		if parts[0] == "terragrunt" {
+			newParts := append([]string{parts[0], "--experiment", "azure-backend"}, parts[1:]...)
+			return strings.Join(newParts, " ")
+		}
+		return "terragrunt --experiment azure-backend " + command
+	}
+	return command
+}
+
 const (
 	testFixtureAzureBackend               = "./fixtures/azure-backend"
 	testFixtureAzureOutputFromRemoteState = "./fixtures/azure-output-from-remote-state"
@@ -120,7 +155,6 @@ func assertAzureErrorType(t *testing.T, err error, expectedType string) bool {
 	t.Helper()
 	if err == nil {
 		t.Fatalf("Expected %s error but got nil", expectedType)
-		return false
 	}
 	switch expectedType {
 	case "AuthorizationError":
@@ -179,7 +213,6 @@ func assertAzureErrorType(t *testing.T, err error, expectedType string) bool {
 		// (Removed duplicate case "AuthorizationError")
 	default:
 		t.Fatalf("Unknown Azure error type: %s", expectedType)
-		return false
 	}
 	return false
 }
@@ -1835,40 +1868,9 @@ func copyTerragruntConfigAndFillProviderPlaceholders(t *testing.T, src, dst stri
 func runTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
 	t.Helper()
 
-	// Set the experiment environment variable to enable Azure backend
-	oldEnv := os.Getenv("TG_EXPERIMENT")
-	defer func() {
-		if oldEnv == "" {
-			os.Unsetenv("TG_EXPERIMENT")
-		} else {
-			os.Setenv("TG_EXPERIMENT", oldEnv)
-		}
-	}()
-
-	// Set the Azure backend experiment
-	currentExperiments := os.Getenv("TG_EXPERIMENT")
-	if currentExperiments == "" {
-		os.Setenv("TG_EXPERIMENT", "azure-backend")
-	} else if !strings.Contains(currentExperiments, "azure-backend") {
-		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
-	}
-
-	// As a backup, also add the --experiment flag to ensure the experiment is enabled
-	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
-		// Add the experiment flag to the command
-		parts := strings.Fields(command)
-		if len(parts) > 0 {
-			if parts[0] == "terragrunt" {
-				// Insert --experiment azure-backend after "terragrunt"
-				newParts := append([]string{parts[0], "--experiment", "azure-backend"}, parts[1:]...)
-				command = strings.Join(newParts, " ")
-			} else {
-				// If command doesn't start with terragrunt, prepend it
-				command = "terragrunt --experiment azure-backend " + command
-			}
-		}
-	}
-
+	cleanup := setAndRestoreTGExperiment()
+	defer cleanup()
+	command = addAzureBackendExperimentFlag(command)
 	return helpers.RunTerragruntCommandWithOutput(t, command)
 
 }
@@ -1877,40 +1879,9 @@ func runTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Buffer) error {
 	t.Helper()
 
-	// Set the experiment environment variable to enable Azure backend
-	oldEnv := os.Getenv("TG_EXPERIMENT")
-	defer func() {
-		if oldEnv == "" {
-			os.Unsetenv("TG_EXPERIMENT")
-		} else {
-			os.Setenv("TG_EXPERIMENT", oldEnv)
-		}
-	}()
-
-	// Set the Azure backend experiment
-	currentExperiments := os.Getenv("TG_EXPERIMENT")
-	if currentExperiments == "" {
-		os.Setenv("TG_EXPERIMENT", "azure-backend")
-	} else if !strings.Contains(currentExperiments, "azure-backend") {
-		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
-	}
-
-	// As a backup, also add the --experiment flag to ensure the experiment is enabled
-	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
-		// Add the experiment flag to the command
-		parts := strings.Fields(command)
-		if len(parts) > 0 {
-			if parts[0] == "terragrunt" {
-				// Insert --experiment azure-backend after "terragrunt"
-				newParts := append([]string{parts[0], "--experiment", "azure-backend"}, parts[1:]...)
-				command = strings.Join(newParts, " ")
-			} else {
-				// If command doesn't start with terragrunt, prepend it
-				command = "terragrunt --experiment azure-backend " + command
-			}
-		}
-	}
-
+	cleanup := setAndRestoreTGExperiment()
+	defer cleanup()
+	command = addAzureBackendExperimentFlag(command)
 	return helpers.RunTerragruntCommand(t, command, stdout, stderr)
 }
 
@@ -1918,40 +1889,9 @@ func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Bu
 func runTerragrunt(t *testing.T, command string) {
 	t.Helper()
 
-	// Set the experiment environment variable to enable Azure backend
-	oldEnv := os.Getenv("TG_EXPERIMENT")
-	defer func() {
-		if oldEnv == "" {
-			os.Unsetenv("TG_EXPERIMENT")
-		} else {
-			os.Setenv("TG_EXPERIMENT", oldEnv)
-		}
-	}()
-
-	// Set the Azure backend experiment
-	currentExperiments := os.Getenv("TG_EXPERIMENT")
-	if currentExperiments == "" {
-		os.Setenv("TG_EXPERIMENT", "azure-backend")
-	} else if !strings.Contains(currentExperiments, "azure-backend") {
-		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
-	}
-
-	// As a backup, also add the --experiment flag to ensure the experiment is enabled
-	if !strings.Contains(command, "--experiment") && !strings.Contains(command, "terragrunt --help") {
-		// Add the experiment flag to the command
-		parts := strings.Fields(command)
-		if len(parts) > 0 {
-			if parts[0] == "terragrunt" {
-				// Insert --experiment azure-backend after "terragrunt"
-				newParts := append([]string{parts[0], "--experiment", "azure-backend"}, parts[1:]...)
-				command = strings.Join(newParts, " ")
-			} else {
-				// If command doesn't start with terragrunt, prepend it
-				command = "terragrunt --experiment azure-backend " + command
-			}
-		}
-	}
-
+	cleanup := setAndRestoreTGExperiment()
+	defer cleanup()
+	command = addAzureBackendExperimentFlag(command)
 	helpers.RunTerragrunt(t, command)
 }
 

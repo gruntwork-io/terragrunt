@@ -71,12 +71,8 @@ The following experiments are available:
 - [cas](#cas)
 - [report](#report)
 - [runner-pool](#runner-pool)
-<<<<<<< HEAD
 - [azure-backend](#azure-backend)
-=======
 - [auto-provider-cache-dir](#auto-provider-cache-dir)
-
->>>>>>> main
 
 ### symlinks
 

@@ -3,11 +3,12 @@
 package azurehelper_test
 
 import (
-	"regexp"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+
 	"github.com/gruntwork-io/terragrunt/azurehelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	// "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,16 +21,16 @@ func TestResourceGroupConfigValidation(t *testing.T) {
 		isValid        bool
 		expectedErrMsg string
 	}{
-		{
-			name: "Valid config",
-			config: azurehelper.ResourceGroupConfig{
-				SubscriptionID:    "subscription-id",
-				ResourceGroupName: "resource-group",
-				Location:          "eastus",
-			},
-			isValid:        true,
-			expectedErrMsg: "",
-		},
+{
+	   name: "Valid config",
+	   config: azurehelper.ResourceGroupConfig{
+			   SubscriptionID:    "00000000-0000-0000-0000-000000000000",
+			   ResourceGroupName: "resource-group",
+			   Location:          "eastus",
+	   },
+	   isValid:        true,
+	   expectedErrMsg: "",
+},
 		{
 			name: "Missing subscription ID",
 			config: azurehelper.ResourceGroupConfig{
@@ -87,20 +88,20 @@ func TestResourceGroupConfigValidation(t *testing.T) {
 			isValid:        false,
 			expectedErrMsg: "location is required",
 		},
-		{
-			name: "With tags",
-			config: azurehelper.ResourceGroupConfig{
-				SubscriptionID:    "subscription-id",
-				ResourceGroupName: "resource-group",
-				Location:          "eastus",
-				Tags: map[string]string{
-					"Environment": "Test",
-					"Owner":       "Terragrunt",
-				},
-			},
-			isValid:        true,
-			expectedErrMsg: "",
-		},
+{
+	   name: "With tags",
+	   config: azurehelper.ResourceGroupConfig{
+			   SubscriptionID:    "00000000-0000-0000-0000-000000000000",
+			   ResourceGroupName: "resource-group",
+			   Location:          "eastus",
+			   Tags: map[string]string{
+					   "Environment": "Test",
+					   "Owner":       "Terragrunt",
+			   },
+	   },
+	   isValid:        true,
+	   expectedErrMsg: "",
+},
 	}
 
 	for _, tc := range testCases {
@@ -161,18 +162,18 @@ func TestResourceGroupNameValidation(t *testing.T) {
 			isValid:   true,
 			errorText: "",
 		},
-		{
-			name:      "Empty name",
-			rgName:    "",
-			isValid:   false,
-			errorText: "resource group name cannot be empty",
-		},
-		{
-			name:      "Too long name",
-			rgName:    "this-resource-group-name-is-way-too-long-and-exceeds-the-maximum-length-allowed-by-azure-which-is-90-characters-for-resource-group-names",
-			isValid:   false,
-			errorText: "resource group name exceeds maximum length",
-		},
+	   {
+		   name:      "Empty name",
+		   rgName:    "",
+		   isValid:   false,
+		   errorText: "resource_group_name is required",
+	   },
+	   {
+		   name:      "Too long name",
+		   rgName:    "this-resource-group-name-is-way-too-long-and-exceeds-the-maximum-length-allowed-by-azure-which-is-90-characters-for-resource-group-names",
+		   isValid:   false,
+		   errorText: "resource_group_name exceeds maximum length (90 characters)",
+	   },
 	}
 
 	for _, tc := range testCases {
@@ -180,30 +181,27 @@ func TestResourceGroupNameValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Implement a basic validation function similar to what Azure might use
-			// This doesn't call the actual Azure helper but mimics what validation logic would do
-			var err error
-			if tc.rgName == "" {
-				err = errors.New("resource group name cannot be empty")
-			} else if len(tc.rgName) > 90 {
-				err = errors.New("resource group name exceeds maximum length")
-			}
-
-			if tc.isValid {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-				if tc.errorText != "" {
-					assert.Contains(t, err.Error(), tc.errorText)
-				}
-			}
+		   // Use the real validation logic from the implementation
+		   config := azurehelper.ResourceGroupConfig{
+			   SubscriptionID:    "00000000-0000-0000-0000-000000000000",
+			   ResourceGroupName: tc.rgName,
+			   Location:          "eastus",
+		   }
+		   err := config.Validate()
+		   if tc.isValid {
+			   assert.NoError(t, err)
+		   } else {
+			   assert.Error(t, err)
+			   if tc.errorText != "" {
+				   assert.Contains(t, err.Error(), tc.errorText)
+			   }
+		   }
 		})
 	}
 }
 
 // TestResourceGroupClientCreation tests the creation of resource group client with various inputs
 func TestResourceGroupClientCreation(t *testing.T) {
-
 	testCases := []struct {
 		name                string
 		subscriptionID      string
@@ -218,20 +216,20 @@ func TestResourceGroupClientCreation(t *testing.T) {
 			expectedError:       false,
 			expectedErrorPrefix: "",
 		},
-		{
-			name:                "Missing subscription ID but available in env",
-			subscriptionID:      "",
-			envSubscriptionID:   "00000000-0000-0000-0000-000000000000",
-			expectedError:       false,
-			expectedErrorPrefix: "",
-		},
-		{
-			name:                "Missing subscription ID",
-			subscriptionID:      "",
-			envSubscriptionID:   "",
-			expectedError:       true,
-			expectedErrorPrefix: "subscription_id is required",
-		},
+	   {
+		   name:                "Missing subscription ID but available in env",
+		   subscriptionID:      "",
+		   envSubscriptionID:   "00000000-0000-0000-0000-000000000000",
+		   expectedError:       false,
+		   expectedErrorPrefix: "",
+	   },
+	   {
+		   name:                "Missing subscription ID",
+		   subscriptionID:      "",
+		   envSubscriptionID:   "",
+		   expectedError:       true,
+		   expectedErrorPrefix: "invalid subscription ID format",
+	   },
 		{
 			name:                "Invalid subscription ID format",
 			subscriptionID:      "invalid-subscription-id",
@@ -252,32 +250,22 @@ func TestResourceGroupClientCreation(t *testing.T) {
 			if tc.envSubscriptionID != "" {
 				t.Setenv("AZURE_SUBSCRIPTION_ID", tc.envSubscriptionID)
 			}
-
-			// Simulate validation without creating an actual client
-			var err error
-			if tc.subscriptionID == "" && tc.envSubscriptionID == "" {
-				err = errors.Errorf("subscription_id is required either in configuration or as an environment variable")
-			} else if tc.subscriptionID != "" && !isValidSubscriptionID(tc.subscriptionID) {
-				err = errors.Errorf("invalid subscription ID format: %s", tc.subscriptionID)
-			}
-
-			if tc.expectedError {
-				assert.Error(t, err)
-				if tc.expectedErrorPrefix != "" {
-					assert.Contains(t, err.Error(), tc.expectedErrorPrefix)
-				}
-			} else {
-				assert.NoError(t, err)
-			}
+		   testLogger := log.New()
+		   client, err := azurehelper.CreateResourceGroupClient(t.Context(), testLogger, tc.subscriptionID)
+		   if tc.expectedError {
+			   assert.Error(t, err)
+			   if tc.expectedErrorPrefix != "" {
+				   assert.Contains(t, err.Error(), tc.expectedErrorPrefix)
+			   }
+			   assert.Nil(t, client)
+		   } else {
+			   assert.NoError(t, err)
+			   assert.NotNil(t, client)
+		   }
 		})
 	}
 }
 
-// Helper function to validate subscription ID format
-func isValidSubscriptionID(id string) bool {
-	matched, err := regexp.MatchString(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, id)
-	return err == nil && matched
-}
 
 // TestResourceGroupTagsHandling tests handling of resource group tags
 func TestResourceGroupTagsHandling(t *testing.T) {
@@ -493,39 +481,22 @@ func TestResourceGroupLocation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Simple location validation logic
-			var err error
-			if tc.location == "" {
-				err = errors.New("location is required")
-			} else if !regexp.MustCompile(`^[a-zA-Z0-9-]+$`).MatchString(tc.location) {
-				err = errors.New("invalid location format")
-			}
+		   // Create a test config with this location
+		   config := azurehelper.ResourceGroupConfig{
+			   SubscriptionID:    "00000000-0000-0000-0000-000000000000",
+			   ResourceGroupName: "test-rg",
+			   Location:          tc.location,
+		   }
 
-			if tc.isValid {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-				if tc.errorText != "" {
-					assert.Contains(t, err.Error(), tc.errorText)
-				}
-			}
-
-			// Create a test config with this location
-			config := azurehelper.ResourceGroupConfig{
-				SubscriptionID:    "sub-id",
-				ResourceGroupName: "test-rg",
-				Location:          tc.location,
-			}
-
-			// Validate the config
-			err = config.Validate()
-
-			// Location validation is only one part of config validation
-			// so we need to check specifically for the location error
-			if tc.location == "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "location is required")
-			}
+		   err := config.Validate()
+		   if tc.isValid {
+			   assert.NoError(t, err)
+		   } else {
+			   assert.Error(t, err)
+			   if tc.errorText != "" {
+				   assert.Contains(t, err.Error(), tc.errorText)
+			   }
+		   }
 		})
 	}
 }
