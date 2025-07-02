@@ -35,13 +35,12 @@ func TestAwsSessionValidationFail(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.CreateAwsConfig(context.Background(), l, &awshelper.AwsSessionConfig{
+	// With AWS SDK v2, CreateAwsConfig now validates credentials internally
+	// so it should fail when invalid credentials are provided
+	_, err := awshelper.CreateAwsConfig(context.Background(), l, &awshelper.AwsSessionConfig{
 		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
 	}, options.NewTerragruntOptions())
-	require.NoError(t, err)
-
-	err = awshelper.ValidateAwsConfig(context.Background(), cfg)
 	assert.Error(t, err)
 }
 
