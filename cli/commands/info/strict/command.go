@@ -64,7 +64,7 @@ func ListAction(l log.Logger, opts *options.TerragruntOptions) func(ctx *cli.Con
 
 		controls := opts.StrictControls.FilterByStatus(allowedStatuses...)
 		render := plaintext.NewRender()
-		writer := view.NewWriter(ctx.App.Writer, render)
+		writer := view.NewWriter(ctx.Writer, render)
 
 		if name := ctx.Args().CommandName(); name != "" {
 			control := controls.Find(name)

@@ -20,6 +20,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+const (
+	// Minimum ARN parts required for a valid ARN
+	minARNParts = 2
+)
+
 // AwsSessionConfig is a representation of the configuration options for an AWS Config
 type AwsSessionConfig struct {
 	Tags                    map[string]string
@@ -75,13 +80,13 @@ func CreateAwsConfigFromConfig(ctx context.Context, awsCfg *AwsSessionConfig, op
 
 	// Handle web identity credentials
 	if iamRoleOptions.WebIdentityToken != "" && iamRoleOptions.RoleARN != "" {
-		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(ctx, cfg, iamRoleOptions)
+		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
 		return cfg, nil
 	}
 
 	// Handle STS role assumption
 	if iamRoleOptions.RoleARN != "" {
-		cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(ctx, cfg, iamRoleOptions, awsCfg.ExternalID)
+		cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, awsCfg.ExternalID)
 	} else if creds := getCredentialsFromEnvs(opts); creds != nil {
 		cfg.Credentials = creds
 	}
@@ -108,7 +113,7 @@ func (f tokenFetcher) FetchToken(ctx context.Context) ([]byte, error) {
 	return token, nil
 }
 
-func getWebIdentityCredentialsFromIAMRoleOptions(ctx context.Context, cfg aws.Config, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProviderFunc {
+func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProviderFunc {
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
 		// Set a unique session name in the same way it is done in the SDK
@@ -150,7 +155,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(ctx context.Context, cfg aws.Co
 	})
 }
 
-func getSTSCredentialsFromIAMRoleOptions(ctx context.Context, cfg aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
+func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
 	return aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 		stsClient := sts.NewFromConfig(cfg)
 
@@ -234,10 +239,10 @@ func CreateAwsConfig(ctx context.Context, l log.Logger, awsCfg *AwsSessionConfig
 		if opts.IAMRoleOptions.RoleARN != "" {
 			if opts.IAMRoleOptions.WebIdentityToken != "" {
 				l.Debugf("Assuming role %s using WebIdentity token", opts.IAMRoleOptions.RoleARN)
-				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(ctx, cfg, opts.IAMRoleOptions)
+				cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, opts.IAMRoleOptions)
 			} else {
 				l.Debugf("Assuming role %s", opts.IAMRoleOptions.RoleARN)
-				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(ctx, cfg, opts.IAMRoleOptions, "")
+				cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, opts.IAMRoleOptions, "")
 			}
 		} else if creds := getCredentialsFromEnvs(opts); creds != nil {
 			cfg.Credentials = creds
@@ -358,7 +363,7 @@ func GetAWSPartition(ctx context.Context, cfg aws.Config) (string, error) {
 
 	// ARN format: arn:partition:service:region:account:resource
 	parts := strings.Split(arn, ":")
-	if len(parts) < 2 {
+	if len(parts) < minARNParts {
 		return "", errors.Errorf("Invalid ARN format: %s", arn)
 	}
 

@@ -55,7 +55,7 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 // Collect collects telemetry from function execution metrics and traces.
 func (tlm *Telemeter) Collect(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
 	// wrap telemetry collection with trace and time metric
-	return tlm.Tracer.Trace(ctx, name, attrs, func(ctx context.Context) error {
-		return tlm.Meter.Time(ctx, name, attrs, fn)
+	return tlm.Trace(ctx, name, attrs, func(ctx context.Context) error {
+		return tlm.Time(ctx, name, attrs, fn)
 	})
 }
