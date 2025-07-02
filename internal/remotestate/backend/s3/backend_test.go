@@ -138,6 +138,56 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"use-lockfile-native-s3-locking",
+			backend.Config{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"use_lockfile": true,
+			},
+			map[string]any{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"use_lockfile": true,
+			},
+			true,
+		},
+		{
+			"use-lockfile-false",
+			backend.Config{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"use_lockfile": false,
+			},
+			map[string]any{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"use_lockfile": false,
+			},
+			true,
+		},
+		{
+			"dual-locking-dynamodb-and-s3",
+			backend.Config{
+				"bucket":         "foo",
+				"key":            "bar",
+				"region":         "us-east-1",
+				"dynamodb_table": "my-lock-table",
+				"use_lockfile":   true,
+			},
+			map[string]any{
+				"bucket":         "foo",
+				"key":            "bar",
+				"region":         "us-east-1",
+				"dynamodb_table": "my-lock-table",
+				"use_lockfile":   true,
+			},
+			true,
+		},
 	}
 
 	for _, tc := range testCases {
