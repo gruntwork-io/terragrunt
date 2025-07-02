@@ -154,8 +154,12 @@ func TestProviderCache(t *testing.T) {
 				assert.Regexp(t, tc.expectedBodyReg, string(body))
 			}
 
-			_, err = providerService.WaitForCacheReady("")
-			require.NoError(t, err)
+			// Skip WaitForCacheReady for unauthorized test cases since they don't trigger background operations,
+			// and we cancel context at the end of the test.
+			if tc.expectedStatusCode != http.StatusUnauthorized {
+				_, err = providerService.WaitForCacheReady("")
+				require.NoError(t, err)
+			}
 
 			if tc.expectedCachePath != "" {
 				assert.FileExists(t, filepath.Join(providerCacheDir, tc.expectedCachePath))
