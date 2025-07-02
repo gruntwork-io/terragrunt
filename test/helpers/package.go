@@ -717,7 +717,9 @@ func IsTerraform() bool {
 }
 
 // IsTerraform110OrHigher checks if the installed Terraform binary is version 1.10.0 or higher.
-func IsTerraform110OrHigher() bool {
+func IsTerraform110OrHigher(t *testing.T) bool {
+	t.Helper()
+
 	const (
 		requiredMajor = 1
 		requiredMinor = 10
@@ -728,14 +730,16 @@ func IsTerraform110OrHigher() bool {
 	}
 
 	output, err := exec.Command(WrappedBinary(), "-version").Output()
-	if err != nil {
-		return false
-	}
+	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+	require.Len(t, matches, 3, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
 
-	major, _ := strconv.Atoi(matches[1])
-	minor, _ := strconv.Atoi(matches[2])
+	major, err := strconv.Atoi(matches[1])
+	require.NoError(t, err)
+
+	minor, err := strconv.Atoi(matches[2])
+	require.NoError(t, err)
 
 	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
 }
@@ -757,22 +761,30 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 		require.NoError(t, err)
 
 		matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+		require.Len(t, matches, 3, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
 
-		major, _ := strconv.Atoi(matches[1])
-		minor, _ := strconv.Atoi(matches[2])
+		major, err := strconv.Atoi(matches[1])
+		require.NoError(t, err)
 
-		return major == terraformRequiredMajor && minor >= terraformRequiredMinor
+		minor, err := strconv.Atoi(matches[2])
+		require.NoError(t, err)
+
+		return major > terraformRequiredMajor || (major == terraformRequiredMajor && minor >= terraformRequiredMinor)
 	}
 
 	output, err := exec.Command(TofuBinary, "-version").Output()
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+	require.Len(t, matches, 3, "Expected OpenTofu version to be in the format 'OpenTofu v1.10.0'")
 
-	major, _ := strconv.Atoi(matches[1])
-	minor, _ := strconv.Atoi(matches[2])
+	major, err := strconv.Atoi(matches[1])
+	require.NoError(t, err)
 
-	return major == tofuRequiredMajor && minor >= tofuRequiredMinor
+	minor, err := strconv.Atoi(matches[2])
+	require.NoError(t, err)
+
+	return major > tofuRequiredMajor || (major == tofuRequiredMajor && minor >= tofuRequiredMinor)
 }
 
 func FindFilesWithExtension(dir string, ext string) ([]string, error) {
