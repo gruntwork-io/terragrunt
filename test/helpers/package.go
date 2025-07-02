@@ -178,7 +178,7 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.Client {
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
-	cfg, err := awshelper.CreateAwsConfig(context.Background(), logger.CreateLogger(), awsConfig, mockOptions)
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), awsConfig, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return s3.NewFromConfig(cfg)
@@ -197,7 +197,7 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 		RoleArn: iamRoleArn,
 	}
 
-	cfg, err := awshelper.CreateAwsConfig(context.Background(), logger.CreateLogger(), sessionConfig, mockOptions)
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), sessionConfig, mockOptions)
 	require.NoError(t, err, "Error creating DynamoDB client")
 
 	return dynamodb.NewFromConfig(cfg)
@@ -213,7 +213,7 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 	cleanS3Bucket(t, client, bucketName)
 
-	if _, err := client.DeleteBucket(context.Background(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+	if _, err := client.DeleteBucket(t.Context(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
 
 		// If the bucket is not empty, try to clean it again before deleting it.
@@ -223,7 +223,7 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 		cleanS3Bucket(t, client, bucketName)
 
-		if _, err = client.DeleteBucket(context.Background(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		if _, err = client.DeleteBucket(t.Context(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 			t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
 			return err
 		}
@@ -242,7 +242,7 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 	}
 
 	for {
-		out, err := client.ListObjectVersions(context.Background(), versionsInput)
+		out, err := client.ListObjectVersions(t.Context(), versionsInput)
 		require.NoError(t, err)
 
 		if len(out.Versions) == 0 && len(out.DeleteMarkers) == 0 {
@@ -266,7 +266,7 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 				},
 			}
 
-			_, err := client.DeleteObjects(context.Background(), deleteInput)
+			_, err := client.DeleteObjects(t.Context(), deleteInput)
 			require.NoError(t, err)
 		}
 
@@ -287,7 +287,7 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 				},
 			}
 
-			_, err := client.DeleteObjects(context.Background(), deleteInput)
+			_, err := client.DeleteObjects(t.Context(), deleteInput)
 			require.NoError(t, err)
 		}
 

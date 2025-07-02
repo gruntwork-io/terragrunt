@@ -440,10 +440,10 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 
 	l.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", cfg.Bucket)
 
-	err := client.CreateS3Bucket(l, cfg.Bucket)
+	err := client.CreateS3Bucket(ctx, l, cfg.Bucket)
 
 	if err != nil {
-		if accessError := client.checkBucketAccess(cfg.Bucket, cfg.Key); accessError != nil {
+		if accessError := client.checkBucketAccess(ctx, cfg.Bucket, cfg.Key); accessError != nil {
 			return accessError
 		}
 
@@ -477,7 +477,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 		return err
 	}
 
-	if err := client.TagS3Bucket(l); err != nil {
+	if err := client.TagS3Bucket(ctx, l); err != nil {
 		return err
 	}
 
@@ -530,7 +530,7 @@ func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.L
 	}
 
 	if shouldCreateBucket {
-		return client.CreateS3Bucket(l, logsBucketName)
+		return client.CreateS3Bucket(ctx, l, logsBucketName)
 	}
 
 	return nil
@@ -565,7 +565,7 @@ func (client *Client) TagS3BucketAccessLogging(ctx context.Context, l log.Logger
 }
 
 // TagS3Bucket tags the S3 bucket with the tags specified in the config.
-func (client *Client) TagS3Bucket(l log.Logger) error {
+func (client *Client) TagS3Bucket(ctx context.Context, l log.Logger) error {
 	cfg := &client.RemoteStateConfigS3
 
 	if len(client.S3BucketTags) == 0 {
@@ -584,7 +584,7 @@ func (client *Client) TagS3Bucket(l log.Logger) error {
 		},
 	}
 
-	_, err := client.s3Client.PutBucketTagging(context.Background(), &putBucketTaggingInput)
+	_, err := client.s3Client.PutBucketTagging(ctx, &putBucketTaggingInput)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -634,10 +634,10 @@ func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger)
 }
 
 // CreateS3Bucket creates the S3 bucket specified in the given config.
-func (client *Client) CreateS3Bucket(l log.Logger, bucket string) error {
+func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket string) error {
 	l.Debugf("Creating S3 bucket %s", bucket)
 	// https://github.com/aws/aws-sdk-go/blob/v1.44.245/service/s3/api.go#L41760
-	_, err := client.s3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{
+	_, err := client.s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket:          aws.String(bucket),
 		ObjectOwnership: types.ObjectOwnershipObjectWriter,
 	})
@@ -656,6 +656,7 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 	if errors.As(err, &apiErr) {
 		return apiErr.ErrorCode() == "BucketAlreadyOwnedByYou" || apiErr.ErrorCode() == "OperationAborted"
 	}
+
 	return false
 }
 
@@ -1199,8 +1200,8 @@ func (client *Client) waitUntilBucketHasAccessLoggingACL(l log.Logger, bucketNam
 }
 
 // checkBucketAccess checks if the current user has the ability to access the S3 bucket keys.
-func (client *Client) checkBucketAccess(bucket, key string) error {
-	_, err := client.s3Client.GetObject(context.Background(), &s3.GetObjectInput{Key: aws.String(key), Bucket: aws.String(bucket)})
+func (client *Client) checkBucketAccess(ctx context.Context, bucket, key string) error {
+	_, err := client.s3Client.GetObject(ctx, &s3.GetObjectInput{Key: aws.String(key), Bucket: aws.String(bucket)})
 	if err == nil {
 		return nil
 	}
@@ -1361,7 +1362,7 @@ func (client *Client) DeleteS3Bucket(ctx context.Context, l log.Logger, bucketNa
 	l.Debugf("Deleting S3 bucket %s", bucketName)
 
 	if _, err := client.s3Client.DeleteBucket(ctx, bucketInput); err != nil {
-		if err := client.checkBucketAccess(bucketName, key); err != nil {
+		if err := client.checkBucketAccess(ctx, bucketName, key); err != nil {
 			return err
 		}
 
@@ -1616,6 +1617,7 @@ func (client *Client) DeleteTable(ctx context.Context, l log.Logger, tableName s
 
 	// It is not always able to delete a table the first attempt, error: `StatusCode: 400, Attempt to change a resource which is still in use: Table tags are being updated: terragrunt_test_*`
 	_, err := client.dynamoClient.DeleteTable(ctx, input)
+
 	return err
 }
 
