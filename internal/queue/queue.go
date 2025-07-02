@@ -286,6 +286,7 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 				out = append(out, e)
 			}
 		}
+
 		return out
 	}
 
