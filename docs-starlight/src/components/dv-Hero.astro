@@ -1,0 +1,61 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+import IconLabel from '@components/dv-IconButton.astro';
+import Terminal from '@components/dv-Terminal.astro';
+
+import OpentofuIcon from '@assets/icon-opentofu.png';
+import TerraformIcon from '@assets/icon-terraform.png';
+import MobileHeroBackground from '@assets/hero-bg.png';
+import TerragruntLogo from '@assets/logo-light.svg';
+import HeroCompleteBackground from '@assets/hero-bg-1440.png';
+---
+
+<section class="relative h-[752px] md:h-[775px] flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden md:pt-16">
+    <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96">
+        <Terminal />
+    </div>
+
+    <Image
+        src={MobileHeroBackground}
+        alt="Isometric background pattern"
+        class="absolute bottom-0 left-1/2 transform -translate-x-1/2 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none block md:hidden"
+    />
+
+    <!-- Tablet or wider Image -->
+    <Image
+        src={HeroCompleteBackground}
+        alt="Isometric background pattern with terragrunt logo"
+        class="absolute bottom-0 left-1/2 transform -translate-x-1/2 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none hidden md:block"
+    />
+
+    <div class="px-5 md:px-0 relative z-20 flex flex-col items-center gap-10 w-full text-center">
+        <div class="flex flex-col justify-start items-center gap-5 w-full">
+            <h1 class="text-[42px] md:text-[64px] text-white leading-18">The Open Source<br>IaC Orchestrator<br>Platform Teams Trust</h1>
+            <p class="px-12 lg:px-40 md:px-0 text-lg text-[var(--color-gray-1)]">
+                Organize and speed up your Infrastructure as Code, with the #1 IaC Orchestrator
+            </p>
+        </div>
+
+        <div class="flex flex-col md:flex-row justify-center items-center w-full gap-4">
+            <p class="  font-mono text-xs text-white md:pr-4">BUILT FOR:</p>
+            <div class="flex gap-1">
+                <IconLabel
+                    src={OpentofuIcon}
+                    alt="Opentofu Icon"
+                    text="OPENTOFU"
+                />
+                <IconLabel
+                    src={TerraformIcon}
+                    alt="Terraform Icon"
+                    text="TERRAFORM"
+                />
+            </div>
+        </div>
+
+        <div class="flex gap-5 justify-center items-center w-full pb-52">
+            <button class="primary-button">Quick Start</button>
+            <button class="secondary-button">Read the Docs</button>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,81 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import BackgroundPattern from '@assets/pattern-pet-background.svg';
+import IconPipelines from '@assets/pipelines.svg';
+import IconArrowGreen from '@assets/icon-circle-arrow.svg';
+import PetTerragrunt from '@assets/pet-terragrunt.svg';
+---
+
+<!-- Section -->
+<section class="relative px-5 pt-10 md:pt-36 w-full">
+    <Image
+        src={PetTerragrunt}
+        alt="Terragrunt Pet"
+        class="absolute -bottom-24 md:-bottom-20 lg:-bottom-26 xl:-bottom-8 right-2.5 md:-right-4 lg:right-5 xl:-right-20 z-20 pointer-events-none select-none w-40 md:w-52 xl:w-60 h-auto"
+    />
+    <!-- upsell -->
+    <div class="relative bg-bg-dark overflow-hidden border-6 border-[#E6E6E6] rounded-xl">
+        <Image
+            src={BackgroundPattern}
+            alt="Isometric background pattern"
+            class="absolute bottom-68 md:bottom-0 transform -translate-x-36 lg:-translate-x-10 xl:-translate-x-40 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none"
+        />
+        <div class="flex flex-col pt-20 pb-[100px] justify-center items-center z-10">
+            <!-- Header Section -->
+            <div class="flex flex-col px-5 md:px-12 lg:px-8 xl:px-20 pb-10 md:pb-[60px] gap-6 md:gap-8 md:text-center lg:items-center">
+                <h3 class="font-sans text-4xl md:text-[42px] text-white"><span class="text-accent-3">Supercharge</span> Terragrunt for your Organization</h3>
+                <p class="text-gray-1 font-sans lg:w-[594px]">A Gruntwork subscription provides a suite of tools to accelerate your adoption of Terragrunt and deliver best-practice end-to-end infrastructure.</p>
+            </div>
+            <!-- Wrapper -->
+            <div class="flex flex-col md:flex-row px-5 md:px-12 xl:px-0 lg:w-[820px] xl:w-[900px] gap-12">
+                <!-- Item -->
+                <div class="flex flex-col gap-6">
+                    <div class="secondary-button inline-flex !p-3 w-auto h-auto self-start">
+                        <Image 
+                            src={IconPipelines}
+                            alt="Pipelines Icon"
+                            width={20}
+                            height={20}
+                            class={"aspect-[1/1] h-auto"}
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <p class="text-white font-sans text-xl">Automate your CI/CD</p>
+                        <p class="text-gray-1 font-sand text-sm"><span class="text-white">Gruntwork Pipelines</span> is an out-of-the-box, best practices, secure CI/CD pipeline, built for Terragrunt, by the creators of Terragrunt.</p>
+                    </div>
+                    <a href="#" class="primary-button inline-flex items-center gap-1 w-auto self-start">
+                        <span>Learn More</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
+                        </svg>
+                    </a>
+                </div>
+
+                <!-- Item -->
+                <div class="flex flex-col gap-6">
+                    <div class="secondary-button inline-flex !p-3 w-auto h-auto self-start">
+                        <Image 
+                            src={IconArrowGreen}
+                            alt="Green Arrow Undo Icon"
+                            width={20}
+                            height={20}
+                            class={"aspect-[1/1] h-auto"}
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <p class="text-white font-sans text-xl">Keep your IaC Fresh</p>
+                        <p class="text-gray-1 font-sand text-sm"><span class="text-white">Gruntwork Patcher</span> is a dependency management tool that keeps your OpenTofu/Terraform modules up to date, even through breaking changes.</p>
+                    </div>
+                    <a href="#" class="primary-button inline-flex items-center gap-1 w-auto self-start">
+                        <span>Learn More</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

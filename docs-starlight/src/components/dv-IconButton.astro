@@ -1,0 +1,15 @@
+---
+import '@styles/global.css';
+import { Image } from "astro:assets";
+
+const { src, alt, text } = Astro.props;
+---
+<div class="flex border-[var(--color-stroke-dark)] border rounded-md p-1 pr-2.5 gap-1.5 items-center">
+    <Image
+        src={src}
+        alt={alt}
+        class="w-5 h-5 rounded-sm"
+        loading="eager"
+    />
+    <span class="text-xs font-mono capitalize text-white">{text}</span>
+</div>
