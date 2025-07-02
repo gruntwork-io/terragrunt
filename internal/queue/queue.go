@@ -297,40 +297,34 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 	return out
 }
 
-// SetStatus sets the status of the given entry, handles fail-fast logic if enabled, and updates the statuses of dependents accordingly.
-// This method should be used for all status transitions. If fail-fast is enabled and the entry fails, all not-yet-started tasks are marked as failed.
-// It also unblocks children or marks them as failed/ancestor-failed as appropriate.
-func (q *Queue) SetStatus(e *Entry, status Status) {
-	e.Status = status
+// FailEntry marks the given entry as failed, handles fail-fast logic if enabled, and updates the statuses of dependents accordingly.
+// This method should be used only for failure transitions. For other status changes, set the Status field directly.
+func (q *Queue) FailEntry(e *Entry) {
+	e.Status = StatusFailed
 
 	// If this entry failed and has dependents, we need to propagate the failure.
-	if status == StatusFailed {
-		// If fail-fast is enabled, mark all not-yet-started tasks (Pending, Blocked, Ready) as EarlyExit to prevent further execution.
-		if q.FailFast {
-			for _, n := range q.Entries {
-				if isTerminalOrRunning(n.Status) {
-					continue
-				}
-
-				n.Status = StatusEarlyExit
-			}
-
-			return
-		}
-
-		// Dynamically find dependents: any entry whose dependencies include e.Config
-		for _, entry := range q.Entries {
-			if entry.Config.Dependencies == nil {
+	if q.FailFast {
+		for _, n := range q.Entries {
+			if isTerminalOrRunning(n.Status) {
 				continue
 			}
-			for _, dep := range entry.Config.Dependencies {
-				if dep.Path == e.Config.Path {
-					if isTerminalOrRunning(entry.Status) {
-						continue
-					}
-					entry.Status = StatusFailed
-					break
+			n.Status = StatusEarlyExit
+		}
+		return
+	}
+
+	// Dynamically find dependents: any entry whose dependencies include e.Config
+	for _, entry := range q.Entries {
+		if entry.Config.Dependencies == nil {
+			continue
+		}
+		for _, dep := range entry.Config.Dependencies {
+			if dep.Path == e.Config.Path {
+				if isTerminalOrRunning(entry.Status) {
+					continue
 				}
+				entry.Status = StatusFailed
+				break
 			}
 		}
 	}

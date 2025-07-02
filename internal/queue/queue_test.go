@@ -249,8 +249,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 
 	// Mark A as running and complete it
 	entryA := readyEntries[0]
-	q.SetStatus(entryA, queue.StatusRunning)
-	q.SetStatus(entryA, queue.StatusSucceeded)
+	entryA.Status = queue.StatusSucceeded
 
 	assert.False(t, q.AllTerminal(), "AllTerminal should be false after A is done")
 
@@ -260,8 +259,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 
 	// Mark B as running and complete it
 	entryB := readyEntries[0]
-	q.SetStatus(entryB, queue.StatusRunning)
-	q.SetStatus(entryB, queue.StatusSucceeded)
+	entryB.Status = queue.StatusSucceeded
 
 	assert.False(t, q.AllTerminal(), "AllTerminal should be false after B is done")
 
@@ -271,8 +269,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 
 	// Mark C as running and complete it
 	entryC := readyEntries[0]
-	q.SetStatus(entryC, queue.StatusRunning)
-	q.SetStatus(entryC, queue.StatusSucceeded)
+	entryC.Status = queue.StatusSucceeded
 
 	// Now all should be terminal
 	assert.True(t, q.AllTerminal(), "AllTerminal should be true after all succeeded")
@@ -302,8 +299,7 @@ func TestQueue_ParallelExecution(t *testing.T) {
 
 	// Mark A as running and complete it
 	entryA := readyEntries[0]
-	q.SetStatus(entryA, queue.StatusRunning)
-	q.SetStatus(entryA, queue.StatusSucceeded)
+	entryA.Status = queue.StatusSucceeded
 
 	// 2. After A is done, both B and C should be ready (order doesn't matter)
 	readyEntries = q.GetReadyWithDependencies()
@@ -325,16 +321,14 @@ func TestQueue_ParallelExecution(t *testing.T) {
 			entryC = entry
 		}
 	}
-	q.SetStatus(entryB, queue.StatusRunning)
-	q.SetStatus(entryB, queue.StatusSucceeded)
+	entryB.Status = queue.StatusSucceeded
 
 	// After B is done, C should still be ready (if not already marked)
 	readyEntries = q.GetReadyWithDependencies()
 	if entryC.Status != queue.StatusSucceeded {
 		assert.Len(t, readyEntries, 1, "After B is done, C should still be ready")
 		assert.Equal(t, "C", readyEntries[0].Config.Path)
-		q.SetStatus(readyEntries[0], queue.StatusRunning)
-		q.SetStatus(readyEntries[0], queue.StatusSucceeded)
+		entryC.Status = queue.StatusSucceeded
 	}
 
 	// After C is done, nothing should be ready
@@ -367,8 +361,8 @@ func TestQueue_FailFast(t *testing.T) {
 		}
 	}
 	require.NotNil(t, entryA, "Entry A should exist")
-	q.SetStatus(entryA, queue.StatusRunning)
-	q.SetStatus(entryA, queue.StatusFailed)
+	entryA.Status = queue.StatusRunning
+	q.FailEntry(entryA)
 
 	// B and C should be marked as early exit due to fail-fast
 	for _, entry := range q.Entries {
@@ -423,8 +417,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 
 	// Mark A as succeeded
 	entryA := readyEntries[0]
-	q.SetStatus(entryA, queue.StatusRunning)
-	q.SetStatus(entryA, queue.StatusSucceeded)
+	entryA.Status = queue.StatusSucceeded
 
 	// 2. After A, B and C should be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -443,8 +436,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 			entryC = entry
 		}
 	}
-	q.SetStatus(entryB, queue.StatusRunning)
-	q.SetStatus(entryB, queue.StatusSucceeded)
+	entryB.Status = queue.StatusSucceeded
 
 	// 3. After B is done, C should still be ready (if not already marked), and D and E should be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -459,8 +451,7 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 	assert.Len(t, readyEntries, 3, "After B is done, C, D, and E should be ready")
 
 	// Mark C as succeeded
-	q.SetStatus(entryC, queue.StatusRunning)
-	q.SetStatus(entryC, queue.StatusSucceeded)
+	entryC.Status = queue.StatusSucceeded
 
 	// Mark D and E as succeeded
 	var entryD, entryE *queue.Entry
@@ -472,10 +463,8 @@ func TestQueue_AdvancedDependencyOrder(t *testing.T) {
 			entryE = entry
 		}
 	}
-	q.SetStatus(entryD, queue.StatusRunning)
-	q.SetStatus(entryD, queue.StatusSucceeded)
-	q.SetStatus(entryE, queue.StatusRunning)
-	q.SetStatus(entryE, queue.StatusSucceeded)
+	entryD.Status = queue.StatusSucceeded
+	entryE.Status = queue.StatusSucceeded
 
 	// 4. After all are done, nothing should be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -497,8 +486,7 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 
 	// Mark A as succeeded
 	entryA := readyEntries[0]
-	q.SetStatus(entryA, queue.StatusRunning)
-	q.SetStatus(entryA, queue.StatusSucceeded)
+	entryA.Status = queue.StatusSucceeded
 
 	// 2. After A, B and C should be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -515,8 +503,8 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	assert.NotNil(t, entryC)
 
 	// Mark B as failed
-	q.SetStatus(entryB, queue.StatusRunning)
-	q.SetStatus(entryB, queue.StatusFailed)
+	entryB.Status = queue.StatusRunning
+	q.FailEntry(entryB)
 
 	// Fail fast should mark all not-yet-started tasks as early exit
 	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
@@ -545,8 +533,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 
 	// Mark A as succeeded
 	entryA := readyEntries[0]
-	q.SetStatus(entryA, queue.StatusRunning)
-	q.SetStatus(entryA, queue.StatusSucceeded)
+	entryA.Status = queue.StatusSucceeded
 
 	assert.False(t, q.AllTerminal(), "AllTerminal should be false after A is done")
 
@@ -565,8 +552,8 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	assert.NotNil(t, entryC)
 
 	// Mark B as failed
-	q.SetStatus(entryB, queue.StatusRunning)
-	q.SetStatus(entryB, queue.StatusFailed)
+	entryB.Status = queue.StatusRunning
+	q.FailEntry(entryB)
 
 	assert.False(t, q.AllTerminal(), "AllTerminal should be false after B fails if C is not done")
 
@@ -581,8 +568,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	assert.Equal(t, "C", readyEntries[0].Config.Path)
 
 	// Mark C as succeeded
-	q.SetStatus(entryC, queue.StatusRunning)
-	q.SetStatus(entryC, queue.StatusSucceeded)
+	entryC.Status = queue.StatusSucceeded
 
 	// After C is done, now all should be terminal
 	assert.True(t, q.AllTerminal(), "AllTerminal should be true after all entries are terminal")
@@ -613,8 +599,8 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 
 	// Mark A as running and then failed
 	entryA := readyEntries[0]
-	q.SetStatus(entryA, queue.StatusRunning)
-	q.SetStatus(entryA, queue.StatusFailed)
+	entryA.Status = queue.StatusRunning
+	q.FailEntry(entryA)
 
 	// After fail-fast, B and C should be early exit, A should be failed
 	for _, entry := range q.Entries {

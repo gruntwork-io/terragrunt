@@ -109,7 +109,7 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 		for _, e := range ready {
 			// log debug which entry is running
 			l.Debugf("DAGRunner: running %s", e.Config.Path)
-			dr.q.SetStatus(e, queue.StatusRunning)
+			e.Status = queue.StatusRunning
 			sem <- struct{}{}
 
 			wg.Add(1)
@@ -128,7 +128,7 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 				if unit == nil {
 					err := fmt.Errorf("unit for path %s is nil", ent.Config.Path)
 					l.Errorf("DAGRunner: %s unit is nil, skipping execution", ent.Config.Path)
-					dr.q.SetStatus(ent, queue.StatusFailed)
+					dr.q.FailEntry(ent)
 					results.Store(ent.Config.Path, RunResult{ExitCode: 1, Err: err})
 
 					return
@@ -139,13 +139,13 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 
 				if err != nil {
 					l.Debugf("DAGRunner: %s failed", ent.Config.Path)
-					dr.q.SetStatus(ent, queue.StatusFailed)
+					dr.q.FailEntry(ent)
 
 					return
 				}
 
 				l.Debugf("DAGRunner: %s succeeded", ent.Config.Path)
-				dr.q.SetStatus(ent, queue.StatusSucceeded)
+				ent.Status = queue.StatusSucceeded
 			}(e)
 		}
 
