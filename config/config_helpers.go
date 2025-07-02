@@ -272,7 +272,7 @@ func getPathToRepoRoot(ctx *ParsingContext, l log.Logger) (string, error) {
 // GetTerragruntDir returns the directory where the Terragrunt configuration file lives.
 func GetTerragruntDir(ctx *ParsingContext, l log.Logger) (string, error) {
 	path := ctx.TerragruntOptions.TerragruntConfigPath
-	if val, ok := ctx.Context.Value(stackParserContext{}).(stackParserContext); ok {
+	if val, ok := ctx.Value(stackParserContext{}).(stackParserContext); ok {
 		path = val.stackConfigFile
 	}
 
