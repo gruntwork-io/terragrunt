@@ -222,6 +222,7 @@ func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig,
 // (optional), ensuring that the credentials are available.
 func CreateAwsConfig(ctx context.Context, l log.Logger, awsCfg *AwsSessionConfig, opts *options.TerragruntOptions) (aws.Config, error) {
 	var cfg aws.Config
+
 	var err error
 
 	if awsCfg == nil {
@@ -367,6 +368,7 @@ func GetAWSPartition(ctx context.Context, cfg aws.Config) (string, error) {
 // GetAWSAccountAlias gets the AWS account alias
 func GetAWSAccountAlias(ctx context.Context, cfg aws.Config) (string, error) {
 	iamClient := iam.NewFromConfig(cfg)
+
 	result, err := iamClient.ListAccountAliases(ctx, &iam.ListAccountAliasesInput{})
 	if err != nil {
 		return "", err
@@ -416,6 +418,7 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 	}
 
 	config := output.PublicAccessBlockConfiguration
+
 	return aws.ToBool(config.BlockPublicAcls) &&
 		aws.ToBool(config.BlockPublicPolicy) &&
 		aws.ToBool(config.IgnorePublicAcls) &&

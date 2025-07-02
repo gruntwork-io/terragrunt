@@ -3,7 +3,6 @@ package config
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -592,6 +591,7 @@ func isAwsS3NoSuchKey(err error) bool {
 		errStr := err.Error()
 		return strings.Contains(errStr, "NoSuchKey") || strings.Contains(errStr, "NotFound")
 	}
+
 	return false
 }
 
@@ -944,6 +944,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		switch backend := remoteState.BackendName; backend {
 		case s3backend.BackendName:
 			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateS3(
+				ctx,
 				l,
 				targetTGOptions,
 				remoteState,
@@ -1002,7 +1003,7 @@ func getTerragruntOutputJSONFromRemoteState(
 }
 
 // getTerragruntOutputJSONFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform
-func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+func getTerragruntOutputJSONFromRemoteStateS3(ctx *ParsingContext, l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
 	l.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.BackendConfig["bucket"], remoteState.BackendConfig["key"])
 
 	s3ConfigExtended, err := s3backend.Config(remoteState.BackendConfig).ParseExtendedS3Config()
@@ -1012,14 +1013,14 @@ func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.Terrag
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	cfg, err := awshelper.CreateAwsConfig(context.Background(), l, sessionConfig, opts)
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, sessionConfig, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	s3Client := s3.NewFromConfig(cfg)
 
-	result, err := s3Client.GetObject(context.Background(), &s3.GetObjectInput{
+	result, err := s3Client.GetObject(ctx.Context, &s3.GetObjectInput{
 		Bucket: aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])),
 		Key:    aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["key"])),
 	})
