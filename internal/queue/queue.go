@@ -33,14 +33,9 @@ import (
 // Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
 // and tracks its execution status and relationships to other entries in the queue.
 type Entry struct {
-	// Config is the Terragrunt configuration associated with this entry. It contains all metadata about the module,
+	// Config is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
 	// including its path, dependencies, and discovery context (such as the command being run).
 	Config *discovery.DiscoveredConfig
-
-	// Dependents is a list of entries that directly depend on this entry. If this entry fails (and fail-fast is not enabled),
-	// all its dependents will also be marked as failed. This field is populated during queue construction and is used to
-	// propagate status changes and determine execution order for destroy operations.
-	Dependents []*Entry
 
 	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
 	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
@@ -58,6 +53,7 @@ const (
 	StatusRunning
 	StatusSucceeded
 	StatusFailed
+	StatusEarlyExit // Terminal status set on Entries in case of fail fast mode
 )
 
 // UpdateBlocked updates the status of the entry to blocked, if it is blocked.
@@ -143,7 +139,6 @@ func (e *Entry) IsUp() bool {
 }
 
 type Queue struct {
-	Index    map[string]*Entry
 	Entries  Entries
 	FailFast bool
 }
@@ -171,6 +166,16 @@ func (q *Queue) Configs() discovery.DiscoveredConfigs {
 	return result
 }
 
+// EntryByPath returns the entry with the given config path, or nil if not found.
+func (q *Queue) EntryByPath(path string) *Entry {
+	for _, entry := range q.Entries {
+		if entry.Config.Path == path {
+			return entry
+		}
+	}
+	return nil
+}
+
 // NewQueue creates a new queue from a list of discovered configurations.
 // The queue is populated with the correct Terragrunt run order.
 //
@@ -191,37 +196,23 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	if len(discovered) == 0 {
 		return &Queue{
 			Entries: Entries{},
-			Index:   map[string]*Entry{},
 		}, nil
 	}
 
 	// First, we need to take all the discovered configs
 	// and assign them a status of pending.
 	entries := make(Entries, 0, len(discovered))
-	index := make(map[string]*Entry, len(discovered))
 
 	for _, cfg := range discovered {
 		entry := &Entry{
-			Config:     cfg,
-			Status:     StatusPending,
-			Dependents: []*Entry{},
+			Config: cfg,
+			Status: StatusPending,
 		}
 		entries = append(entries, entry)
-		index[cfg.Path] = entry
-	}
-
-	// Populate Dependents for each entry
-	for _, entry := range entries {
-		for _, dep := range entry.Config.Dependencies {
-			if depEntry, ok := index[dep.Path]; ok {
-				depEntry.Dependents = append(depEntry.Dependents, entry)
-			}
-		}
 	}
 
 	q := &Queue{
 		Entries: entries,
-		Index:   index,
 	}
 
 	// readyPending returns the index of the first pending entry if there is one,
@@ -290,8 +281,8 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 			allDepsReady := true
 
 			for _, dep := range e.Config.Dependencies {
-				depEntry, ok := q.Index[dep.Path]
-				if !ok || depEntry.Status != StatusSucceeded {
+				depEntry := q.EntryByPath(dep.Path)
+				if depEntry == nil || depEntry.Status != StatusSucceeded {
 					allDepsReady = false
 					break
 				}
@@ -312,27 +303,35 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 func (q *Queue) SetStatus(e *Entry, status Status) {
 	e.Status = status
 
-	// If this entry failed, recursively fail all dependents using the Dependents field
+	// If this entry failed and has dependents, we need to propagate the failure.
 	if status == StatusFailed {
-		// If fail-fast is enabled, mark all not-yet-started tasks (Pending, Blocked, Ready) as Failed to prevent further execution.
+		// If fail-fast is enabled, mark all not-yet-started tasks (Pending, Blocked, Ready) as EarlyExit to prevent further execution.
 		if q.FailFast {
 			for _, n := range q.Entries {
 				if isTerminalOrRunning(n.Status) {
 					continue
 				}
 
-				n.Status = StatusFailed
+				n.Status = StatusEarlyExit
 			}
 
 			return
 		}
 
-		for _, depEntry := range e.Dependents {
-			if isTerminalOrRunning(depEntry.Status) {
+		// Dynamically find dependents: any entry whose dependencies include e.Config
+		for _, entry := range q.Entries {
+			if entry.Config.Dependencies == nil {
 				continue
 			}
-
-			depEntry.Status = StatusFailed
+			for _, dep := range entry.Config.Dependencies {
+				if dep.Path == e.Config.Path {
+					if isTerminalOrRunning(entry.Status) {
+						continue
+					}
+					entry.Status = StatusFailed
+					break
+				}
+			}
 		}
 	}
 }
@@ -357,8 +356,8 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 	count := 0
 
 	for _, dep := range e.Config.Dependencies {
-		depEntry, ok := q.Index[dep.Path]
-		if !ok || depEntry.Status != StatusSucceeded {
+		depEntry := q.EntryByPath(dep.Path)
+		if depEntry == nil || depEntry.Status != StatusSucceeded {
 			count++
 		}
 	}
@@ -369,15 +368,14 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 // AllTerminal returns true if all entries are in a terminal state (Succeeded or Failed).
 func (q *Queue) AllTerminal() bool {
 	for _, e := range q.Entries {
-		if e.Status != StatusSucceeded && e.Status != StatusFailed {
+		if e.Status != StatusSucceeded && e.Status != StatusFailed && e.Status != StatusEarlyExit {
 			return false
 		}
 	}
-
 	return true
 }
 
 // isTerminalOrRunning returns true if the status is terminal.
 func isTerminalOrRunning(status Status) bool {
-	return status == StatusSucceeded || status == StatusFailed || status == StatusRunning
+	return status == StatusSucceeded || status == StatusFailed || status == StatusRunning || status == StatusEarlyExit
 }

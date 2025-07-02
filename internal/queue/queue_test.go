@@ -370,16 +370,18 @@ func TestQueue_FailFast(t *testing.T) {
 	q.SetStatus(entryA, queue.StatusRunning)
 	q.SetStatus(entryA, queue.StatusFailed)
 
-	// B and C should be marked as failed due to fail-fast
+	// B and C should be marked as early exit due to fail-fast
 	for _, entry := range q.Entries {
-		if entry.Config.Path == "A" || entry.Config.Path == "B" || entry.Config.Path == "C" {
+		if entry.Config.Path == "A" {
 			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+		} else if entry.Config.Path == "B" || entry.Config.Path == "C" {
+			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Config.Path)
 		}
 	}
 
-	// All entries should be listed as failed
+	// All entries should be listed as terminal (A: Failed, B/C: EarlyExit)
 	for _, entry := range q.Entries {
-		assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+		assert.True(t, entry.Status == queue.StatusFailed || entry.Status == queue.StatusEarlyExit, "Entry %s should be terminal", entry.Config.Path)
 	}
 
 	// Now all should be terminal
@@ -516,14 +518,14 @@ func TestQueue_AdvancedDependency_BFails(t *testing.T) {
 	q.SetStatus(entryB, queue.StatusRunning)
 	q.SetStatus(entryB, queue.StatusFailed)
 
-	// Fail fast should mark all not-yet-started tasks as failed
-	assert.Equal(t, queue.StatusFailed, q.Index["B"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["D"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["E"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["C"].Status)
+	// Fail fast should mark all not-yet-started tasks as early exit
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("E").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("C").Status)
 
 	readyEntries = q.GetReadyWithDependencies()
-	assert.Empty(t, readyEntries, "All entries should be failed")
+	assert.Empty(t, readyEntries, "All entries should be terminal")
 }
 
 func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
@@ -569,9 +571,9 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	assert.False(t, q.AllTerminal(), "AllTerminal should be false after B fails if C is not done")
 
 	// D and E should be marked as failed due to dependency on B
-	assert.Equal(t, queue.StatusFailed, q.Index["B"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["D"].Status)
-	assert.Equal(t, queue.StatusFailed, q.Index["E"].Status)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("D").Status)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("E").Status)
 
 	// C should still be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -614,10 +616,12 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	q.SetStatus(entryA, queue.StatusRunning)
 	q.SetStatus(entryA, queue.StatusFailed)
 
-	// After fail-fast, all should be failed
+	// After fail-fast, B and C should be early exit, A should be failed
 	for _, entry := range q.Entries {
-		if entry.Config.Path == "A" || entry.Config.Path == "B" || entry.Config.Path == "C" {
+		if entry.Config.Path == "A" {
 			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+		} else if entry.Config.Path == "B" || entry.Config.Path == "C" {
+			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Config.Path)
 		}
 	}
 
