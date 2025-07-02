@@ -37,7 +37,7 @@ import (
 	"testing"
 
 	"github.com/NYTimes/gziphandler"
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/version"
@@ -279,7 +279,7 @@ func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) {
 		}
 
 		// Check if there are more objects to process (pagination)
-		if !aws.BoolValue(out.IsTruncated) {
+		if out.IsTruncated == nil || !*out.IsTruncated {
 			break
 		}
 
