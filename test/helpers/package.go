@@ -746,6 +746,16 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
 }
 
+// IsOpenTofuInstalled checks if OpenTofu is installed.
+func IsOpenTofuInstalled() bool {
+	return util.IsCommandExecutable(TofuBinary, "-version")
+}
+
+// IsTerraformInstalled checks if Terraform is installed.
+func IsTerraformInstalled() bool {
+	return util.IsCommandExecutable(TerraformBinary, "-version")
+}
+
 // IsNativeS3LockingSupported checks if the installed Terraform binary supports native S3 locking.
 // This is the case when using Terraform 1.11 or higher, or using OpenTofu 1.10 or higher.
 func IsNativeS3LockingSupported(t *testing.T) bool {

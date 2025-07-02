@@ -717,7 +717,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, l log.Logger
 	}
 
 	if partialTerragruntConfig.TerraformBinary != "" {
-		targetOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
+		targetOptions.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
 	// If the Source is set, then we need to recompute it in the ctx of the target config.
