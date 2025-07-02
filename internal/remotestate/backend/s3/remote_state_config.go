@@ -3,8 +3,9 @@ package s3
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
@@ -72,7 +73,7 @@ type ExtendedRemoteStateConfigS3 struct {
 
 func (cfg *ExtendedRemoteStateConfigS3) FetchEncryptionAlgorithm() string {
 	// Encrypt with KMS by default
-	algorithm := s3.ServerSideEncryptionAwsKms
+	algorithm := string(s3types.ServerSideEncryptionAwsKms)
 	if cfg.BucketSSEAlgorithm != "" {
 		algorithm = cfg.BucketSSEAlgorithm
 	}
@@ -112,8 +113,8 @@ func (cfg *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSess
 func (cfg *ExtendedRemoteStateConfigS3) CreateS3LoggingInput() s3.PutBucketLoggingInput {
 	loggingInput := s3.PutBucketLoggingInput{
 		Bucket: aws.String(cfg.RemoteStateConfigS3.Bucket),
-		BucketLoggingStatus: &s3.BucketLoggingStatus{
-			LoggingEnabled: &s3.LoggingEnabled{
+		BucketLoggingStatus: &s3types.BucketLoggingStatus{
+			LoggingEnabled: &s3types.LoggingEnabled{
 				TargetBucket: aws.String(cfg.AccessLoggingBucketName),
 			},
 		},
@@ -124,9 +125,9 @@ func (cfg *ExtendedRemoteStateConfigS3) CreateS3LoggingInput() s3.PutBucketLoggi
 	}
 
 	if cfg.AccessLoggingTargetObjectPartitionDateSource != "" {
-		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetObjectKeyFormat = &s3.TargetObjectKeyFormat{
-			PartitionedPrefix: &s3.PartitionedPrefix{
-				PartitionDateSource: aws.String(cfg.AccessLoggingTargetObjectPartitionDateSource),
+		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetObjectKeyFormat = &s3types.TargetObjectKeyFormat{
+			PartitionedPrefix: &s3types.PartitionedPrefix{
+				PartitionDateSource: s3types.PartitionDateSource(cfg.AccessLoggingTargetObjectPartitionDateSource),
 			},
 		}
 	}

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -620,12 +621,12 @@ func getDefaultRetryableErrors(ctx *ParsingContext, l log.Logger) ([]string, err
 
 // Return the AWS account alias
 func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(context.Background(), l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
-	accountAlias, err := awshelper.GetAWSAccountAlias(session)
+	accountAlias, err := awshelper.GetAWSAccountAlias(context.Background(), awsConfig)
 	if err == nil {
 		return accountAlias, nil
 	}
@@ -635,12 +636,12 @@ func getAWSAccountAlias(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(context.Background(), l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
-	accountID, err := awshelper.GetAWSAccountID(session)
+	accountID, err := awshelper.GetAWSAccountID(context.Background(), awsConfig)
 	if err == nil {
 		return accountID, nil
 	}
@@ -650,12 +651,12 @@ func getAWSAccountID(ctx *ParsingContext, l log.Logger) (string, error) {
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(ctx *ParsingContext, l log.Logger) (string, error) {
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(context.Background(), l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
-	identityARN, err := awshelper.GetAWSIdentityArn(session)
+	identityARN, err := awshelper.GetAWSIdentityArn(context.Background(), awsConfig)
 	if err == nil {
 		return identityARN, nil
 	}
@@ -665,12 +666,12 @@ func getAWSCallerIdentityARN(ctx *ParsingContext, l log.Logger) (string, error) 
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(ctx *ParsingContext, l log.Logger) (string, error) {
-	session, err := awshelper.CreateAwsSession(l, nil, ctx.TerragruntOptions)
+	awsConfig, err := awshelper.CreateAwsConfig(context.Background(), l, nil, ctx.TerragruntOptions)
 	if err != nil {
 		return "", err
 	}
 
-	userID, err := awshelper.GetAWSUserID(session)
+	userID, err := awshelper.GetAWSUserID(context.Background(), awsConfig)
 	if err == nil {
 		return userID, nil
 	}

@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -43,7 +43,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	}
 
 	l.Debugf("Assuming IAM role %s with a session duration of %d seconds.", iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
-	resp, err := awshelper.AssumeIamRole(iamRoleOpts)
+	resp, err := awshelper.AssumeIamRole(ctx, iamRoleOpts, "")
 
 	if err != nil {
 		return nil, err
@@ -52,10 +52,10 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	creds := &providers.Credentials{
 		Name: providers.AWSCredentials,
 		Envs: map[string]string{
-			"AWS_ACCESS_KEY_ID":     aws.StringValue(resp.AccessKeyId),
-			"AWS_SECRET_ACCESS_KEY": aws.StringValue(resp.SecretAccessKey),
-			"AWS_SESSION_TOKEN":     aws.StringValue(resp.SessionToken),
-			"AWS_SECURITY_TOKEN":    aws.StringValue(resp.SessionToken),
+			"AWS_ACCESS_KEY_ID":     aws.ToString(resp.AccessKeyId),
+			"AWS_SECRET_ACCESS_KEY": aws.ToString(resp.SecretAccessKey),
+			"AWS_SESSION_TOKEN":     aws.ToString(resp.SessionToken),
+			"AWS_SECURITY_TOKEN":    aws.ToString(resp.SessionToken),
 		},
 	}
 
