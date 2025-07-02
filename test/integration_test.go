@@ -116,6 +116,7 @@ const (
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
 	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
+	testFixtureMixedConfig                    = "fixtures/mixed-config"
 
 	terraformFolder = ".terraform"
 

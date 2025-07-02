@@ -41,3 +41,14 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	require.NoError(t, err)
 	assert.Regexp(t, `(?smi)(?:(Module B|Module D).*){2}(?:(Module A|Module E|Module C).*){3}`, stdout)
 }
+
+func TestStackConfigIgnored(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureMixedConfig)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --experiment runner-pool --queue-include-external --all --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+}

@@ -1,5 +1,5 @@
 locals {
-  test = "test" 
+  test = "test"
 }
 
 unit "app1" {
@@ -7,6 +7,6 @@ unit "app1" {
   path   = "app1"
 
   values = {
-    project    = local.projec
+    not_existing_variable    = local.not_existing_variable
   }
 }
