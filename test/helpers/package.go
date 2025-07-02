@@ -38,8 +38,9 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -169,7 +170,7 @@ func UniqueID() string {
 }
 
 // CreateS3ClientForTest creates a S3 client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
+func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_s3_test")
@@ -177,14 +178,14 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string) *s3.S3 {
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
-	session, err := awshelper.CreateAwsSession(logger.CreateLogger(), awsConfig, mockOptions)
+	cfg, err := awshelper.CreateAwsConfig(context.Background(), logger.CreateLogger(), awsConfig, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
-	return s3.New(session)
+	return s3.NewFromConfig(cfg)
 }
 
 // CreateDynamoDBClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn string) *dynamodb.DynamoDB {
+func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn string) *dynamodb.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_dynamodb_test")
@@ -196,10 +197,10 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 		RoleArn: iamRoleArn,
 	}
 
-	session, err := awshelper.CreateAwsSession(logger.CreateLogger(), sessionConfig, mockOptions)
+	cfg, err := awshelper.CreateAwsConfig(context.Background(), logger.CreateLogger(), sessionConfig, mockOptions)
 	require.NoError(t, err, "Error creating DynamoDB client")
 
-	return dynamodb.New(session)
+	return dynamodb.NewFromConfig(cfg)
 }
 
 // DeleteS3Bucket deletes the specified S3 bucket potentially with error to clean up after a test.
@@ -212,7 +213,7 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 	cleanS3Bucket(t, client, bucketName)
 
-	if _, err := client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+	if _, err := client.DeleteBucket(context.Background(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
 
 		// If the bucket is not empty, try to clean it again before deleting it.
@@ -222,7 +223,7 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 		cleanS3Bucket(t, client, bucketName)
 
-		if _, err = client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		if _, err = client.DeleteBucket(context.Background(), &s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 			t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
 			return err
 		}
@@ -233,59 +234,67 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 	return nil
 }
 
-func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) {
+func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 	t.Helper()
 
-	t.Logf("Cleaning S3 bucket %s", bucketName)
-
-	// Use pagination to handle large numbers of objects/versions
-	versionsInput := &s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)}
+	versionsInput := &s3.ListObjectVersionsInput{
+		Bucket: aws.String(bucketName),
+	}
 
 	for {
-		out, err := client.ListObjectVersions(versionsInput)
+		out, err := client.ListObjectVersions(context.Background(), versionsInput)
 		require.NoError(t, err)
 
-		objectIdentifiers := []*s3.ObjectIdentifier{}
-
-		// Handle delete markers (created when versioned objects are deleted)
-		for _, deleteMarker := range out.DeleteMarkers {
-			objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
-				Key:       deleteMarker.Key,
-				VersionId: deleteMarker.VersionId,
-			})
+		if len(out.Versions) == 0 && len(out.DeleteMarkers) == 0 {
+			break
 		}
 
-		// Handle object versions
-		for _, version := range out.Versions {
-			objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
-				Key:       version.Key,
-				VersionId: version.VersionId,
-			})
-		}
+		if len(out.Versions) > 0 {
+			var objectsToDelete []s3types.ObjectIdentifier
 
-		// Delete objects in batches (AWS limit is 1000 per request)
-		if len(objectIdentifiers) > 0 {
-			const maxBatchSize = 1000
-			for i := 0; i < len(objectIdentifiers); i += maxBatchSize {
-				end := min(i+maxBatchSize, len(objectIdentifiers))
-
-				batch := objectIdentifiers[i:end]
-				deleteInput := &s3.DeleteObjectsInput{
-					Bucket: aws.String(bucketName),
-					Delete: &s3.Delete{Objects: batch},
-				}
-
-				_, err := client.DeleteObjects(deleteInput)
-				require.NoError(t, err)
+			for _, version := range out.Versions {
+				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
+					Key:       version.Key,
+					VersionId: version.VersionId,
+				})
 			}
+
+			deleteInput := &s3.DeleteObjectsInput{
+				Bucket: aws.String(bucketName),
+				Delete: &s3types.Delete{
+					Objects: objectsToDelete,
+				},
+			}
+
+			_, err := client.DeleteObjects(context.Background(), deleteInput)
+			require.NoError(t, err)
 		}
 
-		// Check if there are more objects to process (pagination)
+		if len(out.DeleteMarkers) > 0 {
+			var objectsToDelete []s3types.ObjectIdentifier
+
+			for _, marker := range out.DeleteMarkers {
+				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
+					Key:       marker.Key,
+					VersionId: marker.VersionId,
+				})
+			}
+
+			deleteInput := &s3.DeleteObjectsInput{
+				Bucket: aws.String(bucketName),
+				Delete: &s3types.Delete{
+					Objects: objectsToDelete,
+				},
+			}
+
+			_, err := client.DeleteObjects(context.Background(), deleteInput)
+			require.NoError(t, err)
+		}
+
 		if out.IsTruncated == nil || !*out.IsTruncated {
 			break
 		}
 
-		// Set up for next page
 		versionsInput.KeyMarker = out.NextKeyMarker
 		versionsInput.VersionIdMarker = out.NextVersionIdMarker
 	}

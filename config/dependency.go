@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -22,8 +23,6 @@ import (
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -589,11 +588,10 @@ func getTerragruntOutput(ctx *ParsingContext, l log.Logger, dependencyConfig Dep
 }
 
 func isAwsS3NoSuchKey(err error) bool {
-	var awsErr awserr.Error
-	if errors.As(err, &awsErr) {
-		return awsErr.Code() == "NoSuchKey"
+	if err != nil {
+		errStr := err.Error()
+		return strings.Contains(errStr, "NoSuchKey") || strings.Contains(errStr, "NotFound")
 	}
-
 	return false
 }
 
@@ -1014,12 +1012,14 @@ func getTerragruntOutputJSONFromRemoteStateS3(l log.Logger, opts *options.Terrag
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	s3Client, err := awshelper.CreateS3Client(l, sessionConfig, opts)
+	cfg, err := awshelper.CreateAwsConfig(context.Background(), l, sessionConfig, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := s3Client.GetObject(&s3.GetObjectInput{
+	s3Client := s3.NewFromConfig(cfg)
+
+	result, err := s3Client.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["bucket"])),
 		Key:    aws.String(fmt.Sprintf("%s", remoteState.BackendConfig["key"])),
 	})

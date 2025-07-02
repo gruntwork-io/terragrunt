@@ -3,14 +3,16 @@
 package s3_test
 
 import (
+	"context"
 	"reflect"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -137,7 +139,7 @@ func TestAwsTableTagging(t *testing.T) {
 func assertTags(t *testing.T, expectedTags map[string]string, tableName string, client *s3backend.Client) {
 	t.Helper()
 
-	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	var description, err = client.DescribeTable(context.Background(), &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 
 	if err != nil {
 		require.NoError(t, err, "Unexpected error: %v", err)
@@ -163,7 +165,7 @@ func listTagsOfResourceWithRetry(t *testing.T, client *s3backend.Client, resourc
 	)
 
 	for range retries {
-		var tags, err = client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: resourceArn})
+		var tags, err = client.ListTagsOfResource(context.Background(), &dynamodb.ListTagsOfResourceInput{ResourceArn: resourceArn})
 		if err != nil {
 			require.NoError(t, err, "Unexpected error: %v", err)
 		}
@@ -197,36 +199,33 @@ func AssertCanWriteToTable(t *testing.T, tableName string, client *s3backend.Cli
 
 	item := CreateKeyFromItemID(util.UniqueID())
 
-	_, err := client.PutItem(&dynamodb.PutItemInput{
+	_, err := client.PutItem(context.Background(), &dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
 		Item:      item,
 	})
-
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
 func WithLockTable(t *testing.T, client *s3backend.Client, action func(tableName string, client *s3backend.Client)) {
 	t.Helper()
-
 	WithLockTableTagged(t, nil, client, action)
 }
 
 func WithLockTableTagged(t *testing.T, tags map[string]string, client *s3backend.Client, action func(tableName string, client *s3backend.Client)) {
 	t.Helper()
-
 	tableName := UniqueTableNameForTest()
+	defer CleanupTableForTest(t, tableName, client)
 
 	l := logger.CreateLogger()
 
 	err := client.CreateLockTableIfNecessary(t.Context(), l, tableName, tags)
 	require.NoError(t, err, "Unexpected error: %v", err)
-	defer CleanupTableForTest(t, tableName, client)
 
 	action(tableName, client)
 }
 
-func CreateKeyFromItemID(itemID string) map[string]*dynamodb.AttributeValue {
-	return map[string]*dynamodb.AttributeValue{
-		s3backend.AttrLockID: {S: aws.String(itemID)},
+func CreateKeyFromItemID(itemID string) map[string]dynamodbtypes.AttributeValue {
+	return map[string]dynamodbtypes.AttributeValue{
+		"LockID": &dynamodbtypes.AttributeValueMemberS{Value: itemID},
 	}
 }
