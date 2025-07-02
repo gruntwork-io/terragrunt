@@ -73,6 +73,8 @@ const (
 	allPermissions       = 0777
 
 	caKeyBits = 4096
+
+	semverPartsLen = 3
 )
 
 type TerraformOutput struct {
@@ -733,7 +735,7 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
-	require.Len(t, matches, 3, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
+	require.Len(t, matches, semverPartsLen, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
 
 	major, err := strconv.Atoi(matches[1])
 	require.NoError(t, err)
@@ -761,7 +763,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 		require.NoError(t, err)
 
 		matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
-		require.Len(t, matches, 3, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
+		require.Len(t, matches, semverPartsLen, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
 
 		major, err := strconv.Atoi(matches[1])
 		require.NoError(t, err)
@@ -776,7 +778,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
-	require.Len(t, matches, 3, "Expected OpenTofu version to be in the format 'OpenTofu v1.10.0'")
+	require.Len(t, matches, semverPartsLen, "Expected OpenTofu version to be in the format 'OpenTofu v1.10.0'")
 
 	major, err := strconv.Atoi(matches[1])
 	require.NoError(t, err)
