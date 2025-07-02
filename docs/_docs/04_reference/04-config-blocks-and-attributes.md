@@ -459,6 +459,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `external_id` - (Optional) The external ID to use when assuming the role.
 - `session_name` - (Optional) The session name to use when assuming the role.
 - `dynamodb_table` - (Optional) The name of a DynamoDB table to use for state locking and consistency. The table must have a primary key named LockID. If not present, locking will be disabled.
+- `use_lockfile` - (Optional) When `true`, enables native S3 locking using S3 object conditional writes for state locking. This feature requires OpenTofu >= 1.10. Can be used simultaneously with `dynamodb_table` during migration (both locks must be acquired successfully), but typically used as a replacement for DynamoDB locking.
 - `skip_bucket_versioning`: When `true`, the S3 bucket that is created to store the state will not be versioned.
 - `skip_bucket_ssencryption`: When `true`, the S3 bucket that is created to store the state will not be configured with server-side encryption.
 - `skip_bucket_accesslogging`: *DEPRECATED* If provided, will be ignored. A log warning will be issued in the console output to notify the user.
@@ -598,6 +599,44 @@ include "root" {
 # child/main.tf
 terraform {
   backend "gcs" {}
+}
+```
+
+Example with S3 using native S3 locking (OpenTofu >= 1.10):
+
+```hcl
+# Configure OpenTofu/Terraform state to be stored in S3 with native S3 locking instead of DynamoDB.
+# This uses S3 object conditional writes for state locking, which requires OpenTofu >= 1.10.
+remote_state {
+  backend = "s3"
+  config = {
+    bucket       = "my-tofu-state"
+    key          = "${path_relative_to_include()}/tofu.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+```
+
+Example with S3 using both DynamoDB and native S3 locking during migration (OpenTofu >= 1.10):
+
+```hcl
+# Configure OpenTofu/Terraform state with dual locking during migration from DynamoDB to S3 native locking.
+# Both locks must be successfully acquired before operations can proceed.
+# After the migration period, remove dynamodb_table to use only S3 native locking.
+# Note: This won't delete the DynamoDB table, it will just be unused.
+# You can delete it manually after the migration period.
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"  # Remove this after migration period
+    use_lockfile   = true             # New native S3 locking
+  }
 }
 ```
 
@@ -1365,7 +1404,7 @@ provider "aws" {
   allowed_account_ids = ["1234567890"]
 }
 EOF
-}
+  }
 ```
 
 Then in a `terragrunt.hcl` file, you could dynamically set `generate` as an attribute as follows:
@@ -1978,8 +2017,8 @@ prevent_destroy = true
 
 **DEPRECATED: Use [exclude](#exclude) instead.**
 
-The terragrunt `skip` boolean flag can be used to protect modules you don’t want any changes to or just to skip modules
-that don’t define any infrastructure by themselves. When set to true, all terragrunt commands will skip the selected
+The terragrunt `skip` boolean flag can be used to protect modules you don't want any changes to or just to skip modules
+that don't define any infrastructure by themselves. When set to true, all terragrunt commands will skip the selected
 module.
 
 Consider the following file structure:

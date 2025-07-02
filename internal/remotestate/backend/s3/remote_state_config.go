@@ -189,6 +189,7 @@ type RemoteStateConfigS3 struct {
 	AssumeRole       RemoteStateConfigS3AssumeRole `mapstructure:"assume_role"`
 	Encrypt          bool                          `mapstructure:"encrypt"`
 	S3ForcePathStyle bool                          `mapstructure:"force_path_style"`
+	UseLockfile      bool                          `mapstructure:"use_lockfile"`
 }
 
 // CacheKey returns a unique key for the given S3 config that can be used to cache the initialization
