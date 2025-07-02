@@ -5,7 +5,7 @@ package awshelper_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

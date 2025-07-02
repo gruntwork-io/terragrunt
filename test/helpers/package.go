@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
