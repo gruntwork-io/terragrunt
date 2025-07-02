@@ -239,7 +239,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initially, not all are terminal
-	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
+	assert.False(t, q.Finished(), "Finished should be false at start")
 
 	// Check that all entries are ready initially and in order A, B, C
 	readyEntries := q.GetReadyWithDependencies()
@@ -251,7 +251,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	entryA := readyEntries[0]
 	entryA.Status = queue.StatusSucceeded
 
-	assert.False(t, q.AllTerminal(), "AllTerminal should be false after A is done")
+	assert.False(t, q.Finished(), "Finished should be false after A is done")
 
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After A is done, only B should be ready")
@@ -261,7 +261,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	entryB := readyEntries[0]
 	entryB.Status = queue.StatusSucceeded
 
-	assert.False(t, q.AllTerminal(), "AllTerminal should be false after B is done")
+	assert.False(t, q.Finished(), "Finished should be false after B is done")
 
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 1, "After B is done, only C should be ready")
@@ -272,7 +272,7 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	entryC.Status = queue.StatusSucceeded
 
 	// Now all should be terminal
-	assert.True(t, q.AllTerminal(), "AllTerminal should be true after all succeeded")
+	assert.True(t, q.Finished(), "Finished should be true after all succeeded")
 
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Empty(t, readyEntries, "After C is done, no entries should be ready")
@@ -350,7 +350,7 @@ func TestQueue_FailFast(t *testing.T) {
 	require.NoError(t, err)
 	q.FailFast = true
 
-	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
+	assert.False(t, q.Finished(), "Finished should be false at start")
 
 	// Simulate A failing
 	var entryA *queue.Entry
@@ -380,7 +380,7 @@ func TestQueue_FailFast(t *testing.T) {
 	}
 
 	// Now all should be terminal
-	assert.True(t, q.AllTerminal(), "AllTerminal should be true after fail-fast triggers")
+	assert.True(t, q.Finished(), "Finished should be true after fail-fast triggers")
 
 	// No entries should be ready after fail-fast
 	readyEntries := q.GetReadyWithDependencies()
@@ -525,7 +525,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	require.NoError(t, err)
 	q.FailFast = false
 
-	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
+	assert.False(t, q.Finished(), "Finished should be false at start")
 
 	// 1. Initially, only A should be ready
 	readyEntries := q.GetReadyWithDependencies()
@@ -536,7 +536,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	entryA := readyEntries[0]
 	entryA.Status = queue.StatusSucceeded
 
-	assert.False(t, q.AllTerminal(), "AllTerminal should be false after A is done")
+	assert.False(t, q.Finished(), "Finished should be false after A is done")
 
 	// 2. After A, B and C should be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -556,7 +556,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	entryB.Status = queue.StatusRunning
 	q.FailEntry(entryB)
 
-	assert.False(t, q.AllTerminal(), "AllTerminal should be false after B fails if C is not done")
+	assert.False(t, q.Finished(), "Finished should be false after B fails if C is not done")
 
 	// D and E should be marked as failed due to dependency on B
 	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
@@ -572,7 +572,7 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 	entryC.Status = queue.StatusSucceeded
 
 	// After C is done, now all should be terminal
-	assert.True(t, q.AllTerminal(), "AllTerminal should be true after all entries are terminal")
+	assert.True(t, q.Finished(), "Finished should be true after all entries are terminal")
 
 	// After C is done, nothing should be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -591,7 +591,7 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	require.NoError(t, err)
 	q.FailFast = true
 
-	assert.False(t, q.AllTerminal(), "AllTerminal should be false at start")
+	assert.False(t, q.Finished(), "Finished should be false at start")
 
 	// Only A should be ready
 	readyEntries := q.GetReadyWithDependencies()
@@ -613,8 +613,8 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 		}
 	}
 
-	// AllTerminal should be true
-	assert.True(t, q.AllTerminal(), "AllTerminal should be true after fail-fast triggers")
+	// Finished should be true
+	assert.True(t, q.Finished(), "Finished should be true after fail-fast triggers")
 
 	// No entries should be ready
 	readyEntries = q.GetReadyWithDependencies()
