@@ -330,10 +330,10 @@ func (q *Queue) FailEntry(e *Entry) {
 	}
 }
 
-// Empty reports when no runnable or running tasks remain.
-func (q *Queue) Empty() bool {
+// Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
+func (q *Queue) Finished() bool {
 	for _, e := range q.Entries {
-		if e.Status == StatusReady || e.Status == StatusRunning {
+		if !isTerminal(e.Status) {
 			return false
 		}
 	}
@@ -367,6 +367,11 @@ func (q *Queue) AllTerminal() bool {
 		}
 	}
 	return true
+}
+
+// isTerminal returns true if the status is terminal.
+func isTerminal(status Status) bool {
+	return status == StatusSucceeded || status == StatusFailed || status == StatusEarlyExit
 }
 
 // isTerminalOrRunning returns true if the status is terminal.

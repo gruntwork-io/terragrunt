@@ -281,7 +281,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 		output := errorStream.String()
 
 		if len(output) == 0 {
-			// We get Empty buffer if runner execution completed without errors, so skip that to avoid logging too much
+			// We get Finished buffer if runner execution completed without errors, so skip that to avoid logging too much
 			continue
 		}
 

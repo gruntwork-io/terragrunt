@@ -2476,7 +2476,7 @@ Example:
 terragrunt run --all apply --fail-fast
 ```
 
-NOTE: NOTE: Currently, `--fail-fast` is honored only when the experimental _runner-pool_ is enabled.
+NOTE: NOTE: Currently, `--fail-fast` is honored only when the `runner-pool` experiment is enabled.
 
 ### experiment
 
