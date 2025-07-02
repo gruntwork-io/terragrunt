@@ -3,6 +3,8 @@ package configstack
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/config"
+
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -30,6 +32,7 @@ func (b *RunnerPoolStackBuilder) BuildStack(ctx context.Context, l log.Logger, t
 		WithParseExclude().
 		WithDiscoverDependencies().
 		WithSuppressParseErrors().
+		WithConfigFilenames([]string{config.DefaultTerragruntConfigPath}).
 		WithDiscoveryContext(&discovery.DiscoveryContext{Cmd: terragruntOptions.TerraformCommand})
 
 	discovered, err := d.Discover(ctx, l, terragruntOptions)
