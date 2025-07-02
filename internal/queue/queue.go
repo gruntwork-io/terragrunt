@@ -173,6 +173,7 @@ func (q *Queue) EntryByPath(path string) *Entry {
 			return entry
 		}
 	}
+
 	return nil
 }
 
@@ -272,7 +273,7 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	return q, errors.New("cycle detected during queue construction")
 }
 
-// GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed(or no dependencies).
+// GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
 	out := make([]*Entry, 0, len(q.Entries))
 
@@ -308,8 +309,10 @@ func (q *Queue) FailEntry(e *Entry) {
 			if isTerminalOrRunning(n.Status) {
 				continue
 			}
+
 			n.Status = StatusEarlyExit
 		}
+
 		return
 	}
 
@@ -318,12 +321,15 @@ func (q *Queue) FailEntry(e *Entry) {
 		if entry.Config.Dependencies == nil {
 			continue
 		}
+
 		for _, dep := range entry.Config.Dependencies {
 			if dep.Path == e.Config.Path {
 				if isTerminalOrRunning(entry.Status) {
 					continue
 				}
+
 				entry.Status = StatusFailed
+
 				break
 			}
 		}
@@ -366,6 +372,7 @@ func (q *Queue) AllTerminal() bool {
 			return false
 		}
 	}
+
 	return true
 }
 

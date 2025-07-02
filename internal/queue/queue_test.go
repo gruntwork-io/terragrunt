@@ -366,9 +366,10 @@ func TestQueue_FailFast(t *testing.T) {
 
 	// B and C should be marked as early exit due to fail-fast
 	for _, entry := range q.Entries {
-		if entry.Config.Path == "A" {
+		switch entry.Config.Path {
+		case "A":
 			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
-		} else if entry.Config.Path == "B" || entry.Config.Path == "C" {
+		case "B", "C":
 			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Config.Path)
 		}
 	}
@@ -604,9 +605,10 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 
 	// After fail-fast, B and C should be early exit, A should be failed
 	for _, entry := range q.Entries {
-		if entry.Config.Path == "A" {
+		switch entry.Config.Path {
+		case "A":
 			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
-		} else if entry.Config.Path == "B" || entry.Config.Path == "C" {
+		case "B", "C":
 			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Config.Path)
 		}
 	}
