@@ -134,7 +134,12 @@ func (module *TerraformModule) getPlanFilePath(l log.Logger, opts *options.Terra
 		return ""
 	}
 
-	path, _ := filepath.Rel(opts.WorkingDir, module.Path)
+	// module path will be an absolute path so working dir should absolute too so that Rel() can work
+	wdir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		wdir = opts.WorkingDir
+	}
+	path, _ := filepath.Rel(wdir, module.Path)
 	dir := filepath.Join(outputFolder, path)
 
 	if !filepath.IsAbs(dir) {
