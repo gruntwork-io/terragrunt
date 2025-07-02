@@ -1,0 +1,50 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import Eyebrown from '@components/dv-Eyebrown.astro';
+import Card from '@components/dv-Card.astro';
+
+import PatternDotsRight from '@assets/pattern-dots-right.svg';
+---
+
+<section class="flex justify-center items-center px-5 md:px-10">
+    <div class="flex flex-col md:w-[680px] lg:w-[900px]">
+        <!-- Header Section -->
+        <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+            <Eyebrown text="CONSISTENCY" />
+            <h2 class="text-4xl md:text-[42px] font-sans">Codify <span class="text-accent">Tribal</span> Knowledge</h2>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col lg:flex-row md:px-6">
+            <Card title="Automate Using Hooks">
+                <p class="text-sm font-sans text-gray-1">Don’t pretend you’ll always remember to do things before/after updating IaC. Codify those tasks with<a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> hooks </a>so that they’re done automatically.</p>
+            </Card>
+            <Card title="Handle Expected Errors">
+                <p class="text-sm font-sans text-gray-1">You know networks can be flaky, and cloud providers aren’t perfect. Automatically handle the errors they produce using built-in <a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> error handling</a>.</p>
+            </Card>
+            <Card title="Integrate Early and Often">
+                <p class="text-sm font-sans text-gray-1">Get you and your teammates on the same page. Work on a consistent, unified codebase, but gradually roll out new infrastructure features using<a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> feature flags</a>.</p>
+            </Card>
+        </div>
+        <div class="md:px-6">
+            <div class="flex items-center h-[72px] md:h-auto md:justify-between md:pl-6 border-dashed border-1 border-gray-3">
+                <p class="text-3xl md:text-[34px] font-sans">and <span class="text-accent">Enable </span> Self-Service</p>
+                <Image 
+                    src={PatternDotsRight}
+                    alt="Dots Pattern"
+                    class="hidden md:block"
+                />
+            </div>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col lg:flex-row md:px-6">
+            <Card title="Leverage a Proven Infrastructure Catalog">
+                <p class="text-sm font-sans text-gray-1">Catalog standard infrastructure patterns for reuse across your your organization using the<a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> catalog </a>Terminal User Interface (TUI).</p>
+            </Card>
+            <Card title="Empower All Your Engineers">
+                <p class="text-sm font-sans text-gray-1">Design opinionated templates to<a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> scaffold </a>exactly the right infrastructure that’s needed without writing any IaC by hand.</p>
+            </Card>
+        </div>
+    </div>
+</section>

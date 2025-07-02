@@ -1,0 +1,87 @@
+---
+import '@styles/global.css';    
+import { Image } from 'astro:assets';
+import OpenSourceCard from '@components/dv-OpenSourceCard.astro';
+import GruntworkLogo from '../assets/gruntwork-logo.png';
+import PatternDots from '@assets/pattern-dots.png';
+import IconTerratest from '@assets/icon-terratest.svg';
+import IconBoilerplate from '@assets/icon-boilerplate.svg';
+import IconCloudnuke from '@assets/icon-cloudnuke.svg';
+import IconGitxargs from '@assets/icon-gitxargs.svg';
+---
+<footer class="flex flex-col">
+    <!-- Subscribe to Newsletter Responsiveness-->
+    <div class="bg-[var(--color-bg-dark)] flex flex-col md:flex-row items-center justify-between gap-4 px-6 xl:px-8 py-6">
+        <p class="text-white w-full md:flex-1">
+            Subscribe to newsletter <span class="text-[var(--color-gray-1)]">to hear about latest updates, features and innovations in Terragrunt</span>
+        </p>
+        <div class="flex w-full md:w-[402px] items-center gap-3">
+            <input 
+            class="flex w-full p-3 bg-white/10 rounded-lg text-sm font-sans text-[var(--color-gray-1)]" 
+            type="text" 
+            placeholder="Your email here"
+            />
+            <button class="primary-button flex items-center justify-center !px-4 h-11">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="relative w-full h-[13px] bg-gradient-to-l from-[#4F2FD0] to-[var(--color-bg-dark)] overflow-hidden">
+        <Image 
+            src={PatternDots}
+            alt="Pattern Dots"
+            class="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none select-none"
+        />
+    </div>
+
+    <!-- Other Tools -->
+    <div class="flex flex-col">
+        <div class="flex items-center px-8 py-6">
+            <p class="font-sans text-xl text-[var(--color-dark-blue-1)]">Check out our other open source tools</p>
+        </div>
+        <div class="flex flex-col md:flex-row w-full">
+            <OpenSourceCard 
+                icon={IconTerratest}
+                title="Terratest"
+                description="Validate IaC modules"
+                href="#"
+            />
+            <OpenSourceCard 
+                icon={IconBoilerplate}
+                title="Boilerplate"
+                description="Automate repetitive DevOps work"
+                href="#"
+            />
+            <OpenSourceCard 
+                icon={IconCloudnuke}
+                title="CloudNuke"
+                description="Save money on unused AWS resources"
+                href="#"
+            />
+            <OpenSourceCard 
+                icon={IconGitxargs}
+                title="GitXargs"
+                description="Make changes across git repos"
+                href="#"
+            />
+        </div>
+    </div>
+
+    <!-- Copyright -->
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-around py-6 px-4 bg-[#FAFAFA] dark:bg-gray-800 text-gray-600 dark:text-gray-300 mt-auto gap-3">
+        <div class="flex items-center gap-[0.5em]">
+            <Image src={GruntworkLogo} alt="Gruntwork Logo" class="w-[30px] h-[30px]" />
+            <span>&nbsp;From the DevOps experts at</span>
+            <a href="https://gruntwork.io" class="text-[var(--color-accent-1)] no-underline hover:underline">Gruntwork</a>
+        </div>
+        <div>
+            <p class="text-center text-sm text-gray-500">
+                &copy; {new Date().getFullYear()} Gruntwork, Inc. All rights reserved.
+            </p>
+        </div>
+    </div>
+</footer>
