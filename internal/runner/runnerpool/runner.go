@@ -146,6 +146,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		return 0, nil
 	}
 	r.queue.FailFast = opts.FailFast
+	r.queue.IgnoreDependencyOrder = opts.IgnoreDependencyOrder
 	dagRunner := NewDAGRunner(
 		r.queue,
 		r.Stack.Units,

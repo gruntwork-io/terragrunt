@@ -141,6 +141,9 @@ func (e *Entry) IsUp() bool {
 type Queue struct {
 	Entries  Entries
 	FailFast bool
+	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
+	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
+	IgnoreDependencyOrder bool
 }
 
 type Entries []*Entry
@@ -276,6 +279,15 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies() []*Entry {
 	out := make([]*Entry, 0, len(q.Entries))
+
+	if q.IgnoreDependencyOrder {
+		for _, e := range q.Entries {
+			if e.Status == StatusReady {
+				out = append(out, e)
+			}
+		}
+		return out
+	}
 
 	for _, e := range q.Entries {
 		if e.Status == StatusReady {

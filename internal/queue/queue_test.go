@@ -620,3 +620,15 @@ func TestQueue_FailFast_SequentialOrder(t *testing.T) {
 	readyEntries = q.GetReadyWithDependencies()
 	assert.Empty(t, readyEntries, "No entries should be ready after fail-fast triggers")
 }
+
+func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
+	t.Parallel()
+	configs := buildMultiLevelDependencyTree()
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.IgnoreDependencyOrder = true
+
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 5, "Should be ready all entries")
+}
