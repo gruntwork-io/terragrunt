@@ -192,7 +192,7 @@ func (unitsMap UnitsMap) CrossLinkDependencies(canonicalTerragruntConfigPaths []
 
 // WriteDot is used to emit a GraphViz compatible definition
 // for a directed graph. It can be used to dump a .dot file.
-// This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
+// This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/v1.5.7/internal/dag/dag.go
 // adding some styling to units that are excluded from the execution in *-all commands
 func (units Units) WriteDot(l log.Logger, w io.Writer, opts *options.TerragruntOptions) error {
 	if _, err := w.Write([]byte("digraph {\n")); err != nil {
