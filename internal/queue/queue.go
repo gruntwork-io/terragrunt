@@ -325,11 +325,10 @@ func (q *Queue) FailEntry(e *Entry) {
 
 			n.Status = StatusEarlyExit
 		}
-
 		return
 	}
 
-	// Dynamically find dependents: any entry whose dependencies include e.Config
+	// Recursively fail all dependents
 	for _, entry := range q.Entries {
 		if entry.Config.Dependencies == nil {
 			continue
@@ -340,9 +339,7 @@ func (q *Queue) FailEntry(e *Entry) {
 				if isTerminalOrRunning(entry.Status) {
 					continue
 				}
-
-				entry.Status = StatusFailed
-
+				q.FailEntry(entry)
 				break
 			}
 		}

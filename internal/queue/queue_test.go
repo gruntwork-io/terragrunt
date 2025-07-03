@@ -632,3 +632,36 @@ func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
 	readyEntries := q.GetReadyWithDependencies()
 	assert.Len(t, readyEntries, 5, "Should be ready all entries")
 }
+
+func TestFailEntry_DirectAndRecursive(t *testing.T) {
+	t.Parallel()
+	// Build a graph: A -> B -> C, A -> D
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	// Non-fail-fast: Should recursively mark all dependents as StatusFailed
+	q.FailFast = false
+	entryA := q.EntryByPath("A")
+	q.FailEntry(entryA)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("A").Status)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("D").Status)
+
+	// Reset statuses for fail-fast test
+	q, err = queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = true
+	entryA = q.EntryByPath("A")
+	q.FailEntry(entryA)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("A").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+}
