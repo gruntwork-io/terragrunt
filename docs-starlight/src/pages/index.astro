@@ -21,24 +21,26 @@ import Testimonials from '@components/dv-Testimonials.astro';
 		<title>Terragrunt</title>
 	</head>
     <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
-        <Navbar />
-        <Hero />
-		<div class="lg:px-8 xl:px-24 2xl:px-76">
-			<div class="flex flex-col lg:border-l-1 lg:border-r-1 lg:border-gray-3">
-				<FeaturedBrands />
-				<div class="flex flex-col gap-12 md:gap-44">
-					<OrchestrateSection />
-					<ConsistencySection />
-					<DrySection />
-					<Testimonials />
-				</div>
-				<!-- Content in Different Grid Layouts (x4) -->
-				<div class="flex flex-col gap-44">
-					<PetAdvertise />
-					<Footer />
+		<div class="fixed top-0 z-50">
+        	<Navbar />
+		</div>
+		<div class="absolute top-[150px] md:top-[84px]">
+			<Hero />
+			<div class="overflow-hidden lg:px-8 xl:px-24 2xl:px-76">
+				<div class="flex flex-col lg:border-l-1 lg:border-r-1 lg:border-gray-3">
+					<FeaturedBrands />
+					<div class="flex flex-col gap-12 md:gap-44">
+						<OrchestrateSection />
+						<ConsistencySection />
+						<DrySection />
+						<Testimonials />
+					</div>
+					<div class="flex flex-col gap-44">
+						<PetAdvertise />
+						<Footer />
+					</div>
 				</div>
 			</div>
 		</div>
-		
     </body>
 </html>
