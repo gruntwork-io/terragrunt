@@ -63,44 +63,19 @@ type DiscoveredConfigs []*DiscoveredConfig
 
 // Discovery is the configuration for a Terragrunt discovery.
 type Discovery struct {
-	// discoveryContext is the context in which the discovery is happening.
-	discoveryContext *DiscoveryContext
-
-	// workingDir is the directory to search for Terragrunt configurations.
-	workingDir string
-
-	// sort determines the sort order of the discovered configurations.
-	sort Sort
-
-	// hiddenDirMemo is a memoization of hidden directories.
-	hiddenDirMemo []string
-
-	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
-	maxDependencyDepth int
-
-	// hidden determines whether to detect configurations in hidden directories.
-	hidden bool
-
-	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
-	requiresParse bool
-
-	// discoverDependencies determines whether to discover dependencies.
-	discoverDependencies bool
-
-	// parseExclude determines whether to parse exclude configurations.
-	parseExclude bool
-
-	// parseInclude determines whether to parse include configurations.
-	parseInclude bool
-
-	// discoverExternalDependencies determines whether to discover external dependencies.
+	discoveryContext             *DiscoveryContext
+	workingDir                   string
+	sort                         Sort
+	hiddenDirMemo                []string
+	configFilenames              []string
+	maxDependencyDepth           int
+	requiresParse                bool
+	discoverDependencies         bool
+	parseExclude                 bool
+	parseInclude                 bool
 	discoverExternalDependencies bool
-
-	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
-	suppressParseErrors bool
-
-	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
-	configFilenames []string
+	suppressParseErrors          bool
+	hidden                       bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -319,6 +294,7 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				if fname == config.DefaultStackFile {
 					cfgType = ConfigTypeStack
 				}
+
 				cfg := &DiscoveredConfig{
 					Type: cfgType,
 					Path: filepath.Dir(path),
@@ -326,7 +302,9 @@ func (d *Discovery) Discover(ctx context.Context, l log.Logger, opts *options.Te
 				if d.discoveryContext != nil {
 					cfg.DiscoveryContext = d.discoveryContext
 				}
+
 				cfgs = append(cfgs, cfg)
+
 				break
 			}
 		}
