@@ -265,7 +265,7 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Use a path that doesn't exist to induce error
-	tgOptions.TerraformPath = "i-dont-exist"
+	tgOptions.TFPath = "i-dont-exist"
 	l := logger.CreateLogger()
 	err = run.RunTerraformWithRetry(t.Context(), l, tgOptions, report.NewReport())
 	require.Error(t, err)

@@ -104,7 +104,7 @@ func validateCommand(opts *options.TerragruntOptions) error {
 }
 
 func isTerraformPath(opts *options.TerragruntOptions) bool {
-	return strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath)
+	return strings.HasSuffix(opts.TFPath, options.TerraformDefaultPath)
 }
 
 // wrapWithStackGenerate wraps a CLI command to handle automatic stack generation.

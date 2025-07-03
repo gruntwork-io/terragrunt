@@ -63,7 +63,7 @@ func runTFHelp(ctx *cli.Context, l log.Logger, opts *options.TerragruntOptions) 
 			err = processError.Err
 		}
 
-		return fmt.Sprintf("Failed to execute \"%s %s\": %s", opts.TerraformPath, strings.Join(terraformHelpCmd, " "), err.Error())
+		return fmt.Sprintf("Failed to execute \"%s %s\": %s", opts.TFPath, strings.Join(terraformHelpCmd, " "), err.Error())
 	}
 
 	result := out.Stdout.String()
