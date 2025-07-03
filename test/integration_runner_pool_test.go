@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFixtureMixedConfig = "fixtures/mixed-config"
+)
+
 func TestRunnerPoolDiscovery(t *testing.T) {
 	t.Parallel()
 
