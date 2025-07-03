@@ -377,10 +377,20 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 
 // isTerminal returns true if the status is terminal.
 func isTerminal(status Status) bool {
-	return status == StatusSucceeded || status == StatusFailed || status == StatusEarlyExit
+	switch status {
+	case StatusSucceeded, StatusFailed, StatusEarlyExit:
+		return true
+	default:
+		return false
+	}
 }
 
 // isTerminalOrRunning returns true if the status is terminal.
 func isTerminalOrRunning(status Status) bool {
-	return status == StatusSucceeded || status == StatusFailed || status == StatusRunning || status == StatusEarlyExit
+	switch status {
+	case StatusSucceeded, StatusFailed, StatusRunning, StatusEarlyExit:
+		return true
+	default:
+		return false
+	}
 }
