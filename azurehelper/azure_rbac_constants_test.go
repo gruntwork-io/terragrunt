@@ -1,6 +1,7 @@
 package azurehelper_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 // TestRBACRetryConstants ensures the RBAC retry constants have the expected values
 // and that the retry attempts is correctly calculated from max retries
 func TestRBACRetryConstants(t *testing.T) {
+	t.Parallel()
 	// Test RBAC delay is 3 seconds
 	assert.Equal(t, 3*time.Second, azurehelper.RbacRetryDelay, "RBAC retry delay should be 3 seconds")
 
@@ -42,12 +44,14 @@ func TestRBACRetryConstants(t *testing.T) {
 	for _, tc := range testCases {
 		calculatedAttempts := tc.maxRetries + 1
 		assert.Equal(t, tc.expectedAttempts, calculatedAttempts,
-			fmt.Sprintf("When max retries is %d, attempts should be %d", tc.maxRetries, tc.expectedAttempts))
+			"When max retries is %d, attempts should be %d", tc.maxRetries, tc.expectedAttempts)
 	}
 }
 
 // TestIsPermissionError tests the isPermissionError function with various error types
+// nolint: govet
 func TestIsPermissionError(t *testing.T) {
+	t.Parallel()
 	// Create storage account client for testing
 	client := &azurehelper.StorageAccountClient{}
 
@@ -64,52 +68,52 @@ func TestIsPermissionError(t *testing.T) {
 		},
 		{
 			name:     "basic authorization error",
-			input:    fmt.Errorf("operation failed due to authorization failed"),
+			input:    errors.New("operation failed due to authorization failed"),
 			expected: true,
 		},
 		{
 			name:     "permission denied error",
-			input:    fmt.Errorf("permission denied for operation"),
+			input:    errors.New("permission denied for operation"),
 			expected: true,
 		},
 		{
 			name:     "forbidden error",
-			input:    fmt.Errorf("server returned status code 403 forbidden"),
+			input:    errors.New("server returned status code 403 forbidden"),
 			expected: true,
 		},
 		{
 			name:     "access denied error",
-			input:    fmt.Errorf("access denied to resource"),
+			input:    errors.New("access denied to resource"),
 			expected: true,
 		},
 		{
 			name:     "not authorized error",
-			input:    fmt.Errorf("client is not authorized to perform this action"),
+			input:    errors.New("client is not authorized to perform this action"),
 			expected: true,
 		},
 		{
 			name:     "role assignment error",
-			input:    fmt.Errorf("waiting for role assignment to complete"),
+			input:    errors.New("waiting for role assignment to complete"),
 			expected: true,
 		},
 		{
 			name:     "storage blob data owner error",
-			input:    fmt.Errorf("requires storage blob data owner role"),
+			input:    errors.New("requires storage blob data owner role"),
 			expected: true,
 		},
 		{
 			name:     "unrelated error",
-			input:    fmt.Errorf("connection timed out"),
+			input:    errors.New("connection timed out"),
 			expected: false,
 		},
 		{
 			name:     "network error",
-			input:    fmt.Errorf("network connectivity issues"),
+			input:    errors.New("network connectivity issues"),
 			expected: false,
 		},
 		{
 			name:     "validation error",
-			input:    fmt.Errorf("validation failed for resource"),
+			input:    errors.New("validation failed for resource"),
 			expected: false,
 		},
 	}
@@ -117,6 +121,7 @@ func TestIsPermissionError(t *testing.T) {
 	// Run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := client.IsPermissionError(tc.input)
 			assert.Equal(t, tc.expected, result,
 				"IsPermissionError should return %v for error: %v", tc.expected, tc.input)
@@ -125,7 +130,8 @@ func TestIsPermissionError(t *testing.T) {
 
 	// Test with wrapped errors
 	t.Run("WrappedPermissionError", func(t *testing.T) {
-		innerErr := fmt.Errorf("permission denied for storage account")
+		t.Parallel()
+		innerErr := errors.New("permission denied for storage account")
 		wrappedErr := fmt.Errorf("operation failed: %w", innerErr)
 
 		assert.True(t, client.IsPermissionError(wrappedErr),
@@ -134,7 +140,8 @@ func TestIsPermissionError(t *testing.T) {
 
 	// Test with non-permission wrapped errors
 	t.Run("WrappedNonPermissionError", func(t *testing.T) {
-		innerErr := fmt.Errorf("resource not found")
+		t.Parallel()
+		innerErr := errors.New("resource not found")
 		wrappedErr2 := fmt.Errorf("operation failed: %w", innerErr)
 
 		assert.False(t, client.IsPermissionError(wrappedErr2),

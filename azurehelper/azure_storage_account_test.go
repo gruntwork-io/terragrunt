@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
@@ -1320,134 +1319,6 @@ func TestRBACConfiguration(t *testing.T) {
 	})
 }
 
-// TestIsPermissionError tests the isPermissionError function with various error types
-func TestIsPermissionError(t *testing.T) {
-	// Create storage account client for testing
-	client := &StorageAccountClient{}
-
-	// Test cases for various error messages
-	testCases := []struct {
-		name     string
-		input    error
-		expected bool
-	}{
-		{
-			name:     "nil error",
-			input:    nil,
-			expected: false,
-		},
-		{
-			name:     "basic authorization error",
-			input:    fmt.Errorf("operation failed due to insufficient authorization"),
-			expected: true,
-		},
-		{
-			name:     "permission denied error",
-			input:    fmt.Errorf("permission denied for operation"),
-			expected: true,
-		},
-		{
-			name:     "forbidden error",
-			input:    fmt.Errorf("server returned status code 403 forbidden"),
-			expected: true,
-		},
-		{
-			name:     "access denied error",
-			input:    fmt.Errorf("access denied to resource"),
-			expected: true,
-		},
-		{
-			name:     "not authorized error",
-			input:    fmt.Errorf("client is not authorized to perform this action"),
-			expected: true,
-		},
-		{
-			name:     "role assignment error",
-			input:    fmt.Errorf("waiting for role assignment to complete"),
-			expected: true,
-		},
-		{
-			name:     "storage blob data owner error",
-			input:    fmt.Errorf("requires storage blob data owner role"),
-			expected: true,
-		},
-		{
-			name:     "unrelated error",
-			input:    fmt.Errorf("connection timed out"),
-			expected: false,
-		},
-		{
-			name:     "network error",
-			input:    fmt.Errorf("network connectivity issues"),
-			expected: false,
-		},
-		{
-			name:     "validation error",
-			input:    fmt.Errorf("validation failed for resource"),
-			expected: false,
-		},
-	}
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := client.IsPermissionError(tc.input)
-			assert.Equal(t, tc.expected, result,
-				"IsPermissionError should return %v for error: %v", tc.expected, tc.input)
-		})
-	}
-
-	// Test with Azure ResponseError that has status code 403
-	t.Run("AzureResponseError_Forbidden", func(t *testing.T) {
-		respErr := &azcore.ResponseError{
-			StatusCode: httpStatusForbidden,
-			ErrorCode:  "Forbidden",
-			Message:    "The server refused the request",
-		}
-		assert.True(t, client.IsPermissionError(respErr), "Should detect permission error by status code")
-	})
-
-	// Test with Azure ResponseError that has status code 401
-	t.Run("AzureResponseError_Unauthorized", func(t *testing.T) {
-		respErr := &azcore.ResponseError{
-			StatusCode: httpStatusUnauthorized,
-			ErrorCode:  "Unauthorized",
-			Message:    "Authentication failed",
-		}
-		assert.True(t, client.IsPermissionError(respErr), "Should detect permission error by status code")
-	})
-
-	// Test with Azure ResponseError that has authorization error code
-	t.Run("AzureResponseError_AuthErrorCode", func(t *testing.T) {
-		respErr := &azcore.ResponseError{
-			StatusCode: 400, // Not a 401/403 but has auth error code
-			ErrorCode:  "AuthorizationFailed",
-			Message:    "Authorization failed for this operation",
-		}
-		assert.True(t, client.IsPermissionError(respErr), "Should detect permission error by error code")
-	})
-
-	// Test with wrapped errors
-	t.Run("WrappedPermissionError", func(t *testing.T) {
-		innerErr := fmt.Errorf("permission denied for storage account")
-		wrappedErr := fmt.Errorf("operation failed: %w", innerErr)
-
-		assert.True(t, client.IsPermissionError(wrappedErr),
-			"Should detect permission error in wrapped error")
-	})
-
-	// Test with non-permission wrapped errors
-	t.Run("WrappedNonPermissionError", func(t *testing.T) {
-		innerErr := fmt.Errorf("resource not found")
-		wrappedErr2 := fmt.Errorf("operation failed: %w", innerErr)
-
-		assert.False(t, client.IsPermissionError(wrappedErr2),
-			"Should not detect permission error in unrelated wrapped error")
-	})
-}
-
-// TestRBACConstants tests that RBAC constants have reasonable values
-// TestRBACConfigurationEdgeCases tests edge cases in RBAC configuration
 // TestPermissionErrorDetectionComprehensive tests comprehensive permission error detection
 func TestPermissionErrorDetectionComprehensive(t *testing.T) {
 	t.Parallel()
@@ -1528,47 +1399,6 @@ func TestPermissionErrorDetectionComprehensive(t *testing.T) {
 			result := client.IsPermissionError(err)
 			assert.Equal(t, tc.expectedResult, result, tc.reason)
 		})
-	}
-}
-
-// TestRBACRetryConstants ensures the RBAC retry constants have the expected values
-// and that the retry attempts is correctly calculated from max retries
-func TestRBACRetryConstants(t *testing.T) {
-	// Test RBAC delay is 3 seconds
-	assert.Equal(t, 3*time.Second, azurehelper.RbacRetryDelay, "RBAC retry delay should be 3 seconds")
-
-	// Test RBAC max retries is 5
-	assert.Equal(t, 5, azurehelper.RbacMaxRetries, "RBAC max retries should be 5")
-
-	// Test that retry attempts equals max retries + 1 (for the initial attempt)
-	assert.Equal(t, azurehelper.RbacMaxRetries+1, azurehelper.RbacRetryAttempts,
-		"RBAC retry attempts should equal RbacMaxRetries+1")
-
-	// Test the specific expected values
-	assert.Equal(t, 6, azurehelper.RbacRetryAttempts, "RBAC retry attempts should be 6 (5 retries + initial attempt)")
-
-	// Verify the relationship is maintained even if max retries changes
-	oldMaxRetries := azurehelper.RbacMaxRetries
-	defer func() {
-		// This isn't actually changing the constant, just the test's view of it
-		azurehelper.RbacMaxRetries = oldMaxRetries
-	}()
-
-	// Test different values
-	testCases := []struct {
-		maxRetries       int
-		expectedAttempts int
-	}{
-		{3, 4},
-		{10, 11},
-		{0, 1}, // Edge case: no retries means 1 attempt
-	}
-
-	for _, tc := range testCases {
-		azurehelper.RbacMaxRetries = tc.maxRetries
-		azurehelper.RbacRetryAttempts = azurehelper.RbacMaxRetries + 1 // Recalculate as the constant definition does
-		assert.Equal(t, tc.expectedAttempts, azurehelper.RbacRetryAttempts,
-			fmt.Sprintf("When max retries is %d, attempts should be %d", tc.maxRetries, tc.expectedAttempts))
 	}
 }
 

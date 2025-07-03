@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
@@ -84,6 +85,39 @@ func ClassifyError(err error) ErrorClassification {
 		return ""
 	}
 
+	// First try to use ConvertAzureError for structured error analysis
+	azureErr := azurehelper.ConvertAzureError(err)
+	if azureErr != nil {
+		// Use status codes for classification when available
+		switch azureErr.StatusCode {
+		case 401, 403: //nolint: mnd
+			return ErrorClassAuthentication
+		case 404: //nolint: mnd
+			return ErrorClassResourceNotFound
+		case 429: //nolint: mnd
+			return ErrorClassTransient
+		case 500, 502, 503, 504: //nolint: mnd
+			return ErrorClassTransient
+		}
+
+		// Check specific Azure error codes
+		switch azureErr.ErrorCode {
+		case "StorageAccountNotFound":
+			return ErrorClassResourceNotFound
+		case "ContainerNotFound":
+			return ErrorClassResourceNotFound
+		case "AuthorizationFailed", "Forbidden", "Unauthorized":
+			return ErrorClassAuthentication
+		case "InsufficientAccountPermissions", "AccessDenied":
+			return ErrorClassPermissions
+		case "ThrottledRequest", "TooManyRequests":
+			return ErrorClassTransient
+		case "InternalError", "ServiceUnavailable":
+			return ErrorClassTransient
+		}
+	}
+
+	// Fallback to string-based detection for non-Azure errors or when ConvertAzureError fails
 	errStr := strings.ToLower(err.Error())
 
 	// Authentication errors
@@ -129,9 +163,11 @@ func ClassifyError(err error) ErrorClassification {
 		return ErrorClassTransient
 	}
 
-	// Permission errors
+	// Permission errors - enhanced detection matching azurehelper.IsPermissionError patterns
 	if strings.Contains(errStr, "permission") || strings.Contains(errStr, "access denied") ||
-		strings.Contains(errStr, "insufficient") {
+		strings.Contains(errStr, "insufficient") || strings.Contains(errStr, "forbidden") ||
+		strings.Contains(errStr, "not authorized") || strings.Contains(errStr, "authorization failed") ||
+		strings.Contains(errStr, "role assignment") || strings.Contains(errStr, "storage blob data owner") {
 		return ErrorClassPermissions
 	}
 

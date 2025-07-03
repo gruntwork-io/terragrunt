@@ -883,6 +883,7 @@ func (c *StorageAccountClient) waitForRBACPermissions(ctx context.Context, l log
 			} else {
 				// Non-permission error, permissions might be working but other issue
 				l.Debugf("Non-permission error during RBAC test (attempt %d): %v", attempt, err)
+
 				if attempt < RbacRetryAttempts {
 					select {
 					case <-ctx.Done():
@@ -895,6 +896,7 @@ func (c *StorageAccountClient) waitForRBACPermissions(ctx context.Context, l log
 		} else {
 			// Unknown error type
 			l.Debugf("Unknown error during RBAC test (attempt %d): %v", attempt, err)
+
 			if attempt < RbacRetryAttempts {
 				select {
 				case <-ctx.Done():
@@ -965,48 +967,6 @@ func isPermissionError(err error) bool {
 	}
 
 	return false
-}
-
-// waitForRoleAssignmentPropagation waits for role assignment to propagate through Azure RBAC
-func waitForRoleAssignmentPropagation(ctx context.Context, l log.Logger, checkFunc func() error) error {
-	if l == nil {
-		l = log.New()
-	}
-
-	var lastErr error
-	for attempt := 1; attempt <= RbacRetryAttempts; attempt++ {
-		err := checkFunc()
-
-		if err == nil {
-			if attempt > 1 {
-				l.Infof("RBAC permissions available after %d attempts", attempt)
-			}
-			return nil
-		}
-
-		lastErr = err
-
-		// If this is not a permission error, don't retry
-		if !isPermissionError(err) {
-			l.Debugf("Non-permission error encountered: %v", err)
-			return err
-		}
-
-		if attempt < RbacRetryAttempts {
-			l.Infof("RBAC permission not yet available (attempt %d/%d), waiting %v before retry: %v",
-				attempt, RbacRetryAttempts, RbacRetryDelay, err)
-
-			select {
-			case <-ctx.Done():
-				return errors.Errorf("context cancelled while waiting for RBAC propagation: %w", ctx.Err())
-			case <-time.After(RbacRetryDelay):
-				// Continue to next attempt
-			}
-		}
-	}
-
-	return errors.Errorf("RBAC permissions not available after %d attempts, last error: %w",
-		RbacRetryAttempts, lastErr)
 }
 
 // logRoleAssignmentSuccess logs a success message after role assignment.
