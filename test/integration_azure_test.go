@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	azurerm "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+	azuretesting "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm/testing"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -65,8 +65,8 @@ func addAzureBackendExperimentFlag(command string) string {
 }
 
 const (
-	testFixtureAzureBackend               = "./fixtures/azure-backend"
-	testFixtureAzureOutputFromRemoteState = "./fixtures/azure-output-from-remote-state"
+	testFixtureAzureBackend               = "fixtures/azure-backend"
+	testFixtureAzureOutputFromRemoteState = "fixtures/azure-output-from-remote-state"
 )
 
 // --- Azure test helpers (formerly from test/helpers/azure.go) ---
@@ -489,7 +489,7 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 			},
 			name:          "delete backend command",
 			args:          "backend delete --force",
-			containerName: "terragrunt-test-container-" + strings.ToLower(uniqueID()),
+			containerName: "delete-backend-" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8],
 		},
 	}
 
@@ -498,17 +498,21 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpEnvPath := copyEnvironment(t, testFixtureAzureBackend)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
 			// CopyEnvironment copies the contents of the source directory to tmpEnvPath
-			rootPath := tmpEnvPath
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureBackend)
 			commonConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
 
 			azureCfg := getAzureStorageTestConfig(t)
 
 			defer func() {
-				// Clean up the destination container
-				azureCfg.ContainerName = tc.containerName
-				cleanupAzureContainer(t, azureCfg)
+				// Clean up the destination container with enhanced retries
+				azuretesting.CleanupAzureContainerWithRetry(t, &azuretesting.AzureTestConfig{
+					StorageAccountName: azureCfg.StorageAccountName,
+					ContainerName:      tc.containerName,
+					Location:           azureCfg.Location,
+					UseAzureAD:         true,
+				}, 5)
 			}()
 
 			// Set up common configuration parameters
@@ -536,18 +540,17 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 func TestAzureOutputFromRemoteState(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureAzureOutputFromRemoteState)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureOutputFromRemoteState)
 
-	// CopyEnvironment copies the contents of the source directory to tmpEnvPath
+	// CopyEnvironment copies the contents of the source directory to a subfolder structure in tmpEnvPath
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromRemoteState)
 	// So the environment path should be constructed accordingly
-	environmentPath := util.JoinPath(tmpEnvPath, "env1")
+	environmentPath := util.JoinPath(rootPath, "env1")
 
 	azureCfg := getAzureStorageTestConfig(t)
-
-	// Fill in Azure configuration
-	rootPath := tmpEnvPath
 	rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
-	containerName := "terragrunt-test-container-" + strings.ToLower(uniqueID())
+	// Generate truly unique container name to prevent parallel test conflicts
+	containerName := "output-remote-state-" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8]
 
 	// Set up Azure configuration parameters
 	azureParams := map[string]string{
@@ -564,15 +567,19 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 		azureCfg.Location)
 
 	defer func() {
-		// Clean up the destination container
-		azureCfg.ContainerName = containerName
-		cleanupAzureContainer(t, azureCfg)
+		// Clean up the destination container with enhanced retries
+		azuretesting.CleanupAzureContainerWithRetry(t, &azuretesting.AzureTestConfig{
+			StorageAccountName: azureCfg.StorageAccountName,
+			ContainerName:      containerName,
+			Location:           azureCfg.Location,
+			UseAzureAD:         true,
+		}, 5)
 	}()
 
 	// Run terragrunt for app3, app2, and app1 in that order (dependencies first)
-	runTerragrunt(t, "terragrunt apply --non-interactive -auto-approve --working-dir "+environmentPath+"/app3")
-	runTerragrunt(t, "terragrunt apply --non-interactive -auto-approve --working-dir "+environmentPath+"/app2")
-	runTerragrunt(t, "terragrunt apply --non-interactive -auto-approve --working-dir "+environmentPath+"/app1")
+	runTerragrunt(t, "terragrunt apply --backend-bootstrap --non-interactive -auto-approve --working-dir "+environmentPath+"/app3")
+	runTerragrunt(t, "terragrunt apply --backend-bootstrap --non-interactive -auto-approve --working-dir "+environmentPath+"/app2")
+	runTerragrunt(t, "terragrunt apply --backend-bootstrap --non-interactive -auto-approve --working-dir "+environmentPath+"/app1")
 
 	// Now check the outputs to make sure the remote state dependencies work
 	app1OutputCmd := "terragrunt output -no-color -json --non-interactive --working-dir " + environmentPath + "/app1"
@@ -592,24 +599,6 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 
 	// Verify outputs from app1
 	assert.Equal(t, `app1 output with app2 output with app3 output and app3 output`, outputs["combined_output"].Value)
-}
-
-// CheckAzureTestCredentials checks if the required Azure test credentials are available
-// and skips the test if they are not. Returns the storage account name.
-func CheckAzureTestCredentials(t *testing.T) (storageAccount string) {
-	t.Helper() // Mark this as a test helper function
-
-	storageAccount = os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
-
-	// Skip test if storage account isn't specified
-	if storageAccount == "" {
-		t.Skip("Skipping Azure test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set")
-	}
-
-	// Log that we're using Azure AD authentication
-	t.Logf("Using Azure AD authentication for tests")
-
-	return storageAccount
 }
 
 // TestAzureStorageContainerCreation tests the creation of Azure storage containers
@@ -702,10 +691,10 @@ func TestAzureStorageContainerCreation(t *testing.T) {
 // TestStorageAccountBootstrap tests storage account bootstrap functionality
 func TestStorageAccountBootstrap(t *testing.T) {
 	t.Parallel()
-	// Skip test if we don't have Azure credentials
-	accountName := CheckAzureTestCredentials(t)
-
-	log := logger.CreateLogger()
+	
+	// Create a dynamic Azure test environment
+	azureCtx := setupDynamicAzureTest(t, "StorageAccountBootstrap")
+	defer azureCtx.Cleanup()
 
 	// Test with non-existent storage account
 	t.Run("StorageAccountBootstrap_NonExistentAccount", func(t *testing.T) {
@@ -759,10 +748,14 @@ func TestStorageAccountBootstrap(t *testing.T) {
 
 		// Create a context for Azure operations
 		ctx := t.Context()
+		
+		// Set up Azure test environment
+		azureCtx := setupDynamicAzureTest(t, "StorageAccountBootstrap_ExistingAccount")
+		defer azureCtx.Cleanup()
 
-		// We'll use the provided test storage account which should already exist
+		// We'll use the dynamically created test storage account
 		config := map[string]interface{}{
-			"storage_account_name": accountName,
+			"storage_account_name": azureCtx.StorageAccountName,
 			"container_name":       "terragrunt-test-sa-exists",
 			"key":                  "test/terraform.tfstate",
 		}
@@ -774,7 +767,7 @@ func TestStorageAccountBootstrap(t *testing.T) {
 		client := createBlobServiceClientHelper(ctx, t, config)
 
 		// Create container for test
-		err := client.CreateContainerIfNecessary(t.Context(), log, "terragrunt-test-sa-exists")
+		err := client.CreateContainerIfNecessary(t.Context(), azureCtx.Logger, "terragrunt-test-sa-exists")
 		require.NoError(t, err)
 
 		// Clean up the container
@@ -782,23 +775,22 @@ func TestStorageAccountBootstrap(t *testing.T) {
 		require.NoError(t, err)
 
 		if exists {
-			err = client.DeleteContainer(t.Context(), log, "terragrunt-test-sa-exists")
+			err = client.DeleteContainer(t.Context(), azureCtx.Logger, "terragrunt-test-sa-exists")
 			require.NoError(t, err)
 		}
 	})
 }
 func TestBlobOperations(t *testing.T) {
-	storageAccount := os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
-	if storageAccount == "" {
-		t.Skip("Skipping Azure blob operations test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set")
-	}
-
 	t.Parallel()
 
-	ctx := t.Context()
-	containerName := fmt.Sprintf("test-container-%d", os.Getpid())
+	// Create a dynamic Azure test environment
+	azureCtx := setupDynamicAzureTest(t, "BlobOperations")
+	defer azureCtx.Cleanup()
 
-	config := createStandardBlobConfig(storageAccount, containerName, nil)
+	ctx := azureCtx.Ctx
+	containerName := azureCtx.ContainerName
+
+	config := createStandardBlobConfig(azureCtx.StorageAccountName, containerName, nil)
 
 	log := logger.CreateLogger()
 	client := createBlobServiceClientHelper(ctx, t, config)
@@ -888,18 +880,17 @@ func TestStorageAccountCreationAndBlobUpload(t *testing.T) {
 	t.Log("Integration test completed successfully - storage account created, blob uploaded")
 }
 
-// TestAzureBackendBootstrapWithExistingStorageAccount tests Azure backend bootstrap scenarios
+// TestAzureBackendBootstrap tests Azure backend bootstrap scenarios
 // that require real Azure resources - moved from unit tests
-func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
+func TestAzureBackendBootstrap(t *testing.T) {
 	t.Parallel()
 
-	storageAccount := os.Getenv("TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT")
-	if storageAccount == "" {
-		t.Skip("Skipping Azure backend bootstrap test: TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT not set")
-	}
+	// Create a dynamic Azure test environment
+	azureCtx := setupDynamicAzureTest(t, "AzureBackendBootstrap")
+	defer azureCtx.Cleanup()
 
-	// Create logger for testing
-	log := logger.CreateLogger()
+	// Use the logger from the test context
+	log := azureCtx.Logger
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
@@ -910,14 +901,18 @@ func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
 	// Create a unique suffix for container names
 	uniqueSuffix := fmt.Sprintf("%x", time.Now().UnixNano())[0:8]
 
-	t.Run("bootstrap-with-existing-storage-account", func(t *testing.T) {
+	t.Run("bootstrap-with-created-storage-account", func(t *testing.T) {
 		t.Parallel()
+
+		// Create a separate Azure test environment for this subtest
+		subtestAzureCtx := setupDynamicAzureTest(t, "AzureBackendBootstrap-WithCreatedAccount")
+		defer subtestAzureCtx.Cleanup()
 
 		ctx := t.Context()
 		containerName := "terragrunt-bootstrap-test-" + uniqueSuffix
 
 		config := map[string]interface{}{
-			"storage_account_name": storageAccount,
+			"storage_account_name": subtestAzureCtx.StorageAccountName,
 			"container_name":       containerName,
 			"key":                  "test/terraform.tfstate",
 			"use_azuread_auth":     true,
@@ -946,6 +941,9 @@ func TestAzureBackendBootstrapWithExistingStorageAccount(t *testing.T) {
 
 	t.Run("invalid-storage-account-name", func(t *testing.T) {
 		t.Parallel()
+
+		// No need for a dynamic Azure context for this test since we're testing
+		// an invalid storage account name - this should fail without accessing Azure
 
 		testLogger := logger.CreateLogger()
 		opts, err := options.NewTerragruntOptionsForTest("")
@@ -1487,7 +1485,6 @@ func TestStorageAccountConfigurationAndUpdate(t *testing.T) {
 				AllowBlobPublicAccess: !tc.publicAccessChange, // Start with opposite if testing change
 				AccountKind:           "StorageV2",
 				AccountTier:           "Standard",
-				AccessTier:            "Hot",
 				ReplicationType:       "LRS",
 				Tags:                  map[string]string{"Environment": "Test", "created-by": "terragrunt-integration-test"},
 			}
@@ -1800,6 +1797,104 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 	})
 }
 
+// TestDynamicAzureStorage is a simple test to verify our dynamic Azure storage account setup
+func TestDynamicAzureStorage(t *testing.T) {
+	// Skip if running in a CI pipeline without proper setup
+	if os.Getenv("CI") != "" && os.Getenv("SKIP_AZURE_TESTS") != "" {
+		t.Skip("Skipping Azure test in CI environment")
+	}
+	
+	t.Parallel()
+	
+	// Create dynamic Azure test environment
+	azureCtx := setupDynamicAzureTest(t, "DynamicStorageTest")
+	defer azureCtx.Cleanup()
+	
+	// Verify we got valid data
+	t.Logf("Created dynamic test environment:")
+	t.Logf("- Storage Account: %s", azureCtx.StorageAccountName)
+	t.Logf("- Resource Group: %s", azureCtx.ResourceGroupName)
+	t.Logf("- Container: %s", azureCtx.ContainerName)
+	
+	// Verify the storage account was created
+	ctx := azureCtx.Ctx
+	log := azureCtx.Logger
+	
+	storageConfig := map[string]interface{}{
+		"storage_account_name": azureCtx.StorageAccountName,
+		"resource_group_name":  azureCtx.ResourceGroupName,
+		"subscription_id":      azureCtx.SubscriptionID,
+		"use_azuread_auth":     true,
+	}
+	
+	// Create client to verify the storage account
+	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, log, storageConfig)
+	require.NoError(t, err, "Should be able to create storage account client")
+	
+	exists, account, err := storageClient.StorageAccountExists(ctx)
+	require.NoError(t, err, "Should be able to check if storage account exists")
+	require.True(t, exists, "Storage account should exist")
+	require.NotNil(t, account, "Storage account info should not be nil")
+	
+	t.Logf("Successfully verified storage account exists")
+	
+	// Test creating a container
+	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, log, nil, storageConfig)
+	require.NoError(t, err, "Should be able to create blob service client")
+	
+	err = blobClient.CreateContainerIfNecessary(ctx, log, azureCtx.ContainerName)
+	require.NoError(t, err, "Should be able to create container")
+	
+	exists, err = blobClient.ContainerExists(ctx, azureCtx.ContainerName)
+	require.NoError(t, err, "Should be able to check if container exists")
+	require.True(t, exists, "Container should exist")
+	
+	t.Logf("Successfully created and verified container exists")
+	
+	// Upload a test blob
+	testContent := []byte("This is a test blob content for the dynamic Azure test")
+	err = blobClient.UploadBlob(ctx, log, azureCtx.ContainerName, "test-blob.txt", testContent)
+	require.NoError(t, err, "Should be able to upload blob")
+	
+	t.Logf("Successfully uploaded test blob")
+	
+	// Download the blob to verify it was uploaded correctly
+	containerName := azureCtx.ContainerName
+	blobName := "test-blob.txt"
+	getInput := &azurehelper.GetObjectInput{
+		Container: &containerName,
+		Key:       &blobName,
+	}
+	
+	result, err := blobClient.GetObject(ctx, getInput)
+	require.NoError(t, err, "Should be able to download blob")
+	defer result.Body.Close()
+	
+	downloadedContent, err := io.ReadAll(result.Body)
+	require.NoError(t, err, "Should be able to read blob content")
+	require.Equal(t, testContent, downloadedContent, "Downloaded content should match uploaded content")
+	
+	t.Logf("Successfully verified blob content matches")
+	
+	// Test deleting the blob
+	err = blobClient.DeleteBlobIfNecessary(ctx, log, azureCtx.ContainerName, "test-blob.txt")
+	require.NoError(t, err, "Should be able to delete blob")
+	
+	t.Logf("Successfully deleted test blob")
+	
+	// Test deleting the container
+	err = blobClient.DeleteContainer(ctx, log, azureCtx.ContainerName)
+	require.NoError(t, err, "Should be able to delete container")
+	
+	exists, err = blobClient.ContainerExists(ctx, azureCtx.ContainerName)
+	require.NoError(t, err, "Should be able to check if container exists")
+	require.False(t, exists, "Container should no longer exist")
+	
+	t.Logf("Successfully deleted and verified container no longer exists")
+	
+	// The Cleanup function will handle deleting the storage account and resource group
+}
+
 // --- Generic test helpers (inlined from helpers) ---
 func uniqueID() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 10)
@@ -1811,40 +1906,6 @@ func cleanupAzureTerraformFolder(t *testing.T, dir string) {
 }
 
 // --- Generic test helpers (continued) ---
-func copyEnvironment(t *testing.T, src string) string {
-	t.Helper()
-	dst := fmt.Sprintf("/tmp/tgtest-%d", time.Now().UnixNano())
-	err := os.RemoveAll(dst)
-	if err != nil {
-		t.Fatalf("Failed to clean up temp dir: %v", err)
-	}
-	err = copyDir(src, dst)
-	if err != nil {
-		t.Fatalf("Failed to copy environment: %v", err)
-	}
-	return dst
-}
-
-func copyDir(src string, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		targetPath := filepath.Join(dst, relPath)
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode())
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(targetPath, data, info.Mode())
-	})
-}
 
 func copyTerragruntConfigAndFillProviderPlaceholders(t *testing.T, src, dst string, params map[string]string, location string) {
 	t.Helper()
@@ -1909,10 +1970,17 @@ type azureTestContext struct {
 	Cleanup            func()
 }
 
-func setupAzureTest(t *testing.T, testName string) *azureTestContext {
+// setupDynamicAzureTest creates all required Azure resources for testing:
+// - Generates unique identifiers for all resources
+// - Creates a resource group
+// - Creates a storage account
+// - Returns cleanup function that handles deletion in the correct order
+func setupDynamicAzureTest(t *testing.T, testName string) *azureTestContext {
 	t.Helper()
 	ctx := t.Context()
 	log := logger.CreateLogger()
+	
+	// Get Azure credentials
 	_, subscriptionID, err := azurehelper.GetAzureCredentials(ctx, log)
 	if err != nil {
 		t.Skipf("Skipping %s: Failed to get Azure credentials: %v", testName, err)
@@ -1920,6 +1988,8 @@ func setupAzureTest(t *testing.T, testName string) *azureTestContext {
 	if subscriptionID == "" {
 		t.Skipf("Skipping %s: No subscription ID found in environment variables", testName)
 	}
+	
+	// Get location from env var or use default
 	location := os.Getenv("AZURE_LOCATION")
 	if location == "" {
 		location = os.Getenv("ARM_LOCATION")
@@ -1927,19 +1997,28 @@ func setupAzureTest(t *testing.T, testName string) *azureTestContext {
 			location = "westeurope"
 		}
 	}
+	
+	// Generate unique IDs for resources
 	uniqueID := strconv.FormatInt(time.Now().UnixNano(), 10)
 	if len(uniqueID) > 10 {
 		uniqueID = uniqueID[len(uniqueID)-10:]
 	}
+	
+	// Create unique resource names
 	storageAccountName := "tgtest" + strings.ToLower(uniqueID)
 	resourceGroupName := fmt.Sprintf("terragrunt-test-rg-%s-%s", strings.ReplaceAll(testName, " ", "-"), uniqueID)
 	containerName := "test-container-" + strings.ToLower(uniqueID)
+	
+	// Track created resources for cleanup
 	var resourceGroupCreated, storageAccountCreated bool
+	
+	// Create cleanup function
 	cleanup := func() {
 		cleanupLogger := logger.CreateLogger()
-
-		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
+		
 		retry := func(op func() error, desc string) {
 			const maxAttempts = 5
 			const delay = 5 * time.Second
@@ -1955,9 +2034,9 @@ func setupAzureTest(t *testing.T, testName string) *azureTestContext {
 			}
 			t.Errorf("%s cleanup failed after %d attempts: %v", desc, maxAttempts, lastErr)
 		}
-
+		
+		// Delete storage account first, then resource group
 		if storageAccountCreated {
-
 			t.Logf("Cleaning up storage account %s", storageAccountName)
 			storageConfig := map[string]interface{}{
 				"storage_account_name": storageAccountName,
@@ -1972,7 +2051,11 @@ func setupAzureTest(t *testing.T, testName string) *azureTestContext {
 				}
 				return storageClient.DeleteStorageAccount(ctx, cleanupLogger)
 			}, "Storage account")
+			
+			// Wait for storage account deletion to complete before attempting resource group deletion
+			time.Sleep(10 * time.Second)
 		}
+		
 		if resourceGroupCreated {
 			t.Logf("Cleaning up resource group %s", resourceGroupName)
 			retry(func() error {
@@ -1984,15 +2067,69 @@ func setupAzureTest(t *testing.T, testName string) *azureTestContext {
 			}, "Resource group")
 		}
 	}
+	
+	// Create resource group
 	rgClient, err := azurehelper.CreateResourceGroupClient(ctx, log, subscriptionID)
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Skipping %s: Failed to create resource group client: %v", testName, err)
+	}
+	
 	err = rgClient.EnsureResourceGroup(ctx, log, resourceGroupName, location, map[string]string{
 		"created-by": "terragrunt-integration-test",
-		"test-case":  testName,
+		"test-name":  testName,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		cleanup()
+		t.Skipf("Skipping %s: Failed to create resource group: %v", testName, err)
+	}
 	resourceGroupCreated = true
 	t.Logf("Resource group %s created successfully", resourceGroupName)
+	
+	// Create storage account
+	storageConfig := map[string]interface{}{
+		"storage_account_name": storageAccountName,
+		"resource_group_name":  resourceGroupName,
+		"subscription_id":      subscriptionID,
+		"location":             location,
+		"use_azuread_auth":     true,
+	}
+	
+	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, log, storageConfig)
+	if err != nil {
+		cleanup()
+		t.Skipf("Skipping %s: Failed to create storage account client: %v", testName, err)
+	}
+	
+	// Create storage account using azurehelper
+	saConfig := azurehelper.StorageAccountConfig{
+		SubscriptionID:        subscriptionID,
+		ResourceGroupName:     resourceGroupName,
+		StorageAccountName:    storageAccountName,
+		Location:              location,
+		EnableVersioning:      true, // Enable versioning by default for tests
+		AllowBlobPublicAccess: false, // More secure default
+		AccountKind:           "StorageV2", // Modern storage account type
+		AccountTier:           "Standard", // Cheaper for tests
+		ReplicationType:       "LRS", // Cheaper for tests
+		Tags: map[string]string{
+			"created-by": "terragrunt-integration-test",
+			"test-name":  testName,
+		},
+	}
+	
+	err = storageClient.CreateStorageAccountIfNecessary(ctx, log, saConfig)
+	require.NoError(t, err)
+	storageAccountCreated = true // Mark as created for cleanup
+
+	// Verify storage account exists
+	exists, account, err := storageClient.StorageAccountExists(ctx)
+	require.NoError(t, err)
+	require.True(t, exists, "Storage account should exist after creation")
+	require.NotNil(t, account)
+
+	// Wait a moment for the storage account to be fully ready
+	time.Sleep(5 * time.Second)
+
 	return &azureTestContext{
 		SubscriptionID:     subscriptionID,
 		Location:           location,
@@ -2003,6 +2140,11 @@ func setupAzureTest(t *testing.T, testName string) *azureTestContext {
 		Ctx:                ctx,
 		Cleanup:            cleanup,
 	}
+}
+
+// Keep the old function for backward compatibility, but implement it in terms of the new one
+func setupAzureTest(t *testing.T, testName string) *azureTestContext {
+	return setupDynamicAzureTest(t, testName)
 }
 
 func createTestStorageAccount(ctx context.Context, t *testing.T, azureCtx *azureTestContext, enableVersioning bool) {

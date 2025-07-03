@@ -3,6 +3,7 @@ package testing
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -48,9 +49,9 @@ func CheckAzureTestCredentials(t *testing.T) (storageAccount, accessKey string) 
 
 	// Log whether we're using Azure AD or access key authentication
 	if accessKey == "" {
-		t.Logf("Using Azure AD authentication for tests (TERRAGRUNT_AZURE_TEST_ACCESS_KEY not set)")
+		t.Logf("[%s] Using Azure AD authentication for tests (TERRAGRUNT_AZURE_TEST_ACCESS_KEY not set)", t.Name())
 	} else {
-		t.Logf("Using Storage Account Key authentication for tests")
+		t.Logf("[%s] Using Storage Account Key authentication for tests", t.Name())
 	}
 
 	return storageAccount, accessKey
@@ -62,30 +63,8 @@ func GetAzureTestConfig(t *testing.T) *AzureTestConfig {
 
 	accountName, accessKey := CheckAzureTestCredentials(t)
 
-	// Generate Azure-compliant container name:
-	// - 3-63 chars
-	// - Only lowercase letters, numbers, hyphens
-	// - Start/end with letter/number
-	// - No consecutive hyphens
-	uniqueID := strings.ToLower(t.Name())
-	uniqueID = strings.ReplaceAll(uniqueID, "_", "-")
-	uniqueID = strings.ReplaceAll(uniqueID, "/", "-")
-	containerName := "tg-test-" + uniqueID
-
-	if len(containerName) > AzureStorageContainerMaxLength {
-		containerName = containerName[:AzureStorageContainerMaxLength]
-	}
-
-	if len(containerName) < AzureStorageContainerMinLength {
-		containerName = "tg-" + uniqueID
-		if len(containerName) > AzureStorageContainerMaxLength {
-			containerName = containerName[:AzureStorageContainerMaxLength]
-		}
-
-		if len(containerName) < AzureStorageContainerMinLength {
-			containerName = "tgz"
-		}
-	}
+	// Generate truly unique container name to prevent parallel test conflicts
+	containerName := generateUniqueContainerName(t.Name())
 
 	return &AzureTestConfig{
 		StorageAccountName: accountName,
@@ -200,4 +179,102 @@ func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 
 	require.NoError(t, checkErr)
 	require.True(t, exists, "Container should exist")
+}
+
+// CleanupAzureContainerWithRetry deletes an Azure storage container with enhanced retry logic
+func CleanupAzureContainerWithRetry(t *testing.T, config *AzureTestConfig, maxRetries int) {
+	t.Helper()
+
+	if config == nil {
+		return
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	ctx := t.Context()
+	logger := log.Default()
+
+	// Create configuration based on authentication method
+	azureConfig := map[string]interface{}{
+		"storage_account_name": config.StorageAccountName,
+	}
+
+	if config.UseAzureAD {
+		azureConfig["use_azuread_auth"] = true
+	} else {
+		azureConfig["access_key"] = config.AccessKey
+	}
+
+	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, azureConfig)
+	require.NoError(t, err)
+
+	for i := 0; i < maxRetries; i++ {
+		// Check if container exists first
+		exists, err := client.ContainerExists(ctx, config.ContainerName)
+		if err != nil {
+			t.Logf("Error checking container existence (attempt %d): %v", i+1, err)
+			continue
+		}
+
+		if !exists {
+			t.Logf("Container %s already cleaned up", config.ContainerName)
+			return // Already cleaned up
+		}
+
+		// Try to clean up
+		err = client.DeleteContainer(ctx, logger, config.ContainerName)
+		if err != nil {
+			t.Logf("Cleanup attempt %d failed: %v", i+1, err)
+		}
+
+		// Wait a bit for Azure to process the deletion
+		time.Sleep(2 * time.Second)
+
+		// Verify deletion
+		exists, err = client.ContainerExists(ctx, config.ContainerName)
+		if err != nil {
+			t.Logf("Error verifying container deletion (attempt %d): %v", i+1, err)
+			time.Sleep(time.Duration(i+1) * 2 * time.Second) // Exponential backoff
+			continue
+		}
+
+		if !exists {
+			t.Logf("Successfully cleaned up container %s", config.ContainerName)
+			return // Successfully cleaned up
+		}
+
+		if i == maxRetries-1 {
+			t.Logf("Warning: Failed to cleanup container %s after %d attempts", config.ContainerName, maxRetries)
+		} else {
+			t.Logf("Cleanup attempt %d failed, retrying...", i+1)
+			time.Sleep(time.Duration(i+1) * 2 * time.Second) // Exponential backoff
+		}
+	}
+}
+
+// generateUniqueContainerName creates a truly unique container name for Azure storage
+// by combining test name with nanosecond timestamp to prevent parallel test conflicts
+func generateUniqueContainerName(testName string) string {
+	// Combine test name with nanosecond timestamp for true uniqueness
+	timestamp := strconv.FormatInt(time.Now().UnixNano(), 10)
+	// Use last 8 digits of timestamp
+	if len(timestamp) > 8 {
+		timestamp = timestamp[len(timestamp)-8:]
+	}
+
+	// Clean test name for Azure compliance
+	cleanName := strings.ToLower(testName)
+	cleanName = strings.ReplaceAll(cleanName, "/", "")
+	cleanName = strings.ReplaceAll(cleanName, "_", "")
+	cleanName = strings.ReplaceAll(cleanName, " ", "")
+	cleanName = strings.ReplaceAll(cleanName, "test", "")
+
+	// Ensure Azure container name compliance
+	containerName := "tg-" + cleanName + "-" + timestamp
+	if len(containerName) > AzureStorageContainerMaxLength {
+		containerName = "tg-" + timestamp
+	}
+
+	return containerName
 }

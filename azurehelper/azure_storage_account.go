@@ -236,7 +236,7 @@ func (c *StorageAccountClient) EnableStorageAccountVersioning(ctx context.Contex
 		return err
 	}
 
-	l.Info("Successfully enabled versioning on storage account")
+	l.Infof("Successfully enabled versioning on storage account %s", c.storageAccountName)
 
 	return nil
 }
@@ -249,7 +249,7 @@ func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Conte
 		return err
 	}
 
-	l.Info("Successfully disabled versioning on storage account")
+	l.Infof("Successfully disabled versioning on storage account %s", c.storageAccountName)
 
 	return nil
 }
