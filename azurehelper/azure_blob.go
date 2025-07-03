@@ -5,10 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -17,25 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
-
-// waitForStorageAccountDNS waits for the storage account DNS to propagate and become available.
-func waitForStorageAccountDNS(name string, maxWait time.Duration) error {
-	url := name + ".blob.core.windows.net"
-	deadline := time.Now().Add(maxWait)
-
-	for {
-		_, err := net.LookupHost(url)
-		if err == nil {
-			return nil // DNS is ready
-		}
-
-		if time.Now().After(deadline) {
-			return fmt.Errorf("storage account DNS not available after %s: %w", maxWait, err)
-		}
-
-		time.Sleep(3 * time.Second) //nolint: mnd
-	}
-}
 
 // BlobServiceClient wraps Azure's azblob client to provide a simpler interface for our needs.
 type BlobServiceClient struct {
@@ -88,24 +67,6 @@ func (e *AzureResponseError) Error() string {
 	return fmt.Sprintf("Azure API error (StatusCode=%d, ErrorCode=%s): %s", e.StatusCode, e.ErrorCode, e.Message)
 }
 
-// IsVersioningEnabled checks if versioning is enabled for a blob storage account.
-// In Azure Blob Storage, versioning is a storage account level setting and cannot be
-// configured at the container level. This method always returns true as versioning
-// state needs to be checked at the storage account level.
-func (c *BlobServiceClient) IsVersioningEnabled(ctx context.Context, containerName string) (bool, error) {
-	l := log.Default()
-	l.Warnf("Warning: Blob versioning in Azure Storage is a storage account level setting, not a container level setting")
-
-	return true, nil
-}
-
-// EnableVersioningIfNecessary is deprecated as versioning is a storage account level setting.
-func (c *BlobServiceClient) EnableVersioningIfNecessary(ctx context.Context, l log.Logger, containerName string) error {
-	l.Warnf("Warning: Blob versioning in Azure Storage is a storage account level setting and cannot be configured at container level")
-
-	return nil
-}
-
 // CreateBlobServiceClient creates a new Azure Blob Service client using the configuration from the backend.
 func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config map[string]interface{}) (*BlobServiceClient, error) {
 	storageAccountName, okStorageAccountName := config["storage_account_name"].(string)
@@ -113,15 +74,6 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		return nil, errors.Errorf("storage_account_name is required")
 	}
 
-	// Wait for DNS propagation only if explicitly requested via config
-	// This is useful when the storage account was just created and DNS might not be propagated yet
-	if waitForDNS, ok := config["wait_for_dns"].(bool); ok && waitForDNS {
-		l.Infof("Waiting for DNS propagation for storage account %s", storageAccountName)
-
-		if err := waitForStorageAccountDNS(storageAccountName, 60*time.Second); err != nil { //nolint: mnd
-			l.Warnf("DNS propagation wait failed for %s: %v", storageAccountName, err)
-		}
-	}
 	// Extract resource group and subscription ID if provided
 	resourceGroupName, _ := config["resource_group_name"].(string)
 	subscriptionID, _ := config["subscription_id"].(string)

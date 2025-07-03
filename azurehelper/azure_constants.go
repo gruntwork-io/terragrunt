@@ -28,4 +28,9 @@ const (
 	AccessTierHot     = "Hot"
 	AccessTierCool    = "Cool"
 	AccessTierPremium = "Premium"
+
+	// RBAC propagation retry configuration
+	RbacRetryDelay    = 3 * time.Second
+	RbacMaxRetries    = 5
+	RbacRetryAttempts = RbacMaxRetries + 1 // Total attempts including first try
 )

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -204,8 +205,16 @@ func WrapTransientError(err error, operation string) error {
 		return nil
 	}
 
-	// Extract status code if possible (basic pattern matching)
-	statusCode := extractStatusCode(err.Error())
+	// Use ConvertAzureError for better error analysis
+	azureErr := azurehelper.ConvertAzureError(err)
+
+	var statusCode int
+	if azureErr != nil {
+		statusCode = azureErr.StatusCode
+	} else {
+		// Fallback to extracting status code from string if ConvertAzureError fails
+		statusCode = extractStatusCode(err.Error())
+	}
 
 	if IsRetryableError(err) {
 		return WrapTransientAzureError(err, operation, statusCode)

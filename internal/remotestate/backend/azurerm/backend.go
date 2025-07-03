@@ -368,6 +368,16 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 			// Try to convert to Azure error
 			azureErr := azurehelper.ConvertAzureError(existsErr)
 
+			// Check for permission errors first - these should not be retried
+			if azureErr != nil {
+				// Create a temporary storage client to use IsPermissionError
+				storageClient := &azurehelper.StorageAccountClient{}
+				if storageClient.IsPermissionError(existsErr) {
+					// Permission errors should bubble up, not be retried
+					return existsErr
+				}
+			}
+
 			// If the storage account doesn't exist, we need bootstrap - not a transient error
 			if azureErr != nil && (azureErr.StatusCode == 404 || azureErr.ErrorCode == "StorageAccountNotFound") {
 				containerExists = false
@@ -788,10 +798,10 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 
 	// Check if the storage account exists using the data plane client (blob service)
 	// This is a workaround until we properly implement the storage account client
-	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, storageAccountConfig)
-	if err != nil {
-		return WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
-	}
+	// Declare blobClient and err for later use
+	var blobClient *azurehelper.BlobServiceClient
+
+	var err error
 	// Create a storage account client
 	storageClient, err := azurehelper.CreateStorageAccountClient(ctx, l, storageAccountConfig)
 	if err != nil {
@@ -824,11 +834,36 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 		return WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
 	}
 
+	// After potentially creating the storage account, recreate the blob client with DNS waiting enabled
+	// This ensures DNS propagation doesn't cause issues if the storage account was just created
+	storageAccountConfigWithDNSWait := make(map[string]interface{})
+	for k, v := range storageAccountConfig {
+		storageAccountConfigWithDNSWait[k] = v
+	}
+
+	storageAccountConfigWithDNSWait["wait_for_dns"] = true
+	blobClient, err = azurehelper.CreateBlobServiceClient(ctx, l, opts, storageAccountConfigWithDNSWait)
+
+	if err != nil {
+		// If DNS wait fails, try without it as fallback
+		l.Warnf("Failed to create blob client with DNS wait, retrying without DNS wait: %v", err)
+
+		blobClient, err = azurehelper.CreateBlobServiceClient(ctx, l, opts, storageAccountConfig)
+
+		if err != nil {
+			return WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
+		}
+	}
+
 	// Ensure the current user has Storage Blob Data Owner role
 	// This is important for both new and existing storage accounts
 	err = storageClient.AssignStorageBlobDataOwnerRole(ctx, l)
 	if err != nil {
-		l.Warnf("Failed to assign Storage Blob Data Owner role: %v", err)
+		if storageClient.IsPermissionError(err) {
+			l.Warnf("Failed to assign Storage Blob Data Owner role due to insufficient permissions: %v", err)
+		} else {
+			l.Warnf("Failed to assign Storage Blob Data Owner role: %v", err)
+		}
 	}
 	// Don't fail the entire process if role assignment fails
 
@@ -837,13 +872,9 @@ func (backend *Backend) bootstrapStorageAccount(ctx context.Context, l log.Logge
 	// For safety, try the blob client operation to confirm access
 	exists, err := blobClient.ContainerExists(ctx, "_terragrunt_bootstrap_test")
 	if err != nil {
-		// Try to convert to Azure error
-		azureErr := azurehelper.ConvertAzureError(err)
-
-		// Check if it's an authentication error
-		if azureErr != nil && (azureErr.StatusCode == 401 || azureErr.StatusCode == 403) {
-			l.Warn("Authentication failed when checking storage account. Make sure you have proper permissions")
-
+		// Use the enhanced permission error detection from azurehelper
+		if storageClient.IsPermissionError(err) {
+			l.Warn("Permission denied when checking storage account. Make sure you have proper permissions")
 			return WrapAuthenticationError(err, "Azure AD")
 		}
 

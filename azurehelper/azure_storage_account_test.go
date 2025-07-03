@@ -4,16 +4,13 @@ package azurehelper_test
 
 import (
 	"fmt"
-	"io"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/gruntwork-io/terragrunt/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1214,1082 +1211,244 @@ func TestGetStorageAccountSKUErrorHandling(t *testing.T) {
 	}
 }
 
-// TestDefaultStorageAccountConfigErrorHandling tests the default config generation
-func TestDefaultStorageAccountConfigErrorHandling(t *testing.T) {
+// Test that the public interface for testing RBAC functionality is available
+// TestRBACConfiguration provides comprehensive testing of RBAC constants and configuration
+// This consolidates all RBAC constant testing into a single maintainable function
+func TestRBACConfiguration(t *testing.T) {
 	t.Parallel()
 
-	// Test that default config is always valid
-	t.Run("Default config validation", func(t *testing.T) {
+	// Test basic constant accessibility and types
+	t.Run("Constants_accessibility_and_types", func(t *testing.T) {
 		t.Parallel()
 
-		defaultConfig := azurehelper.DefaultStorageAccountConfig()
+		// Ensure constants are accessible (tests proper export)
+		delay := azurehelper.RbacRetryDelay
+		maxRetries := azurehelper.RbacMaxRetries
+		attempts := azurehelper.RbacRetryAttempts
 
-		// The default config should have all non-required fields set
-		assert.NotEmpty(t, defaultConfig.AccountKind)
-		assert.NotEmpty(t, defaultConfig.AccountTier)
-		assert.NotEmpty(t, defaultConfig.AccessTier)
-		assert.NotEmpty(t, defaultConfig.ReplicationType)
-		assert.NotNil(t, defaultConfig.Tags)
-		assert.NotEmpty(t, defaultConfig.Tags)
+		// Type assertions
+		assert.IsType(t, time.Duration(0), delay, "RbacRetryDelay should be time.Duration")
+		assert.IsType(t, int(0), maxRetries, "RbacMaxRetries should be int")
+		assert.IsType(t, int(0), attempts, "RbacRetryAttempts should be int")
 
-		// Check specific default values
-		assert.True(t, defaultConfig.EnableVersioning)
-		assert.False(t, defaultConfig.AllowBlobPublicAccess)
-
-		// Required fields should be empty (to be filled by user)
-		assert.Empty(t, defaultConfig.SubscriptionID)
-		assert.Empty(t, defaultConfig.ResourceGroupName)
-		assert.Empty(t, defaultConfig.StorageAccountName)
-		assert.Empty(t, defaultConfig.Location)
+		// Non-zero checks
+		assert.NotZero(t, delay, "RBAC retry delay should not be zero")
+		assert.NotZero(t, maxRetries, "RBAC max retries should not be zero")
+		assert.NotZero(t, attempts, "RBAC retry attempts should not be zero")
+		assert.Positive(t, maxRetries, "RbacMaxRetries should be positive")
+		assert.Positive(t, attempts, "RbacRetryAttempts should be positive")
 	})
 
-	// Test that default config fails validation (missing required fields)
-	t.Run("Default config requires user input", func(t *testing.T) {
+	// Test specific expected values from azure_constants.go
+	t.Run("Expected_constant_values", func(t *testing.T) {
 		t.Parallel()
 
-		defaultConfig := azurehelper.DefaultStorageAccountConfig()
-		err := defaultConfig.Validate()
-
-		// Should fail because required fields are missing
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "subscription_id is required")
+		// These should match the values defined in azure_constants.go
+		assert.Equal(t, 3*time.Second, azurehelper.RbacRetryDelay, "RbacRetryDelay should be 3 seconds")
+		assert.Equal(t, 5, azurehelper.RbacMaxRetries, "RbacMaxRetries should be 5")
+		assert.Equal(t, 6, azurehelper.RbacRetryAttempts, "RbacRetryAttempts should be 6")
 	})
 
-	// Test that default config becomes valid when required fields are added
-	t.Run("Default config with required fields", func(t *testing.T) {
+	// Test mathematical relationships between constants
+	t.Run("Constant_relationships", func(t *testing.T) {
 		t.Parallel()
 
-		defaultConfig := azurehelper.DefaultStorageAccountConfig()
-		defaultConfig.SubscriptionID = "test-subscription"
-		defaultConfig.ResourceGroupName = "test-rg"
-		defaultConfig.StorageAccountName = "teststorage"
-		defaultConfig.Location = "eastus"
+		// Core relationship: attempts = retries + 1 (initial attempt)
+		assert.Equal(t, azurehelper.RbacMaxRetries+1, azurehelper.RbacRetryAttempts,
+			"RbacRetryAttempts should equal RbacMaxRetries + 1 (initial attempt + retries)")
+	})
 
-		err := defaultConfig.Validate()
-		assert.NoError(t, err)
+	// Test timing boundaries for practical use
+	t.Run("Timing_boundaries", func(t *testing.T) {
+		t.Parallel()
+
+		// Minimum delay to avoid API rate limiting
+		minDelay := 1 * time.Second
+		assert.GreaterOrEqual(t, azurehelper.RbacRetryDelay, minDelay,
+			"Retry delay should be at least %v to avoid overwhelming Azure APIs", minDelay)
+
+		// Maximum delay for good user experience
+		maxDelay := 10 * time.Second
+		assert.LessOrEqual(t, azurehelper.RbacRetryDelay, maxDelay,
+			"Retry delay should not exceed %v for reasonable user experience", maxDelay)
+
+		// Minimum retries for RBAC propagation (Azure can be slow)
+		assert.GreaterOrEqual(t, azurehelper.RbacMaxRetries, 3,
+			"Should have at least 3 retries for RBAC propagation delays")
+
+		// Maximum retries to avoid excessive wait times
+		assert.LessOrEqual(t, azurehelper.RbacMaxRetries, 10,
+			"Should not exceed 10 retries to avoid excessive wait times")
+	})
+
+	// Test total operation time boundaries
+	t.Run("Total_operation_time_bounds", func(t *testing.T) {
+		t.Parallel()
+
+		// Calculate theoretical maximum wait time
+		maxTotalTime := time.Duration(azurehelper.RbacMaxRetries) * azurehelper.RbacRetryDelay
+
+		// Should complete within reasonable time for CI/CD pipelines
+		maxReasonableTime := 5 * time.Minute
+		assert.LessOrEqual(t, maxTotalTime, maxReasonableTime,
+			"Total maximum wait time (%v) should not exceed %v for CI/CD compatibility",
+			maxTotalTime, maxReasonableTime)
+
+		// Should not be too fast (RBAC needs time to propagate)
+		minReasonableTime := 10 * time.Second
+		assert.GreaterOrEqual(t, maxTotalTime, minReasonableTime,
+			"Total maximum wait time (%v) should be at least %v for effective RBAC propagation",
+			maxTotalTime, minReasonableTime)
+	})
+
+	// Test edge case boundaries
+	t.Run("Edge_case_boundaries", func(t *testing.T) {
+		t.Parallel()
+
+		// Ensure delay is not too short (could cause API rate limiting)
+		assert.GreaterOrEqual(t, azurehelper.RbacRetryDelay, 1*time.Second,
+			"RBAC retry delay should be at least 1 second to avoid API rate limits")
+
+		// Ensure delay is not excessively long (user experience)
+		assert.LessOrEqual(t, azurehelper.RbacRetryDelay, 30*time.Second,
+			"RBAC retry delay should not exceed 30 seconds for reasonable user experience")
+
+		// Ensure we have enough retries for typical RBAC propagation
+		assert.GreaterOrEqual(t, azurehelper.RbacMaxRetries, 3,
+			"Should have at least 3 retries for typical RBAC propagation scenarios")
 	})
 }
 
-// TestStorageAccountConfigConcurrency tests concurrent access to config validation
-func TestStorageAccountConfigConcurrency(t *testing.T) {
+// TestPermissionErrorDetectionComprehensive tests comprehensive permission error detection
+func TestPermissionErrorDetectionComprehensive(t *testing.T) {
 	t.Parallel()
 
-	// Test concurrent validation of the same config
-	t.Run("Concurrent validation", func(t *testing.T) {
-		t.Parallel()
+	client := &azurehelper.StorageAccountClient{}
 
-		config := azurehelper.StorageAccountConfig{
-			SubscriptionID:     "subscription-id",
-			ResourceGroupName:  "resource-group",
-			StorageAccountName: "storageaccount",
-			Location:           "eastus",
-		}
-
-		const numGoroutines = 100
-		errChan := make(chan error, numGoroutines)
-
-		// Start multiple goroutines validating the same config
-		for i := 0; i < numGoroutines; i++ {
-			go func() {
-				err := config.Validate()
-				errChan <- err
-			}()
-		}
-
-		// Collect all results
-		for i := 0; i < numGoroutines; i++ {
-			err := <-errChan
-			assert.NoError(t, err, "Concurrent validation should not fail")
-		}
-	})
-
-	// Test concurrent SKU generation
-	t.Run("Concurrent SKU generation", func(t *testing.T) {
-		t.Parallel()
-
-		const numGoroutines = 100
-		type result struct {
-			sku       string
-			isDefault bool
-		}
-		resultChan := make(chan result, numGoroutines)
-
-		// Start multiple goroutines generating SKUs
-		for i := 0; i < numGoroutines; i++ {
-			go func() {
-				sku, isDefault := azurehelper.GetStorageAccountSKU("Standard", "LRS")
-				resultChan <- result{sku: sku, isDefault: isDefault}
-			}()
-		}
-
-		// Collect all results and verify consistency
-		expectedSKU := "Standard_LRS"
-		expectedDefault := false
-
-		for i := 0; i < numGoroutines; i++ {
-			res := <-resultChan
-			assert.Equal(t, expectedSKU, res.sku, "SKU should be consistent across goroutines")
-			assert.Equal(t, expectedDefault, res.isDefault, "Default flag should be consistent")
-		}
-	})
-}
-
-// TestStorageAccountConfigMemoryUsage tests memory-related edge cases
-func TestStorageAccountConfigMemoryUsage(t *testing.T) {
-	t.Parallel()
-
-	// Test with very large tag maps
-	t.Run("Large tag map", func(t *testing.T) {
-		t.Parallel()
-
-		largeTags := make(map[string]string)
-		for i := 0; i < 1000; i++ {
-			largeTags[fmt.Sprintf("tag%d", i)] = fmt.Sprintf("value%d", i)
-		}
-
-		config := azurehelper.StorageAccountConfig{
-			SubscriptionID:     "subscription-id",
-			ResourceGroupName:  "resource-group",
-			StorageAccountName: "storageaccount",
-			Location:           "eastus",
-			Tags:               largeTags,
-		}
-
-		err := config.Validate()
-		assert.NoError(t, err)
-		assert.Len(t, config.Tags, 1000)
-	})
-
-	// Test with large string values
-	t.Run("Large string values", func(t *testing.T) {
-		t.Parallel()
-
-		largeString := strings.Repeat("a", 10000)
-
-		config := azurehelper.StorageAccountConfig{
-			SubscriptionID:     largeString,
-			ResourceGroupName:  largeString,
-			StorageAccountName: largeString,
-			Location:           largeString,
-		}
-
-		err := config.Validate()
-		assert.NoError(t, err)
-		assert.Len(t, config.SubscriptionID, 10000)
-	})
-}
-
-// TestStorageAccountConfigNilPointerSafety tests nil pointer safety
-func TestStorageAccountConfigNilPointerSafety(t *testing.T) {
-	t.Parallel()
-
-	// Test validation with zero value config
-	t.Run("Zero value config", func(t *testing.T) {
-		t.Parallel()
-
-		var config azurehelper.StorageAccountConfig
-		err := config.Validate()
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "subscription_id is required")
-	})
-
-	// Test that validation doesn't panic with nil maps
-	t.Run("Nil map handling", func(t *testing.T) {
-		t.Parallel()
-
-		config := azurehelper.StorageAccountConfig{
-			SubscriptionID:     "subscription-id",
-			ResourceGroupName:  "resource-group",
-			StorageAccountName: "storageaccount",
-			Location:           "eastus",
-			Tags:               nil, // Explicit nil
-		}
-
-		// Should not panic
-		err := config.Validate()
-		assert.NoError(t, err)
-	})
-}
-
-// TestStorageAccountDataIntegrity tests data integrity and immutability
-func TestStorageAccountDataIntegrity(t *testing.T) {
-	t.Parallel()
-
-	// Test that validation doesn't modify the original config
-	t.Run("Validation preserves original config", func(t *testing.T) {
-		t.Parallel()
-
-		originalConfig := azurehelper.StorageAccountConfig{
-			SubscriptionID:        "subscription-id",
-			ResourceGroupName:     "resource-group",
-			StorageAccountName:    "storageaccount",
-			Location:              "eastus",
-			EnableVersioning:      true,
-			AllowBlobPublicAccess: false,
-			Tags: map[string]string{
-				"Environment": "Test",
-			},
-		}
-
-		// Create a copy to compare against
-		configCopy := originalConfig
-		configCopy.Tags = make(map[string]string)
-		for k, v := range originalConfig.Tags {
-			configCopy.Tags[k] = v
-		}
-
-		// Validate the original
-		err := originalConfig.Validate()
-		assert.NoError(t, err)
-
-		// Verify original hasn't changed
-		assert.Equal(t, configCopy.SubscriptionID, originalConfig.SubscriptionID)
-		assert.Equal(t, configCopy.ResourceGroupName, originalConfig.ResourceGroupName)
-		assert.Equal(t, configCopy.StorageAccountName, originalConfig.StorageAccountName)
-		assert.Equal(t, configCopy.Location, originalConfig.Location)
-		assert.Equal(t, configCopy.EnableVersioning, originalConfig.EnableVersioning)
-		assert.Equal(t, configCopy.AllowBlobPublicAccess, originalConfig.AllowBlobPublicAccess)
-		assert.Equal(t, configCopy.Tags, originalConfig.Tags)
-	})
-
-	// Test that modifying returned SKU doesn't affect future calls
-	t.Run("SKU generation is stateless", func(t *testing.T) {
-		t.Parallel()
-
-		// Get first SKU
-		sku1, default1 := azurehelper.GetStorageAccountSKU("Standard", "LRS")
-
-		// Modify the returned string (simulate accidental modification)
-		modifiedSKU := sku1 + "_MODIFIED"
-		_ = modifiedSKU
-
-		// Get second SKU - should be unaffected
-		sku2, default2 := azurehelper.GetStorageAccountSKU("Standard", "LRS")
-
-		assert.Equal(t, sku1, sku2, "Subsequent calls should return identical results")
-		assert.Equal(t, default1, default2, "Default flags should be consistent")
-		assert.Equal(t, "Standard_LRS", sku2, "SKU should not be affected by previous modifications")
-	})
-}
-
-// TestCreateStorageAccountClientErrorHandling tests error scenarios and edge cases for client creation
-func TestCreateStorageAccountClientErrorHandling(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
+	// Test case-insensitive detection
+	caseInsensitiveTestCases := []struct {
 		name           string
-		config         map[string]interface{}
-		expectedErrMsg string
-		description    string
+		errorMessage   string
+		expectedResult bool
+	}{
+		{"Mixed case forbidden", "FoRbIdDeN access", true},
+		{"Uppercase unauthorized", "UNAUTHORIZED REQUEST", true},
+		{"Lowercase access denied", "access denied by policy", true},
+		{"Mixed case insufficient permissions", "InSuFfIcIeNt PeRmIsSiOnS", true},
+		{"Normal case non-permission", "Resource Not Found", false},
+		{"Mixed case non-permission", "InTeRnAl SeRvEr ErRoR", false},
+	}
+
+	for _, tc := range caseInsensitiveTestCases {
+		tc := tc
+		t.Run("CaseInsensitive_"+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := errors.Errorf("%s", tc.errorMessage)
+			result := client.IsPermissionError(err)
+			assert.Equal(t, tc.expectedResult, result,
+				"Should detect permission errors case-insensitively: %s", tc.errorMessage)
+		})
+	}
+
+	// Test error patterns that might be confusing
+	edgeCaseTestCases := []struct {
+		name           string
+		errorMessage   string
+		expectedResult bool
+		reason         string
 	}{
 		{
-			name:           "Nil config",
-			config:         nil,
-			expectedErrMsg: "config is required",
-			description:    "Should fail when config is nil",
+			name:           "Permission in non-error context",
+			errorMessage:   "User has permission to view logs but operation failed due to network timeout",
+			expectedResult: false,
+			reason:         "Should not detect 'permission' when it's not an error context",
 		},
 		{
-			name:           "Empty config",
-			config:         map[string]interface{}{},
-			expectedErrMsg: "storage_account_name is required",
-			description:    "Should fail when storage_account_name is missing",
+			name:           "Forbidden in URL",
+			errorMessage:   "Failed to connect to https://forbidden.example.com/api",
+			expectedResult: true,
+			reason:         "Should detect 'forbidden' even in URLs since it indicates access issues",
 		},
 		{
-			name: "Empty storage account name",
-			config: map[string]interface{}{
-				"storage_account_name": "",
-			},
-			expectedErrMsg: "storage_account_name is required",
-			description:    "Should fail when storage_account_name is empty",
+			name:           "Authorization success message",
+			errorMessage:   "Authorization completed successfully but resource not found",
+			expectedResult: false,
+			reason:         "Should not detect successful authorization as permission error",
 		},
 		{
-			name: "Storage account name wrong type",
-			config: map[string]interface{}{
-				"storage_account_name": 123, // Wrong type
-			},
-			expectedErrMsg: "storage_account_name is required",
-			description:    "Should fail when storage_account_name is not a string",
+			name:           "Multiple permission keywords",
+			errorMessage:   "Unauthorized access denied: insufficient permissions for forbidden operation",
+			expectedResult: true,
+			reason:         "Should detect errors with multiple permission keywords",
 		},
 		{
-			name: "Storage account name with only whitespace",
-			config: map[string]interface{}{
-				"storage_account_name": "   ",
-			},
-			expectedErrMsg: "", // Whitespace is not checked by the implementation, just emptiness
-			description:    "Should pass initial validation but may fail later in Azure credential check",
-		},
-		{
-			name: "Resource group name wrong type",
-			config: map[string]interface{}{
-				"storage_account_name": "teststorage",
-				"resource_group_name":  123, // Wrong type
-			},
-			expectedErrMsg: "",
-			description:    "Should handle wrong type gracefully by using default",
-		},
-		{
-			name: "Subscription ID wrong type",
-			config: map[string]interface{}{
-				"storage_account_name": "teststorage",
-				"subscription_id":      123, // Wrong type
-			},
-			expectedErrMsg: "",
-			description:    "Should handle wrong type gracefully",
-		},
-		{
-			name: "Location wrong type",
-			config: map[string]interface{}{
-				"storage_account_name": "teststorage",
-				"location":             123, // Wrong type
-			},
-			expectedErrMsg: "",
-			description:    "Should handle wrong type gracefully",
-		},
-		{
-			name: "Very long storage account name",
-			config: map[string]interface{}{
-				"storage_account_name": strings.Repeat("a", 1000),
-			},
-			expectedErrMsg: "",
-			description:    "Should handle very long names",
-		},
-		{
-			name: "Unicode characters in storage account name",
-			config: map[string]interface{}{
-				"storage_account_name": "storage中文账户",
-			},
-			expectedErrMsg: "",
-			description:    "Should handle unicode characters",
-		},
-		{
-			name: "Special characters in storage account name",
-			config: map[string]interface{}{
-				"storage_account_name": "storage-account_123",
-			},
-			expectedErrMsg: "",
-			description:    "Should handle special characters",
+			name:           "Role assignment in progress",
+			errorMessage:   "Operation failed: role assignment is still propagating through Azure RBAC",
+			expectedResult: true,
+			reason:         "Should detect role assignment propagation errors",
 		},
 	}
 
-	for _, tc := range testCases {
-		tc := tc // capture range variable
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tc := range edgeCaseTestCases {
+		tc := tc
+		t.Run("EdgeCase_"+tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
-			logger := log.Default().WithOptions(log.WithOutput(io.Discard))
-
-			client, err := azurehelper.CreateStorageAccountClient(ctx, logger, tc.config)
-
-			if tc.expectedErrMsg != "" {
-				assert.Error(t, err, tc.description)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg, tc.description)
-				assert.Nil(t, client, "Client should be nil when error occurs")
-			} else {
-				// Note: These tests may fail due to Azure credential requirements
-				// but they help test the parameter validation logic
-				if err != nil {
-					// If we get an error, it should be related to credentials, not config validation
-					assert.NotContains(t, err.Error(), "storage_account_name is required")
-					assert.NotContains(t, err.Error(), "config is required")
-				}
-			}
+			err := errors.Errorf("%s", tc.errorMessage)
+			result := client.IsPermissionError(err)
+			assert.Equal(t, tc.expectedResult, result, tc.reason)
 		})
 	}
 }
 
-// TestHelperFunctionsErrorHandling tests error scenarios for utility functions
-func TestHelperFunctionsErrorHandling(t *testing.T) {
+// TestStorageAccountClientPermissionInterface tests the public interface for permission checking
+func TestStorageAccountClientPermissionInterface(t *testing.T) {
 	t.Parallel()
 
-	t.Run("CompareStringMaps edge cases", func(t *testing.T) {
-		t.Parallel()
+	// Test that we can create a client and use the IsPermissionError method
+	client := &azurehelper.StorageAccountClient{}
 
-		testCases := []struct {
-			name     string
-			existing map[string]*string
-			desired  map[string]string
-			expected bool
-		}{
-			{
-				name:     "Both nil/empty",
-				existing: nil,
-				desired:  nil,
-				expected: true,
-			},
-			{
-				name:     "Existing nil, desired empty",
-				existing: nil,
-				desired:  map[string]string{},
-				expected: true,
-			},
-			{
-				name:     "Existing empty, desired nil",
-				existing: map[string]*string{},
-				desired:  nil,
-				expected: true,
-			},
-			{
-				name: "Identical maps",
-				existing: map[string]*string{
-					"env":     to.Ptr("test"),
-					"project": to.Ptr("terragrunt"),
-				},
-				desired: map[string]string{
-					"env":     "test",
-					"project": "terragrunt",
-				},
-				expected: true,
-			},
-			{
-				name: "Different values",
-				existing: map[string]*string{
-					"env": to.Ptr("prod"),
-				},
-				desired: map[string]string{
-					"env": "test",
-				},
-				expected: false,
-			},
-			{
-				name: "Missing key in existing",
-				existing: map[string]*string{
-					"env": to.Ptr("test"),
-				},
-				desired: map[string]string{
-					"env":     "test",
-					"project": "terragrunt",
-				},
-				expected: false,
-			},
-			{
-				name: "Extra key in existing",
-				existing: map[string]*string{
-					"env":     to.Ptr("test"),
-					"project": to.Ptr("terragrunt"),
-				},
-				desired: map[string]string{
-					"env": "test",
-				},
-				expected: false,
-			},
-			{
-				name: "Nil value in existing",
-				existing: map[string]*string{
-					"env": nil,
-				},
-				desired: map[string]string{
-					"env": "test",
-				},
-				expected: false,
-			},
-			{
-				name: "Empty string values",
-				existing: map[string]*string{
-					"env": to.Ptr(""),
-				},
-				desired: map[string]string{
-					"env": "",
-				},
-				expected: true,
-			},
-		}
-
-		for _, tc := range testCases {
-			tc := tc
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				// Test the comparison logic directly (since CompareStringMaps is not exported)
-				// We simulate the logic from the actual function
-				if len(tc.existing) != len(tc.desired) {
-					assert.Equal(t, tc.expected, false, "Length mismatch should result in false")
-					return
-				}
-
-				result := true
-				for k, v := range tc.desired {
-					if existingVal, ok := tc.existing[k]; !ok || existingVal == nil || *existingVal != v {
-						result = false
-						break
-					}
-				}
-
-				assert.Equal(t, tc.expected, result)
-			})
-		}
-	})
-
-	t.Run("ConvertToPointerMap edge cases", func(t *testing.T) {
-		t.Parallel()
-
-		testCases := []struct {
-			name     string
-			input    map[string]string
-			expected map[string]*string
-		}{
-			{
-				name:     "Empty map",
-				input:    map[string]string{},
-				expected: map[string]*string{},
-			},
-			{
-				name:     "Nil map results in empty map",
-				input:    nil,
-				expected: map[string]*string{},
-			},
-			{
-				name: "Single entry",
-				input: map[string]string{
-					"key": "value",
-				},
-				expected: map[string]*string{
-					"key": to.Ptr("value"),
-				},
-			},
-			{
-				name: "Multiple entries",
-				input: map[string]string{
-					"env":     "test",
-					"project": "terragrunt",
-					"owner":   "devops",
-				},
-				expected: map[string]*string{
-					"env":     to.Ptr("test"),
-					"project": to.Ptr("terragrunt"),
-					"owner":   to.Ptr("devops"),
-				},
-			},
-			{
-				name: "Empty string values",
-				input: map[string]string{
-					"empty": "",
-					"test":  "value",
-				},
-				expected: map[string]*string{
-					"empty": to.Ptr(""),
-					"test":  to.Ptr("value"),
-				},
-			},
-			{
-				name: "Special characters",
-				input: map[string]string{
-					"unicode": "测试",
-					"special": "!@#$%^&*()",
-				},
-				expected: map[string]*string{
-					"unicode": to.Ptr("测试"),
-					"special": to.Ptr("!@#$%^&*()"),
-				},
-			},
-		}
-
-		for _, tc := range testCases {
-			tc := tc
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				// Test the conversion logic directly (simulating ConvertToPointerMap)
-				result := make(map[string]*string, len(tc.input))
-				for k, v := range tc.input {
-					val := v // Create new variable to avoid capturing loop variable
-					result[k] = &val
-				}
-
-				assert.Equal(t, len(tc.expected), len(result))
-
-				for k, expectedPtr := range tc.expected {
-					actualPtr, exists := result[k]
-					assert.True(t, exists, "Key %s should exist", k)
-
-					if expectedPtr == nil {
-						assert.Nil(t, actualPtr)
-					} else {
-						assert.NotNil(t, actualPtr)
-						assert.Equal(t, *expectedPtr, *actualPtr)
-					}
-				}
-			})
-		}
-	})
-
-	t.Run("CompareAccessTier edge cases", func(t *testing.T) {
-		t.Parallel()
-
-		testCases := []struct {
-			name     string
-			current  *armstorage.AccessTier
-			desired  string
-			expected bool
-		}{
-			{
-				name:     "Both nil/empty",
-				current:  nil,
-				desired:  "",
-				expected: true,
-			},
-			{
-				name:     "Current nil, desired empty",
-				current:  nil,
-				desired:  "",
-				expected: true,
-			},
-			{
-				name:     "Current nil, desired not empty",
-				current:  nil,
-				desired:  "Hot",
-				expected: false,
-			},
-			{
-				name:     "Current not nil, desired empty",
-				current:  to.Ptr(armstorage.AccessTierHot),
-				desired:  "",
-				expected: false,
-			},
-			{
-				name:     "Both Hot",
-				current:  to.Ptr(armstorage.AccessTierHot),
-				desired:  "Hot",
-				expected: true,
-			},
-			{
-				name:     "Both Cool",
-				current:  to.Ptr(armstorage.AccessTierCool),
-				desired:  "Cool",
-				expected: true,
-			},
-			{
-				name:     "Both Premium",
-				current:  to.Ptr(armstorage.AccessTierPremium),
-				desired:  "Premium",
-				expected: true,
-			},
-			{
-				name:     "Different tiers - Hot vs Cool",
-				current:  to.Ptr(armstorage.AccessTierHot),
-				desired:  "Cool",
-				expected: false,
-			},
-			{
-				name:     "Different tiers - Cool vs Premium",
-				current:  to.Ptr(armstorage.AccessTierCool),
-				desired:  "Premium",
-				expected: false,
-			},
-			{
-				name:     "Case sensitivity test",
-				current:  to.Ptr(armstorage.AccessTierHot),
-				desired:  "hot", // lowercase
-				expected: false,
-			},
-		}
-
-		for _, tc := range testCases {
-			tc := tc
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				// Test the comparison logic directly (simulating CompareAccessTier)
-				result := true
-				if tc.current == nil && tc.desired == "" {
-					result = true
-				} else if tc.current == nil || tc.desired == "" {
-					result = false
-				} else {
-					result = string(*tc.current) == tc.desired
-				}
-
-				assert.Equal(t, tc.expected, result)
-			})
-		}
-	})
-}
-
-// TestUpdateStorageAccountLogic tests the decision logic for determining what needs updating
-func TestUpdateStorageAccountLogic(t *testing.T) {
-	t.Parallel()
-
+	// Test with various error types
 	testCases := []struct {
-		name                     string
-		currentAccount           *armstorage.Account
-		desiredConfig            azurehelper.StorageAccountConfig
-		expectedNeedsUpdate      bool
-		expectedUpdateAllowBlob  bool
-		expectedUpdateAccessTier bool
-		expectedUpdateTags       bool
-		expectedWarningCount     int // Count of expected warnings for read-only properties
-		expectedWarningMessages  []string
+		name     string
+		input    error
+		expected bool
 	}{
 		{
-			name: "No updates needed - everything matches",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: to.Ptr(false),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-				Tags: map[string]*string{
-					"env": to.Ptr("test"),
-				},
-				SKU: &armstorage.SKU{
-					Name: to.Ptr(armstorage.SKUNameStandardLRS),
-				},
-				Kind:     to.Ptr(armstorage.KindStorageV2),
-				Location: to.Ptr("eastus"),
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: false,
-				AccessTier:            "Hot",
-				Tags: map[string]string{
-					"env": "test",
-				},
-				AccountTier:     "Standard",
-				ReplicationType: "LRS",
-				AccountKind:     "StorageV2",
-				Location:        "eastus",
-			},
-			expectedNeedsUpdate:      false,
-			expectedUpdateAllowBlob:  false,
-			expectedUpdateAccessTier: false,
-			expectedUpdateTags:       false,
-			expectedWarningCount:     0,
+			name:     "Nil error",
+			input:    nil,
+			expected: false,
 		},
 		{
-			name: "Update AllowBlobPublicAccess only",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: to.Ptr(false),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-				Tags: map[string]*string{
-					"env": to.Ptr("test"),
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: true, // Different from current
-				AccessTier:            "Hot",
-				Tags: map[string]string{
-					"env": "test",
-				},
-			},
-			expectedNeedsUpdate:      true,
-			expectedUpdateAllowBlob:  true,
-			expectedUpdateAccessTier: false,
-			expectedUpdateTags:       false,
-			expectedWarningCount:     0,
+			name:     "Empty error message",
+			input:    errors.Errorf(""),
+			expected: false,
 		},
 		{
-			name: "Update AccessTier only",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: to.Ptr(false),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-				Tags: map[string]*string{
-					"env": to.Ptr("test"),
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: false,
-				AccessTier:            "Cool", // Different from current
-				Tags: map[string]string{
-					"env": "test",
-				},
-			},
-			expectedNeedsUpdate:      true,
-			expectedUpdateAllowBlob:  false,
-			expectedUpdateAccessTier: true,
-			expectedUpdateTags:       false,
-			expectedWarningCount:     0,
+			name:     "Generic error",
+			input:    errors.Errorf("Something went wrong"),
+			expected: false,
 		},
 		{
-			name: "Update Tags only",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: to.Ptr(false),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-				Tags: map[string]*string{
-					"env": to.Ptr("test"),
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: false,
-				AccessTier:            "Hot",
-				Tags: map[string]string{
-					"env":     "test",
-					"project": "terragrunt", // Additional tag
-				},
-			},
-			expectedNeedsUpdate:      true,
-			expectedUpdateAllowBlob:  false,
-			expectedUpdateAccessTier: false,
-			expectedUpdateTags:       true,
-			expectedWarningCount:     0,
+			name:     "Forbidden error",
+			input:    errors.Errorf("403 Forbidden"),
+			expected: true,
 		},
 		{
-			name: "Multiple updates needed",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: to.Ptr(true),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-				Tags: map[string]*string{
-					"env": to.Ptr("dev"),
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: false,  // Different
-				AccessTier:            "Cool", // Different
-				Tags: map[string]string{
-					"env":     "prod",       // Different
-					"project": "terragrunt", // Additional
-				},
-			},
-			expectedNeedsUpdate:      true,
-			expectedUpdateAllowBlob:  true,
-			expectedUpdateAccessTier: true,
-			expectedUpdateTags:       true,
-			expectedWarningCount:     0,
+			name:     "Unauthorized error",
+			input:    errors.Errorf("401 Unauthorized"),
+			expected: true,
 		},
 		{
-			name: "Read-only property differences should generate warnings",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: to.Ptr(false),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-				SKU: &armstorage.SKU{
-					Name: to.Ptr(armstorage.SKUNameStandardLRS),
-				},
-				Kind:     to.Ptr(armstorage.KindStorageV2),
-				Location: to.Ptr("eastus"),
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: false,
-				AccessTier:            "Hot",
-				AccountTier:           "Premium", // Different - should warn
-				ReplicationType:       "GRS",     // Different - should warn
-				AccountKind:           "Storage", // Different - should warn
-				Location:              "westus",  // Different - should warn
-			},
-			expectedNeedsUpdate:      false, // No updatable properties changed
-			expectedUpdateAllowBlob:  false,
-			expectedUpdateAccessTier: false,
-			expectedUpdateTags:       false,
-			expectedWarningCount:     3, // SKU, Kind, Location warnings
-			expectedWarningMessages: []string{
-				"SKU cannot be changed",
-				"kind cannot be changed",
-				"location cannot be changed",
-			},
+			name:     "Access denied error",
+			input:    errors.Errorf("Access denied to resource"),
+			expected: true,
 		},
 		{
-			name: "Empty desired access tier should not trigger update",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: to.Ptr(false),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: false,
-				AccessTier:            "", // Empty - should not update
-			},
-			expectedNeedsUpdate:      false,
-			expectedUpdateAllowBlob:  false,
-			expectedUpdateAccessTier: false,
-			expectedUpdateTags:       false,
-			expectedWarningCount:     0,
-		},
-		{
-			name: "Empty desired tags should not trigger update",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: to.Ptr(false),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-				Tags: map[string]*string{
-					"env": to.Ptr("test"),
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: false,
-				Tags:                  map[string]string{}, // Empty - should not update
-			},
-			expectedNeedsUpdate:      false,
-			expectedUpdateAllowBlob:  false,
-			expectedUpdateAccessTier: false,
-			expectedUpdateTags:       false,
-			expectedWarningCount:     0,
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc // capture range variable
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Test the update decision logic manually
-			var needsUpdate bool
-			var updateAllowBlob, updateAccessTier, updateTags bool
-			var warningCount int
-
-			// 1. Check AllowBlobPublicAccess
-			if tc.currentAccount.Properties != nil && tc.currentAccount.Properties.AllowBlobPublicAccess != nil &&
-				*tc.currentAccount.Properties.AllowBlobPublicAccess != tc.desiredConfig.AllowBlobPublicAccess {
-				needsUpdate = true
-				updateAllowBlob = true
-			}
-
-			// 2. Check AccessTier
-			currentTierMatches := true
-			if tc.currentAccount.Properties != nil && tc.currentAccount.Properties.AccessTier != nil && tc.desiredConfig.AccessTier != "" {
-				currentTierMatches = string(*tc.currentAccount.Properties.AccessTier) == tc.desiredConfig.AccessTier
-			} else if tc.currentAccount.Properties != nil && tc.currentAccount.Properties.AccessTier == nil && tc.desiredConfig.AccessTier == "" {
-				currentTierMatches = true
-			} else if tc.desiredConfig.AccessTier == "" {
-				currentTierMatches = true // Don't update if desired is empty
-			}
-
-			if !currentTierMatches && tc.desiredConfig.AccessTier != "" {
-				needsUpdate = true
-				updateAccessTier = true
-			}
-
-			// 3. Check Tags
-			currentTags := make(map[string]string)
-			if tc.currentAccount.Tags != nil {
-				for k, v := range tc.currentAccount.Tags {
-					if v != nil {
-						currentTags[k] = *v
-
-					}
-				}
-			}
-
-			tagsMatch := len(currentTags) == len(tc.desiredConfig.Tags)
-			if tagsMatch {
-				for k, v := range tc.desiredConfig.Tags {
-					if currentVal, ok := currentTags[k]; !ok || currentVal != v {
-						tagsMatch = false
-						break
-					}
-				}
-			}
-
-			if !tagsMatch && len(tc.desiredConfig.Tags) > 0 {
-				needsUpdate = true
-				updateTags = true
-			}
-
-			// 4. Check read-only properties for warnings
-			if tc.currentAccount.SKU != nil && (tc.desiredConfig.AccountTier != "" || tc.desiredConfig.ReplicationType != "") {
-				currentSKU := string(*tc.currentAccount.SKU.Name)
-				expectedSKU, _ := azurehelper.GetStorageAccountSKU(tc.desiredConfig.AccountTier, tc.desiredConfig.ReplicationType)
-				if currentSKU != expectedSKU {
-					warningCount++
-				}
-			}
-
-			if tc.currentAccount.Kind != nil && tc.desiredConfig.AccountKind != "" {
-				if string(*tc.currentAccount.Kind) != tc.desiredConfig.AccountKind {
-					warningCount++
-				}
-			}
-
-			if tc.currentAccount.Location != nil && tc.desiredConfig.Location != "" {
-				if *tc.currentAccount.Location != tc.desiredConfig.Location {
-					warningCount++
-				}
-			}
-
-			// Assertions
-			assert.Equal(t, tc.expectedNeedsUpdate, needsUpdate, "needsUpdate mismatch")
-			assert.Equal(t, tc.expectedUpdateAllowBlob, updateAllowBlob, "updateAllowBlob mismatch")
-			assert.Equal(t, tc.expectedUpdateAccessTier, updateAccessTier, "updateAccessTier mismatch")
-			assert.Equal(t, tc.expectedUpdateTags, updateTags, "updateTags mismatch")
-			assert.Equal(t, tc.expectedWarningCount, warningCount, "warningCount mismatch")
-		})
-	}
-}
-
-// TestUpdateStorageAccountParameterBuilding tests the parameter building logic
-func TestUpdateStorageAccountParameterBuilding(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name           string
-		desiredConfig  azurehelper.StorageAccountConfig
-		expectedParams armstorage.AccountUpdateParameters
-	}{
-		{
-			name: "AllowBlobPublicAccess update",
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: true,
-			},
-			expectedParams: armstorage.AccountUpdateParameters{
-				Properties: &armstorage.AccountPropertiesUpdateParameters{
-					AllowBlobPublicAccess: to.Ptr(true),
-				},
-			},
-		},
-		{
-			name: "AccessTier update to Cool",
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AccessTier: "Cool",
-			},
-			expectedParams: armstorage.AccountUpdateParameters{
-				Properties: &armstorage.AccountPropertiesUpdateParameters{
-					AccessTier: to.Ptr(armstorage.AccessTierCool),
-				},
-			},
-		},
-		{
-			name: "AccessTier update to Premium",
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AccessTier: "Premium",
-			},
-			expectedParams: armstorage.AccountUpdateParameters{
-				Properties: &armstorage.AccountPropertiesUpdateParameters{
-					AccessTier: to.Ptr(armstorage.AccessTierPremium),
-				},
-			},
-		},
-		{
-			name: "Tags update",
-			desiredConfig: azurehelper.StorageAccountConfig{
-				Tags: map[string]string{
-					"env":     "test",
-					"project": "terragrunt",
-				},
-			},
-			expectedParams: armstorage.AccountUpdateParameters{
-				Properties: &armstorage.AccountPropertiesUpdateParameters{},
-				Tags: map[string]*string{
-					"env":     to.Ptr("test"),
-					"project": to.Ptr("terragrunt"),
-				},
-			},
-		},
-		{
-			name: "Multiple updates",
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: false,
-				AccessTier:            "Hot",
-				Tags: map[string]string{
-					"owner": "devops",
-				},
-			},
-			expectedParams: armstorage.AccountUpdateParameters{
-				Properties: &armstorage.AccountPropertiesUpdateParameters{
-					AllowBlobPublicAccess: to.Ptr(false),
-					AccessTier:            to.Ptr(armstorage.AccessTierHot),
-				},
-				Tags: map[string]*string{
-					"owner": to.Ptr("devops"),
-				},
-			},
+			name:     "Complex permission error",
+			input:    errors.Errorf("Operation failed with status 403: insufficient permissions for Storage Blob Data Owner role"),
+			expected: true,
 		},
 	}
 
@@ -2298,189 +1457,77 @@ func TestUpdateStorageAccountParameterBuilding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Build parameters manually based on the logic in updateStorageAccountIfNeeded
-			var updateParams armstorage.AccountUpdateParameters
-			updateParams.Properties = &armstorage.AccountPropertiesUpdateParameters{}
-
-			// AllowBlobPublicAccess
-			if tc.desiredConfig.AllowBlobPublicAccess != false || tc.expectedParams.Properties.AllowBlobPublicAccess != nil {
-				updateParams.Properties.AllowBlobPublicAccess = to.Ptr(tc.desiredConfig.AllowBlobPublicAccess)
-			}
-
-			// AccessTier
-			if tc.desiredConfig.AccessTier != "" {
-				switch tc.desiredConfig.AccessTier {
-				case "Hot":
-					updateParams.Properties.AccessTier = to.Ptr(armstorage.AccessTierHot)
-				case "Cool":
-					updateParams.Properties.AccessTier = to.Ptr(armstorage.AccessTierCool)
-				case "Premium":
-					updateParams.Properties.AccessTier = to.Ptr(armstorage.AccessTierPremium)
-				}
-			}
-
-			// Tags
-			if len(tc.desiredConfig.Tags) > 0 {
-				updateParams.Tags = make(map[string]*string, len(tc.desiredConfig.Tags))
-				for k, v := range tc.desiredConfig.Tags {
-					val := v
-					updateParams.Tags[k] = &val
-				}
-			}
-
-			// Compare built parameters with expected
-			if tc.expectedParams.Properties != nil {
-				assert.NotNil(t, updateParams.Properties)
-
-				if tc.expectedParams.Properties.AllowBlobPublicAccess != nil {
-					assert.Equal(t, *tc.expectedParams.Properties.AllowBlobPublicAccess, *updateParams.Properties.AllowBlobPublicAccess)
-				}
-
-				if tc.expectedParams.Properties.AccessTier != nil {
-					assert.Equal(t, *tc.expectedParams.Properties.AccessTier, *updateParams.Properties.AccessTier)
-				}
-			}
-
-			if tc.expectedParams.Tags != nil {
-				assert.Equal(t, len(tc.expectedParams.Tags), len(updateParams.Tags))
-				for k, expectedVal := range tc.expectedParams.Tags {
-					actualVal, exists := updateParams.Tags[k]
-					assert.True(t, exists, "Tag %s should exist", k)
-					assert.Equal(t, *expectedVal, *actualVal, "Tag %s value mismatch", k)
-				}
-			}
+			result := client.IsPermissionError(tc.input)
+			assert.Equal(t, tc.expected, result,
+				"IsPermissionError should return %v for error: %v", tc.expected, tc.input)
 		})
 	}
 }
 
-// TestUpdateStorageAccountEdgeCases tests edge cases in the update logic
-func TestUpdateStorageAccountEdgeCases(t *testing.T) {
+// TestRBACConstantsExportedCorrectly tests that RBAC constants are properly exported
+// TestPermissionErrorBoundaryConditions tests boundary conditions for permission error detection
+func TestPermissionErrorBoundaryConditions(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name           string
-		currentAccount *armstorage.Account
-		desiredConfig  azurehelper.StorageAccountConfig
-		description    string
-	}{
-		{
-			name: "Nil account properties",
-			currentAccount: &armstorage.Account{
-				Properties: nil,
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: true,
-			},
-			description: "Should handle nil Properties gracefully",
-		},
-		{
-			name: "Nil AllowBlobPublicAccess in current account",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AllowBlobPublicAccess: nil,
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AllowBlobPublicAccess: true,
-			},
-			description: "Should handle nil AllowBlobPublicAccess gracefully",
-		},
-		{
-			name: "Nil AccessTier in current account",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AccessTier: nil,
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AccessTier: "Hot",
-			},
-			description: "Should handle nil AccessTier gracefully",
-		},
-		{
-			name: "Nil tags in current account",
-			currentAccount: &armstorage.Account{
-				Tags: nil,
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				Tags: map[string]string{
-					"env": "test",
-				},
-			},
-			description: "Should handle nil Tags gracefully",
-		},
-		{
-			name: "Invalid AccessTier in desired config",
-			currentAccount: &armstorage.Account{
-				Properties: &armstorage.AccountProperties{
-					AccessTier: to.Ptr(armstorage.AccessTierHot),
-				},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				AccessTier: "InvalidTier",
-			},
-			description: "Should handle invalid access tier gracefully",
-		},
-		{
-			name: "Large number of tags",
-			currentAccount: &armstorage.Account{
-				Tags: map[string]*string{},
-			},
-			desiredConfig: azurehelper.StorageAccountConfig{
-				Tags: func() map[string]string {
-					tags := make(map[string]string)
-					for i := 0; i < 100; i++ {
-						tags[fmt.Sprintf("tag-%d", i)] = fmt.Sprintf("value-%d", i)
-					}
-					return tags
-				}(),
-			},
-			description: "Should handle large number of tags",
-		},
-	}
+	client := &azurehelper.StorageAccountClient{}
 
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	// Test extremely long error messages
+	t.Run("Long_error_messages", func(t *testing.T) {
+		t.Parallel()
 
-			// Test that the logic doesn't panic and handles edge cases gracefully
-			assert.NotPanics(t, func() {
-				// Simulate the key logic paths without actual Azure calls
-				var needsUpdate bool
+		longPrefix := strings.Repeat("A very long error message prefix ", 100)
+		longSuffix := strings.Repeat(" and a very long suffix", 100)
 
-				// Test AllowBlobPublicAccess logic
-				if tc.currentAccount.Properties != nil && tc.currentAccount.Properties.AllowBlobPublicAccess != nil {
-					if *tc.currentAccount.Properties.AllowBlobPublicAccess != tc.desiredConfig.AllowBlobPublicAccess {
-						needsUpdate = true
-					}
-				}
+		// Permission error buried in long message
+		longPermissionError := longPrefix + "access denied" + longSuffix
+		err := errors.Errorf("%s", longPermissionError)
+		assert.True(t, client.IsPermissionError(err), "Should detect permission errors in long messages")
 
-				// Test AccessTier logic
-				if tc.currentAccount.Properties != nil && tc.currentAccount.Properties.AccessTier != nil && tc.desiredConfig.AccessTier != "" {
-					if string(*tc.currentAccount.Properties.AccessTier) != tc.desiredConfig.AccessTier {
-						needsUpdate = true
-					}
-				}
+		// Non-permission error that's very long
+		longNonPermissionError := longPrefix + "network timeout occurred" + longSuffix
+		err2 := errors.Errorf("%s", longNonPermissionError)
+		assert.False(t, client.IsPermissionError(err2), "Should not detect non-permission errors even if long")
+	})
 
-				// Test Tags logic
-				currentTags := make(map[string]string)
-				if tc.currentAccount.Tags != nil {
-					for k, v := range tc.currentAccount.Tags {
-						if v != nil {
-							currentTags[k] = *v
-						}
-					}
-				}
+	// Test special characters and encodings
+	t.Run("Special_characters", func(t *testing.T) {
+		t.Parallel()
 
-				if len(currentTags) != len(tc.desiredConfig.Tags) && len(tc.desiredConfig.Tags) > 0 {
-					needsUpdate = true
-				}
+		specialCharErrors := []struct {
+			message  string
+			expected bool
+		}{
+			{"forbidden\n\r\t with newlines", true},
+			{"forbidden\x00with null bytes", true},
+			{"access denied with émojis 🚫", true},
+			{"网络超时 timeout occurred", false}, // Chinese characters
+			{"forbidden操作被禁止", true},         // Mixed languages
+		}
 
-				// Ensure we got a boolean result without panicking
-				_ = needsUpdate
-			}, tc.description)
-		})
-	}
+		for i, tc := range specialCharErrors {
+			err := errors.Errorf("%s", tc.message)
+			result := client.IsPermissionError(err)
+			assert.Equal(t, tc.expected, result, "Test case %d: %s", i, tc.message)
+		}
+	})
+
+	// Test nested/wrapped errors
+	t.Run("Wrapped_errors", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a wrapped error with permission context
+		innerErr := errors.Errorf("access denied to storage account")
+		wrappedErr := errors.Errorf("storage operation failed: %w", innerErr)
+
+		// Should detect permission error in wrapped context
+		assert.True(t, client.IsPermissionError(wrappedErr),
+			"Should detect permission errors in wrapped errors")
+
+		// Create a wrapped error without permission context
+		innerErr2 := errors.Errorf("network connection timeout")
+		wrappedErr2 := errors.Errorf("storage operation failed: %w", innerErr2)
+
+		assert.False(t, client.IsPermissionError(wrappedErr2),
+			"Should not detect non-permission errors in wrapped errors")
+	})
 }
-

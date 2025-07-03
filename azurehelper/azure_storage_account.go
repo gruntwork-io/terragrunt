@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -727,6 +729,13 @@ func (c *StorageAccountClient) AssignStorageBlobDataOwnerRole(ctx context.Contex
 
 	c.logRoleAssignmentSuccess(l, isServicePrincipal, userObjectID)
 
+	// Wait for RBAC permissions to propagate with retry logic
+	err = c.waitForRBACPermissions(ctx, l)
+	if err != nil {
+		l.Warnf("RBAC permissions may not have fully propagated: %v", err)
+		l.Info("If you encounter permission errors, please wait a few minutes and try again")
+	}
+
 	return nil
 }
 
@@ -833,6 +842,131 @@ func (c *StorageAccountClient) createRoleAssignmentWithRetry(
 	}
 
 	return err
+}
+
+// waitForRBACPermissions waits for RBAC permissions to propagate by testing storage account access
+func (c *StorageAccountClient) waitForRBACPermissions(ctx context.Context, l log.Logger) error {
+	l.Infof("Waiting for RBAC permissions to propagate (up to %d attempts with %v delays)", RbacRetryAttempts, RbacRetryDelay)
+
+	// Test permissions by trying to check if a test container exists
+	// We'll use the storage account client directly to test permissions
+	for attempt := 1; attempt <= RbacRetryAttempts; attempt++ {
+		l.Debugf("RBAC permission test attempt %d/%d", attempt, RbacRetryAttempts)
+
+		// Test permissions by trying to get storage account properties
+		// This operation requires appropriate Storage permissions
+		_, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+		if err == nil {
+			l.Infof("RBAC permissions verified successfully on attempt %d", attempt)
+			return nil
+		}
+
+		// Check if this is a permission-related error
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) {
+			if isPermissionError(respErr) {
+				if attempt < RbacRetryAttempts {
+					l.Debugf("Permission denied on attempt %d, waiting %v before retry (Error: %s)",
+						attempt, RbacRetryDelay, respErr.Error())
+
+					// Wait before retrying
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(RbacRetryDelay):
+						continue
+					}
+				} else {
+					l.Warnf("Permission still denied after %d attempts. RBAC may need more time to propagate", RbacRetryAttempts)
+					return fmt.Errorf("RBAC permissions not available after %d attempts: %w", RbacRetryAttempts, err)
+				}
+			} else {
+				// Non-permission error, permissions might be working but other issue
+				l.Debugf("Non-permission error during RBAC test (attempt %d): %v", attempt, err)
+
+				if attempt < RbacRetryAttempts {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(RbacRetryDelay):
+						continue
+					}
+				}
+			}
+		} else {
+			// Unknown error type
+			l.Debugf("Unknown error during RBAC test (attempt %d): %v", attempt, err)
+
+			if attempt < RbacRetryAttempts {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(RbacRetryDelay):
+					continue
+				}
+			}
+		}
+	}
+
+	return fmt.Errorf("RBAC permissions verification failed after %d attempts", RbacRetryAttempts)
+}
+
+// isPermissionError checks if an error is related to insufficient permissions
+func isPermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for Azure ResponseError first
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		// Check status codes
+		if respErr.StatusCode == httpStatusUnauthorized || respErr.StatusCode == httpStatusForbidden {
+			return true
+		}
+
+		// Check specific Azure error codes that indicate permission issues
+		permissionErrorCodes := []string{
+			"AuthorizationFailed",
+			"Forbidden",
+			"Unauthorized",
+			"InsufficientAccountPermissions",
+			"AccountIsAccessDenied",
+			"InsufficientPermissions",
+			"AccessDenied",
+			"PermissionDenied",
+		}
+
+		for _, code := range permissionErrorCodes {
+			if respErr.ErrorCode == code {
+				return true
+			}
+		}
+	}
+
+	// Fallback to string-based detection for other error types
+	errStr := strings.ToLower(err.Error())
+
+	// Check for common permission-related error messages
+	permissionKeywords := []string{
+		"forbidden",
+		"unauthorized",
+		"access denied",
+		"insufficient permissions",
+		"permission denied",
+		"not authorized",
+		"authorization failed",
+		"role assignment",
+		"storage blob data owner",
+	}
+
+	for _, keyword := range permissionKeywords {
+		if strings.Contains(errStr, keyword) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // logRoleAssignmentSuccess logs a success message after role assignment.
@@ -1005,4 +1139,9 @@ func CompareAccessTier(current *armstorage.AccessTier, desired string) bool {
 	}
 
 	return string(*current) == desired
+}
+
+// IsPermissionError checks if an error is related to insufficient permissions (public method for testing)
+func (c *StorageAccountClient) IsPermissionError(err error) bool {
+	return isPermissionError(err)
 }
