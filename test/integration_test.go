@@ -296,8 +296,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			expectedStdOutRegs: []*regexp.Regexp{},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + regexp.QuoteMeta(" Terragrunt Version:")),
-				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Module ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
-				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Module ` + absPathReg + `/app must wait for 1 dependencies to finish`),
+				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Unit ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
+				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Unit ` + absPathReg + `/app must wait for 1 dependencies to finish`),
 			},
 		},
 		{
@@ -305,8 +305,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			expectedStdOutRegs: []*regexp.Regexp{},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG Terragrunt Version:")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Module ./dep must wait for 0 dependencies to finish")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Module ./app must wait for 1 dependencies to finish")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Unit ./dep must wait for 0 dependencies to finish")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Unit ./app must wait for 1 dependencies to finish")),
 			},
 		},
 		{
@@ -470,8 +470,8 @@ func TestLogWithRelPath(t *testing.T) {
 			assertFn: func(t *testing.T, _, stderr string) {
 				t.Helper()
 
-				assert.Contains(t, stderr, "Module ./bbb/ccc/workspace")
-				assert.Contains(t, stderr, "Module ./bbb/ccc/module-b")
+				assert.Contains(t, stderr, "Unit ./bbb/ccc/workspace")
+				assert.Contains(t, stderr, "Unit ./bbb/ccc/module-b")
 				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
@@ -1004,9 +1004,9 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	// validate the modules
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Module ./a")
-	assert.Contains(t, stderr, "Module ./b")
-	assert.Contains(t, stderr, "Module ./c")
+	assert.Contains(t, stderr, "Unit ./a")
+	assert.Contains(t, stderr, "Unit ./b")
+	assert.Contains(t, stderr, "Unit ./c")
 
 	// touch the "module/main.tf" file to change the timestamp and make sure that the cache is downloaded again
 	require.NoError(t, os.Chtimes(util.JoinPath(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
@@ -3395,7 +3395,7 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	require.NoError(t, err)
 	output := fmt.Sprintf("%s\n%s\n", stdout.String(), stderr.String())
 	assert.Contains(t, output, "finished with an error")
-	assert.Contains(t, output, "Module ./d1", output)
+	assert.Contains(t, output, "Unit ./d1", output)
 }
 
 func TestHclFmtDiff(t *testing.T) {

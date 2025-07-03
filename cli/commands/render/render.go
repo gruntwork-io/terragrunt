@@ -9,9 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -73,7 +74,7 @@ func renderHCL(_ context.Context, l log.Logger, opts *Options, cfg *config.Terra
 
 func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
 	if !opts.DisableDependentModules {
-		dependentModules := configstack.FindWhereWorkingDirIsIncluded(ctx, l, opts.TerragruntOptions, cfg)
+		dependentModules := runner.FindWhereWorkingDirIsIncluded(ctx, l, opts.TerragruntOptions, cfg)
 
 		var dependentModulesPath []*string
 		for _, module := range dependentModules {

@@ -1,4 +1,4 @@
-package configstack
+package common
 
 import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"

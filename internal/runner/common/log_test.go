@@ -1,24 +1,20 @@
-package configstack_test
+package common_test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func ptr(str string) *string {
-	return &str
-}
-
 func TestLogReductionHook(t *testing.T) {
 	t.Parallel()
-	var hook = configstack.NewForceLogLevelHook(log.ErrorLevel)
+	var hook = common.NewForceLogLevelHook(log.ErrorLevel)
 
 	stdout := bytes.Buffer{}
 

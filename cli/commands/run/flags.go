@@ -97,6 +97,8 @@ const (
 	// `--graph` related flags.
 
 	GraphRootFlagName = "graph-root"
+
+	FailFastFlagName = "fail-fast"
 )
 
 // NewFlags creates and returns global flags.
@@ -629,6 +631,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			EnvVars:     tgPrefix.EnvVars(ReportSchemaFlagName),
 			Usage:       `Path to generate report schema file in.`,
 			Destination: &opts.ReportSchemaFile,
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        FailFastFlagName,
+			EnvVars:     tgPrefix.EnvVars(FailFastFlagName),
+			Destination: &opts.FailFast,
+			Usage:       "Fail the run if any unit fails. This will make it so that any unit failing causes the whole run to fail.",
 		}),
 	}
 
