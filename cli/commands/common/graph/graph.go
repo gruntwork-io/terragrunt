@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -12,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 )
@@ -47,7 +49,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	rootOptions.WorkingDir = rootDir
 
-	stackOpts := []configstack.Option{}
+	stackOpts := []common.Option{}
 
 	if opts.Experiments.Evaluate(experiment.Report) {
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
@@ -64,7 +66,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 			r.WithShowUnitLevelSummary()
 		}
 
-		stackOpts = append(stackOpts, configstack.WithReport(r))
+		stackOpts = append(stackOpts, common.WithReport(r))
 
 		if opts.ReportSchemaFile != "" {
 			defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
@@ -79,12 +81,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, l, rootOptions, stackOpts...)
+	stack, err := runner.FindStackInSubfolders(ctx, l, rootOptions, stackOpts...)
 	if err != nil {
 		return err
 	}
 
-	dependentModules := stack.ListStackDependentModules()
+	dependentModules := stack.ListStackDependentUnits()
 
 	workDir := opts.WorkingDir
 	modulesToInclude := dependentModules[workDir]
@@ -92,7 +94,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	modulesToInclude = append(modulesToInclude, workDir)
 
 	// include from stack only elements from modulesToInclude
-	for _, module := range stack.Modules() {
+	for _, module := range stack.GetStack().Units {
 		module.FlagExcluded = true
 		if util.ListContainsElement(modulesToInclude, module.Path) {
 			module.FlagExcluded = false
