@@ -71,6 +71,7 @@ The following experiments are available:
 - [cas](#cas)
 - [report](#report)
 - [runner-pool](#runner-pool)
+- [auto-provider-cache-dir](#auto-provider-cache-dir)
 
 ### `symlinks`
 
@@ -144,7 +145,7 @@ To transition the `report` feature to a stable release, the following must be ad
 
 ### `runner-pool`
 
-Proposes replacing Terragrunt’s group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
+Proposes replacing Terragrunt's group-based execution with a dynamic runner pool that schedules Units as soon as dependencies are resolved.
 This improves efficiency, reduces bottlenecks, and limits the impact of individual failures.
 
 #### `runner-pool` - What it does
@@ -161,12 +162,64 @@ To transition the `runner-pool` feature to a stable release, the following must 
 
 - [x] Use new discovery and queue packages to discover units.
 - [ ] Add support for including/excluding external units in the discovery process.
-- [ ] Add runner pool implementation to execute discovered units.
+- [x] Add runner pool implementation to execute discovered units.
 - [ ] Add integration tests to track that the runner pool works in the same way as the current implementation.
 - [ ] Add performance tests to track that the runner pool implementation is faster than the current implementation.
-- [ ] Add support for fail fast behavior in the runner pool.
+- [x] Add support for fail fast behavior in the runner pool.
 - [ ] Improve the UI to queue to apply.
 - [ ] Add OpenTelemetry support to the runner pool.
+
+### `auto-provider-cache-dir`
+
+Enable native OpenTofu provider caching by setting `TF_PLUGIN_CACHE_DIR` instead of using Terragrunt's internal provider cache server.
+
+#### `auto-provider-cache-dir` - What it does
+
+When enabled, this experiment automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable. This approach leverages OpenTofu's native provider caching capabilities, which are more robust for concurrent operations in OpenTofu 1.10+.
+
+**Requirements:**
+
+- OpenTofu version >= 1.10 is required
+- Only works when using OpenTofu (not Terraform)
+- If the requirements are not met, the experiment silently does nothing
+
+**Usage:**
+
+```bash
+terragrunt run --all apply --experiment auto-provider-cache-dir
+```
+
+Or with environment variables:
+
+```bash
+TG_EXPERIMENT='auto-provider-cache-dir' \
+terragrunt run --all apply
+```
+
+**Disabling the feature:**
+
+Even when the experiment is enabled, you can still disable the auto-provider-cache-dir feature for specific runs using the `--no-auto-provider-cache-dir` flag:
+
+```bash
+terragrunt run --all apply --experiment auto-provider-cache-dir --no-auto-provider-cache-dir
+```
+
+This will be most important post-stabilization, when the feature is enabled by default.
+
+#### `auto-provider-cache-dir` - How to provide feedback
+
+Please provide feedback through [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) with the `experiment: auto-provider-cache-dir` label.
+
+#### `auto-provider-cache-dir` - Criteria for stabilization
+
+To transition the `auto-provider-cache-dir` feature to a stable release, the following must be addressed:
+
+- [ ] Comprehensive testing to confirm the safety of concurrent runs using the same provider cache directory.
+- [ ] Performance comparison with the existing provider cache server approach.
+- [ ] Documentation and examples of best practices for usage.
+- [ ] Community feedback on real-world usage and any edge cases discovered.
+
+Note that the current plan for stabilization is to have the feature be enabled by default, and to allow users to opt-out if they need to, or use the provider cache server if they want to do something more advanced, like store their provider cache in a different filesystem.
 
 ## Completed Experiments
 

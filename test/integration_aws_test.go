@@ -49,6 +49,8 @@ const (
 	testFixtureOutputFromRemoteState             = "fixtures/output-from-remote-state"
 	testFixtureOutputFromDependency              = "fixtures/output-from-dependency"
 	testFixtureS3Backend                         = "fixtures/s3-backend"
+	testFixtureS3BackendDualLocking              = "fixtures/s3-backend/dual-locking"
+	testFixtureS3BackendUseLockfile              = "fixtures/s3-backend/use-lockfile"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
 
 	qaMyAppRelPath = "qa/my-app"
@@ -116,10 +118,12 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			s3BucketName := "terragrunt-test-bucket-" + testID
 			dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
-			defer func() {
-				deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
-				cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
-			}()
+			if tc.name != "no bootstrap s3 backend without flag" {
+				defer func() {
+					deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+					cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+				}()
+			}
 
 			commonConfigPath := util.JoinPath(rootPath, "common.hcl")
 			helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
@@ -145,7 +149,7 @@ func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -175,6 +179,91 @@ func TestAwsBootstrapBackendLegacyBehavior(t *testing.T) {
 	assert.NotContains(t, stderr, "Use the explicit `--backend-bootstrap` flag to automatically provision backend resources before they're needed.")
 }
 
+func TestAwsDualLockingBackend(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsNativeS3LockingSupported(t) {
+		t.Skip("Wrapped binary does not support native S3 locking")
+		return
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureS3BackendDualLocking)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3BackendDualLocking)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3BackendDualLocking)
+
+	testID := strings.ToLower(helpers.UniqueID())
+
+	s3BucketName := "terragrunt-test-bucket-" + testID
+	dynamoDBName := "terragrunt-test-dynamodb-" + testID
+
+	defer func() {
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+	}()
+
+	terragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, terragruntConfigPath, terragruntConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
+	// Test backend bootstrap with dual locking
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath+" -- -auto-approve")
+	require.NoError(t, err)
+
+	// Validate both S3 bucket and DynamoDB table are created
+	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
+	validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
+
+	t.Logf("Dual locking test completed successfully. Output: %s, Errors: %s", stdout, stderr)
+
+	// Test that subsequent runs work with dual locking (both locks should be acquired)
+	stdout2, stderr2, err2 := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run plan --non-interactive --log-level debug --working-dir "+rootPath)
+	require.NoError(t, err2)
+
+	t.Logf("Dual locking plan test completed successfully. Output: %s, Errors: %s", stdout2, stderr2)
+}
+
+func TestAwsNativeS3LockingBackend(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsNativeS3LockingSupported(t) {
+		t.Skip("Wrapped binary does not support native S3 locking")
+		return
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureS3BackendUseLockfile)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3BackendUseLockfile)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3BackendUseLockfile)
+
+	testID := strings.ToLower(helpers.UniqueID())
+
+	s3BucketName := "terragrunt-test-bucket-" + testID
+	// Note: No DynamoDB table needed for native S3 locking
+
+	defer func() {
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		// Note: No DynamoDB cleanup needed for S3 native locking
+	}()
+
+	terragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, terragruntConfigPath, terragruntConfigPath, s3BucketName, "unused-dynamodb-name", helpers.TerraformRemoteStateS3Region)
+
+	// Test backend bootstrap with S3 native locking only
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run apply --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath+" -- -auto-approve")
+	require.NoError(t, err)
+
+	// Validate S3 bucket is created and versioned
+	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
+
+	// Note: No DynamoDB table validation - S3 native locking doesn't use DynamoDB
+
+	t.Logf("S3 native locking test completed successfully. Output: %s, Errors: %s", stdout, stderr)
+
+	// Test that subsequent runs work with S3 native locking only
+	stdout2, stderr2, err2 := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run plan --non-interactive --log-level debug --working-dir "+rootPath)
+	require.NoError(t, err2)
+
+	t.Logf("S3 native locking plan test completed successfully. Output: %s, Errors: %s", stdout2, stderr2)
+}
+
 func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	t.Parallel()
 
@@ -188,7 +277,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -222,8 +311,8 @@ func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
-		deleteS3Bucket(t, s3AccessLogsBucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3AccessLogsBucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -252,7 +341,7 @@ func TestAwsMigrateBackendWithoutVersioning(t *testing.T) {
 	dynamoDBName := "terragrunt-test-dynamodb-" + testID
 
 	defer func() {
-		deleteS3Bucket(t, s3BucketName, helpers.TerraformRemoteStateS3Region)
+		deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 		cleanupTableForTest(t, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 	}()
 
@@ -1393,7 +1482,7 @@ func TestAwsRunAllCommandPrompt(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --working-dir "+environmentPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
-	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
+	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each unit of the run queue displayed above? (y/n)")
 	require.Error(t, err)
 }
 
@@ -1760,7 +1849,7 @@ func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.Ge
 }
 
 // createS3Bucket create test S3 bucket.
-func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
+func createS3Bucket(t *testing.T, awsRegion, bucketName string) {
 	t.Helper()
 
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
@@ -1771,7 +1860,7 @@ func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 	require.NoError(t, err, "Failed to create S3 bucket")
 }
 
-func deleteS3Bucket(t *testing.T, bucketName string, awsRegion string) {
+func deleteS3Bucket(t *testing.T, awsRegion, bucketName string) {
 	t.Helper()
 
 	helpers.DeleteS3Bucket(t, awsRegion, bucketName)

@@ -12,6 +12,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/exp/slices"
@@ -21,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/view"
@@ -76,7 +78,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return err
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, l, opts, configstack.WithParseOptions(parseOptions))
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts, common.WithParseOptions(parseOptions))
 	if err != nil {
 		return err
 	}

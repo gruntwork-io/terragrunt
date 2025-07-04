@@ -43,10 +43,9 @@ func CheckVersionConstraints(ctx context.Context, l log.Logger, terragruntOption
 		return l, err
 	}
 
-	// Change the terraform binary path before checking the version
-	// if the path is not changed from default and set in the config.
-	if terragruntOptions.TerraformPath == options.DefaultWrappedPath && partialTerragruntConfig.TerraformBinary != "" {
-		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
+	// If the TFPath is not explicitly set, use the TFPath from the config if it is set.
+	if !terragruntOptions.TFPathExplicitlySet && partialTerragruntConfig.TerraformBinary != "" {
+		terragruntOptions.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
 	l, err = PopulateTerraformVersion(ctx, l, terragruntOptions)
