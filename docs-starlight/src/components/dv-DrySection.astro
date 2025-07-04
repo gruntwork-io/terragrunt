@@ -1,0 +1,25 @@
+---
+import '@styles/global.css';
+
+import Eyebrown from '@components/dv-Eyebrown.astro';
+import Card from '@components/dv-Card.astro';
+---
+
+<section class="flex justify-center items-center px-5 md:px-10">
+    <div class="flex flex-col md:w-[680px] lg:w-[900px]">
+        <!-- Header Section -->
+        <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+            <Eyebrown text="DRY" />
+            <h2 class="text-4xl md:text-[42px] font-sans"><span class="text-accent">Reduce</span> Code Repetition</h2>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col md:flex-row gap-6 ">
+            <Card class="flex-1 border-solid border-4 rounded-lg !border-[#F1F1F1]" title="Reuse Common Infrastructure Configurations">
+                <p class="text-sm font-sans text-gray-1">Define reusable infrastructure configurations, like module inputs, backend configurations, and providers once, then reference them wherever they’re needed using<a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> includes</a>.</p>
+            </Card>
+            <Card class="flex-1 border-solid border-4 rounded-lg !border-[#F1F1F1]" title="Reuse Production-Ready Patterns">
+                <p class="text-sm font-sans text-gray-1">Leverage<a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> Terragrunt Stack </a>to encapsulate higher level collections of infrastructure components as a unified stack.</p>
+            </Card>
+        </div>
+    </div>
+</section>

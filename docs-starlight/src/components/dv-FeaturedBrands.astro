@@ -1,0 +1,41 @@
+---
+import '@styles/global.css';
+import { Image } from 'astro:assets';
+
+import LogoBrand1 from '@assets/logo-brand-1.svg';
+import LogoBrand2 from '@assets/logo-brand-2.svg';
+import LogoBrand3 from '@assets/logo-brand-3.svg';
+import LogoBrand4 from '@assets/logo-brand-4.svg';
+import LogoBrand5 from '@assets/logo-brand-5.svg';
+import LogoBrand6 from '@assets/logo-brand-6.svg';
+import LogoBrand7 from '@assets/logo-brand-7.svg';
+---
+<!-- Logos Container -->
+<section class="w-full border-b-1 border-gray-3 py-6 lg:py-9">
+    <!-- Logos Wrapper -->
+    <div class="relative flex flex-col lg:flex-row justify-center items-center gap-8 lg:gap-auto lg:px-0 lg:pr-10 lg:pl-20">
+        <p class="text-center text-xs font-mono text-gray-2">
+            MANAGING INFRASTRUCTURE AT
+        </p>
+
+        <!-- Div with left and right fade -->
+        <div class="relative flex-1 px-0 md:px-20 lg:px-0">
+            <!-- Left Fade -->
+            <div class="pointer-events-none absolute left-0 md:left-20 lg:left-0 top-0 h-full w-20 md:w-8 z-10 bg-gradient-to-r from-[#FAFAFA] to-transparent"></div>
+
+            <!-- Right Fade -->
+            <div class="pointer-events-none absolute right-0 md:right-20 lg:right-0 top-0 h-full w-20 md:w-8 z-10 bg-gradient-to-l from-[#FAFAFA] to-transparent"></div>
+
+            <!-- Brand Logos -->
+            <div class="flex overflow-x-auto items-center justify-start gap-6 px-4 no-scrollbar scroll-smooth">
+            <Image src={LogoBrand1} alt="Logo Brand 1" class="h-8 flex-shrink-0" />
+            <Image src={LogoBrand2} alt="Logo Brand 2" class="h-8 flex-shrink-0" />
+            <Image src={LogoBrand3} alt="Logo Brand 3" class="h-8 flex-shrink-0" />
+            <Image src={LogoBrand4} alt="Logo Brand 4" class="h-8 flex-shrink-0" />
+            <Image src={LogoBrand5} alt="Logo Brand 5" class="h-8 flex-shrink-0" />
+            <Image src={LogoBrand6} alt="Logo Brand 6" class="h-8 flex-shrink-0" />
+            <Image src={LogoBrand7} alt="Logo Brand 7" class="h-8 flex-shrink-0" />
+            </div>
+        </div>
+    </div>
+</section>
