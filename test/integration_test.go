@@ -4258,3 +4258,16 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
 }
+
+func TestMixedStackConfigIgnored(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureMixedConfig)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+	require.NotContains(t, stderr, "Error: Unsupported block type")
+	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
+}

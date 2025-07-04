@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFixtureMixedConfig = "fixtures/mixed-config"
+)
+
 func TestRunnerPoolDiscovery(t *testing.T) {
 	t.Parallel()
 
@@ -81,4 +85,17 @@ func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	assert.Less(t, index["module-c"], index["module-d"], "module-c should be destroyed before module-d")
 	// module-e must be destroyed before module-d
 	assert.Less(t, index["module-e"], index["module-d"], "module-e should be destroyed before module-d")
+}
+
+func TestRunnerPoolStackConfigIgnored(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureMixedConfig)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --experiment runner-pool --queue-include-external --all --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+	require.NotContains(t, stderr, "Error: Unsupported block type")
+	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
 }
