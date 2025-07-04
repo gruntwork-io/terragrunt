@@ -325,11 +325,10 @@ func (q *Queue) FailEntry(e *Entry) {
 
 			n.Status = StatusEarlyExit
 		}
-
 		return
 	}
 
-	// Dynamically find dependents: any entry whose dependencies include e.Config
+	// Recursively fail all dependents
 	for _, entry := range q.Entries {
 		if entry.Config.Dependencies == nil {
 			continue
@@ -340,9 +339,7 @@ func (q *Queue) FailEntry(e *Entry) {
 				if isTerminalOrRunning(entry.Status) {
 					continue
 				}
-
-				entry.Status = StatusFailed
-
+				q.FailEntry(entry)
 				break
 			}
 		}
@@ -380,10 +377,20 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 
 // isTerminal returns true if the status is terminal.
 func isTerminal(status Status) bool {
-	return status == StatusSucceeded || status == StatusFailed || status == StatusEarlyExit
+	switch status {
+	case StatusSucceeded, StatusFailed, StatusEarlyExit:
+		return true
+	default:
+		return false
+	}
 }
 
 // isTerminalOrRunning returns true if the status is terminal.
 func isTerminalOrRunning(status Status) bool {
-	return status == StatusSucceeded || status == StatusFailed || status == StatusRunning || status == StatusEarlyExit
+	switch status {
+	case StatusSucceeded, StatusFailed, StatusRunning, StatusEarlyExit:
+		return true
+	default:
+		return false
+	}
 }
