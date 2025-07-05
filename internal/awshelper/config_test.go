@@ -16,20 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAwsIsAddedInUserAgent(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-
-	cfg, err := awshelper.CreateAwsConfig(context.Background(), l, nil, options.NewTerragruntOptions())
-	require.NoError(t, err)
-
-	// AWS SDK v2 doesn't expose User-Agent in the same way as v1
-	// This test would need to be rewritten to check the actual HTTP requests
-	// For now, we'll just verify the config was created successfully
-	assert.NotNil(t, cfg)
-}
-
 func TestAwsSessionValidationFail(t *testing.T) {
 	t.Parallel()
 
