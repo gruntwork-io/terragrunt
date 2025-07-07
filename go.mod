@@ -40,7 +40,7 @@ require (
 	github.com/hashicorp/terraform v0.15.3
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20210318070130-9a80970d6b34
 	github.com/hashicorp/terraform-svchost v0.1.1
-	github.com/huandu/go-clone v1.7.2
+	github.com/huandu/go-clone v1.7.3
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-zglob v0.0.6
@@ -75,14 +75,14 @@ require (
 	golang.org/x/sys v0.33.0
 	golang.org/x/term v0.32.0
 	golang.org/x/text v0.26.0
-	google.golang.org/api v0.238.0
+	google.golang.org/api v0.240.0
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/ini.v1 v1.67.0
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.82.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20250611152503-f53cdd7e01ef
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/invopop/jsonschema v0.13.0
