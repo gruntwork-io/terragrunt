@@ -4261,21 +4261,13 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 }
 
 func TestTerragruntPlanAllOutput(t *testing.T) {
-	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixturePlanOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePlanOutput)
 
 	outDir := filepath.Join(tmpEnvPath, "plans")
 	pwd := filepath.Join(tmpEnvPath, testFixturePlanOutput)
-	{
-		originalDir, err := os.Getwd()
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			require.NoError(t, os.Chdir(originalDir))
-		})
-		require.NoError(t, os.Chdir(pwd))
-	}
+	t.Chdir(pwd)
 
 	cmd := fmt.Sprintf("terragrunt plan --all --non-interactive --out-dir %s --working-dir %s ", outDir, ".")
 	var (
@@ -4286,9 +4278,8 @@ func TestTerragruntPlanAllOutput(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
-	output := stdout.String()
-	errOutput := stderr.String()
-	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
+	t.Logf("STDOUT: %s", stdout.String())
+	t.Logf("STDERR: %s", stderr.String())
 
 	assert.FileExists(t, filepath.Join(outDir, "vnet", "tfplan.tfplan"))
 	assert.FileExists(t, filepath.Join(outDir, "resource-group", "tfplan.tfplan"))
@@ -4306,5 +4297,4 @@ func TestMixedStackConfigIgnored(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, stderr, "Error: Unsupported block type")
 	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
-}
 }
