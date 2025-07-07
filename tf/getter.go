@@ -92,7 +92,13 @@ func (tfrGetter *RegistryGetter) Context() context.Context {
 
 // registryDomain returns the default registry domain to use for the getter.
 func (tfrGetter *RegistryGetter) registryDomain() string {
-	if tfrGetter.TerragruntOptions == nil {
+	return GetDefaultRegistryDomain(tfrGetter.TerragruntOptions)
+}
+
+// GetDefaultRegistryDomain returns the appropriate registry domain based on the terraform implementation and environment variables.
+// This is the canonical function for determining which registry to use throughout Terragrunt.
+func GetDefaultRegistryDomain(opts *options.TerragruntOptions) string {
+	if opts == nil {
 		return defaultRegistryDomain
 	}
 
@@ -101,7 +107,7 @@ func (tfrGetter *RegistryGetter) registryDomain() string {
 		return defaultRegistry
 	}
 	// if binary is set to use OpenTofu registry, use OpenTofu as default registry
-	if tfrGetter.TerragruntOptions.TerraformImplementation == options.OpenTofuImpl {
+	if opts.TerraformImplementation == options.OpenTofuImpl {
 		return defaultOtRegistryDomain
 	}
 

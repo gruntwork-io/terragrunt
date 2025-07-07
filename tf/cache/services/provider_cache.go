@@ -140,6 +140,10 @@ func (cache *ProviderCache) Address() string {
 	return cache.Provider.Address()
 }
 
+func (cache *ProviderCache) Constraints() string {
+	return cache.Provider.Constraints()
+}
+
 func (cache *ProviderCache) PackageDir() string {
 	return cache.packageDir
 }
