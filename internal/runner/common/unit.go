@@ -90,7 +90,12 @@ func (unit *Unit) getPlanFilePath(l log.Logger, opts *options.TerragruntOptions,
 		return ""
 	}
 
-	path, err := filepath.Rel(opts.WorkingDir, unit.Path)
+	// module path will be an absolute path so working dir should absolute too so that Rel() can work
+	wdir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		wdir = opts.WorkingDir
+	}
+	path, err := filepath.Rel(wdir, unit.Path)
 	if err != nil {
 		l.Warnf("Failed to get relative path for %s: %v", unit.Path, err)
 		path = unit.Path
