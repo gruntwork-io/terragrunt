@@ -483,3 +483,24 @@ exclude {
 		assert.Nil(t, unit3.Parsed.Exclude)
 	}
 }
+
+func TestDiscoveryWithSingleCustomConfigFilename(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	unit1Dir := filepath.Join(tmpDir, "unit1")
+	err := os.MkdirAll(unit1Dir, 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(unit1Dir, "custom1.hcl"), []byte(""), 0644)
+	require.NoError(t, err)
+
+	discoveryObj := discovery.NewDiscovery(tmpDir).WithConfigFilenames([]string{"custom1.hcl"})
+	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
+	require.NoError(t, err)
+
+	configs, err := discoveryObj.Discover(t.Context(), logger.CreateLogger(), opts)
+	require.NoError(t, err)
+
+	units := configs.Filter(discovery.ConfigTypeUnit).Paths()
+	assert.ElementsMatch(t, []string{unit1Dir}, units)
+}
