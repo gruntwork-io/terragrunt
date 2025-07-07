@@ -66,7 +66,14 @@ func (file *File) Decode(out any, evalContext *hcl.EvalContext) (err error) {
 	}
 
 	diags := gohcl.DecodeBody(file.Body, evalContext, out)
-	if err := file.HandleDiagnostics(diags); err != nil {
+
+	// Expand blocks if they are expandable
+	filteredDiags, err := file.processExpandableBlocks(out, evalContext, diags)
+	if err != nil {
+		return err
+	}
+
+	if err := file.HandleDiagnostics(filteredDiags); err != nil {
 		return errors.New(err)
 	}
 
