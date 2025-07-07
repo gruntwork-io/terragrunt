@@ -4,16 +4,14 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
-// DefaultStackBuilder implements StackBuilder for DefaultStack
-type DefaultStackBuilder struct{}
-
-// BuildStack builds a new DefaultStack.
-func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...Option) (Stack, error) {
+// Build builds a new Runner.
+func Build(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
 	var terragruntConfigFiles []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_files_in_path", map[string]any{
@@ -33,10 +31,10 @@ func (b *DefaultStackBuilder) BuildStack(ctx context.Context, l log.Logger, terr
 		return nil, err
 	}
 
-	stack := NewDefaultStack(l, terragruntOptions, opts...)
-	if err := stack.createStackForTerragruntConfigPaths(ctx, l, terragruntConfigFiles); err != nil {
+	runner := NewRunner(l, terragruntOptions, opts...)
+	if err := runner.createStackForTerragruntConfigPaths(ctx, l, terragruntConfigFiles); err != nil {
 		return nil, err
 	}
 
-	return stack, nil
+	return runner, nil
 }
