@@ -20,6 +20,7 @@ const (
 	NoAutoInitFlagName                     = "no-auto-init"
 	NoAutoRetryFlagName                    = "no-auto-retry"
 	NoAutoApproveFlagName                  = "no-auto-approve"
+	NoAutoProviderCacheDirFlagName         = "no-auto-provider-cache-dir"
 	DownloadDirFlagName                    = "download-dir"
 	TFForwardStdoutFlagName                = "tf-forward-stdout"
 	TFPathFlagName                         = "tf-path"
@@ -30,6 +31,7 @@ const (
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
 	SummaryPerUnitFlagName                 = "summary-per-unit"
+	VersionManagerFileNameFlagName         = "version-manager-file-name"
 
 	BackendBootstrapFlagName        = "backend-bootstrap"
 	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
@@ -95,6 +97,8 @@ const (
 	// `--graph` related flags.
 
 	GraphRootFlagName = "graph-root"
+
+	FailFastFlagName = "fail-fast"
 )
 
 // NewFlags creates and returns global flags.
@@ -189,6 +193,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				EnvVars: terragruntPrefix.EnvVars("auto-approve"),
 			}, nil, terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        NoAutoProviderCacheDirFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoAutoProviderCacheDirFlagName),
+			Destination: &opts.NoAutoProviderCacheDir,
+			Usage:       "Disable the auto-provider-cache-dir feature even when the experiment is enabled.",
+		}),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        DownloadDirFlagName,
@@ -341,6 +352,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --iam-role option if provided.",
 		},
 			flags.WithDeprecatedNames(terragruntPrefix.FlagNames("use-partial-parse-config-cache"), terragruntPrefixControl)),
+
+		flags.NewFlag(&cli.SliceFlag[string]{
+			Name:        VersionManagerFileNameFlagName,
+			EnvVars:     tgPrefix.EnvVars(VersionManagerFileNameFlagName),
+			Destination: &opts.VersionManagerFileName,
+			Usage:       "File names used during the computation of the cache key for the version manager files.",
+		}),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        DependencyFetchOutputFromStateFlagName,
@@ -614,6 +632,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:       `Path to generate report schema file in.`,
 			Destination: &opts.ReportSchemaFile,
 		}),
+
+		flags.NewFlag(&cli.BoolFlag{
+			Name:        FailFastFlagName,
+			EnvVars:     tgPrefix.EnvVars(FailFastFlagName),
+			Destination: &opts.FailFast,
+			Usage:       "Fail the run if any unit fails. This will make it so that any unit failing causes the whole run to fail.",
+		}),
 	}
 
 	return flags.Sort()
@@ -625,11 +650,17 @@ func NewTFPathFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
 	terragruntPrefixControl := flags.StrictControlsByGlobalFlags(opts.StrictControls)
 
-	return flags.NewFlag(&cli.GenericFlag[string]{
-		Name:        TFPathFlagName,
-		EnvVars:     tgPrefix.EnvVars(TFPathFlagName),
-		Destination: &opts.TerraformPath,
-		Usage:       "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
-	},
-		flags.WithDeprecatedNames(terragruntPrefix.FlagNames("tfpath"), terragruntPrefixControl))
+	return flags.NewFlag(
+		&cli.GenericFlag[string]{
+			Name:    TFPathFlagName,
+			EnvVars: tgPrefix.EnvVars(TFPathFlagName),
+			Usage:   "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
+			Setter: func(value string) error {
+				opts.TFPath = value
+				opts.TFPathExplicitlySet = true
+				return nil
+			},
+		},
+		flags.WithDeprecatedNames(terragruntPrefix.FlagNames("tfpath"), terragruntPrefixControl),
+	)
 }

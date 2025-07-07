@@ -22,7 +22,7 @@ func TestAction(t *testing.T) {
 			name: "wrong tofu command",
 			opts: &options.TerragruntOptions{
 				TerraformCommand: "foo",
-				TerraformPath:    "tofu",
+				TFPath:           "tofu",
 			},
 			expectedErr: run.WrongTofuCommand("foo"),
 		},
@@ -30,14 +30,13 @@ func TestAction(t *testing.T) {
 			name: "wrong terraform command",
 			opts: &options.TerragruntOptions{
 				TerraformCommand: "foo",
-				TerraformPath:    "terraform",
+				TFPath:           "terraform",
 			},
 			expectedErr: run.WrongTerraformCommand("foo"),
 		},
 	}
 
 	for _, tc := range tt {
-		tc := tc
 
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

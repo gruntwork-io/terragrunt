@@ -52,6 +52,7 @@ const flags = defineCollection({
 	schema: z.object({
 		name: z.string(),
 		description: z.string(),
+		defaultVal: z.string().optional(),
 		type: z.string(),
 		env: z.array(z.string()).optional(),
 		aliases: z.array(z.string()).optional(),

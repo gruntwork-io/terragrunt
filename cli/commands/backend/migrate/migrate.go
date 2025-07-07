@@ -4,8 +4,9 @@ package migrate
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -30,17 +31,17 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	stack, err := configstack.FindStackInSubfolders(ctx, l, opts)
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
-	srcModule := stack.FindModuleByPath(srcPath)
+	srcModule := stack.GetStack().FindUnitByPath(srcPath)
 	if srcModule == nil {
 		return errors.Errorf("src unit not found at %s", srcPath)
 	}
 
-	dstModule := stack.FindModuleByPath(dstPath)
+	dstModule := stack.GetStack().FindUnitByPath(dstPath)
 	if dstModule == nil {
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}

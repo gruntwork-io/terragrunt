@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -149,91 +150,44 @@ func (t *Tree) LinkTree(ctx context.Context, store *Store, targetDir string) err
 		}
 	}
 
+	// Use errgroup for concurrent processing
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Set concurrency limit
 	scalingFactor := 2
 	maxWorkers := max(1, runtime.NumCPU()/scalingFactor)
-	workChan := make(chan workItem, len(workItems))
-	errChan := make(chan error, 1)
+	g.SetLimit(maxWorkers)
 
-	var wg sync.WaitGroup
-
-	for i := 0; i < maxWorkers; i++ {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			for work := range workChan {
-				select {
-				case <-ctx.Done():
-					return
-				case <-errChan:
-					return
-				default:
-				}
-
-				var err error
-
-				switch work.itemType {
-				case "link":
-					err = content.Link(ctx, work.entry.Hash, work.path)
-					if err != nil {
-						err = wrapError("link_blob", work.path, err)
-					}
-				case "subtree":
-					var treeData []byte
-
-					treeData, err = content.Read(work.entry.Hash)
-					if err != nil {
-						err = wrapError("read_tree", work.entry.Hash, err)
-						break
-					}
-
-					var subTree *Tree
-
-					subTree, err = ParseTree(string(treeData), work.path)
-					if err != nil {
-						err = wrapError("parse_tree", work.entry.Hash, err)
-						break
-					}
-
-					err = subTree.LinkTree(ctx, store, work.path)
-					if err != nil {
-						err = wrapError("link_subtree", work.path, err)
-					}
-				}
-
+	// Process work items concurrently
+	for _, work := range workItems {
+		g.Go(func() error {
+			switch work.itemType {
+			case "link":
+				err := content.Link(ctx, work.entry.Hash, work.path)
 				if err != nil {
-					select {
-					case errChan <- err:
-					default:
-					}
+					return wrapError("link_blob", work.path, err)
+				}
+			case "subtree":
+				treeData, err := content.Read(work.entry.Hash)
+				if err != nil {
+					return wrapError("read_tree", work.entry.Hash, err)
+				}
 
-					return
+				subTree, err := ParseTree(string(treeData), work.path)
+				if err != nil {
+					return wrapError("parse_tree", work.entry.Hash, err)
+				}
+
+				err = subTree.LinkTree(ctx, store, work.path)
+				if err != nil {
+					return wrapError("link_subtree", work.path, err)
 				}
 			}
-		}()
+
+			return nil
+		})
 	}
 
-	for _, work := range workItems {
-		select {
-		case <-ctx.Done():
-			close(workChan)
-			return ctx.Err()
-		case err := <-errChan:
-			close(workChan)
-			return err
-		case workChan <- work:
-		}
-	}
-
-	close(workChan)
-
-	wg.Wait()
-
-	select {
-	case err := <-errChan:
-		return err
-	default:
-		return nil
-	}
+	// Wait for all goroutines to complete and return first error if any
+	return g.Wait()
 }

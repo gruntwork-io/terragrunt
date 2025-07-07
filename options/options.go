@@ -75,6 +75,13 @@ var (
 		"state",
 	}
 
+	defaultVersionManagerFileName = []string{
+		".terraform-version",
+		".tool-versions",
+		"mise.toml",
+		".mise.toml",
+	}
+
 	// Pattern used to clean error message when looking for retry and ignore patterns.
 	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
 )
@@ -138,8 +145,8 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
-	// Location of the terraform binary
-	TerraformPath string
+	// Location (or name) of the OpenTofu/Terraform binary
+	TFPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
 	DownloadDir string
 	// Original Terraform command being executed by Terragrunt.
@@ -202,6 +209,8 @@ type TerragruntOptions struct {
 	ModulesThatInclude []string
 	// When used with `run --all`, restrict the units in the stack to only those that read at least one of the files in this list.
 	UnitsReading []string
+	// When set, it will be used to compute the cache key for `-version` checks.
+	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
 	// Maximum number of times to retry errors matching RetryableErrors
@@ -312,6 +321,12 @@ type TerragruntOptions struct {
 	SummaryDisable bool
 	// SummaryPerUnit enables showing duration information for each unit in the summary.
 	SummaryPerUnit bool
+	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
+	NoAutoProviderCacheDir bool
+	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
+	TFPathExplicitlySet bool
+	// FailFast is a flag to stop execution on the first error in apply of units.
+	FailFast bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -369,7 +384,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TerraformPath:                  DefaultWrappedPath,
+		TFPath:                         DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
@@ -418,6 +433,8 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Telemetry:                  new(telemetry.Options),
 		NoStackValidate:            false,
 		NoStackGenerate:            false,
+		VersionManagerFileName:     defaultVersionManagerFileName,
+		NoAutoProviderCacheDir:     false,
 	}
 }
 

@@ -111,9 +111,11 @@ const (
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
-	testFixtureTfPath                         = "fixtures/tf-path"
+	testFixtureTfPathBasic                    = "fixtures/tf-path/basic"
+	testFixtureTfPathTofuTerraform            = "fixtures/tf-path/tofu-terraform"
 	testFixtureTraceParent                    = "fixtures/trace-parent"
 	testFixtureVersionInvocation              = "fixtures/version-invocation"
+	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
 
 	terraformFolder = ".terraform"
 
@@ -294,8 +296,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			expectedStdOutRegs: []*regexp.Regexp{},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + regexp.QuoteMeta(" Terragrunt Version:")),
-				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Module ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
-				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Module ` + absPathReg + `/app must wait for 1 dependencies to finish`),
+				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Unit ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
+				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Unit ` + absPathReg + `/app must wait for 1 dependencies to finish`),
 			},
 		},
 		{
@@ -303,8 +305,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			expectedStdOutRegs: []*regexp.Regexp{},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG Terragrunt Version:")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Module ./dep must wait for 0 dependencies to finish")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Module ./app must wait for 1 dependencies to finish")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Unit ./dep must wait for 0 dependencies to finish")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Unit ./app must wait for 1 dependencies to finish")),
 			},
 		},
 		{
@@ -468,8 +470,8 @@ func TestLogWithRelPath(t *testing.T) {
 			assertFn: func(t *testing.T, _, stderr string) {
 				t.Helper()
 
-				assert.Contains(t, stderr, "Module ./bbb/ccc/workspace")
-				assert.Contains(t, stderr, "Module ./bbb/ccc/module-b")
+				assert.Contains(t, stderr, "Unit ./bbb/ccc/workspace")
+				assert.Contains(t, stderr, "Unit ./bbb/ccc/module-b")
 				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
@@ -702,7 +704,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s --json", rootPath))
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	var actualDiags diagnostic.Diagnostics
 
@@ -710,6 +712,24 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, expectedDiags, actualDiags)
+}
+
+func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclvalidate)
+
+	// We expect an error because the fixture has HCL validation issues.
+	// The content of stdout and stderr isn't the primary focus here,
+	// rather the fact that an error (non-zero exit code) is returned.
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --working-dir "+rootPath)
+	require.Error(t, err, "terragrunt hcl validate should return a non-zero exit code on HCL errors")
+
+	// As an additional check, we can verify that the error message indicates HCL validation errors.
+	// This makes the test more robust.
+	assert.Contains(t, err.Error(), "HCL validation error(s) found")
 }
 
 func TestHclvalidateInvalidConfigPath(t *testing.T) {
@@ -725,7 +745,7 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	}
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hcl validate --working-dir %s --json --show-config-path", rootPath))
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	var actualPaths []string
 
@@ -984,9 +1004,9 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	// validate the modules
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Module ./a")
-	assert.Contains(t, stderr, "Module ./b")
-	assert.Contains(t, stderr, "Module ./c")
+	assert.Contains(t, stderr, "Unit ./a")
+	assert.Contains(t, stderr, "Unit ./b")
+	assert.Contains(t, stderr, "Unit ./c")
 
 	// touch the "module/main.tf" file to change the timestamp and make sure that the cache is downloaded again
 	require.NoError(t, os.Chtimes(util.JoinPath(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
@@ -3375,7 +3395,7 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	require.NoError(t, err)
 	output := fmt.Sprintf("%s\n%s\n", stdout.String(), stderr.String())
 	assert.Contains(t, output, "finished with an error")
-	assert.Contains(t, output, "Module ./d1", output)
+	assert.Contains(t, output, "Unit ./d1", output)
 }
 
 func TestHclFmtDiff(t *testing.T) {
@@ -4083,7 +4103,7 @@ func TestLogFormatBare(t *testing.T) {
 
 func TestTF110EphemeralVars(t *testing.T) {
 	t.Parallel()
-	if !helpers.IsTerraform110OrHigher() {
+	if !helpers.IsTerraform110OrHigher(t) {
 		t.Skip("This test requires Terraform 1.10 or higher")
 
 		return
@@ -4102,15 +4122,26 @@ func TestTF110EphemeralVars(t *testing.T) {
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed")
 }
 
+//nolint:paralleltest
 func TestTfPath(t *testing.T) {
-	t.Parallel()
+	// This test can't be parallelized because it explicitly unsets the TG_TF_PATH environment variable.
+	// t.Parallel()
+
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
-	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
-	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPathBasic)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
+
+	// If TG_TF_PATH is not set, we'll use the default tofu binary,
+	// we'll explicitly set the value so that the test can pass.
+	if tfPath := os.Getenv("TG_TF_PATH"); tfPath != "" {
+		// Unset after using t.Setenv so that it'll be reset after the test.
+		t.Setenv("TG_TF_PATH", "")
+		os.Unsetenv("TG_TF_PATH")
+	}
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run version --working-dir "+workingDir)
 	require.NoError(t, err)
@@ -4122,9 +4153,9 @@ func TestTfPathOverridesConfig(t *testing.T) {
 	t.Parallel()
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPath)
-	rootPath := helpers.CopyEnvironment(t, testFixtureTfPath)
-	workingDir := util.JoinPath(rootPath, testFixtureTfPath)
+	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPathBasic)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
 	require.NoError(t, err)
 
@@ -4132,6 +4163,66 @@ func TestTfPathOverridesConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Other TF script used!")
+}
+
+func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
+	t.Parallel()
+
+	// This test requires that both tofu and terraform are installed.
+	if !helpers.IsTerraformInstalled() || !helpers.IsOpenTofuInstalled() {
+		t.Skip("This test requires that both OpenTofu and Terraform are installed")
+
+		return
+	}
+
+	helpers.CleanupTerraformFolder(t, testFixtureTfPathTofuTerraform)
+	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathTofuTerraform)
+	workingDir := util.JoinPath(rootPath, testFixtureTfPathTofuTerraform)
+	workingDir, err := filepath.EvalSymlinks(workingDir)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		feature  string
+		tfPath   string
+		expected string
+	}{
+		{
+			feature:  "tofu",
+			tfPath:   helpers.TofuBinary,
+			expected: "OpenTofu",
+		},
+		{
+			feature:  "terraform",
+			tfPath:   helpers.TerraformBinary,
+			expected: "Terraform",
+		},
+		{
+			feature:  "tofu",
+			tfPath:   helpers.TerraformBinary,
+			expected: "Terraform",
+		},
+		{
+			feature:  "terraform",
+			tfPath:   helpers.TofuBinary,
+			expected: "OpenTofu",
+		},
+	}
+
+	for _, tc := range testCases {
+
+		stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			fmt.Sprintf(
+				"terragrunt run version --feature binary=%s --tf-path %s --working-dir %s",
+				tc.feature,
+				tc.tfPath,
+				workingDir,
+			),
+		)
+		require.NoError(t, err)
+
+		assert.Contains(t, stdout, tc.expected)
+	}
 }
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {
@@ -4166,4 +4257,17 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 
 	assert.Len(t, matches, 2, "Expected exactly one occurrence of '-version' command, found %d", len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+}
+
+func TestMixedStackConfigIgnored(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureMixedConfig)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+testPath+" -- apply")
+	require.NoError(t, err)
+	require.NotContains(t, stderr, "Error: Unsupported block type")
+	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
 }

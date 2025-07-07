@@ -23,11 +23,12 @@ import (
 )
 
 var knownBadFiles = []string{
-	"fixtures/hclvalidate/second/a/terragrunt.hcl",
+	"fixtures/catalog/local-template/.boilerplate/terragrunt.hcl",
+	"fixtures/disabled/unit-disabled/terragrunt.hcl",
 	"fixtures/hclfmt-errors/dangling-attribute/terragrunt.hcl",
 	"fixtures/hclfmt-errors/invalid-character/terragrunt.hcl",
 	"fixtures/hclfmt-errors/invalid-key/terragrunt.hcl",
-	"fixtures/disabled/unit-disabled/terragrunt.hcl",
+	"fixtures/hclvalidate/second/a/terragrunt.hcl",
 }
 
 func TestParseAllFixtureFiles(t *testing.T) {

@@ -63,6 +63,10 @@ func New(opts Options) (*CAS, error) {
 		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
 	}
 
+	if err := os.MkdirAll(opts.StorePath, DefaultDirPerms); err != nil {
+		return nil, fmt.Errorf("failed to create CAS store path: %w", err)
+	}
+
 	store := NewStore(opts.StorePath)
 
 	git, err := NewGitRunner()

@@ -50,7 +50,6 @@ func TestHCLFmt(t *testing.T) {
 		}
 		for _, dir := range dirs {
 			// Capture range variable into for block so it doesn't change while looping
-			dir := dir
 
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
@@ -114,7 +113,6 @@ func TestHCLFmtErrors(t *testing.T) {
 	}
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
-		dir := dir
 
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
@@ -164,7 +162,6 @@ func TestHCLFmtCheck(t *testing.T) {
 
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
-		dir := dir
 
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
@@ -210,7 +207,6 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
-		dir := dir
 
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
@@ -268,7 +264,6 @@ func TestHCLFmtFile(t *testing.T) {
 	// test that none of the other files were formatted
 	for _, dir := range dirs {
 		// Capture range variable into for block so it doesn't change while looping
-		dir := dir
 
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()

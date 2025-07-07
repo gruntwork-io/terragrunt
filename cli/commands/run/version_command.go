@@ -10,10 +10,12 @@ import (
 )
 
 func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if tfPath, err := getTfPathFromConfig(ctx, l, opts); err != nil {
-		return err
-	} else if tfPath != "" {
-		opts.TerraformPath = tfPath
+	if !opts.TFPathExplicitlySet {
+		if tfPath, err := getTfPathFromConfig(ctx, l, opts); err != nil {
+			return err
+		} else if tfPath != "" {
+			opts.TFPath = tfPath
+		}
 	}
 
 	return tf.RunCommand(ctx, l, opts, tf.CommandNameVersion)

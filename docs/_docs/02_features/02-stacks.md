@@ -27,6 +27,7 @@ slug: stacks
 - [Limiting run parallelism](#limiting-run-parallelism)
 - [Saving OpenTofu/Terraform plan output](#saving-opentofuterraform-plan-output)
 - [Nested Stacks](#nested-stacks)
+- [Using Local State with Stacks](#using-local-state-with-stacks)
 - [Learning more](#learning-more)
 
 ## Motivation
@@ -620,6 +621,153 @@ Generally speaking, this is the primary tool Terragrunt users use to control the
 In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#runner-queue), you can also use flags like [--queue-include-dir](/docs/reference/cli-options/#queue-include-dir) and [--queue-exclude-dir](/docs/reference/cli-options/#queue-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
 
 There are more flags that control the behavior of the `run --all` command, which you can find in the [CLI Options](/docs/reference/cli-options) section.
+
+## Using Local State with Stacks
+
+When using Terragrunt Stacks, you might want to use local state files instead of remote state for development, testing, or specific use cases. However, this presents a challenge because the generated `.terragrunt-stack` directory can be safely deleted and regenerated using `terragrunt stack clean && terragrunt stack generate`, which would normally cause local state files to be lost.
+
+To solve this problem, you can configure your stack to store state files outside of the `.terragrunt-stack` directory, in a persistent location that survives stack regeneration.
+
+### Configuration
+
+Here's how to configure local state that persists across stack regeneration:
+
+**1. Create a `root.hcl` file with local backend configuration:**
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "local"
+
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+
+  config = {
+    path = "${get_parent_terragrunt_dir()}/.terragrunt-local-state/${path_relative_to_include()}/tofu.tfstate"
+  }
+}
+```
+
+**2. Create your stack definition:**
+
+```hcl
+# live/terragrunt.stack.hcl
+unit "vpc" {
+  source = "${find_in_parent_folders("units/vpc")}"
+  path   = "vpc"
+}
+
+unit "database" {
+  source = "${find_in_parent_folders("units/database")}"
+  path   = "database"
+}
+
+unit "app" {
+  source = "${find_in_parent_folders("units/app")}"
+  path   = "app"
+}
+```
+
+**3. Configure your units to include the root configuration:**
+
+```hcl
+# units/vpc/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "."
+}
+```
+
+**4. Add a `.gitignore` file to exclude state files from version control:**
+
+```gitignore
+# .gitignore
+.terragrunt-local-state
+```
+
+**Important:** Local state files should never be committed to version control as they may contain sensitive information and can cause conflicts when multiple developers work on the same infrastructure.
+
+### How It Works
+
+The key insight is using `path_relative_to_include()` in the state path configuration. This function returns the relative path from each unit to the `root.hcl` file, creating unique state file paths like:
+
+```text
+.terragrunt-local-state/live/.terragrunt-stack/vpc/tofu.tfstate
+.terragrunt-local-state/live/.terragrunt-stack/database/tofu.tfstate
+.terragrunt-local-state/live/.terragrunt-stack/app/tofu.tfstate
+```
+
+Since these state files are stored in `.terragrunt-local-state/` (outside of `.terragrunt-stack/`), they persist when you run:
+
+```bash
+terragrunt stack clean && terragrunt stack generate
+```
+
+### Directory Structure
+
+After running the stack, your directory structure will look like this:
+
+```tree
+.
+├── root.hcl
+├── .gitignore                        # Excludes .terragrunt-local-state
+├── .terragrunt-local-state/          # Persistent state files (ignored by git)
+│   └── live/
+│       └── .terragrunt-stack/
+│           ├── vpc/
+│           │   └── tofu.tfstate
+│           ├── database/
+│           │   └── tofu.tfstate
+│           └── app/
+│               └── tofu.tfstate
+├── live/
+│   ├── terragrunt.stack.hcl
+│   └── .terragrunt-stack/            # Generated stack (can be deleted)
+│       ├── vpc/
+│       │   ├── terragrunt.hcl
+│       │   └── main.tf
+│       ├── database/
+│       │   ├── terragrunt.hcl
+│       │   └── main.tf
+│       └── app/
+│           ├── terragrunt.hcl
+│           └── main.tf
+└── units/                            # Reusable unit definitions
+    ├── vpc/
+    ├── database/
+    └── app/
+```
+
+### Benefits
+
+This approach provides several advantages:
+
+- **State Persistence**: State files survive stack regeneration
+- **Isolation**: Each unit gets its own state file
+- **Consistency**: Directory structure mirrors the stack layout
+- **Flexibility**: You can switch between local and remote state easily by changing the backend configuration
+
+### Example Workflow
+
+```bash
+# Initial setup
+terragrunt stack generate
+terragrunt stack run apply
+
+# Later, regenerate the stack without losing state
+terragrunt stack clean
+terragrunt stack generate
+
+# Verify existing resources are recognized
+terragrunt stack run plan  # Should show "No changes"
+```
+
+This pattern is particularly useful for development environments, testing scenarios, or when you need to maintain local state for compliance or security reasons while still benefiting from Terragrunt's stack management capabilities.
 
 ## Learning more
 

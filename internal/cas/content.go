@@ -109,82 +109,7 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
-	path := c.getPath(hash)
-	tempPath := path + ".tmp"
-
-	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
-	if err != nil {
-		return wrapError("create_temp_file", tempPath, err)
-	}
-
-	buf := bufio.NewWriter(f)
-
-	if _, err := buf.Write(data); err != nil {
-		f.Close()
-
-		if removeErr := os.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return wrapError("write_to_store", tempPath, err)
-	}
-
-	if err := buf.Flush(); err != nil {
-		f.Close()
-
-		if removeErr := os.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return wrapError("flush_buffer", tempPath, err)
-	}
-
-	if err := f.Close(); err != nil {
-		if removeErr := os.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return wrapError("close_file", tempPath, err)
-	}
-
-	// Set read-only permissions on the temporary file
-	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
-		if removeErr := os.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return wrapError("chmod_temp_file", tempPath, err)
-	}
-
-	// For Windows, handle readonly attributes specifically
-	if runtime.GOOS == WindowsOS {
-		// Check if a destination file exists and is read-only
-		if _, err := os.Stat(path); err == nil {
-			// File exists, make it writable before rename operation
-			if err := os.Chmod(path, RegularFilePerms); err != nil {
-				l.Warnf("failed to make destination file writable %s: %v", path, err)
-			}
-		}
-	}
-
-	// Atomic rename
-	if err := os.Rename(tempPath, path); err != nil {
-		if removeErr := os.Remove(tempPath); removeErr != nil {
-			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
-		}
-
-		return wrapError("finalize_store", path, err)
-	}
-
-	// For Windows, we need to set the permissions again after rename
-	if runtime.GOOS == WindowsOS {
-		// Ensure the file has read-only permissions after rename
-		if err := os.Chmod(path, StoredFilePerms); err != nil {
-			return wrapError("chmod_final_file", path, err)
-		}
-	}
-
-	return nil
+	return c.writeContentToFile(l, hash, data)
 }
 
 // Ensure ensures that a content item exists in the store
@@ -227,6 +152,12 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
+	return c.writeContentToFile(l, hash, data)
+}
+
+// writeContentToFile writes data to a temporary file,
+// sets appropriate permissions, and performs an atomic rename.
+func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) error {
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 

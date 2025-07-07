@@ -12,6 +12,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner"
+	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
 	"golang.org/x/exp/slices"
@@ -21,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/view"
@@ -76,7 +78,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return err
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, l, opts, configstack.WithParseOptions(parseOptions))
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts, common.WithParseOptions(parseOptions))
 	if err != nil {
 		return err
 	}
@@ -100,6 +102,14 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 		if err := writeDiagnostics(l, opts, diags); err != nil {
 			return err
+		}
+
+		// If there were diagnostics and stackErr is currently nil,
+		// create a new error to signal overall validation failure.
+		//
+		// This also ensures a non-zero exit code is returned by Terragrunt.
+		if stackErr == nil {
+			stackErr = errors.Errorf("%d HCL validation error(s) found", len(diags))
 		}
 	}
 
@@ -276,8 +286,8 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 	)
 
 	for envName := range envVars {
-		if strings.HasPrefix(envName, tfVarPrefix) {
-			inputName := strings.TrimPrefix(envName, tfVarPrefix)
+		if after, ok := strings.CutPrefix(envName, tfVarPrefix); ok {
+			inputName := after
 			out = append(out, inputName)
 		}
 	}
@@ -450,8 +460,8 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 			vars = append(vars, splitArg[1])
 		}
 
-		if strings.HasPrefix(shlexedArg, "-var-file=") {
-			varFiles = append(varFiles, strings.TrimPrefix(shlexedArg, "-var-file="))
+		if after, ok := strings.CutPrefix(shlexedArg, "-var-file="); ok {
+			varFiles = append(varFiles, after)
 		}
 	}
 

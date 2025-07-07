@@ -41,7 +41,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 		// Initialize git repository
 		gitDir := filepath.Join(dummyRepoDir, ".git")
 		os.MkdirAll(gitDir, 0755)
-		os.WriteFile(filepath.Join(gitDir, "config"), []byte(fmt.Sprintf(`[core]
+		os.WriteFile(filepath.Join(gitDir, "config"), fmt.Appendf(nil, `[core]
 	repositoryformatversion = 0
 	filemode = true
 	bare = false
@@ -52,7 +52,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 [branch "main"]
 	remote = origin
 	merge = refs/heads/main
-`, repoURL)), 0644)
+`, repoURL), 0644)
 		os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0644)
 
 		// Create refs directory structure

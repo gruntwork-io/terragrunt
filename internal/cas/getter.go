@@ -30,8 +30,6 @@ func NewCASGetter(l log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
 			new(getter.GitDetector),
 			new(getter.BitBucketDetector),
 			new(getter.GitLabDetector),
-			// This always has to be the last detector,
-			// as we check for the last detector in Detect().
 			new(getter.FileDetector),
 		},
 		CAS:    cas,
@@ -93,15 +91,15 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		return true, nil
 	}
 
-	for i, detector := range g.Detectors {
+	for _, detector := range g.Detectors {
 		src, ok, err := detector.Detect(req.Src, req.Pwd)
 		if err != nil {
 			return ok, err
 		}
 
 		if ok {
-			// The final detector is always the FileDetector.
-			if i == len(g.Detectors)-1 {
+			// Check if this is a FileDetector using type assertion
+			if _, isFileDetector := detector.(*getter.FileDetector); isFileDetector {
 				info, statErr := os.Stat(src)
 				if statErr != nil {
 					return false, fmt.Errorf("%w: %s", ErrDirectoryNotFound, src)

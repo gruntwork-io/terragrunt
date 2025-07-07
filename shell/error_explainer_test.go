@@ -26,7 +26,7 @@ func TestExplainError(t *testing.T) {
 			explanation: "You need to run terragrunt (run --all) init to initialize working directory",
 		},
 		{
-			errorOutput: "Module source has changed",
+			errorOutput: "Unit source has changed",
 			explanation: "You need to run terragrunt (run --all) init install all required modules",
 		},
 		{
@@ -40,7 +40,6 @@ func TestExplainError(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 
 		t.Run(tt.errorOutput, func(t *testing.T) {
 			t.Parallel()
