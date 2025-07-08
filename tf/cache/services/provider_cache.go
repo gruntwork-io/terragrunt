@@ -445,7 +445,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 		return errors.Errorf("provider cache directory not specified")
 	}
 
-	service.logger.Infof("Starting provider cache service with cache dir: %q", service.cacheDir)
+	service.logger.Debugf("Starting provider cache service with cache dir: %q", service.cacheDir)
 
 	if err := os.MkdirAll(service.cacheDir, os.ModePerm); err != nil {
 		return errors.New(err)
@@ -462,7 +462,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 	errs := &errors.MultiError{}
 	errGroup, ctx := errgroup.WithContext(ctx)
 
-	service.logger.Infof("Provider cache service is ready to process requests")
+	service.logger.Debugf("Provider cache service is ready to process requests")
 
 	for {
 		select {
@@ -479,7 +479,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				return nil
 			})
 		case <-ctx.Done():
-			service.logger.Infof("Provider cache service shutting down...")
+			service.logger.Debugf("Provider cache service shutting down...")
 
 			if err := errGroup.Wait(); err != nil {
 				errs = errs.Append(err)
@@ -489,7 +489,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				errs = errs.Append(err)
 			}
 
-			service.logger.Infof("Provider cache service shutdown complete")
+			service.logger.Debugf("Provider cache service shutdown complete")
 
 			return errs.ErrorOrNil()
 		}
@@ -522,7 +522,7 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	}
 
 	cache.ready = true
-	service.logger.Infof("Successfully cached provider: %s", cache.Provider)
+	service.logger.Debugf("Successfully cached provider: %s", cache.Provider)
 
 	return nil
 }
