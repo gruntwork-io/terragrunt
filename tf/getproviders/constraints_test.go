@@ -101,8 +101,6 @@ terraform {
 }
 
 func TestParseProviderConstraintsWithEnvironmentOverride(t *testing.T) {
-	t.Parallel()
-
 	// Create a temporary directory for testing
 	testDir := t.TempDir()
 
