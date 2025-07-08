@@ -158,9 +158,9 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	var errs []error
 
-	for _, res := range results {
-		if res.Err != nil {
-			errs = append(errs, res.Err)
+	for _, err := range results {
+		if err != nil {
+			errs = append(errs, err)
 		}
 	}
 

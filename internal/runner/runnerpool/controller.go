@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -74,22 +76,17 @@ func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOptio
 	return dr
 }
 
-// RunResult Define struct for results
-type RunResult struct {
-	Err error
-}
-
 // Run executes the DAG and returns one result per queue entry
 // (order preserved).  The function:
 //
 //   - never blocks forever – if progress is impossible it bails out;
 //   - is data-race free (results map is mutex-protected);
 //   - needs no special-casing for fail-fast.
-func (dr *Controller) Run(ctx context.Context, l log.Logger) []RunResult {
+func (dr *Controller) Run(ctx context.Context, l log.Logger) []error {
 	var (
 		wg      sync.WaitGroup
 		sem     = make(chan struct{}, dr.concurrency)
-		results = xsync.NewMapOf[string, RunResult]()
+		results = xsync.NewMapOf[string, error]()
 	)
 
 	l.Debugf("Controller: starting with %d tasks, concurrency %d",
@@ -128,13 +125,13 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) []RunResult {
 					err := fmt.Errorf("unit for path %s is nil", ent.Config.Path)
 					l.Errorf("Controller: %s unit is nil, skipping execution", ent.Config.Path)
 					dr.q.FailEntry(ent)
-					results.Store(ent.Config.Path, RunResult{Err: err})
+					results.Store(ent.Config.Path, err)
 
 					return
 				}
 
 				err := dr.runner(ctx, unit)
-				results.Store(ent.Config.Path, RunResult{Err: err})
+				results.Store(ent.Config.Path, err)
 
 				if err != nil {
 					l.Debugf("Controller: %s failed", ent.Config.Path)
@@ -165,14 +162,17 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) []RunResult {
 
 	wg.Wait()
 
-	// Collect results in the original queue order from results map
-	orderedErrors := make([]RunResult, 0, len(dr.q.Entries))
-
-	for _, e := range dr.q.Entries {
-		if res, ok := results.Load(e.Config.Path); ok {
-			orderedErrors = append(orderedErrors, res)
+	// Collect errors from results map and check for early exits
+	errorList := make([]error, 0, len(dr.q.Entries))
+	for _, entry := range dr.q.Entries {
+		if err, ok := results.Load(entry.Config.Path); ok {
+			errorList = append(errorList, err)
+			continue
+		}
+		if entry.Status == queue.StatusEarlyExit {
+			errorList = append(errorList, errors.Errorf("unit %s did not run due to early exit", entry.Config.Path))
 		}
 	}
 
-	return orderedErrors
+	return errorList
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
@@ -74,22 +72,12 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
-	results := dagRunner.Run(t.Context(), logger.CreateLogger())
+	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
 
-	// Check that results are in the same order as queue entries
-	for i, entry := range q.Entries {
-		res := results[i]
-		// Find the unit with this path
-		var unit *common.Unit
-		for _, u := range units {
-			if u.Path == entry.Config.Path {
-				unit = u
-				break
-			}
-		}
-		require.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
-		assert.Equal(t, entry.Config.Path, unit.Path, "Result order mismatch at index %d: expected %s, got %s", i, entry.Config.Path, unit.Path)
-		assert.NoError(t, res.Err)
+	// Check that the number of errors matches the number of units and all are nil
+	assert.Len(t, errors, len(units))
+	for _, err := range errors {
+		assert.NoError(t, err)
 	}
 }
 
@@ -114,22 +102,12 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
-	results := dagRunner.Run(t.Context(), logger.CreateLogger())
+	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
 
-	// Check that results are in the same order as queue entries
-	for i, entry := range q.Entries {
-		res := results[i]
-		assert.Equal(t, entry.Config.Path, units[i].Path, "Result order mismatch at index %d: expected %s, got %s", i, entry.Config.Path, units[i].Path)
-		// Find the unit with this path
-		var unit *common.Unit
-		for _, u := range units {
-			if u.Path == entry.Config.Path {
-				unit = u
-				break
-			}
-		}
-		require.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
-		assert.NoError(t, res.Err)
+	// Check that the number of errors matches the number of units and all are nil
+	assert.Len(t, errors, len(units))
+	for _, err := range errors {
+		assert.NoError(t, err)
 	}
 }
 
@@ -149,17 +127,22 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	}
 
 	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
-	results := dagRunner.Run(t.Context(), logger.CreateLogger())
+	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
 
-	// Check that if C fails, all others fail too
-	for i := range results {
-		res := results[i]
-		assert.Error(t, res.Err, "Expected error for unit %d", i)
+	// Check that the number of errors matches the number of units and all are not nil
+	assert.Len(t, errors, len(units))
+	var errorCount int
+	for _, err := range errors {
+		if err != nil {
+			errorCount++
+		}
 	}
+	assert.Equal(t, errorCount, len(units), "Expected to fail fast all units after the first error")
 }
