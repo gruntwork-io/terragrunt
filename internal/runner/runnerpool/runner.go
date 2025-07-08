@@ -62,7 +62,7 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 			continue
 		}
 
-		modLogger, modOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
+		unitLogger, unitOpts, err := terragruntOptions.CloneWithConfigPath(l, configPath)
 
 		if err != nil {
 			l.Warnf("Skipping unit at %s due to error cloning options: %s", cfg.Path, err)
@@ -70,8 +70,8 @@ func NewRunnerPoolStack(l log.Logger, terragruntOptions *options.TerragruntOptio
 		}
 
 		mod := &common.Unit{
-			TerragruntOptions: modOpts,
-			Logger:            modLogger,
+			TerragruntOptions: unitOpts,
+			Logger:            unitLogger,
 			Path:              cfg.Path,
 			Config:            *cfg.Parsed,
 		}
