@@ -105,6 +105,8 @@ func TestRunnerPoolFailFast(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment runner-pool --working-dir "+testPath+"  -- apply")
-	require.Error(t, err)
+	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --experiment runner-pool --fail-fast --working-dir "+testPath+"  -- apply")
+
+	assert.Contains(t, stderr, "unit-b did not run due to early exit")
+	assert.Contains(t, stderr, "unit-c did not run due to early exit")
 }
