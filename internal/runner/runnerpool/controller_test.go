@@ -75,7 +75,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	assert.Len(t, errors, 0)
+	assert.Empty(t, errors)
 }
 
 func TestRunnerPool_ParallelExecution(t *testing.T) {
@@ -100,7 +100,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	assert.Len(t, errors, 0)
+	assert.Empty(t, errors)
 }
 
 func TestRunnerPool_FailFast(t *testing.T) {
@@ -174,7 +174,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 	for _, err := range errors {
 		errorMsgs = append(errorMsgs, err.Error())
 	}
-	assert.Equal(t, 3, len(errorMsgs), "Expected exactly 3 non-nil errors (B, D, E should fail)")
+	assert.Len(t, errorMsgs, 3, "Expected exactly 3 non-nil errors (B, D, E should fail)")
 
 	// List of expected error messages
 	expected := []string{

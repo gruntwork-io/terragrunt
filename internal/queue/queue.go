@@ -325,6 +325,7 @@ func (q *Queue) FailEntry(e *Entry) {
 
 			n.Status = StatusEarlyExit
 		}
+
 		return
 	}
 
@@ -339,7 +340,9 @@ func (q *Queue) FailEntry(e *Entry) {
 				if isTerminalOrRunning(entry.Status) {
 					continue
 				}
+
 				q.FailEntry(entry)
+
 				break
 			}
 		}
@@ -378,19 +381,23 @@ func (q *Queue) RemainingDeps(e *Entry) int {
 // isTerminal returns true if the status is terminal.
 func isTerminal(status Status) bool {
 	switch status {
+	case StatusPending, StatusBlocked, StatusUnsorted, StatusReady, StatusRunning:
+		return false
 	case StatusSucceeded, StatusFailed, StatusEarlyExit:
 		return true
-	default:
-		return false
 	}
+
+	return false
 }
 
 // isTerminalOrRunning returns true if the status is terminal.
 func isTerminalOrRunning(status Status) bool {
 	switch status {
+	case StatusPending, StatusBlocked, StatusUnsorted, StatusReady:
+		return false
 	case StatusSucceeded, StatusFailed, StatusRunning, StatusEarlyExit:
 		return true
-	default:
-		return false
 	}
+
+	return false
 }
