@@ -120,6 +120,10 @@ func extractConstraintsFromLockFile(t *testing.T, appPath string, providerName s
 	if strings.Contains(providerName, "/") {
 		// Full name like "cloudflare/cloudflare"
 		providerBlock = lockfile.Body().FirstMatchingBlock("provider", []string{"registry.terraform.io/" + providerName})
+		if providerBlock == nil {
+			// Try OpenTofu registry as well
+			providerBlock = lockfile.Body().FirstMatchingBlock("provider", []string{"registry.opentofu.org/" + providerName})
+		}
 	} else {
 		// Short name - search for matching block
 		for _, block := range lockfile.Body().Blocks() {

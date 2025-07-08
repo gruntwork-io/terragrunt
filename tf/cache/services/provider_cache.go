@@ -320,13 +320,16 @@ type ProviderService struct {
 }
 
 func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger log.Logger) *ProviderService {
-	return &ProviderService{
+	service := &ProviderService{
 		cacheDir:              cacheDir,
 		userCacheDir:          userCacheDir,
-		providerCacheWarmUpCh: make(chan *ProviderCache),
+		providerCacheWarmUpCh: make(chan *ProviderCache, 100), // Add buffer to prevent blocking
 		credsSource:           credsSource,
 		logger:                logger,
 	}
+
+	logger.Debugf("Provider service initialized with cache dir: %s, user cache dir: %s", cacheDir, userCacheDir)
+	return service
 }
 
 func (service *ProviderService) Logger() log.Logger {
@@ -344,16 +347,33 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 		errs      = &errors.MultiError{}
 	)
 
-	for _, provider := range service.providerCaches.FindByRequestID(requestID) {
+	service.logger.Debugf("Waiting for cache ready with requestID: %s", requestID)
+
+	caches := service.providerCaches.FindByRequestID(requestID)
+	service.logger.Debugf("Found %d caches for requestID: %s", len(caches), requestID)
+
+	// Add debug logging for all provider caches
+	service.logger.Debugf("Total provider caches: %d", len(service.providerCaches))
+	for i, cache := range service.providerCaches {
+		service.logger.Debugf("Cache %d: %s, requestIDs: %v, ready: %v, err: %v",
+			i, cache.Provider, cache.requestIDs, cache.ready, cache.err)
+	}
+
+	for _, provider := range caches {
 		if provider.err != nil {
 			errs = errs.Append(fmt.Errorf("unable to cache provider: %s, err: %w", provider, provider.err))
+			service.logger.Errorf("Provider cache error for %s: %v", provider, provider.err)
 		}
 
 		if provider.ready {
 			providers = append(providers, provider)
+			service.logger.Debugf("Provider %s is ready", provider)
+		} else {
+			service.logger.Debugf("Provider %s is not ready yet", provider)
 		}
 	}
 
+	service.logger.Debugf("Returning %d ready providers for requestID: %s", len(providers), requestID)
 	return providers, errs.ErrorOrNil()
 }
 
@@ -362,7 +382,10 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
 
+	service.logger.Debugf("CacheProvider called for %s with requestID: %s", provider, requestID)
+
 	if cache := service.providerCaches.Find(provider); cache != nil {
+		service.logger.Debugf("Found existing cache for provider %s", provider)
 		cache.addRequestID(requestID)
 		return cache
 	}
@@ -380,15 +403,20 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 		archivePath:     filepath.Join(service.tempDir, packageName+path.Ext(provider.Filename)),
 	}
 
+	service.logger.Debugf("Sending provider %s to warm up channel", provider)
 	select {
 	case service.providerCacheWarmUpCh <- cache:
+		service.logger.Debugf("Successfully sent provider %s to warm up channel", provider)
 		// We need to wait for caching to start and only then release the client (Terraform) requestID. Otherwise, the client may call `WaitForCacheReady()` faster than `service.ReadyMuReady` will be lock.
 		<-cache.started
 		service.providerCaches = append(service.providerCaches, cache)
+		service.logger.Debugf("Added provider %s to provider caches list", provider)
 	case <-ctx.Done():
+		service.logger.Debugf("Context cancelled while trying to cache provider %s", provider)
 	}
 
 	cache.addRequestID(requestID)
+	service.logger.Debugf("Added requestID %s to provider %s", requestID, provider)
 
 	return cache
 }
@@ -411,7 +439,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 		return errors.Errorf("provider cache directory not specified")
 	}
 
-	service.logger.Debugf("Provider cache dir %q", service.cacheDir)
+	service.logger.Infof("Starting provider cache service with cache dir: %q", service.cacheDir)
 
 	if err := os.MkdirAll(service.cacheDir, os.ModePerm); err != nil {
 		return errors.New(err)
@@ -423,21 +451,29 @@ func (service *ProviderService) Run(ctx context.Context) error {
 	}
 
 	service.tempDir = filepath.Join(tempDir, "providers")
+	service.logger.Debugf("Provider cache service temp dir: %s", service.tempDir)
 
 	errs := &errors.MultiError{}
 	errGroup, ctx := errgroup.WithContext(ctx)
 
+	service.logger.Infof("Provider cache service is ready to process requests")
+
 	for {
 		select {
 		case cache := <-service.providerCacheWarmUpCh:
+			service.logger.Debugf("Received provider cache request for: %s", cache.Provider)
 			errGroup.Go(func() error {
 				if err := service.startProviderCaching(ctx, cache); err != nil {
+					service.logger.Errorf("Failed to start provider caching for %s: %v", cache.Provider, err)
 					errs = errs.Append(err)
+				} else {
+					service.logger.Debugf("Successfully started provider caching for %s", cache.Provider)
 				}
 
 				return nil
 			})
 		case <-ctx.Done():
+			service.logger.Infof("Provider cache service shutting down...")
 			if err := errGroup.Wait(); err != nil {
 				errs = errs.Append(err)
 			}
@@ -446,6 +482,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				errs = errs.Append(err)
 			}
 
+			service.logger.Infof("Provider cache service shutdown complete")
 			return errs.ErrorOrNil()
 		}
 	}
@@ -455,16 +492,20 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	service.cacheReadyMu.RLock()
 	defer service.cacheReadyMu.RUnlock()
 
+	service.logger.Debugf("Starting provider caching for: %s", cache.Provider)
 	cache.started <- struct{}{}
 
 	// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.
 	lockfile, err := cache.acquireLockFile(ctx)
 	if err != nil {
+		service.logger.Errorf("Failed to acquire lock file for %s: %v", cache.Provider, err)
 		return err
 	}
 	defer lockfile.Unlock() //nolint:errcheck
 
+	service.logger.Debugf("Acquired lock file for %s, starting warm up", cache.Provider)
 	if cache.err = cache.warmUp(ctx); cache.err != nil {
+		service.logger.Errorf("Failed to warm up provider %s: %v", cache.Provider, cache.err)
 		os.Remove(cache.packageDir)  //nolint:errcheck
 		os.Remove(cache.archivePath) //nolint:errcheck
 
@@ -472,6 +513,7 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	}
 
 	cache.ready = true
+	service.logger.Infof("Successfully cached provider: %s", cache.Provider)
 
 	return nil
 }
