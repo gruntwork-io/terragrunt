@@ -166,7 +166,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) []RunResult {
 
 	wg.Wait()
 
-	// Preserve original order
+	// Collect results in the original queue order from results map
 	ordered := make([]RunResult, 0, len(dr.q.Entries))
 
 	for _, e := range dr.q.Entries {
