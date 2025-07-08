@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -75,7 +77,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	assert.Empty(t, errors)
+	require.Empty(t, errors)
 }
 
 func TestRunnerPool_ParallelExecution(t *testing.T) {
@@ -100,7 +102,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	assert.Empty(t, errors)
+	require.Empty(t, errors)
 }
 
 func TestRunnerPool_FailFast(t *testing.T) {
@@ -127,7 +129,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	assert.Error(t, errors)
+	require.Error(t, errors)
 	for _, want := range []string{"unit A failed", "unit B did not run due to early exit", "unit C did not run due to early exit"} {
 		assert.Contains(t, errors.Error(), want, "Expected error message '%s' in errors", want)
 	}
@@ -169,7 +171,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 		runnerpool.WithMaxConcurrency(8),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	assert.Error(t, errors)
+	require.Error(t, errors)
 	for _, want := range []string{"unit B failed", "unit D failed to run", "unit E failed to run"} {
 		assert.Contains(t, errors.Error(), want, "Expected error message '%s' in errors", want)
 	}
@@ -195,7 +197,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 		runnerpool.WithMaxConcurrency(8),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	assert.Error(t, errors)
+	require.Error(t, errors)
 	for _, want := range []string{
 		"unit A failed",
 		"unit B did not run due to early exit",
@@ -227,7 +229,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 		runnerpool.WithMaxConcurrency(8),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	assert.Error(t, errors)
+	require.Error(t, errors)
 	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
 		assert.Contains(t, errors.Error(), want, "Expected error message '%s' in errors", want)
 	}
