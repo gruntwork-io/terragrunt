@@ -111,9 +111,9 @@ export default defineConfig({
       dark: "/src/assets/horizontal-logo-light.svg",
       light: "/src/assets/horizontal-logo-dark.svg",
     },
-    social: {
-      discord: "https://discord.gg/SPu4Degs5f",
-    },
+    social: [
+        { icon: "discord", label: "Discord", href: "https://discord.gg/SPu4Degs5f" },
+    ],
     sidebar: sidebar,
     // NOTE: We don't currently check links by default because the CLI
     // Redesign isn't done yet. Once those pages are built out, we'll require
