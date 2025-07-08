@@ -193,3 +193,52 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 		assert.True(t, found, "Expected error message '%s' in errors", want)
 	}
 }
+
+func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
+	t.Parallel()
+	units := buildComplexUnits()
+
+	runner := func(ctx context.Context, u *common.Unit) error {
+		if u.Path == "A" {
+			return errors.New("unit A failed")
+		}
+		return nil
+	}
+
+	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	q.FailFast = true
+	dagRunner := runnerpool.NewController(
+		q,
+		units,
+		runnerpool.WithRunner(runner),
+		runnerpool.WithMaxConcurrency(8),
+	)
+	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
+
+	assert.Len(t, errors, len(units), "Expected an error for each unit due to fail fast")
+
+	// Collect error messages
+	errorMsgs := make([]string, 0)
+	for _, err := range errors {
+		errorMsgs = append(errorMsgs, err.Error())
+	}
+
+	// List of expected error messages
+	expected := []string{
+		"unit A failed",
+		"unit B did not run due to early exit",
+		"unit C did not run due to early exit",
+		"unit D did not run due to early exit",
+		"unit E did not run due to early exit",
+	}
+	for _, want := range expected {
+		found := false
+		for _, got := range errorMsgs {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Expected error message '%s' in errors", want)
+	}
+}
