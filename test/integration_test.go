@@ -4261,7 +4261,6 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 }
 
 func TestTerragruntPlanAllOutput(t *testing.T) {
-
 	helpers.CleanupTerraformFolder(t, testFixturePlanOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePlanOutput)
 
