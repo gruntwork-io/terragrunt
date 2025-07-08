@@ -77,7 +77,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.Empty(t, errors)
+	require.NoError(t, errors)
 }
 
 func TestRunnerPool_ParallelExecution(t *testing.T) {
@@ -102,7 +102,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.Empty(t, errors)
+	require.NoError(t, errors)
 }
 
 func TestRunnerPool_FailFast(t *testing.T) {
