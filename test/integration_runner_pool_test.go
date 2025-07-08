@@ -1,7 +1,6 @@
 package test_test
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 
 const (
 	testFixtureMixedConfig = "fixtures/mixed-config"
+	testFixtureFailFast    = "fixtures/fail-fast"
 )
 
 func TestRunnerPoolDiscovery(t *testing.T) {
@@ -25,7 +25,6 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment runner-pool --working-dir "+testPath+"  -- apply")
-	fmt.Printf("error: %v\n", err)
 	require.NoError(t, err)
 	// Verify that the output contains value from the app
 	require.Contains(t, stdout, "output_value = \"42\"")
@@ -98,4 +97,14 @@ func TestRunnerPoolStackConfigIgnored(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, stderr, "Error: Unsupported block type")
 	require.NotContains(t, stderr, "Blocks of type \"unit\" are not expected here")
+}
+
+func TestRunnerPoolFailFast(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureFailFast)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --experiment runner-pool --working-dir "+testPath+"  -- apply")
+	require.Error(t, err)
 }

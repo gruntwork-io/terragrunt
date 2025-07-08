@@ -147,28 +147,14 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 	r.queue.FailFast = opts.FailFast
 	r.queue.IgnoreDependencyOrder = opts.IgnoreDependencyOrder
-	dagRunner := NewController(
+	controller := NewController(
 		r.queue,
 		r.Stack.Units,
 		WithRunner(taskRun),
 		WithMaxConcurrency(opts.Parallelism),
 	)
 
-	results := dagRunner.Run(ctx, l)
-
-	var errs []error
-
-	for _, err := range results {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
+	return controller.Run(ctx, l)
 }
 
 // handleApplyDestroy handles logic for apply and destroy commands.

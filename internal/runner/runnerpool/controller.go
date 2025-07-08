@@ -76,13 +76,11 @@ func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOptio
 	return dr
 }
 
-// Run executes the DAG and returns one result per queue entry
-// (order preserved).  The function:
-//
+// Run executes the Queue and returns a single error (multierror) for all entries that failed to run.
 //   - never blocks forever – if progress is impossible it bails out;
 //   - is data-race free (results map is mutex-protected);
 //   - needs no special-casing for fail-fast.
-func (dr *Controller) Run(ctx context.Context, l log.Logger) []error {
+func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	var (
 		wg      sync.WaitGroup
 		sem     = make(chan struct{}, dr.concurrency)
@@ -163,7 +161,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) []error {
 	wg.Wait()
 
 	// Collect errors from results map and check for errors
-	errorList := make([]error, 0, len(dr.q.Entries))
+	errCollector := &errors.MultiError{}
 
 	for _, entry := range dr.q.Entries {
 		if err, ok := results.Load(entry.Config.Path); ok {
@@ -171,19 +169,19 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) []error {
 				continue
 			}
 
-			errorList = append(errorList, err)
+			errCollector = errCollector.Append(err)
 
 			continue
 		}
 
 		if entry.Status == queue.StatusEarlyExit {
-			errorList = append(errorList, errors.Errorf("unit %s did not run due to early exit", entry.Config.Path))
+			errCollector = errCollector.Append(errors.Errorf("unit %s did not run due to early exit", entry.Config.Path))
 		}
 
 		if entry.Status == queue.StatusFailed {
-			errorList = append(errorList, errors.Errorf("unit %s failed to run", entry.Config.Path))
+			errCollector = errCollector.Append(errors.Errorf("unit %s failed to run", entry.Config.Path))
 		}
 	}
 
-	return errorList
+	return errCollector.ErrorOrNil()
 }
