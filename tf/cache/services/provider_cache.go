@@ -35,6 +35,8 @@ const (
 
 	retryDelayFetchFile = time.Second * 2
 	maxRetriesFetchFile = 5
+
+	providerCacheWarmUpChBufferSize = 100
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from go-getter
@@ -323,12 +325,13 @@ func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.Cr
 	service := &ProviderService{
 		cacheDir:              cacheDir,
 		userCacheDir:          userCacheDir,
-		providerCacheWarmUpCh: make(chan *ProviderCache, 100), // Add buffer to prevent blocking
+		providerCacheWarmUpCh: make(chan *ProviderCache, providerCacheWarmUpChBufferSize),
 		credsSource:           credsSource,
 		logger:                logger,
 	}
 
 	logger.Debugf("Provider service initialized with cache dir: %s, user cache dir: %s", cacheDir, userCacheDir)
+
 	return service
 }
 
@@ -354,6 +357,7 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 
 	// Add debug logging for all provider caches
 	service.logger.Debugf("Total provider caches: %d", len(service.providerCaches))
+
 	for i, cache := range service.providerCaches {
 		service.logger.Debugf("Cache %d: %s, requestIDs: %v, ready: %v, err: %v",
 			i, cache.Provider, cache.requestIDs, cache.ready, cache.err)
@@ -374,6 +378,7 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 	}
 
 	service.logger.Debugf("Returning %d ready providers for requestID: %s", len(providers), requestID)
+
 	return providers, errs.ErrorOrNil()
 }
 
@@ -387,6 +392,7 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 	if cache := service.providerCaches.Find(provider); cache != nil {
 		service.logger.Debugf("Found existing cache for provider %s", provider)
 		cache.addRequestID(requestID)
+
 		return cache
 	}
 
@@ -474,6 +480,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 			})
 		case <-ctx.Done():
 			service.logger.Infof("Provider cache service shutting down...")
+
 			if err := errGroup.Wait(); err != nil {
 				errs = errs.Append(err)
 			}
@@ -483,6 +490,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 			}
 
 			service.logger.Infof("Provider cache service shutdown complete")
+
 			return errs.ErrorOrNil()
 		}
 	}
@@ -504,6 +512,7 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	defer lockfile.Unlock() //nolint:errcheck
 
 	service.logger.Debugf("Acquired lock file for %s, starting warm up", cache.Provider)
+
 	if cache.err = cache.warmUp(ctx); cache.err != nil {
 		service.logger.Errorf("Failed to warm up provider %s: %v", cache.Provider, cache.err)
 		os.Remove(cache.packageDir)  //nolint:errcheck
