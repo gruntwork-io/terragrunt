@@ -162,15 +162,21 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) []error {
 
 	wg.Wait()
 
-	// Collect errors from results map and check for early exits
+	// Collect errors from results map and check for errors
 	errorList := make([]error, 0, len(dr.q.Entries))
 	for _, entry := range dr.q.Entries {
 		if err, ok := results.Load(entry.Config.Path); ok {
+			if err == nil {
+				continue
+			}
 			errorList = append(errorList, err)
 			continue
 		}
 		if entry.Status == queue.StatusEarlyExit {
 			errorList = append(errorList, errors.Errorf("unit %s did not run due to early exit", entry.Config.Path))
+		}
+		if entry.Status == queue.StatusFailed {
+			errorList = append(errorList, errors.Errorf("unit %s failed to run", entry.Config.Path))
 		}
 	}
 

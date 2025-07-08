@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
@@ -73,12 +75,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-
-	// Check that the number of errors matches the number of units and all are nil
-	assert.Len(t, errors, len(units))
-	for _, err := range errors {
-		assert.NoError(t, err)
-	}
+	assert.Len(t, errors, 0)
 }
 
 func TestRunnerPool_ParallelExecution(t *testing.T) {
@@ -103,12 +100,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		runnerpool.WithMaxConcurrency(2),
 	)
 	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-
-	// Check that the number of errors matches the number of units and all are nil
-	assert.Len(t, errors, len(units))
-	for _, err := range errors {
-		assert.NoError(t, err)
-	}
+	assert.Len(t, errors, 0)
 }
 
 func TestRunnerPool_FailFast(t *testing.T) {
@@ -138,11 +130,66 @@ func TestRunnerPool_FailFast(t *testing.T) {
 
 	// Check that the number of errors matches the number of units and all are not nil
 	assert.Len(t, errors, len(units))
-	var errorCount int
-	for _, err := range errors {
-		if err != nil {
-			errorCount++
+}
+
+// Helper to build a more complex dependency graph:
+//
+//	   A
+//	  / \
+//	 B   C
+//	/ \
+//
+// D   E
+func buildComplexUnits() []*common.Unit {
+	unitA := mockUnit("A")
+	unitB := mockUnit("B", unitA)
+	unitC := mockUnit("C", unitA)
+	unitD := mockUnit("D", unitB)
+	unitE := mockUnit("E", unitB)
+	return []*common.Unit{unitA, unitB, unitC, unitD, unitE}
+}
+
+func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
+	t.Parallel()
+	units := buildComplexUnits()
+
+	runner := func(ctx context.Context, u *common.Unit) error {
+		if u.Path == "B" {
+			return errors.New("unit B failed")
 		}
+		return nil
 	}
-	assert.Equal(t, errorCount, len(units), "Expected to fail fast all units after the first error")
+
+	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	dagRunner := runnerpool.NewController(
+		q,
+		units,
+		runnerpool.WithRunner(runner),
+		runnerpool.WithMaxConcurrency(8),
+	)
+	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
+
+	// Collect non-nil error messages
+	errorMsgs := make([]string, 0)
+	for _, err := range errors {
+		errorMsgs = append(errorMsgs, err.Error())
+	}
+	assert.Equal(t, 3, len(errorMsgs), "Expected exactly 3 non-nil errors (B, D, E should fail)")
+
+	// List of expected error messages
+	expected := []string{
+		"unit B failed",
+		"unit D failed to run",
+		"unit E failed to run",
+	}
+	for _, want := range expected {
+		found := false
+		for _, got := range errorMsgs {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Expected error message '%s' in errors", want)
+	}
 }
