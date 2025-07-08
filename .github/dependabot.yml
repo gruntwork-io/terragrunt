@@ -14,3 +14,23 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "go"
+      - "dependencies"
+
+  - package-ecosystem: "bun"
+    directories:
+      - "**/*"
+    schedule:
+      interval: "weekly"
+    groups:
+      js-dependencies:
+        patterns:
+          - "*"
+    labels:
+      - "javascript"
+      - "dependencies"
