@@ -66,7 +66,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	}
 
 	q, _ := queue.NewQueue(configs)
-	dagRunner := runnerpool.NewDAGRunner(
+	dagRunner := runnerpool.NewController(
 		q,
 		units,
 		runnerpool.WithRunner(runner),
@@ -107,7 +107,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	}
 
 	q, _ := queue.NewQueue(discoveryFromUnits(units))
-	dagRunner := runnerpool.NewDAGRunner(
+	dagRunner := runnerpool.NewController(
 		q,
 		units,
 		runnerpool.WithRunner(runner),
@@ -149,7 +149,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	}
 
 	q, _ := queue.NewQueue(discoveryFromUnits(units))
-	dagRunner := runnerpool.NewDAGRunner(
+	dagRunner := runnerpool.NewController(
 		q,
 		units,
 		runnerpool.WithRunner(runner),

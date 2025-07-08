@@ -13,42 +13,42 @@ import (
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
-// UnitExecutor defines a function type that executes a Unit within a given context and returns an exit code and error.
-type UnitExecutor func(ctx context.Context, u *common.Unit) (int, error)
+// UnitRunner defines a function type that executes a Unit within a given context and returns an exit code and error.
+type UnitRunner func(ctx context.Context, u *common.Unit) (int, error)
 
-// DAGRunner orchestrates concurrent execution over a DAG.
-type DAGRunner struct {
+// Controller orchestrates concurrent execution over a DAG.
+type Controller struct {
 	q           *queue.Queue
-	runner      UnitExecutor
+	runner      UnitRunner
 	readyCh     chan struct{}
 	unitsMap    map[string]*common.Unit
 	concurrency int
 }
 
-// DAGRunnerOption is a function that modifies a DAGRunner.
-type DAGRunnerOption func(*DAGRunner)
+// ControllerOption is a function that modifies a Controller.
+type ControllerOption func(*Controller)
 
-// WithRunner sets the UnitExecutor for the DAGRunner.
-func WithRunner(runner UnitExecutor) DAGRunnerOption {
-	return func(dr *DAGRunner) {
+// WithRunner sets the UnitRunner for the Controller.
+func WithRunner(runner UnitRunner) ControllerOption {
+	return func(dr *Controller) {
 		dr.runner = runner
 	}
 }
 
-// WithMaxConcurrency sets the concurrency for the DAGRunner.
-func WithMaxConcurrency(maxConc int) DAGRunnerOption {
-	return func(dr *DAGRunner) {
-		if maxConc <= 0 {
-			maxConc = 1
+// WithMaxConcurrency sets the concurrency for the Controller.
+func WithMaxConcurrency(concurrency int) ControllerOption {
+	return func(dr *Controller) {
+		if concurrency <= 0 {
+			concurrency = 1
 		}
 
-		dr.concurrency = maxConc
+		dr.concurrency = concurrency
 	}
 }
 
-// NewDAGRunner creates a new DAGRunner with the given options and a pre-built queue.
-func NewDAGRunner(q *queue.Queue, units []*common.Unit, opts ...DAGRunnerOption) *DAGRunner {
-	dr := &DAGRunner{
+// NewController creates a new Controller with the given options and a pre-built queue.
+func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOption) *Controller {
+	dr := &Controller{
 		q:       q,
 		readyCh: make(chan struct{}, 1), // buffered to avoid blocking
 	}
@@ -86,14 +86,14 @@ type RunResult struct {
 //   - never blocks forever – if progress is impossible it bails out;
 //   - is data-race free (results map is mutex-protected);
 //   - needs no special-casing for fail-fast.
-func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
+func (dr *Controller) Run(ctx context.Context, l log.Logger) []RunResult {
 	var (
 		wg      sync.WaitGroup
 		sem     = make(chan struct{}, dr.concurrency)
 		results = xsync.NewMapOf[string, RunResult]()
 	)
 
-	l.Debugf("DAGRunner: starting with %d tasks, concurrency %d",
+	l.Debugf("Controller: starting with %d tasks, concurrency %d",
 		len(dr.q.Entries), dr.concurrency)
 
 	// Initial signal to start scheduling
@@ -104,11 +104,11 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 
 	for {
 		ready := dr.q.GetReadyWithDependencies()
-		l.Debugf("DAGRunner: found %d ready tasks", len(ready))
+		l.Debugf("Controller: found %d ready tasks", len(ready))
 
 		for _, e := range ready {
 			// log debug which entry is running
-			l.Debugf("DAGRunner: running %s", e.Config.Path)
+			l.Debugf("Controller: running %s", e.Config.Path)
 			e.Status = queue.StatusRunning
 			sem <- struct{}{}
 
@@ -127,7 +127,7 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 				unit := dr.unitsMap[ent.Config.Path]
 				if unit == nil {
 					err := fmt.Errorf("unit for path %s is nil", ent.Config.Path)
-					l.Errorf("DAGRunner: %s unit is nil, skipping execution", ent.Config.Path)
+					l.Errorf("Controller: %s unit is nil, skipping execution", ent.Config.Path)
 					dr.q.FailEntry(ent)
 					results.Store(ent.Config.Path, RunResult{ExitCode: 1, Err: err})
 
@@ -138,13 +138,13 @@ func (dr *DAGRunner) Run(ctx context.Context, l log.Logger) []RunResult {
 				results.Store(ent.Config.Path, RunResult{ExitCode: exit, Err: err})
 
 				if err != nil {
-					l.Debugf("DAGRunner: %s failed", ent.Config.Path)
+					l.Debugf("Controller: %s failed", ent.Config.Path)
 					dr.q.FailEntry(ent)
 
 					return
 				}
 
-				l.Debugf("DAGRunner: %s succeeded", ent.Config.Path)
+				l.Debugf("Controller: %s succeeded", ent.Config.Path)
 				ent.Status = queue.StatusSucceeded
 			}(e)
 		}
