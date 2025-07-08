@@ -13,8 +13,8 @@ import (
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
-// UnitRunner defines a function type that executes a Unit within a given context and returns an exit code and error.
-type UnitRunner func(ctx context.Context, u *common.Unit) (int, error)
+// UnitRunner defines a function type that executes a Unit within a given context and returns an error.
+type UnitRunner func(ctx context.Context, u *common.Unit) error
 
 // Controller orchestrates concurrent execution over a DAG.
 type Controller struct {
@@ -76,8 +76,7 @@ func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOptio
 
 // RunResult Define struct for results
 type RunResult struct {
-	Err      error
-	ExitCode int
+	Err error
 }
 
 // Run executes the DAG and returns one result per queue entry
@@ -129,13 +128,13 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) []RunResult {
 					err := fmt.Errorf("unit for path %s is nil", ent.Config.Path)
 					l.Errorf("Controller: %s unit is nil, skipping execution", ent.Config.Path)
 					dr.q.FailEntry(ent)
-					results.Store(ent.Config.Path, RunResult{ExitCode: 1, Err: err})
+					results.Store(ent.Config.Path, RunResult{Err: err})
 
 					return
 				}
 
-				exit, err := dr.runner(ctx, unit)
-				results.Store(ent.Config.Path, RunResult{ExitCode: exit, Err: err})
+				err := dr.runner(ctx, unit)
+				results.Store(ent.Config.Path, RunResult{Err: err})
 
 				if err != nil {
 					l.Debugf("Controller: %s failed", ent.Config.Path)
@@ -167,13 +166,13 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) []RunResult {
 	wg.Wait()
 
 	// Collect results in the original queue order from results map
-	ordered := make([]RunResult, 0, len(dr.q.Entries))
+	orderedErrors := make([]RunResult, 0, len(dr.q.Entries))
 
 	for _, e := range dr.q.Entries {
 		if res, ok := results.Load(e.Config.Path); ok {
-			ordered = append(ordered, res)
+			orderedErrors = append(orderedErrors, res)
 		}
 	}
 
-	return ordered
+	return orderedErrors
 }

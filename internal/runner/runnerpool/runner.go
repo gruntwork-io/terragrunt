@@ -135,15 +135,15 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		defer r.summarizePlanAllErrors(l, r.planErrorBuffers)
 	}
 
-	taskRun := func(ctx context.Context, u *common.Unit) (int, error) {
+	taskRun := func(ctx context.Context, u *common.Unit) error {
 		unitRunner := common.NewUnitRunner(u)
 
 		err := unitRunner.Run(ctx, u.TerragruntOptions, r.Stack.Report)
 		if err != nil {
-			return 1, err
+			return err
 		}
 
-		return 0, nil
+		return nil
 	}
 	r.queue.FailFast = opts.FailFast
 	r.queue.IgnoreDependencyOrder = opts.IgnoreDependencyOrder

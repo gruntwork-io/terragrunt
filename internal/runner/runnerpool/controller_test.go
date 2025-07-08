@@ -63,8 +63,8 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 	unitC := mockUnit("C", unitB)
 	units := []*common.Unit{unitA, unitB, unitC}
 
-	runner := func(ctx context.Context, u *common.Unit) (int, error) {
-		return 0, nil
+	runner := func(ctx context.Context, u *common.Unit) error {
+		return nil
 	}
 
 	q, _ := queue.NewQueue(configs)
@@ -89,7 +89,6 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		}
 		require.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
 		assert.Equal(t, entry.Config.Path, unit.Path, "Result order mismatch at index %d: expected %s, got %s", i, entry.Config.Path, unit.Path)
-		assert.Equal(t, 0, res.ExitCode)
 		assert.NoError(t, res.Err)
 	}
 }
@@ -104,8 +103,8 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	unitC := mockUnit("C", unitA)
 	units := []*common.Unit{unitA, unitB, unitC}
 
-	runner := func(ctx context.Context, u *common.Unit) (int, error) {
-		return 0, nil
+	runner := func(ctx context.Context, u *common.Unit) error {
+		return nil
 	}
 
 	q, _ := queue.NewQueue(discoveryFromUnits(units))
@@ -130,7 +129,6 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 			}
 		}
 		require.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
-		assert.Equal(t, 0, res.ExitCode)
 		assert.NoError(t, res.Err)
 	}
 }
@@ -143,11 +141,11 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	unitC := mockUnit("C", unitB)
 	units := []*common.Unit{unitA, unitB, unitC}
 
-	runner := func(ctx context.Context, u *common.Unit) (int, error) {
+	runner := func(ctx context.Context, u *common.Unit) error {
 		if u.Path == "A" {
-			return 1, assert.AnError
+			return assert.AnError
 		}
-		return 0, nil
+		return nil
 	}
 
 	q, _ := queue.NewQueue(discoveryFromUnits(units))
@@ -162,7 +160,6 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	// Check that if C fails, all others fail too
 	for i := range results {
 		res := results[i]
-		assert.Equal(t, 1, res.ExitCode, "Expected failure exit code for unit %d", i)
 		assert.Error(t, res.Err, "Expected error for unit %d", i)
 	}
 }
