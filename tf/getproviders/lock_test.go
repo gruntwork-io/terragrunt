@@ -43,6 +43,7 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 	provider := mocks.NewMockProvider(ctrl)
 	provider.EXPECT().Address().Return(address).AnyTimes()
 	provider.EXPECT().Version().Return(version).AnyTimes()
+	provider.EXPECT().Constraints().Return("").AnyTimes()
 	provider.EXPECT().PackageDir().Return(packageDir).AnyTimes()
 	provider.EXPECT().Logger().Return(logger.CreateLogger()).AnyTimes()
 	provider.EXPECT().DocumentSHA256Sums(gomock.Any()).Return([]byte(document), nil).AnyTimes()
@@ -140,16 +141,16 @@ provider "registry.terraform.io/hashicorp/aws" {
     "zh:a3366f6b57b0f4b8bf8a5fecf42a834652709a97dd6db1b499c4ab186e33a41f",
   ]
 }
-			
+
 provider "registry.terraform.io/hashicorp/template" {
   version     = "2.1.0"
-  constraints = "<= 2.1.0" 
+  constraints = "<= 2.1.0"
   hashes = [
     "h1:vxE/PD8SWl6Lmh5zRvIW1Y559xfUyuV2T/VeQLXi7f0=",
     "zh:6fc271665ac28c3fee773b9dc2b8066280ba35b7e9a14a6148194a240c43f42a",
     "zh:c19f719c9f7ce6d7449fe9c020100faed0705303c7f95beeef81dfd1e4a2004b",
   ]
-}			
+}
 `,
 			expectedLockfile: `
 provider "registry.terraform.io/hashicorp/aws" {
