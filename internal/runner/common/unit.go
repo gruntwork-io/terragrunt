@@ -168,6 +168,7 @@ func (unitsMap UnitsMap) FindByPath(path string) *Unit {
 	if unit, ok := unitsMap[path]; ok {
 		return unit
 	}
+
 	return nil
 }
 
