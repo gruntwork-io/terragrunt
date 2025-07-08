@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
@@ -85,7 +87,7 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 				break
 			}
 		}
-		assert.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
+		require.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
 		assert.Equal(t, entry.Config.Path, unit.Path, "Result order mismatch at index %d: expected %s, got %s", i, entry.Config.Path, unit.Path)
 		assert.Equal(t, 0, res.ExitCode)
 		assert.NoError(t, res.Err)
@@ -127,7 +129,7 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 				break
 			}
 		}
-		assert.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
+		require.NotNil(t, unit, "Unit for path %s not found", entry.Config.Path)
 		assert.Equal(t, 0, res.ExitCode)
 		assert.NoError(t, res.Err)
 	}
