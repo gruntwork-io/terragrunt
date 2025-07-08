@@ -94,7 +94,8 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		return nil
 	}
 
-	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	q, err := queue.NewQueue(discoveryFromUnits(units))
+	require.NoError(t, err)
 	dagRunner := runnerpool.NewController(
 		q,
 		units,
@@ -120,7 +121,8 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		return nil
 	}
 
-	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	q, err := queue.NewQueue(discoveryFromUnits(units))
+	require.NoError(t, err)
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,

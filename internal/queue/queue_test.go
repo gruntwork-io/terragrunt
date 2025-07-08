@@ -558,10 +558,10 @@ func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
 
 	assert.False(t, q.Finished(), "Finished should be false after B fails if C is not done")
 
-	// D and E should be marked as failed due to dependency on B
+	// D and E should be marked as early exit due to dependency on B
 	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
-	assert.Equal(t, queue.StatusFailed, q.EntryByPath("D").Status)
-	assert.Equal(t, queue.StatusFailed, q.EntryByPath("E").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("E").Status)
 
 	// C should still be ready
 	readyEntries = q.GetReadyWithDependencies()
@@ -645,14 +645,14 @@ func TestFailEntry_DirectAndRecursive(t *testing.T) {
 	q, err := queue.NewQueue(configs)
 	require.NoError(t, err)
 
-	// Non-fail-fast: Should recursively mark all dependents as StatusFailed
+	// Non-fail-fast: Should recursively mark all dependencies as StatusEarlyExit
 	q.FailFast = false
 	entryA := q.EntryByPath("A")
 	q.FailEntry(entryA)
 	assert.Equal(t, queue.StatusFailed, q.EntryByPath("A").Status)
-	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
-	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status)
-	assert.Equal(t, queue.StatusFailed, q.EntryByPath("D").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
 
 	// Reset statuses for fail-fast test
 	q, err = queue.NewQueue(configs)

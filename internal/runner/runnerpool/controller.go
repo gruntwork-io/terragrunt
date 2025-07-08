@@ -2,7 +2,6 @@ package runnerpool
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -117,7 +116,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 
 				unit := dr.unitsMap[ent.Config.Path]
 				if unit == nil {
-					err := fmt.Errorf("unit for path %s is nil", ent.Config.Path)
+					err := errors.Errorf("unit for path %s is nil", ent.Config.Path)
 					l.Errorf("Controller: %s unit is nil, skipping execution", ent.Config.Path)
 					dr.q.FailEntry(ent)
 					results.Store(ent.Config.Path, err)
