@@ -76,10 +76,7 @@ func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOptio
 	return dr
 }
 
-// Run executes the Queue and returns a single error (multierror) for all entries that failed to run.
-//   - never blocks forever – if progress is impossible it bails out;
-//   - is data-race free (results map is mutex-protected);
-//   - needs no special-casing for fail-fast.
+// Run executes the Queue return error summarizing all entries that failed to run.
 func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 	var (
 		wg      sync.WaitGroup
