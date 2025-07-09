@@ -69,15 +69,16 @@ func TestRunnerPool_LinearDependency(t *testing.T) {
 		return nil
 	}
 
-	q, _ := queue.NewQueue(configs)
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
 	dagRunner := runnerpool.NewController(
 		q,
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
-	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.NoError(t, errors)
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	require.NoError(t, err)
 }
 
 func TestRunnerPool_ParallelExecution(t *testing.T) {
@@ -102,8 +103,8 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
-	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.NoError(t, errors)
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	require.NoError(t, err)
 }
 
 func TestRunnerPool_FailFast(t *testing.T) {
@@ -130,10 +131,10 @@ func TestRunnerPool_FailFast(t *testing.T) {
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(2),
 	)
-	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.Error(t, errors)
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	require.Error(t, err)
 	for _, want := range []string{"unit A failed", "unit B did not run due to early exit", "unit C did not run due to early exit"} {
-		assert.Contains(t, errors.Error(), want, "Expected error message '%s' in errors", want)
+		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }
 
@@ -165,14 +166,15 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 		return nil
 	}
 
-	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	q, err := queue.NewQueue(discoveryFromUnits(units))
+	require.NoError(t, err)
 	dagRunner := runnerpool.NewController(
 		q,
 		units,
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(8),
 	)
-	err := dagRunner.Run(t.Context(), logger.CreateLogger())
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
 	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
@@ -190,7 +192,8 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 		return nil
 	}
 
-	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	q, err := queue.NewQueue(discoveryFromUnits(units))
+	require.NoError(t, err)
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
@@ -198,8 +201,8 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(8),
 	)
-	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.Error(t, errors)
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	require.Error(t, err)
 	for _, want := range []string{
 		"unit A failed",
 		"unit B did not run due to early exit",
@@ -207,7 +210,7 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 		"unit D did not run due to early exit",
 		"unit E did not run due to early exit",
 	} {
-		assert.Contains(t, errors.Error(), want, "Expected error message '%s' in errors", want)
+		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }
 
@@ -222,7 +225,8 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 		return nil
 	}
 
-	q, _ := queue.NewQueue(discoveryFromUnits(units))
+	q, err := queue.NewQueue(discoveryFromUnits(units))
+	require.NoError(t, err)
 	q.FailFast = true
 	dagRunner := runnerpool.NewController(
 		q,
@@ -230,9 +234,9 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(8),
 	)
-	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.Error(t, errors)
+	err = dagRunner.Run(t.Context(), logger.CreateLogger())
+	require.Error(t, err)
 	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
-		assert.Contains(t, errors.Error(), want, "Expected error message '%s' in errors", want)
+		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }

@@ -83,6 +83,10 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		results = xsync.NewMapOf[string, error]()
 	)
 
+	if dr.runner == nil {
+		return errors.Errorf("controller runner is not set")
+	}
+
 	l.Debugf("Controller: starting with %d tasks, concurrency %d",
 		len(dr.q.Entries), dr.concurrency)
 

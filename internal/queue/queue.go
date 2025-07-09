@@ -366,14 +366,17 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 	if e.Config.Dependencies == nil {
 		return
 	}
+
 	for _, dep := range e.Config.Dependencies {
 		depEntry := q.EntryByPath(dep.Path)
 		if depEntry == nil {
 			continue
 		}
+
 		if isTerminalOrRunning(depEntry.Status) {
 			continue
 		}
+
 		depEntry.Status = StatusEarlyExit
 		q.earlyExitDependencies(depEntry)
 	}
