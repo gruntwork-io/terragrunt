@@ -9,9 +9,11 @@ import LogoBrand4 from '@assets/logo-brand-4.svg';
 import LogoBrand5 from '@assets/logo-brand-5.svg';
 import LogoBrand6 from '@assets/logo-brand-6.svg';
 import LogoBrand7 from '@assets/logo-brand-7.svg';
+
+const logos = [LogoBrand1, LogoBrand2, LogoBrand3, LogoBrand4, LogoBrand5, LogoBrand6, LogoBrand7];
 ---
 <!-- Logos Container -->
-<section class="w-full max-w-dvw bg-[#FAFAFA] border-b-1 border-gray-3 py-6 lg:py-9">
+<section class="w-full bg-[#FAFAFA] border-b-1 border-gray-3 py-6 lg:py-9">
     <!-- Logos Wrapper -->
     <div class="relative flex flex-col lg:flex-row justify-center items-center gap-8 lg:gap-auto lg:px-0 lg:pr-10 lg:pl-20">
         <p class="text-center text-xs font-mono text-gray-2">
@@ -19,23 +21,73 @@ import LogoBrand7 from '@assets/logo-brand-7.svg';
         </p>
 
         <!-- Div with left and right fade -->
-        <div class="relative flex-1 px-0 md:px-20 lg:px-0">
+        <div class="relative flex-1 px-0 md:px-20 lg:px-0 overflow-hidden">
             <!-- Left Fade -->
-            <div class="pointer-events-none absolute left-0 md:left-20 lg:left-0 top-0 h-full w-20 md:w-8 z-10 bg-gradient-to-r from-[#FAFAFA] to-transparent"></div>
+            <div class="pointer-events-none absolute left-0 top-0 h-full w-20 md:w-40 z-10 bg-gradient-to-r from-[#FAFAFA] to-transparent"></div>
 
             <!-- Right Fade -->
-            <div class="pointer-events-none absolute right-0 md:right-20 lg:right-0 top-0 h-full w-20 md:w-8 z-10 bg-gradient-to-l from-[#FAFAFA] to-transparent"></div>
+            <div class="pointer-events-none absolute right-0 top-0 h-full w-20 md:w-40 z-10 bg-gradient-to-l from-[#FAFAFA] to-transparent"></div>
 
             <!-- Brand Logos -->
-            <div class="flex overflow-x-auto items-center justify-start gap-6 px-4 no-scrollbar scroll-smooth">
-            <Image src={LogoBrand1} alt="Opentext logo" class="h-8 flex-shrink-0" />
-            <Image src={LogoBrand2} alt="Vodafone logo" class="h-8 flex-shrink-0" />
-            <Image src={LogoBrand3} alt="Nelnet logo" class="h-8 flex-shrink-0" />
-            <Image src={LogoBrand4} alt="Fanatics logo" class="h-8 flex-shrink-0" />
-            <Image src={LogoBrand5} alt="Toyota logo" class="h-8 flex-shrink-0" />
-            <Image src={LogoBrand6} alt="Clari logo" class="h-8 flex-shrink-0" />
-            <Image src={LogoBrand7} alt="Cargurus logo" class="h-8 flex-shrink-0" />
+            <div class="flex animate-marquee items-center justify-start gap-6 px-4 no-scrollbar">
+                {[...logos, ...logos].map((logo, i) => (
+                    <Image src={logo} alt={`Logo ${i}`} class="h-8 flex-shrink-0" />
+                ))}
             </div>
         </div>
     </div>
 </section>
+
+<style>
+    @keyframes marquee {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-172%); }
+    }
+
+    @keyframes marquee-lg {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-140%); }
+    }
+
+    @keyframes marquee-xl {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-159%); }
+    }
+
+    @keyframes marquee-2xl {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-112%); }
+    }
+
+    .animate-marquee {
+        animation: marquee-sm 20s linear infinite;
+    }
+
+    /* Tablet */
+    @media (min-width: 768px) {
+        .animate-marquee {
+            animation: marquee-sm 20s linear infinite;
+        }
+    }
+
+    /* Desktop */
+    @media (min-width: 1024px) {
+        .animate-marquee {
+            animation: marquee-lg 20s linear infinite;
+        }
+    }
+
+    /* Desktop */
+    @media (min-width: 1440px) {
+        .animate-marquee {
+            animation: marquee-xl 20s linear infinite;
+        }
+    }
+
+    /* Desktop */
+    @media (min-width: 1920px) {
+        .animate-marquee {
+            animation: marquee-2xl 10s linear infinite;
+        }
+    }
+</style>
