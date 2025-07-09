@@ -43,8 +43,11 @@ func ValidateHookTraceParent(t *testing.T, hook, str string) {
 // CreateFile creates an empty file at the given path, creating parent directories if needed.
 func CreateFile(t *testing.T, paths ...string) {
 	t.Helper()
+
 	fullPath := filepath.Join(paths...)
-	err := os.MkdirAll(filepath.Dir(fullPath), 0755)
+
+	const permissions = 0755
+	err := os.MkdirAll(filepath.Dir(fullPath), permissions)
 	require.NoError(t, err)
 	f, err := os.Create(fullPath)
 	require.NoError(t, err)

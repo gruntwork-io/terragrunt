@@ -389,11 +389,12 @@ func TestQueue_FailFast(t *testing.T) {
 
 // buildMultiLevelDependencyTree returns the configs for the following dependency tree:
 //
-//	    A
-//	   / \
-//	  B   C
+//	  A
 //	 / \
-//	D   E
+//	B   C
+//
+// / \
+// D   E
 func buildMultiLevelDependencyTree() []*discovery.DiscoveredConfig {
 	cfgA := &discovery.DiscoveredConfig{Path: "A"}
 	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
@@ -718,4 +719,51 @@ func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
 	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
 	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("A").Status)
 	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+}
+
+func TestDestroyCommandQueueOrderIsReverseOfDependencies(t *testing.T) {
+	t.Parallel()
+
+	// Create a simple chain: A -> B -> C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+
+	// Set all configs to destroy (down) command
+	cfgA.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgB.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	cfgC.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	entries := q.Entries
+
+	// For destroy, the queue should be in reverse dependency order: C, B, A
+	assert.Equal(t, "C", entries[0].Config.Path)
+	assert.Equal(t, "B", entries[1].Config.Path)
+	assert.Equal(t, "A", entries[2].Config.Path)
+}
+
+func TestDestroyCommandQueueOrder_MultiLevelDependencyTree(t *testing.T) {
+	t.Parallel()
+
+	configs := buildMultiLevelDependencyTree()
+	for _, cfg := range configs {
+		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	entries := q.Entries
+
+	// For destroy, the queue should be in reverse dependency order: E, D, C, B, A
+	assert.Equal(t, "E", entries[0].Config.Path)
+	assert.Equal(t, "D", entries[1].Config.Path)
+	assert.Equal(t, "C", entries[2].Config.Path)
+	assert.Equal(t, "B", entries[3].Config.Path)
+	assert.Equal(t, "A", entries[4].Config.Path)
 }
