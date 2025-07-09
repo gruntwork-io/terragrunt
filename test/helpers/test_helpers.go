@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const defaultDirPerms = 0755
+
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
@@ -46,11 +48,12 @@ func CreateFile(t *testing.T, paths ...string) {
 
 	fullPath := filepath.Join(paths...)
 
-	const permissions = 0755
-	err := os.MkdirAll(filepath.Dir(fullPath), permissions)
+	err := os.MkdirAll(filepath.Dir(fullPath), defaultDirPerms)
 	require.NoError(t, err)
+
 	f, err := os.Create(fullPath)
 	require.NoError(t, err)
+
 	err = f.Close()
 	require.NoError(t, err)
 }
