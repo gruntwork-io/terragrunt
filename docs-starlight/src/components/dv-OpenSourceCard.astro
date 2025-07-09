@@ -5,7 +5,12 @@ import { Image } from 'astro:assets';
 const { icon, title, description, href } = Astro.props;
 ---
 
-<a href={href} class="group relative flex w-full items-center border border-dashed border-[var(--color-gray-3)] px-8 py-6 bg-[#FAFAFA] hover:bg-white hover:cursor-pointer transition-colors duration-200">
+<a href={href} 
+    class="group relative flex w-full items-center border border-dashed border-[var(--color-gray-3)] px-8 py-6 bg-[#FAFAFA] hover:bg-white hover:cursor-pointer transition-colors duration-200"
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label={`Learn more about ${title}`}
+>
     <div class="flex flex-col items-start gap-3">
         <div class="flex gap-1.5 items-center">
             <Image 
@@ -17,8 +22,6 @@ const { icon, title, description, href } = Astro.props;
         </div>
         <p class="text-sm font-sans text-[var(--color-gray-1)]">{description}</p>
     </div>
-
-    <!-- Flecha -->
     <div class="absolute right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transform transition-opacity duration-200">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"></path>

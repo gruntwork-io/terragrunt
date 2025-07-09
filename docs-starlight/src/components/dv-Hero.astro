@@ -4,14 +4,14 @@ import { Image } from 'astro:assets';
 import IconLabel from '@components/dv-IconButton.astro';
 import Terminal from '@components/dv-Terminal.astro';
 
-import OpentofuIcon from '@assets/icon-opentofu.png';
-import TerraformIcon from '@assets/icon-terraform.png';
+import OpentofuIcon from '@assets/opentofu-logo.svg';
+import TerraformIcon from '@assets/terraform-logo.svg';
 import MobileHeroBackground from '@assets/hero-bg.png';
 import HeroCompleteBackground from '@assets/hero-bg-1440.png';
 ---
 
-<section class="relative h-[752px] md:h-[775px] flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden md:pt-16">
-    <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96">
+<section class="relative h-fit flex flex-col bg-[var(--color-bg-dark)] gap-10 overflow-hidden md:pt-16">
+    <div class="hidden md:block absolute bottom-0 md:left-10 lg:left-20 xl:left-40 2xl:left-96 z-20">
         <Terminal />
     </div>
 
@@ -30,7 +30,7 @@ import HeroCompleteBackground from '@assets/hero-bg-1440.png';
 
     <div class="px-5 md:px-0 relative z-20 flex flex-col items-center gap-10 w-full text-center">
         <div class="flex flex-col justify-start items-center gap-5 w-full">
-            <h1 class="text-[42px] md:text-[64px] text-white leading-18">The Open Source<br>IaC Orchestrator<br>Platform Teams Trust</h1>
+            <h1 class="text-[42px] md:text-[64px] text-white leading-12 md:leading-18">The Open Source<br>IaC Orchestrator<br>Platform Teams Trust</h1>
             <p class="px-12 lg:px-40 md:px-0 text-lg text-[var(--color-gray-1)]">
                 Organize and speed up your Infrastructure as Code, with the #1 IaC Orchestrator
             </p>
@@ -43,16 +43,18 @@ import HeroCompleteBackground from '@assets/hero-bg-1440.png';
                     src={OpentofuIcon}
                     alt="Opentofu Icon"
                     text="OPENTOFU"
+                    eager
                 />
                 <IconLabel
                     src={TerraformIcon}
                     alt="Terraform Icon"
                     text="TERRAFORM"
+                    eager
                 />
             </div>
         </div>
 
-        <div class="flex gap-5 justify-center items-center w-full pb-52">
+        <div class="flex gap-5 justify-center items-center w-full pb-28 md:pb-52">
             <button class="primary-button">Quick Start</button>
             <button class="secondary-button">Read the Docs</button>
         </div>

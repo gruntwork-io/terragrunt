@@ -2,7 +2,7 @@
 import '@styles/global.css';
 import { Image } from 'astro:assets';
 
-import BackgroundPattern from '@assets/pattern-pet-background.svg';
+import BackgroundPattern from '@assets/hero-bg.png';
 import IconPipelines from '@assets/pipelines.svg';
 import IconArrowGreen from '@assets/icon-circle-arrow.svg';
 import PetTerragrunt from '@assets/pet-terragrunt.svg';
@@ -16,11 +16,11 @@ import PetTerragrunt from '@assets/pet-terragrunt.svg';
         class="absolute -bottom-24 md:-bottom-24 lg:-bottom-26 xl:-bottom-8 right-0 md:-right-4 lg:right-5 xl:-right-24 z-20 pointer-events-none select-none w-40 md:w-52 xl:w-60 h-auto"
     />
     <!-- upsell -->
-    <div class="relative bg-bg-dark overflow-hidden border-6 border-[#E6E6E6] rounded-xl">
+    <div class="relative bg-bg-dark overflow-hidden border-6 border-[#E6E6E6] rounded-3xl">
         <Image
             src={BackgroundPattern}
             alt="Isometric background pattern"
-            class="absolute bottom-68 md:bottom-0 transform -translate-x-36 lg:-translate-x-10 xl:-translate-x-40 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none"
+            class="absolute bottom-0 transform -translate-x-36 lg:-translate-x-10 xl:-translate-x-40 min-w-[100vw] h-auto max-w-none z-0 pointer-events-none select-none"
         />
         <div class="flex flex-col py-8 md:py-0 md:pt-20 md:pb-[100px] justify-center items-center z-10">
             <!-- Header Section -->
@@ -31,7 +31,7 @@ import PetTerragrunt from '@assets/pet-terragrunt.svg';
             <!-- Wrapper -->
             <div class="flex flex-col md:flex-row px-5 md:px-12 lg:px-8 lg:w-[820px] xl:w-[900px] gap-12">
                 <!-- Item -->
-                <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-6 z-30">
                     <div class="secondary-button inline-flex !p-3 w-auto h-auto self-start">
                         <Image 
                             src={IconPipelines}
@@ -42,7 +42,7 @@ import PetTerragrunt from '@assets/pet-terragrunt.svg';
                         />
                     </div>
                     <div class="flex flex-col gap-1">
-                        <p class="text-white font-sans text-xl">Automate your CI/CD</p>
+                        <p class="text-white font-sans text-xl font-medium">Automate your CI/CD</p>
                         <p class="text-gray-1 font-sand text-sm"><span class="text-white">Gruntwork Pipelines</span> is an out-of-the-box, best practices, secure CI/CD pipeline, built for Terragrunt, by the creators of Terragrunt.</p>
                     </div>
                     <a href="#" class="primary-button inline-flex items-center gap-1 w-auto self-start">
@@ -54,7 +54,7 @@ import PetTerragrunt from '@assets/pet-terragrunt.svg';
                 </div>
 
                 <!-- Item -->
-                <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-6 z-30">
                     <div class="secondary-button inline-flex !p-3 w-auto h-auto self-start">
                         <Image 
                             src={IconArrowGreen}
@@ -65,7 +65,7 @@ import PetTerragrunt from '@assets/pet-terragrunt.svg';
                         />
                     </div>
                     <div class="flex flex-col gap-1">
-                        <p class="text-white font-sans text-xl">Keep your IaC Fresh</p>
+                        <p class="text-white font-sans text-xl font-medium">Keep your IaC Fresh</p>
                         <p class="text-gray-1 font-sand text-sm font-normal"><span class="text-white">Gruntwork Patcher</span> is a dependency management tool that keeps your OpenTofu/Terraform modules up to date, even through breaking changes.</p>
                     </div>
                     <a href="#" class="primary-button inline-flex items-center gap-1 w-auto self-start">

@@ -22,20 +22,23 @@ import Testimonials from '@components/dv-Testimonials.astro';
 	</head>
     <body class="flex flex-col min-h-screen bg-[#FAFAFA]">
 		<div class="fixed top-0 z-50">
-        	<Navbar />
+			<Navbar />
 		</div>
 		<div class="absolute top-[150px] md:top-[84px]">
 			<Hero />
 			<div class="overflow-hidden lg:px-8 xl:px-24 2xl:px-76">
-				<div class="flex flex-col lg:border-l-1 lg:border-r-1 lg:border-gray-3">
-					<FeaturedBrands />
-					<div class="flex flex-col gap-12 md:gap-44">
+				<div class="relative flex flex-col lg:border-l-1 lg:border-r-1 lg:border-gray-3">
+					<div class="z-10">
+						<FeaturedBrands />
+					</div>
+					<div class="hidden md:block pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 md:w-[633px] lg:w-[852px] h-full z-0 border-x border-dashed border-gray-3"></div>
+					<div class="flex flex-col gap-12 md:gap-44 z-10">
 						<OrchestrateSection />
-						<ConsistencySection />
+						<ConsistencySection />	
 						<DrySection />
 						<Testimonials />
 					</div>
-					<div class="flex flex-col gap-44">
+					<div class="flex flex-col gap-44 z-10">
 						<PetAdvertise />
 						<Footer />
 					</div>
