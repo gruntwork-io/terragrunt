@@ -665,3 +665,57 @@ func TestFailEntry_DirectAndRecursive(t *testing.T) {
 	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("C").Status)
 	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
 }
+
+func TestQueue_DestroyFail_PropagatesToDependencies_NonFailFast(t *testing.T) {
+	t.Parallel()
+	// Build a graph: A -> B -> C, A -> D
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+
+	// Set all configs to destroy (down) command
+	for _, cfg := range configs {
+		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = false
+
+	// Fail C (should mark B and A as early exit, D should remain ready)
+	entryC := q.EntryByPath("C")
+	q.FailEntry(entryC)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("A").Status)
+	assert.Equal(t, queue.StatusReady, q.EntryByPath("D").Status)
+}
+
+func TestQueue_DestroyFail_PropagatesToDependencies(t *testing.T) {
+	t.Parallel()
+	// Build a graph: A -> B -> C, A -> D
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD}
+
+	// Set all configs to destroy (down) command
+	for _, cfg := range configs {
+		cfg.DiscoveryContext = &discovery.DiscoveryContext{Cmd: "destroy"}
+	}
+
+	// Only test fail-fast mode here
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = true
+	entryC := q.EntryByPath("C")
+	q.FailEntry(entryC)
+	// All non-terminal entries should be early exit
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("C").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("A").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+}

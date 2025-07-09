@@ -311,12 +311,14 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 	return out
 }
 
-// FailEntry marks the given entry as failed, handles fail-fast logic if enabled, and updates the statuses of dependents accordingly.
-// This method should be used only for failure transitions. For other status changes, set the Status field directly.
+// FailEntry marks the entry as failed and updates related entries if needed.
+// For up commands, this marks entries that come after this one as early exit.
+// For destroy/down commands, this marks entries that come before this one as early exit.
+// Use only for failure transitions. For other status changes, set Status directly.
 func (q *Queue) FailEntry(e *Entry) {
 	e.Status = StatusFailed
 
-	// If this entry failed and has dependents, we need to propagate the failure.
+	// If this entry failed and has dependents/dependencies, we need to propagate the failure.
 	if q.FailFast {
 		for _, n := range q.Entries {
 			if isTerminalOrRunning(n.Status) {
@@ -329,10 +331,14 @@ func (q *Queue) FailEntry(e *Entry) {
 		return
 	}
 
-	q.earlyExitEntries(e)
+	if e.IsUp() {
+		q.earlyExitEntries(e) // propagate to dependents (default behavior)
+	} else {
+		q.earlyExitDependencies(e) // propagate to dependencies for destroy
+	}
 }
 
-// earlyExitEntries - Recursively mark all dependents of the given entry as early exit.
+// earlyExitEntries - Recursively mark all entries that come after this one as early exit.
 func (q *Queue) earlyExitEntries(e *Entry) {
 	for _, entry := range q.Entries {
 		if entry.Config.Dependencies == nil {
@@ -352,6 +358,24 @@ func (q *Queue) earlyExitEntries(e *Entry) {
 				break
 			}
 		}
+	}
+}
+
+// earlyExitDependencies - Recursively mark all entries that come before this one as early exit.
+func (q *Queue) earlyExitDependencies(e *Entry) {
+	if e.Config.Dependencies == nil {
+		return
+	}
+	for _, dep := range e.Config.Dependencies {
+		depEntry := q.EntryByPath(dep.Path)
+		if depEntry == nil {
+			continue
+		}
+		if isTerminalOrRunning(depEntry.Status) {
+			continue
+		}
+		depEntry.Status = StatusEarlyExit
+		q.earlyExitDependencies(depEntry)
 	}
 }
 
