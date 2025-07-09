@@ -1,0 +1,48 @@
+---
+import { Image } from 'astro:assets';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import DarkLogo from '../assets/logo-dark.svg'
+import LightLogo from '../assets/logo-light.svg'
+import GruntworkLogoBlack from '../assets/gruntwork-logo-mark-black.svg';
+import GruntworkLogoWhite from '../assets/gruntwork-logo-mark-white.svg';
+---
+
+<div class="flex flex-col min-h-screen">
+	<StarlightPage frontmatter={{
+		template: 'splash',
+		title: 'Terragrunt',
+		description: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+		pagefind: false,
+		hero: {
+			title: 'Terragrunt',
+			tagline: 'Use OpenTofu/Terraform at scale, faster and safer.',
+			// image: {
+			// 	dark: LightLogo,
+			// 	light: DarkLogo,
+			// 	alt: 'Terragrunt Logo',
+			// },
+			actions: [
+				{
+					text: 'Quick Start',
+					icon: 'rocket',
+					link: '/docs/getting-started/quick-start/'
+				},
+				{
+					text: 'Docs',
+					icon: 'open-book',
+					link: '/docs/reference/hcl/'
+				}
+			]
+		}
+	}}>
+	</StarlightPage>
+
+	<footer class="flex items-center justify-center py-6 px-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 mt-auto">
+		<div class="flex items-center gap-[0.5em]">
+			<Image src={GruntworkLogoBlack} alt="Gruntwork Logo" class="w-6 h-6 dark:sl-hidden" />
+			<Image src={GruntworkLogoWhite} alt="Gruntwork Logo" class="w-6 h-6 light:sl-hidden" />
+			<span>&nbsp;From the DevOps experts at&nbsp;</span>
+	    </div>
+		<a href="https://gruntwork.io" class="text-blue-600 dark:text-blue-400 no-underline hover:underline">Gruntwork</a>
+	</footer>
+</div>
