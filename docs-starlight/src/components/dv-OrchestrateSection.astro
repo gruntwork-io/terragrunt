@@ -7,28 +7,28 @@ import Divider from '@components/dv-Divider.astro';
 ---
 
 <section class="flex justify-center items-center pt-10 md:pt-36 px-5 md:px-10">
-    <div class="flex flex-col md:flex-row md:w-[680px] lg:w-[900px]">
+    <div class="flex flex-col md:flex-row md:w-[680px] lg:w-[900px] md:pr-6">
         <!-- Header Section -->
-        <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pl-12 md:pr-8">
+        <div class="flex w-1/2 flex-col gap-4 md:gap-8 pb-6 md:pl-12 md:pr-8">
             <Eyebrown text="ORCHESTRATE" />
             <h2 class="text-4xl md:text-[42px] font-sans">Orchestrate Your <span class="text-accent">Infrastructure</span></h2>
         </div>
         <!-- Content Wrapper -->
-        <div class="flex flex-col md:pr-6 lg:pl-6">
+        <div class="flex flex-col flex-1">
             <Card title="Segment Your Infrastructure">
                 <p class="text-sm font-sans text-gray-1">Break down your monolithic infrastructure into manageable
-                <a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> units </a>
+                <a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer hover:text-accent transition .025s ease-in-out"> units </a>
                 that are safe to update independently, and have their own state.</p>
             </Card>
             <Divider />
             <Card title="Control Your Infrastructure">
                 <p class="text-sm font-sans text-gray-1">Reject all-or-nothing updates. Control exactly what infrastructure is updated, how it gets updated, and in what order by taking advantage of the
-                <a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer"> Run Queue</a>
+                <a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer hover:text-accent transition .025s ease-in-out"> Run Queue</a>
                 .</p>
             </Card>
             <Divider />
             <Card title="Secure Your Infrastructure">
-                <p class="text-sm font-sans text-gray-1">Terragrunt <a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer">authentication tooling</a> makes it trivial to manage infrastructure across any number of environments or cloud providers with least privilege access.</p>
+                <p class="text-sm font-sans text-gray-1">Terragrunt <a href="#" class="text-accent-1 border-b-1 border-gray-1/50 hover:cursor-pointer hover:text-accent transition .025s ease-in-out">authentication tooling</a> makes it trivial to manage infrastructure across any number of environments or cloud providers with least privilege access.</p>
             </Card>
         </div>
     </div>

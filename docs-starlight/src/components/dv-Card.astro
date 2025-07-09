@@ -1,11 +1,21 @@
 ---
 import '@styles/global.css';
-const { title = null, class: customClass = "" } = Astro.props;
+
+const {
+  title = null,
+  titleSize = "text-xl",
+  class: customClass = ""
+} = Astro.props;
 ---
 
-<div class={`p-6 bg-white border-dashed border-1 border-gray-3 ${customClass}`}>
-    <div class="flex flex-col gap-4">
-        {title && <p class="font-sans text-xl text-dark-blue-1 font-medium">{title}</p>}
-        <slot />
-    </div>
+<div class={`p-6 bg-white border-dashed border border-gray-3 ${customClass}`}>
+  <div class="flex flex-col gap-4">
+    {title && (
+      <p class={`font-sans ${titleSize} text-dark-blue-1 font-medium`}>
+        {title}
+      </p>
+    )}
+    <slot />
+  </div>
 </div>
+

@@ -1,111 +1,188 @@
 ---
 import '@styles/global.css';
 
-
 import Eyebrown from '@components/dv-Eyebrown.astro';
 import TestimonialCard from '@components/dv-TestimonialCard.astro';
 
 import LogoBrand8 from '@assets/logo-brand-8.svg';
 import LogoBrand9 from '@assets/logo-brand-9.svg';
 import LogoBrand10 from '@assets/logo-brand-10.svg';
-import LogoBrand11 from '@assets/logo-brand-11.svg';
+import LogoBrand11 from '@assets/logo-brand-11.png';
 ---
 
-<section class="flex justify-center items-center px-5 md:px-10">
-    <div class="flex flex-col md:w-[680px] lg:w-[900px]">
-        <!-- Header Section -->
-        <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
-            <Eyebrown text="TESTIMONIALS" />
-            <h2 class="text-4xl md:text-[42px] font-sans"><span class="text-accent">Beloved </span>by the Community</h2>
-        </div>
-
-        <!-- Scroll Mobile -->
-        <div class="flex flex-col gap-8 md:hidden">
-            <div class="w-full h-[244px]">
-                <div class="flex gap-4">
-                    <TestimonialCard 
-                        logo={LogoBrand8}
-                        content="Terragrunt enabled our segmentation of Terraform state so we could move fast and scale."
-                        author="Tobias Widen"
-                        job="Engineering Manager"
-                    />
-                </div>
-            </div>
-
-            <!-- Indicator -->
-            <div class="flex justify-center gap-2 mt-4">
-                <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
-                <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
-                <span class="indicator w-1.5 h-1.5 rounded-full bg-dark-blue-1 transition-all"></span>
-                <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
-                <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
-                <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
-                <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
-            </div>
-        </div>
-
-        <!-- Grid Tablet or Greater -->
-        <div class="hidden relative md:flex lg:w-[900px] gap-6">
-            <!-- Top Fade -->
-            <div class="pointer-events-none absolute top-0 w-full h-[174px] z-10 bg-gradient-to-b from-[#FAFAFA] to-transparent"></div>
-
-            <!-- Bottom Fade -->
-            <div class="pointer-events-none absolute bottom-0 w-full h-[174px] z-10 bg-gradient-to-t from-[#FAFAFA] to-transparent"></div>
-
-            <!-- Left Column -->
-            <div class="flex flex-col gap-6 flex-1">
-                <TestimonialCard 
-                    content={`Terragrunt has allowed us to keep our code dry, speed up our deployment times, simplify our code.\n\nIf you are not using Terragrunt to deploy your infrastructure you are doing it wrong.`}
-                    author="Felipe Fernandez"
-                    job="Cloud Infrastructure and Devops Senior Manager"
-                />
-                <TestimonialCard 
-                    logo={LogoBrand8}
-                    content="Terragrunt enabled our segmentation of Terraform state so we could move fast and scale."
-                    author="Tobias Widen"
-                    job="Engineering Manager"
-                />
-                <TestimonialCard 
-                    content={`Terragrunt didn’t just handle complexity; it actively simplified the process of writing and managing IaC, thanks to its emphasis on modularity.\n\nTerragrunt is not just a tool for complex projects, but a game-changer in simplifying and optimizing the way we approach Infrastructure as Code.`}
-                    author="Yehor Fedorov"
-                    job="Senior DevOps Engineer"
-                />
-                <TestimonialCard 
-                    content={`Terragrunt didn’t just handle complexity; it actively simplified the process of writing and managing IaC, thanks to its emphasis on modularity.\n\nTerragrunt is not just a tool for complex projects, but a game-changer in simplifying and optimizing the way we approach Infrastructure as Code.`}
-                    author="Yehor Fedorov"
-                    job="Senior DevOps Engineer"
-                />
-            </div>
-
-            <!-- Right Column -->
-            <div class="flex flex-col gap-6 flex-1">
-                <TestimonialCard 
-                    logo={LogoBrand9}
-                    content="Terragrunt has resolved some of our crucial blockers: it enabled us to use dynamic backends and dynamic providers, allowed to execute code on errors, to setup migration and emergency cleanup scripts, and to keep the code clean and consistent. Our OpenTofu modules have never looked better. Some recent changes even allowed us to leave workspaces behind."
-                    author="Mark Prikhno"
-                    job="DevOps Engineer"
-                />
-                <TestimonialCard 
-                    logo={LogoBrand10}
-                    content="I just finished a full nested Terragrunt Stacks rewrite of our entire setup and it’s so clean. This is going to do wonders for our users that aren’t necessarily DevOps folks. Seriously great stuff."
-                    author="Joshua Ward"
-                    job="Engineer"
-                    theme="dark"
-                />
-                <TestimonialCard 
-                    logo={LogoBrand11}
-                    content="Gruntwork's Terragrunt makes managing our infrastructure across providers and environments consistent, safe, and easy to understand."
-                    author="Dallas Slaughter"
-                    job="Founding Engineer"
-                />
-                <TestimonialCard 
-                    logo={LogoBrand11}
-                    content="Gruntwork's Terragrunt makes managing our infrastructure across providers and environments consistent, safe, and easy to understand."
-                    author="Dallas Slaughter"
-                    job="Founding Engineer"
-                />
-            </div>
-
-        </div>
+<section class="flex max-w-dvw justify-center items-center px-5 md:px-10">
+  <div class="flex flex-col w-full md:w-[680px] lg:w-[900px]">
+    <!-- Header Section -->
+    <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+      <Eyebrown text="TESTIMONIALS" />
+      <h2 class="text-4xl md:text-[42px] font-sans">
+        <span class="text-accent">Beloved </span>by the Community
+      </h2>
     </div>
+
+    <!-- Mobile Carousel -->
+    <div class="flex flex-col gap-6 md:hidden">
+      <div class="relative">
+        <div
+          id="carousel"
+          class="flex gap-4 snap-x snap-mandatory overflow-x-auto scroll-smooth no-scrollbar"
+        >
+          <div class="snap-start shrink-0 w-full px-1">
+            <TestimonialCard
+              class="shadow-[0_0_0_2px_white]"
+              content={`Terragrunt has allowed us to keep our code dry, speed up our deployment times, simplify our code.\n\nIf you are not using Terragrunt to deploy your infrastructure you are doing it wrong.`}
+              author="Felipe Fernandez"
+              job="Cloud Infrastructure and Devops Senior Manager"
+            />
+          </div>
+          <div class="snap-start shrink-0 w-full px-1">
+            <TestimonialCard
+                class="shadow-[0_0_0_2px_white]"
+                logo={LogoBrand8}
+                content="Terragrunt enabled our segmentation of Terraform state so we could move fast and scale."
+                author="Tobias Widen"
+                job="Engineering Manager"
+            />
+          </div>
+          <div class="snap-start shrink-0 w-full px-1">
+            <TestimonialCard
+              class="shadow-[0_0_0_2px_white]"
+              content={`Terragrunt didn’t just handle complexity; it actively simplified the process of writing and managing IaC, thanks to its emphasis on modularity.\n\nTerragrunt is not just a tool for complex projects, but a game-changer in simplifying and optimizing the way we approach Infrastructure as Code.`}
+              author="Yehor Fedorov"
+              job="Senior DevOps Engineer"
+            />
+          </div>
+          <div class="snap-start shrink-0 w-full px-1">
+            <TestimonialCard
+              class="shadow-[0_0_0_2px_white]"
+              logo={LogoBrand9}
+              content="Terragrunt has resolved some of our crucial blockers: it enabled us to use dynamic backends and dynamic providers, allowed to execute code on errors, to setup migration and emergency cleanup scripts, and to keep the code clean and consistent."
+              author="Mark Prikhno"
+              job="DevOps Engineer"
+            />
+          </div>
+          <div class="snap-start shrink-0 w-full px-1">
+            <TestimonialCard
+              logo={LogoBrand10}
+              content="I just finished a full nested Terragrunt Stacks rewrite of our entire setup and it’s so clean."
+              author="Joshua Ward"
+              job="Engineer"
+              theme="dark"
+            />
+          </div>
+          <div class="snap-start shrink-0 w-full px-1">
+            <TestimonialCard
+              class="shadow-[0_0_0_2px_white]"
+              logo={LogoBrand11}
+              content="Gruntwork's Terragrunt makes managing our infrastructure across providers and environments consistent, safe, and easy to understand."
+              author="Dallas Slaughter"
+              job="Founding Engineer"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Indicators -->
+      <div class="flex justify-center gap-2">
+        <span class="indicator w-1.5 h-1.5 rounded-full bg-dark-blue-1 transition-all"></span>
+        <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
+        <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
+        <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
+        <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
+        <span class="indicator w-1.5 h-1.5 rounded-full bg-gray-1 transition-all"></span>
+      </div>
+    </div>
+
+    <!-- Grid for tablet and up -->
+    <div class="hidden relative md:flex lg:w-[900px] gap-6">
+      <!-- Top Fade -->
+      <div class="pointer-events-none absolute top-0 w-full h-[174px] z-10 bg-gradient-to-b from-[#FAFAFA] to-transparent"></div>
+      <!-- Bottom Fade -->
+      <div class="pointer-events-none absolute bottom-0 w-full h-[174px] z-10 bg-gradient-to-t from-[#FAFAFA] to-transparent"></div>
+
+      <!-- Left Column -->
+      <div class="flex flex-col gap-6 flex-1">
+        <TestimonialCard
+          class="shadow-[0_0_0_2px_white]"
+          content={`Terragrunt has allowed us to keep our code dry, speed up our deployment times, simplify our code.\n\nIf you are not using Terragrunt to deploy your infrastructure you are doing it wrong.`}
+          author="Felipe Fernandez"
+          job="Cloud Infrastructure and Devops Senior Manager"
+        />
+        <TestimonialCard
+          class="shadow-[0_0_0_2px_white]"
+          logo={LogoBrand8}
+          content="Terragrunt enabled our segmentation of Terraform state so we could move fast and scale."
+          author="Tobias Widen"
+          job="Engineering Manager"
+        />
+        <TestimonialCard
+          class="shadow-[0_0_0_2px_white]"
+          content={`Terragrunt didn’t just handle complexity; it actively simplified the process of writing and managing IaC, thanks to its emphasis on modularity.\n\nTerragrunt is not just a tool for complex projects, but a game-changer in simplifying and optimizing the way we approach Infrastructure as Code.`}
+          author="Yehor Fedorov"
+          job="Senior DevOps Engineer"
+        />
+        <TestimonialCard
+          class="shadow-[0_0_0_2px_white]"
+          content={`Terragrunt didn’t just handle complexity; it actively simplified the process of writing and managing IaC, thanks to its emphasis on modularity.\n\nTerragrunt is not just a tool for complex projects, but a game-changer in simplifying and optimizing the way we approach Infrastructure as Code.`}
+          author="Yehor Fedorov"
+          job="Senior DevOps Engineer"
+        />
+      </div>
+
+      <!-- Right Column -->
+      <div class="flex flex-col gap-6 flex-1">
+        <TestimonialCard
+          class="shadow-[0_0_0_2px_white]"
+          logo={LogoBrand9}
+          content="Terragrunt has resolved some of our crucial blockers: it enabled us to use dynamic backends and dynamic providers, allowed to execute code on errors, to setup migration and emergency cleanup scripts, and to keep the code clean and consistent."
+          author="Mark Prikhno"
+          job="DevOps Engineer"
+        />
+        <TestimonialCard
+          logo={LogoBrand10}
+          content="I just finished a full nested Terragrunt Stacks rewrite of our entire setup and it’s so clean."
+          author="Joshua Ward"
+          job="Engineer"
+          theme="dark"
+        />
+        <TestimonialCard
+          class="shadow-[0_0_0_2px_white]"
+          logo={LogoBrand11}
+          content="Gruntwork's Terragrunt makes managing our infrastructure across providers and environments consistent, safe, and easy to understand."
+          author="Dallas Slaughter"
+          job="Founding Engineer"
+        />
+        <TestimonialCard
+          class="shadow-[0_0_0_2px_white]"
+          logo={LogoBrand11}
+          content="Gruntwork's Terragrunt makes managing our infrastructure across providers and environments consistent, safe, and easy to understand."
+          author="Dallas Slaughter"
+          job="Founding Engineer"
+        />
+      </div>
+    </div>
+  </div>
 </section>
+
+<script type="module" client:load>
+  const carousel = document.getElementById("carousel");
+  const indicators = document.querySelectorAll(".indicator");
+
+  const updateIndicators = () => {
+    const scrollLeft = carousel.scrollLeft;
+    const width = carousel.offsetWidth;
+    const index = Math.round(scrollLeft / width);
+
+    indicators.forEach((dot, i) => {
+      dot.classList.toggle("bg-dark-blue-1", i === index);
+      dot.classList.toggle("bg-gray-1", i !== index);
+    });
+  };
+
+  carousel?.addEventListener("scroll", () => {
+    window.requestAnimationFrame(updateIndicators);
+  });
+
+  // Fallback inicial por si no se dispara scroll
+  updateIndicators();
+</script>
