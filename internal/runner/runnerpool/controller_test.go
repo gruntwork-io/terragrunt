@@ -172,10 +172,10 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 		runnerpool.WithRunner(runner),
 		runnerpool.WithMaxConcurrency(8),
 	)
-	errors := dagRunner.Run(t.Context(), logger.CreateLogger())
-	require.Error(t, errors)
-	for _, want := range []string{"unit B failed", "unit D failed to run", "unit E failed to run"} {
-		assert.Contains(t, errors.Error(), want, "Expected error message '%s' in errors", want)
+	err := dagRunner.Run(t.Context(), logger.CreateLogger())
+	require.Error(t, err)
+	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
+		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }
 
