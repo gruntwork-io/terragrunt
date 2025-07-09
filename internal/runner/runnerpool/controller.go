@@ -53,7 +53,7 @@ func NewController(q *queue.Queue, units []*common.Unit, opts ...ControllerOptio
 		q:       q,
 		readyCh: make(chan struct{}, 1), // buffered to avoid blocking
 	}
-	// Build unitsMap from units slice
+	// Map to link runner Units and Queue Entries
 	unitsMap := make(map[string]*common.Unit)
 
 	for _, u := range units {

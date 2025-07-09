@@ -329,11 +329,11 @@ func (q *Queue) FailEntry(e *Entry) {
 		return
 	}
 
-	q.earlyExitDependentEntries(e)
+	q.earlyExitEntries(e)
 }
 
-// earlyExitDependentEntries - Recursively mark all dependents of the given entry as early exit.
-func (q *Queue) earlyExitDependentEntries(e *Entry) {
+// earlyExitEntries - Recursively mark all dependents of the given entry as early exit.
+func (q *Queue) earlyExitEntries(e *Entry) {
 	for _, entry := range q.Entries {
 		if entry.Config.Dependencies == nil {
 			continue
@@ -347,7 +347,7 @@ func (q *Queue) earlyExitDependentEntries(e *Entry) {
 
 				entry.Status = StatusEarlyExit
 
-				q.earlyExitDependentEntries(entry)
+				q.earlyExitEntries(entry)
 
 				break
 			}
