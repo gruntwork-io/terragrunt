@@ -182,8 +182,8 @@ func (r *Runner) handlePlan() {
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
 func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The runner-pool runner at %s will be processed in the following order for command %s:\n", r.Stack.TerragruntOptions.WorkingDir, terraformCommand)
-	for _, unit := range r.Stack.Units {
-		outStr += fmt.Sprintf("Unit %s\n", unit.Path)
+	for _, unit := range r.queue.Entries {
+		outStr += fmt.Sprintf("Unit %s\n", unit.Config.Path)
 	}
 
 	l.Info(outStr)
@@ -193,9 +193,9 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
 func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
-	orderedUnits := make([]string, 0, len(r.Stack.Units))
-	for _, unit := range r.Stack.Units {
-		orderedUnits = append(orderedUnits, unit.Path)
+	orderedUnits := make([]string, 0, len(r.queue.Entries))
+	for _, unit := range r.queue.Entries {
+		orderedUnits = append(orderedUnits, unit.Config.Path)
 	}
 
 	j, err := json.MarshalIndent(orderedUnits, "", "  ")
@@ -210,10 +210,10 @@ func (r *Runner) JSONUnitDeployOrder(terraformCommand string) (string, error) {
 func (r *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
-	for _, unit := range r.Stack.Units {
-		if len(unit.Dependencies) != 0 {
-			for _, dep := range unit.Dependencies {
-				dependentUnits[dep.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Path))
+	for _, unit := range r.queue.Entries {
+		if len(unit.Config.Dependencies) != 0 {
+			for _, dep := range unit.Config.Dependencies {
+				dependentUnits[unit.Config.Path] = util.RemoveDuplicatesFromList(append(dependentUnits[dep.Path], unit.Config.Path))
 			}
 		}
 	}
