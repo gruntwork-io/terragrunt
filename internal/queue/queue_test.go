@@ -226,3 +226,409 @@ func findIndex(entries queue.Entries, path string) int {
 	}
 	return -1
 }
+
+func TestQueue_LinearDependencyExecution(t *testing.T) {
+	t.Parallel()
+	// A -> B -> C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	// Initially, not all are terminal
+	assert.False(t, q.Finished(), "Finished should be false at start")
+
+	// Check that all entries are ready initially and in order A, B, C
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Config.Path)
+	assert.Equal(t, "A", readyEntries[0].Config.Path, "First ready entry should be A")
+
+	// Mark A as running and complete it
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	assert.False(t, q.Finished(), "Finished should be false after A is done")
+
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After A is done, only B should be ready")
+	assert.Equal(t, "B", readyEntries[0].Config.Path, "Second ready entry should be B")
+
+	// Mark B as running and complete it
+	entryB := readyEntries[0]
+	entryB.Status = queue.StatusSucceeded
+
+	assert.False(t, q.Finished(), "Finished should be false after B is done")
+
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "After B is done, only C should be ready")
+	assert.Equal(t, "C", readyEntries[0].Config.Path, "Third ready entry should be C")
+
+	// Mark C as running and complete it
+	entryC := readyEntries[0]
+	entryC.Status = queue.StatusSucceeded
+
+	// Now all should be terminal
+	assert.True(t, q.Finished(), "Finished should be true after all succeeded")
+
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "After C is done, no entries should be ready")
+}
+
+func TestQueue_ParallelExecution(t *testing.T) {
+	t.Parallel()
+	//   A
+	//  / \
+	// B   C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	// 1. Initially, only A should be ready
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Config.Path)
+	assert.Equal(t, "A", readyEntries[0].Config.Path, "First ready entry should be A")
+
+	// Mark A as running and complete it
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	// 2. After A is done, both B and C should be ready (order doesn't matter)
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 2, "After A is done, B and C should be ready")
+	paths := []string{readyEntries[0].Config.Path, readyEntries[1].Config.Path}
+	assert.Contains(t, paths, "B")
+	assert.Contains(t, paths, "C")
+	for _, entry := range readyEntries {
+		assert.Equal(t, queue.StatusReady, entry.Status, "Entry %s should have StatusReady", entry.Config.Path)
+	}
+
+	// Mark B as running and complete it
+	var entryB, entryC *queue.Entry
+	for _, entry := range readyEntries {
+		if entry.Config.Path == "B" {
+			entryB = entry
+		}
+		if entry.Config.Path == "C" {
+			entryC = entry
+		}
+	}
+	entryB.Status = queue.StatusSucceeded
+
+	// After B is done, C should still be ready (if not already marked)
+	readyEntries = q.GetReadyWithDependencies()
+	if entryC.Status != queue.StatusSucceeded {
+		assert.Len(t, readyEntries, 1, "After B is done, C should still be ready")
+		assert.Equal(t, "C", readyEntries[0].Config.Path)
+		entryC.Status = queue.StatusSucceeded
+	}
+
+	// After C is done, nothing should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "After B and C are done, no entries should be ready")
+}
+
+func TestQueue_FailFast(t *testing.T) {
+	t.Parallel()
+	//   A
+	//  / \
+	// B   C
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = true
+
+	assert.False(t, q.Finished(), "Finished should be false at start")
+
+	// Simulate A failing
+	var entryA *queue.Entry
+	for _, entry := range q.Entries {
+		if entry.Config.Path == "A" {
+			entryA = entry
+			break
+		}
+	}
+	require.NotNil(t, entryA, "Entry A should exist")
+	entryA.Status = queue.StatusRunning
+	q.FailEntry(entryA)
+
+	// B and C should be marked as early exit due to fail-fast
+	for _, entry := range q.Entries {
+		switch entry.Config.Path {
+		case "A":
+			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+		case "B", "C":
+			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Config.Path)
+		}
+	}
+
+	// All entries should be listed as terminal (A: Failed, B/C: EarlyExit)
+	for _, entry := range q.Entries {
+		assert.True(t, entry.Status == queue.StatusFailed || entry.Status == queue.StatusEarlyExit, "Entry %s should be terminal", entry.Config.Path)
+	}
+
+	// Now all should be terminal
+	assert.True(t, q.Finished(), "Finished should be true after fail-fast triggers")
+
+	// No entries should be ready after fail-fast
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "No entries should be ready after fail-fast triggers")
+}
+
+// buildMultiLevelDependencyTree returns the configs for the following dependency tree:
+//
+//	    A
+//	   / \
+//	  B   C
+//	 / \
+//	D   E
+func buildMultiLevelDependencyTree() []*discovery.DiscoveredConfig {
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgD := &discovery.DiscoveredConfig{Path: "D", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	cfgE := &discovery.DiscoveredConfig{Path: "E", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC, cfgD, cfgE}
+	return configs
+}
+
+func TestQueue_AdvancedDependencyOrder(t *testing.T) {
+	t.Parallel()
+	configs := buildMultiLevelDependencyTree()
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+
+	// 1. Initially, only A should be ready
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path)
+
+	// Mark A as succeeded
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	// 2. After A, B and C should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 2, "After A, B and C should be ready")
+	paths := []string{readyEntries[0].Config.Path, readyEntries[1].Config.Path}
+	assert.Contains(t, paths, "B")
+	assert.Contains(t, paths, "C")
+
+	// Mark B as succeeded
+	var entryB, entryC *queue.Entry
+	for _, entry := range readyEntries {
+		if entry.Config.Path == "B" {
+			entryB = entry
+		}
+		if entry.Config.Path == "C" {
+			entryC = entry
+		}
+	}
+	entryB.Status = queue.StatusSucceeded
+
+	// 3. After B is done, C should still be ready (if not already marked), and D and E should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	readyPaths := map[string]bool{}
+	for _, entry := range readyEntries {
+		readyPaths[entry.Config.Path] = true
+	}
+	// C may still be ready if not yet marked as succeeded
+	assert.Contains(t, readyPaths, "C")
+	assert.Contains(t, readyPaths, "D")
+	assert.Contains(t, readyPaths, "E")
+	assert.Len(t, readyEntries, 3, "After B is done, C, D, and E should be ready")
+
+	// Mark C as succeeded
+	entryC.Status = queue.StatusSucceeded
+
+	// Mark D and E as succeeded
+	var entryD, entryE *queue.Entry
+	for _, entry := range readyEntries {
+		if entry.Config.Path == "D" {
+			entryD = entry
+		}
+		if entry.Config.Path == "E" {
+			entryE = entry
+		}
+	}
+	entryD.Status = queue.StatusSucceeded
+	entryE.Status = queue.StatusSucceeded
+
+	// 4. After all are done, nothing should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "After all are done, no entries should be ready")
+}
+
+func TestQueue_AdvancedDependency_BFails(t *testing.T) {
+	t.Parallel()
+	configs := buildMultiLevelDependencyTree()
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = true
+
+	// 1. Initially, only A should be ready
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path)
+
+	// Mark A as succeeded
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	// 2. After A, B and C should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	var entryB, entryC *queue.Entry
+	for _, entry := range readyEntries {
+		if entry.Config.Path == "B" {
+			entryB = entry
+		}
+		if entry.Config.Path == "C" {
+			entryC = entry
+		}
+	}
+	assert.NotNil(t, entryB)
+	assert.NotNil(t, entryC)
+
+	// Mark B as failed
+	entryB.Status = queue.StatusRunning
+	q.FailEntry(entryB)
+
+	// Fail fast should mark all not-yet-started tasks as early exit
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("D").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("E").Status)
+	assert.Equal(t, queue.StatusEarlyExit, q.EntryByPath("C").Status)
+
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "All entries should be terminal")
+}
+
+func TestQueue_AdvancedDependency_BFails_NoFailFast(t *testing.T) {
+	t.Parallel()
+	configs := buildMultiLevelDependencyTree()
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = false
+
+	assert.False(t, q.Finished(), "Finished should be false at start")
+
+	// 1. Initially, only A should be ready
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path)
+
+	// Mark A as succeeded
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusSucceeded
+
+	assert.False(t, q.Finished(), "Finished should be false after A is done")
+
+	// 2. After A, B and C should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	var entryB, entryC *queue.Entry
+	for _, entry := range readyEntries {
+		if entry.Config.Path == "B" {
+			entryB = entry
+		}
+		if entry.Config.Path == "C" {
+			entryC = entry
+		}
+	}
+	assert.NotNil(t, entryB)
+	assert.NotNil(t, entryC)
+
+	// Mark B as failed
+	entryB.Status = queue.StatusRunning
+	q.FailEntry(entryB)
+
+	assert.False(t, q.Finished(), "Finished should be false after B fails if C is not done")
+
+	// D and E should be marked as failed due to dependency on B
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("B").Status)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("D").Status)
+	assert.Equal(t, queue.StatusFailed, q.EntryByPath("E").Status)
+
+	// C should still be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Only C should be ready after B fails")
+	assert.Equal(t, "C", readyEntries[0].Config.Path)
+
+	// Mark C as succeeded
+	entryC.Status = queue.StatusSucceeded
+
+	// After C is done, now all should be terminal
+	assert.True(t, q.Finished(), "Finished should be true after all entries are terminal")
+
+	// After C is done, nothing should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "After C is done, no entries should be ready")
+}
+
+func TestQueue_FailFast_SequentialOrder(t *testing.T) {
+	t.Parallel()
+	// A -> B -> C, where A fails and fail-fast is enabled
+	cfgA := &discovery.DiscoveredConfig{Path: "A"}
+	cfgB := &discovery.DiscoveredConfig{Path: "B", Dependencies: []*discovery.DiscoveredConfig{cfgA}}
+	cfgC := &discovery.DiscoveredConfig{Path: "C", Dependencies: []*discovery.DiscoveredConfig{cfgB}}
+	configs := []*discovery.DiscoveredConfig{cfgA, cfgB, cfgC}
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.FailFast = true
+
+	assert.False(t, q.Finished(), "Finished should be false at start")
+
+	// Only A should be ready
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
+	assert.Equal(t, "A", readyEntries[0].Config.Path)
+
+	// Mark A as running and then failed
+	entryA := readyEntries[0]
+	entryA.Status = queue.StatusRunning
+	q.FailEntry(entryA)
+
+	// After fail-fast, B and C should be early exit, A should be failed
+	for _, entry := range q.Entries {
+		switch entry.Config.Path {
+		case "A":
+			assert.Equal(t, queue.StatusFailed, entry.Status, "Entry %s should have StatusFailed", entry.Config.Path)
+		case "B", "C":
+			assert.Equal(t, queue.StatusEarlyExit, entry.Status, "Entry %s should have StatusEarlyExit", entry.Config.Path)
+		}
+	}
+
+	// Finished should be true
+	assert.True(t, q.Finished(), "Finished should be true after fail-fast triggers")
+
+	// No entries should be ready
+	readyEntries = q.GetReadyWithDependencies()
+	assert.Empty(t, readyEntries, "No entries should be ready after fail-fast triggers")
+}
+
+func TestQueue_IgnoreDependencyOrder_MultiLevel(t *testing.T) {
+	t.Parallel()
+	configs := buildMultiLevelDependencyTree()
+
+	q, err := queue.NewQueue(configs)
+	require.NoError(t, err)
+	q.IgnoreDependencyOrder = true
+
+	readyEntries := q.GetReadyWithDependencies()
+	assert.Len(t, readyEntries, 5, "Should be ready all entries")
+}

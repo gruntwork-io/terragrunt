@@ -73,6 +73,8 @@ const (
 	allPermissions       = 0777
 
 	caKeyBits = 4096
+
+	semverPartsLen = 3
 )
 
 type TerraformOutput struct {
@@ -208,37 +210,85 @@ func DeleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...o
 
 	t.Logf("Deleting test s3 bucket %s", bucketName)
 
-	out, err := client.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)})
-	if err != nil {
-		t.Logf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
-		return err
-	}
-
-	objectIdentifiers := []*s3.ObjectIdentifier{}
-	for _, version := range out.Versions {
-		objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
-			Key:       version.Key,
-			VersionId: version.VersionId,
-		})
-	}
-
-	if len(objectIdentifiers) > 0 {
-		deleteInput := &s3.DeleteObjectsInput{
-			Bucket: aws.String(bucketName),
-			Delete: &s3.Delete{Objects: objectIdentifiers},
-		}
-		if _, err := client.DeleteObjects(deleteInput); err != nil {
-			t.Logf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
-			return err
-		}
-	}
+	cleanS3Bucket(t, client, bucketName)
 
 	if _, err := client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
+
+		// If the bucket is not empty, try to clean it again before deleting it.
+		// This is a workaround for a race condition in eventual consistency.
+		// Sleep for a little bit first to give the bucket a chance to be ready.
+		time.Sleep(1 * time.Second)
+
+		cleanS3Bucket(t, client, bucketName)
+
+		if _, err = client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+			t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
+			return err
+		}
+
 		return err
 	}
 
 	return nil
+}
+
+func cleanS3Bucket(t *testing.T, client *s3.S3, bucketName string) {
+	t.Helper()
+
+	t.Logf("Cleaning S3 bucket %s", bucketName)
+
+	// Use pagination to handle large numbers of objects/versions
+	versionsInput := &s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)}
+
+	for {
+		out, err := client.ListObjectVersions(versionsInput)
+		require.NoError(t, err)
+
+		objectIdentifiers := []*s3.ObjectIdentifier{}
+
+		// Handle delete markers (created when versioned objects are deleted)
+		for _, deleteMarker := range out.DeleteMarkers {
+			objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
+				Key:       deleteMarker.Key,
+				VersionId: deleteMarker.VersionId,
+			})
+		}
+
+		// Handle object versions
+		for _, version := range out.Versions {
+			objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
+				Key:       version.Key,
+				VersionId: version.VersionId,
+			})
+		}
+
+		// Delete objects in batches (AWS limit is 1000 per request)
+		if len(objectIdentifiers) > 0 {
+			const maxBatchSize = 1000
+			for i := 0; i < len(objectIdentifiers); i += maxBatchSize {
+				end := min(i+maxBatchSize, len(objectIdentifiers))
+
+				batch := objectIdentifiers[i:end]
+				deleteInput := &s3.DeleteObjectsInput{
+					Bucket: aws.String(bucketName),
+					Delete: &s3.Delete{Objects: batch},
+				}
+
+				_, err := client.DeleteObjects(deleteInput)
+				require.NoError(t, err)
+			}
+		}
+
+		// Check if there are more objects to process (pagination)
+		if out.IsTruncated == nil || !*out.IsTruncated {
+			break
+		}
+
+		// Set up for next page
+		versionsInput.KeyMarker = out.NextKeyMarker
+		versionsInput.VersionIdMarker = out.NextVersionIdMarker
+	}
 }
 
 func FileIsInFolder(t *testing.T, name string, path string) bool {
@@ -296,7 +346,7 @@ func RunValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Module (.+) \(excluded: (true|false)`)
+	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
 	require.NoError(t, err)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
@@ -669,7 +719,9 @@ func IsTerraform() bool {
 }
 
 // IsTerraform110OrHigher checks if the installed Terraform binary is version 1.10.0 or higher.
-func IsTerraform110OrHigher() bool {
+func IsTerraform110OrHigher(t *testing.T) bool {
+	t.Helper()
+
 	const (
 		requiredMajor = 1
 		requiredMinor = 10
@@ -680,16 +732,71 @@ func IsTerraform110OrHigher() bool {
 	}
 
 	output, err := exec.Command(WrappedBinary(), "-version").Output()
-	if err != nil {
-		return false
-	}
+	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+	require.Len(t, matches, semverPartsLen, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
 
-	major, _ := strconv.Atoi(matches[1])
-	minor, _ := strconv.Atoi(matches[2])
+	major, err := strconv.Atoi(matches[1])
+	require.NoError(t, err)
+
+	minor, err := strconv.Atoi(matches[2])
+	require.NoError(t, err)
 
 	return major > requiredMajor || (major == requiredMajor && minor >= requiredMinor)
+}
+
+// IsOpenTofuInstalled checks if OpenTofu is installed.
+func IsOpenTofuInstalled() bool {
+	return util.IsCommandExecutable(TofuBinary, "-version")
+}
+
+// IsTerraformInstalled checks if Terraform is installed.
+func IsTerraformInstalled() bool {
+	return util.IsCommandExecutable(TerraformBinary, "-version")
+}
+
+// IsNativeS3LockingSupported checks if the installed Terraform binary supports native S3 locking.
+// This is the case when using Terraform 1.11 or higher, or using OpenTofu 1.10 or higher.
+func IsNativeS3LockingSupported(t *testing.T) bool {
+	t.Helper()
+
+	const (
+		terraformRequiredMajor = 1
+		terraformRequiredMinor = 11
+		tofuRequiredMajor      = 1
+		tofuRequiredMinor      = 10
+	)
+
+	if IsTerraform() {
+		output, err := exec.Command(TerraformBinary, "-version").Output()
+		require.NoError(t, err)
+
+		matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+		require.Len(t, matches, semverPartsLen, "Expected Terraform version to be in the format 'Terraform v1.10.0'")
+
+		major, err := strconv.Atoi(matches[1])
+		require.NoError(t, err)
+
+		minor, err := strconv.Atoi(matches[2])
+		require.NoError(t, err)
+
+		return major > terraformRequiredMajor || (major == terraformRequiredMajor && minor >= terraformRequiredMinor)
+	}
+
+	output, err := exec.Command(TofuBinary, "-version").Output()
+	require.NoError(t, err)
+
+	matches := regexp.MustCompile(`OpenTofu v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
+	require.Len(t, matches, semverPartsLen, "Expected OpenTofu version to be in the format 'OpenTofu v1.10.0'")
+
+	major, err := strconv.Atoi(matches[1])
+	require.NoError(t, err)
+
+	minor, err := strconv.Atoi(matches[2])
+	require.NoError(t, err)
+
+	return major > tofuRequiredMajor || (major == tofuRequiredMajor && minor >= tofuRequiredMinor)
 }
 
 func FindFilesWithExtension(dir string, ext string) ([]string, error) {

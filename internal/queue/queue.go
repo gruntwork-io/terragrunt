@@ -30,11 +30,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 )
 
+// Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
+// and tracks its execution status and relationships to other entries in the queue.
 type Entry struct {
+	// Config is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
+	// including its path, dependencies, and discovery context (such as the command being run).
 	Config *discovery.DiscoveredConfig
+
+	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
+	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
 	Status Status
 }
 
+// Status represents the lifecycle state of a task in the queue.
 type Status byte
 
 const (
@@ -42,6 +50,10 @@ const (
 	StatusBlocked
 	StatusUnsorted
 	StatusReady
+	StatusRunning
+	StatusSucceeded
+	StatusFailed
+	StatusEarlyExit // Terminal status set on Entries in case of fail fast mode
 )
 
 // UpdateBlocked updates the status of the entry to blocked, if it is blocked.
@@ -127,7 +139,11 @@ func (e *Entry) IsUp() bool {
 }
 
 type Queue struct {
-	Entries Entries
+	Entries  Entries
+	FailFast bool
+	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
+	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
+	IgnoreDependencyOrder bool
 }
 
 type Entries []*Entry
@@ -151,6 +167,17 @@ func (q *Queue) Configs() discovery.DiscoveredConfigs {
 	}
 
 	return result
+}
+
+// EntryByPath returns the entry with the given config path, or nil if not found.
+func (q *Queue) EntryByPath(path string) *Entry {
+	for _, entry := range q.Entries {
+		if entry.Config.Path == path {
+			return entry
+		}
+	}
+
+	return nil
 }
 
 // NewQueue creates a new queue from a list of discovered configurations.
@@ -181,10 +208,11 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	entries := make(Entries, 0, len(discovered))
 
 	for _, cfg := range discovered {
-		entries = append(entries, &Entry{
+		entry := &Entry{
 			Config: cfg,
 			Status: StatusPending,
-		})
+		}
+		entries = append(entries, entry)
 	}
 
 	q := &Queue{
@@ -246,4 +274,116 @@ func NewQueue(discovered discovery.DiscoveredConfigs) (*Queue, error) {
 	}
 
 	return q, errors.New("cycle detected during queue construction")
+}
+
+// GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
+func (q *Queue) GetReadyWithDependencies() []*Entry {
+	out := make([]*Entry, 0, len(q.Entries))
+
+	if q.IgnoreDependencyOrder {
+		for _, e := range q.Entries {
+			if e.Status == StatusReady {
+				out = append(out, e)
+			}
+		}
+
+		return out
+	}
+
+	for _, e := range q.Entries {
+		if e.Status == StatusReady {
+			allDepsReady := true
+
+			for _, dep := range e.Config.Dependencies {
+				depEntry := q.EntryByPath(dep.Path)
+				if depEntry == nil || depEntry.Status != StatusSucceeded {
+					allDepsReady = false
+					break
+				}
+			}
+
+			if allDepsReady {
+				out = append(out, e)
+			}
+		}
+	}
+
+	return out
+}
+
+// FailEntry marks the given entry as failed, handles fail-fast logic if enabled, and updates the statuses of dependents accordingly.
+// This method should be used only for failure transitions. For other status changes, set the Status field directly.
+func (q *Queue) FailEntry(e *Entry) {
+	e.Status = StatusFailed
+
+	// If this entry failed and has dependents, we need to propagate the failure.
+	if q.FailFast {
+		for _, n := range q.Entries {
+			if isTerminalOrRunning(n.Status) {
+				continue
+			}
+
+			n.Status = StatusEarlyExit
+		}
+
+		return
+	}
+
+	// Dynamically find dependents: any entry whose dependencies include e.Config
+	for _, entry := range q.Entries {
+		if entry.Config.Dependencies == nil {
+			continue
+		}
+
+		for _, dep := range entry.Config.Dependencies {
+			if dep.Path == e.Config.Path {
+				if isTerminalOrRunning(entry.Status) {
+					continue
+				}
+
+				entry.Status = StatusFailed
+
+				break
+			}
+		}
+	}
+}
+
+// Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
+func (q *Queue) Finished() bool {
+	for _, e := range q.Entries {
+		if !isTerminal(e.Status) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// RemainingDeps Helper to calculate remaining dependencies for an entry.
+func (q *Queue) RemainingDeps(e *Entry) int {
+	if e.Config == nil || e.Config.Dependencies == nil {
+		return 0
+	}
+
+	count := 0
+
+	for _, dep := range e.Config.Dependencies {
+		depEntry := q.EntryByPath(dep.Path)
+		if depEntry == nil || depEntry.Status != StatusSucceeded {
+			count++
+		}
+	}
+
+	return count
+}
+
+// isTerminal returns true if the status is terminal.
+func isTerminal(status Status) bool {
+	return status == StatusSucceeded || status == StatusFailed || status == StatusEarlyExit
+}
+
+// isTerminalOrRunning returns true if the status is terminal.
+func isTerminalOrRunning(status Status) bool {
+	return status == StatusSucceeded || status == StatusFailed || status == StatusRunning || status == StatusEarlyExit
 }

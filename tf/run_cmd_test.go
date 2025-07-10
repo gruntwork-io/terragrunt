@@ -42,7 +42,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	logFormatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
-		terragruntOptions.TerraformPath = terraformPath
+		terragruntOptions.TFPath = terraformPath
 
 	}, func(l log.Logger) log.Logger {
 		l.SetOptions(log.WithFormatter(logFormatter))
@@ -67,7 +67,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	terragruntOptions.ErrWriter = &allOutputBuffer
 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "same")
-	terragruntOptions.TerraformPath = "testdata/test_outputs.sh"
+	terragruntOptions.TFPath = "testdata/test_outputs.sh"
 
 	withOptions(terragruntOptions)
 
