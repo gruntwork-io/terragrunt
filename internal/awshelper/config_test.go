@@ -3,7 +3,6 @@
 package awshelper_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -23,7 +22,7 @@ func TestAwsSessionValidationFail(t *testing.T) {
 
 	// With AWS SDK v2, CreateAwsConfig now validates credentials internally
 	// so it should fail when invalid credentials are provided
-	_, err := awshelper.CreateAwsConfig(context.Background(), l, &awshelper.AwsSessionConfig{
+	_, err := awshelper.CreateAwsConfig(t.Context(), l, &awshelper.AwsSessionConfig{
 		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
 	}, options.NewTerragruntOptions())

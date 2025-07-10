@@ -1799,3 +1799,8 @@ func (client *Client) CreateTableItemIfNecessary(ctx context.Context, l log.Logg
 		return nil
 	})
 }
+
+// GetDynamoDBClient returns the DynamoDB client for testing purposes.
+func (client *Client) GetDynamoDBClient() *dynamodb.Client {
+	return client.dynamoClient
+}

@@ -3,7 +3,6 @@
 package s3_test
 
 import (
-	"context"
 	"reflect"
 	"strconv"
 	"sync"
@@ -40,7 +39,7 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 
 	l := logger.CreateLogger()
 
-	client, err := s3backend.NewClient(l, extS3Cfg, mockOptions)
+	client, err := s3backend.NewClient(t.Context(), l, extS3Cfg, mockOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return client
@@ -139,7 +138,10 @@ func TestAwsTableTagging(t *testing.T) {
 func assertTags(t *testing.T, expectedTags map[string]string, tableName string, client *s3backend.Client) {
 	t.Helper()
 
-	var description, err = client.DescribeTable(context.Background(), &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	// Access the dynamodb client directly from the S3 client
+	dynamoClient := client.GetDynamoDBClient()
+
+	var description, err = dynamoClient.DescribeTable(t.Context(), &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 
 	if err != nil {
 		require.NoError(t, err, "Unexpected error: %v", err)
@@ -164,8 +166,11 @@ func listTagsOfResourceWithRetry(t *testing.T, client *s3backend.Client, resourc
 		retries = 5
 	)
 
+	// Access the dynamodb client directly from the S3 client
+	dynamoClient := client.GetDynamoDBClient()
+
 	for range retries {
-		var tags, err = client.ListTagsOfResource(context.Background(), &dynamodb.ListTagsOfResourceInput{ResourceArn: resourceArn})
+		var tags, err = dynamoClient.ListTagsOfResource(t.Context(), &dynamodb.ListTagsOfResourceInput{ResourceArn: resourceArn})
 		if err != nil {
 			require.NoError(t, err, "Unexpected error: %v", err)
 		}
@@ -199,7 +204,10 @@ func AssertCanWriteToTable(t *testing.T, tableName string, client *s3backend.Cli
 
 	item := CreateKeyFromItemID(util.UniqueID())
 
-	_, err := client.PutItem(context.Background(), &dynamodb.PutItemInput{
+	// Access the dynamodb client directly from the S3 client
+	dynamoClient := client.GetDynamoDBClient()
+
+	_, err := dynamoClient.PutItem(t.Context(), &dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
 		Item:      item,
 	})
