@@ -14,11 +14,14 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
 
@@ -632,9 +635,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
-			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
-			}
+			assert.Equal(t, s3types.ServerSideEncryptionAes256, rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
 		}
 	}
 
@@ -687,9 +688,7 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTarge
 	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
-			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
-			}
+			assert.Equal(t, s3types.ServerSideEncryptionAes256, rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
 		}
 	}
 
@@ -1402,7 +1401,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 
 	tmpEnvPath := t.TempDir()
 	for i := 0; i < 20; i++ {
-		err := util.CopyFolderContents(createLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
+		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
@@ -1446,10 +1445,10 @@ func TestAwsAssumeRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	session, err := awshelper.CreateAwsSession(l, nil, opts)
+	cfg, err := awshelper.CreateAwsConfig(context.Background(), l, nil, opts)
 	require.NoError(t, err)
 
-	identityARN, err := awshelper.GetAWSIdentityArn(session)
+	identityARN, err := awshelper.GetAWSIdentityArn(context.Background(), cfg)
 	require.NoError(t, err)
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
@@ -1484,10 +1483,10 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	session, err := awshelper.CreateAwsSession(l, nil, opts)
+	cfg, err := awshelper.CreateAwsConfig(context.Background(), l, nil, opts)
 	require.NoError(t, err)
 
-	identityARN, err := awshelper.GetAWSIdentityArn(session)
+	identityARN, err := awshelper.GetAWSIdentityArn(context.Background(), cfg)
 	require.NoError(t, err)
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
@@ -1580,10 +1579,10 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	session, err := awshelper.CreateAwsSession(l, nil, &options.TerragruntOptions{})
+	cfg, err := awshelper.CreateAwsConfig(context.Background(), l, nil, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
-	identityArn, err := awshelper.GetAWSIdentityArn(session)
+	identityArn, err := awshelper.GetAWSIdentityArn(context.Background(), cfg)
 	require.NoError(t, err)
 
 	helpers.CleanupTerraformFolder(t, testFixtureReadIamRole)
@@ -1757,7 +1756,7 @@ func assertS3BucketVersioning(t *testing.T, bucketName string, versioning bool, 
 
 	if versioning {
 		require.NotNil(t, res.Status)
-		assert.Equal(t, s3.BucketVersioningStatusEnabled, *res.Status, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
+		assert.Equal(t, s3types.BucketVersioningStatusEnabled, res.Status, "Versioning is not enabled for the remote state S3 bucket %s", bucketName)
 	} else {
 		require.Nil(t, res.Status)
 	}
@@ -1776,7 +1775,7 @@ func validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t *testing.T, awsReg
 
 	if expectedSSEncrypted {
 		require.NotNil(t, description.Table.SSEDescription)
-		assert.Equal(t, dynamodb.SSEStatusEnabled, aws.StringValue(description.Table.SSEDescription.Status))
+		assert.Equal(t, types.SSEStatusEnabled, description.Table.SSEDescription.Status)
 	} else {
 		require.Nil(t, description.Table.SSEDescription)
 	}
@@ -1808,9 +1807,9 @@ func doesDynamoDBTableItemExist(t *testing.T, awsRegion string, tableName, key s
 
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(tableName),
-		Key: map[string]dynamodb.AttributeValue{
-			"LockID": {
-				S: aws.String(key),
+		Key: map[string]types.AttributeValue{
+			"LockID": &types.AttributeValueMemberS{
+				Value: key,
 			},
 		},
 	}
@@ -1880,10 +1879,10 @@ func assertS3PublicAccessBlocks(t *testing.T, client *s3.Client, bucketName stri
 	require.NoError(t, err)
 
 	publicAccessBlockConfig := resp.PublicAccessBlockConfiguration
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicAcls))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicPolicy))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.IgnorePublicAcls))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
+	assert.True(t, aws.ToBool(publicAccessBlockConfig.BlockPublicAcls))
+	assert.True(t, aws.ToBool(publicAccessBlockConfig.BlockPublicPolicy))
+	assert.True(t, aws.ToBool(publicAccessBlockConfig.IgnorePublicAcls))
+	assert.True(t, aws.ToBool(publicAccessBlockConfig.RestrictPublicBuckets))
 }
 
 func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
@@ -1968,20 +1967,20 @@ func createDynamoDBTableE(t *testing.T, awsRegion string, tableName string) erro
 	client := helpers.CreateDynamoDBClientForTest(t, awsRegion, "", "")
 	ctx := context.Background()
 	_, err := client.CreateTable(ctx, &dynamodb.CreateTableInput{
-		AttributeDefinitions: []dynamodb.AttributeDefinition{
+		AttributeDefinitions: []types.AttributeDefinition{
 			{
 				AttributeName: aws.String("LockID"),
-				AttributeType: aws.String("S"),
+				AttributeType: types.ScalarAttributeTypeS,
 			},
 		},
-		KeySchema: []dynamodb.KeySchemaElement{
+		KeySchema: []types.KeySchemaElement{
 			{
 				AttributeName: aws.String("LockID"),
-				KeyType:       aws.String("HASH"),
+				KeyType:       types.KeyTypeHash,
 			},
 		},
 		TableName: aws.String(tableName),
-		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+		ProvisionedThroughput: &types.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(1),
 			WriteCapacityUnits: aws.Int64(1),
 		},
@@ -1989,8 +1988,11 @@ func createDynamoDBTableE(t *testing.T, awsRegion string, tableName string) erro
 	if err != nil {
 		return err
 	}
-	client.WaitUntilTableExists(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
-	return nil
+
+	// Wait for table to be created
+	waiter := dynamodb.NewTableExistsWaiter(client)
+	err = waiter.Wait(ctx, &dynamodb.DescribeTableInput{TableName: aws.String(tableName)}, 5*time.Minute)
+	return err
 }
 
 // createDynamoDBTable creates a test DynamoDB table.
